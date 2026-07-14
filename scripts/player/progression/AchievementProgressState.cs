@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class AchievementProgressState : RefCounted
+public class AchievementProgressState
 {
     public StringName achievement_id = "";
     public int current_value;
@@ -33,7 +33,7 @@ public partial class AchievementProgressState : RefCounted
         if (
             !_has_exact_fields(
                 data,
-                new Godot.Collections.Array<string>
+                new[]
                 {
                     "achievement_id",
                     "current_value",
@@ -69,7 +69,7 @@ public partial class AchievementProgressState : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary data,
-        Godot.Collections.Array<string> expected
+        IReadOnlyCollection<string> expected
     )
     {
         if (data.Count != expected.Count)

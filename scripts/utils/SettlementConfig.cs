@@ -34,6 +34,16 @@ public partial class SettlementConfig : Resource
     [Export]
     public int max_optional_facilities { get; set; } = 0;
 
+    internal Godot.Collections.Array<Resource> FacilitySlotsProjectionBorrowed =>
+        facility_slots;
+    internal Godot.Collections.Array<string> GuaranteedFacilityIdsProjectionBorrowed =>
+        guaranteed_facility_ids;
+    internal Godot.Collections.Array<Resource> OptionalFacilityPoolProjectionBorrowed =>
+        optional_facility_pool;
+
+    internal SettlementDefinition ToDefinition(string path) =>
+        SettlementDefinition.FromResource(this, path);
+
     public string GetTemplateId()
     {
         return (settlement_id ?? string.Empty).Trim();

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_enemy_ai_transition_schema_regression : SceneTree
+public partial class run_enemy_ai_transition_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         TestRejectsEmptyConditionsAndUnknownPredicates();
         TestConditionTraceShapeIsTypedAndStable();
 
-        Quit(_test.Finish("Enemy AI transition schema regression"));
+        RequestTestExit(_test.Finish("Enemy AI transition schema regression"));
     }
 
     private void TestAcceptsDeclaredTransitionRulesForCustomStateNames()
@@ -37,48 +37,70 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             "hold",
             Condition("always")
         );
-        brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
-        {
-            lowHpRule,
-            closeRangeRule,
-            holdRule,
-        };
+        brain.transition_rules.Add(lowHpRule);
+        brain.transition_rules.Add(closeRangeRule);
+        brain.transition_rules.Add(holdRule);
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.AcceptsDeclared.brain"
+        );
 
-        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
+            brain.ValidateSchema(),
+            "EnemyAiTransitionSchema.AcceptsDeclared.errors"
+        );
         _test.True(errors.Count == 0, $"custom state transition schema 应合法: {FormatErrors(errors)}");
     }
 
     private void TestRejectsAmbiguousRuleOrderAndIds()
     {
         EnemyAiBrainDef brain = BuildBrain();
-        brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
-        {
-            Rule("duplicate", 10, "recover", Condition("always")),
-            Rule("duplicate", 10, "hold", Condition("always")),
-        };
+        brain.transition_rules.Add(
+            Rule("duplicate", 10, "recover", Condition("always"))
+        );
+        brain.transition_rules.Add(
+            Rule("duplicate", 10, "hold", Condition("always"))
+        );
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.RejectsAmbiguous.brain"
+        );
 
-        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
+            brain.ValidateSchema(),
+            "EnemyAiTransitionSchema.RejectsAmbiguous.errors"
+        );
         _test.True(errors.Count >= 2, $"应拒绝重复 rule_id/order: {FormatErrors(errors)}");
     }
 
     private void TestRejectsEmptyConditionsAndUnknownPredicates()
     {
         EnemyAiBrainDef brain = BuildBrain();
-        brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
-        {
-            Rule("empty_conditions", 10, "recover"),
-            Rule("unknown_condition", 20, "hold", Condition("scripted_expression")),
-            Rule("bad_target", 30, "missing_state", Condition("always")),
+        brain.transition_rules.Add(Rule("empty_conditions", 10, "recover"));
+        brain.transition_rules.Add(
+            Rule("unknown_condition", 20, "hold", Condition("scripted_expression"))
+        );
+        brain.transition_rules.Add(
+            Rule("bad_target", 30, "missing_state", Condition("always"))
+        );
+        brain.transition_rules.Add(
             Rule(
                 "bad_from",
                 40,
                 "hold",
                 new[] { new StringName("missing_from_state") },
                 Condition("always")
-            ),
-        };
+            )
+        );
+        TestResourceOwnership.Own(
+            brain,
+            "EnemyAiTransitionSchema.RejectsInvalidConditions.brain"
+        );
 
-        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        Godot.Collections.Array<string> errors = TestResourceOwnership.OwnWrapper(
+            brain.ValidateSchema(),
+            "EnemyAiTransitionSchema.RejectsInvalidConditions.errors"
+        );
         _test.True(errors.Count >= 4, $"应拒绝空 conditions、未知 predicate 和不存在的 state 引用: {FormatErrors(errors)}");
     }
 
@@ -89,7 +111,9 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             affordances: new[] { new StringName("ally_heal"), new StringName("self_or_ally_buff") }
         );
         BattleAiStateResolver.TransitionConditionTrace trace =
-            BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition);
+            BattleAiStateResolver.TransitionConditionTrace.FromCondition(
+                condition.ToDefinition()
+            );
 
         _test.Eq(trace.Predicate, new StringName("has_skill_affordance"), "trace 应输出 predicate。");
         _test.Eq(trace.BasisPoints, -1, "未使用的 basis_points 应固定为 -1。");
@@ -101,29 +125,29 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
 
     private static EnemyAiBrainDef BuildBrain()
     {
-        return new EnemyAiBrainDef
+        var brain = new EnemyAiBrainDef
         {
             brain_id = "custom_transition_brain",
             default_state_id = "hold",
-            states = new Godot.Collections.Array<EnemyAiStateDef>
-            {
-                State("hold"),
-                State("recover"),
-                State("close_range"),
-            },
         };
+        brain.states.Add(State("hold"));
+        brain.states.Add(State("recover"));
+        brain.states.Add(State("close_range"));
+        return brain;
     }
 
     private static EnemyAiStateDef State(StringName stateId)
     {
-        return new EnemyAiStateDef
-        {
-            state_id = stateId,
-            actions = new Godot.Collections.Array<EnemyAiAction>
-            {
-                new WaitAction { action_id = $"{stateId}_wait" },
-            },
-        };
+        WaitAction waitAction = TestResourceOwnership.Own(
+            new WaitAction { action_id = $"{stateId}_wait" },
+            $"EnemyAiTransitionSchema.State.{stateId}.wait_action"
+        );
+        var state = new EnemyAiStateDef { state_id = stateId };
+        state.actions.Add(waitAction);
+        return TestResourceOwnership.Own(
+            state,
+            $"EnemyAiTransitionSchema.State.{stateId}"
+        );
     }
 
     private static EnemyAiTransitionRuleDef Rule(
@@ -158,7 +182,10 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         {
             rule.conditions.Add(condition);
         }
-        return rule;
+        return TestResourceOwnership.Own(
+            rule,
+            $"EnemyAiTransitionSchema.Rule.{ruleId}"
+        );
     }
 
     private static EnemyAiTransitionConditionDef Condition(
@@ -183,7 +210,10 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         {
             condition.affordances.Add(affordance);
         }
-        return condition;
+        return TestResourceOwnership.Own(
+            condition,
+            $"EnemyAiTransitionSchema.Condition.{predicate}"
+        );
     }
 
     private static string FormatErrors(IEnumerable<string> errors) => string.Join("; ", errors);

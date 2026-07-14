@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_misfortune_black_omen_regression : SceneTree
+public partial class run_misfortune_black_omen_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private readonly TestHarness _test = new();
@@ -25,7 +25,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         TestDeadRoadLanternBlackOmenPathHookGrantsDoomMark();
         TestAlreadyMarkedMemberIsNotGrantedAgain();
 
-        Quit(_test.Finish("Misfortune black omen regression"));
+        RequestTestExit(_test.Finish("Misfortune black omen regression"));
     }
 
     private void TestCursedRelicEliteOrBossVictoryHookGrantsDoomMark()
@@ -50,18 +50,18 @@ public partial class run_misfortune_black_omen_regression : SceneTree
 
     private void TestMissingTypedCursedRelicItemDefDoesNotGrant()
     {
-        ItemDef cursedRelic = BuildItemDef(
+        ItemDefinition cursedRelic = BuildItemDef(
             "cursed_black_crown_shard",
             new[] { new StringName("cursed"), new StringName("relic") },
             new[] { new StringName("necklace") }
         );
-        Context context = BuildContext(new Dictionary<StringName, ItemDef>());
+        Context context = BuildContext(new Dictionary<StringName, ItemDefinition>());
         context.MemberState.equipment_state.SetEquippedEntry(
             "necklace",
-            cursedRelic.item_id,
+            cursedRelic.ItemId,
             BuildSlotArray("necklace"),
             EquipmentInstanceState.CreateInstance(
-                cursedRelic.item_id,
+                cursedRelic.ItemId,
                 "eq_black_omen_missing_typed_item_def"
             )
         );
@@ -229,48 +229,48 @@ public partial class run_misfortune_black_omen_regression : SceneTree
 
     private static Context BuildContextWithCursedRelic()
     {
-        ItemDef cursedRelic = BuildItemDef(
+        ItemDefinition cursedRelic = BuildItemDef(
             "cursed_black_crown_shard",
             new[] { new StringName("cursed"), new StringName("relic") },
             new[] { new StringName("necklace") }
         );
         Context context = BuildContext(
-            new Dictionary<StringName, ItemDef> { [cursedRelic.item_id] = cursedRelic }
+            new Dictionary<StringName, ItemDefinition> { [cursedRelic.ItemId] = cursedRelic }
         );
         context.MemberState.equipment_state.SetEquippedEntry(
             "necklace",
-            cursedRelic.item_id,
+            cursedRelic.ItemId,
             BuildSlotArray("necklace"),
-            EquipmentInstanceState.CreateInstance(cursedRelic.item_id, "eq_black_omen_cursed_relic")
+            EquipmentInstanceState.CreateInstance(cursedRelic.ItemId, "eq_black_omen_cursed_relic")
         );
         return context;
     }
 
     private static Context BuildContextWithDeadRoadLantern()
     {
-        ItemDef lantern = BuildItemDef(
+        ItemDefinition lantern = BuildItemDef(
             LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern),
             Array.Empty<StringName>(),
             new[] { new StringName("special_trinket") }
         );
         Context context = BuildContext(
-            new Dictionary<StringName, ItemDef> { [lantern.item_id] = lantern }
+            new Dictionary<StringName, ItemDefinition> { [lantern.ItemId] = lantern }
         );
         context.MemberState.equipment_state.SetEquippedEntry(
             "special_trinket",
-            lantern.item_id,
+            lantern.ItemId,
             BuildSlotArray("special_trinket"),
             EquipmentInstanceState.CreateInstance(
-                lantern.item_id,
+                lantern.ItemId,
                 "eq_dead_road_lantern_black_omen"
             )
         );
         return context;
     }
 
-    private static Context BuildContextWithoutRelic() => BuildContext(new Dictionary<StringName, ItemDef>());
+    private static Context BuildContextWithoutRelic() => BuildContext(new Dictionary<StringName, ItemDefinition>());
 
-    private static Context BuildContext(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    private static Context BuildContext(IReadOnlyDictionary<StringName, ItemDefinition> itemDefs)
     {
         PartyState partyState = new()
         {
@@ -294,7 +294,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
 
         MisfortuneBlackOmenService service = new();
         service.Setup(manager, itemDefs);
@@ -302,7 +302,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         return new Context(partyState, memberState, manager, service);
     }
 
-    private static ItemDef BuildItemDef(
+    private static ItemDefinition BuildItemDef(
         StringName itemId,
         IEnumerable<StringName> tags,
         IEnumerable<StringName> slotIds
@@ -321,7 +321,7 @@ public partial class run_misfortune_black_omen_regression : SceneTree
             itemDef.equipment_slot_ids.Add(slotId.ToString());
         foreach (StringName tag in tags)
             itemDef.tags.Add(tag);
-        return itemDef;
+        return itemDef.ToDefinition();
     }
 
     private static GStringNameArray BuildSlotArray(StringName slotId) =>
@@ -376,7 +376,6 @@ public partial class run_misfortune_black_omen_regression : SceneTree
         {
             Service.Dispose();
             Manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

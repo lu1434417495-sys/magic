@@ -5,6 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleBarrierInstanceState
 {
+    private static readonly StringName AnchorModeFixed = "fixed";
     private readonly List<BattleBarrierLayerState> _layers = new();
 
     public StringName BarrierInstanceId { get; set; } = "";
@@ -43,11 +44,11 @@ public sealed class BattleBarrierInstanceState
         instance.SourceSkillId = ProgressionDataUtils.to_string_name(
             ReadStringName(source, "source_skill_id")
         );
-        instance.AnchorMode = BarrierProfileDef.ToAnchorMode(
+        instance.AnchorMode = ToAnchorMode(
             ReadStringName(
                 source,
                 "anchor_mode",
-                BarrierProfileDef.ToStringName(BarrierAnchorMode.Fixed)
+                ToAnchorModeName(BarrierAnchorMode.Fixed)
             )
         );
         instance.AnchorCoord = ReadVector2I(source, "anchor_coord");
@@ -91,7 +92,7 @@ public sealed class BattleBarrierInstanceState
             ["display_name"] = DisplayName,
             ["source_unit_id"] = SourceUnitId.ToString(),
             ["source_skill_id"] = SourceSkillId.ToString(),
-            ["anchor_mode"] = BarrierProfileDef.ToStringName(AnchorMode).ToString(),
+            ["anchor_mode"] = ToAnchorModeName(AnchorMode).ToString(),
             ["anchor_coord"] = AnchorCoord,
             ["radius_cells"] = RadiusCells,
             ["area_pattern"] = AreaPattern.ToString(),
@@ -227,5 +228,17 @@ public sealed class BattleBarrierInstanceState
             }
         }
         return result;
+    }
+
+    private static BarrierAnchorMode ToAnchorMode(StringName value)
+    {
+        return value == AnchorModeFixed
+            ? BarrierAnchorMode.Fixed
+            : BarrierAnchorMode.Unknown;
+    }
+
+    private static StringName ToAnchorModeName(BarrierAnchorMode value)
+    {
+        return value == BarrierAnchorMode.Fixed ? AnchorModeFixed : "";
     }
 }

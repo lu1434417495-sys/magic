@@ -5,7 +5,7 @@ internal sealed class BattleAiStateResolver
 {
     private const int HpBasisPointsDenominator = 10000;
 
-    internal TransitionResult ResolveTyped(BattleAiContext context, EnemyAiBrainDef brain)
+    internal TransitionResult ResolveTyped(BattleAiContext context, EnemyAiBrainDefinition brain)
     {
         StringName previousStateId = GetPreviousStateId(context);
         StringName currentStateId = ResolveCurrentStateId(context, brain);
@@ -32,7 +32,7 @@ internal sealed class BattleAiStateResolver
             );
         }
 
-        foreach (EnemyAiTransitionRuleDef rule in rules)
+        foreach (EnemyAiTransitionRuleDefinition rule in rules)
         {
             if (rule == null)
             {
@@ -48,8 +48,8 @@ internal sealed class BattleAiStateResolver
             {
                 return Result(
                     previousStateId,
-                    ProgressionDataUtils.to_string_name(rule.target_state_id),
-                    ProgressionDataUtils.to_string_name(rule.rule_id),
+                    rule.TargetStateId,
+                    rule.RuleId,
                     "matched_rule",
                     matchedConditions
                 );
@@ -73,7 +73,10 @@ internal sealed class BattleAiStateResolver
             : ProgressionDataUtils.to_string_name(unitState.ai_state_id);
     }
 
-    private static StringName ResolveCurrentStateId(BattleAiContext context, EnemyAiBrainDef brain)
+    private static StringName ResolveCurrentStateId(
+        BattleAiContext context,
+        EnemyAiBrainDefinition brain
+    )
     {
         if (brain == null)
         {
@@ -84,7 +87,7 @@ internal sealed class BattleAiStateResolver
         {
             return currentStateId;
         }
-        StringName defaultStateId = brain.default_state_id;
+        StringName defaultStateId = brain.DefaultStateId;
         if (defaultStateId != (StringName)"" && brain.HasState(defaultStateId))
         {
             return defaultStateId;
@@ -92,15 +95,17 @@ internal sealed class BattleAiStateResolver
         return defaultStateId;
     }
 
-    private static List<EnemyAiTransitionRuleDef> GetSortedRules(EnemyAiBrainDef brain)
+    private static List<EnemyAiTransitionRuleDefinition> GetSortedRules(
+        EnemyAiBrainDefinition brain
+    )
     {
         if (brain == null)
         {
-            return new List<EnemyAiTransitionRuleDef>();
+            return new List<EnemyAiTransitionRuleDefinition>();
         }
 
-        var rules = new List<EnemyAiTransitionRuleDef>();
-        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
+        var rules = new List<EnemyAiTransitionRuleDefinition>();
+        foreach (EnemyAiTransitionRuleDefinition rule in brain.TransitionRules)
         {
             if (rule != null)
             {
@@ -110,29 +115,32 @@ internal sealed class BattleAiStateResolver
         rules.Sort(
             (left, right) =>
             {
-                int leftOrder = left.order;
-                int rightOrder = right.order;
+                int leftOrder = left.Order;
+                int rightOrder = right.Order;
                 if (leftOrder != rightOrder)
                 {
                     return leftOrder.CompareTo(rightOrder);
                 }
-                string leftId = left.rule_id.ToString();
-                string rightId = right.rule_id.ToString();
+                string leftId = left.RuleId.ToString();
+                string rightId = right.RuleId.ToString();
                 int idCompare = string.CompareOrdinal(leftId, rightId);
                 if (idCompare != 0)
                 {
                     return idCompare;
                 }
                 return string.CompareOrdinal(
-                    left.target_state_id.ToString(),
-                    right.target_state_id.ToString()
+                    left.TargetStateId.ToString(),
+                    right.TargetStateId.ToString()
                 );
             }
         );
         return rules;
     }
 
-    private static bool RuleAppliesToState(EnemyAiTransitionRuleDef rule, StringName stateId)
+    private static bool RuleAppliesToState(
+        EnemyAiTransitionRuleDefinition rule,
+        StringName stateId
+    )
     {
         if (rule == null)
         {
@@ -144,7 +152,7 @@ internal sealed class BattleAiStateResolver
     private static bool RuleMatches(
         BattleAiContext context,
         StringName currentStateId,
-        EnemyAiTransitionRuleDef rule,
+        EnemyAiTransitionRuleDefinition rule,
         List<TransitionConditionTrace> matchedConditions
     )
     {
@@ -153,7 +161,7 @@ internal sealed class BattleAiStateResolver
             return false;
         }
 
-        foreach (EnemyAiTransitionConditionDef condition in rule.GetTypedConditions())
+        foreach (EnemyAiTransitionConditionDefinition condition in rule.Conditions)
         {
             if (condition == null)
             {
@@ -171,7 +179,7 @@ internal sealed class BattleAiStateResolver
     private static bool ConditionMatches(
         BattleAiContext context,
         StringName currentStateId,
-        EnemyAiTransitionConditionDef condition
+        EnemyAiTransitionConditionDefinition condition
     )
     {
         EnemyAiTransitionPredicate predicateKind = condition.PredicateKind;
@@ -181,26 +189,31 @@ internal sealed class BattleAiStateResolver
         }
         if (predicateKind == EnemyAiTransitionPredicate.CurrentStateIs)
         {
-            return condition.state_ids.Contains(currentStateId);
+            foreach (StringName stateId in condition.StateIds)
+            {
+                if (stateId == currentStateId)
+                    return true;
+            }
+            return false;
         }
         if (predicateKind == EnemyAiTransitionPredicate.SelfHpAtOrBelowBasisPoints)
         {
             return IsUnitAtOrBelowHpBasisPoints(
                 GetUnitState(context),
-                condition.basis_points
+                condition.BasisPoints
             );
         }
         if (predicateKind == EnemyAiTransitionPredicate.AllyHpAtOrBelowBasisPoints)
         {
-            return HasAllyAtOrBelowHpBasisPoints(context, condition.basis_points);
+            return HasAllyAtOrBelowHpBasisPoints(context, condition.BasisPoints);
         }
         if (predicateKind == EnemyAiTransitionPredicate.NearestEnemyDistanceAtOrBelow)
         {
-            return NearestEnemyDistanceAtOrBelow(context, condition.max_distance);
+            return NearestEnemyDistanceAtOrBelow(context, condition.MaxDistance);
         }
         if (predicateKind == EnemyAiTransitionPredicate.HasSkillAffordance)
         {
-            return context != null && context.HasSkillAffordanceValues(condition.affordances);
+            return context != null && context.HasSkillAffordanceValues(condition.Affordances);
         }
         return false;
     }
@@ -264,7 +277,7 @@ internal sealed class BattleAiStateResolver
             return false;
         }
 
-        Godot.Collections.Array<StringName> candidateIds =
+        IEnumerable<StringName> candidateIds =
             unitState.faction_id == (StringName)"player"
                 ? state.enemy_unit_ids
                 : state.ally_unit_ids;
@@ -374,7 +387,9 @@ internal sealed class BattleAiStateResolver
         public IReadOnlyList<StringName> StateIds { get; }
         public IReadOnlyList<StringName> Affordances { get; }
 
-        public static TransitionConditionTrace FromCondition(EnemyAiTransitionConditionDef condition)
+        public static TransitionConditionTrace FromCondition(
+            EnemyAiTransitionConditionDefinition condition
+        )
         {
             if (condition == null)
             {
@@ -388,16 +403,16 @@ internal sealed class BattleAiStateResolver
             }
 
             return new TransitionConditionTrace(
-                condition.predicate,
-                condition.basis_points,
-                condition.max_distance,
-                CopyStringNames(condition.state_ids),
-                CopyStringNames(condition.affordances)
+                condition.Predicate,
+                condition.BasisPoints,
+                condition.MaxDistance,
+                CopyStringNames(condition.StateIds),
+                CopyStringNames(condition.Affordances)
             );
         }
 
         private static List<StringName> CopyStringNames(
-            Godot.Collections.Array<StringName> values
+            IReadOnlyList<StringName> values
         )
         {
             List<StringName> result = new();

@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_minotaur_hide"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"minotaur_hide"
+drop_type = &"item"
+item_id = &"beast_hide"
+quantity = 2
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"minotaur_charger"
+display_name = "弥诺陶冲角者"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+body_size = 3
+creature_level = 6
+hit_die_sides = 10
+action_threshold = 35
+tags = Array[StringName]([&"monstrosity", &"minotaur", &"beast", &"horn"])
+save_advantage_tags = Array[StringName]([&"illusion_advantage"])
+base_attribute_overrides = {
+&"strength": 18,
+&"agility": 12,
+&"constitution": 15,
+&"perception": 13,
+&"intelligence": 6,
+&"willpower": 10,
+}
+skill_ids = Array[StringName]([&"charge"])
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_minotaur_hide")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

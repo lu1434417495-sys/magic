@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_damage_preview_range_contract_regression : SceneTree
+public partial class run_battle_damage_preview_range_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
         TestTwoHandedWeaponDiceIgnoresAliasSkillDiceFields();
         TestDiceBonusWithoutDiceIsIgnored();
 
-        Quit(_test.Finish("Battle damage preview range contract regression"));
+        RequestTestExit(_test.Finish("Battle damage preview range contract regression"));
     }
 
     private void TestEmptyPreviewContract()
@@ -23,9 +23,11 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(
                 null,
-                Array.Empty<CombatEffectDef>()
+                Array.Empty<CombatEffectDefinition>()
             );
-        Godot.Collections.Dictionary payload = BattleDamagePreviewRangeProjection.Project(preview);
+        using GodotProjectionLease<Godot.Collections.Dictionary> lease =
+            BattleDamagePreviewRangeProjection.BuildLease(preview);
+        Godot.Collections.Dictionary payload = lease.Value;
 
         _test.False(preview.HasDamage, "无伤害效果时 HasDamage 应为 false。");
         _test.Eq(preview.MinDamage, 0, "无伤害效果时 MinDamage 应为 0。");
@@ -40,7 +42,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
 
     private void TestPowerOnlyDamagePreview()
     {
-        CombatEffectDef effect = BuildDamageEffect(12);
+        CombatEffectDefinition effect = BuildDamageEffect(12);
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(null, new[] { effect });
 
@@ -59,10 +61,13 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
     {
         BattleUnitState source = BuildUnit("preview_weapon_user");
         ApplyWeapon(source, 1, 6, 2);
-        CombatEffectDef effect = BuildDamageEffect(5, true, 2, 4, 3);
+        CombatEffectDefinition effect = BuildDamageEffect(5, true, 2, 4, 3);
 
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
-            BattleDamagePreviewRangeService.BuildSkillDamagePreview(source, new[] { effect });
+            BattleDamagePreviewRangeService.BuildSkillDamagePreview(
+                source,
+                new[] { effect }
+            );
         BattleDamagePreviewRangeService.DamageEffectRange damageRange =
             preview.DamageRanges[0];
 
@@ -88,13 +93,12 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
     {
         BattleUnitState source = BuildUnit("multi_preview_user");
         ApplyWeapon(source, 2, 6, 0);
-        CombatEffectDef weaponEffect = BuildDamageEffect(0, true);
-        var statusEffect = new CombatEffectDef
-        {
-            effect_type = "status",
-            power = 99,
-        };
-        CombatEffectDef skillEffect = BuildDamageEffect(10, false, 1, 8, 1);
+        CombatEffectDefinition weaponEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition statusEffect = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            power: 99
+        );
+        CombatEffectDefinition skillEffect = BuildDamageEffect(10, false, 1, 8, 1);
 
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(
@@ -139,10 +143,16 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
                 weapon_physical_damage_tag = "physical_slash",
             }
         );
-        CombatEffectDef effect = BuildDamageEffect(1, true);
-        effect.@params["damage_dice_count"] = 3;
-        effect.@params["damage_dice_sides"] = 3;
-        effect.@params["damage_dice_bonus"] = 2;
+        CombatEffectDefinition effect = BuildDamageEffect(
+            1,
+            true,
+            parameters: new Dictionary<string, object>
+            {
+                ["damage_dice_count"] = 3,
+                ["damage_dice_sides"] = 3,
+                ["damage_dice_bonus"] = 2,
+            }
+        );
 
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(source, new[] { effect });
@@ -159,8 +169,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
 
     private void TestDiceBonusWithoutDiceIsIgnored()
     {
-        CombatEffectDef effect = BuildDamageEffect(4);
-        effect.dice_bonus = 99;
+        CombatEffectDefinition effect = BuildDamageEffect(4, diceBonus: 99);
         BattleDamagePreviewRangeService.SkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(null, new[] { effect });
         BattleDamagePreviewRangeService.DamageEffectRange damageRange = preview.DamageRanges[0];
@@ -170,31 +179,24 @@ public partial class run_battle_damage_preview_range_contract_regression : Scene
         _test.Eq(damageRange.SkillDiceRange.DiceBonus, 0, "无有效技能骰时 damage_dice_bonus 应保持 0。");
     }
 
-    private static CombatEffectDef BuildDamageEffect(
+    private static CombatEffectDefinition BuildDamageEffect(
         int power,
         bool addWeaponDice = false,
         int diceCount = 0,
         int diceSides = 0,
-        int diceBonus = 0
+        int diceBonus = 0,
+        IReadOnlyDictionary<string, object> parameters = null
     )
     {
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            @params = new Godot.Collections.Dictionary(),
-        };
-        if (addWeaponDice)
-        {
-            effect.add_weapon_dice = true;
-        }
-        if (diceCount > 0 && diceSides > 0)
-        {
-            effect.dice_count = diceCount;
-            effect.dice_sides = diceSides;
-            effect.dice_bonus = diceBonus;
-        }
-        return effect;
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            addWeaponDice: addWeaponDice,
+            diceCount: diceCount,
+            diceSides: diceSides,
+            diceBonus: diceBonus,
+            parameters: parameters
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

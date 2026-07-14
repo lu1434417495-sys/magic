@@ -1,7 +1,7 @@
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_target_team_rules_regression : SceneTree
+public partial class run_battle_target_team_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_target_team_rules_regression : SceneTree
         TestEffectFilterEmptyInheritsSkillFilter();
         TestMadnessVariantOnlyRelaxesCanonicalTeamFilters();
 
-        Quit(_test.Finish("Battle target team rules regression"));
+        RequestTestExit(_test.Finish("Battle target team rules regression"));
     }
 
     private void TestCanonicalFiltersMatchRelativeToSource()
@@ -73,30 +73,32 @@ public partial class run_battle_target_team_rules_regression : SceneTree
 
     private void TestEffectFilterEmptyInheritsSkillFilter()
     {
-        var skillDef = new SkillDef
-        {
-            skill_id = "inherit_filter_skill",
-            combat_profile = new CombatSkillDef
-            {
-                skill_id = "inherit_filter_skill",
-                target_team_filter = "enemy",
-            },
-        };
-        var inheritedEffect = new CombatEffectDef { effect_target_team_filter = "" };
-        var allyEffect = new CombatEffectDef { effect_target_team_filter = "ally" };
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
+            "inherit_filter_skill",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "inherit_filter_skill",
+                targetTeamFilter: "enemy"
+            )
+        );
+        CombatEffectDefinition inheritedEffectDefinition =
+            TestSkillDefinitionProjection.BuildEffect("status", effectTargetTeamFilter: "");
+        CombatEffectDefinition allyEffectDefinition =
+            TestSkillDefinitionProjection.BuildEffect("status", effectTargetTeamFilter: "ally");
 
         _test.Eq(
-            BattleTargetTeamRules.ResolveEffectTargetFilter(skillDef, inheritedEffect).ToString(),
+            BattleTargetTeamRules
+                .ResolveEffectTargetFilter(skillDefinition, inheritedEffectDefinition)
+                .ToString(),
             "enemy",
             "空 effect_target_team_filter 应继承 skill filter。"
         );
         _test.Eq(
-            BattleTargetTeamRules.ResolveEffectTargetFilter(skillDef, allyEffect),
+            BattleTargetTeamRules.ResolveEffectTargetFilter(skillDefinition, allyEffectDefinition),
             (StringName)"ally",
             "非空 effect_target_team_filter 应覆盖 skill filter。"
         );
         _test.Eq(
-            BattleTargetTeamRules.ResolveEffectTargetFilter(null, inheritedEffect),
+            BattleTargetTeamRules.ResolveEffectTargetFilter(null, inheritedEffectDefinition),
             (StringName)"",
             "缺少 skill filter 时空 effect filter 不应隐藏回退成 any。"
         );

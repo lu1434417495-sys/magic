@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
-public partial class BattleEffectiveTraitInstanceState : RefCounted
+public class BattleEffectiveTraitInstanceState
 {
     private static readonly string[] RequiredFields =
     {
@@ -28,7 +29,7 @@ public partial class BattleEffectiveTraitInstanceState : RefCounted
     public StringName charge_reset_timing = "none";
     public int rank = 1;
     public int stacks = 1;
-    public Godot.Collections.Array<TraitRollValueState> roll_values = new();
+    public List<TraitRollValueState> roll_values = new();
 
     internal TraitEffectKind EffectKind => TraitContentRules.ToEffectKind(effect_type);
     internal TraitTriggerKind TriggerKind => TraitTriggerContentRules.ToTriggerKind(trigger_type);
@@ -79,7 +80,7 @@ public partial class BattleEffectiveTraitInstanceState : RefCounted
         if (!IsValidPayload(payload))
             return null;
 
-        Godot.Collections.Array<TraitRollValueState> parsedRollValues =
+        List<TraitRollValueState> parsedRollValues =
             TraitInstanceState.RollValuesFromDictionary(
                 payload["roll_values"].AsGodotDictionary()
             );

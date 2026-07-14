@@ -14,8 +14,7 @@ internal enum AttributeSnapshotIdKind
     SpellProficiencyBonus,
 }
 
-[GlobalClass]
-public partial class AttributeSnapshot : RefCounted
+public class AttributeSnapshot
 {
     internal readonly record struct BaseAttackProgressionPair(
         int Rank,

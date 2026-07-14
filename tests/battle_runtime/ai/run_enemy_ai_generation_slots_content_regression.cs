@@ -1,11 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_enemy_ai_generation_slots_content_regression : SceneTree
+public partial class run_enemy_ai_generation_slots_content_regression : LifecycleTestSceneTree
 {
     private static readonly string[] BrainPaths =
     {
@@ -26,21 +26,22 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
         TestFormalBrainsDeclareGenerationSlots();
         TestFormalBrainsDeclareTransitionRules();
 
-        Quit(_test.Finish("Enemy AI generation slots content regression"));
+        RequestTestExit(_test.Finish("Enemy AI generation slots content regression"));
     }
 
     private void TestEnemyContentRegistryAcceptsGenerationSlots()
     {
-        using var registry = new EnemyContentRegistry();
+        var registry = new EnemyContentRegistry(new TestContentResourceLoader());
         GStringArray errors = registry.Validate();
         _test.True(errors.Count == 0, $"EnemyContentRegistry 应接受正式 generation slots: {FormatErrors(errors)}");
     }
 
     private void TestFormalBrainsDeclareGenerationSlots()
     {
+        using var loader = new TestContentResourceLoader();
         foreach (string brainPath in BrainPaths)
         {
-            EnemyAiBrainDef brain = ResourceLoader.Load<EnemyAiBrainDef>(brainPath);
+            EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
             _test.True(brain != null, $"{brainPath} 应能加载。");
             if (brain == null)
             {
@@ -56,7 +57,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
 
                 GStringArray stateErrors = stateDef.ValidateSchema(
                     brain.brain_id,
-                    CollectDeclaredSkillDefs(stateDef)
+                    CollectDeclaredSkillDefinitions(stateDef)
                 );
                 _test.True(
                     stateErrors.Count == 0,
@@ -66,6 +67,20 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
                     stateDef.generation_slots != null && stateDef.generation_slots.Count > 0,
                     $"{brainPath} state {stateDef.state_id} 应声明 generation_slots。"
                 );
+                EnemyAiStateDefinition stateDefinition = stateDef.ToDefinition();
+                _test.Eq(
+                    stateDefinition.GenerationSlots.Count,
+                    stateDef.generation_slots?.Count ?? 0,
+                    $"{brainPath} state {stateDef.state_id} generation slots 应完整投影。"
+                );
+                foreach (EnemyAiActionDefinition action in stateDefinition.Actions)
+                {
+                    _test.True(
+                        action != null
+                            && !typeof(Resource).IsAssignableFrom(action.GetType()),
+                        $"{brainPath} state {stateDef.state_id} runtime action 应是 plain definition。"
+                    );
+                }
                 if (stateDef.generation_slots == null)
                 {
                     continue;
@@ -93,9 +108,10 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
 
     private void TestFormalBrainsDeclareTransitionRules()
     {
+        using var loader = new TestContentResourceLoader();
         foreach (string brainPath in BrainPaths)
         {
-            EnemyAiBrainDef brain = ResourceLoader.Load<EnemyAiBrainDef>(brainPath);
+            EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
             _test.True(brain != null, $"{brainPath} 应能加载。");
             if (brain == null)
             {
@@ -106,20 +122,28 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
                 brain.transition_rules != null && brain.transition_rules.Count > 0,
                 $"{brainPath} 应声明 transition_rules。"
             );
-            GStringArray brainErrors = brain.ValidateSchema(CollectDeclaredSkillDefsForBrain(brain));
+            GStringArray brainErrors = brain.ValidateSchema(CollectDeclaredSkillDefinitionsForBrain(brain));
             _test.True(
                 brainErrors.Count == 0,
                 $"{brainPath} transition/full schema 应合法: {FormatErrors(brainErrors)}"
             );
+            EnemyAiBrainDefinition definition = brain.ToDefinition();
+            _test.Eq(
+                definition.TransitionRules.Count,
+                brain.transition_rules.Count,
+                $"{brainPath} transition rules 应完整投影到 immutable brain definition。"
+            );
         }
     }
 
-    private static GDictionary CollectDeclaredSkillDefs(EnemyAiStateDef stateDef)
+    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitions(
+        EnemyAiStateDef stateDef
+    )
     {
-        var skillDefs = new GDictionary();
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
         if (stateDef == null)
         {
-            return skillDefs;
+            return skillDefinitions;
         }
         foreach (EnemyAiAction action in stateDef.GetTypedActions())
         {
@@ -129,27 +153,29 @@ public partial class run_enemy_ai_generation_slots_content_regression : SceneTre
             }
             foreach (StringName skillId in action.GetDeclaredSkillIds())
             {
-                skillDefs[skillId] = true;
+                skillDefinitions[skillId] = null;
             }
         }
-        return skillDefs;
+        return skillDefinitions;
     }
 
-    private static GDictionary CollectDeclaredSkillDefsForBrain(EnemyAiBrainDef brain)
+    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitionsForBrain(
+        EnemyAiBrainDef brain
+    )
     {
-        var skillDefs = new GDictionary();
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
         if (brain == null)
         {
-            return skillDefs;
+            return skillDefinitions;
         }
         foreach (EnemyAiStateDef stateDef in brain.GetResolvedStates())
         {
-            foreach (Variant key in CollectDeclaredSkillDefs(stateDef).Keys)
+            foreach (StringName key in CollectDeclaredSkillDefinitions(stateDef).Keys)
             {
-                skillDefs[key] = true;
+                skillDefinitions[key] = null;
             }
         }
-        return skillDefs;
+        return skillDefinitions;
     }
 
     private static string FormatErrors(IEnumerable errors)

@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleUiTheme : RefCounted
+public static class BattleUiTheme
 {
     private static readonly Color PanelBg = new(0.082f, 0.094f, 0.118f, 0.94f);
     private static readonly Color PanelBgAlt = new(0.102f, 0.114f, 0.141f, 0.92f);

@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 internal enum UnitReputationKind
 {
@@ -7,8 +8,7 @@ internal enum UnitReputationKind
     Morality,
 }
 
-[GlobalClass]
-public partial class UnitReputationState : RefCounted
+public class UnitReputationState
 {
     private static readonly StringName Morality = "morality";
 
@@ -51,7 +51,7 @@ public partial class UnitReputationState : RefCounted
 
     public static UnitReputationState FromDictionary(Godot.Collections.Dictionary data)
     {
-        if (!_hfs(data, new Godot.Collections.Array<string> { "morality", "custom_states" }))
+        if (!_hfs(data, new[] { "morality", "custom_states" }))
             return null;
         var csv = data["custom_states"];
         if (csv.VariantType != Variant.Type.Dictionary)
@@ -74,7 +74,7 @@ public partial class UnitReputationState : RefCounted
         };
     }
 
-    private static bool _hfs(Godot.Collections.Dictionary d, Godot.Collections.Array<string> f)
+    private static bool _hfs(Godot.Collections.Dictionary d, IReadOnlyCollection<string> f)
     {
         if (d.Count != f.Count)
             return false;

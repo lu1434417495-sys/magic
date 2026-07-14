@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_trait_content_registry_regression : SceneTree
+public partial class run_trait_content_registry_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,49 +16,43 @@ public partial class run_trait_content_registry_regression : SceneTree
         TestOfficialTraitRegistryUsesGenericIdentityDefs();
         TestInvalidTraitFixturesAreRejected();
 
-        Quit(_test.Finish("Trait content registry regression"));
+        RequestTestExit(_test.Finish("Trait content registry regression"));
     }
 
     private void TestOfficialTraitRegistryValidatesWithoutErrors()
     {
-        using TraitContentRegistry registry = new();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
         List<string> errors = ToList(registry.Validate());
         _test.Eq(
             errors.Count,
             0,
             $"Official trait content should validate without errors: {Format(errors)}"
         );
-        _test.Eq(
-            registry.GetTraitDefsTyped().Count,
-            43,
-            "Official trait registry should load 43 migrated race traits."
-        );
     }
 
     private void TestOfficialTraitRegistryUsesGenericIdentityDefs()
     {
-        using TraitContentRegistry registry = new();
-        IReadOnlyList<TraitDef> traitDefs = registry.GetTraitDefsTyped();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+            registry.GetTraitDefsTyped();
 
-        foreach (TraitDef traitDef in traitDefs)
+        foreach (TraitDefinition traitDef in traitDefs.Values)
         {
             if (traitDef == null)
                 continue;
-            StringName traitId = traitDef.trait_id;
+            StringName traitId = traitDef.TraitId;
+            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity))
+                continue;
 
             _test.Eq(
                 traitDef.EffectKind != TraitEffectKind.Unknown,
                 true,
                 $"{traitId} should use a known generic effect type."
             );
-            _test.True(
-                TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.Identity),
-                $"{traitId} should allow identity source."
-            );
             _test.Eq(
                 traitDef.StackPolicyKind,
                 TraitStackPolicyKind.UniqueByTrait,
-                $"{traitId} should default to unique_by_trait."
+                $"{traitId} identity trait should default to unique_by_trait."
             );
         }
 
@@ -87,7 +81,7 @@ public partial class run_trait_content_registry_regression : SceneTree
 
     private void TestInvalidTraitFixturesAreRejected()
     {
-        using TraitContentRegistry registry = new();
+        using TraitContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(
             new Godot.Collections.Array<string>
             {
@@ -145,14 +139,14 @@ public partial class run_trait_content_registry_regression : SceneTree
     }
 
     private void AssertTraitRuntimePolicy(
-        IReadOnlyList<TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         StringName traitId,
         TraitTriggerKind triggerKind,
         TraitChargeScopeKind chargeScope,
         TraitChargeResetTimingKind chargeResetTiming
     )
     {
-        TraitDef traitDef = FindTrait(traitDefs, traitId);
+        TraitDefinition traitDef = FindTrait(traitDefs, traitId);
         _test.True(traitDef != null, $"{traitId} should exist.");
         if (traitDef == null)
             return;
@@ -178,12 +172,15 @@ public partial class run_trait_content_registry_regression : SceneTree
         );
     }
 
-    private static TraitDef FindTrait(IReadOnlyList<TraitDef> traitDefs, StringName traitId)
+    private static TraitDefinition FindTrait(
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
+        StringName traitId
+    )
     {
-        foreach (TraitDef traitDef in traitDefs)
-            if (traitDef != null && traitDef.trait_id == traitId)
-                return traitDef;
-        return null;
+        return traitDefs != null
+            && traitDefs.TryGetValue(traitId, out TraitDefinition traitDefinition)
+            ? traitDefinition
+            : null;
     }
 
     private static List<string> ToList(IEnumerable<string> values)

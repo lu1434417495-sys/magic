@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_failure_policy_regression : SceneTree
+public partial class run_battle_ai_failure_policy_regression : LifecycleTestSceneTree
 {
     private const string AbortProcessSetting = "battle_ai/fail_loud_abort_process";
     private const string FailureModeSetting = "battle_ai/failure_policy_mode";
@@ -21,12 +21,12 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
             TestReportStoresTypedFailureEventSnapshots();
             TestPayloadGuardUsesTypedMetadataOnly();
             TestConfiguredModeControlsAbortDecisionWithoutReporting();
-            Quit(_test.Finish("Battle AI failure policy regression"));
+            RequestTestExit(_test.Finish("Battle AI failure policy regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Battle AI failure policy regression"));
+            RequestTestExit(_test.Finish("Battle AI failure policy regression", 1));
         }
         finally
         {
@@ -34,7 +34,6 @@ public partial class run_battle_ai_failure_policy_regression : SceneTree
             BattleAiFailurePolicy.Reset();
             ProjectSettings.SetSetting(AbortProcessSetting, previousAbortProcess);
             ProjectSettings.SetSetting(FailureModeSetting, previousFailureMode);
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 

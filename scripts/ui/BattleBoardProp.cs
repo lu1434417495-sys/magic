@@ -16,6 +16,7 @@ public partial class BattleBoardProp : Node2D
     private bool _needsInteractionShape;
     private Area2D _interactionArea;
     private CollisionShape2D _interactionShape;
+    private NativeLeaseScope _interactionShapeLease;
 
     public override void _Ready()
     {
@@ -23,6 +24,32 @@ public partial class BattleBoardProp : Node2D
         _interactionShape = GetNode<CollisionShape2D>("%InteractionShape");
         ApplyInteractionState();
         QueueRedraw();
+    }
+
+    public override void _ExitTree()
+    {
+        if (
+            _interactionArea != null
+            && GodotObject.IsInstanceValid(_interactionArea)
+        )
+        {
+            _interactionArea.Monitoring = false;
+            _interactionArea.Monitorable = false;
+        }
+        if (
+            _interactionShape != null
+            && GodotObject.IsInstanceValid(_interactionShape)
+        )
+        {
+            _interactionShape.Disabled = true;
+            _interactionShape.Shape = null;
+        }
+
+        NativeLeaseScope interactionShapeLease = _interactionShapeLease;
+        _interactionShapeLease = null;
+        interactionShapeLease?.Dispose();
+        _interactionShape = null;
+        _interactionArea = null;
     }
 
     public void Configure(StringName new_prop_id)
@@ -60,9 +87,41 @@ public partial class BattleBoardProp : Node2D
     {
         if (_interactionArea == null || _interactionShape == null)
             return;
+        EnsureInteractionShape();
         _interactionArea.Monitoring = _needsInteractionShape;
         _interactionArea.Monitorable = _needsInteractionShape;
         _interactionShape.Disabled = !_needsInteractionShape;
+    }
+
+    private void EnsureInteractionShape()
+    {
+        if (!_needsInteractionShape || _interactionShape.Shape != null)
+            return;
+
+        var interactionShapeLease = new NativeLeaseScope(
+            $"battle-board-prop:{GetInstanceId()}",
+            LifetimeDomain.SceneTree
+        );
+        var interactionShape = new CircleShape2D { Radius = 16.0f };
+        bool shapeOwned = false;
+        try
+        {
+            interactionShapeLease.Own(interactionShape, "interaction-shape");
+            shapeOwned = true;
+            _interactionShape.Shape = interactionShape;
+            _interactionShapeLease = interactionShapeLease;
+        }
+        catch
+        {
+            if (shapeOwned)
+                interactionShapeLease.Dispose();
+            else
+            {
+                interactionShape.Dispose();
+                interactionShapeLease.Dispose();
+            }
+            throw;
+        }
     }
 
     private void DrawSpikeBarricade()

@@ -1,9 +1,10 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_world_encounter_regression : SceneTree
+public partial class run_game_runtime_world_encounter_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,26 +16,23 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
     private void Run()
     {
         TestNearbyEncounterEntriesUseTypedContextData();
+        TestWorldStepSurvivesEncounterGrowthPayloadSync();
 
-        Quit(_test.Finish("Game runtime world encounter regression"));
+        RequestTestExit(_test.Finish("Game runtime world encounter regression"));
     }
 
     private void TestNearbyEncounterEntriesUseTypedContextData()
     {
         GameRuntimeFacade runtime = new();
         WorldMapGridSystem grid = new();
-        using EncounterAnchorData farAnchor = BuildEncounterAnchor("far_anchor", "Far Anchor", new Vector2I(3, 0));
-        using EncounterAnchorData nearAnchor = BuildEncounterAnchor("near_anchor", "Near Anchor", new Vector2I(1, 0));
-        using EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(0, 1), true);
+        EncounterAnchorData farAnchor = BuildEncounterAnchor("far_anchor", "Far Anchor", new Vector2I(3, 0));
+        EncounterAnchorData nearAnchor = BuildEncounterAnchor("near_anchor", "Near Anchor", new Vector2I(1, 0));
+        EncounterAnchorData clearedAnchor = BuildEncounterAnchor("cleared_anchor", "Cleared Anchor", new Vector2I(0, 1), true);
         try
         {
-            GDictionary rootWorldData = BuildRootWorldData();
-            rootWorldData["encounter_anchors"] = new GArray
-            {
-                farAnchor,
-                nearAnchor,
-                clearedAnchor,
-            };
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                BuildRootWorldDataLease(farAnchor, nearAnchor, clearedAnchor);
+            GDictionary rootWorldData = rootWorldDataLease.Value;
             runtime._world_map_data_context.BindRootWorldData(rootWorldData);
             runtime._world_map_data_context.SyncActiveWorldContext(
                 BuildConfig(),
@@ -64,23 +62,98 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
         }
     }
 
-    private static GDictionary BuildRootWorldData() =>
-        new()
+    private void TestWorldStepSurvivesEncounterGrowthPayloadSync()
+    {
+        GameRuntimeFacade runtime = new();
+        WorldMapGridSystem grid = new();
+        EncounterAnchorData settlementAnchor = BuildEncounterAnchor(
+            "settlement_anchor",
+            "Settlement Anchor",
+            new Vector2I(0, 0)
+        );
+        settlementAnchor.encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement);
+        settlementAnchor.encounter_profile_id = "wolf_den";
+        settlementAnchor.growth_stage = 0;
+        try
         {
-            ["world_step"] = 0,
-            ["settlements"] = new GArray(),
-            ["world_npcs"] = new GArray(),
-            ["encounter_anchors"] = new GArray(),
-            ["world_events"] = new GArray(),
-        };
+            using GodotProjectionLease<GDictionary> rootWorldDataLease =
+                BuildRootWorldDataLease(settlementAnchor);
+            GDictionary rootWorldData = rootWorldDataLease.Value;
+            runtime._world_map_data_context.BindRootWorldData(rootWorldData);
+            runtime._world_map_data_context.SyncActiveWorldContext(
+                BuildConfig(),
+                grid,
+                Vector2I.Zero,
+                Vector2I.Zero
+            );
+            using WildEncounterRosterDef growthRoster = BuildGrowthRoster();
+            InstallWildEncounterRoster(runtime, growthRoster.ToDefinition());
 
-    private static WorldMapGenerationConfig BuildConfig() =>
-        new()
+            runtime.AdvanceWorldTimeBySteps(1);
+
+            using GodotProjectionLease<GDictionary> activeWorldDataLease =
+                runtime._world_map_data_context.GetActiveWorldDataLease();
+            GDictionary activeWorldData = activeWorldDataLease.Value;
+            _test.Eq(runtime.GetWorldStep(), 1, "Encounter growth sync should keep advanced world_step.");
+            _test.Eq(
+                DictInt(activeWorldData, "world_step", -1),
+                1,
+                "Encounter growth sync should keep public world_data world_step."
+            );
+            GDictionary projectedAnchor = FindEncounterAnchorPayload(
+                activeWorldData["encounter_anchors"].AsGodotArray(),
+                "settlement_anchor"
+            );
+            _test.Eq(
+                DictInt(projectedAnchor, "growth_stage", -1),
+                1,
+                "Encounter growth sync should still project the grown settlement encounter stage."
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
+    private static GodotProjectionLease<GDictionary> BuildRootWorldDataLease(
+        params EncounterAnchorData[] encounterAnchors
+    )
+    {
+        var encounterAnchorPayloads = new List<object>();
+        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+        {
+            if (encounterAnchor != null)
+                encounterAnchorPayloads.Add(encounterAnchor.BuildSaveSnapshotPlain());
+        }
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["world_step"] = 0,
+                ["settlements"] = new List<object>(),
+                ["world_npcs"] = new List<object>(),
+                ["encounter_anchors"] = encounterAnchorPayloads,
+                ["world_events"] = new List<object>(),
+            },
+            "test.game_runtime_world_encounter.root_world_data",
+            LifetimeDomain.Request,
+            "test.game_runtime_world_encounter.root_world_data"
+        );
+    }
+
+    private static WorldGenerationDefinition BuildConfig()
+    {
+        WorldMapGenerationConfig source = new()
         {
             world_size_in_chunks = new Vector2I(1, 1),
             chunk_size = new Vector2I(4, 4),
             player_start_coord = Vector2I.Zero,
         };
+        return TestWorldGenerationDefinitionFactory.Project(
+            "res://tests/world_map/runtime/world_encounter_generation.tres",
+            source
+        );
+    }
 
     private static EncounterAnchorData BuildEncounterAnchor(
         string entityId,
@@ -103,4 +176,65 @@ public partial class run_game_runtime_world_encounter_regression : SceneTree
             growth_stage = isCleared ? 1 : 0,
             suppressed_until_step = 0,
         };
+
+    private static WildEncounterRosterDef BuildGrowthRoster() =>
+        new()
+        {
+            profile_id = "wolf_den",
+            display_name = "Wolf Den",
+            initial_stage = 0,
+            growth_step_interval = 1,
+            suppression_steps_on_victory = 1,
+            stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
+            {
+                new WildEncounterRosterStageDef { stage = 0 },
+                new WildEncounterRosterStageDef { stage = 1 },
+            },
+        };
+
+    private void InstallWildEncounterRoster(
+        GameRuntimeFacade runtime,
+        WildEncounterRosterDefinition roster
+    )
+    {
+        FieldInfo field = typeof(GameRuntimeFacade).GetField(
+            "_wild_encounter_roster_definitions",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        if (
+            field?.GetValue(runtime)
+            is not Dictionary<StringName, WildEncounterRosterDefinition> rosters
+        )
+        {
+            _test.Fail(
+                "GameRuntimeFacade typed wild-encounter roster definition store should be available."
+            );
+            return;
+        }
+        rosters[roster.ProfileId] = roster;
+    }
+
+    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    {
+        return dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Int
+            ? dictionary[key].AsInt32()
+            : fallback;
+    }
+
+    private static GDictionary FindEncounterAnchorPayload(GArray values, string entityId)
+    {
+        foreach (Variant value in values)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary payload = value.AsGodotDictionary();
+            if (
+                payload.ContainsKey("entity_id")
+                && payload["entity_id"].VariantType == Variant.Type.String
+                && payload["entity_id"].AsString() == entityId
+            )
+                return payload;
+        }
+        return new GDictionary();
+    }
 }

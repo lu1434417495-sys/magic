@@ -15,6 +15,7 @@ public sealed class BattleAiTurnTraceProjection
     internal AiCommandSummary Command { get; set; } = new();
     internal BattleAiTraceTransitionProjection Transition { get; set; } = new();
     internal BattleAiScoreInput ScoreInput { get; set; }
+    internal IReadOnlyDictionary<string, object> ScoreInputFacts { get; set; }
     internal IReadOnlyList<AiActionTrace> ActionTraces { get; set; } = Array.Empty<AiActionTrace>();
     internal IReadOnlyList<BattleAiTraceUnitSnapshotProjection> DecisionTargetSnapshots { get; set; } =
         Array.Empty<BattleAiTraceUnitSnapshotProjection>();
@@ -22,6 +23,14 @@ public sealed class BattleAiTurnTraceProjection
 
     internal BattleAiTurnTraceProjection Clone()
     {
+        IReadOnlyDictionary<string, object> scoreInputFacts =
+            ScoreInputFacts != null
+                ? RuntimePlainPayload.CloneDictionary(ScoreInputFacts)
+                : ScoreInput != null
+                    ? RuntimePlainPayload.CloneDictionary(
+                        BattleAiScoreProjection.BuildPlain(ScoreInput)
+                    )
+                    : null;
         return new BattleAiTurnTraceProjection
         {
             BattleId = BattleId,
@@ -35,8 +44,9 @@ public sealed class BattleAiTurnTraceProjection
             ReasonText = ReasonText,
             Command = Command?.Clone() ?? new AiCommandSummary(),
             Transition = Transition?.Clone() ?? new BattleAiTraceTransitionProjection(),
-            ScoreInput = ScoreInput,
-            ActionTraces = CloneActionTraces(ActionTraces),
+            ScoreInput = BattleAiDecisionResult.CloneScoreInput(ScoreInput),
+            ScoreInputFacts = scoreInputFacts,
+            ActionTraces = BattleAiDecisionResult.CloneActionTraces(ActionTraces),
             DecisionTargetSnapshots = CloneSnapshots(DecisionTargetSnapshots),
             ExecutionResult = ExecutionResult?.Clone(),
         };
@@ -57,7 +67,7 @@ public sealed class BattleAiTurnTraceProjection
             ["reason_text"] = ReasonText,
             ["command"] = Command,
             ["transition"] = Transition,
-            ["score_input"] = ScoreInput,
+            ["score_input"] = ScoreInputFacts ?? (object)ScoreInput,
             ["action_traces"] = ActionTraces,
         };
         if (DecisionTargetSnapshots.Count > 0)
@@ -68,18 +78,6 @@ public sealed class BattleAiTurnTraceProjection
         {
             result["execution_result"] = ExecutionResult;
         }
-        return result;
-    }
-
-    private static IReadOnlyList<AiActionTrace> CloneActionTraces(
-        IReadOnlyList<AiActionTrace> traces
-    )
-    {
-        if (traces == null)
-            return Array.Empty<AiActionTrace>();
-        var result = new List<AiActionTrace>(traces.Count);
-        foreach (AiActionTrace trace in traces)
-            result.Add(trace);
         return result;
     }
 

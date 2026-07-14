@@ -8,6 +8,7 @@ internal sealed class FixedMitigationResult
     public int PassiveReduction { get; set; }
     public int ContentDr { get; set; }
     public int GuardBlock { get; set; }
+    public int EquipmentReduction { get; set; }
     public int GuardIgnoreApplied { get; set; }
     public bool LowLuckBlackStarWedgeTriggered { get; set; }
     public List<MitigationSourceResult> Sources { get; } = new();
@@ -17,7 +18,8 @@ internal sealed class FixedMitigationResult
         + Math.Max(StanceReduction, 0)
         + Math.Max(PassiveReduction, 0)
         + Math.Max(ContentDr, 0)
-        + Math.Max(GuardBlock, 0);
+        + Math.Max(GuardBlock, 0)
+        + Math.Max(EquipmentReduction, 0);
 
     public string[] SourceLabels()
     {
@@ -43,6 +45,7 @@ internal sealed class FixedMitigationResult
                 "passive_reduction" => PassiveReduction,
                 "content_dr" => ContentDr,
                 "guard_block" => GuardBlock,
+                "equipment_reduction" => EquipmentReduction,
                 _ => 0,
             };
             if (remaining <= 0)

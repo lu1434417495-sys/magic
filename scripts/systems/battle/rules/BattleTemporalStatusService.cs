@@ -26,6 +26,20 @@ internal static class BattleTemporalStatusService
     internal static readonly StringName TemporalStatusTag =
         BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
 
+    private static Queue<int> _forcedTemporalProgressRollsForTests;
+
+    internal static void SetForcedTemporalProgressRollsForTests(IEnumerable<int> rolls)
+    {
+        _forcedTemporalProgressRollsForTests = new Queue<int>();
+        foreach (int roll in rolls ?? Array.Empty<int>())
+            _forcedTemporalProgressRollsForTests.Enqueue(Math.Clamp(roll, 1, 20));
+    }
+
+    internal static void ClearForcedTemporalProgressRollsForTests()
+    {
+        _forcedTemporalProgressRollsForTests = null;
+    }
+
     internal static bool HasTimeStasis(BattleUnitState unitState)
     {
         return unitState != null
@@ -49,12 +63,26 @@ internal static class BattleTemporalStatusService
         {
             return 0;
         }
-        return HasTimeSlow(unitState) ? TimeSlowProgressRatePercent : FullProgressRatePercent;
+        if (HasTimeSlow(unitState))
+        {
+            return TimeSlowProgressRatePercent;
+        }
+        return ResolveTemporalProgressModifierRatePercent(unitState, actionProgress: true)
+            ?? FullProgressRatePercent;
     }
 
     internal static int GetCastProgressRatePercent(BattleUnitState unitState)
     {
-        return GetActionProgressRatePercent(unitState);
+        if (HasTimeStasis(unitState))
+        {
+            return 0;
+        }
+        if (HasTimeSlow(unitState))
+        {
+            return TimeSlowProgressRatePercent;
+        }
+        return ResolveTemporalProgressModifierRatePercent(unitState, actionProgress: false)
+            ?? FullProgressRatePercent;
     }
 
     // runtime-only 余数累加：raw = base * rate + remainder；gain = raw / 100；remainder = raw % 100。
@@ -72,6 +100,56 @@ internal static class BattleTemporalStatusService
         int raw = tuDelta * ratePercent + Math.Max(unitState.action_progress_rate_remainder, 0);
         unitState.action_progress_rate_remainder = raw % 100;
         return raw / 100;
+    }
+
+    private static int? ResolveTemporalProgressModifierRatePercent(
+        BattleUnitState unitState,
+        bool actionProgress
+    )
+    {
+        if (unitState?.temporal_progress_modifiers == null)
+            return null;
+        BattleTemporalProgressModifierState selected = null;
+        foreach (BattleTemporalProgressModifierState modifier in unitState.temporal_progress_modifiers)
+        {
+            if (modifier == null)
+                continue;
+            if (actionProgress && !modifier.AppliesToActionProgress)
+                continue;
+            if (!actionProgress && !modifier.AppliesToCastProgress)
+                continue;
+            if (selected == null || string.CompareOrdinal(
+                    modifier.ModifierId.ToString(),
+                    selected.ModifierId.ToString()
+                ) < 0)
+            {
+                selected = modifier;
+            }
+        }
+        if (selected == null)
+            return null;
+
+        int roll = RollTemporalProgressD20();
+        int attributeModifier = unitState.attribute_snapshot?.GetValue(
+            selected.AttributeModifierId
+        ) ?? 0;
+        bool success = roll + attributeModifier >= Math.Max(selected.SaveDc, 1);
+        int ratePercent = success
+            ? selected.SuccessRatePercent
+            : selected.FailureRatePercent;
+        return Math.Max(ratePercent, 0);
+    }
+
+    private static int RollTemporalProgressD20()
+    {
+        if (
+            _forcedTemporalProgressRollsForTests != null
+            && _forcedTemporalProgressRollsForTests.Count > 0
+        )
+        {
+            return _forcedTemporalProgressRollsForTests.Dequeue();
+        }
+        return TrueRandomSeedService.RandiRange(1, 20);
     }
 
     internal static int ConsumeCastProgressGain(BattleUnitState unitState, int baseProgressDelta)
@@ -107,37 +185,37 @@ internal static class BattleTemporalStatusService
             || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW;
     }
 
-    internal static bool IsTemporalReleaseEffect(CombatEffectDef effectDef)
+    internal static bool IsTemporalReleaseEffect(CombatEffectDefinition effectDefinition)
     {
-        return effectDef != null
-            && effectDef.EffectKind == BattleEffectKind.EraseStatus
-            && effectDef.HasEffectTagTyped(TemporalStatusTag)
-            && IsTemporalReleaseTargetStatusId(effectDef.status_id);
+        return effectDefinition != null
+            && effectDefinition.EffectKind == BattleEffectKind.EraseStatus
+            && HasEffectTag(effectDefinition, TemporalStatusTag)
+            && IsTemporalReleaseTargetStatusId(effectDefinition.StatusId);
     }
 
-    internal static bool IsTemporalReleaseSkill(SkillDef skillDef)
+    internal static bool IsTemporalReleaseSkill(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
         {
             return false;
         }
-        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions)
         {
-            if (IsTemporalReleaseEffect(effectDef))
+            if (IsTemporalReleaseEffect(effectDefinition))
             {
                 return true;
             }
         }
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (castVariant?.effect_defs == null)
+            if (castVariant?.EffectDefinitions == null)
             {
                 continue;
             }
-            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (IsTemporalReleaseEffect(effectDef))
+                if (IsTemporalReleaseEffect(effectDefinition))
                 {
                     return true;
                 }
@@ -146,13 +224,29 @@ internal static class BattleTemporalStatusService
         return false;
     }
 
-    internal static bool CanTargetTimeStasis(BattleUnitState targetUnit, SkillDef skillDef)
+    internal static bool CanTargetTimeStasis(BattleUnitState targetUnit, SkillDefinition skillDefinition)
     {
         if (!HasTimeStasis(targetUnit))
         {
             return true;
         }
-        return IsTemporalReleaseSkill(skillDef);
+        return IsTemporalReleaseSkill(skillDefinition);
+    }
+
+    private static bool HasEffectTag(CombatEffectDefinition effectDefinition, StringName expectedTag)
+    {
+        if (effectDefinition?.EffectTags == null || expectedTag == "")
+        {
+            return false;
+        }
+        foreach (StringName tag in effectDefinition.EffectTags)
+        {
+            if (tag == expectedTag)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // elite / boss 不获得 time_stasis；失败结果降级为 time_slow。
@@ -175,15 +269,17 @@ internal static class BattleTemporalStatusService
     internal static List<StringName> ApplyTemporalReleaseEffects(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
         var removedStatusIds = new List<StringName>();
-        if (targetUnit == null || !IsTemporalReleaseEffect(effectDef))
+        if (targetUnit == null || !IsTemporalReleaseEffect(effectDefinition))
         {
             return removedStatusIds;
         }
-        StringName releaseStatusId = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        StringName releaseStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.StatusId
+        );
         if (!targetUnit.HasStatusEffect(releaseStatusId))
         {
             return removedStatusIds;

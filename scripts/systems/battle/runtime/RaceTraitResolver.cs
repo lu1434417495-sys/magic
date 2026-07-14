@@ -14,83 +14,83 @@ public static class RaceTraitResolver
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        RaceDef identityDef
+        RaceDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
+        _append_unique_string_names(unitState.vision_tags, identityDef.VisionTags);
 
         _append_unique_string_names(
             unitState.proficiency_tags,
-            identityDef.proficiency_tags
+            identityDef.ProficiencyTags
         );
 
         _append_unique_string_names(
             unitState.save_advantage_tags,
-            identityDef.save_advantage_tags
+            identityDef.SaveAdvantageTags
         );
 
         _merge_damage_resistances(
             unitState.damage_resistances,
-            identityDef.damage_resistances
+            identityDef.DamageResistances
         );
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        SubraceDef identityDef
+        SubraceDefinition identityDef
     )
     {
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
+        _append_unique_string_names(unitState.vision_tags, identityDef.VisionTags);
 
         _append_unique_string_names(
             unitState.proficiency_tags,
-            identityDef.proficiency_tags
+            identityDef.ProficiencyTags
         );
 
         _append_unique_string_names(
             unitState.save_advantage_tags,
-            identityDef.save_advantage_tags
+            identityDef.SaveAdvantageTags
         );
 
         _merge_damage_resistances(
             unitState.damage_resistances,
-            identityDef.damage_resistances
+            identityDef.DamageResistances
         );
 
-        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
+        _initialize_racial_skill_charges(unitState, identityDef.RacialGrantedSkills);
     }
 
     private static void _initialize_racial_skill_charges(
         BattleUnitState unitState,
-        Godot.Collections.Array<RacialGrantedSkill> grants
+        System.Collections.Generic.IReadOnlyList<RacialGrantedSkillDefinition> grants
     )
     {
         if (grants == null)
             return;
 
-        foreach (RacialGrantedSkill grant in grants)
+        foreach (RacialGrantedSkillDefinition grant in grants)
         {
-            if (grant == null || grant.skill_id == "")
+            if (grant == null || grant.SkillId == "")
                 continue;
 
-            var chargeKey = new StringName($"racial_skill_{(string)grant.skill_id}");
+            var chargeKey = new StringName($"racial_skill_{(string)grant.SkillId}");
 
-            if (grant.ChargeKind == RacialSkillChargeKind.PerBattle)
+            if (grant.ChargeKindKind == RacialSkillChargeKind.PerBattle)
             {
                 if (!unitState.HasPerBattleChargeTyped(chargeKey))
-                    unitState.SetPerBattleChargeTyped(chargeKey, Mathf.Max(grant.charges, 1));
+                    unitState.SetPerBattleChargeTyped(chargeKey, Mathf.Max(grant.Charges, 1));
             }
-            else if (grant.ChargeKind == RacialSkillChargeKind.PerTurn)
+            else if (grant.ChargeKindKind == RacialSkillChargeKind.PerTurn)
             {
-                int chargeCount = Mathf.Max(grant.charges, 1);
+                int chargeCount = Mathf.Max(grant.Charges, 1);
 
                 unitState.SetPerTurnChargeLimitTyped(chargeKey, chargeCount);
 
@@ -109,8 +109,8 @@ public static class RaceTraitResolver
     }
 
     private static void _append_unique_string_names(
-        Godot.Collections.Array<StringName> target,
-        Godot.Collections.Array<StringName> values
+        StringNameList target,
+        System.Collections.Generic.IReadOnlyList<StringName> values
     )
     {
         if (target == null || values == null)
@@ -127,19 +127,11 @@ public static class RaceTraitResolver
 
     private static void _merge_damage_resistances(
         BattleStringNameMap target,
-        Godot.Collections.Dictionary values
+        System.Collections.Generic.IReadOnlyDictionary<StringName, StringName> values
     )
     {
-        foreach (var rawKey in values.Keys)
+        foreach ((StringName damageTag, StringName mitigationTier) in values)
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            Variant rawValue = values[rawKey];
-            if (rawValue.VariantType != Variant.Type.StringName)
-                continue;
-            var damageTag = rawKey.AsStringName();
-            var mitigationTier = rawValue.AsStringName();
-
             if (damageTag == "" || mitigationTier == "")
                 continue;
 

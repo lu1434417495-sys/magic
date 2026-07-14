@@ -72,40 +72,44 @@ internal static class BattleAiActionIntent
     }
 
     internal static StringName InferForSkill(
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs = null
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions = null
     )
     {
-        if (skillDef?.combat_profile is not CombatSkillDef combatProfile)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
         {
             return IntentOffense;
         }
 
         bool hasControl = false;
         bool hasSurvival = BattleTargetTeamRules.IsBeneficialFilter(
-            ProgressionDataUtils.to_string_name(combatProfile.target_team_filter)
+            ProgressionDataUtils.to_string_name(combatProfile.TargetTeamFilter)
         );
 
-        foreach (CombatEffectDef effectDef in EnumerateRelevantEffects(combatProfile, effectDefs))
+        foreach (CombatEffectDefinition effectDefinition in EnumerateRelevantEffects(
+            combatProfile,
+            effectDefinitions
+        ))
         {
-            if (effectDef == null)
+            if (effectDefinition == null)
             {
                 continue;
             }
 
             StringName effectFilter = ProgressionDataUtils.to_string_name(
-                effectDef.effect_target_team_filter
+                effectDefinition.EffectTargetTeamFilter
             );
             bool beneficialEffect =
                 BattleTargetTeamRules.IsBeneficialFilter(effectFilter)
                 || (
                     effectFilter == ""
                     && BattleTargetTeamRules.IsBeneficialFilter(
-                        ProgressionDataUtils.to_string_name(combatProfile.target_team_filter)
+                        ProgressionDataUtils.to_string_name(combatProfile.TargetTeamFilter)
                     )
                 );
 
-            BattleEffectKind effectKind = effectDef.EffectKind;
+            BattleEffectKind effectKind = effectDefinition.EffectKind;
             if (IsOffenseEffect(effectKind, beneficialEffect))
             {
                 return IntentOffense;
@@ -130,56 +134,56 @@ internal static class BattleAiActionIntent
 
     internal static StringName DefaultFromSlotRole(StringName slotRole)
     {
-        return EnemyAiGenerationSlotDef.ToSlotRole(slotRole) switch
+        return slotRole.ToString() switch
         {
-            EnemyAiGenerationSlotRole.Offense => IntentOffense,
-            EnemyAiGenerationSlotRole.Control => IntentControl,
-            EnemyAiGenerationSlotRole.Survival => IntentSurvival,
-            EnemyAiGenerationSlotRole.Positioning => IntentPositioning,
+            "offense" => IntentOffense,
+            "control" => IntentControl,
+            "survival" => IntentSurvival,
+            "positioning" => IntentPositioning,
             _ => "",
         };
     }
 
-    private static IEnumerable<CombatEffectDef> EnumerateRelevantEffects(
-        CombatSkillDef combatProfile,
-        IEnumerable<CombatEffectDef> effectDefs
+    private static IEnumerable<CombatEffectDefinition> EnumerateRelevantEffects(
+        CombatSkillDefinition combatProfile,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
         bool yielded = false;
-        if (effectDefs != null)
+        if (effectDefinitions != null)
         {
-            foreach (CombatEffectDef effectDef in effectDefs)
+            foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
             {
-                if (effectDef == null)
+                if (effectDefinition == null)
                 {
                     continue;
                 }
                 yielded = true;
-                yield return effectDef;
+                yield return effectDefinition;
             }
         }
         if (yielded || combatProfile == null)
         {
             yield break;
         }
-        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
+        foreach (CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions)
         {
-            if (effectDef != null)
+            if (effectDefinition != null)
             {
-                yield return effectDef;
+                yield return effectDefinition;
             }
         }
-        foreach (Resource optionResource in combatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (optionResource is not CombatCastVariantDef castVariant)
+            if (castVariant == null)
             {
                 continue;
             }
-            foreach (Resource effectResource in castVariant.effect_defs)
+            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (effectResource is CombatEffectDef effectDef)
+                if (effectDefinition != null)
                 {
-                    yield return effectDef;
+                    yield return effectDefinition;
                 }
             }
         }
@@ -196,6 +200,7 @@ internal static class BattleAiActionIntent
             BattleEffectKind.Damage
             or BattleEffectKind.ChainDamage
             or BattleEffectKind.Execute
+            or BattleEffectKind.GradedSaveExecute
             or BattleEffectKind.PathStepAoe
             or BattleEffectKind.RepeatAttackUntilFail
             or BattleEffectKind.Charge

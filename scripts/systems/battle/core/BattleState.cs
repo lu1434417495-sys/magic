@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
-public partial class BattleState : RefCounted
+public partial class BattleState
 {
     private const int MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE = 2;
 
@@ -17,6 +21,7 @@ public partial class BattleState : RefCounted
         "blinded",
         "fear",
         "feared",
+        "frightened",
         "frozen",
         "heavy_fatigue",
         "petrified",
@@ -87,13 +92,15 @@ public partial class BattleState : RefCounted
 
     public StringName terrain_profile_id = "default";
 
-    public Godot.Collections.Array<StringName> attack_disadvantage_tags = new();
+    private BattleEnvironmentSnapshot _environmentSnapshot = BattleEnvironmentSnapshot.Empty();
 
-    private readonly RuntimePayloadStore _cellColumns = new();
+    public StringNameList attack_disadvantage_tags = new();
 
-    public Godot.Collections.Array<StringName> ally_unit_ids = new();
+    private readonly Dictionary<Vector2I, List<BattleCellState>> _cellColumns = new();
 
-    public Godot.Collections.Array<StringName> enemy_unit_ids = new();
+    public StringNameList ally_unit_ids = new();
+
+    public StringNameList enemy_unit_ids = new();
 
     public BattleTimelineState timeline = new BattleTimelineState();
 
@@ -101,27 +108,35 @@ public partial class BattleState : RefCounted
 
     public StringName winner_faction_id = "";
 
-    public Godot.Collections.Array<string> log_entries = new();
+    public StringList log_entries = new();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> report_entries = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
+    public ReadOnlyCollection<IReadOnlyDictionary<string, object>> report_entries =>
+        BuildReportEntrySnapshots();
 
     public WarehouseState party_backpack_view = new WarehouseState();
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> promotion_queue = new();
+    private readonly List<Dictionary<string, object>> _promotionQueue = new();
+
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> PromotionQueueSnapshots =>
+        BuildPromotionQueueSnapshots();
 
     public StringName modal_state = "";
 
-    private readonly RuntimePayloadStore _runtimeEdgeFaces = new();
+    private readonly Dictionary<Vector3I, BattleEdgeFaceState> _runtimeEdgeFaces = new();
 
     public bool runtime_edges_dirty = true;
 
     private readonly BattleBarrierStore _layeredBarrierStore = new();
+    private readonly List<BattleEquipmentTargetMarkState> _equipmentTargetMarks = new();
+    private readonly List<BattleTemporaryEdgeFeatureState> _temporaryEdgeFeatures = new();
 
     private readonly Dictionary<Vector2I, BattleCellState> _cellsByCoord = new();
     private readonly Dictionary<StringName, BattleUnitState> _unitsById = new();
     private int _log_text_byte_size;
     private long _movement_geometry_revision;
     private ulong _next_cast_sequence = 1;
+    private int _next_temporary_edge_feature_sequence = 1;
 
     internal IReadOnlyDictionary<Vector2I, BattleCellState> CellIndex => _cellsByCoord;
     internal IReadOnlyDictionary<StringName, BattleUnitState> UnitIndex => _unitsById;
@@ -130,6 +145,13 @@ public partial class BattleState : RefCounted
     internal int CellColumnCount => _cellColumns.Count;
     internal int RuntimeEdgeFaceCount => _runtimeEdgeFaces.Count;
     internal int LayeredBarrierFieldCount => _layeredBarrierStore.Count;
+    internal int EquipmentTargetMarkCount => _equipmentTargetMarks.Count;
+    internal int TemporaryEdgeFeatureCount => _temporaryEdgeFeatures.Count;
+    internal int ReportEntryCount => _reportEntries.Count;
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> PromotionQueueTyped =>
+        BuildPromotionQueueSnapshots();
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
 
@@ -153,7 +175,15 @@ public partial class BattleState : RefCounted
         set => modal_state = BattleTypedNames.ToStringName(value);
     }
 
-    public void ResetLogEntries(Godot.Collections.Array<string> entries)
+    public BattleEnvironmentSnapshot GetEnvironmentSnapshot() =>
+        _environmentSnapshot ?? BattleEnvironmentSnapshot.Empty();
+
+    internal void ReplaceEnvironmentSnapshot(BattleEnvironmentSnapshot snapshot)
+    {
+        _environmentSnapshot = snapshot?.DuplicateState() ?? BattleEnvironmentSnapshot.Empty();
+    }
+
+    public void ResetLogEntries(IEnumerable<string> entries)
     {
         log_entries.Clear();
         _log_text_byte_size = 0;
@@ -175,6 +205,61 @@ public partial class BattleState : RefCounted
         log_entries.Add(ne);
         _log_text_byte_size += _estimate_log_text_bytes(ne);
         _trim_log_entries();
+    }
+
+    internal void SetReportEntries(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
+    {
+        _reportEntries.Clear();
+        if (values == null)
+            return;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            AddReportEntry(value);
+    }
+
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
+    {
+        if (reportEntry == null || reportEntry.Count == 0)
+            return;
+        _reportEntries.Add(
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
+            )
+        );
+    }
+
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result.AsReadOnly();
+    }
+
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildPromotionQueueSnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_promotionQueue.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _promotionQueue)
+        {
+            result.Add(
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result.AsReadOnly();
+    }
+
+    internal void SetPromotionQueue(System.Collections.IEnumerable values)
+    {
+        SetPlainPayloadEntries(_promotionQueue, values, "BattleState.promotion_queue");
     }
 
     public int GetLogTextByteSize() => _log_text_byte_size;
@@ -312,11 +397,29 @@ public partial class BattleState : RefCounted
         }
     }
 
+    internal void MarkTemporaryEdgeGeometryChanged()
+    {
+        runtime_edges_dirty = true;
+        MarkMovementGeometryChanged();
+    }
+
     public void NormalizeUnitIdArrays()
     {
-        ally_unit_ids = _normalize_string_name_array(ally_unit_ids);
-        enemy_unit_ids = _normalize_string_name_array(enemy_unit_ids);
-        MarkMovementGeometryChanged();
+        StringNameList normalizedAllyUnitIds = _normalize_string_name_array(ally_unit_ids);
+        StringNameList normalizedEnemyUnitIds = _normalize_string_name_array(enemy_unit_ids);
+        bool changed = false;
+        if (!_string_name_lists_equal(ally_unit_ids, normalizedAllyUnitIds))
+        {
+            ally_unit_ids = normalizedAllyUnitIds;
+            changed = true;
+        }
+        if (!_string_name_lists_equal(enemy_unit_ids, normalizedEnemyUnitIds))
+        {
+            enemy_unit_ids = normalizedEnemyUnitIds;
+            changed = true;
+        }
+        if (changed)
+            MarkMovementGeometryChanged();
     }
 
     public List<StringName> GetAllyUnitIdsTyped() =>
@@ -326,28 +429,6 @@ public partial class BattleState : RefCounted
         new(_normalize_string_name_array(enemy_unit_ids));
 
     internal BattleStateReadView AsReadView() => new(this);
-
-    internal Godot.Collections.Dictionary ProjectCells()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach ((Vector2I coord, BattleCellState cell) in _cellsByCoord)
-        {
-            if (cell != null)
-                result[coord] = cell;
-        }
-        return result;
-    }
-
-    internal Godot.Collections.Dictionary ProjectUnits()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach ((StringName unitId, BattleUnitState unit) in _unitsById)
-        {
-            if (unitId != "" && unit != null)
-                result[unitId] = unit;
-        }
-        return result;
-    }
 
     internal bool ContainsCell(Vector2I coord) => _cellsByCoord.ContainsKey(coord);
 
@@ -495,10 +576,15 @@ public partial class BattleState : RefCounted
 
     internal void ClearBattleTopology()
     {
-        bool changed = _cellsByCoord.Count > 0 || _unitsById.Count > 0;
+        bool changed =
+            _cellsByCoord.Count > 0 || _unitsById.Count > 0 || _temporaryEdgeFeatures.Count > 0;
+        DisposeStoredCellColumns();
+        DisposeStoredRuntimeEdgeFaces();
         _cellsByCoord.Clear();
         _unitsById.Clear();
         _cellColumns.Clear();
+        _runtimeEdgeFaces.Clear();
+        _temporaryEdgeFeatures.Clear();
         if (changed)
             MarkMovementGeometryChanged();
     }
@@ -551,7 +637,8 @@ public partial class BattleState : RefCounted
                 if (rawKey.VariantType != Variant.Type.Vector2I)
                     continue;
                 Vector2I coord = rawKey.AsVector2I();
-                BattleCellState cellState = cellStates[rawKey].As<BattleCellState>();
+                if (!BattleCellState.TryReadCellPayload(cellStates[rawKey], out BattleCellState cellState))
+                    continue;
                 if (cellState == null)
                     continue;
                 BattleCellState ownedCell = duplicateCells ? cellState.DuplicateCell() : cellState;
@@ -577,8 +664,8 @@ public partial class BattleState : RefCounted
                 StringName unitId = NormalizeUnitId(rawKey);
                 if (unitId == "")
                     continue;
-                BattleUnitState unitState = unitStates[rawKey].As<BattleUnitState>();
-                if (unitState == null)
+                if (!BattleUnitState.TryReadUnitPayload(unitStates[rawKey], out BattleUnitState unitState)
+                    || unitState == null)
                     continue;
                 BattleUnitState ownedUnit = duplicateUnits ? unitState.clone() : unitState;
                 ownedUnit.unit_id = NormalizeUnitId(ownedUnit.unit_id) != ""
@@ -611,27 +698,76 @@ public partial class BattleState : RefCounted
 
     internal void RebuildCellColumns()
     {
-        ReplaceCellColumnsPayload(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
+        ReplaceCellColumns(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
     }
 
-    internal Godot.Collections.Dictionary ProjectCellColumns() => _cellColumns.ProjectPayload();
+    internal IReadOnlyDictionary<Vector2I, List<BattleCellState>> ProjectCellColumnsTyped() =>
+        _cellColumns;
 
-    internal void ReplaceCellColumnsPayload(Godot.Collections.Dictionary payload) =>
-        _cellColumns.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+    internal void ReplaceCellColumns(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
+    )
+    {
+        DisposeStoredCellColumns();
+        if (columns == null)
+            return;
+        foreach ((Vector2I coord, List<BattleCellState> column) in columns)
+            _cellColumns[coord] = DuplicateCellColumn(column);
+    }
 
-    internal void PutCellColumnPayload(Vector2I coord, Variant columnPayload) =>
-        _cellColumns.PutPayloadValue(coord, columnPayload);
+    internal void ReplaceCellColumnsFromPayload(Godot.Collections.Dictionary payload)
+    {
+        DisposeStoredCellColumns();
+        if (payload == null)
+            return;
+        foreach (Variant key in payload.Keys)
+        {
+            if (key.VariantType != Variant.Type.Vector2I)
+                continue;
+            List<BattleCellState> column = BattleCellState.ParseColumnPayload(payload[key]);
+            if (column != null)
+                _cellColumns[key.AsVector2I()] = column;
+        }
+    }
 
-    internal void RemoveCellColumnPayload(Vector2I coord) =>
-        _cellColumns.RemovePayloadValue(coord);
+    internal void PutCellColumn(Vector2I coord, List<BattleCellState> column)
+    {
+        DisposeStoredCellColumn(coord);
+        if (column != null)
+            _cellColumns[coord] = DuplicateCellColumn(column);
+    }
 
-    internal Godot.Collections.Dictionary ProjectRuntimeEdgeFaces() =>
-        _runtimeEdgeFaces.ProjectPayload();
+    internal void RemoveCellColumnPayload(Vector2I coord)
+    {
+        DisposeStoredCellColumn(coord);
+        _cellColumns.Remove(coord);
+    }
 
-    internal void ReplaceRuntimeEdgeFacesPayload(Godot.Collections.Dictionary payload) =>
-        _runtimeEdgeFaces.ReplaceWithPayload(payload ?? new Godot.Collections.Dictionary());
+    internal IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> ProjectRuntimeEdgeFaces() =>
+        _runtimeEdgeFaces;
 
-    internal void ClearRuntimeEdgeFaces() => _runtimeEdgeFaces.Clear();
+    internal void ReplaceRuntimeEdgeFaces(
+        IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
+    )
+    {
+        _runtimeEdgeFaces.Clear();
+        if (edgeFaces == null)
+        {
+            return;
+        }
+        foreach ((Vector3I key, BattleEdgeFaceState edgeFace) in edgeFaces)
+        {
+            if (edgeFace != null)
+            {
+                _runtimeEdgeFaces[key] = edgeFace;
+            }
+        }
+    }
+
+    internal void ClearRuntimeEdgeFaces()
+    {
+        _runtimeEdgeFaces.Clear();
+    }
 
     internal Godot.Collections.Dictionary ProjectLayeredBarrierFields() =>
         _layeredBarrierStore.ProjectPayload();
@@ -712,6 +848,213 @@ public partial class BattleState : RefCounted
         return results;
     }
 
+    internal IReadOnlyList<BattleEquipmentTargetMarkState> GetEquipmentTargetMarksTyped()
+    {
+        var result = new List<BattleEquipmentTargetMarkState>();
+        foreach (BattleEquipmentTargetMarkState mark in _equipmentTargetMarks)
+        {
+            if (mark?.IsValid == true)
+                result.Add(mark.DuplicateState());
+        }
+        return result;
+    }
+
+    internal bool SetEquipmentTargetMark(
+        BattleEquipmentTargetMarkState mark,
+        bool uniquePerSource,
+        out BattleEquipmentTargetMarkState replaced
+    )
+    {
+        replaced = null;
+        if (mark?.IsValid != true)
+            return false;
+        for (int index = _equipmentTargetMarks.Count - 1; index >= 0; index--)
+        {
+            BattleEquipmentTargetMarkState existing = _equipmentTargetMarks[index];
+            if (existing?.IsValid != true)
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                continue;
+            }
+            if (!uniquePerSource || !existing.IsSameSource(mark))
+                continue;
+            replaced = existing.DuplicateState();
+            _equipmentTargetMarks.RemoveAt(index);
+        }
+        _equipmentTargetMarks.Add(mark.DuplicateState());
+        return true;
+    }
+
+    internal bool RemoveEquipmentTargetMark(
+        StringName sourceUnitId,
+        StringName sourceEquipmentInstanceId,
+        StringName bindingId,
+        StringName stateKey
+    )
+    {
+        bool removed = false;
+        for (int index = _equipmentTargetMarks.Count - 1; index >= 0; index--)
+        {
+            BattleEquipmentTargetMarkState existing = _equipmentTargetMarks[index];
+            if (existing?.IsValid != true)
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                removed = true;
+                continue;
+            }
+            if (
+                existing.SourceUnitId == sourceUnitId
+                && existing.SourceEquipmentInstanceId == sourceEquipmentInstanceId
+                && existing.BindingId == bindingId
+                && existing.StateKey == stateKey
+            )
+            {
+                _equipmentTargetMarks.RemoveAt(index);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    internal bool TryGetEquipmentTargetMark(
+        StringName sourceUnitId,
+        StringName sourceEquipmentInstanceId,
+        StringName bindingId,
+        StringName stateKey,
+        out BattleEquipmentTargetMarkState mark
+    )
+    {
+        mark = null;
+        foreach (BattleEquipmentTargetMarkState existing in _equipmentTargetMarks)
+        {
+            if (
+                existing?.IsValid == true
+                && existing.SourceUnitId == sourceUnitId
+                && existing.SourceEquipmentInstanceId == sourceEquipmentInstanceId
+                && existing.BindingId == bindingId
+                && existing.StateKey == stateKey
+            )
+            {
+                mark = existing.DuplicateState();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal IReadOnlyList<BattleTemporaryEdgeFeatureState> GetTemporaryEdgeFeaturesTyped()
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+            if (feature?.IsValid == true)
+                result.Add(feature.DuplicateState());
+        return result;
+    }
+
+    internal IReadOnlyList<BattleTemporaryEdgeFeatureState> GetTemporaryEdgeFeaturesForProjection()
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        int currentTu = Math.Max(timeline?.current_tu ?? 0, 0);
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+        {
+            if (feature?.IsValid != true || feature.IsExpired(currentTu))
+                continue;
+            if (feature.SourceUnitId != "")
+            {
+                BattleUnitState sourceUnit = GetUnit(feature.SourceUnitId);
+                if (sourceUnit == null || !sourceUnit.is_alive)
+                    continue;
+            }
+            result.Add(feature.DuplicateState());
+        }
+        return result;
+    }
+
+    internal bool PutTemporaryEdgeFeature(
+        BattleTemporaryEdgeFeatureState feature,
+        bool refreshExisting,
+        int maxActiveEdges
+    )
+    {
+        if (feature?.IsValid != true)
+            return false;
+
+        bool changed = RemoveInvalidTemporaryEdgeFeatures();
+        if (refreshExisting)
+        {
+            for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+            {
+                BattleTemporaryEdgeFeatureState existing = _temporaryEdgeFeatures[index];
+                if (
+                    existing?.IsValid == true
+                    && existing.SameSource(feature)
+                    && existing.SameEdge(feature)
+                )
+                {
+                    _temporaryEdgeFeatures.RemoveAt(index);
+                    changed = true;
+                }
+            }
+        }
+
+        BattleTemporaryEdgeFeatureState stored = CopyTemporaryEdgeFeatureWithSequence(
+            feature,
+            _next_temporary_edge_feature_sequence++
+        );
+        _temporaryEdgeFeatures.Add(stored);
+        changed = true;
+        changed |= EnforceTemporaryEdgeFeatureLimit(stored, Math.Max(maxActiveEdges, 0));
+        if (changed)
+            MarkTemporaryEdgeGeometryChanged();
+        return true;
+    }
+
+    internal int RemoveExpiredTemporaryEdgeFeatures()
+    {
+        int currentTu = Math.Max(timeline?.current_tu ?? 0, 0);
+        int removed = 0;
+        for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+        {
+            BattleTemporaryEdgeFeatureState feature = _temporaryEdgeFeatures[index];
+            bool remove =
+                feature?.IsValid != true
+                || feature.IsExpired(currentTu)
+                || (
+                    feature.SourceUnitId != ""
+                    && (GetUnit(feature.SourceUnitId)?.is_alive != true)
+                );
+            if (!remove)
+                continue;
+            _temporaryEdgeFeatures.RemoveAt(index);
+            removed++;
+        }
+        if (removed > 0)
+            MarkTemporaryEdgeGeometryChanged();
+        return removed;
+    }
+
+    internal void ReplaceTemporaryEdgeFeaturesTyped(
+        IEnumerable<BattleTemporaryEdgeFeatureState> features
+    )
+    {
+        _temporaryEdgeFeatures.Clear();
+        int maxSequence = 0;
+        if (features != null)
+        {
+            foreach (BattleTemporaryEdgeFeatureState feature in features)
+            {
+                if (feature?.IsValid != true)
+                    continue;
+                BattleTemporaryEdgeFeatureState copy = feature.DuplicateState();
+                _temporaryEdgeFeatures.Add(copy);
+                if (copy.Sequence > maxSequence)
+                    maxSequence = copy.Sequence;
+            }
+        }
+        _next_temporary_edge_feature_sequence = Math.Max(maxSequence + 1, 1);
+        MarkTemporaryEdgeGeometryChanged();
+    }
+
     internal List<BattleCellEntry> GetCellEntriesTyped() => CellEntries();
 
     internal bool TryGetCellTyped(Vector2I coord, out BattleCellState cellState)
@@ -726,6 +1069,197 @@ public partial class BattleState : RefCounted
     {
         unitState = GetUnit(unitId);
         return unitState != null;
+    }
+
+    private void DisposeStoredCellColumns()
+    {
+        if (_cellColumns.Count == 0)
+            return;
+        foreach (List<BattleCellState> column in _cellColumns.Values)
+            DisposeCellColumn(column);
+        _cellColumns.Clear();
+    }
+
+    private void DisposeStoredCellColumn(Vector2I coord)
+    {
+        if (!_cellColumns.TryGetValue(coord, out List<BattleCellState> column))
+            return;
+        DisposeCellColumn(column);
+    }
+
+    private void DisposeStoredRuntimeEdgeFaces()
+    {
+        _runtimeEdgeFaces.Clear();
+    }
+
+    private bool RemoveInvalidTemporaryEdgeFeatures()
+    {
+        bool removed = false;
+        for (int index = _temporaryEdgeFeatures.Count - 1; index >= 0; index--)
+        {
+            if (_temporaryEdgeFeatures[index]?.IsValid == true)
+                continue;
+            _temporaryEdgeFeatures.RemoveAt(index);
+            removed = true;
+        }
+        return removed;
+    }
+
+    private bool EnforceTemporaryEdgeFeatureLimit(
+        BattleTemporaryEdgeFeatureState sourceFeature,
+        int maxActiveEdges
+    )
+    {
+        if (sourceFeature == null || maxActiveEdges <= 0)
+            return false;
+
+        bool changed = false;
+        while (CountTemporaryEdgeFeaturesForSource(sourceFeature) > maxActiveEdges)
+        {
+            int oldestIndex = FindOldestTemporaryEdgeFeatureIndex(sourceFeature);
+            if (oldestIndex < 0)
+                break;
+            _temporaryEdgeFeatures.RemoveAt(oldestIndex);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private int CountTemporaryEdgeFeaturesForSource(BattleTemporaryEdgeFeatureState sourceFeature)
+    {
+        int count = 0;
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+            if (feature?.IsValid == true && feature.SameSource(sourceFeature))
+                count++;
+        return count;
+    }
+
+    private int FindOldestTemporaryEdgeFeatureIndex(BattleTemporaryEdgeFeatureState sourceFeature)
+    {
+        int oldestIndex = -1;
+        BattleTemporaryEdgeFeatureState oldest = null;
+        for (int index = 0; index < _temporaryEdgeFeatures.Count; index++)
+        {
+            BattleTemporaryEdgeFeatureState feature = _temporaryEdgeFeatures[index];
+            if (feature?.IsValid != true || !feature.SameSource(sourceFeature))
+                continue;
+            if (
+                oldest == null
+                || feature.CreatedAtTu < oldest.CreatedAtTu
+                || (
+                    feature.CreatedAtTu == oldest.CreatedAtTu
+                    && feature.Sequence < oldest.Sequence
+                )
+            )
+            {
+                oldest = feature;
+                oldestIndex = index;
+            }
+        }
+        return oldestIndex;
+    }
+
+    private static BattleTemporaryEdgeFeatureState CopyTemporaryEdgeFeatureWithSequence(
+        BattleTemporaryEdgeFeatureState feature,
+        int sequence
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = feature.OriginCoord,
+            Direction = feature.Direction,
+            SourceUnitId = feature.SourceUnitId,
+            SourceEquipmentInstanceId = feature.SourceEquipmentInstanceId,
+            BindingId = feature.BindingId,
+            ActionId = feature.ActionId,
+            CreatedAtTu = feature.CreatedAtTu,
+            ExpiresAtTu = feature.ExpiresAtTu,
+            Sequence = sequence,
+            Feature = feature.Feature?.DuplicateFeature(),
+        };
+    }
+
+    private static void DisposeCellColumn(List<BattleCellState> column)
+    {
+        if (column == null)
+            return;
+        foreach (BattleCellState cell in column)
+            BattleCellState.DisposeRuntimeGraph(cell);
+        column.Clear();
+    }
+
+    private static List<BattleCellState> DuplicateCellColumn(IEnumerable<BattleCellState> column)
+    {
+        List<BattleCellState> result = new();
+        if (column == null)
+            return result;
+        foreach (BattleCellState cell in column)
+            if (cell != null)
+                result.Add(cell.DuplicateCell());
+        return result;
+    }
+
+    private static bool TryAsGodotObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variantValue)
+        {
+            if (variantValue.VariantType == Variant.Type.Object)
+            {
+                value = variantValue.AsGodotObject() as T;
+                return value != null;
+            }
+            value = null;
+            return false;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static void SetPlainPayloadEntries(
+        List<Dictionary<string, object>> target,
+        System.Collections.IEnumerable values,
+        string ownerPath
+    )
+    {
+        target.Clear();
+        if (values == null)
+            return;
+        int index = 0;
+        foreach (object value in values)
+        {
+            if (TryAsDictionary(value, out GDictionary payload))
+            {
+                target.Add(
+                    RuntimePlainPayload.NormalizeDictionary(
+                        payload,
+                        $"{ownerPath}[{index}]"
+                    )
+                );
+            }
+            index++;
+        }
+    }
+
+    private static bool TryAsDictionary(object value, out GDictionary dictionary)
+    {
+        if (value is GDictionary dictionaryValue)
+        {
+            dictionary = dictionaryValue;
+            return true;
+        }
+        if (value is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
+        {
+            dictionary = variantValue.AsGodotDictionary();
+            return true;
+        }
+        dictionary = null;
+        return false;
     }
 
     private void _trim_log_entries()
@@ -749,11 +1283,12 @@ public partial class BattleState : RefCounted
     private static int _estimate_log_text_bytes(string entry) =>
         System.Text.Encoding.UTF8.GetByteCount(entry) + 1;
 
-    private static Godot.Collections.Array<StringName> _normalize_string_name_array(
-        Godot.Collections.Array<StringName> values
-    )
+    private static StringNameList _normalize_string_name_array(IEnumerable<StringName> values)
     {
-        var results = new Godot.Collections.Array<StringName>();
+        var results = new StringNameList();
+
+        if (values == null)
+            return results;
 
         foreach (StringName value in values)
         {
@@ -766,6 +1301,23 @@ public partial class BattleState : RefCounted
         return results;
     }
 
+    private static bool _string_name_lists_equal(
+        IReadOnlyList<StringName> left,
+        IReadOnlyList<StringName> right
+    )
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left == null || right == null || left.Count != right.Count)
+            return false;
+        for (int index = 0; index < left.Count; index++)
+        {
+            if (left[index] != right[index])
+                return false;
+        }
+        return true;
+    }
+
     private int _count_adjacent_enemy_units(BattleUnitState attacker)
     {
         if (attacker == null)
@@ -773,7 +1325,7 @@ public partial class BattleState : RefCounted
 
         attacker.RefreshFootprint();
 
-        var adjacentEnemyIds = new Godot.Collections.Dictionary();
+        var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState c in GetUnitsTyped())
         {
@@ -781,7 +1333,7 @@ public partial class BattleState : RefCounted
                 continue;
             c.RefreshFootprint();
             if (_are_units_adjacent(attacker, c))
-                adjacentEnemyIds[c.unit_id] = true;
+                adjacentEnemyIds.Add(c.unit_id);
         }
 
         return adjacentEnemyIds.Count;
@@ -792,15 +1344,18 @@ public partial class BattleState : RefCounted
         if (!attacker.IsValid)
             return 0;
 
-        var adjacentEnemyIds = new Godot.Collections.Dictionary();
+        attacker.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
+
+        var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState candidateState in GetUnitsTyped())
         {
+            candidateState?.RefreshFootprint();
             BattleUnitReadView candidate = new(candidateState);
             if (!_is_enemy_unit(attacker, candidate))
                 continue;
             if (_are_units_adjacent(attacker, candidate))
-                adjacentEnemyIds[candidate.UnitId] = true;
+                adjacentEnemyIds.Add(candidate.UnitId);
         }
 
         return adjacentEnemyIds.Count;

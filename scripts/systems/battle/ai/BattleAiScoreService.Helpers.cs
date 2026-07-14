@@ -123,27 +123,27 @@ public partial class BattleAiScoreService
             if (distanceValue < desiredMinDistance)
             {
                 return -(
-                    (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                    (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
                 );
             }
-            return _scoreProfile.position_base_score
-                + (distanceValue - desiredMinDistance) * _scoreProfile.position_distance_step;
+            return _scoreProfile.PositionBaseScore
+                + (distanceValue - desiredMinDistance) * _scoreProfile.PositionDistanceStep;
         }
         if (distanceValue >= desiredMinDistance && distanceValue <= desiredMaxDistance)
         {
             return Math.Max(
-                _scoreProfile.position_base_score
-                    - distanceValue * _scoreProfile.position_distance_step,
+                _scoreProfile.PositionBaseScore
+                    - distanceValue * _scoreProfile.PositionDistanceStep,
                 0
             );
         }
         if (distanceValue < desiredMinDistance)
         {
             return -(
-                (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
             );
         }
-        return -((distanceValue - desiredMaxDistance) * _scoreProfile.position_overshoot_penalty);
+        return -((distanceValue - desiredMaxDistance) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private int BuildDistanceBandProgressScore(
@@ -182,14 +182,14 @@ public partial class BattleAiScoreService
         if (candidateGap < currentGap)
         {
             int progressSteps = currentGap - candidateGap;
-            return _scoreProfile.position_base_score
-                + progressSteps * _scoreProfile.position_distance_step;
+            return _scoreProfile.PositionBaseScore
+                + progressSteps * _scoreProfile.PositionDistanceStep;
         }
         if (candidateGap == currentGap)
         {
-            return -_scoreProfile.position_distance_step;
+            return -_scoreProfile.PositionDistanceStep;
         }
-        return -((candidateGap - currentGap) * _scoreProfile.position_overshoot_penalty);
+        return -((candidateGap - currentGap) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private static int BuildDistanceGap(
@@ -222,18 +222,18 @@ public partial class BattleAiScoreService
         if (distanceValue >= desiredMinDistance && distanceValue <= desiredMaxDistance)
         {
             return Math.Max(
-                _scoreProfile.position_base_score
-                    - distanceValue * _scoreProfile.position_distance_step,
+                _scoreProfile.PositionBaseScore
+                    - distanceValue * _scoreProfile.PositionDistanceStep,
                 0
             );
         }
         if (distanceValue < desiredMinDistance)
         {
             return -(
-                (desiredMinDistance - distanceValue) * _scoreProfile.position_undershoot_penalty
+                (desiredMinDistance - distanceValue) * _scoreProfile.PositionUndershootPenalty
             );
         }
-        return -((distanceValue - desiredMaxDistance) * _scoreProfile.position_overshoot_penalty);
+        return -((distanceValue - desiredMaxDistance) * _scoreProfile.PositionOvershootPenalty);
     }
 
     private int ResolveActionBaseScore(StringName actionKind, ScoreBuildMetadata metadata)
@@ -274,9 +274,9 @@ public partial class BattleAiScoreService
     private static BattleGridService ContextGridService(IBattleAiScoreContext context) =>
         context?.grid_service;
 
-    private static IReadOnlyDictionary<StringName, SkillDef> ContextSkillDefs(
+    private static IReadOnlyDictionary<StringName, SkillDefinition> ContextSkillDefinitions(
         IBattleAiScoreContext context
-    ) => context?.skill_defs ?? new Dictionary<StringName, SkillDef>();
+    ) => context?.skill_definitions ?? new Dictionary<StringName, SkillDefinition>();
 
     private static ISkillCatalog ContextSkillCatalog(IBattleAiScoreContext context) =>
         context?.skill_catalog;
@@ -290,16 +290,29 @@ public partial class BattleAiScoreService
         return state.TryGetUnitTyped(unitId, out BattleUnitState unitState) ? unitState : null;
     }
 
-    private static SkillDef GetSkillDef(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
     )
     {
-        if (skillDefs == null || IsEmpty(skillId))
+        if (skillDefinitions == null || IsEmpty(skillId))
         {
             return null;
         }
-        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
+    }
+
+    private static SkillDefinition ResolveScoreInputSkillDefinition(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context
+    )
+    {
+        return GetSkillDefinition(
+            ContextSkillDefinitions(context),
+            ProgressionDataUtils.to_string_name(scoreInput?.skill_id ?? new StringName(""))
+        );
     }
 
     private static List<StringName> DuplicateStringNameArray(IEnumerable<StringName> values)
@@ -375,14 +388,14 @@ public partial class BattleAiScoreService
         return metadata[key] is Vector2I coord ? coord : fallback;
     }
 
-    private static CombatEffectDef MetadataCombatEffectDef(
+    private static CombatEffectDefinition MetadataCombatEffectDefinition(
         IReadOnlyDictionary<string, object> metadata,
         string key
     )
     {
         if (!HasMetadataKey(metadata, key))
             return null;
-        return metadata[key] as CombatEffectDef;
+        return metadata[key] is CombatEffectDefinition effectDefinition ? effectDefinition : null;
     }
 
     private static List<StringName> ReadMetadataStringNameList(

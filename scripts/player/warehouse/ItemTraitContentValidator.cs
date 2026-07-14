@@ -4,8 +4,8 @@ using Godot;
 public static class ItemTraitContentValidator
 {
     public static List<string> Validate(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string contextPath = "item_defs"
     )
     {
@@ -13,9 +13,9 @@ public static class ItemTraitContentValidator
         if (itemDefs == null)
             return errors;
 
-        foreach (KeyValuePair<StringName, ItemDef> kv in itemDefs)
+        foreach (KeyValuePair<StringName, ItemDefinition> kv in itemDefs)
         {
-            ItemDef itemDef = kv.Value;
+            ItemDefinition itemDef = kv.Value;
             if (itemDef == null)
             {
                 errors.Add($"{contextPath}.{kv.Key} is null.");
@@ -23,8 +23,8 @@ public static class ItemTraitContentValidator
             }
             ValidateItem(
                 itemDef,
-                traitDefs ?? new Dictionary<StringName, TraitDef>(),
-                $"{contextPath}.{itemDef.item_id}",
+                traitDefinitions ?? new Dictionary<StringName, TraitDefinition>(),
+                $"{contextPath}.{itemDef.ItemId}",
                 errors
             );
         }
@@ -32,14 +32,14 @@ public static class ItemTraitContentValidator
     }
 
     private static void ValidateItem(
-        ItemDef itemDef,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        ItemDefinition itemDef,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
     {
         List<StringName> fixedTraitIds = itemDef.GetTraitIdsTyped();
-        List<TraitRollGroupDef> rollGroups = itemDef.GetTraitRollGroupsTyped();
+        List<TraitRollGroupDefinition> rollGroups = itemDef.GetTraitRollGroupsTyped();
         bool hasTraitDeclarations = fixedTraitIds.Count > 0 || rollGroups.Count > 0;
 
         if (!itemDef.HasEquipmentCategory())
@@ -49,13 +49,13 @@ public static class ItemTraitContentValidator
             return;
         }
 
-        ValidateFixedTraits(fixedTraitIds, traitDefs, itemLabel, errors);
-        ValidateRollGroups(rollGroups, traitDefs, itemLabel, errors);
+        ValidateFixedTraits(fixedTraitIds, traitDefinitions, itemLabel, errors);
+        ValidateRollGroups(rollGroups, traitDefinitions, itemLabel, errors);
     }
 
     private static void ValidateFixedTraits(
         IReadOnlyList<StringName> fixedTraitIds,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
@@ -69,12 +69,23 @@ public static class ItemTraitContentValidator
                 errors.Add($"{traitLabel} must be non-empty.");
                 continue;
             }
-            if (!traitDefs.TryGetValue(traitId, out TraitDef traitDef) || traitDef == null)
+            if (
+                !traitDefinitions.TryGetValue(
+                    traitId,
+                    out TraitDefinition traitDefinition
+                )
+                || traitDefinition == null
+            )
             {
                 errors.Add($"{traitLabel} references missing trait {traitId}.");
                 continue;
             }
-            if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentFixed))
+            if (
+                !TraitContentRules.IsSourceKindAllowed(
+                    traitDefinition,
+                    TraitSourceKind.EquipmentFixed
+                )
+            )
             {
                 errors.Add(
                     $"{traitLabel} trait {traitId} must allow equipment_fixed source."
@@ -84,98 +95,114 @@ public static class ItemTraitContentValidator
     }
 
     private static void ValidateRollGroups(
-        IReadOnlyList<TraitRollGroupDef> rollGroups,
-        IReadOnlyDictionary<StringName, TraitDef> traitDefs,
+        IReadOnlyList<TraitRollGroupDefinition> rollGroups,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
         string itemLabel,
         List<string> errors
     )
     {
         for (int groupIndex = 0; groupIndex < rollGroups.Count; groupIndex++)
         {
-            TraitRollGroupDef group = rollGroups[groupIndex];
+            TraitRollGroupDefinition group = rollGroups[groupIndex];
             string groupLabel = $"{itemLabel}.trait_roll_groups[{groupIndex}]";
             if (group == null)
             {
                 errors.Add($"{groupLabel} must be a TraitRollGroupDef.");
                 continue;
             }
-            if (group.group_id == "")
+            if (group.GroupId == "")
                 errors.Add($"{groupLabel}.group_id must be non-empty.");
-            if (group.roll_count < 1)
+            if (group.RollCount < 1)
                 errors.Add($"{groupLabel}.roll_count must be >= 1.");
 
             int maxSatisfiableHits = CountMaxSatisfiableHits(group);
-            if (group.roll_count > maxSatisfiableHits)
+            if (group.RollCount > maxSatisfiableHits)
             {
                 errors.Add(
-                    $"{groupLabel} is unsatisfiable: roll_count {group.roll_count} exceeds max satisfiable hits {maxSatisfiableHits}."
+                    $"{groupLabel} is unsatisfiable: roll_count {group.RollCount} exceeds max satisfiable hits {maxSatisfiableHits}."
                 );
             }
 
-            for (int entryIndex = 0; entryIndex < group.entries.Count; entryIndex++)
+            for (int entryIndex = 0; entryIndex < group.Entries.Count; entryIndex++)
             {
-                TraitRollGroupEntryDef entry = group.entries[entryIndex];
+                TraitRollGroupEntryDefinition entry = group.Entries[entryIndex];
                 string entryLabel = $"{groupLabel}.entries[{entryIndex}]";
                 if (entry == null)
                 {
                     errors.Add($"{entryLabel} must be a TraitRollGroupEntryDef.");
                     continue;
                 }
-                if (entry.trait_id == "")
+                if (entry.TraitId == "")
                 {
                     errors.Add($"{entryLabel}.trait_id must be non-empty.");
                     continue;
                 }
-                if (entry.weight <= 0)
+                if (entry.Weight <= 0)
                     errors.Add($"{entryLabel}.weight must be > 0.");
-                if (!traitDefs.TryGetValue(entry.trait_id, out TraitDef traitDef) || traitDef == null)
+                if (
+                    !traitDefinitions.TryGetValue(
+                        entry.TraitId,
+                        out TraitDefinition traitDefinition
+                    )
+                    || traitDefinition == null
+                )
                 {
-                    errors.Add($"{entryLabel} references missing trait {entry.trait_id}.");
+                    errors.Add($"{entryLabel} references missing trait {entry.TraitId}.");
                     continue;
                 }
-                if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentRoll))
+                if (
+                    !TraitContentRules.IsSourceKindAllowed(
+                        traitDefinition,
+                        TraitSourceKind.EquipmentRoll
+                    )
+                )
                 {
                     errors.Add(
-                        $"{entryLabel} trait {entry.trait_id} must allow equipment_roll source."
+                        $"{entryLabel} trait {entry.TraitId} must allow equipment_roll source."
                     );
                 }
-                AppendRollSchemaErrors(traitDef, entryLabel, errors);
+                AppendRollSchemaErrors(traitDefinition, entryLabel, errors);
             }
         }
     }
 
-    private static int CountMaxSatisfiableHits(TraitRollGroupDef group)
+    private static int CountMaxSatisfiableHits(TraitRollGroupDefinition group)
     {
         int count = 0;
         HashSet<StringName> exclusiveGroups = new();
-        foreach (TraitRollGroupEntryDef entry in group.entries)
+        foreach (TraitRollGroupEntryDefinition entry in group.Entries)
         {
             if (entry == null)
                 continue;
-            if (entry.exclusive_group == "")
+            if (entry.ExclusiveGroup == "")
             {
                 count++;
                 continue;
             }
-            if (exclusiveGroups.Add(entry.exclusive_group))
+            if (exclusiveGroups.Add(entry.ExclusiveGroup))
                 count++;
         }
         return count;
     }
 
     private static void AppendRollSchemaErrors(
-        TraitDef traitDef,
+        TraitDefinition traitDefinition,
         string entryLabel,
         List<string> errors
     )
     {
-        for (int schemaIndex = 0; schemaIndex < traitDef.roll_value_schema.Count; schemaIndex++)
+        for (
+            int schemaIndex = 0;
+            schemaIndex < traitDefinition.RollValueSchema.Count;
+            schemaIndex++
+        )
         {
-            TraitRollValueSchemaEntry schemaEntry = traitDef.roll_value_schema[schemaIndex];
+            TraitRollValueSchemaEntryDefinition schemaEntry =
+                traitDefinition.RollValueSchema[schemaIndex];
             string schemaLabel = $"{entryLabel}.roll_value_schema[{schemaIndex}]";
             if (schemaEntry == null)
             {
-                errors.Add($"{schemaLabel} must be a TraitRollValueSchemaEntry.");
+                errors.Add($"{schemaLabel} must be a TraitRollValueSchemaEntryDefinition.");
                 continue;
             }
             schemaEntry.AppendSchemaErrors(errors, schemaLabel);

@@ -9,7 +9,15 @@ public sealed class BattleSessionFacade : IDisposable
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
+    private readonly IBattleSeedSource _battleSeedSource;
+
     private WeakReference<GameRuntimeFacade> _runtimeRef;
+
+    internal BattleSessionFacade(IBattleSeedSource battleSeedSource)
+    {
+        _battleSeedSource = battleSeedSource
+            ?? throw new ArgumentNullException(nameof(battleSeedSource));
+    }
 
     private GameRuntimeFacade _runtime
     {
@@ -43,35 +51,57 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection.GetSelectedBattleSkillVariantName();
     }
 
-    public GVector2IArray GetSelectedBattleSkillTargetCoords()
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoords()
     {
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
-            return new GVector2IArray();
-        return DuplicateVector2IArray(battleSelection.GetSelectedBattleSkillTargetCoords());
-    }
-
-    public GStringNameArray GetSelectedBattleSkillTargetUnitIds()
-    {
-        if (IsBattleInteractionBlocked())
-            return new GStringNameArray();
-        var battleSelection = GetBattleSelection();
-        if (battleSelection == null)
-            return new GStringNameArray();
-        return DuplicateStringNameArray(battleSelection.GetSelectedBattleSkillTargetUnitIds());
-    }
-
-    public GVector2IArray GetSelectedBattleSkillValidTargetCoords()
-    {
-        if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
-        var battleSelection = GetBattleSelection();
-        if (battleSelection == null)
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         return DuplicateVector2IArray(
-            battleSelection.GetSelectedBattleSkillValidTargetCoords()
+            battleSelection.GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+        );
+    }
+
+    public IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIds()
+    {
+        if (IsBattleInteractionBlocked())
+            return EmptyStringNameArray();
+        var battleSelection = GetBattleSelection();
+        if (battleSelection == null)
+            return EmptyStringNameArray();
+        return DuplicateStringNameArray(
+            battleSelection.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+        );
+    }
+
+    internal IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+    {
+        if (IsBattleInteractionBlocked())
+            return System.Array.Empty<Vector2I>();
+        GameRuntimeBattleSelection battleSelection = GetBattleSelection();
+        return battleSelection?.GetSelectedBattleSkillTargetCoordsSnapshotPlain()
+            ?? System.Array.Empty<Vector2I>();
+    }
+
+    internal IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+    {
+        if (IsBattleInteractionBlocked())
+            return System.Array.Empty<StringName>();
+        GameRuntimeBattleSelection battleSelection = GetBattleSelection();
+        return battleSelection?.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain()
+            ?? System.Array.Empty<StringName>();
+    }
+
+    public IReadOnlyList<Vector2I> GetSelectedBattleSkillValidTargetCoords()
+    {
+        if (IsBattleInteractionBlocked())
+            return EmptyVector2IArray();
+        var battleSelection = GetBattleSelection();
+        if (battleSelection == null)
+            return EmptyVector2IArray();
+        return DuplicateVector2IArray(
+            battleSelection.GetSelectedBattleSkillValidTargetCoordsSnapshotPlain()
         );
     }
 
@@ -99,49 +129,25 @@ public sealed class BattleSessionFacade : IDisposable
         return battleSelection?.PreviewSelectedBattleSkillAtCoord(coord);
     }
 
-    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
-        bool requireAp = true
-    )
-    {
-        var battleRuntime = GetBattleRuntime();
-        if (!IsBattleReady() || battleRuntime == null)
-            return BattleUnitSkillTargetAffordance.Denied(RuntimeUnavailableMessage);
-        if (IsBattleInteractionBlocked())
-            return BattleUnitSkillTargetAffordance.Denied("当前无法操作。");
-        return battleRuntime.GetUnitSkillTargetAffordance(
-            activeUnit,
-            targetUnit,
-            skillDef,
-            castVariant,
-            requireAp
-        );
-    }
-
-    public GVector2IArray GetBattleMovementReachableCoords()
+    public IReadOnlyList<Vector2I> GetBattleMovementReachableCoords()
     {
         var battleRuntime = GetBattleRuntime();
         if (!IsBattleReady() || !IsBattleActive() || battleRuntime == null)
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         var activeUnit = GetManualActiveUnit();
         if (activeUnit == null)
-            return new GVector2IArray();
-        return DuplicateVector2IArray(
-            new GVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit))
-        );
+            return EmptyVector2IArray();
+        return DuplicateVector2IArray(battleRuntime.GetUnitReachableMoveCoordsTyped(activeUnit));
     }
 
-    public GVector2IArray GetBattleOverlayTargetCoords()
+    public IReadOnlyList<Vector2I> GetBattleOverlayTargetCoords()
     {
         if (!IsBattleReady())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (IsBattleInteractionBlocked())
-            return new GVector2IArray();
+            return EmptyVector2IArray();
         if (_runtime.GetSelectedBattleSkillId() != "")
             return GetSelectedBattleSkillValidTargetCoords();
         return GetBattleMovementReachableCoords();
@@ -159,7 +165,17 @@ public sealed class BattleSessionFacade : IDisposable
 
     internal Dictionary GetBattleTerrainCounts()
     {
-        var counts = new Dictionary
+        var result = new Dictionary();
+        foreach ((string terrainId, int count) in GetBattleTerrainCountsSnapshotTyped())
+            result[terrainId] = count;
+        return result;
+    }
+
+    internal IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped()
+    {
+        var counts = new System.Collections.Generic.Dictionary<string, int>(
+            StringComparer.Ordinal
+        )
         {
             [BattleTerrainRules.ToStringName(BattleTerrainKind.Land).ToString()] = 0,
             [BattleTerrainRules.ToStringName(BattleTerrainKind.Forest).ToString()] = 0,
@@ -179,7 +195,7 @@ public sealed class BattleSessionFacade : IDisposable
             var terrainId = cellState.base_terrain.ToString();
             if (!counts.ContainsKey(terrainId))
                 counts[terrainId] = 0;
-            counts[terrainId] = counts[terrainId].AsInt32() + 1;
+            counts[terrainId] += 1;
         }
         return counts;
     }
@@ -195,6 +211,7 @@ public sealed class BattleSessionFacade : IDisposable
         var battleRuntime = GetBattleRuntime();
         if (battleRuntime == null)
             return RuntimeUnavailableTypedResult();
+        var combinedBatch = new BattleEventBatch();
         for (int i = 0; i < Mathf.Max(tickCount, 0); i++)
         {
             if (!IsBattleActive())
@@ -204,8 +221,13 @@ public sealed class BattleSessionFacade : IDisposable
                 break;
             BattleEventBatch batch = battleRuntime.advance(1);
             if (BatchHasUpdates(batch))
+            {
+                combinedBatch.MergeFrom(batch);
                 ApplyBattleBatch(batch);
+            }
         }
+        if (BatchHasUpdates(combinedBatch))
+            _runtime?.CaptureLastCommandBattlePresentationDelta(combinedBatch);
         return CommandOkTyped();
     }
 
@@ -335,6 +357,7 @@ public sealed class BattleSessionFacade : IDisposable
         if (preview == null || !preview.allowed)
             return CommandErrorTyped(FirstPreviewLogLine(preview, "当前没有可取消的读条。"));
         BattleEventBatch batch = battleRuntime.IssueCommand(command);
+        _runtime?.CaptureLastCommandBattlePresentationDelta(batch);
         ApplyBattleBatch(batch);
         return CommandOkTyped("", BattleRefreshMode.Full);
     }
@@ -608,7 +631,7 @@ public sealed class BattleSessionFacade : IDisposable
             UpdateStatus(batch.LogLinesTyped[batch.LogLinesTyped.Count - 1]);
         var battleState = GetBattleState();
         if (
-            GetPendingPromotionPrompt().Count > 0
+            HasPendingPromotionPrompt()
             && battleState != null
             && battleState.ModalStateKind == BattleModalStateKind.PromotionChoice
         )
@@ -643,7 +666,7 @@ public sealed class BattleSessionFacade : IDisposable
     {
         if (encounterAnchor == null)
             return 0;
-        return (int)TrueRandomSeedService.GenerateSeed();
+        return _battleSeedSource.NextSeed(encounterAnchor);
     }
 
     public BattleState GetRuntimeBattleState()
@@ -715,12 +738,10 @@ public sealed class BattleSessionFacade : IDisposable
             && DidSkillCommandExecute(command, batch)
         )
             ClearBattleSelectionTargets();
+        _runtime?.CaptureLastCommandBattlePresentationDelta(batch);
         ApplyBattleBatch(batch);
         return BattleRefreshMode.Full;
     }
-
-    internal void CapturePendingPromotionPrompt(Godot.Collections.Array progressionDeltas) =>
-        CapturePendingPromotionPrompt(ReadProgressionDeltas(progressionDeltas));
 
     internal void CapturePendingPromotionPrompt(
         IReadOnlyList<CharacterProgressionDelta> progressionDeltas
@@ -732,21 +753,23 @@ public sealed class BattleSessionFacade : IDisposable
         {
             if (delta == null || !delta.needs_promotion_modal)
                 continue;
-            SetPendingPromotionPrompt(BuildPromotionPrompt(delta));
-            if (GetPendingPromotionPrompt().Count > 0)
+            SetPendingPromotionPromptPlain(BuildPromotionPromptPlain(delta));
+            if (HasPendingPromotionPrompt())
                 return;
         }
     }
 
-    internal Dictionary BuildPromotionPrompt(
+    internal IReadOnlyDictionary<string, object> BuildPromotionPromptPlain(
         CharacterProgressionDelta delta,
         string selectionHint = "确认后将在战斗中立即生效。"
     )
     {
         if (delta == null || delta.PendingProfessionChoicesTyped.Count == 0)
-            return new Dictionary();
+            return new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
         PartyState partyState = _runtime?.GetPartyState();
-        var gameSession = GetGameSession();
+        GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
         var memberId = delta.member_id;
         var memberState =
             partyState != null
@@ -754,11 +777,11 @@ public sealed class BattleSessionFacade : IDisposable
                 : null;
         var memberName =
             memberState != null ? memberState.display_name : memberId.ToString();
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs =
-            gameSession != null
-                ? gameSession.GetProfessionDefsTyped()
-                : new System.Collections.Generic.Dictionary<StringName, ProfessionDef>();
-        var choiceEntries = new Godot.Collections.Array();
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs =
+            contentCatalog != null
+                ? contentCatalog.GetProfessionDefsTyped()
+                : new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>();
+        var choiceEntries = new List<object>();
         foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
             if (choiceObj == null)
@@ -773,57 +796,47 @@ public sealed class BattleSessionFacade : IDisposable
                     continue;
                 if (targetRank <= 0)
                     continue;
-                if (!professionDefs.TryGetValue(pid, out ProfessionDef professionDef))
+                if (!professionDefs.TryGetValue(pid, out ProfessionDefinition professionDef))
                     continue;
-                var grantedSkillIds = new Godot.Collections.Array();
+                var grantedSkillIds = new List<object>();
                 var grantedSkills = professionDef.GetGrantedSkillsForRank(targetRank);
-                foreach (ProfessionGrantedSkill skillObj in grantedSkills)
+                foreach (ProfessionGrantedSkillDefinition skillObj in grantedSkills)
                 {
-                    if (skillObj != null && skillObj.skill_id != "")
-                        grantedSkillIds.Add(skillObj.skill_id.ToString());
+                    if (skillObj != null && skillObj.SkillId != "")
+                        grantedSkillIds.Add(skillObj.SkillId.ToString());
                 }
                 choiceEntries.Add(
-                    new Dictionary
+                    new System.Collections.Generic.Dictionary<string, object>(
+                        StringComparer.Ordinal
+                    )
                     {
                         ["profession_id"] = pid.ToString(),
                         ["display_name"] = !string.IsNullOrEmpty(
-                            professionDef.display_name
+                            professionDef.DisplayName
                         )
-                            ? professionDef.display_name
+                            ? professionDef.DisplayName
                             : pid.ToString(),
                         ["summary"] = string.Format("Rank {0}", targetRank),
-                        ["description"] = professionDef.description,
+                        ["description"] = professionDef.Description,
                         ["granted_skill_ids"] = grantedSkillIds,
                         ["selection_hint"] = selectionHint,
-                        ["selection"] = new Dictionary(),
+                        ["selection"] = new System.Collections.Generic.Dictionary<string, object>(
+                            StringComparer.Ordinal
+                        ),
                     }
                 );
             }
         }
         if (choiceEntries.Count == 0)
-            return new Dictionary();
-        return new Dictionary
+            return new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+        return new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["member_id"] = memberId.ToString(),
             ["member_name"] = memberName,
             ["choices"] = choiceEntries,
         };
-    }
-
-    private static IReadOnlyList<CharacterProgressionDelta> ReadProgressionDeltas(
-        Godot.Collections.Array values
-    )
-    {
-        var result = new List<CharacterProgressionDelta>();
-        if (values == null)
-            return result;
-        foreach (Variant value in values)
-        {
-            CharacterProgressionDelta delta = value.AsGodotObject() as CharacterProgressionDelta;
-            if (delta != null)
-                result.Add(delta);
-        }
-        return result;
     }
 
     public Vector2I GetDefaultBattleSelectedCoord()
@@ -898,6 +911,8 @@ public sealed class BattleSessionFacade : IDisposable
         };
         context["battle_terrain_profile"] = ResolveBattleTerrainProfile(encounterAnchor).ToString();
         context["validate_spawn_reachability"] = false;
+        if (_runtime != null)
+            context["world_step"] = _runtime.GetWorldStep();
         return context;
     }
 
@@ -1017,15 +1032,15 @@ public sealed class BattleSessionFacade : IDisposable
         return _runtime?.GetGameSession();
     }
 
-    private Dictionary GetPendingPromotionPrompt()
-    {
-        return _runtime != null ? _runtime.GetPendingPromotionPrompt() : new Dictionary();
-    }
+    private bool HasPendingPromotionPrompt() =>
+        _runtime?.HasPendingPromotionPrompt() ?? false;
 
-    private void SetPendingPromotionPrompt(Dictionary prompt)
+    private void SetPendingPromotionPromptPlain(
+        IReadOnlyDictionary<string, object> prompt
+    )
     {
         if (_runtime != null)
-            _runtime.SetPendingPromotionPrompt(prompt);
+            _runtime.SetPendingPromotionPromptPlain(prompt);
     }
 
     private void SetBattleState(BattleState state)
@@ -1134,36 +1149,24 @@ public sealed class BattleSessionFacade : IDisposable
         if (dictionary == null || key == null || !dictionary.ContainsKey(key))
             return null;
         var value = dictionary[key];
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as BattleUnitState : null;
+        return BattleUnitState.TryReadUnitPayload(value, out BattleUnitState unitState)
+            ? unitState
+            : null;
     }
 
-    private static GVector2IArray DuplicateVector2IArray(
+    private static IReadOnlyList<Vector2I> DuplicateVector2IArray(
         System.Collections.Generic.IEnumerable<Vector2I> values
-    )
-    {
-        var result = new GVector2IArray();
-        if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    ) => new Vector2IList(values);
 
-    private static GStringNameArray DuplicateStringNameArray(
+    private static IReadOnlyList<Vector2I> EmptyVector2IArray() =>
+        System.Array.Empty<Vector2I>();
+
+    private static IReadOnlyList<StringName> DuplicateStringNameArray(
         System.Collections.Generic.IEnumerable<StringName> values
-    )
-    {
-        var result = new GStringNameArray();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
+    ) => new StringNameList(values);
+
+    private static IReadOnlyList<StringName> EmptyStringNameArray() =>
+        System.Array.Empty<StringName>();
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {

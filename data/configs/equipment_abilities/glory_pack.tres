@@ -1,0 +1,345 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=62 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="9_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="10_attack_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="11_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="12_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="13_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ImmediateWeaponAttackActionPayloadDef.cs" id="14_immediate_attack"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_two"]
+script = ExtResource("8_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Literal_three"]
+script = ExtResource("8_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 3
+
+[sub_resource type="Resource" id="Literal_five"]
+script = ExtResource("8_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 5
+
+[sub_resource type="Resource" id="Fact_nearby_units_radius_2"]
+script = ExtResource("8_fact")
+query_kind = &"fact"
+fact_id = &"nearby_unit_count"
+subject = &"source"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Fact_nearby_units_radius_6"]
+script = ExtResource("8_fact")
+query_kind = &"fact"
+fact_id = &"nearby_unit_count"
+subject = &"source"
+value_kind = &"int"
+int_literal = 6
+
+[sub_resource type="Resource" id="Compare_nearby_gte_1"]
+script = ExtResource("7_compare")
+left = SubResource("Fact_nearby_units_radius_2")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_2"]
+script = ExtResource("7_compare")
+left = SubResource("Fact_nearby_units_radius_2")
+compare = &"gte"
+right = SubResource("Literal_two")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_3"]
+script = ExtResource("7_compare")
+left = SubResource("Fact_nearby_units_radius_2")
+compare = &"gte"
+right = SubResource("Literal_three")
+
+[sub_resource type="Resource" id="Compare_nearby_gte_5"]
+script = ExtResource("7_compare")
+left = SubResource("Fact_nearby_units_radius_6")
+compare = &"gte"
+right = SubResource("Literal_five")
+
+[sub_resource type="Resource" id="Compare_nearby_lt_2"]
+script = ExtResource("7_compare")
+left = SubResource("Fact_nearby_units_radius_6")
+compare = &"lt"
+right = SubResource("Literal_two")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_1"]
+script = ExtResource("6_condition")
+condition_id = &"condition.glory.nearby_gte_1"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_1")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_2"]
+script = ExtResource("6_condition")
+condition_id = &"condition.glory.nearby_gte_2"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_2")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_3"]
+script = ExtResource("6_condition")
+condition_id = &"condition.glory.nearby_gte_3"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_3")
+
+[sub_resource type="Resource" id="Condition_nearby_gte_5"]
+script = ExtResource("6_condition")
+condition_id = &"condition.glory.nearby_gte_5"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_gte_5")
+
+[sub_resource type="Resource" id="Condition_nearby_lt_2"]
+script = ExtResource("6_condition")
+condition_id = &"condition.glory.nearby_lt_2"
+kind = &"compare_fact"
+payload = SubResource("Compare_nearby_lt_2")
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_1"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_1")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_2"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_2")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_3"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_3")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_gte_5"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_gte_5")])
+
+[sub_resource type="Resource" id="Condition_group_nearby_lt_2"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_nearby_lt_2")])
+
+[sub_resource type="Resource" id="Action_crowd_1_payload"]
+script = ExtResource("10_attack_bonus")
+target_selector = &"attack_target"
+bonus = 1
+stack_mode = &"max"
+label = "众目睽睽"
+
+[sub_resource type="Resource" id="Action_crowd_1"]
+script = ExtResource("9_action")
+action_id = &"action.glory.crowd_gaze.1"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_crowd_1_payload")
+condition_group = SubResource("Condition_group_nearby_gte_1")
+
+[sub_resource type="Resource" id="Action_crowd_2_payload"]
+script = ExtResource("10_attack_bonus")
+target_selector = &"attack_target"
+bonus = 1
+stack_mode = &"max"
+label = "众目睽睽"
+
+[sub_resource type="Resource" id="Action_crowd_2"]
+script = ExtResource("9_action")
+action_id = &"action.glory.crowd_gaze.2"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_crowd_2_payload")
+condition_group = SubResource("Condition_group_nearby_gte_2")
+
+[sub_resource type="Resource" id="Action_crowd_3_payload"]
+script = ExtResource("10_attack_bonus")
+target_selector = &"attack_target"
+bonus = 1
+stack_mode = &"max"
+label = "众目睽睽"
+
+[sub_resource type="Resource" id="Action_crowd_3"]
+script = ExtResource("9_action")
+action_id = &"action.glory.crowd_gaze.3"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_crowd_3_payload")
+condition_group = SubResource("Condition_group_nearby_gte_3")
+
+[sub_resource type="Resource" id="Reaction_crowd_gaze"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.glory.crowd_gaze.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+actions = Array[Resource]([SubResource("Action_crowd_1"), SubResource("Action_crowd_2"), SubResource("Action_crowd_3")])
+
+[sub_resource type="Resource" id="Binding_crowd_gaze"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.glory.crowd_gaze"
+trait_id = &"weapon.sword.glory.crowd_gaze"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"glory"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_crowd_gaze")])
+
+[sub_resource type="Resource" id="DiceTerm_spotlight"]
+script = ExtResource("13_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_spotlight"]
+script = ExtResource("12_dice")
+terms = Array[Resource]([SubResource("DiceTerm_spotlight")])
+
+[sub_resource type="Resource" id="Action_spotlight_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_spotlight")
+damage_type = &"radiant"
+damage_tags = Array[StringName]([&"radiant"])
+
+[sub_resource type="Resource" id="Action_spotlight"]
+script = ExtResource("9_action")
+action_id = &"action.glory.spotlight.radiant_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_spotlight_payload")
+
+[sub_resource type="Resource" id="Reaction_spotlight"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.glory.spotlight.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_nearby_gte_5")
+actions = Array[Resource]([SubResource("Action_spotlight")])
+
+[sub_resource type="Resource" id="Binding_spotlight"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.glory.spotlight"
+trait_id = &"weapon.sword.glory.spotlight"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"glory"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_spotlight")])
+
+[sub_resource type="Resource" id="Action_curtain_call_payload"]
+script = ExtResource("14_immediate_attack")
+anchor_selector = &"defeated"
+target_team_filter = &"enemy"
+radius = 1
+max_attacks = 1
+skill_id = &"basic_attack"
+require_weapon_range = false
+
+[sub_resource type="Resource" id="Action_curtain_call"]
+script = ExtResource("9_action")
+action_id = &"action.glory.curtain_call.immediate_attack"
+kind = &"immediate_weapon_attack"
+payload = SubResource("Action_curtain_call_payload")
+
+[sub_resource type="Resource" id="Reaction_curtain_call"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.glory.curtain_call.after_kill"
+trigger = &"on_kill"
+timing = &"after_kill"
+condition_group = SubResource("Condition_group_nearby_gte_5")
+actions = Array[Resource]([SubResource("Action_curtain_call")])
+
+[sub_resource type="Resource" id="Binding_curtain_call"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.glory.curtain_call"
+trait_id = &"weapon.sword.glory.curtain_call"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"glory"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_curtain_call")])
+
+[sub_resource type="Resource" id="Action_lonely_attack_payload"]
+script = ExtResource("10_attack_bonus")
+target_selector = &"attack_target"
+bonus = -2
+stack_mode = &"max"
+label = "孤独之暗"
+
+[sub_resource type="Resource" id="Action_lonely_attack"]
+script = ExtResource("9_action")
+action_id = &"action.glory.lonely_dark.attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_lonely_attack_payload")
+
+[sub_resource type="Resource" id="DiceTerm_lonely_damage"]
+script = ExtResource("13_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_lonely_damage"]
+script = ExtResource("12_dice")
+terms = Array[Resource]([SubResource("DiceTerm_lonely_damage")])
+
+[sub_resource type="Resource" id="Action_lonely_damage_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_lonely_damage")
+damage_type = &"physical_slash"
+subtract = true
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_lonely_damage"]
+script = ExtResource("9_action")
+action_id = &"action.glory.lonely_dark.damage_penalty"
+kind = &"add_damage_dice"
+payload = SubResource("Action_lonely_damage_payload")
+
+[sub_resource type="Resource" id="Reaction_lonely_attack"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.glory.lonely_dark.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_nearby_lt_2")
+actions = Array[Resource]([SubResource("Action_lonely_attack")])
+
+[sub_resource type="Resource" id="Reaction_lonely_damage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.glory.lonely_dark.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_nearby_lt_2")
+actions = Array[Resource]([SubResource("Action_lonely_damage")])
+
+[sub_resource type="Resource" id="Binding_lonely_dark"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.glory.lonely_dark"
+trait_id = &"weapon.sword.glory.lonely_dark"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"glory"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_lonely_attack"), SubResource("Reaction_lonely_damage")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.glory"
+schema_version = 1
+load_order = 190
+bindings = Array[Resource]([SubResource("Binding_crowd_gaze"), SubResource("Binding_spotlight"), SubResource("Binding_curtain_call"), SubResource("Binding_lonely_dark")])

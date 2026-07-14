@@ -1,7 +1,7 @@
 using Godot;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_unit_state_owner_api_regression : SceneTree
+public partial class run_battle_unit_state_owner_api_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_battle_unit_state_owner_api_regression : SceneTree
         TestKnownSkillApiFiltersInternalCollection();
         TestStatusApiCapturesAndClearsOwnedDictionary();
 
-        Quit(_test.Finish("Battle unit state owner API regression"));
+        RequestTestExit(_test.Finish("Battle unit state owner API regression"));
     }
 
     private void TestHpApiSynchronizesAliveState()

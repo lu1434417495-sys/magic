@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_misfortune_service_regression : SceneTree
+public partial class run_misfortune_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName ReverseFortuneStatusId = "reverse_fortune";
 
@@ -11,18 +11,11 @@ public partial class run_misfortune_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        try
-        {
-            TestSkillGatesUseTypedRules();
-            TestRuntimeTracksAllCalamityReasonsAndSnapshot();
-            TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
-        }
-        finally
-        {
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestSkillGatesUseTypedRules();
+        TestRuntimeTracksAllCalamityReasonsAndSnapshot();
+        TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
 
-        Quit(_test.Finish("MisfortuneService regression"));
+        RequestTestExit(_test.Finish("MisfortuneService regression"));
     }
 
     private void TestSkillGatesUseTypedRules()
@@ -72,7 +65,7 @@ public partial class run_misfortune_service_regression : SceneTree
             hero.current_ap = 1;
             state.phase = "unit_acting";
             state.active_unit_id = hero.unit_id;
-            IssueAndDisposeCommand(runtime, BuildWaitCommand(hero.unit_id));
+            runtime.IssueCommand(BuildWaitCommand(hero.unit_id));
             runtime.GetFateRuntime()?.HandleMemberBossPhaseChanged("hero", "phase_2");
             DispatchFateEvent(runtime, "critical_fail", "hero");
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
@@ -93,7 +86,9 @@ public partial class run_misfortune_service_regression : SceneTree
             };
             var builder = new GameRuntimeSnapshotBuilder();
             builder.Setup(snapshotRuntime);
-            GDictionary snapshot = builder.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> snapshotLease =
+                builder.BuildHeadlessSnapshotLease();
+            GDictionary snapshot = snapshotLease.Value;
             builder.Dispose();
 
             _test.Eq(
@@ -104,7 +99,7 @@ public partial class run_misfortune_service_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
+            runtime.dispose();
         }
     }
 
@@ -154,7 +149,7 @@ public partial class run_misfortune_service_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
+            runtime.dispose();
         }
     }
 
@@ -166,60 +161,54 @@ public partial class run_misfortune_service_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup();
 
-        BattleUnitState hero = null;
-        BattleUnitState buddy = null;
-        BattleUnitState boss = null;
-        EncounterAnchorData encounterAnchor = null;
-        bool returned = false;
-        try
+        BattleUnitState hero = BuildMemberUnit(
+            "hero",
+            "Hero",
+            100,
+            hiddenLuckAtBirth,
+            calamityCapacityBonus
+        );
+        BattleUnitState buddy = BuildMemberUnit("buddy", "Buddy", 80, 0, 0);
+        BattleUnitState boss = BuildEnemyUnit("boss_01", "Boss");
+        var encounterAnchor = new EncounterAnchorData
         {
-            hero = BuildMemberUnit(
-                "hero",
-                "Hero",
-                100,
-                hiddenLuckAtBirth,
-                calamityCapacityBonus
-            );
-            buddy = BuildMemberUnit("buddy", "Buddy", 80, 0, 0);
-            boss = BuildEnemyUnit("boss_01", "Boss");
-            encounterAnchor = new EncounterAnchorData
-            {
-                entity_id = "misfortune_test_anchor",
-                display_name = "灾厄测试遭遇",
-                world_coord = Vector2I.Zero,
-                faction_id = "hostile",
-                region_tag = "test_region",
-                enemy_roster_template_id = "",
-                encounter_profile_id = "",
-                growth_stage = 0,
-            };
-            var context = new GDictionary
-            {
-                ["battle_map_size"] = new Vector2I(6, 6),
-                ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
-                ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
-                ["battle_party"] = new GArray { hero.ToDictionary(), buddy.ToDictionary() },
-                ["enemy_units"] = new GArray { boss.ToDictionary() },
-            };
-            BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
-            BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
-            BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
-            if (runtimeHero != null)
-                runtime._grid_service.PlaceUnit(state, runtimeHero, new Vector2I(1, 1), true);
-            if (runtimeBuddy != null)
-                runtime._grid_service.PlaceUnit(state, runtimeBuddy, new Vector2I(2, 1), true);
-            returned = true;
-            return runtime;
-        }
-        finally
+            entity_id = "misfortune_test_anchor",
+            display_name = "灾厄测试遭遇",
+            world_coord = Vector2I.Zero,
+            faction_id = "hostile",
+            region_tag = "test_region",
+            enemy_roster_template_id = "",
+            encounter_profile_id = "",
+            growth_stage = 0,
+        };
+        using GodotProjectionLease<GDictionary> heroLease = hero.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-hero"
+        );
+        using GodotProjectionLease<GDictionary> buddyLease = buddy.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-buddy"
+        );
+        using GodotProjectionLease<GDictionary> bossLease = boss.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "misfortune-service-boss"
+        );
+        var context = new GDictionary
         {
-            BattleTestFixture.DisposeBattleUnit(hero);
-            BattleTestFixture.DisposeBattleUnit(buddy);
-            BattleTestFixture.DisposeBattleUnit(boss);
-            GodotSharpCleanup.DisposeGodotObject(encounterAnchor);
-            if (!returned)
-                BattleTestFixture.DisposeBattleFixture(runtime, runtime.GetState());
-        }
+            ["battle_map_size"] = new Vector2I(6, 6),
+            ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
+            ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
+            ["battle_party"] = new GArray { heroLease.Value, buddyLease.Value },
+            ["enemy_units"] = new GArray { bossLease.Value },
+        };
+        BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
+        BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
+        BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
+        if (runtimeHero != null)
+            runtime._grid_service.PlaceUnit(state, runtimeHero, new Vector2I(1, 1), true);
+        if (runtimeBuddy != null)
+            runtime._grid_service.PlaceUnit(state, runtimeBuddy, new Vector2I(2, 1), true);
+        return runtime;
     }
 
     private static BattleUnitState BuildMemberUnit(
@@ -325,20 +314,6 @@ public partial class run_misfortune_service_regression : SceneTree
     private static BattleCommand BuildWaitCommand(StringName unitId)
     {
         return new BattleCommand { command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait), unit_id = unitId };
-    }
-
-    private static void IssueAndDisposeCommand(BattleRuntimeModule runtime, BattleCommand command)
-    {
-        BattleEventBatch batch = null;
-        try
-        {
-            batch = runtime?.IssueCommand(command);
-        }
-        finally
-        {
-            BattleTestFixture.DisposeFixtureObject(batch);
-            BattleTestFixture.DisposeBattleCommand(command);
-        }
     }
 
     private static void DispatchFateEvent(

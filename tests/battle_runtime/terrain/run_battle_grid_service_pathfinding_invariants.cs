@@ -1,11 +1,9 @@
 using Godot;
 
-public partial class run_battle_grid_service_pathfinding_invariants : SceneTree
+public partial class run_battle_grid_service_pathfinding_invariants : LifecycleTestSceneTree
 {
     public override void _Initialize()
     {
-        int exitCode = BattleGridServicePathfindingInvariantsRunner.RunAll();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(run_battle_grid_service_pathfinding_invariants_typed.RunForWrapper());
     }
 }

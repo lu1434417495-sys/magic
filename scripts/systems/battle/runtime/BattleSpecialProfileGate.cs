@@ -4,49 +4,51 @@ using Godot;
 internal sealed class BattleSpecialProfileGate
 {
     private const string PLAYER_BLOCK_MESSAGE = "该禁咒配置未通过校验，暂时无法施放。";
+    private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
 
-    private SpecialProfileGateSnapshot _registrySnapshot = SpecialProfileGateSnapshot.Empty();
+    private IBattleSpecialProfileView _profileView = BattleSpecialProfileRuntimeView.Empty;
 
-    internal void Setup(Godot.Collections.Dictionary registrySnapshot)
+    internal void Setup(IBattleSpecialProfileView profileView)
     {
-        _registrySnapshot = SpecialProfileGateSnapshot.FromDictionary(registrySnapshot);
+        _profileView = profileView ?? BattleSpecialProfileRuntimeView.Empty;
     }
 
     internal BattleSpecialProfileGateResult PreflightSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState);
+    ) => EvaluateSkill(skillDefinition, battleState);
 
     internal BattleSpecialProfileGateResult PreviewSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDefinition, battleState, command, activeUnit);
 
     internal BattleSpecialProfileGateResult PreviewSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitReadView activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, null);
+    ) => EvaluateSkill(skillDefinition, battleState, command, null);
 
     internal BattleSpecialProfileGateResult CanExecuteSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDefinition, battleState, command, activeUnit);
 
     private BattleSpecialProfileGateResult EvaluateSkill(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleState battleState,
         BattleCommand command = null,
         BattleUnitState activeUnit = null
     )
     {
         var result = new BattleSpecialProfileGateResult();
-        if (skillDef == null || skillDef.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
             return Block(
                 result,
                 "",
@@ -55,26 +57,21 @@ internal sealed class BattleSpecialProfileGate
                 "Missing skill definition.",
                 null
             );
-
-        var combatProfile = skillDef.combat_profile as CombatSkillDef;
-        if (combatProfile == null)
-            return Block(
-                result,
-                "",
-                skillDef.skill_id,
-                "missing_combat_profile",
-                "Missing combat skill profile.",
-                null
-            );
-        result.SkillId = skillDef.skill_id;
-        result.ProfileId = combatProfile.special_resolution_profile_id;
+        result.SkillId = skillDefinition.SkillId;
+        result.ProfileId = combatProfile.SpecialResolutionProfileId;
 
         if (result.ProfileId == "")
         {
             result.Allowed = true;
             return result;
         }
-        if (!_registrySnapshot.Ok)
+        if (
+            result.ProfileId != MeteorSwarmProfileId
+            || !_profileView.TryGetMeteorSwarmProfile(
+                result.ProfileId,
+                out MeteorSwarmProfileData _
+            )
+        )
         {
             return Block(
                 result,
@@ -83,57 +80,14 @@ internal sealed class BattleSpecialProfileGate
                 "content_invalid",
                 PLAYER_BLOCK_MESSAGE,
                 new Dictionary<string, object>(System.StringComparer.Ordinal)
-                    { ["errors"] = _registrySnapshot.Errors }
-            );
-        }
-
-        if (_registrySnapshot.ProfileIdBySkillId.Count == 0)
-            return Block(
-                result,
-                result.ProfileId,
-                result.SkillId,
-                "missing_profile_index",
-                PLAYER_BLOCK_MESSAGE,
-                null
-            );
-
-        var skillKey = result.SkillId;
-        if (
-            !_registrySnapshot.ProfileIdBySkillId.TryGetValue(skillKey, out StringName profileId)
-            || profileId != result.ProfileId
-        )
-            return Block(
-                result,
-                result.ProfileId,
-                result.SkillId,
-                "skill_not_owned",
-                PLAYER_BLOCK_MESSAGE,
-                null
-            );
-
-        if (!_registrySnapshot.Profiles.TryGetValue(result.ProfileId, out GateProfileSnapshot profile))
-            return Block(
-                result,
-                result.ProfileId,
-                result.SkillId,
-                "profile_missing",
-                PLAYER_BLOCK_MESSAGE,
-                null
-            );
-
-        if (profile.RuntimeResolverId != result.ProfileId)
-            return Block(
-                result,
-                result.ProfileId,
-                result.SkillId,
-                "resolver_mismatch",
-                PLAYER_BLOCK_MESSAGE,
-                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
-                    ["runtime_resolver_id"] = profile.RuntimeResolverId.ToString(),
-                    ["expected_profile_id"] = result.ProfileId.ToString(),
+                    ["errors"] = new List<string>
+                    {
+                        $"Missing validated battle special profile {result.ProfileId}.",
+                    },
                 }
             );
+        }
 
         if (battleState == null)
             return Block(
@@ -179,118 +133,4 @@ internal sealed class BattleSpecialProfileGate
         return result;
     }
 
-    private sealed class SpecialProfileGateSnapshot
-    {
-        public bool Ok { get; private set; }
-        public List<string> Errors { get; } = new();
-        public Dictionary<StringName, StringName> ProfileIdBySkillId { get; } = new();
-        public Dictionary<StringName, GateProfileSnapshot> Profiles { get; } = new();
-
-        internal static SpecialProfileGateSnapshot Empty() => new();
-
-        internal static SpecialProfileGateSnapshot FromDictionary(
-            Godot.Collections.Dictionary snapshot
-        )
-        {
-            var result = new SpecialProfileGateSnapshot();
-            if (snapshot == null || snapshot.Count == 0 || !snapshot.ContainsKey("ok"))
-            {
-                return result;
-            }
-
-            result.Ok = snapshot["ok"].AsBool();
-            foreach (string error in ReadStringList(snapshot, "errors"))
-            {
-                result.Errors.Add(error);
-            }
-
-            Godot.Collections.Dictionary profileIdBySkillId =
-                ReadDictionary(snapshot, "profile_id_by_skill_id");
-            foreach (Variant rawSkillId in profileIdBySkillId.Keys)
-            {
-                StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-                StringName profileId = ProgressionDataUtils.to_string_name(
-                    profileIdBySkillId[rawSkillId]
-                );
-                if (skillId != "" && profileId != "")
-                {
-                    result.ProfileIdBySkillId[skillId] = profileId;
-                }
-            }
-
-            Godot.Collections.Dictionary profiles = ReadDictionary(snapshot, "profiles");
-            foreach (Variant rawProfileId in profiles.Keys)
-            {
-                StringName profileId = ProgressionDataUtils.to_string_name(rawProfileId);
-                Godot.Collections.Dictionary profilePayload =
-                    profiles[rawProfileId].AsGodotDictionary();
-                GateProfileSnapshot profile = GateProfileSnapshot.FromDictionary(profilePayload);
-                if (profileId != "" && !profile.IsEmpty)
-                {
-                    result.Profiles[profileId] = profile;
-                }
-            }
-
-            return result;
-        }
-    }
-
-    private readonly record struct GateProfileSnapshot(
-        StringName ProfileId,
-        StringName RuntimeResolverId
-    )
-    {
-        public bool IsEmpty => ProfileId == "" && RuntimeResolverId == "";
-
-        internal static GateProfileSnapshot FromDictionary(Godot.Collections.Dictionary payload)
-        {
-            if (payload == null || payload.Count == 0)
-            {
-                return new GateProfileSnapshot("", "");
-            }
-            return new GateProfileSnapshot(
-                ReadStringName(payload, "profile_id"),
-                ReadStringName(payload, "runtime_resolver_id")
-            );
-        }
-    }
-
-    private static Godot.Collections.Dictionary ReadDictionary(
-        Godot.Collections.Dictionary source,
-        string key
-    )
-    {
-        if (source == null || !source.ContainsKey(key))
-        {
-            return new Godot.Collections.Dictionary();
-        }
-        return source[key].AsGodotDictionary();
-    }
-
-    private static List<string> ReadStringList(Godot.Collections.Dictionary source, string key)
-    {
-        var result = new List<string>();
-        if (source == null || !source.ContainsKey(key))
-        {
-            return result;
-        }
-        foreach (object value in source[key].AsGodotArray())
-        {
-            string text = value?.ToString() ?? "";
-            if (!string.IsNullOrEmpty(text))
-            {
-                result.Add(text);
-            }
-        }
-        return result;
-    }
-
-    private static StringName ReadStringName(Godot.Collections.Dictionary source, string key)
-    {
-        if (source == null || !source.ContainsKey(key))
-        {
-            return "";
-        }
-        return ProgressionDataUtils.to_string_name(source[key]);
-    }
 }

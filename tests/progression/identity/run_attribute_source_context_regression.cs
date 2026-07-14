@@ -5,11 +5,9 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GResourceArray = Godot.Collections.Array<Godot.Resource>;
 
-public partial class run_attribute_source_context_regression : SceneTree
+public partial class run_attribute_source_context_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -18,27 +16,42 @@ public partial class run_attribute_source_context_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestAttributeSourceContextNoLongerRequiresGodotRegistration();
-            TestAttributeSnapshotExposesBaseAttributeModifiers();
-            TestAttributeServiceSetupContextAppliesIdentityModifiers();
-            TestAttributeServiceSetupBoundaryIndexesTypedDefinitions();
-            TestAttributeServiceSetupContextUsesExactDefinitionKeys();
-            TestCharacterManagementBuildsAttributeSourceContext();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestAttributeSourceContextNoLongerRequiresGodotRegistration();
+        TestDerivedAttributeRuleUsesPlainCoefficientMaps();
+        TestAttributeSnapshotExposesBaseAttributeModifiers();
+        TestAttributeModifierOverlayCanTargetDerivedAbilityModifier();
+        TestAttributeServiceSetupContextAppliesIdentityModifiers();
+        TestAttributeServiceSetupBoundaryIndexesTypedDefinitions();
+        TestEquipmentRuntimeModifierProjectionUsesDefinitions();
+        TestAttributeServiceSetupContextUsesExactDefinitionKeys();
+        TestCharacterManagementBuildsAttributeSourceContext();
 
-        Quit(_test.Finish("Attribute source context regression"));
+        RequestTestExit(_test.Finish("Attribute source context regression"));
     }
 
     private void TestAttributeSourceContextNoLongerRequiresGodotRegistration()
     {
         Type contextType = typeof(AttributeSourceContext);
+        _test.False(
+            typeof(GodotObject).IsAssignableFrom(contextType),
+            "AttributeSourceContext should remain a plain CLR boundary object."
+        );
+        foreach (
+            string fieldName in new[]
+            {
+                "trait_attribute_modifiers",
+                "equipment_state",
+                "passive_state",
+                "temporary_effects",
+            }
+        )
+        {
+            _test.Eq(
+                contextType.GetField(fieldName)?.FieldType,
+                typeof(IReadOnlyList<AttributeModifierDefinition>),
+                $"AttributeSourceContext.{fieldName} should contain plain definitions."
+            );
+        }
     }
 
     private void TestAttributeSnapshotExposesBaseAttributeModifiers()
@@ -99,36 +112,106 @@ public partial class run_attribute_source_context_regression : SceneTree
         );
     }
 
+    private void TestDerivedAttributeRuleUsesPlainCoefficientMaps()
+    {
+        Dictionary<StringName, int> coefficients = new() { ["strength"] = 1 };
+        DerivedAttributeRule rule = new(
+            "half_strength",
+            0,
+            coefficients,
+            2,
+            -10,
+            10,
+            0
+        );
+        coefficients["strength"] = 99;
+
+        _test.Eq(
+            rule.coefficients["strength"],
+            1,
+            "DerivedAttributeRule should snapshot its managed coefficient input."
+        );
+        _test.Eq(
+            rule.evaluate(new Dictionary<StringName, int> { ["strength"] = -1 }),
+            -1,
+            "DerivedAttributeRule should preserve floor rounding for negative fractional values."
+        );
+    }
+
+    private void TestAttributeModifierOverlayCanTargetDerivedAbilityModifier()
+    {
+        UnitProgress progress = MakeProgress("modifier_overlay");
+        progress.unit_base_attributes.SetAttributeValue("perception", 12);
+        AttributeModifierDefinition equipmentPerceptionModifier =
+            Definition(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier), 3);
+
+        AttributeService service = new();
+        service.SetupContext(
+            new AttributeSourceContext
+            {
+                unit_progress = progress,
+                equipment_state = new[] { equipmentPerceptionModifier },
+            }
+        );
+
+        AttributeSnapshot snapshot = service.GetSnapshot();
+        _test.Eq(snapshot.GetValue("perception"), 12, "调整值加值不应改写基础感知。");
+        _test.Eq(
+            snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.PerceptionModifier)),
+            4,
+            "perception_modifier 应等于基础感知 12 的 +1 再叠加装备 +3。"
+        );
+        _test.Eq(
+            progress.unit_base_attributes.GetAttributeValue("perception"),
+            12,
+            "装备调整值加值不应持久改写 UnitProgress 基础感知。"
+        );
+    }
+
     private void TestAttributeServiceSetupContextAppliesIdentityModifiers()
     {
         UnitProgress progress = MakeProgress("direct");
         AttributeSourceContext context = new()
         {
             unit_progress = progress,
-            race_def = MakeRace(Modifier("strength", 1)),
-            subrace_def = MakeSubrace(Modifier("strength", 2)),
-            age_stage_rule = MakeAgeStageRule("old", Modifier("constitution", 3)),
+            race_def = TestProgressionDefinitionProjection.Race(
+                MakeRace(Modifier("strength", 1))
+            ),
+            subrace_def = TestProgressionDefinitionProjection.Subrace(
+                MakeSubrace(Modifier("strength", 2))
+            ),
+            age_stage_rule = TestProgressionDefinitionProjection.AgeStageRule(
+                MakeAgeStageRule("old", Modifier("constitution", 3))
+            ),
             age_stage_source_type = "stage_advancement",
             age_stage_source_id = "growth_boon",
-            bloodline_def = MakeBloodline(
-                "titan",
-                new[] { new StringName("titan_awakened") },
-                Modifier("willpower", 1)
+            bloodline_def = TestProgressionDefinitionProjection.Bloodline(
+                MakeBloodline(
+                    "titan",
+                    new[] { new StringName("titan_awakened") },
+                    Modifier("willpower", 1)
+                )
             ),
-            bloodline_stage_def = MakeBloodlineStage(
-                "titan_awakened",
-                "titan",
-                Modifier("strength", 4)
+            bloodline_stage_def = TestProgressionDefinitionProjection.BloodlineStage(
+                MakeBloodlineStage(
+                    "titan_awakened",
+                    "titan",
+                    Modifier("strength", 4)
+                )
             ),
-            ascension_def = MakeAscension(
-                "dragon_ascension",
-                new[] { new StringName("dragon_awakened") }
+            ascension_def = TestProgressionDefinitionProjection.Ascension(
+                MakeAscension(
+                    "dragon_ascension",
+                    new[] { new StringName("dragon_awakened") }
+                )
             ),
-            ascension_stage_def = MakeAscensionStage(
-                "dragon_awakened",
-                "dragon_ascension",
-                Modifier("intelligence", 5),
-                Modifier("perception", 6)
+            ascension_stage_def = TestProgressionDefinitionProjection.AscensionStage(
+                MakeAscensionStage(
+                    "dragon_awakened",
+                    "dragon_ascension",
+                    Modifier("intelligence", 5),
+                    Modifier("perception", 6)
+                )
             ),
             versatility_pick = "agility",
         };
@@ -150,24 +233,23 @@ public partial class run_attribute_source_context_regression : SceneTree
         UnitProgress progress = MakeProgress("boundary");
         progress.unit_base_attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
 
-        ProfessionDef profession = TrackOwned(new ProfessionDef
+        ProfessionDef profession = new()
         {
             profession_id = "warrior",
             max_rank = 3,
             bab_progression = "full",
-        });
+        };
         profession.attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
         {
             Modifier("strength", 1, valuePerRank: 1),
         };
-        SkillDef skill = TrackOwned(new SkillDef
-        {
-            skill_id = "toughness",
-            skill_type = "passive",
-        });
-        skill.attribute_modifiers = ResourceModifiers(
-            Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20),
-            Modifier(AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus), 50)
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "toughness",
+            skillType: "passive",
+            attributeModifiers: BuildAttributeModifierDefinitions(
+                Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20),
+                Modifier(AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus), 50)
+            )
         );
 
         UnitProfessionProgress professionProgress = new()
@@ -179,29 +261,36 @@ public partial class run_attribute_source_context_regression : SceneTree
         progress.SetProfessionProgress(professionProgress);
         UnitSkillProgress skillProgress = new()
         {
-            skill_id = skill.skill_id,
+            skill_id = skill.SkillId,
             is_learned = true,
             skill_level = 0,
             profession_granted_by = profession.profession_id,
         };
         progress.SetSkillProgress(skillProgress);
 
-        AttributeModifier equipmentHp = Modifier(AttributeService.ToStringName(AttributeIdKind.HpMax), 10);
-        AttributeModifier temporaryHp = Modifier(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
+        AttributeModifierDefinition equipmentHp =
+            Definition(AttributeService.ToStringName(AttributeIdKind.HpMax), 10);
+        AttributeModifierDefinition temporaryHp =
+            Definition(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
 
         AttributeService service = new();
         service.SetupContext(
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                skill_defs = new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill },
-                profession_defs = new Dictionary<StringName, ProfessionDef>
+                skill_definitions = new Dictionary<StringName, SkillDefinition>
                 {
-                    [profession.profession_id] = profession,
+                    [skill.SkillId] = skill,
                 },
-                equipment_state = new List<AttributeModifier> { equipmentHp },
-                passive_state = new List<AttributeModifier>(),
-                temporary_effects = new List<AttributeModifier> { temporaryHp },
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [profession.profession_id] = profession,
+                    }
+                ),
+                equipment_state = new[] { equipmentHp },
+                passive_state = System.Array.Empty<AttributeModifierDefinition>(),
+                temporary_effects = new[] { temporaryHp },
             }
         );
 
@@ -229,29 +318,28 @@ public partial class run_attribute_source_context_regression : SceneTree
         UnitProgress progress = MakeProgress("strict_boundary");
         progress.unit_base_attributes.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
 
-        SkillDef skill = TrackOwned(new SkillDef
-        {
-            skill_id = "strict_toughness",
-            skill_type = "passive",
-        });
-        skill.attribute_modifiers = ResourceModifiers(
-            Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20)
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "strict_toughness",
+            skillType: "passive",
+            attributeModifiers: BuildAttributeModifierDefinitions(
+                Modifier(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus), 20)
+            )
         );
         progress.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = skill.skill_id,
+                skill_id = skill.SkillId,
                 is_learned = true,
                 skill_level = 1,
             }
         );
 
-        ProfessionDef profession = TrackOwned(new ProfessionDef
+        ProfessionDef profession = new()
         {
             profession_id = "strict_warrior",
             max_rank = 3,
             bab_progression = "full",
-        });
+        };
         profession.attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
         {
             Modifier("strength", 2),
@@ -270,14 +358,16 @@ public partial class run_attribute_source_context_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                skill_defs = new Dictionary<StringName, SkillDef>
+                skill_definitions = new Dictionary<StringName, SkillDefinition>
                 {
                     [new StringName("wrong_toughness_key")] = skill,
                 },
-                profession_defs = new Dictionary<StringName, ProfessionDef>
-                {
-                    [new StringName("wrong_profession_key")] = profession,
-                },
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [new StringName("wrong_profession_key")] = profession,
+                    }
+                ),
             }
         );
 
@@ -299,9 +389,80 @@ public partial class run_attribute_source_context_regression : SceneTree
         );
     }
 
+    private void TestEquipmentRuntimeModifierProjectionUsesDefinitions()
+    {
+        ItemDef armor = new()
+        {
+            item_id = "runtime_armor",
+            item_category = "equipment",
+            equipment_type_id = "armor",
+            equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
+            max_dex_bonus = 2,
+            attribute_modifiers = new Godot.Collections.Array<AttributeModifier>
+            {
+                Modifier("strength", 3, sourceType: "equipment", sourceId: "runtime_armor"),
+            },
+        };
+        ItemDefinition armorDefinition = armor.ToDefinition();
+        EquipmentState equipmentState = new();
+        _test.True(
+            equipmentState.SetEquippedEntry(
+                "body",
+                armor.item_id,
+                new[] { new StringName("body") },
+                EquipmentInstanceState.CreateInstance(
+                    armor.item_id,
+                    "runtime_armor_instance"
+                )
+            ),
+            "Equipment modifier fixture should equip the runtime armor."
+        );
+
+        PartyEquipmentService service = new();
+        try
+        {
+            service.Setup(
+                new PartyState(),
+                new Dictionary<StringName, ItemDefinition>
+                {
+                    [armorDefinition.ItemId] = armorDefinition,
+                }
+            );
+            IReadOnlyList<AttributeModifierDefinition> definitions =
+                service.BuildAttributeModifiersTyped(equipmentState);
+
+            _test.Eq(
+                definitions.Count,
+                2,
+                "Equipment projection should include authored and armor cap definitions."
+            );
+            if (definitions.Count != 2)
+                return;
+            _test.Eq(
+                definitions[0].AttributeId,
+                new StringName("strength"),
+                "Authored equipment modifier order should be preserved."
+            );
+            _test.Eq(
+                definitions[1].AttributeId,
+                AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
+                "Dynamic armor max-dex projection should append a plain definition."
+            );
+            _test.Eq(
+                definitions[1].Value,
+                2,
+                "Armor max-dex definition should preserve its numeric value."
+            );
+        }
+        finally
+        {
+            service.Dispose();
+        }
+    }
+
     private void TestCharacterManagementBuildsAttributeSourceContext()
     {
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         PartyMemberState member = new()
         {
             member_id = "hero",
@@ -319,14 +480,14 @@ public partial class run_attribute_source_context_regression : SceneTree
         partyState.leader_member_id = "hero";
         partyState.main_character_member_id = "hero";
 
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             MakeIdentityCatalog()
         );
@@ -341,7 +502,7 @@ public partial class run_attribute_source_context_regression : SceneTree
 
         AttributeSourceContext context = manager.build_attribute_source_context("hero");
         _test.True(
-            context.age_stage_rule != null && context.age_stage_rule.stage_id == "old",
+            context.age_stage_rule != null && context.age_stage_rule.StageId == "old",
             "CMM context 应解析 effective age stage rule。"
         );
         _test.Eq(
@@ -372,17 +533,17 @@ public partial class run_attribute_source_context_regression : SceneTree
         );
     }
 
-    private ProgressionIdentityCatalogData MakeIdentityCatalog()
+    private static ProgressionIdentityCatalogData MakeIdentityCatalog()
     {
         RaceDef race = MakeRace(Modifier("strength", 1));
         SubraceDef subrace = MakeSubrace(Modifier("agility", 2));
-        AgeProfileDef ageProfile = TrackOwned(new AgeProfileDef
+        AgeProfileDef ageProfile = new()
         {
             profile_id = "human_age",
             race_id = "human",
             creation_stage_ids = new Godot.Collections.Array<StringName> { "adult" },
             default_age_by_stage = new GDictionary { ["adult"] = 18 },
-        });
+        };
         ageProfile.stage_rules = new Godot.Collections.Array<AgeStageRule>
         {
             MakeAgeStageRule("adult"),
@@ -395,7 +556,7 @@ public partial class run_attribute_source_context_regression : SceneTree
             Modifier("willpower", 3)
         );
         BloodlineStageDef bloodlineStage = MakeBloodlineStage("titan_awakened", "titan");
-        StageAdvancementModifier growthBoon = TrackOwned(new StageAdvancementModifier
+        StageAdvancementModifier growthBoon = new()
         {
             modifier_id = "growth_boon",
             display_name = "Growth Boon",
@@ -403,30 +564,51 @@ public partial class run_attribute_source_context_regression : SceneTree
             stage_offset = 2,
             max_stage_id = "old",
             applies_to_race_ids = new Godot.Collections.Array<StringName> { "human" },
-        });
+        };
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-            new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace },
-            new Dictionary<StringName, AgeProfileDef> { [ageProfile.profile_id] = ageProfile },
-            new Dictionary<StringName, BloodlineDef> { [bloodline.bloodline_id] = bloodline },
-            new Dictionary<StringName, BloodlineStageDef> { [bloodlineStage.stage_id] = bloodlineStage },
-            new Dictionary<StringName, AscensionDef>(),
-            new Dictionary<StringName, AscensionStageDef>(),
-            new Dictionary<StringName, StageAdvancementModifier>
-            {
-                [growthBoon.modifier_id] = growthBoon,
-            }
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            TestProgressionDefinitionProjection.Subraces(
+                new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace }
+            ),
+            TestProgressionDefinitionProjection.AgeProfiles(
+                new Dictionary<StringName, AgeProfileDef>
+                {
+                    [ageProfile.profile_id] = ageProfile,
+                }
+            ),
+            TestProgressionDefinitionProjection.Bloodlines(
+                new Dictionary<StringName, BloodlineDef>
+                {
+                    [bloodline.bloodline_id] = bloodline,
+                }
+            ),
+            TestProgressionDefinitionProjection.BloodlineStages(
+                new Dictionary<StringName, BloodlineStageDef>
+                {
+                    [bloodlineStage.stage_id] = bloodlineStage,
+                }
+            ),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            TestProgressionDefinitionProjection.StageAdvancements(
+                new Dictionary<StringName, StageAdvancementModifier>
+                {
+                    [growthBoon.modifier_id] = growthBoon,
+                }
+            )
         );
     }
 
-    private UnitProgress MakeProgress(StringName unitId)
+    private static UnitProgress MakeProgress(StringName unitId)
     {
-        UnitProgress progress = TrackOwned(new UnitProgress
+        UnitProgress progress = new()
         {
             unit_id = unitId,
             display_name = unitId.ToString().Capitalize(),
-        });
+        };
         foreach (
             StringName attributeId in new[]
             {
@@ -442,9 +624,9 @@ public partial class run_attribute_source_context_regression : SceneTree
         return progress;
     }
 
-    private RaceDef MakeRace(params AttributeModifier[] modifiers)
+    private static RaceDef MakeRace(params AttributeModifier[] modifiers)
     {
-        RaceDef race = TrackOwned(new RaceDef
+        RaceDef race = new()
         {
             race_id = "human",
             display_name = "Human",
@@ -455,107 +637,109 @@ public partial class run_attribute_source_context_regression : SceneTree
             body_size_category = "medium",
             base_speed = 6,
             attribute_modifiers = ResourceModifiers(modifiers),
-        });
+        };
         return race;
     }
 
-    private SubraceDef MakeSubrace(params AttributeModifier[] modifiers)
+    private static SubraceDef MakeSubrace(params AttributeModifier[] modifiers)
     {
-        return TrackOwned(new SubraceDef
+        return new SubraceDef
         {
             subrace_id = "high_human",
             parent_race_id = "human",
             display_name = "High Human",
             description = "Fixture subrace.",
             attribute_modifiers = TypedModifiers(modifiers),
-        });
+        };
     }
 
-    private AgeStageRule MakeAgeStageRule(
+    private static AgeStageRule MakeAgeStageRule(
         StringName stageId,
         params AttributeModifier[] modifiers
     )
     {
-        return TrackOwned(new AgeStageRule
+        return new AgeStageRule
         {
             stage_id = stageId,
             display_name = stageId.ToString(),
             description = "Fixture age stage.",
             attribute_modifiers = ResourceModifiers(modifiers),
-        });
+        };
     }
 
-    private BloodlineDef MakeBloodline(
+    private static BloodlineDef MakeBloodline(
         StringName bloodlineId,
         IEnumerable<StringName> stageIds,
         params AttributeModifier[] modifiers
     )
     {
-        BloodlineDef bloodline = TrackOwned(new BloodlineDef
+        BloodlineDef bloodline = new()
         {
             bloodline_id = bloodlineId,
             display_name = bloodlineId.ToString(),
             description = "Fixture bloodline.",
             attribute_modifiers = ResourceModifiers(modifiers),
-        });
+        };
         foreach (StringName stageId in stageIds)
             bloodline.stage_ids.Add(stageId);
         return bloodline;
     }
 
-    private BloodlineStageDef MakeBloodlineStage(
+    private static BloodlineStageDef MakeBloodlineStage(
         StringName stageId,
         StringName bloodlineId,
         params AttributeModifier[] modifiers
     )
     {
-        return TrackOwned(new BloodlineStageDef
+        return new BloodlineStageDef
         {
             stage_id = stageId,
             bloodline_id = bloodlineId,
             display_name = stageId.ToString(),
             description = "Fixture bloodline stage.",
             attribute_modifiers = ResourceModifiers(modifiers),
-        });
+        };
     }
 
-    private AscensionDef MakeAscension(StringName ascensionId, IEnumerable<StringName> stageIds)
+    private static AscensionDef MakeAscension(StringName ascensionId, IEnumerable<StringName> stageIds)
     {
-        AscensionDef ascension = TrackOwned(new AscensionDef
+        AscensionDef ascension = new()
         {
             ascension_id = ascensionId,
             display_name = ascensionId.ToString(),
             description = "Fixture ascension.",
-        });
+        };
         foreach (StringName stageId in stageIds)
             ascension.stage_ids.Add(stageId);
         return ascension;
     }
 
-    private AscensionStageDef MakeAscensionStage(
+    private static AscensionStageDef MakeAscensionStage(
         StringName stageId,
         StringName ascensionId,
         params AttributeModifier[] modifiers
     )
     {
-        return TrackOwned(new AscensionStageDef
+        return new AscensionStageDef
         {
             stage_id = stageId,
             ascension_id = ascensionId,
             display_name = stageId.ToString(),
             description = "Fixture ascension stage.",
             attribute_modifiers = ResourceModifiers(modifiers),
-        });
+        };
     }
 
-    private AttributeModifier Modifier(
+    private static AttributeModifier Modifier(
         StringName attributeId,
         int value,
         StringName mode = default,
-        int valuePerRank = 0
+        int valuePerRank = 0,
+        StringName sourceType = default,
+        StringName sourceId = default
     )
     {
-        return TrackOwned(new AttributeModifier
+        return new AttributeModifier
         {
             attribute_id = attributeId,
             mode = mode != ""
@@ -563,8 +747,27 @@ public partial class run_attribute_source_context_regression : SceneTree
                 : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
             value = value,
             value_per_rank = valuePerRank,
-        });
+            source_type = sourceType,
+            source_id = sourceId,
+        };
     }
+
+    private static AttributeModifierDefinition Definition(
+        StringName attributeId,
+        int value,
+        StringName mode = default,
+        int valuePerRank = 0,
+        StringName sourceType = default,
+        StringName sourceId = default
+    ) =>
+        new(
+            attributeId,
+            mode != "" ? mode : AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            value,
+            valuePerRank,
+            sourceType,
+            sourceId
+        );
 
     private static GResourceArray ResourceModifiers(params AttributeModifier[] modifiers)
     {
@@ -573,6 +776,24 @@ public partial class run_attribute_source_context_regression : SceneTree
             if (modifier != null)
                 result.Add(modifier);
         return result;
+    }
+
+    private static AttributeModifierDefinition[] BuildAttributeModifierDefinitions(
+        params AttributeModifier[] modifiers
+    )
+    {
+        if (modifiers == null || modifiers.Length == 0)
+            return System.Array.Empty<AttributeModifierDefinition>();
+        List<AttributeModifierDefinition> result = new();
+        foreach (AttributeModifier modifier in modifiers)
+        {
+            AttributeModifierDefinition definition = AttributeModifierDefinition.FromResource(
+                modifier
+            );
+            if (definition != null)
+                result.Add(definition);
+        }
+        return result.ToArray();
     }
 
     private static Godot.Collections.Array<AttributeModifier> TypedModifiers(
@@ -584,50 +805,5 @@ public partial class run_attribute_source_context_regression : SceneTree
             if (modifier != null)
                 result.Add(modifier);
         return result;
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            case UnitProgress progress:
-                GodotRefCountedDisposer.DisposeIfValid(progress);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 }

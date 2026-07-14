@@ -1,16 +1,15 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GIntArray = Godot.Collections.Array<int>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleBoardController : RefCounted
+public sealed class BattleBoardController : IDisposable
 {
+    public sealed class TileSetCacheEntry
+    {
+        public TileSet TileSet { get; init; }
+        public Dictionary<StringName, List<int>> SourceIds { get; init; } = new();
+    }
+
     private const int MAX_HEIGHT_LAYERS = 9;
     private const int TOP_LAYER_Z_BASE = 0;
     private const int LAYER_Z_STRIDE = 10;
@@ -21,6 +20,11 @@ public partial class BattleBoardController : RefCounted
     private const int OVERLAY_LAYER_Z_OFFSET = 6;
     private const int MARKER_LAYER_Z_OFFSET = OVERLAY_LAYER_Z_OFFSET + 1;
     private const int DYNAMIC_LAYER_Z_OFFSET = MARKER_LAYER_Z_OFFSET + 1;
+
+    // 单位身上的信息层(血条、名字)用"绝对 z"(ZAsRelative=false)钉到固定高层。
+    // token 在 y_sort 的 UnitLayer 里,相对 z 会被 y-sort 扁平化吃掉(Control 子节点尤甚),
+    // 导致血条被自己/邻近单位的贴图盖住;绝对 z 直接跳到所有贴图之上、仅低于目标高亮(1300)。
+    private const int UNIT_OVERLAY_ABSOLUTE_Z = 1200;
     private const int PROP_LAYER_Z = 0;
     private const int UNIT_LAYER_Z = 0;
     private const int TARGET_HIGHLIGHT_LAYER_Z = 1300;
@@ -34,6 +38,9 @@ public partial class BattleBoardController : RefCounted
     private const int UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT = 28;
     private static readonly Vector2 UNIT_HEALTH_BAR_SIZE = new(56.0f, 14.0f);
     private const float UNIT_HEALTH_BAR_Y_OFFSET = -50.0f;
+
+    // 贴图单位的血条要落在贴图实际顶部之上(贴图很高,固定 -50 会压在身体中部)。
+    private const float UNIT_SPRITE_OVERLAY_GAP = 4.0f;
     private static readonly Color UNIT_HEALTH_BAR_BG_COLOR = new(0.14f, 0.09f, 0.06f, 0.92f);
     private static readonly Color UNIT_HEALTH_BAR_BORDER_COLOR = new(0.95f, 0.91f, 0.8f, 0.9f);
     private static readonly Color UNIT_HEALTH_BAR_HIGH_COLOR = new(0.3f, 0.86f, 0.42f, 0.96f);
@@ -89,81 +96,108 @@ public partial class BattleBoardController : RefCounted
     private static readonly StringName SOURCE_PREVIEW = "preview";
     private static readonly Vector2I INVALID_OPTION_COORD = new(-999999, -999999);
     private static readonly StringName PROP_SPIKE_BARRICADE = "spike_barricade";
-    private static readonly PackedScene BattleBoardPropScene = GD.Load<PackedScene>(
-        "res://scenes/common/battle_board_prop.tscn"
-    );
+    private const string BattleBoardPropScenePath =
+        "res://scenes/common/battle_board_prop.tscn";
 
     public TileMapLayer _input_layer;
-    public GTileLayerArray _top_layers = new();
-    public GTileLayerArray _edge_drop_east_layers = new();
-    public GTileLayerArray _edge_drop_south_layers = new();
-    public GTileLayerArray _wall_east_layers = new();
-    public GTileLayerArray _wall_south_layers = new();
-    public GTileLayerArray _overlay_layers = new();
-    public GTileLayerArray _marker_layers = new();
+    public readonly List<TileMapLayer> _top_layers = new();
+    public readonly List<TileMapLayer> _edge_drop_east_layers = new();
+    public readonly List<TileMapLayer> _edge_drop_south_layers = new();
+    public readonly List<TileMapLayer> _wall_east_layers = new();
+    public readonly List<TileMapLayer> _wall_south_layers = new();
+    public readonly List<TileMapLayer> _overlay_layers = new();
+    public readonly List<TileMapLayer> _marker_layers = new();
     public Node2D _prop_layer;
     public Node2D _unit_layer;
     public Node2D _target_highlight_layer;
     public TileSet _tile_set;
-    public GDictionary _source_ids = new();
+    public readonly Dictionary<StringName, List<int>> _source_ids = new();
     public StringName _tile_profile_id = "";
     public BattleBoardRenderProfile _render_profile;
-    public GDictionary _texture_cache = new();
-    public GDictionary _tileset_cache = new();
+    public readonly Dictionary<string, Texture2D> _texture_cache = new();
+    public readonly Dictionary<StringName, TileSetCacheEntry> _tileset_cache = new();
+    private StyleBoxFlat _unitHealthBarStyle;
+    private StyleBoxFlat _hitBadgeStyle;
+    private NativeLeaseScope _renderLease;
+    private bool _disposed;
+    private readonly Dictionary<StringName, Node2D> _unitNodesById = new();
     public BattleEdgeService _edge_service = new();
     public BattleState _battle_state;
     public Vector2I _selected_coord = new(-1, -1);
-    public GVector2IArray _preview_target_coords = new();
-    public GVector2IArray _valid_target_coords = new();
+    public readonly List<Vector2I> _preview_target_coords = new();
+    public readonly List<Vector2I> _valid_target_coords = new();
     public StringName _target_selection_mode = "single_unit";
     public int _target_min_count = 1;
     public int _target_max_count = 1;
-    public GDictionary _target_hit_badges = new();
+    public readonly Dictionary<Vector2I, string> _target_hit_badges = new();
 
     public void BindLayers(
         TileMapLayer input_layer,
-        GTileLayerArray top_layers,
-        GTileLayerArray edge_drop_east_layers,
-        GTileLayerArray edge_drop_south_layers,
-        GTileLayerArray wall_east_layers,
-        GTileLayerArray wall_south_layers,
-        GTileLayerArray overlay_layers,
-        GTileLayerArray marker_layers,
+        IEnumerable<TileMapLayer> top_layers,
+        IEnumerable<TileMapLayer> edge_drop_east_layers,
+        IEnumerable<TileMapLayer> edge_drop_south_layers,
+        IEnumerable<TileMapLayer> wall_east_layers,
+        IEnumerable<TileMapLayer> wall_south_layers,
+        IEnumerable<TileMapLayer> overlay_layers,
+        IEnumerable<TileMapLayer> marker_layers,
         Node2D prop_layer,
         Node2D unit_layer,
         Node2D target_highlight_layer
     )
     {
+        ThrowIfDisposed();
+        if (_renderLease != null || _input_layer != null || _top_layers.Count > 0)
+            ClearCore();
         _input_layer = input_layer;
-        _top_layers = CloneLayerArray(top_layers);
-        _edge_drop_east_layers = CloneLayerArray(edge_drop_east_layers);
-        _edge_drop_south_layers = CloneLayerArray(edge_drop_south_layers);
-        _wall_east_layers = CloneLayerArray(wall_east_layers);
-        _wall_south_layers = CloneLayerArray(wall_south_layers);
-        _overlay_layers = CloneLayerArray(overlay_layers);
-        _marker_layers = CloneLayerArray(marker_layers);
+        ReplaceLayers(_top_layers, top_layers);
+        ReplaceLayers(_edge_drop_east_layers, edge_drop_east_layers);
+        ReplaceLayers(_edge_drop_south_layers, edge_drop_south_layers);
+        ReplaceLayers(_wall_east_layers, wall_east_layers);
+        ReplaceLayers(_wall_south_layers, wall_south_layers);
+        ReplaceLayers(_overlay_layers, overlay_layers);
+        ReplaceLayers(_marker_layers, marker_layers);
         _prop_layer = prop_layer;
         _unit_layer = unit_layer;
         _target_highlight_layer = target_highlight_layer;
-        _ensure_tileset(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT());
-        _apply_tileset_to_layers();
-        _apply_layer_offsets();
-        _apply_layer_draw_order();
+        try
+        {
+            _ensure_tileset(BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT());
+            _apply_tileset_to_layers();
+            _apply_layer_offsets();
+            _apply_layer_draw_order();
+        }
+        catch (Exception constructionFailure)
+        {
+            try
+            {
+                ClearCore();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(
+                    "BattleBoardController bind failed and cleanup reported failures.",
+                    constructionFailure,
+                    cleanupFailure
+                );
+            }
+            throw;
+        }
     }
 
     public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords,
+        IEnumerable<Vector2I> preview_target_coords,
         StringName target_selection_mode,
         int min_target_count,
         int max_target_count,
-        GDictionary target_hit_badges
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges
     )
     {
+        ThrowIfDisposed();
         _battle_state = battle_state;
         _selected_coord = selected_coord;
-        _preview_target_coords = CloneVector2IArray(preview_target_coords);
+        ReplaceCoords(_preview_target_coords, preview_target_coords);
         _target_selection_mode =
             target_selection_mode == "" ? new StringName("single_unit") : target_selection_mode;
         _target_min_count = Mathf.Max(min_target_count, 1);
@@ -175,17 +209,18 @@ public partial class BattleBoardController : RefCounted
 
     public void UpdateMarkers(
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords,
-        GVector2IArray valid_target_coords,
+        IEnumerable<Vector2I> preview_target_coords,
+        IEnumerable<Vector2I> valid_target_coords,
         StringName target_selection_mode,
         int min_target_count,
         int max_target_count,
-        GDictionary target_hit_badges
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges
     )
     {
+        ThrowIfDisposed();
         _selected_coord = selected_coord;
-        _preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _valid_target_coords = CloneVector2IArray(valid_target_coords);
+        ReplaceCoords(_preview_target_coords, preview_target_coords);
+        ReplaceCoords(_valid_target_coords, valid_target_coords);
         _target_selection_mode =
             target_selection_mode == "" ? new StringName("single_unit") : target_selection_mode;
         _target_min_count = Mathf.Max(min_target_count, 1);
@@ -195,19 +230,189 @@ public partial class BattleBoardController : RefCounted
         _draw_target_highlights();
     }
 
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        ThrowIfDisposed();
+        if (_unit_layer == null || battle_state == null || changed_unit_ids == null)
+            return;
+
+        _battle_state = battle_state;
+        var requestedUnitIds = new HashSet<StringName>();
+        foreach (StringName unitId in changed_unit_ids)
+        {
+            if (unitId != "")
+                requestedUnitIds.Add(unitId);
+        }
+        if (requestedUnitIds.Count == 0)
+        {
+            foreach (StringName unitId in _unitNodesById.Keys)
+                requestedUnitIds.Add(unitId);
+            foreach (BattleUnitState unit in battle_state.Units())
+            {
+                if (unit?.unit_id != "")
+                    requestedUnitIds.Add(unit.unit_id);
+            }
+        }
+
+        foreach (StringName unitId in requestedUnitIds)
+        {
+            if (_unitNodesById.Remove(unitId, out Node2D existingNode))
+            {
+                if (GodotObject.IsInstanceValid(existingNode))
+                {
+                    if (existingNode.GetParent() == _unit_layer)
+                        _unit_layer.RemoveChild(existingNode);
+                    existingNode.Free();
+                }
+            }
+
+            BattleUnitState unitState = GetUnit(_battle_state, unitId);
+            if (unitState == null || !unitState.is_alive)
+                continue;
+            unitState.RefreshFootprint();
+            Node2D unitNode = _create_unit_token(unitState);
+            if (unitNode == null)
+                continue;
+            _unit_layer.AddChild(unitNode);
+            _unitNodesById[unitId] = unitNode;
+        }
+    }
+
     public void Clear()
     {
+        ThrowIfDisposed();
+        ClearCore();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        ClearCore();
+    }
+
+    private void ClearCore()
+    {
+        NativeLeaseScope renderLease = _renderLease;
+        _renderLease = null;
+        var failures = new List<Exception>();
+        TryCleanup(() => _clear_tile_layers(failures), failures);
+        TryCleanup(() => _detach_tilesets_from_layers(failures), failures);
+        TryCleanup(() => _clear_dynamic_nodes(failures), failures);
+        TryCleanup(() => _detach_sources_from_cached_tilesets(failures), failures);
+        TryCleanup(ClearBorrowedFields, failures);
+        if (renderLease != null)
+            TryCleanup(renderLease.Dispose, failures);
+        if (failures.Count > 0)
+        {
+            throw new AggregateException(
+                "BattleBoardController render generation cleanup failed.",
+                failures
+            );
+        }
+    }
+
+    private static void TryCleanup(Action cleanup, List<Exception> failures)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+    }
+
+    private void ClearBorrowedFields()
+    {
         _battle_state = null;
+        _tile_set = null;
+        _render_profile = null;
+        _tile_profile_id = "";
         _selected_coord = new Vector2I(-1, -1);
         _preview_target_coords.Clear();
         _valid_target_coords.Clear();
         _target_hit_badges.Clear();
-        _clear_tile_layers();
-        _clear_dynamic_nodes();
+        _source_ids.Clear();
+        _unitHealthBarStyle = null;
+        _hitBadgeStyle = null;
+        _texture_cache.Clear();
+        _tileset_cache.Clear();
+        _unitNodesById.Clear();
+        _input_layer = null;
+        _top_layers.Clear();
+        _edge_drop_east_layers.Clear();
+        _edge_drop_south_layers.Clear();
+        _wall_east_layers.Clear();
+        _wall_south_layers.Clear();
+        _overlay_layers.Clear();
+        _marker_layers.Clear();
+        _prop_layer = null;
+        _unit_layer = null;
+        _target_highlight_layer = null;
+    }
+
+    private void _detach_sources_from_cached_tilesets(List<Exception> failures)
+    {
+        var visited = new HashSet<TileSet>(GodotWrapperReferenceComparer.Instance);
+        foreach (TileSetCacheEntry entry in _tileset_cache.Values)
+        {
+            TileSet tileSet = entry?.TileSet;
+            if (tileSet == null || !visited.Add(tileSet))
+                continue;
+            DetachTileSetSources(tileSet, failures);
+        }
+        if (_tile_set != null && visited.Add(_tile_set))
+            DetachTileSetSources(_tile_set, failures);
+    }
+
+    private static void DetachTileSetSources(TileSet tileSet, List<Exception> failures)
+    {
+        var sourceIds = new List<int>();
+        int sourceCount = 0;
+        bool sourceCountRead = false;
+        ExecuteCleanup(
+            () =>
+            {
+                sourceCount = tileSet.GetSourceCount();
+                sourceCountRead = true;
+            },
+            failures
+        );
+        if (!sourceCountRead)
+            return;
+
+        for (int sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++)
+        {
+            int sourceId = 0;
+            bool sourceIdRead = false;
+            int capturedIndex = sourceIndex;
+            ExecuteCleanup(
+                () =>
+                {
+                    sourceId = tileSet.GetSourceId(capturedIndex);
+                    sourceIdRead = true;
+                },
+                failures
+            );
+            if (sourceIdRead)
+                sourceIds.Add(sourceId);
+        }
+        for (int sourceIndex = sourceIds.Count - 1; sourceIndex >= 0; sourceIndex--)
+        {
+            int sourceId = sourceIds[sourceIndex];
+            ExecuteCleanup(() => tileSet.RemoveSource(sourceId), failures);
+        }
     }
 
     public void _refresh_tileset_profile()
     {
+        ThrowIfDisposed();
         StringName desiredProfile = _resolve_tile_profile_id();
         if (desiredProfile == _tile_profile_id && _tile_set != null)
             return;
@@ -293,7 +498,7 @@ public partial class BattleBoardController : RefCounted
     {
         if (edge_face == null || !edge_face.HasDropFace())
             return;
-        GTileLayerArray layers =
+        IReadOnlyList<TileMapLayer> layers =
             edge_face.direction == Vector2I.Right
                 ? _edge_drop_east_layers
                 : _edge_drop_south_layers;
@@ -321,7 +526,7 @@ public partial class BattleBoardController : RefCounted
             return;
         if (edge_face.FeatureRenderKind != BattleEdgeRenderKind.Wall)
             return;
-        GTileLayerArray layers =
+        IReadOnlyList<TileMapLayer> layers =
             edge_face.direction == Vector2I.Right ? _wall_east_layers : _wall_south_layers;
         StringName sourceKey =
             edge_face.direction == Vector2I.Right ? SOURCE_WALL_EAST : SOURCE_WALL_SOUTH;
@@ -387,7 +592,7 @@ public partial class BattleBoardController : RefCounted
         {
             if (cellState == null || !_is_cell_inside_battle(cellState.coord))
                 continue;
-            GStringNameArray propIds = _collect_prop_ids_for_cell(cellState);
+            List<StringName> propIds = _collect_prop_ids_for_cell(cellState);
             for (int index = 0; index < propIds.Count; index++)
             {
                 BattleBoardProp propNode = _create_prop_node(cellState, propIds[index], index);
@@ -427,7 +632,10 @@ public partial class BattleBoardController : RefCounted
             unitState.RefreshFootprint();
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode != null)
+            {
                 _unit_layer.AddChild(unitNode);
+                _unitNodesById[unitIdValue] = unitNode;
+            }
         }
     }
 
@@ -446,9 +654,10 @@ public partial class BattleBoardController : RefCounted
         token.SetMeta("sort_anchor_y", anchor.Y);
         token.SetMeta("sort_depth", renderDepth);
         token.SetMeta("board_coord", unit_state.coord);
-        if (unit_state.battle_sprite_texture != null)
+        Texture2D spriteTexture = _resolve_unit_sprite_texture(unit_state);
+        if (spriteTexture != null)
         {
-            _attach_unit_sprite_visuals(token, unit_state);
+            _attach_unit_sprite_visuals(token, unit_state, spriteTexture);
         }
         else
         {
@@ -482,7 +691,7 @@ public partial class BattleBoardController : RefCounted
             token.AddChild(outline);
         }
         if (
-            unit_state.battle_sprite_texture == null
+            spriteTexture == null
             && _battle_state != null
             && unit_state.unit_id == _battle_state.active_unit_id
         )
@@ -515,6 +724,8 @@ public partial class BattleBoardController : RefCounted
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
+            ZIndex = UNIT_OVERLAY_ABSOLUTE_Z,
+            ZAsRelative = false,
         };
         label.AddThemeFontSizeOverride("font_size", 15);
         label.AddThemeColorOverride("font_color", new Color(0.98f, 0.96f, 0.9f, 0.98f));
@@ -524,13 +735,29 @@ public partial class BattleBoardController : RefCounted
         token.AddChild(label);
         Control healthBar = _create_unit_health_bar(unit_state);
         if (healthBar != null)
+        {
+            healthBar.ZIndex = UNIT_OVERLAY_ABSOLUTE_Z;
+            healthBar.ZAsRelative = false;
+            if (spriteTexture != null)
+            {
+                // 高贴图:把血条抬到贴图顶部之上,而不是落在身体中部
+                float barTop = _get_unit_sprite_top_y(spriteTexture)
+                    - UNIT_SPRITE_OVERLAY_GAP
+                    - UNIT_HEALTH_BAR_SIZE.Y;
+                healthBar.Position = new Vector2(healthBar.Position.X, barTop);
+            }
             token.AddChild(healthBar);
+        }
         return token;
     }
 
-    private void _attach_unit_sprite_visuals(Node2D token, BattleUnitState unit_state)
+    private void _attach_unit_sprite_visuals(
+        Node2D token,
+        BattleUnitState unit_state,
+        Texture2D spriteTexture
+    )
     {
-        if (token == null || unit_state == null || unit_state.battle_sprite_texture == null)
+        if (token == null || unit_state == null || spriteTexture == null)
             return;
         float groundY = -_get_unit_anchor_bias().Y;
         var shadow = new Polygon2D
@@ -556,7 +783,7 @@ public partial class BattleBoardController : RefCounted
             };
             token.AddChild(highlight);
         }
-        Vector2 textureSize = unit_state.battle_sprite_texture.GetSize();
+        Vector2 textureSize = spriteTexture.GetSize();
         if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
             return;
         Vector2I tileSize = _get_board_tile_size();
@@ -565,7 +792,7 @@ public partial class BattleBoardController : RefCounted
         var sprite = new Sprite2D
         {
             Name = "UnitSprite",
-            Texture = unit_state.battle_sprite_texture,
+            Texture = spriteTexture,
             Centered = true,
             Scale = Vector2.One * spriteScale,
             Position = new Vector2(
@@ -575,6 +802,32 @@ public partial class BattleBoardController : RefCounted
             ZIndex = 0,
         };
         token.AddChild(sprite);
+    }
+
+    private Texture2D _resolve_unit_sprite_texture(BattleUnitState unitState)
+    {
+        string path = unitState?.battle_sprite_texture_path ?? "";
+        return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
+    }
+
+    // 贴图缩放后的可见高度(像素,token 本地坐标)。与 _attach_unit_sprite_visuals 的
+    // 缩放算法一致:宽度按格宽比缩放,等比得到高度。
+    private float _get_unit_sprite_scaled_height(Vector2 textureSize)
+    {
+        if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
+            return 0.0f;
+        Vector2I tileSize = _get_board_tile_size();
+        float targetWidth = Mathf.Max((float)tileSize.X * UNIT_SPRITE_TILE_WIDTH_RATIO, 1.0f);
+        float spriteScale = targetWidth / textureSize.X;
+        return textureSize.Y * spriteScale;
+    }
+
+    // 贴图顶部在 token 本地坐标的 Y(脚底锚点为基准,向上为负)。
+    private float _get_unit_sprite_top_y(Texture2D spriteTexture)
+    {
+        float groundY = -_get_unit_anchor_bias().Y;
+        float scaledHeight = _get_unit_sprite_scaled_height(spriteTexture.GetSize());
+        return groundY - UNIT_SPRITE_GROUND_ANCHOR_RATIO * scaledHeight;
     }
 
     private Vector2[] _build_unit_ellipse_polygon(Vector2 half_size)
@@ -611,19 +864,7 @@ public partial class BattleBoardController : RefCounted
             MouseFilter = Control.MouseFilterEnum.Ignore,
             ClipContents = true,
         };
-        var panelStyle = new StyleBoxFlat
-        {
-            BgColor = UNIT_HEALTH_BAR_BG_COLOR,
-            BorderColor = UNIT_HEALTH_BAR_BORDER_COLOR,
-            BorderWidthLeft = 1,
-            BorderWidthTop = 1,
-            BorderWidthRight = 1,
-            BorderWidthBottom = 1,
-            CornerRadiusTopLeft = 2,
-            CornerRadiusTopRight = 2,
-            CornerRadiusBottomRight = 2,
-            CornerRadiusBottomLeft = 2,
-        };
+        StyleBoxFlat panelStyle = _get_unit_health_bar_style();
         healthBar.AddThemeStyleboxOverride("panel", panelStyle);
         var fill = new ColorRect
         {
@@ -709,24 +950,48 @@ public partial class BattleBoardController : RefCounted
         return bestKey;
     }
 
-    private void _clear_tile_layers()
+    private void _clear_tile_layers() => _clear_tile_layers(null);
+
+    private void _clear_tile_layers(List<Exception> failures)
     {
-        ClearLayers(_top_layers);
-        ClearLayers(_edge_drop_east_layers);
-        ClearLayers(_edge_drop_south_layers);
-        ClearLayers(_wall_east_layers);
-        ClearLayers(_wall_south_layers);
-        ClearLayers(_overlay_layers);
-        _clear_marker_layers();
+        ClearLayers(_top_layers, failures);
+        ClearLayers(_edge_drop_east_layers, failures);
+        ClearLayers(_edge_drop_south_layers, failures);
+        ClearLayers(_wall_east_layers, failures);
+        ClearLayers(_wall_south_layers, failures);
+        ClearLayers(_overlay_layers, failures);
+        ClearLayers(_marker_layers, failures);
     }
 
-    private void _clear_marker_layers() => ClearLayers(_marker_layers);
+    private void _clear_marker_layers() => ClearLayers(_marker_layers, null);
 
-    private void _clear_dynamic_nodes()
+    private void _detach_tilesets_from_layers(List<Exception> failures)
     {
-        _clear_child_nodes(_prop_layer);
-        _clear_child_nodes(_unit_layer);
-        _clear_child_nodes(_target_highlight_layer);
+        ClearTileSets(_top_layers, failures);
+        ClearTileSets(_edge_drop_east_layers, failures);
+        ClearTileSets(_edge_drop_south_layers, failures);
+        ClearTileSets(_wall_east_layers, failures);
+        ClearTileSets(_wall_south_layers, failures);
+        ClearTileSets(_overlay_layers, failures);
+        ClearTileSets(_marker_layers, failures);
+        ExecuteCleanup(
+            () =>
+            {
+                if (_input_layer != null)
+                    _input_layer.TileSet = null;
+            },
+            failures
+        );
+    }
+
+    private void _clear_dynamic_nodes() => _clear_dynamic_nodes(null);
+
+    private void _clear_dynamic_nodes(List<Exception> failures)
+    {
+        _clear_child_nodes(_prop_layer, failures);
+        _unitNodesById.Clear();
+        _clear_child_nodes(_unit_layer, failures);
+        _clear_child_nodes(_target_highlight_layer, failures);
     }
 
     private void _draw_target_highlights()
@@ -804,17 +1069,13 @@ public partial class BattleBoardController : RefCounted
         _draw_target_hit_badges();
     }
 
-    private void _set_target_hit_badges(GDictionary target_hit_badges)
+    private void _set_target_hit_badges(IReadOnlyDictionary<Vector2I, string> target_hit_badges)
     {
         _target_hit_badges.Clear();
         if (target_hit_badges == null)
             return;
-        foreach (var coordValue in target_hit_badges.Keys)
+        foreach ((Vector2I coord, string badgeText) in target_hit_badges)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            Vector2I coord = coordValue.AsVector2I();
-            string badgeText = DictString(target_hit_badges, coordValue);
             if (!string.IsNullOrEmpty(badgeText))
                 _target_hit_badges[coord] = badgeText;
         }
@@ -824,17 +1085,11 @@ public partial class BattleBoardController : RefCounted
     {
         if (_target_highlight_layer == null || _target_hit_badges.Count == 0)
             return;
-        foreach (var coordValue in _target_hit_badges.Keys)
+        foreach ((Vector2I coord, string badgeText) in _target_hit_badges)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            Vector2I coord = coordValue.AsVector2I();
             if (!_is_cell_inside_battle(coord))
                 continue;
-            Control badge = _create_target_hit_badge(
-                coord,
-                DictString(_target_hit_badges, coord)
-            );
+            Control badge = _create_target_hit_badge(coord, badgeText);
             if (badge == null)
                 continue;
             badge.Name = $"HitBadge_{coord.X}_{coord.Y}";
@@ -855,7 +1110,7 @@ public partial class BattleBoardController : RefCounted
             Size = HIT_BADGE_SIZE,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        badge.AddThemeStyleboxOverride("panel", _build_hit_badge_style());
+        badge.AddThemeStyleboxOverride("panel", _get_hit_badge_style());
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 8);
         margin.AddThemeConstantOverride("margin_top", 3);
@@ -876,20 +1131,45 @@ public partial class BattleBoardController : RefCounted
         return badge;
     }
 
-    private StyleBoxFlat _build_hit_badge_style() =>
-        new()
-        {
-            BgColor = HIT_BADGE_BG_COLOR,
-            BorderColor = HIT_BADGE_EDGE_COLOR,
-            BorderWidthLeft = 1,
-            BorderWidthTop = 1,
-            BorderWidthRight = 1,
-            BorderWidthBottom = 1,
-            CornerRadiusTopLeft = 5,
-            CornerRadiusTopRight = 5,
-            CornerRadiusBottomRight = 5,
-            CornerRadiusBottomLeft = 5,
-        };
+    private StyleBoxFlat _get_unit_health_bar_style()
+    {
+        return _unitHealthBarStyle ??= OwnRenderResource(
+            new StyleBoxFlat
+            {
+                BgColor = UNIT_HEALTH_BAR_BG_COLOR,
+                BorderColor = UNIT_HEALTH_BAR_BORDER_COLOR,
+                BorderWidthLeft = 1,
+                BorderWidthTop = 1,
+                BorderWidthRight = 1,
+                BorderWidthBottom = 1,
+                CornerRadiusTopLeft = 2,
+                CornerRadiusTopRight = 2,
+                CornerRadiusBottomRight = 2,
+                CornerRadiusBottomLeft = 2,
+            },
+            "unit_health_bar_style"
+        );
+    }
+
+    private StyleBoxFlat _get_hit_badge_style()
+    {
+        return _hitBadgeStyle ??= OwnRenderResource(
+            new StyleBoxFlat
+            {
+                BgColor = HIT_BADGE_BG_COLOR,
+                BorderColor = HIT_BADGE_EDGE_COLOR,
+                BorderWidthLeft = 1,
+                BorderWidthTop = 1,
+                BorderWidthRight = 1,
+                BorderWidthBottom = 1,
+                CornerRadiusTopLeft = 5,
+                CornerRadiusTopRight = 5,
+                CornerRadiusBottomRight = 5,
+                CornerRadiusBottomLeft = 5,
+            },
+            "target_hit_badge_style"
+        );
+    }
 
     private Vector2I _resolve_multi_unit_confirm_focus_coord()
     {
@@ -955,14 +1235,26 @@ public partial class BattleBoardController : RefCounted
         };
     }
 
-    private void _clear_child_nodes(Node container)
+    private void _clear_child_nodes(Node container) => _clear_child_nodes(container, null);
+
+    private void _clear_child_nodes(Node container, List<Exception> failures)
     {
         if (container == null)
             return;
-        foreach (Node child in container.GetChildren())
+
+        var children = new List<Node>();
+        ExecuteCleanup(
+            () =>
+            {
+                foreach (Node child in container.GetChildren())
+                    children.Add(child);
+            },
+            failures
+        );
+        foreach (Node child in children)
         {
-            container.RemoveChild(child);
-            child.QueueFree();
+            ExecuteCleanup(() => container.RemoveChild(child), failures);
+            ExecuteCleanup(() => child.Free(), failures);
         }
     }
 
@@ -1130,7 +1422,9 @@ public partial class BattleBoardController : RefCounted
         int stack_index
     )
     {
-        Node propInstance = BattleBoardPropScene.Instantiate();
+        Node propInstance = EngineAssetAccess
+            .ResolveBorrowed<PackedScene>(BattleBoardPropScenePath)
+            .Instantiate();
         BattleBoardProp propNode = propInstance as BattleBoardProp;
         if (propNode == null)
             return null;
@@ -1155,9 +1449,9 @@ public partial class BattleBoardController : RefCounted
         return propNode;
     }
 
-    private GStringNameArray _collect_prop_ids_for_cell(BattleCellState cell_state)
+    private List<StringName> _collect_prop_ids_for_cell(BattleCellState cell_state)
     {
-        var propIds = new GStringNameArray();
+        var propIds = new List<StringName>();
         if (cell_state == null)
             return propIds;
         if (cell_state.base_terrain == TERRAIN_SPIKE)
@@ -1203,18 +1497,14 @@ public partial class BattleBoardController : RefCounted
     private Vector2 _get_cell_plane_position(Vector2I coord) =>
         _input_layer == null ? Vector2.Zero : _input_layer.MapToLocal(coord);
 
+    // 单位/道具的层级深度只按"高度分档"(height×stride + 偏移),不再叠加随屏幕 Y
+    // 增长的 planeY 项。这样动态对象与地形高度层正确交织:更高一级的前方地形/南墙
+    // 会盖住单位;而同高度的多个单位/道具靠 Unit/PropLayer 自身的 y_sort 按真实 Y
+    // 排前后(逐格 planeY 一旦写进 ZIndex 会压过 y_sort,反而让单位恒压地形)。
     private int _get_cell_render_depth(Vector2I coord, int height_value)
     {
-        Vector2 planePosition = _get_cell_plane_position(coord);
         int clampedHeight = Mathf.Clamp(height_value, 0, MAX_HEIGHT_LAYERS - 1);
-        float heightStep = Mathf.Max(_get_visual_height_step(), 1.0f);
-        float planeDepth = planePosition.Y / heightStep * (float)LAYER_Z_STRIDE;
-        return (int)
-            Mathf.Round(
-                planeDepth
-                    + (float)clampedHeight * (float)LAYER_Z_STRIDE
-                    + (float)DYNAMIC_LAYER_Z_OFFSET
-            );
+        return clampedHeight * LAYER_Z_STRIDE + DYNAMIC_LAYER_Z_OFFSET;
     }
 
     private int _get_cell_height_index(Vector2I coord)
@@ -1236,33 +1526,35 @@ public partial class BattleBoardController : RefCounted
             _render_profile = renderProfile;
             return;
         }
-        if (_tileset_cache.ContainsKey(cacheKey))
+        if (_tileset_cache.TryGetValue(cacheKey, out TileSetCacheEntry cachedProfile))
         {
-            GDictionary cachedProfile = DictDictionary(_tileset_cache, cacheKey);
-            if (cachedProfile.Count > 0)
+            if (cachedProfile?.TileSet != null)
             {
                 _tile_profile_id = renderProfile.terrain_profile_id;
                 _render_profile = renderProfile;
-                _tile_set = DictTileSet(cachedProfile, "tile_set");
-                _source_ids = (GDictionary)DictDictionary(cachedProfile, "source_ids").Duplicate(true);
+                _tile_set = cachedProfile.TileSet;
+                ReplaceSourceIds(cachedProfile.SourceIds);
                 return;
             }
         }
         _tile_profile_id = renderProfile.terrain_profile_id;
         _render_profile = renderProfile;
-        _tile_set = new TileSet
-        {
-            TileSize = renderProfile.board_tile_size,
-            TileShape = TileSet.TileShapeEnum.Isometric,
-            TileLayout = TileSet.TileLayoutEnum.DiamondDown,
-            TileOffsetAxis = TileSet.TileOffsetAxisEnum.Horizontal,
-        };
+        _tile_set = OwnRenderResource(
+            new TileSet
+            {
+                TileSize = renderProfile.board_tile_size,
+                TileShape = TileSet.TileShapeEnum.Isometric,
+                TileLayout = TileSet.TileLayoutEnum.DiamondDown,
+                TileOffsetAxis = TileSet.TileOffsetAxisEnum.Horizontal,
+            },
+            $"tileset:{cacheKey}"
+        );
         _source_ids.Clear();
         _register_profile_textures(renderProfile);
-        _tileset_cache[cacheKey] = new GDictionary
+        _tileset_cache[cacheKey] = new TileSetCacheEntry
         {
-            ["tile_set"] = _tile_set,
-            ["source_ids"] = _source_ids.Duplicate(true),
+            TileSet = _tile_set,
+            SourceIds = CloneSourceIds(_source_ids),
         };
     }
 
@@ -1272,13 +1564,11 @@ public partial class BattleBoardController : RefCounted
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
         string tileDir = render_profile.asset_dir;
-        foreach (GDictionary sourceSpec in render_profile.GetSourceSpecs())
+        foreach (BattleBoardTileSourceSpec sourceSpec in render_profile.GetSourceSpecs())
         {
-            GArray fileNames = DictArray(sourceSpec, "files");
-            var textures = new GArray();
-            foreach (var fileNameValue in fileNames)
+            var textures = new List<Texture2D>();
+            foreach (string fileName in sourceSpec.Files)
             {
-                string fileName = fileNameValue.AsString();
                 Texture2D texture = _load_texture_from_png($"{tileDir}/{fileName}");
                 if (texture == null)
                 {
@@ -1287,71 +1577,66 @@ public partial class BattleBoardController : RefCounted
                 }
                 textures.Add(texture);
             }
-            bool allowGeneratedFallback = true;
-            if (TryRead(sourceSpec, "allow_generated_fallback", out Variant allowFallbackValue))
-            {
-                allowGeneratedFallback =
-                    allowFallbackValue.VariantType == Variant.Type.Bool
-                        ? allowFallbackValue.AsBool()
-                        : allowGeneratedFallback;
-            }
-            if (textures.Count == 0 && allowGeneratedFallback)
+            if (textures.Count == 0 && sourceSpec.AllowGeneratedFallback)
             {
                 Texture2D fallbackTexture = _build_missing_source_texture(
-                    DictStringName(sourceSpec, "key"),
+                    sourceSpec.Key,
                     sourceSpec
                 );
                 if (fallbackTexture != null)
                     textures.Add(fallbackTexture);
             }
             _register_source_options(
-                DictStringName(sourceSpec, "key"),
+                sourceSpec.Key,
                 textures,
                 sourceSpec
             );
         }
-        GDictionary generatedMarkerSpec = _build_generated_marker_source_spec(render_profile);
+        BattleBoardTileSourceSpec generatedMarkerSpec =
+            _build_generated_marker_source_spec(render_profile);
         _register_source_options(
             SOURCE_ACTIVE_SELECTED,
-            new GArray { _build_active_selected_marker_texture(render_profile) },
+            new[] { _build_active_selected_marker_texture(render_profile) },
             generatedMarkerSpec
         );
         _register_source_options(
             SOURCE_MOVE_REACHABLE,
-            new GArray { _build_move_reachable_marker_texture(render_profile) },
+            new[] { _build_move_reachable_marker_texture(render_profile) },
             generatedMarkerSpec
         );
     }
 
-    private int _add_atlas_source(Texture2D texture, GDictionary source_spec)
+    private int _add_atlas_source(
+        Texture2D texture,
+        BattleBoardTileSourceSpec source_spec
+    )
     {
-        var source = new TileSetAtlasSource
-        {
-            Texture = texture,
-            TextureRegionSize = DictVector2I(source_spec, "atlas_region_size", _get_board_tile_size()),
-            UseTexturePadding = false,
-        };
+        var source = OwnRenderResource(
+            new TileSetAtlasSource
+            {
+                Texture = texture,
+                TextureRegionSize = source_spec?.AtlasRegionSize ?? _get_board_tile_size(),
+                UseTexturePadding = false,
+            },
+            "atlas_source"
+        );
         source.CreateTile(Vector2I.Zero, Vector2I.One);
         TileData tileData = source.GetTileData(Vector2I.Zero, 0);
         if (tileData != null)
-            tileData.TextureOrigin = DictVector2I(
-                source_spec,
-                "visual_origin",
-                DictVector2I(source_spec, "texture_origin")
-            );
+            tileData.TextureOrigin = source_spec?.VisualOrigin ?? source_spec?.TextureOrigin
+                ?? Vector2I.Zero;
         return _tile_set.AddSource(source);
     }
 
     private void _register_source_options(
         StringName source_key,
-        GArray textures,
-        GDictionary source_spec
+        IEnumerable<Texture2D> textures,
+        BattleBoardTileSourceSpec source_spec
     )
     {
-        var sourceIds = new GIntArray();
-        foreach (var textureValue in textures)
+        var sourceIds = new List<int>();
+        foreach (Texture2D texture in textures)
         {
-            Texture2D texture = textureValue.AsGodotObject() as Texture2D;
             if (texture != null)
                 sourceIds.Add(_add_atlas_source(texture, source_spec));
         }
@@ -1362,8 +1647,8 @@ public partial class BattleBoardController : RefCounted
     {
         string tileDir = render_profile.asset_dir;
         string cacheKey = $"__generated_active_selected__{render_profile.GetCacheKey()}";
-        if (_texture_cache.ContainsKey(cacheKey))
-            return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
+        if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D baseTexture =
             _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
             ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
@@ -1373,10 +1658,12 @@ public partial class BattleBoardController : RefCounted
                 1.0f,
                 render_profile.board_tile_size
             );
-        Image image = baseTexture.GetImage();
+        Image image = OwnRenderResource(
+            baseTexture.GetImage(),
+            $"active_selected_image:{cacheKey}"
+        );
         if (image == null || image.IsEmpty())
             return null;
-        image = (Image)image.Duplicate();
         image.Convert(Image.Format.Rgba8);
         for (int y = 0; y < image.GetHeight(); y++)
         for (int x = 0; x < image.GetWidth(); x++)
@@ -1394,7 +1681,10 @@ public partial class BattleBoardController : RefCounted
                     )
                 );
         }
-        Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
+        Texture2D generatedTexture = OwnRenderResource(
+            ImageTexture.CreateFromImage(image),
+            $"active_selected_marker:{cacheKey}"
+        );
         _texture_cache[cacheKey] = generatedTexture;
         return generatedTexture;
     }
@@ -1403,8 +1693,8 @@ public partial class BattleBoardController : RefCounted
     {
         string tileDir = render_profile.asset_dir;
         string cacheKey = $"__generated_move_reachable__{render_profile.GetCacheKey()}";
-        if (_texture_cache.ContainsKey(cacheKey))
-            return _texture_cache[cacheKey].AsGodotObject() as Texture2D;
+        if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D baseTexture =
             _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
             ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
@@ -1414,10 +1704,12 @@ public partial class BattleBoardController : RefCounted
                 0.42f,
                 render_profile.board_tile_size
             );
-        Image image = baseTexture.GetImage();
+        Image image = OwnRenderResource(
+            baseTexture.GetImage(),
+            $"move_reachable_image:{cacheKey}"
+        );
         if (image == null || image.IsEmpty())
             return null;
-        image = (Image)image.Duplicate();
         image.Convert(Image.Format.Rgba8);
         for (int y = 0; y < image.GetHeight(); y++)
         for (int x = 0; x < image.GetWidth(); x++)
@@ -1434,41 +1726,41 @@ public partial class BattleBoardController : RefCounted
             float alpha = Mathf.Lerp(0.3f, 0.5f, shade);
             image.SetPixel(x, y, new Color(tintedColor.R, tintedColor.G, tintedColor.B, alpha));
         }
-        Texture2D generatedTexture = ImageTexture.CreateFromImage(image);
+        Texture2D generatedTexture = OwnRenderResource(
+            ImageTexture.CreateFromImage(image),
+            $"move_reachable_marker:{cacheKey}"
+        );
         _texture_cache[cacheKey] = generatedTexture;
         return generatedTexture;
     }
 
-    private Texture2D _load_texture_from_png(string path)
+    internal Texture2D _load_texture_from_png(string path)
     {
         if (string.IsNullOrEmpty(path))
             return null;
-        if (_texture_cache.ContainsKey(path))
-            return _texture_cache[path].AsGodotObject() as Texture2D;
+        if (_texture_cache.TryGetValue(path, out Texture2D cachedTexture))
+            return cachedTexture;
         Texture2D texture = null;
-        if (FileAccess.FileExists($"{path}.import"))
-            texture = ResourceLoader.Load<Texture2D>(
-                path,
-                "Texture2D",
-                ResourceLoader.CacheMode.Reuse
-            );
+        if (ResourceLoader.Exists(path, "Texture2D"))
+            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(path);
         if (texture == null && FileAccess.FileExists(path))
         {
-            var image = new Image();
+            var image = OwnRenderResource(new Image(), $"image_loader:{path}");
             Error error = image.LoadPngFromBuffer(FileAccess.GetFileAsBytes(path));
             if (error == Error.Ok)
-                texture = ImageTexture.CreateFromImage(image);
+                texture = OwnRenderResource(
+                    ImageTexture.CreateFromImage(image),
+                    $"image_texture:{path}"
+                );
         }
-        texture ??= ResourceLoader.Load<Texture2D>(
-            path,
-            "Texture2D",
-            ResourceLoader.CacheMode.Reuse
-        );
         _texture_cache[path] = texture;
         return texture;
     }
 
-    private Texture2D _build_missing_source_texture(StringName source_key, GDictionary source_spec)
+    internal Texture2D _build_missing_source_texture(
+        StringName source_key,
+        BattleBoardTileSourceSpec source_spec
+    )
     {
         Color color = source_key switch
         {
@@ -1485,28 +1777,30 @@ public partial class BattleBoardController : RefCounted
             var key when key == SOURCE_PREVIEW => new Color(0.88f, 0.82f, 0.36f, 0.34f),
             _ => new Color(0.5f, 0.42f, 0.32f, 0.9f),
         };
-        Vector2I tileSize = DictVector2I(source_spec, "board_tile_size", _get_board_tile_size());
+        Vector2I tileSize = source_spec?.BoardTileSize ?? _get_board_tile_size();
         return _build_diamond_texture(color, color.A, tileSize);
     }
 
-    private GDictionary _build_generated_marker_source_spec(
+    private BattleBoardTileSourceSpec _build_generated_marker_source_spec(
         BattleBoardRenderProfile render_profile
-    ) =>
-        new()
-        {
-            ["key"] = SOURCE_ACTIVE_SELECTED,
-            ["files"] = new GArray(),
-            ["atlas_region_size"] = render_profile.board_tile_size,
-            ["board_tile_size"] = render_profile.board_tile_size,
-            ["texture_origin"] = Vector2I.Zero,
-            ["visual_origin"] = Vector2I.Zero,
-            ["layer_role"] = BattleBoardRenderProfile.LAYER_ROLE_MARKER(),
-        };
+    ) => new(
+        SOURCE_ACTIVE_SELECTED,
+        Array.Empty<string>(),
+        BattleBoardRenderProfile.LAYER_ROLE_MARKER(),
+        render_profile.board_tile_size,
+        render_profile.board_tile_size,
+        Vector2I.Zero,
+        Vector2I.Zero,
+        allowGeneratedFallback: false
+    );
 
     private Texture2D _build_diamond_texture(Color color, float alpha, Vector2I tile_size)
     {
         Vector2I safeTileSize = new(Mathf.Max(tile_size.X, 2), Mathf.Max(tile_size.Y, 2));
-        Image image = Image.CreateEmpty(safeTileSize.X, safeTileSize.Y, false, Image.Format.Rgba8);
+        Image image = OwnRenderResource(
+            Image.CreateEmpty(safeTileSize.X, safeTileSize.Y, false, Image.Format.Rgba8),
+            $"diamond_image:{tile_size.X}x{tile_size.Y}:{color}"
+        );
         image.Fill(new Color(0.0f, 0.0f, 0.0f, 0.0f));
         Vector2 center = new(
             (float)(safeTileSize.X - 1) * 0.5f,
@@ -1523,7 +1817,74 @@ public partial class BattleBoardController : RefCounted
             if (Mathf.Abs(delta.X) / halfSize.X + Mathf.Abs(delta.Y) / halfSize.Y <= 1.0f)
                 image.SetPixel(x, y, new Color(color.R, color.G, color.B, alpha));
         }
-        return ImageTexture.CreateFromImage(image);
+        return OwnRenderResource(
+            ImageTexture.CreateFromImage(image),
+            $"diamond_texture:{tile_size.X}x{tile_size.Y}:{color}"
+        );
+    }
+
+    private void ReplaceSourceIds(IReadOnlyDictionary<StringName, List<int>> sourceIds)
+    {
+        _source_ids.Clear();
+        if (sourceIds == null)
+            return;
+        foreach ((StringName key, List<int> values) in sourceIds)
+            _source_ids[key] = values != null ? new List<int>(values) : new List<int>();
+    }
+
+    private static Dictionary<StringName, List<int>> CloneSourceIds(
+        IReadOnlyDictionary<StringName, List<int>> sourceIds
+    )
+    {
+        var result = new Dictionary<StringName, List<int>>();
+        if (sourceIds == null)
+            return result;
+        foreach ((StringName key, List<int> values) in sourceIds)
+            result[key] = values != null ? new List<int>(values) : new List<int>();
+        return result;
+    }
+
+    private T OwnRenderResource<T>(T resource, string reason)
+        where T : Resource
+    {
+        if (resource == null)
+            return null;
+        if (!string.IsNullOrEmpty(resource.ResourcePath))
+        {
+            GodotContentOwnership.RegisterBorrowedContent(
+                resource,
+                $"BattleBoardController:{reason}:{resource.ResourcePath}"
+            );
+            return resource;
+        }
+        if (GodotWrapperOwnershipRegistry.IsBorrowedOrDerivedStaticContent(resource))
+            return resource;
+        if (_renderLease?.Owns(resource) == true)
+            return resource;
+        return EnsureRenderLease().Own(resource, reason);
+    }
+
+    private NativeLeaseScope EnsureRenderLease()
+    {
+        ThrowIfDisposed();
+        return _renderLease ??= new NativeLeaseScope(
+            "BattleBoardController.render-generation",
+            LifetimeDomain.SceneTree
+        );
+    }
+
+    internal int RenderOwnerCount => _renderLease?.OwnedCount ?? 0;
+
+    internal bool OwnsRenderResource(Resource resource) =>
+        resource != null && _renderLease?.Owns(resource) == true;
+
+    internal IReadOnlyList<IDisposable> SnapshotOwnedRenderResources() =>
+        _renderLease?.SnapshotOwnedWrappers() ?? Array.Empty<IDisposable>();
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(BattleBoardController));
     }
 
     private float _get_visual_height_step()
@@ -1559,17 +1920,13 @@ public partial class BattleBoardController : RefCounted
 
     public int _get_source_id(StringName source_key, Vector2I coord, int salt)
     {
-        if (_source_ids.ContainsKey(source_key))
+        if (_source_ids.TryGetValue(source_key, out List<int> sourceOptions))
         {
-            var sourceOptionsValue = _source_ids[source_key];
-            if (sourceOptionsValue.VariantType != Variant.Type.Array)
-                return -1;
-            GArray sourceOptions = sourceOptionsValue.AsGodotArray();
             if (sourceOptions.Count == 0)
                 return -1;
             if (coord == INVALID_OPTION_COORD || sourceOptions.Count == 1)
-                return sourceOptions[0].AsInt32();
-            return sourceOptions[_get_variant_index(coord, sourceOptions.Count, salt)].AsInt32();
+                return sourceOptions[0];
+            return sourceOptions[_get_variant_index(coord, sourceOptions.Count, salt)];
         }
         return -1;
     }
@@ -1752,33 +2109,64 @@ public partial class BattleBoardController : RefCounted
         && coord.X < _battle_state.map_size.X
         && coord.Y < _battle_state.map_size.Y;
 
-    private static GTileLayerArray CloneLayerArray(GTileLayerArray values)
+    private static void ReplaceLayers(
+        List<TileMapLayer> destination,
+        IEnumerable<TileMapLayer> values
+    )
     {
-        var result = new GTileLayerArray();
+        destination.Clear();
         if (values == null)
-            return result;
+            return;
         foreach (TileMapLayer value in values)
-            result.Add(value);
-        return result;
+            destination.Add(value);
     }
 
-    private static GVector2IArray CloneVector2IArray(GVector2IArray values)
+    private static void ReplaceCoords(List<Vector2I> destination, IEnumerable<Vector2I> values)
     {
-        var result = new GVector2IArray();
+        destination.Clear();
         if (values == null)
-            return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
-        return result;
+            return;
+        destination.AddRange(values);
     }
 
-    private static void ClearLayers(GTileLayerArray layers)
+    private static void ClearLayers(
+        IEnumerable<TileMapLayer> layers,
+        List<Exception> failures
+    )
     {
         foreach (TileMapLayer layer in layers)
-            layer?.Clear();
+            ExecuteCleanup(() => layer?.Clear(), failures);
     }
 
-    private void ApplyTileSet(GTileLayerArray layers)
+    private static void ClearTileSets(
+        IEnumerable<TileMapLayer> layers,
+        List<Exception> failures
+    )
+    {
+        foreach (TileMapLayer layer in layers)
+        {
+            ExecuteCleanup(
+                () =>
+                {
+                    if (layer != null)
+                        layer.TileSet = null;
+                },
+                failures
+            );
+        }
+    }
+
+    private static void ExecuteCleanup(Action cleanup, List<Exception> failures)
+    {
+        if (failures == null)
+        {
+            cleanup();
+            return;
+        }
+        TryCleanup(cleanup, failures);
+    }
+
+    private void ApplyTileSet(IEnumerable<TileMapLayer> layers)
     {
         foreach (TileMapLayer layer in layers)
             if (layer != null)
@@ -1798,92 +2186,4 @@ public partial class BattleBoardController : RefCounted
         return color.R * 0.2126f + color.G * 0.7152f + color.B * 0.0722f;
     }
 
-    private static string DictString(GDictionary dict, object key, string fallback = "")
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static StringName DictStringName(
-        GDictionary dict,
-        object key,
-        StringName fallback = default
-    )
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback ?? new StringName("");
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? new StringName(""),
-        };
-    }
-
-    private static Vector2I DictVector2I(
-        GDictionary dict,
-        object key,
-        Vector2I fallback = default
-    )
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : fallback;
-    }
-
-    private static GArray DictArray(GDictionary dict, object key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static GDictionary DictDictionary(GDictionary dict, object key)
-    {
-        return
-            TryRead(dict, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static TileSet DictTileSet(GDictionary dict, object key) =>
-        TryRead(dict, key, out Variant value) ? value.AsGodotObject() as TileSet : null;
-
-    private static bool TryRead(GDictionary dict, object key, out Variant value)
-    {
-        if (dict == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = KeyToVariant(key);
-        if (dict.ContainsKey(variantKey))
-        {
-            value = dict[variantKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant KeyToVariant(object key)
-    {
-        return key switch
-        {
-            Variant variantKey => variantKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            Vector2I vectorKey => vectorKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-    }
 }

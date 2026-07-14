@@ -109,7 +109,7 @@ public partial class ItemDef : Resource
     public Godot.Collections.Array<string> occupied_slot_ids = new();
 
     [Export]
-    public Resource equip_requirement;
+    public EquipmentRequirement equip_requirement;
 
     [Export]
     public StringName equipment_type_id = "";
@@ -121,10 +121,28 @@ public partial class ItemDef : Resource
     }
 
     [Export]
-    public Resource weapon_profile;
+    public WeaponProfileDef weapon_profile;
 
     [Export(PropertyHint.Range, "-1,20,1")]
     public int max_dex_bonus = -1;
+
+    internal Godot.Collections.Array<StringName> TagsProjectionBorrowed => tags;
+    internal Godot.Collections.Array<StringName> CraftingGroupsProjectionBorrowed =>
+        crafting_groups;
+    internal Godot.Collections.Array<StringName> QuestGroupsProjectionBorrowed => quest_groups;
+    internal Godot.Collections.Array<StringName> TraitIdsProjectionBorrowed => trait_ids;
+    internal Godot.Collections.Array<TraitRollGroupDef> TraitRollGroupsProjectionBorrowed =>
+        trait_roll_groups;
+    internal Godot.Collections.Array<string> EquipmentSlotIdsProjectionBorrowed =>
+        equipment_slot_ids;
+    internal Godot.Collections.Array<AttributeModifier> AttributeModifiersProjectionBorrowed =>
+        attribute_modifiers;
+    internal Godot.Collections.Array<string> OccupiedSlotIdsProjectionBorrowed =>
+        occupied_slot_ids;
+    internal EquipmentRequirement EquipRequirementProjectionBorrowed => equip_requirement;
+    internal WeaponProfileDef WeaponProfileProjectionBorrowed => weapon_profile;
+
+    internal ItemDefinition ToDefinition() => ItemDefinition.FromResource(this);
 
     public int GetEffectiveMaxStack()
     {
@@ -220,6 +238,14 @@ public partial class ItemDef : Resource
         if (!IsWeapon() || profile == null)
             return 0;
         return Mathf.Max(profile.attack_range, 0);
+    }
+
+    public StringName GetWeaponRangeType()
+    {
+        var profile = _get_weapon_profile_resource();
+        if (!IsWeapon() || profile == null)
+            return "";
+        return ProgressionDataUtils.to_string_name(profile.range_type);
     }
 
     public StringName GetWeaponPhysicalDamageTag()

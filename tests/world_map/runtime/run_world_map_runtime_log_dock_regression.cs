@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_runtime_log_dock_regression : SceneTree
+public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -18,7 +18,7 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
         await ResetSession();
         await TestRuntimeLogDockReusesSameWindowForWorldAndBattle();
         await Cleanup();
-        Quit(_test.Finish("World map runtime log dock regression"));
+        RequestTestExit(_test.Finish("World map runtime log dock regression"));
     }
 
     private async Task TestRuntimeLogDockReusesSameWindowForWorldAndBattle()
@@ -104,7 +104,12 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
             return;
         }
 
-        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(_gameSession.GetWorldData(), "single");
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            _gameSession.GetWorldDataLease();
+        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
+            worldDataLease.Value,
+            "single"
+        );
         _test.True(encounterAnchor != null, "runtime log dock 回归需要至少一个单体野怪遭遇。");
         if (encounterAnchor == null)
         {
@@ -145,7 +150,7 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }
@@ -164,8 +169,14 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
 
     private async Task DisposeNode(Node node)
     {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return;
         node.QueueFree();
-        await ProcessFrames(1);
+        await ProcessFrames(2);
+        _test.False(
+            GodotObject.IsInstanceValid(node),
+            "world_map scene should finish queued deletion before lifecycle shutdown"
+        );
     }
 
     private async Task ProcessFrames(int count)
@@ -180,11 +191,18 @@ public partial class run_world_map_runtime_log_dock_regression : SceneTree
             return null;
         foreach (Variant value in worldData["encounter_anchors"].AsGodotArray())
         {
-            EncounterAnchorData anchor = value.As<EncounterAnchorData>();
+            EncounterAnchorData anchor = ReadEncounterAnchor(value);
             if (anchor != null && anchor.encounter_kind == kind)
                 return anchor;
         }
         return null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 
     private static bool IsVector2Close(Vector2 actual, Vector2 expected, float tolerance)

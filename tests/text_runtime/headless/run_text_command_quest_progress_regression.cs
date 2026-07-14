@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_quest_progress_regression : SceneTree
+public partial class run_text_command_quest_progress_regression : LifecycleTestSceneTree
 {
     private const string QuestId = "contract_manual_drill";
     private readonly TestHarness _test = new();
@@ -18,7 +17,7 @@ public partial class run_text_command_quest_progress_regression : SceneTree
         TestQuestProgressPayloadAndProgressionFactsUseFormalStringKeys();
         TestTextCommandQuestProgressUsesTypedPayloadBoundary();
 
-        Quit(_test.Finish("Text command quest progress regression"));
+        RequestTestExit(_test.Finish("Text command quest progress regression"));
     }
 
     private void TestTextCommandQuestProgressUsesTypedPayloadBoundary()
@@ -40,9 +39,11 @@ public partial class run_text_command_quest_progress_regression : SceneTree
                 "quest progress 文本回归前置：应能直接把 contract_manual_drill 置为 active。"
             );
             runtime.SetPartyState(characterManagement.GetPartyState());
+            IReadOnlyDictionary<string, object> acceptedSnapshot =
+                session.BuildSnapshotPlain();
             _test.True(
                 SnapshotStringArrayContains(
-                    session.BuildSnapshot(),
+                    acceptedSnapshot,
                     "party",
                     "quests",
                     "active_quest_ids",
@@ -56,20 +57,30 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             );
             AssertCommandApplied(progressResult, "quest progress 应成功。");
 
-            GDictionary activeQuestEntry = FindQuestEntry(progressResult.snapshot, QuestId, "active_quests");
+            IReadOnlyDictionary<string, object> activeQuestEntry = FindQuestEntry(
+                progressResult.SnapshotTyped,
+                QuestId,
+                "active_quests"
+            );
             _test.True(activeQuestEntry.Count > 0, "quest progress 后应能在 active_quests 找到目标任务。");
             if (activeQuestEntry.Count == 0)
                 return;
 
-            GDictionary objectiveProgress = Dict(activeQuestEntry, "objective_progress");
+            IReadOnlyDictionary<string, object> objectiveProgress = PlainDict(
+                activeQuestEntry,
+                "objective_progress"
+            );
             _test.Eq(
-                DictInt(objectiveProgress, "train_once", -1),
+                PlainInt(objectiveProgress, "train_once", -1),
                 1,
                 "quest progress 后 objective_progress.train_once 应递增为 1。"
             );
-            GDictionary lastProgressContext = Dict(activeQuestEntry, "last_progress_context");
+            IReadOnlyDictionary<string, object> lastProgressContext = PlainDict(
+                activeQuestEntry,
+                "last_progress_context"
+            );
             _test.Eq(
-                DictString(lastProgressContext, "action_id", ""),
+                PlainString(lastProgressContext, "action_id", ""),
                 "service:training",
                 "quest progress 后应保留 typed action_id 上下文。"
             );
@@ -80,7 +91,7 @@ public partial class run_text_command_quest_progress_regression : SceneTree
             AssertCommandApplied(completeResult, "quest complete 应成功。");
             _test.True(
                 SnapshotStringArrayContains(
-                    completeResult.snapshot,
+                    completeResult.SnapshotTyped,
                     "party",
                     "quests",
                     "claimable_quest_ids",
@@ -203,55 +214,46 @@ public partial class run_text_command_quest_progress_regression : SceneTree
         }
     }
 
-    private static GDictionary FindQuestEntry(
-        GDictionary snapshot,
+    private static IReadOnlyDictionary<string, object> FindQuestEntry(
+        IReadOnlyDictionary<string, object> snapshot,
         string questId,
         string listKey
     )
     {
-        GDictionary party = Dict(snapshot, "party");
-        GDictionary quests = Dict(party, "quests");
-        foreach (Variant entryValue in DictArray(quests, listKey))
+        IReadOnlyDictionary<string, object> party = PlainDict(snapshot, "party");
+        IReadOnlyDictionary<string, object> quests = PlainDict(party, "quests");
+        foreach (object entryValue in PlainArray(quests, listKey))
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
                 continue;
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "quest_id", "") == questId)
+            if (PlainString(entry, "quest_id", "") == questId)
                 return entry;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>();
     }
 
     private static bool SnapshotStringArrayContains(
-        GDictionary snapshot,
+        IReadOnlyDictionary<string, object> snapshot,
         string topLevelKey,
         string nestedKey,
         string arrayKey,
         string expectedValue
     )
     {
-        GDictionary topLevel = Dict(snapshot, topLevelKey);
-        GDictionary nested = Dict(topLevel, nestedKey);
-        foreach (Variant value in DictArray(nested, arrayKey))
+        IReadOnlyDictionary<string, object> topLevel = PlainDict(snapshot, topLevelKey);
+        IReadOnlyDictionary<string, object> nested = PlainDict(topLevel, nestedKey);
+        foreach (object value in PlainArray(nested, arrayKey))
         {
-            if (value.AsString() == expectedValue)
+            if (PlainStringValue(value) == expectedValue)
                 return true;
         }
         return false;
     }
 
-    private static string SnapshotString(GDictionary snapshot, string topLevelKey, string nestedKey) =>
-        DictString(Dict(snapshot, topLevelKey), nestedKey, "");
-
     private static GDictionary Dict(GDictionary dictionary, string key) =>
         dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsGodotDictionary()
             : new GDictionary();
-
-    private static GArray DictArray(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotArray()
-            : new GArray();
 
     private static int DictInt(GDictionary dictionary, string key, int fallback) =>
         dictionary != null && dictionary.ContainsKey(key)
@@ -262,6 +264,57 @@ public partial class run_text_command_quest_progress_regression : SceneTree
         dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsString()
             : fallback;
+
+    private static IReadOnlyDictionary<string, object> PlainDict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>();
+
+    private static IReadOnlyList<object> PlainArray(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is IReadOnlyList<object> array
+            ? array
+            : System.Array.Empty<object>();
+
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                _ => fallback,
+            }
+            : fallback;
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? PlainStringValue(value, fallback)
+            : fallback;
+
+    private static string PlainStringValue(object value, string fallback = "") =>
+        value switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => fallback,
+        };
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {

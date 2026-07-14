@@ -12,10 +12,11 @@ internal sealed class WorldRuntimeData
     private readonly List<WorldMapSettlementRecordData> _settlements = new();
     private readonly List<WorldMapEventData> _worldEvents = new();
     private readonly List<EncounterAnchorData> _encounterAnchors = new();
+    private readonly List<WorldMapResourceNodeData> _resourceNodes = new();
     private readonly Dictionary<string, WorldMapMountedSubmapData> _mountedSubmaps =
         new(System.StringComparer.Ordinal);
     private readonly List<WorldMapNpcData> _worldNpcs = new();
-    private readonly RuntimePayloadStore _fogStates = new();
+    private readonly Dictionary<string, object> _fogStates = new(System.StringComparer.Ordinal);
 
     public long MapSeed { get; private set; } = 1;
     public int WorldStep { get; private set; }
@@ -31,10 +32,57 @@ internal sealed class WorldRuntimeData
     public bool HasWorldNpcs { get; private set; }
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
+    public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
+    public IReadOnlyList<WorldMapResourceNodeData> ResourceNodes => _resourceNodes;
+    public IReadOnlyList<WorldMapEventData> WorldEvents => _worldEvents;
+    public IReadOnlyList<WorldMapNpcData> WorldNpcs => _worldNpcs;
 
     private WorldRuntimeData() { }
 
     internal static WorldRuntimeData Empty() => new();
+
+    // Typed deep copy for rollback snapshots — replaces the whole-map
+    // ToDictionary/FromDictionary round-trip on the capture path. Immutable
+    // record elements (settlements, events, nodes, npcs, submaps, return stack)
+    // are shared by reference; mutable EncounterAnchorData is copied per element;
+    // fog states are plain payload graphs cloned via RuntimePlainPayload.
+    internal WorldRuntimeData DuplicateState()
+    {
+        WorldRuntimeData copy = new()
+        {
+            MapSeed = MapSeed,
+            WorldStep = WorldStep,
+            NextEquipmentInstanceSerial = NextEquipmentInstanceSerial,
+            ActiveSubmapId = ActiveSubmapId,
+            PlayerStartCoord = PlayerStartCoord,
+            HasPlayerStartCoord = HasPlayerStartCoord,
+            PlayerStartSettlementId = PlayerStartSettlementId,
+            HasPlayerStartSettlementId = HasPlayerStartSettlementId,
+            PlayerStartSettlementName = PlayerStartSettlementName,
+            HasPlayerStartSettlementName = HasPlayerStartSettlementName,
+            HasFogStates = HasFogStates,
+            HasWorldNpcs = HasWorldNpcs,
+        };
+        copy._submapReturnStack.AddRange(_submapReturnStack);
+        copy._settlements.AddRange(_settlements);
+        copy._worldEvents.AddRange(_worldEvents);
+        foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
+        {
+            if (encounterAnchor != null)
+                copy._encounterAnchors.Add(encounterAnchor.DuplicateState());
+        }
+        copy._resourceNodes.AddRange(_resourceNodes);
+        foreach (KeyValuePair<string, WorldMapMountedSubmapData> entry in _mountedSubmaps)
+            copy._mountedSubmaps[entry.Key] = entry.Value;
+        copy._worldNpcs.AddRange(_worldNpcs);
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(_fogStates)
+        )
+        {
+            copy._fogStates[entry.Key] = entry.Value;
+        }
+        return copy;
+    }
 
     internal static WorldRuntimeData FromDictionary(GDictionary data)
     {
@@ -61,59 +109,258 @@ internal sealed class WorldRuntimeData
         result.HasFogStates = data.ContainsKey("fog_states");
         if (result.HasFogStates)
         {
-            result._fogStates.ReplaceWithPayload(ReadDictionary(data, "fog_states"));
+            using GDictionary fogStateValues = ReadDictionary(data, "fog_states");
+            Dictionary<string, object> fogStates;
+            try
+            {
+                fogStates = RuntimePlainPayload.NormalizeDictionaryStrict(
+                    fogStateValues,
+                    "WorldRuntimeData.fog_states"
+                );
+            }
+            catch (System.InvalidOperationException)
+            {
+                return null;
+            }
+            foreach (KeyValuePair<string, object> entry in fogStates)
+            {
+                result._fogStates[entry.Key] = entry.Value;
+            }
         }
 
-        if (!ReadReturnStack(result._submapReturnStack, ReadArray(data, "submap_return_stack")))
+        using GArray returnStackValues = ReadArray(data, "submap_return_stack");
+        if (!ReadReturnStack(result._submapReturnStack, returnStackValues))
             return null;
-        if (!ReadSettlements(result._settlements, ReadArray(data, "settlements")))
+        using GArray settlementValues = ReadArray(data, "settlements");
+        if (!ReadSettlements(result._settlements, settlementValues))
             return null;
-        if (!ReadWorldEvents(result._worldEvents, ReadArray(data, "world_events")))
+        using GArray eventValues = ReadArray(data, "world_events");
+        if (!ReadWorldEvents(result._worldEvents, eventValues))
             return null;
-        if (!ReadEncounterAnchors(result._encounterAnchors, ReadArray(data, "encounter_anchors")))
+        using GArray encounterAnchorValues = ReadArray(data, "encounter_anchors");
+        if (!ReadEncounterAnchors(result._encounterAnchors, encounterAnchorValues))
             return null;
-        if (!ReadMountedSubmaps(result._mountedSubmaps, ReadDictionary(data, "mounted_submaps")))
+        using GArray resourceNodeValues = ReadArray(data, "resource_nodes");
+        if (!ReadResourceNodes(result._resourceNodes, resourceNodeValues))
             return null;
-        if (!ReadWorldNpcs(result._worldNpcs, ReadArray(data, "world_npcs")))
+        using GDictionary mountedSubmapValues = ReadDictionary(data, "mounted_submaps");
+        if (!ReadMountedSubmaps(result._mountedSubmaps, mountedSubmapValues))
+            return null;
+        using GArray worldNpcValues = ReadArray(data, "world_npcs");
+        if (!ReadWorldNpcs(result._worldNpcs, worldNpcValues))
             return null;
         return result;
     }
 
-    internal GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSaveSnapshotPlain()
     {
-        GDictionary result = new()
+        var returnStack = new List<object>();
+        foreach (WorldMapSubmapReturnStackEntry entry in _submapReturnStack)
+        {
+            if (entry == null)
+                continue;
+            returnStack.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["map_id"] = entry.MapId,
+                    ["coord"] = entry.Coord,
+                }
+            );
+        }
+
+        var settlements = new List<object>();
+        foreach (WorldMapSettlementRecordData settlement in _settlements)
+        {
+            if (settlement != null)
+                settlements.Add(settlement.BuildSaveSnapshotPlain());
+        }
+
+        var worldEvents = new List<object>();
+        foreach (WorldMapEventData worldEvent in _worldEvents)
+        {
+            if (worldEvent != null)
+                worldEvents.Add(worldEvent.BuildSaveSnapshotPlain());
+        }
+
+        var encounterAnchors = new List<object>();
+        foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
+        {
+            if (encounterAnchor == null)
+                continue;
+            encounterAnchors.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["entity_id"] = encounterAnchor.entity_id.ToString(),
+                    ["display_name"] = encounterAnchor.display_name ?? "",
+                    ["world_coord"] = encounterAnchor.world_coord,
+                    ["faction_id"] = encounterAnchor.faction_id.ToString(),
+                    ["enemy_roster_template_id"] =
+                        encounterAnchor.enemy_roster_template_id.ToString(),
+                    ["region_tag"] = encounterAnchor.region_tag.ToString(),
+                    ["vision_range"] = encounterAnchor.vision_range,
+                    ["is_cleared"] = encounterAnchor.is_cleared,
+                    ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
+                    ["encounter_profile_id"] =
+                        encounterAnchor.encounter_profile_id.ToString(),
+                    ["growth_stage"] = encounterAnchor.growth_stage,
+                    ["suppressed_until_step"] = encounterAnchor.suppressed_until_step,
+                }
+            );
+        }
+
+        var resourceNodes = new List<object>();
+        foreach (WorldMapResourceNodeData resourceNode in _resourceNodes)
+        {
+            if (resourceNode == null || !resourceNode.Exists)
+                continue;
+            resourceNodes.Add(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["node_id"] = resourceNode.NodeId,
+                    ["node_kind"] = resourceNode.NodeKind,
+                    ["display_name"] = resourceNode.DisplayName,
+                    ["world_coord"] = resourceNode.WorldCoord,
+                    ["yield_item_id"] = resourceNode.YieldItemId,
+                    ["source_settlement_id"] = resourceNode.SourceSettlementId,
+                    ["max_charges"] = resourceNode.MaxCharges,
+                    ["remaining_charges"] = resourceNode.RemainingCharges,
+                }
+            );
+        }
+
+        var mountedSubmaps = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        foreach (KeyValuePair<string, WorldMapMountedSubmapData> entry in _mountedSubmaps)
+        {
+            WorldMapMountedSubmapData submap = entry.Value;
+            if (submap == null || string.IsNullOrEmpty(entry.Key))
+                continue;
+            mountedSubmaps[entry.Key] = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
+            {
+                ["submap_id"] = entry.Key,
+                ["display_name"] = submap.DisplayName,
+                ["generation_config_path"] = submap.GenerationConfigPath,
+                ["return_hint_text"] = submap.ReturnHintText,
+                ["is_generated"] = submap.IsGenerated,
+                ["player_coord"] = submap.PlayerCoord,
+                ["world_data"] = submap.BuildWorldDataSnapshotPlain(),
+            };
+        }
+
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             [WorldMapSeedKey] = MapSeed,
             ["world_step"] = WorldStep,
             [WorldEquipmentInstanceSerialKey] = NextEquipmentInstanceSerial,
             ["active_submap_id"] = ActiveSubmapId,
-            ["submap_return_stack"] = ProjectReturnStack(),
-            ["settlements"] = ProjectSettlements(),
-            ["world_events"] = ProjectWorldEvents(),
-            ["encounter_anchors"] = ProjectEncounterAnchors(),
-            ["mounted_submaps"] = ProjectMountedSubmaps(),
+            ["submap_return_stack"] = returnStack,
+            ["settlements"] = settlements,
+            ["world_events"] = worldEvents,
+            ["encounter_anchors"] = encounterAnchors,
+            ["resource_nodes"] = resourceNodes,
+            ["mounted_submaps"] = mountedSubmaps,
         };
         if (HasWorldNpcs)
         {
-            result["world_npcs"] = ProjectWorldNpcs();
+            var worldNpcs = new List<object>();
+            foreach (WorldMapNpcData npc in _worldNpcs)
+            {
+                if (npc != null && !npc.IsEmpty)
+                    worldNpcs.Add(npc.BuildSaveSnapshotPlain());
+            }
+            result["world_npcs"] = worldNpcs;
         }
         if (HasPlayerStartCoord)
-        {
             result["player_start_coord"] = PlayerStartCoord;
-        }
         if (HasPlayerStartSettlementId)
-        {
             result["player_start_settlement_id"] = PlayerStartSettlementId;
-        }
         if (HasPlayerStartSettlementName)
-        {
             result["player_start_settlement_name"] = PlayerStartSettlementName;
-        }
         if (HasFogStates)
-        {
-            result["fog_states"] = _fogStates.ProjectPayload();
-        }
+            result["fog_states"] = RuntimePlainPayload.CloneDictionary(_fogStates);
         return result;
+    }
+
+    // Write fog states straight into the typed payload, so saving fog after a move
+    // doesn't have to ToDictionary/FromDictionary the whole world.
+    internal void SetFogStates(IReadOnlyDictionary<string, object> fogStates)
+    {
+        _fogStates.Clear();
+        HasFogStates = fogStates != null;
+        if (fogStates == null)
+        {
+            return;
+        }
+        Dictionary<string, object> snapshot = RuntimePlainPayload.CloneDictionary(fogStates);
+        foreach (KeyValuePair<string, object> entry in snapshot)
+        {
+            _fogStates[entry.Key] = entry.Value;
+        }
+    }
+
+    // Flip a world event to discovered in place. WorldMapEventData is immutable, so
+    // rebuild just the one record from its source payload; runs only on an actual
+    // discovery transition (rare), not on every move.
+    internal bool MarkWorldEventDiscovered(StringName eventId)
+    {
+        for (int index = 0; index < _worldEvents.Count; index++)
+        {
+            WorldMapEventData worldEvent = _worldEvents[index];
+            if (worldEvent == null || worldEvent.EventId != eventId || worldEvent.IsDiscovered)
+            {
+                continue;
+            }
+            using GodotProjectionLease<GDictionary> payloadLease =
+                worldEvent.DuplicateSourcePayloadLease();
+            GDictionary payload = payloadLease.Value;
+            payload["is_discovered"] = true;
+            WorldMapEventData updated = WorldMapEventData.FromDictionary(payload);
+            if (updated == null)
+            {
+                return false;
+            }
+            _worldEvents[index] = updated;
+            return true;
+        }
+        return false;
+    }
+
+    // Spend one charge from the resource node at coord. WorldMapResourceNodeData is
+    // immutable, so rebuild just the one node with a lowered charge count, and drop it
+    // from the world once depleted. Runs only on an actual harvest, not on every move.
+    internal bool TryHarvestResourceNode(
+        Vector2I coord,
+        out WorldMapResourceNodeData node,
+        out int remainingAfter
+    )
+    {
+        node = null;
+        remainingAfter = 0;
+        for (int index = 0; index < _resourceNodes.Count; index++)
+        {
+            WorldMapResourceNodeData current = _resourceNodes[index];
+            if (current == null || !current.Exists || current.WorldCoord != coord)
+            {
+                continue;
+            }
+            if (current.RemainingCharges <= 0)
+            {
+                return false;
+            }
+            node = current;
+            remainingAfter = current.RemainingCharges - 1;
+            if (remainingAfter <= 0)
+            {
+                _resourceNodes.RemoveAt(index);
+            }
+            else
+            {
+                _resourceNodes[index] = current.WithRemainingCharges(remainingAfter);
+            }
+            return true;
+        }
+        return false;
     }
 
     internal bool TrySetSettlementState(string settlementId, WorldMapSettlementStateData state)
@@ -129,8 +376,16 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
-            GDictionary payload = settlement.DuplicateSourcePayload();
-            payload["settlement_state"] = state.ToDictionary();
+            Dictionary<string, object> payloadPlain = settlement.BuildSaveSnapshotPlain();
+            payloadPlain["settlement_state"] = state.BuildSnapshotPlain();
+            using GodotProjectionLease<GDictionary> payloadLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    payloadPlain,
+                    $"WorldRuntimeData.settlement.{settlementId}",
+                    LifetimeDomain.Request,
+                    $"WorldRuntimeData.settlement.{settlementId}"
+                );
+            GDictionary payload = payloadLease.Value;
             _settlements[index] = WorldMapSettlementRecordData.FromDictionary(payload);
             return true;
         }
@@ -150,6 +405,30 @@ internal sealed class WorldRuntimeData
         );
     }
 
+    internal bool RemoveEncounterAnchorById(StringName encounterId)
+    {
+        if (encounterId == "")
+        {
+            return false;
+        }
+        for (int index = 0; index < _encounterAnchors.Count; index++)
+        {
+            EncounterAnchorData encounterAnchor = _encounterAnchors[index];
+            if (encounterAnchor == null || encounterAnchor.entity_id != encounterId)
+            {
+                continue;
+            }
+            _encounterAnchors.RemoveAt(index);
+            return true;
+        }
+        return false;
+    }
+
+    internal void SetWorldStep(int worldStep)
+    {
+        WorldStep = worldStep;
+    }
+
     internal WorldMapSettlementStateData GetSettlementStateData(string settlementId)
     {
         if (string.IsNullOrEmpty(settlementId))
@@ -160,89 +439,12 @@ internal sealed class WorldRuntimeData
         {
             if (settlement != null && settlement.SettlementId == settlementId)
             {
-                return WorldMapSettlementStateData.FromDictionary(
-                    settlement.GetSettlementStateDictionary()
+                return WorldMapSettlementStateData.FromPlain(
+                    settlement.BuildSettlementStateSnapshotPlain()
                 );
             }
         }
         return WorldMapSettlementStateData.Create(false, 0, System.Array.Empty<string>());
-    }
-
-    private GArray ProjectReturnStack()
-    {
-        GArray result = new();
-        foreach (WorldMapSubmapReturnStackEntry entry in _submapReturnStack)
-        {
-            result.Add(WorldMapDataProjection.Project(entry));
-        }
-        return result;
-    }
-
-    private GArray ProjectSettlements()
-    {
-        GArray result = new();
-        foreach (WorldMapSettlementRecordData settlement in _settlements)
-        {
-            result.Add(WorldMapDataProjection.Project(settlement));
-        }
-        return result;
-    }
-
-    private GArray ProjectWorldEvents()
-    {
-        GArray result = new();
-        foreach (WorldMapEventData worldEvent in _worldEvents)
-        {
-            result.Add(WorldMapDataProjection.Project(worldEvent));
-        }
-        return result;
-    }
-
-    private GArray ProjectEncounterAnchors()
-    {
-        GArray result = new();
-        foreach (EncounterAnchorData encounterAnchor in _encounterAnchors)
-        {
-            if (encounterAnchor != null)
-            {
-                result.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
-            }
-        }
-        return result;
-    }
-
-    private GDictionary ProjectMountedSubmaps()
-    {
-        GDictionary result = new();
-        foreach (KeyValuePair<string, WorldMapMountedSubmapData> entry in _mountedSubmaps)
-        {
-            WorldMapMountedSubmapData submap = entry.Value;
-            if (submap == null || string.IsNullOrEmpty(entry.Key))
-            {
-                continue;
-            }
-            result[entry.Key] = new GDictionary
-            {
-                ["submap_id"] = entry.Key,
-                ["display_name"] = submap.DisplayName,
-                ["generation_config_path"] = submap.GenerationConfigPath,
-                ["return_hint_text"] = submap.ReturnHintText,
-                ["is_generated"] = submap.IsGenerated,
-                ["player_coord"] = submap.PlayerCoord,
-                ["world_data"] = submap.ProjectWorldDataPayload(),
-            };
-        }
-        return result;
-    }
-
-    private GArray ProjectWorldNpcs()
-    {
-        GArray result = new();
-        foreach (WorldMapNpcData npc in _worldNpcs)
-        {
-            result.Add(WorldMapDataProjection.Project(npc));
-        }
-        return result;
     }
 
     private static bool ReadReturnStack(
@@ -254,7 +456,8 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            target.Add(WorldMapSubmapReturnStackEntry.FromDictionary(value.AsGodotDictionary()));
+            using GDictionary payload = value.AsGodotDictionary();
+            target.Add(WorldMapSubmapReturnStackEntry.FromDictionary(payload));
         }
         return true;
     }
@@ -265,7 +468,7 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            GDictionary payload = value.AsGodotDictionary();
+            using GDictionary payload = value.AsGodotDictionary();
             if (
                 payload.ContainsKey("settlement_state")
                 && payload["settlement_state"].VariantType != Variant.Type.Dictionary
@@ -287,9 +490,8 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(
-                value.AsGodotDictionary()
-            );
+            using GDictionary payload = value.AsGodotDictionary();
+            WorldMapEventData worldEvent = WorldMapEventData.FromDictionary(payload);
             if (worldEvent != null)
             {
                 target.Add(worldEvent);
@@ -302,22 +504,31 @@ internal sealed class WorldRuntimeData
     {
         foreach (Variant value in values)
         {
-            EncounterAnchorData encounterAnchor = null;
-            if (value.VariantType == Variant.Type.Object)
-            {
-                encounterAnchor = value.AsGodotObject() as EncounterAnchorData;
-            }
-            else if (value.VariantType == Variant.Type.Dictionary)
-            {
-                encounterAnchor = EncounterAnchorData.FromDictionary(value.AsGodotDictionary());
-            }
-            else
-            {
+            if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            }
+            using GDictionary payload = value.AsGodotDictionary();
+            EncounterAnchorData encounterAnchor = EncounterAnchorData.FromDictionary(payload);
             if (encounterAnchor != null)
             {
-                target.Add(EncounterAnchorData.FromDictionary(WorldMapDataProjection.Project(encounterAnchor)));
+                target.Add(encounterAnchor);
+            }
+        }
+        return true;
+    }
+
+    private static bool ReadResourceNodes(List<WorldMapResourceNodeData> target, GArray values)
+    {
+        foreach (Variant value in values)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return false;
+            using GDictionary payload = value.AsGodotDictionary();
+            WorldMapResourceNodeData resourceNode = WorldMapResourceNodeData.FromDictionary(
+                payload
+            );
+            if (resourceNode != null && resourceNode.Exists)
+            {
+                target.Add(resourceNode);
             }
         }
         return true;
@@ -332,15 +543,15 @@ internal sealed class WorldRuntimeData
         {
             return true;
         }
-        foreach (Variant key in values.Keys)
+        foreach (KeyValuePair<Variant, Variant> entry in values)
         {
-            Variant value = values[key];
+            Variant key = entry.Key;
+            Variant value = entry.Value;
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
             string submapId = VariantText(key);
-            WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(
-                value.AsGodotDictionary()
-            );
+            using GDictionary payload = value.AsGodotDictionary();
+            WorldMapMountedSubmapData submap = WorldMapMountedSubmapData.FromDictionary(payload);
             if (!string.IsNullOrEmpty(submapId) && submap != null && submap.Exists)
             {
                 target[submapId] = submap;
@@ -355,7 +566,8 @@ internal sealed class WorldRuntimeData
         {
             if (value.VariantType != Variant.Type.Dictionary)
                 return false;
-            WorldMapNpcData npc = WorldMapNpcData.FromDictionary(value.AsGodotDictionary());
+            using GDictionary payload = value.AsGodotDictionary();
+            WorldMapNpcData npc = WorldMapNpcData.FromDictionary(payload);
             if (npc != null && !npc.IsEmpty)
             {
                 target.Add(npc);

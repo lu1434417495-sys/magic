@@ -71,40 +71,25 @@ public class EquipmentEntryState
         if (inst == null)
             return null;
         var entry = new EquipmentEntryState();
-        bool copied = false;
-        try
-        {
-            copied = entry.SetEquipmentInstance(inst);
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(inst);
-        }
-        if (!copied)
-            return RejectParsedEntry(entry);
+        if (!entry.SetEquipmentInstance(inst))
+            return null;
         var occupiedSlotIds = new HashSet<StringName>();
         foreach (var rsv in ov.AsGodotArray())
         {
             if (rsv.VariantType != Variant.Type.String)
-                return RejectParsedEntry(entry);
+                return null;
             string slotText = rsv.AsString().StripEdges();
             if (slotText.Length == 0)
-                return RejectParsedEntry(entry);
+                return null;
             var slot_id = new StringName(slotText);
             if (!EquipmentRules.IsValidSlot(slot_id))
-                return RejectParsedEntry(entry);
+                return null;
             if (!occupiedSlotIds.Add(slot_id))
-                return RejectParsedEntry(entry);
+                return null;
             entry.occupied_slot_ids.Add(slot_id);
         }
         if (entry.item_id == "" || entry.occupied_slot_ids.Count == 0)
-            return RejectParsedEntry(entry);
+            return null;
         return entry;
-    }
-
-    private static EquipmentEntryState RejectParsedEntry(EquipmentEntryState entry)
-    {
-        GodotRefCountedDisposer.DisposeIfValid(entry?.GetEquipmentInstance());
-        return null;
     }
 }

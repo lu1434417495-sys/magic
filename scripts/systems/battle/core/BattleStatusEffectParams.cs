@@ -5,7 +5,11 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleStatusEffectParams
 {
-    public GDictionary ResidualSavePayload { get; private init; } = new();
+    private readonly Dictionary<string, object> _residualSavePayload =
+        new(System.StringComparer.Ordinal);
+
+    public IReadOnlyDictionary<string, object> ResidualSavePayload =>
+        RuntimePlainPayload.CloneDictionary(_residualSavePayload);
     public double? IncomingDamageMultiplier { get; private init; }
     public double? OutgoingDamageMultiplier { get; private init; }
     public StringName SourceProfileId { get; private init; } = "";
@@ -16,6 +20,10 @@ internal sealed class BattleStatusEffectParams
     public int? HealMultiplierPercent { get; private init; }
     public int? ShieldGainMultiplierPercent { get; private init; }
     public int AttackRollPenalty { get; private init; } = -1;
+    public int AttackRollBonus { get; private init; }
+    public bool AttackRollAdvantage { get; private init; }
+    public bool ConsumeOnNextAttackCheck { get; private init; }
+    public bool ConsumeOnNextSave { get; private init; }
     public bool Undispellable { get; private init; }
     public bool DispellableMagic { get; private init; }
     public bool DispellableHarmfulMagic { get; private init; }
@@ -48,9 +56,8 @@ internal sealed class BattleStatusEffectParams
     public static BattleStatusEffectParams FromDictionary(GDictionary parameters)
     {
         parameters ??= new GDictionary();
-        return new BattleStatusEffectParams
+        var result = new BattleStatusEffectParams
         {
-            ResidualSavePayload = BattleStatusEffectState.CopyResidualParams(parameters),
             IncomingDamageMultiplier = ReadOptionalDoubleParam(parameters, "incoming_damage_multiplier"),
             OutgoingDamageMultiplier = ReadOptionalDoubleParam(parameters, "outgoing_damage_multiplier"),
             SourceProfileId = ReadOptionalStringNameParam(parameters, "source"),
@@ -64,6 +71,13 @@ internal sealed class BattleStatusEffectParams
                 "shield_gain_multiplier_percent"
             ),
             AttackRollPenalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            AttackRollBonus = ReadOptionalIntParam(parameters, "attack_roll_bonus") ?? 0,
+            AttackRollAdvantage = ReadOptionalBoolParam(parameters, "attack_roll_advantage"),
+            ConsumeOnNextAttackCheck = ReadOptionalBoolParam(
+                parameters,
+                "consume_on_next_attack_check"
+            ),
+            ConsumeOnNextSave = ReadOptionalBoolParam(parameters, "consume_on_next_save"),
             Undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
             DispellableMagic = ReadOptionalBoolParam(parameters, "dispellable_magic"),
             DispellableHarmfulMagic = ReadOptionalBoolParam(parameters, "dispellable_harmful_magic"),
@@ -102,6 +116,15 @@ internal sealed class BattleStatusEffectParams
             StatusTags = ReadStringNameListParam(parameters, "status_tags"),
             SaveBonusByTag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
         };
+        foreach (
+            KeyValuePair<string, object> entry in
+            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                result._residualSavePayload[entry.Key] = entry.Value;
+        }
+        return result;
     }
 
     public void ApplyTo(BattleStatusEffectState status, bool overwriteExisting = false)
@@ -129,6 +152,14 @@ internal sealed class BattleStatusEffectParams
             status.shield_gain_multiplier_percent = ShieldGainMultiplierPercent;
         if ((overwriteExisting || status.attack_roll_penalty < 0) && AttackRollPenalty >= 0)
             status.attack_roll_penalty = AttackRollPenalty;
+        if ((overwriteExisting || status.attack_roll_bonus == 0) && AttackRollBonus != 0)
+            status.attack_roll_bonus = AttackRollBonus;
+        if (overwriteExisting || !status.attack_roll_advantage)
+            status.attack_roll_advantage = AttackRollAdvantage;
+        if (overwriteExisting || !status.consume_on_next_attack_check)
+            status.consume_on_next_attack_check = ConsumeOnNextAttackCheck;
+        if (overwriteExisting || !status.consume_on_next_save)
+            status.consume_on_next_save = ConsumeOnNextSave;
         if (overwriteExisting || !status.undispellable)
             status.undispellable = Undispellable;
         if (overwriteExisting || !status.dispellable_magic)

@@ -47,6 +47,7 @@ internal enum TraitEffectKind
     ZarielLegacy,
     DrowMagic,
     DraconicAncestry,
+    EquipmentAbility,
 }
 
 internal enum TraitStackPolicyKind
@@ -140,6 +141,7 @@ public static class TraitContentRules
     private static readonly StringName EffectZarielLegacy = "zariel_legacy";
     private static readonly StringName EffectDrowMagic = "drow_magic";
     private static readonly StringName EffectDraconicAncestry = "draconic_ancestry";
+    private static readonly StringName EffectEquipmentAbility = "equipment_ability";
 
     private static readonly StringName StackUniqueByTrait = "unique_by_trait";
     private static readonly StringName StackHighestRoll = "highest_roll";
@@ -257,6 +259,8 @@ public static class TraitContentRules
             return TraitEffectKind.DrowMagic;
         if (value == EffectDraconicAncestry)
             return TraitEffectKind.DraconicAncestry;
+        if (value == EffectEquipmentAbility)
+            return TraitEffectKind.EquipmentAbility;
         return TraitEffectKind.Unknown;
     }
 
@@ -308,6 +312,7 @@ public static class TraitContentRules
             TraitEffectKind.ZarielLegacy => EffectZarielLegacy,
             TraitEffectKind.DrowMagic => EffectDrowMagic,
             TraitEffectKind.DraconicAncestry => EffectDraconicAncestry,
+            TraitEffectKind.EquipmentAbility => EffectEquipmentAbility,
             _ => "",
         };
     }
@@ -377,18 +382,12 @@ public static class TraitContentRules
         return ToSourceKind(value) != TraitSourceKind.Unknown;
     }
 
-    internal static bool IsSourceKindAllowed(TraitDef traitDef, TraitSourceKind sourceKind)
+    internal static bool IsSourceKindAllowed(
+        TraitDefinition traitDefinition,
+        TraitSourceKind sourceKind
+    )
     {
-        if (traitDef == null || sourceKind == TraitSourceKind.Unknown)
-            return false;
-
-        StringName expectedSource = ToStringName(sourceKind);
-        foreach (StringName allowedSource in traitDef.allowed_source_kinds)
-        {
-            if (allowedSource == expectedSource)
-                return true;
-        }
-        return false;
+        return traitDefinition?.IsSourceKindAllowed(sourceKind) == true;
     }
 
     internal static StringName ToAttributeSourceType(TraitSourceKind value)

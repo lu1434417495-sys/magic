@@ -7,14 +7,14 @@ public static class BattleEquipmentRequirementRules
 
     public static bool UnitHasEquippedShield(
         BattleUnitState unitState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         return UnitHasEquippedItemTag(
             unitState,
             EquipmentRules.ToStringName(EquipmentSlotKind.OffHand),
             TagShield,
-            itemDefs
+            itemDefinitions
         );
     }
 
@@ -22,10 +22,15 @@ public static class BattleEquipmentRequirementRules
         BattleUnitState unitState,
         StringName slotId,
         StringName tagId,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        if (unitState == null || IsEmpty(tagId) || itemDefs == null || itemDefs.Count == 0)
+        if (
+            unitState == null
+            || IsEmpty(tagId)
+            || itemDefinitions == null
+            || itemDefinitions.Count == 0
+        )
         {
             return false;
         }
@@ -50,17 +55,17 @@ public static class BattleEquipmentRequirementRules
             return false;
         }
 
-        return itemDefs.TryGetValue(itemId, out ItemDef itemDef)
-            && ItemHasTag(itemDef, tagId);
+        return itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            && ItemHasTag(itemDefinition, tagId);
     }
 
-    public static bool ItemHasTag(ItemDef itemDef, StringName tagId)
+    public static bool ItemHasTag(ItemDefinition itemDefinition, StringName tagId)
     {
-        if (itemDef == null || IsEmpty(tagId))
+        if (itemDefinition == null || IsEmpty(tagId))
         {
             return false;
         }
-        return itemDef.GetTagsTyped().Contains(tagId);
+        return itemDefinition.GetTagsTyped().Contains(tagId);
     }
 
     private static bool IsEmpty(StringName value)

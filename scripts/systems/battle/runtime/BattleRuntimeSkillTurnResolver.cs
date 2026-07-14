@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal readonly record struct BattleStatusTickResult(bool Changed, StringName DefeatSourceUnitId)
 {
@@ -32,6 +31,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
     private static readonly StringName STATUS_METEOR_CONCUSSED = "meteor_concussed";
     private static readonly StringName STATUS_FROZEN = "frozen";
     private static readonly StringName STATUS_PETRIFIED = "petrified";
+    private static readonly StringName STATUS_PARALYZED = "paralyzed";
     private static readonly StringName STATUS_MADNESS = "madness";
     private static readonly StringName STATUS_GUARDING = "guarding";
     private static readonly StringName STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal";
@@ -63,20 +63,25 @@ internal sealed class BattleRuntimeSkillTurnResolver
         "armor_break",
         "black_star_brand_elite",
         "black_star_brand_normal",
+        "aftershock",
         "burning",
         "crown_break_blinded_eye",
         "crown_break_broken_fang",
         "crown_break_broken_hand",
+        "frightened",
         "frozen",
         "hex_of_frailty",
         "marked",
         "meteor_concussed",
+        "paralyzed",
         "pinned",
+        "reaction_lock",
         "petrified",
         "rooted",
         "shocked",
         "slow",
         "staggered",
+        "stunned",
         "taunted",
         "tendon_cut",
     };
@@ -138,6 +143,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
             unit_state.SetCurrentMovePoints(0);
             _append_changed_unit(batch, unit_state);
             _append_log(batch, $"{DisplayName(unit_state)} 石化未解除，无法行动。");
+            return new BattleTurnControlStatusResult(true, true, false, "", false, false);
+        }
+        if (HasStatus(unit_state, STATUS_PARALYZED))
+        {
+            unit_state.SetCurrentAp(0);
+            unit_state.SetCurrentMovePoints(0);
+            _append_changed_unit(batch, unit_state);
+            _append_log(batch, $"{DisplayName(unit_state)} 处于麻痹状态，无法行动。");
             return new BattleTurnControlStatusResult(true, true, false, "", false, false);
         }
         if (HasStatus(unit_state, STATUS_MADNESS))
@@ -211,9 +224,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         foreach (StringName skillId in activeUnit.known_active_skill_ids)
         {
-            SkillDef skillDef = _runtime.GetSkillDefTyped(skillId);
-            CombatSkillDef combatProfile = skillDef?.combat_profile;
-            if (skillDef == null || combatProfile == null)
+            SkillDefinition skillDefinition = _runtime.GetSkillDefinitionTyped(skillId);
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (skillDefinition == null || combatProfile == null)
             {
                 continue;
             }
@@ -221,11 +234,15 @@ internal sealed class BattleRuntimeSkillTurnResolver
             {
                 continue;
             }
-            if (BattleSkillCastBlockReasonKinds.IsBlocked(GetSkillCastBlockReason(activeUnit, skillDef)))
+            if (
+                BattleSkillCastBlockReasonKinds.IsBlocked(
+                    GetSkillCastBlockReason(activeUnit, skillDefinition)
+                )
+            )
             {
                 continue;
             }
-            BattleUnitState targetUnit = _find_madness_unit_target(activeUnit, skillDef);
+            BattleUnitState targetUnit = _find_madness_unit_target(activeUnit, skillDefinition);
             if (targetUnit == null)
             {
                 continue;
@@ -233,15 +250,19 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleCommand command = NewBattleCommand();
             command.CommandKind = BattleCommandKind.Skill;
             command.unit_id = activeUnit.unit_id;
+            command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
             command.skill_id = skillId;
             command.target_unit_id = targetUnit.unit_id;
             command.target_coord = targetUnit.coord;
-            if (_skill_requires_option(skillDef))
+            if (_skill_requires_option(skillDefinition))
             {
-                CombatCastVariantDef firstValue = _pick_first_valid_madness_option(activeUnit, skillDef);
+                CombatCastVariantDefinition firstValue = _pick_first_valid_madness_option(
+                    activeUnit,
+                    skillDefinition
+                );
                 if (firstValue != null)
                 {
-                    command.skill_variant_id = new StringName(firstValue.variant_id.ToString());
+                    command.skill_variant_id = new StringName(firstValue.VariantId.ToString());
                 }
             }
             return command;
@@ -252,151 +273,50 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return waitCommand;
     }
 
+    // Runtime state callers can carry a scoped equipment/auto-cast level that is not stored on
+    // BattleUnitReadView. Preserve that context here, then run the shared read-only rule body.
     internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def
-    )
-    {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (active_unit == null || skill_def == null || combatProfile == null)
-        {
-            return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
-        }
-        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
-            active_unit,
-            skill_def
+        SkillDefinition skillDefinition
+    ) =>
+        GetSkillCastBlockReason(
+            (BattleUnitReadView)active_unit,
+            skillDefinition,
+            ResolveSkillRuleLevel(active_unit, skillDefinition)
         );
-        int cooldown = active_unit.GetCooldownTyped(skill_def.skill_id);
-        if (cooldown > 0)
-        {
-            return BattleSkillCastBlockReasonKind.Cooldown;
-        }
-        BattleSkillCastBlockReasonKind lockedResourceBlockReason = GetLockedCombatResourceBlockReasonKind(
-            active_unit,
-            costs
-        );
-        if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
-        {
-            return lockedResourceBlockReason;
-        }
-        if (
-            active_unit.current_ap < costs.ApCost
-        )
-        {
-            return BattleSkillCastBlockReasonKind.InsufficientAp;
-        }
-        if (
-            active_unit.current_mp < costs.MpCost
-        )
-        {
-            return BattleSkillCastBlockReasonKind.InsufficientMp;
-        }
-        if (
-            active_unit.current_stamina < costs.StaminaCost
-        )
-        {
-            return BattleSkillCastBlockReasonKind.InsufficientStamina;
-        }
-        if (active_unit.HasStatusEffect(STATUS_PETRIFIED))
-        {
-            return BattleSkillCastBlockReasonKind.Petrified;
-        }
-        if (
-            active_unit.current_aura < costs.AuraCost
-        )
-        {
-            return BattleSkillCastBlockReasonKind.InsufficientAura;
-        }
-        BattleSkillCastBlockReasonKind racialChargeBlockReason = GetRacialSkillChargeBlockReason(
-            active_unit,
-            skill_def
-        );
-        if (BattleSkillCastBlockReasonKinds.IsBlocked(racialChargeBlockReason))
-        {
-            return racialChargeBlockReason;
-        }
-        if (
-            combatProfile.required_weapon_families.Count > 0
-            && !UnitMatchesRequiredWeaponFamilies(
-                active_unit,
-                combatProfile.required_weapon_families
-            )
-        )
-        {
-            return BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing;
-        }
-        if (
-            combatProfile.requires_equipped_shield
-            && !UnitHasEquippedShield(active_unit)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.ShieldRequired;
-        }
-        if (RequiresMeleeWeapon(skill_def) && !UnitHasMeleeWeapon(active_unit))
-        {
-            return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
-        }
-        if (
-            combatProfile.excluded_weapon_families.Count > 0
-            && combatProfile.excluded_weapon_families.Contains(active_unit.weapon_family)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.ExcludedWeaponFamily;
-        }
-        if (
-            combatProfile.excluded_weapon_type_ids.Count > 0
-            && combatProfile.excluded_weapon_type_ids.Contains(active_unit.weapon_profile_type_id)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.ExcludedWeaponType;
-        }
-        if (IsMainSkillLockedByStatus(active_unit, skill_def))
-        {
-            return BattleSkillCastBlockReasonKind.MainSkillLockedByStatus;
-        }
-        string misfortuneBlockReason = GetMisfortuneSkillCastBlockReason(
-            active_unit,
-            skill_def
-        );
-        if (!string.IsNullOrEmpty(misfortuneBlockReason))
-        {
-            return _runtime == null
-                ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
-                : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
-        }
-        if (
-            active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
-            && _runtime._skill_grants_guarding(skill_def)
-        )
-        {
-            return BattleSkillCastBlockReasonKind.BlackStarGuardLock;
-        }
-        return BattleSkillCastBlockReasonKind.None;
-    }
 
     internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
+    ) =>
+        GetSkillCastBlockReason(
+            active_unit,
+            skillDefinition,
+            ResolveSkillRuleLevel(active_unit, skillDefinition)
+        );
+
+    private BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (!active_unit.IsValid || skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (!active_unit.IsValid || skillDefinition == null || combatProfile == null)
         {
             return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
         }
         CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
-            active_unit,
-            skill_def
+            skillDefinition,
+            skillLevel
         );
-        int cooldown = active_unit.GetCooldown(skill_def.skill_id);
+        int cooldown = active_unit.GetCooldown(skillDefinition.SkillId);
         if (cooldown > 0)
         {
             return BattleSkillCastBlockReasonKind.Cooldown;
         }
-        BattleSkillCastBlockReasonKind lockedResourceBlockReason = GetLockedCombatResourceBlockReasonKind(
-            active_unit,
-            costs
-        );
+        BattleSkillCastBlockReasonKind lockedResourceBlockReason =
+            GetLockedCombatResourceBlockReasonKind(active_unit, costs);
         if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
         {
             return lockedResourceBlockReason;
@@ -417,144 +337,90 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleSkillCastBlockReasonKind.Petrified;
         }
+        if (active_unit.HasStatusEffect(STATUS_PARALYZED))
+        {
+            return BattleSkillCastBlockReasonKind.Paralyzed;
+        }
         if (active_unit.CurrentAura < costs.AuraCost)
         {
             return BattleSkillCastBlockReasonKind.InsufficientAura;
         }
-        BattleSkillCastBlockReasonKind racialChargeBlockReason = GetRacialSkillChargeBlockReason(
-            active_unit,
-            skill_def
-        );
+        BattleSkillCastBlockReasonKind racialChargeBlockReason =
+            GetRacialSkillChargeBlockReason(active_unit, skillDefinition);
         if (BattleSkillCastBlockReasonKinds.IsBlocked(racialChargeBlockReason))
         {
             return racialChargeBlockReason;
         }
         if (
-            combatProfile.required_weapon_families.Count > 0
-            && !UnitMatchesRequiredWeaponFamilies(
-                active_unit,
-                combatProfile.required_weapon_families
-            )
+            combatProfile.RequiredWeaponFamilies.Count > 0
+            && !UnitMatchesRequiredWeaponFamilies(active_unit, combatProfile.RequiredWeaponFamilies)
         )
         {
             return BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing;
         }
-        if (
-            combatProfile.requires_equipped_shield
-            && !UnitHasEquippedShield(active_unit)
-        )
+        if (combatProfile.RequiresEquippedShield && !UnitHasEquippedShield(active_unit))
         {
             return BattleSkillCastBlockReasonKind.ShieldRequired;
         }
-        if (RequiresMeleeWeapon(skill_def) && !UnitHasMeleeWeapon(active_unit))
+        if (RequiresMeleeWeapon(skillDefinition) && !UnitHasMeleeWeapon(active_unit))
         {
             return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
         }
         if (
-            combatProfile.excluded_weapon_families.Count > 0
-            && combatProfile.excluded_weapon_families.Contains(active_unit.WeaponFamily)
+            combatProfile.ExcludedWeaponFamilies.Count > 0
+            && ContainsStringName(combatProfile.ExcludedWeaponFamilies, active_unit.WeaponFamily)
         )
         {
             return BattleSkillCastBlockReasonKind.ExcludedWeaponFamily;
         }
         if (
-            combatProfile.excluded_weapon_type_ids.Count > 0
-            && combatProfile.excluded_weapon_type_ids.Contains(active_unit.WeaponProfileTypeId)
+            combatProfile.ExcludedWeaponTypeIds.Count > 0
+            && ContainsStringName(combatProfile.ExcludedWeaponTypeIds, active_unit.WeaponProfileTypeId)
         )
         {
             return BattleSkillCastBlockReasonKind.ExcludedWeaponType;
         }
-        if (IsMainSkillLockedByStatus(active_unit, skill_def))
+        if (IsMainSkillLockedByStatus(active_unit, skillDefinition))
         {
             return BattleSkillCastBlockReasonKind.MainSkillLockedByStatus;
         }
-        string misfortuneBlockReason = GetMisfortuneSkillCastBlockReason(
-            active_unit,
-            skill_def
-        );
+        string misfortuneBlockReason = GetMisfortuneSkillCastBlockReason(active_unit, skillDefinition);
         if (!string.IsNullOrEmpty(misfortuneBlockReason))
         {
             return _runtime == null
                 ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
                 : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
         }
-        if (
-            active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
-            && _runtime._skill_grants_guarding(skill_def)
-        )
+        bool skillGrantsGuarding = SkillGrantsGuarding(skillDefinition, skillLevel);
+        if (active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL) && skillGrantsGuarding)
         {
             return BattleSkillCastBlockReasonKind.BlackStarGuardLock;
+        }
+        if (skillGrantsGuarding && HasGuardLockStatus(active_unit))
+        {
+            return BattleSkillCastBlockReasonKind.GuardLockedByStatus;
         }
         return BattleSkillCastBlockReasonKind.None;
     }
 
     internal string FormatSkillCastBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleSkillCastBlockReasonKind reason_kind,
-        CombatCastVariantDef cast_variant = null
-    )
-    {
-        if (!BattleSkillCastBlockReasonKinds.IsBlocked(reason_kind))
-        {
-            return "";
-        }
-        return reason_kind switch
-        {
-            BattleSkillCastBlockReasonKind.InvalidSkillOrTarget => "技能或目标无效。",
-            BattleSkillCastBlockReasonKind.SkillCastCheckUnbound =>
-                "正式技能检查未绑定，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.InvalidCaster => "技能施放者无效。",
-            BattleSkillCastBlockReasonKind.Cooldown =>
-                $"{DisplayName(skill_def)} 仍在冷却中（{active_unit?.GetCooldownTyped(skill_def?.skill_id ?? Empty) ?? 0}）。",
-            BattleSkillCastBlockReasonKind.MpLocked => "法力尚未解锁，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.StaminaLocked => "体力尚未解锁，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.AuraLocked => "斗气尚未解锁，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.InsufficientAp => "AP不足，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.InsufficientMp => "法力不足，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
-            BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
-                $"{_get_skill_display_name(skill_def)} 的身份技能次数已用尽。",
-            BattleSkillCastBlockReasonKind.RacialSkillPerTurnChargeDepleted =>
-                $"{_get_skill_display_name(skill_def)} 本回合无法再次使用。",
-            BattleSkillCastBlockReasonKind.RacialSkillChargeUninitialized =>
-                $"{_get_skill_display_name(skill_def)} 的身份技能次数未初始化。",
-            BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing =>
-                "需要装备指定武器家族，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.ShieldRequired => "需要装备盾牌，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.MeleeWeaponRequired =>
-                "需要装备有效武器，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.ExcludedWeaponFamily =>
-                "当前武器类型无法施放该技能。",
-            BattleSkillCastBlockReasonKind.ExcludedWeaponType =>
-                "当前武器类型无法施放该技能。",
-            BattleSkillCastBlockReasonKind.MainSkillLockedByStatus =>
-                "厄命宣判压制了主技能，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing =>
-                MisfortuneService.GetSkillSidecarMissingMessage(skill_def?.skill_id ?? Empty),
-            BattleSkillCastBlockReasonKind.MisfortuneBlocked =>
-                GetMisfortuneSkillCastBlockReason(active_unit, skill_def),
-            BattleSkillCastBlockReasonKind.BlackStarGuardLock =>
-                "黑星烙印封锁了格挡，无法施放该技能。",
-            BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
-                "黑契推进需要先选择一个代价分支。",
-            BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
-                "当前生命不足，无法支付血契代价。",
-            BattleSkillCastBlockReasonKind.BlackContractPushGuardCostUnavailable =>
-                "当前没有 Guard，无法支付护契代价。",
-            BattleSkillCastBlockReasonKind.BlackContractPushInvalidVariant =>
-                "黑契推进的施法形态无效。",
-            _ => "",
-        };
-    }
+        CombatCastVariantDefinition castVariant = null
+    ) =>
+        FormatSkillCastBlockReason(
+            (BattleUnitReadView)active_unit,
+            skillDefinition,
+            reason_kind,
+            castVariant
+        );
 
     internal string FormatSkillCastBlockReason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleSkillCastBlockReasonKind reason_kind,
-        CombatCastVariantDef cast_variant = null
+        CombatCastVariantDefinition castVariant = null
     )
     {
         if (!BattleSkillCastBlockReasonKinds.IsBlocked(reason_kind))
@@ -568,7 +434,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 "正式技能检查未绑定，无法施放该技能。",
             BattleSkillCastBlockReasonKind.InvalidCaster => "技能施放者无效。",
             BattleSkillCastBlockReasonKind.Cooldown =>
-                $"{DisplayName(skill_def)} 仍在冷却中（{active_unit.GetCooldown(skill_def?.skill_id ?? Empty)}）。",
+                $"{DisplayName(skillDefinition)} 仍在冷却中（{active_unit.GetCooldown(skillDefinition?.SkillId ?? Empty)}）。",
             BattleSkillCastBlockReasonKind.MpLocked => "法力尚未解锁，无法施放该技能。",
             BattleSkillCastBlockReasonKind.StaminaLocked => "体力尚未解锁，无法施放该技能。",
             BattleSkillCastBlockReasonKind.AuraLocked => "斗气尚未解锁，无法施放该技能。",
@@ -576,13 +442,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleSkillCastBlockReasonKind.InsufficientMp => "法力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
+            BattleSkillCastBlockReasonKind.Paralyzed => "当前处于麻痹状态，无法施放技能。",
             BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
-                $"{_get_skill_display_name(skill_def)} 的身份技能次数已用尽。",
+                $"{_get_skill_display_name(skillDefinition)} 的身份技能次数已用尽。",
             BattleSkillCastBlockReasonKind.RacialSkillPerTurnChargeDepleted =>
-                $"{_get_skill_display_name(skill_def)} 本回合无法再次使用。",
+                $"{_get_skill_display_name(skillDefinition)} 本回合无法再次使用。",
             BattleSkillCastBlockReasonKind.RacialSkillChargeUninitialized =>
-                $"{_get_skill_display_name(skill_def)} 的身份技能次数未初始化。",
+                $"{_get_skill_display_name(skillDefinition)} 的身份技能次数未初始化。",
             BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing =>
                 "需要装备指定武器家族，无法施放该技能。",
             BattleSkillCastBlockReasonKind.ShieldRequired => "需要装备盾牌，无法施放该技能。",
@@ -595,11 +462,15 @@ internal sealed class BattleRuntimeSkillTurnResolver
             BattleSkillCastBlockReasonKind.MainSkillLockedByStatus =>
                 "厄命宣判压制了主技能，无法施放该技能。",
             BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing =>
-                MisfortuneService.GetSkillSidecarMissingMessage(skill_def?.skill_id ?? Empty),
+                MisfortuneService.GetSkillSidecarMissingMessage(
+                    skillDefinition?.SkillId ?? Empty
+                ),
             BattleSkillCastBlockReasonKind.MisfortuneBlocked =>
-                MisfortuneService.GetSkillDefaultBlockMessage(skill_def?.skill_id ?? Empty),
+                GetMisfortuneSkillCastBlockReason(active_unit, skillDefinition),
             BattleSkillCastBlockReasonKind.BlackStarGuardLock =>
                 "黑星烙印封锁了格挡，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.GuardLockedByStatus =>
+                "状态封锁了格挡，无法施放该技能。",
             BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
                 "黑契推进需要先选择一个代价分支。",
             BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
@@ -630,6 +501,55 @@ internal sealed class BattleRuntimeSkillTurnResolver
             active_unit,
             required_weapon_families
         );
+    }
+
+    private bool UnitMatchesRequiredWeaponFamilies(
+        BattleUnitState active_unit,
+        IReadOnlyList<StringName> requiredWeaponFamilies
+    )
+    {
+        bool hasRequiredFamily = false;
+        if (requiredWeaponFamilies == null)
+        {
+            return true;
+        }
+        foreach (StringName familyValue in requiredWeaponFamilies)
+        {
+            if (familyValue == "")
+            {
+                continue;
+            }
+            hasRequiredFamily = true;
+            if (!UnitHasMeleeWeapon(active_unit))
+            {
+                return false;
+            }
+            if (active_unit == null || active_unit.weapon_family == "")
+            {
+                return false;
+            }
+            if (familyValue == active_unit.weapon_family)
+            {
+                return true;
+            }
+        }
+        return !hasRequiredFamily;
+    }
+
+    private static bool ContainsStringName(IReadOnlyList<StringName> values, StringName expected)
+    {
+        if (values == null)
+        {
+            return false;
+        }
+        foreach (StringName value in values)
+        {
+            if (value == expected)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private bool UnitMatchesRequiredWeaponFamilies(
@@ -665,22 +585,62 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return !hasRequiredFamily;
     }
 
+    private bool UnitMatchesRequiredWeaponFamilies(
+        BattleUnitReadView active_unit,
+        IReadOnlyList<StringName> requiredWeaponFamilies
+    )
+    {
+        bool hasRequiredFamily = false;
+        if (requiredWeaponFamilies == null)
+        {
+            return true;
+        }
+        foreach (StringName familyValue in requiredWeaponFamilies)
+        {
+            if (familyValue == "")
+            {
+                continue;
+            }
+            hasRequiredFamily = true;
+            if (!UnitHasMeleeWeapon(active_unit))
+            {
+                return false;
+            }
+            if (active_unit.WeaponFamily == "")
+            {
+                return false;
+            }
+            if (familyValue == active_unit.WeaponFamily)
+            {
+                return true;
+            }
+        }
+        return !hasRequiredFamily;
+    }
+
     private bool UnitHasEquippedShield(BattleUnitState active_unit)
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs =
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             _runtime != null
                 ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDef>();
-        return BattleEquipmentRequirementRules.UnitHasEquippedShield(active_unit, itemDefs);
+                : new Dictionary<StringName, ItemDefinition>();
+        return BattleEquipmentRequirementRules.UnitHasEquippedShield(
+            active_unit,
+            itemDefinitions
+        );
     }
 
     private bool UnitHasEquippedShield(BattleUnitReadView active_unit)
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs =
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             _runtime != null
                 ? _runtime.GetItemDefIndexTyped()
-                : new Dictionary<StringName, ItemDef>();
-        if (!active_unit.IsValid || itemDefs == null || itemDefs.Count == 0)
+                : new Dictionary<StringName, ItemDefinition>();
+        if (
+            !active_unit.IsValid
+            || itemDefinitions == null
+            || itemDefinitions.Count == 0
+        )
         {
             return false;
         }
@@ -694,39 +654,42 @@ internal sealed class BattleRuntimeSkillTurnResolver
             equipmentView.GetEquippedItemId(offhand)
         );
         return itemId != ""
-            && itemDefs.TryGetValue(itemId, out ItemDef itemDef)
-            && BattleEquipmentRequirementRules.ItemHasTag(itemDef, new StringName("shield"));
+            && itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            && BattleEquipmentRequirementRules.ItemHasTag(
+                itemDefinition,
+                new StringName("shield")
+            );
     }
 
-    internal bool _skill_requires_option(SkillDef skill_def)
+    internal bool _skill_requires_option(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        return skill_def != null
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        return skillDefinition != null
             && combatProfile != null
-            && combatProfile.cast_variants.Count > 0;
+            && combatProfile.CastVariants.Count > 0;
     }
 
-    internal CombatCastVariantDef _pick_first_valid_madness_option(
+    internal CombatCastVariantDefinition _pick_first_valid_madness_option(
         BattleUnitState unit_state,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return null;
         }
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        int skillLevel =
+            _runtime != null
+                ? _runtime._get_unit_skill_level(unit_state, skillDefinition.SkillId)
+                : unit_state?.GetKnownSkillLevelTyped(skillDefinition.SkillId) ?? 0;
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
             if (castVariant == null)
             {
                 continue;
             }
-            int skillLevel = _runtime._get_unit_skill_level(
-                unit_state,
-                skill_def.skill_id
-            );
-            if (skillLevel < castVariant.min_skill_level)
+            if (skillLevel < castVariant.MinSkillLevel)
             {
                 continue;
             }
@@ -735,65 +698,53 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return null;
     }
 
-    internal bool RequiresMeleeWeapon(SkillDef skill_def) =>
-        BattleRangeService.RequiresCurrentMeleeWeapon(skill_def);
-
-    internal bool EffectUsesWeaponPhysicalDamageTag(CombatEffectDef effect_def)
-    {
-        return BattleRangeService.EffectUsesWeaponPhysicalDamageTag(effect_def);
-    }
+    internal bool RequiresMeleeWeapon(SkillDefinition skillDefinition) =>
+        BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition);
 
     internal string GetSkillCommandBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
-    )
-    {
-        BattleSkillCastBlockReasonKind blockReason = GetSkillCastBlockReason(
-            active_unit,
-            skill_def
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    ) =>
+        GetSkillCommandBlockReason(
+            (BattleUnitReadView)active_unit,
+            skillDefinition,
+            castVariant,
+            GetSkillCastBlockReason(active_unit, skillDefinition)
         );
-        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
-        {
-            return FormatSkillCastBlockReason(active_unit, skill_def, blockReason);
-        }
-        if (_is_black_contract_push_skill(skill_def.skill_id))
-        {
-            BattleSkillCastBlockReasonKind variantBlockReason =
-                GetBlackContractPushVariantBlockReason(active_unit, cast_variant);
-            return FormatSkillCastBlockReason(
-                active_unit,
-                skill_def,
-                variantBlockReason,
-                cast_variant
-            );
-        }
-        return "";
-    }
 
     internal string GetSkillCommandBlockReason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    ) =>
+        GetSkillCommandBlockReason(
+            active_unit,
+            skillDefinition,
+            castVariant,
+            GetSkillCastBlockReason(active_unit, skillDefinition)
+        );
+
+    private string GetSkillCommandBlockReason(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleSkillCastBlockReasonKind blockReason
     )
     {
-        BattleSkillCastBlockReasonKind blockReason = GetSkillCastBlockReason(
-            active_unit,
-            skill_def
-        );
         if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            return FormatSkillCastBlockReason(active_unit, skill_def, blockReason);
+            return FormatSkillCastBlockReason(active_unit, skillDefinition, blockReason);
         }
-        if (_is_black_contract_push_skill(skill_def.skill_id))
+        if (_is_black_contract_push_skill(skillDefinition?.SkillId ?? Empty))
         {
             BattleSkillCastBlockReasonKind variantBlockReason =
-                GetBlackContractPushVariantBlockReason(active_unit, cast_variant);
+                GetBlackContractPushVariantBlockReason(active_unit, castVariant);
             return FormatSkillCastBlockReason(
                 active_unit,
-                skill_def,
+                skillDefinition,
                 variantBlockReason,
-                cast_variant
+                castVariant
             );
         }
         return "";
@@ -801,14 +752,11 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal string GetMisfortuneSkillCastBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        StringName skillId = skill_def?.skill_id ?? Empty;
-        if (
-            skill_def == null
-            || !MisfortuneService.IsMisfortuneGatedSkill(skillId)
-        )
+        StringName skillId = skillDefinition?.SkillId ?? Empty;
+        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
         {
             return "";
         }
@@ -821,14 +769,11 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal string GetMisfortuneSkillCastBlockReason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        StringName skillId = skill_def?.skill_id ?? Empty;
-        if (
-            skill_def == null
-            || !MisfortuneService.IsMisfortuneGatedSkill(skillId)
-        )
+        StringName skillId = skillDefinition?.SkillId ?? Empty;
+        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
         {
             return "";
         }
@@ -853,19 +798,19 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal bool ConsumeSkillCosts(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant = null,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null,
         BattleEventBatch batch = null
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (active_unit == null || skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (active_unit == null || skillDefinition == null || combatProfile == null)
         {
             return false;
         }
         CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
             active_unit,
-            skill_def
+            skillDefinition
         );
         BattleSkillCastBlockReasonKind lockedResourceBlockReason =
             GetLockedCombatResourceBlockReasonKind(
@@ -876,28 +821,22 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             AppendLog(
                 batch,
-                FormatSkillCastBlockReason(active_unit, skill_def, lockedResourceBlockReason)
+                FormatSkillCastBlockReason(active_unit, skillDefinition, lockedResourceBlockReason)
             );
             return false;
         }
         if (
-            _is_black_contract_push_skill(skill_def.skill_id)
-            && !ConsumeBlackContractPushCast(active_unit, cast_variant, batch)
+            _is_black_contract_push_skill(skillDefinition.SkillId)
+            && !ConsumeBlackContractPushCast(active_unit, castVariant, batch)
         )
         {
             return false;
         }
-        if (!ConsumeMisfortuneSkillGate(active_unit, skill_def, batch))
+        if (!ConsumeMisfortuneSkillGate(active_unit, skillDefinition, batch))
         {
             return false;
         }
-        if (
-            !ConsumeRacialSkillCharge(
-                active_unit,
-                skill_def,
-                batch
-            )
-        )
+        if (!ConsumeRacialSkillCharge(active_unit, skillDefinition, batch))
         {
             return false;
         }
@@ -908,25 +847,25 @@ internal sealed class BattleRuntimeSkillTurnResolver
         int cooldown = Math.Max(costs.CooldownTu, 0);
         if (cooldown > 0)
         {
-            active_unit.SetCooldownTyped(skill_def.skill_id, cooldown);
+            active_unit.SetCooldownTyped(skillDefinition.SkillId, cooldown);
         }
         return true;
     }
 
     internal SkillCostTransaction BuildSkillCostTransaction(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        if (active_unit == null || skill_def?.combat_profile == null)
+        if (active_unit == null || skillDefinition?.CombatProfile == null)
         {
             return new SkillCostTransaction();
         }
-        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(active_unit, skill_def);
+        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(active_unit, skillDefinition);
         return new SkillCostTransaction
         {
-            SkillId = skill_def.skill_id,
-            SkillLevel = _runtime?._get_unit_skill_level(active_unit, skill_def.skill_id) ?? 1,
+            SkillId = skillDefinition.SkillId,
+            SkillLevel = _runtime?._get_unit_skill_level(active_unit, skillDefinition.SkillId) ?? 1,
             ApCost = Math.Max(costs.ApCost, 0),
             MpCost = Math.Max(costs.MpCost, 0),
             StaminaCost = Math.Max(costs.StaminaCost, 0),
@@ -937,41 +876,41 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal bool ConsumePendingCastResourceCosts(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleEventBatch batch,
         out SkillCostTransaction transaction
     )
     {
-        transaction = BuildSkillCostTransaction(active_unit, skill_def);
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (active_unit == null || skill_def == null || combatProfile == null)
+        transaction = BuildSkillCostTransaction(active_unit, skillDefinition);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (active_unit == null || skillDefinition == null || combatProfile == null)
         {
             return false;
         }
-        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(active_unit, skill_def);
+        CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(active_unit, skillDefinition);
         BattleSkillCastBlockReasonKind lockedResourceBlockReason =
             GetLockedCombatResourceBlockReasonKind(active_unit, costs);
         if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
         {
             AppendLog(
                 batch,
-                FormatSkillCastBlockReason(active_unit, skill_def, lockedResourceBlockReason)
+                FormatSkillCastBlockReason(active_unit, skillDefinition, lockedResourceBlockReason)
             );
             return false;
         }
         if (
-            _is_black_contract_push_skill(skill_def.skill_id)
-            && !ConsumeBlackContractPushCast(active_unit, cast_variant, batch)
+            _is_black_contract_push_skill(skillDefinition.SkillId)
+            && !ConsumeBlackContractPushCast(active_unit, castVariant, batch)
         )
         {
             return false;
         }
-        if (!ConsumeMisfortuneSkillGate(active_unit, skill_def, batch))
+        if (!ConsumeMisfortuneSkillGate(active_unit, skillDefinition, batch))
         {
             return false;
         }
-        if (!ConsumeRacialSkillCharge(active_unit, skill_def, batch))
+        if (!ConsumeRacialSkillCharge(active_unit, skillDefinition, batch))
         {
             return false;
         }
@@ -1099,15 +1038,12 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     private bool ConsumeMisfortuneSkillGate(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleEventBatch batch = null
     )
     {
-        StringName skillId = skill_def?.skill_id ?? Empty;
-        if (
-            skill_def == null
-            || !MisfortuneService.IsMisfortuneGatedSkill(skillId)
-        )
+        StringName skillId = skillDefinition?.SkillId ?? Empty;
+        if (skillDefinition == null || !MisfortuneService.IsMisfortuneGatedSkill(skillId))
         {
             return true;
         }
@@ -1138,14 +1074,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     private BattleSkillCastBlockReasonKind GetRacialSkillChargeBlockReason(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        if (active_unit == null || !_is_identity_granted_skill(skill_def))
+        if (active_unit == null || !_is_identity_granted_skill(skillDefinition))
         {
             return BattleSkillCastBlockReasonKind.None;
         }
-        StringName chargeKey = GetRacialSkillChargeKey(skill_def.skill_id);
+        StringName chargeKey = GetRacialSkillChargeKey(skillDefinition.SkillId);
         if (active_unit.HasPerBattleChargeTyped(chargeKey))
         {
             if (active_unit.GetPerBattleChargeTyped(chargeKey) <= 0)
@@ -1169,14 +1105,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     private BattleSkillCastBlockReasonKind GetRacialSkillChargeBlockReason(
         BattleUnitReadView active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
     )
     {
-        if (!active_unit.IsValid || !_is_identity_granted_skill(skill_def))
+        if (!active_unit.IsValid || !_is_identity_granted_skill(skillDefinition))
         {
             return BattleSkillCastBlockReasonKind.None;
         }
-        StringName chargeKey = GetRacialSkillChargeKey(skill_def.skill_id);
+        StringName chargeKey = GetRacialSkillChargeKey(skillDefinition.SkillId);
         if (active_unit.HasPerBattleCharge(chargeKey))
         {
             if (active_unit.GetPerBattleCharge(chargeKey) <= 0)
@@ -1200,24 +1136,24 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     private bool ConsumeRacialSkillCharge(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleEventBatch batch = null
     )
     {
         BattleSkillCastBlockReasonKind blockReason = GetRacialSkillChargeBlockReason(
             active_unit,
-            skill_def
+            skillDefinition
         );
         if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            AppendLog(batch, FormatSkillCastBlockReason(active_unit, skill_def, blockReason));
+            AppendLog(batch, FormatSkillCastBlockReason(active_unit, skillDefinition, blockReason));
             return false;
         }
-        if (active_unit == null || !_is_identity_granted_skill(skill_def))
+        if (active_unit == null || !_is_identity_granted_skill(skillDefinition))
         {
             return true;
         }
-        StringName chargeKey = GetRacialSkillChargeKey(skill_def.skill_id);
+        StringName chargeKey = GetRacialSkillChargeKey(skillDefinition.SkillId);
         if (active_unit.HasPerBattleChargeTyped(chargeKey))
         {
             active_unit.SetPerBattleChargeTyped(
@@ -1240,33 +1176,106 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return skill_id == Empty ? Empty : new StringName($"racial_skill_{skill_id}");
     }
 
-    internal CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
-        BattleUnitState active_unit,
-        SkillDef skill_def
+    private static bool SkillGrantsGuarding(
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
-            return CombatSkillResourceCosts.Zero;
+            return false;
         }
-        int skillLevel =
-            _runtime != null ? _runtime._get_unit_skill_level(active_unit, skill_def.skill_id) : 0;
-        return combatProfile.GetEffectiveResourceCostValues(skillLevel);
+        foreach (CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions)
+        {
+            if (EffectGrantsGuarding(effectDefinition))
+            {
+                return true;
+            }
+        }
+        foreach (
+            CombatCastVariantDefinition castVariant in combatProfile.GetUnlockedCastVariants(
+                skillLevel
+            )
+        )
+        {
+            foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
+            {
+                if (EffectGrantsGuarding(effectDefinition))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool EffectGrantsGuarding(CombatEffectDefinition effectDefinition)
+    {
+        if (effectDefinition == null)
+        {
+            return false;
+        }
+        return (
+                effectDefinition.EffectKind == BattleEffectKind.Status
+                || effectDefinition.EffectKind == BattleEffectKind.ApplyStatus
+            )
+            && effectDefinition.StatusId == STATUS_GUARDING;
     }
 
     internal CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
+        GetEffectiveSkillResourceCosts(
+            skillDefinition,
+            ResolveSkillRuleLevel(active_unit, skillDefinition)
+        );
+
+    internal CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
         BattleUnitReadView active_unit,
-        SkillDef skill_def
+        SkillDefinition skillDefinition
+    ) =>
+        GetEffectiveSkillResourceCosts(
+            skillDefinition,
+            ResolveSkillRuleLevel(active_unit, skillDefinition)
+        );
+
+    private static CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return CombatSkillResourceCosts.Zero;
         }
-        int skillLevel = active_unit.GetKnownSkillLevel(skill_def.skill_id);
         return combatProfile.GetEffectiveResourceCostValues(skillLevel);
+    }
+
+    private int ResolveSkillRuleLevel(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (activeUnit == null || skillDefinition == null)
+        {
+            return 0;
+        }
+        return _runtime != null
+            ? _runtime._get_unit_skill_level(activeUnit, skillDefinition.SkillId)
+            : activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId);
+    }
+
+    private static int ResolveSkillRuleLevel(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        return activeUnit.IsValid && skillDefinition != null
+            ? activeUnit.GetKnownSkillLevel(skillDefinition.SkillId)
+            : 0;
     }
 
     internal BattleSkillCastBlockReasonKind GetLockedCombatResourceBlockReasonKind(
@@ -1323,41 +1332,41 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return BattleSkillCastBlockReasonKind.None;
     }
 
-    internal bool _is_identity_granted_skill(SkillDef skill_def)
+    internal bool _is_identity_granted_skill(SkillDefinition skillDefinition)
     {
-        return skill_def != null
-            && IdentitySkillLearnSources.Contains(skill_def.learn_source);
+        return skillDefinition != null
+            && IdentitySkillLearnSources.Contains(skillDefinition.LearnSource);
     }
 
-    internal string _get_skill_display_name(SkillDef skill_def)
+    internal string _get_skill_display_name(SkillDefinition skillDefinition)
     {
-        if (skill_def == null)
+        if (skillDefinition == null)
         {
             return "身份技能";
         }
-        string displayName = skill_def.display_name.Trim();
+        string displayName = skillDefinition.DisplayName?.Trim() ?? "";
         if (!string.IsNullOrEmpty(displayName))
         {
             return displayName;
         }
-        StringName skillId = skill_def.skill_id;
+        StringName skillId = skillDefinition.SkillId;
         return skillId != Empty ? skillId.ToString() : "身份技能";
     }
 
     internal BattleSkillCastBlockReasonKind GetBlackContractPushVariantBlockReason(
         BattleUnitState active_unit,
-        CombatCastVariantDef cast_variant
+        CombatCastVariantDefinition castVariant
     )
     {
         if (active_unit == null)
         {
             return BattleSkillCastBlockReasonKind.InvalidCaster;
         }
-        if (cast_variant == null)
+        if (castVariant == null)
         {
             return BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing;
         }
-        StringName optionId = cast_variant.variant_id;
+        StringName optionId = castVariant.VariantId;
         if (
             optionId == BLACK_CONTRACT_PUSH_OPTION_BLOOD
             && active_unit.current_hp <= BLACK_CONTRACT_PUSH_HP_COST
@@ -1388,18 +1397,18 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal BattleSkillCastBlockReasonKind GetBlackContractPushVariantBlockReason(
         BattleUnitReadView active_unit,
-        CombatCastVariantDef cast_variant
+        CombatCastVariantDefinition castVariant
     )
     {
         if (!active_unit.IsValid)
         {
             return BattleSkillCastBlockReasonKind.InvalidCaster;
         }
-        if (cast_variant == null)
+        if (castVariant == null)
         {
             return BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing;
         }
-        StringName optionId = cast_variant.variant_id;
+        StringName optionId = castVariant.VariantId;
         if (
             optionId == BLACK_CONTRACT_PUSH_OPTION_BLOOD
             && active_unit.CurrentHp <= BLACK_CONTRACT_PUSH_HP_COST
@@ -1430,27 +1439,27 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal bool ConsumeBlackContractPushCast(
         BattleUnitState active_unit,
-        CombatCastVariantDef cast_variant,
+        CombatCastVariantDefinition castVariant,
         BattleEventBatch batch = null
     )
     {
         BattleSkillCastBlockReasonKind blockReason = GetBlackContractPushVariantBlockReason(
             active_unit,
-            cast_variant
+            castVariant
         );
         if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
             AppendLog(
                 batch,
-                FormatSkillCastBlockReason(active_unit, null, blockReason, cast_variant)
+                FormatSkillCastBlockReason(active_unit, null, blockReason, castVariant)
             );
             return false;
         }
-        if (active_unit == null || cast_variant == null)
+        if (active_unit == null || castVariant == null)
         {
             return false;
         }
-        StringName optionId = cast_variant.variant_id;
+        StringName optionId = castVariant.VariantId;
         if (optionId == BLACK_CONTRACT_PUSH_OPTION_BLOOD)
         {
             active_unit.SetCurrentHp(Math.Max(
@@ -1578,6 +1587,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
         {
             int apPenalty = BattleStatusSemanticTable.GetTurnStartApPenalty(statusEntry);
+            if (BattleStatusSemanticTable.ShouldSetApToZeroAtTurnStart(statusEntry))
+            {
+                apPenalty = Math.Max(apPenalty, Math.Max(unit_state.current_ap, 1));
+            }
             if (apPenalty <= 0)
             {
                 continue;
@@ -1670,7 +1683,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
             {
                 break;
             }
-            int tickDamage = BattleStatusSemanticTable.GetTimelineTickDamage(statusEntry);
+            int tickDamage = BattleStatusSemanticTable.RollTimelineTickDamage(
+                statusEntry,
+                RollStatusTimelineDamageDie
+            );
             if (tickDamage <= 0)
             {
                 continue;
@@ -1702,7 +1718,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                     changed = true;
                     AppendLog(
                         batch,
-                        $"{DisplayName(unit_state)} 受到 {statusEntry.status_id} 持续影响，损失 {previousHp - unit_state.current_hp} 点生命。"
+                        $"{DisplayName(unit_state)} 受到 {BattleStatusSemanticTable.GetDisplayLabel(statusEntry)} 持续影响，损失 {previousHp - unit_state.current_hp} 点生命。"
                     );
                     if (
                         !unit_state.is_alive
@@ -1721,6 +1737,14 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return new BattleStatusTickResult(changed, defeatSourceUnitId);
     }
 
+    private int RollStatusTimelineDamageDie(int diceSides)
+    {
+        BattleDamageResolver damageResolver = _runtime?.GetDamageResolver();
+        if (damageResolver != null)
+            return damageResolver._roll_damage_die(diceSides);
+        return TrueRandomSeedService.RandiRange(1, Math.Max(diceSides, 1));
+    }
+
     internal bool AdvanceUnitStatusDurations(
         BattleUnitState unit_state,
         int elapsed_tu,
@@ -1731,7 +1755,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return false;
         }
-        bool changed = false;
+        bool changed =
+            _runtime
+                ?.GetEquipmentAbilityRuntimeService()
+                ?.AdvanceTargetMarkDurations(unit_state, elapsed_tu, batch) == true;
         var expiredStatusIds = new List<StringName>();
         var expiredStatusEntries = new Dictionary<StringName, BattleStatusEffectState>();
         foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
@@ -1782,6 +1809,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
             }
             if (shouldEraseStatus)
             {
+                _runtime
+                    ?.GetEquipmentAbilityRuntimeService()
+                    ?.ResolveTargetMarkExpired(unit_state, expiredStatusEntry, batch);
                 EraseStatusEffect(unit_state, expiredStatusId);
             }
         }
@@ -1840,7 +1870,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return false;
         }
-        GVector2IArray previousCoords = DuplicateCoordArray(unit_state.occupied_coords);
+        List<Vector2I> previousCoords = new(unit_state.occupied_coords);
         StringName currentCategory = unit_state.body_size_category;
         BattleRuntimeModule runtime = _runtime;
         BattleGridService gridService = runtime?.GetGridService();
@@ -1869,51 +1899,53 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         if (runtime != null && batch != null)
         {
-            runtime._append_changed_coords(batch, previousCoords);
+            runtime._append_changed_coords_typed(batch, previousCoords);
             runtime._append_changed_unit_coords(batch, unit_state);
             runtime._append_changed_unit_id(batch, unit_state.unit_id);
         }
         return true;
     }
 
-    internal int GetEffectiveSkillRange(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal int GetEffectiveSkillRange(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
         BattleRangeService.GetEffectiveSkillRange(
             active_unit,
-            skill_def
+            skillDefinition
         );
 
-    internal int GetEffectiveSkillRange(BattleUnitReadView active_unit, SkillDef skill_def) =>
+    internal int GetEffectiveSkillRange(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition
+    ) =>
         BattleRangeService.GetEffectiveSkillRange(
             active_unit,
-            skill_def
+            skillDefinition
         );
 
-    internal int ResolveBaseSkillRange(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal int ResolveBaseSkillRange(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    ) =>
         BattleRangeService.ResolveBaseSkillRange(
             active_unit,
-            skill_def
+            skillDefinition
         );
 
-    internal bool IsWeaponRangeSkill(SkillDef skill_def) =>
-        BattleRangeService.IsWeaponRangeSkill(skill_def);
+    internal bool IsWeaponRangeSkill(SkillDefinition skillDefinition) =>
+        BattleRangeService.IsWeaponRangeSkill(skillDefinition);
 
     internal int GetWeaponAttackRange(BattleUnitState active_unit) =>
         BattleRangeService.GetWeaponAttackRange(active_unit);
 
-    internal bool SkillHasTag(SkillDef skill_def, StringName expected_tag)
+    internal bool SkillHasTag(SkillDefinition skillDefinition, StringName expected_tag)
     {
-        if (skill_def == null || expected_tag == Empty)
+        if (skillDefinition == null || expected_tag == Empty)
         {
             return false;
         }
-        foreach (StringName tag in skill_def.TagsTyped)
-        {
-            if (tag == expected_tag)
-            {
-                return true;
-            }
-        }
-        return false;
+        return skillDefinition.HasTag(expected_tag);
     }
 
     internal bool IsMovementBlocked(BattleUnitState unit_state)
@@ -1922,6 +1954,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
             || HasUnitStatus(unit_state, STATUS_ROOTED)
             || HasUnitStatus(unit_state, STATUS_TENDON_CUT)
             || HasUnitStatus(unit_state, STATUS_PETRIFIED)
+            || HasUnitStatus(unit_state, STATUS_PARALYZED)
             || BattleTemporalStatusService.HasTimeStasis(unit_state);
     }
 
@@ -2006,21 +2039,16 @@ internal sealed class BattleRuntimeSkillTurnResolver
         StringName fallback_tag
     )
     {
-        CombatEffectDef effect = new CombatEffectDef();
-        effect.effect_type = StatusEffectType;
-        effect.save_dc = Math.Max(
-            status_entry?.self_save_dc ?? 16,
-            1
-        );
-        effect.SaveDcModeKind = BattleSaveDcMode.Static;
-        effect.save_ability =
+        CombatEffectDefinition effect = BattleRuntimeEffectDefinitions.StaticSave(
+            Math.Max(status_entry?.self_save_dc ?? 16, 1),
             status_entry != null && status_entry.self_save_ability != Empty
                 ? status_entry.self_save_ability
-                : fallback_ability;
-        effect.save_tag =
+                : fallback_ability,
             status_entry != null && status_entry.self_save_tag != Empty
                 ? status_entry.self_save_tag
-                : fallback_tag;
+                : fallback_tag,
+            StatusEffectType
+        );
         BattleSaveContext context = BattleSaveContext.Empty;
         if (status_entry?.self_save_roll_override is int selfSaveRollOverride)
         {
@@ -2044,7 +2072,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         );
     }
 
-    internal BattleUnitState _find_madness_unit_target(BattleUnitState unit_state, SkillDef skill_def)
+    internal BattleUnitState _find_madness_unit_target(
+        BattleUnitState unit_state,
+        SkillDefinition skillDefinition
+    )
     {
         BattleState state = _runtime?._state;
         if (_runtime == null || state == null || unit_state == null)
@@ -2053,9 +2084,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         BattleUnitState bestUnit = null;
         int bestDistance = 999999;
-        int effectiveRange = _runtime._get_effective_skill_range(
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
             unit_state,
-            skill_def
+            skillDefinition
         );
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
@@ -2119,9 +2150,12 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
     }
 
-    internal bool IsMainSkillLockedByStatus(BattleUnitState active_unit, SkillDef skill_def)
+    internal bool IsMainSkillLockedByStatus(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition
+    )
     {
-        if (active_unit == null || skill_def == null)
+        if (active_unit == null || skillDefinition == null)
         {
             return false;
         }
@@ -2129,7 +2163,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return false;
         }
-        if (active_unit.known_active_skill_ids[0] != skill_def.skill_id)
+        if (active_unit.known_active_skill_ids[0] != skillDefinition.SkillId)
         {
             return false;
         }
@@ -2141,9 +2175,12 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return CountDebuffStatuses(active_unit) >= requiredDebuffCount;
     }
 
-    internal bool IsMainSkillLockedByStatus(BattleUnitReadView active_unit, SkillDef skill_def)
+    internal bool IsMainSkillLockedByStatus(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition
+    )
     {
-        if (!active_unit.IsValid || skill_def == null)
+        if (!active_unit.IsValid || skillDefinition == null)
         {
             return false;
         }
@@ -2151,7 +2188,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return false;
         }
-        if (active_unit.FirstKnownActiveSkillId != skill_def.skill_id)
+        if (active_unit.FirstKnownActiveSkillId != skillDefinition.SkillId)
         {
             return false;
         }
@@ -2243,6 +2280,38 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return false;
     }
 
+    internal bool HasGuardLockStatus(BattleUnitState unit_state)
+    {
+        if (unit_state == null)
+        {
+            return false;
+        }
+        foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
+        {
+            if (statusEntry.lock_guard)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal bool HasGuardLockStatus(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid)
+        {
+            return false;
+        }
+        foreach (BattleStatusReadView statusEntry in unitView.StatusEffects())
+        {
+            if (statusEntry.LockGuard)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     internal int GetMainSkillLockOtherDebuffCount(BattleUnitState unit_state)
     {
         if (unit_state == null)
@@ -2315,26 +2384,15 @@ internal sealed class BattleRuntimeSkillTurnResolver
         return unitState?.display_name ?? "";
     }
 
-    private static string DisplayName(SkillDef skillDef)
+    private static string DisplayName(SkillDefinition skillDefinition)
     {
-        return skillDef != null && !string.IsNullOrEmpty(skillDef.display_name)
-            ? skillDef.display_name
-            : skillDef?.skill_id.ToString() ?? "";
+        return skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.DisplayName)
+            ? skillDefinition.DisplayName
+            : skillDefinition?.SkillId.ToString() ?? "";
     }
 
     private static StringName ToStringName<TValue>(TValue value) =>
         ProgressionDataUtils.to_string_name(value);
-
-    private static GVector2IArray DuplicateCoordArray(IEnumerable<Vector2I> source)
-    {
-        var result = new GVector2IArray();
-        foreach (Vector2I coord in source ?? Array.Empty<Vector2I>())
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
 
     private static bool CooldownMapsEqual(
         IReadOnlyDictionary<StringName, int> left,

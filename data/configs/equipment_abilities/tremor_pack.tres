@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="4_grant"]
+
+[sub_resource type="Resource" id="Grant_shockwave_skill"]
+script = ExtResource("4_grant")
+granted_action_id = &"grant.tremor.shockwave.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_hammer_tremor_shockwave"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_shockwave"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.hammer.tremor.shockwave"
+trait_id = &"weapon.hammer.tremor.shockwave"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"tremor"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_shockwave_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.hammer.tremor"
+schema_version = 1
+load_order = 180
+bindings = Array[Resource]([SubResource("Binding_shockwave")])

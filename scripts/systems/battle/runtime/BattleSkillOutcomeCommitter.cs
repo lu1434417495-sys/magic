@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -35,7 +36,10 @@ internal class BattleSkillOutcomeCommitter
         {
             _runtime.AppendBatchLog(batch, message);
         }
-        foreach (GDictionary reportEntry in outcome.report_entries)
+        foreach (
+            IReadOnlyDictionary<string, object> reportEntry in
+            outcome.ReportEntriesTyped
+        )
         {
             if (reportEntry == null || reportEntry.Count == 0)
             {
@@ -238,7 +242,7 @@ internal class BattleSkillOutcomeCommitter
         }
         foreach (MeteorSwarmReportEntry reportEntry in result.GetReportEntriesTyped())
         {
-            outcome.report_entries.Add(MeteorSwarmProjection.Project(reportEntry));
+            outcome.AddReportEntry(MeteorSwarmProjection.BuildPlain(reportEntry));
         }
         return outcome;
     }

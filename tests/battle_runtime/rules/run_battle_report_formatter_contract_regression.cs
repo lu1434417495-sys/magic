@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_report_formatter_contract_regression : SceneTree
+public partial class run_battle_report_formatter_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,12 +14,12 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
             TestTypedDamageResultBuildsLogLines();
             TestMeteorSummaryProjectionStillFormatsEntry();
 
-            Quit(_test.Finish("Battle report formatter contract regression"));
+            RequestTestExit(_test.Finish("Battle report formatter contract regression"));
         }
         catch (Exception exception)
         {
-            _test.Fail($"Battle report formatter contract regression crashed: {exception}");
-            Quit(_test.Finish("Battle report formatter contract regression"));
+            GD.PushError($"Battle report formatter contract regression crashed: {exception}");
+            RequestTestExit(_test.Finish("Battle report formatter contract regression", 1));
         }
     }
 
@@ -28,74 +28,59 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         var formatter = new BattleReportFormatter();
         var attacker = BuildUnit("attacker", "player", "施术者");
         var defender = BuildUnit("defender", "enemy", "目标");
-        try
+        var metadata = new AttackResolutionMetadata
         {
-            var metadata = new AttackResolutionMetadata
-            {
-                AttackResolution = "critical_hit",
-                HitRoll = 20,
-                CritGateDie = 20,
-                CritGateRoll = 20,
-                RequiredRoll = 12,
-                DisplayRequiredRoll = 12,
-                CritThreshold = 19,
-            };
+            AttackResolution = "critical_hit",
+            HitRoll = 20,
+            CritGateDie = 20,
+            CritGateRoll = 20,
+            RequiredRoll = 12,
+            DisplayRequiredRoll = 12,
+            CritThreshold = 19,
+        };
 
-            Godot.Collections.Dictionary entry = formatter.BuildAttackReportEntry(
-                attacker,
-                defender,
-                metadata,
-                "gate_die",
-                new Godot.Collections.Array<StringName> { "doom_sentence" }
-            );
+        Godot.Collections.Dictionary entry = formatter.BuildAttackReportEntry(
+            attacker,
+            defender,
+            metadata,
+            "gate_die",
+            new Godot.Collections.Array<StringName> { "doom_sentence" }
+        );
 
-            _test.Eq(
-                EntryString(entry, "entry_type"),
-                "fate_attack_resolution",
-                "typed attack metadata 应构建 fate attack report entry。"
-            );
-            _test.Eq(
-                EntryString(entry, "reason_id"),
-                "critical_success_gate_die",
-                "gate die critical hit 应生成对应 reason_id。"
-            );
-            _test.False(
-                string.IsNullOrWhiteSpace(EntryString(entry, "text")),
-                "typed attack metadata 应生成非空 report text。"
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeFixtureObject(defender);
-            BattleTestFixture.DisposeFixtureObject(attacker);
-        }
+        _test.Eq(
+            EntryString(entry, "entry_type"),
+            "fate_attack_resolution",
+            "typed attack metadata 应构建 fate attack report entry。"
+        );
+        _test.Eq(
+            EntryString(entry, "reason_id"),
+            "critical_success_gate_die",
+            "gate die critical hit 应生成对应 reason_id。"
+        );
+        _test.False(
+            string.IsNullOrWhiteSpace(EntryString(entry, "text")),
+            "typed attack metadata 应生成非空 report text。"
+        );
     }
 
     private void TestTypedDamageResultBuildsLogLines()
     {
         var formatter = new BattleReportFormatter();
         var batch = new BattleEventBatch();
-        try
+        var result = new AttackEffectResolutionResult
         {
-            var result = new AttackEffectResolutionResult
-            {
-                Damage = 18,
-                ShieldAbsorbed = 3,
-                ShieldBroken = true,
-                HasDamageEvent = true,
-                AnyHalf = true,
-                HalfSourceLabels = new[] { "冰霜抗性" },
-            };
+            Damage = 18,
+            ShieldAbsorbed = 3,
+            ShieldBroken = true,
+            HasDamageEvent = true,
+            AnyHalf = true,
+            HalfSourceLabels = new[] { "冰霜抗性" },
+        };
 
-            formatter.AppendDamageResultLogLines(batch, "施术者", "目标", result);
+        formatter.AppendDamageResultLogLines(batch, "施术者", "目标", result);
 
-            _test.Eq(batch.log_lines.Count, 3, "typed damage result 应生成伤害、护盾吸收和护盾破碎日志。");
-            AssertAllLinesNonEmpty(batch.log_lines, "typed damage result 应生成非空战斗日志。");
-        }
-        finally
-        {
-            BattleTestFixture.DisposeFixtureObject(batch);
-        }
+        _test.Eq(batch.log_lines.Count, 3, "typed damage result 应生成伤害、护盾吸收和护盾破碎日志。");
+        AssertAllLinesNonEmpty(batch.log_lines, "typed damage result 应生成非空战斗日志。");
     }
 
     private void TestMeteorSummaryProjectionStillFormatsEntry()
@@ -137,7 +122,7 @@ public partial class run_battle_report_formatter_contract_regression : SceneTree
         return entry.GetValueOrDefault(key, "").AsString();
     }
 
-    private void AssertAllLinesNonEmpty(Godot.Collections.Array<string> lines, string message)
+    private void AssertAllLinesNonEmpty(IReadOnlyList<string> lines, string message)
     {
         if (lines == null || lines.Count == 0)
         {

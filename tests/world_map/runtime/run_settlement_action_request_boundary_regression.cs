@@ -3,9 +3,8 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_action_request_boundary_regression : SceneTree
+public partial class run_settlement_action_request_boundary_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +18,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
     private async void RunAsync()
     {
         await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
-        Quit(_test.Finish("Settlement action request boundary regression"));
+        RequestTestExit(_test.Finish("Settlement action request boundary regression"));
     }
 
     private async Task TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress()
@@ -65,7 +64,11 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private async Task<RuntimeFixture> BuildRuntimeFixture()
     {
-        GameSession gameSession = await InstallGameSession("SettlementActionBoundaryGameSession");
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildQuestDefs();
+        GameSession gameSession = await InstallGameSession(
+            "SettlementActionBoundaryGameSession",
+            questDefs
+        );
         PartyState partyState = BuildPartyState();
         GDictionary worldData = BuildWorldData(
             new[]
@@ -78,8 +81,8 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
                 ),
             }
         );
-        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState, BuildQuestDefs());
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        ConfigureSessionForRuntimeTest(gameSession, worldData, partyState);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {
@@ -94,7 +97,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -103,7 +106,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         MakeVisible(runtime, Vector2I.Zero);
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -119,7 +122,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         runtime._party_item_use_service.Setup(
             partyState,
             itemDefs,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -140,8 +143,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
     private static void ConfigureSessionForRuntimeTest(
         GameSession gameSession,
         GDictionary worldData,
-        PartyState partyState,
-        GDictionary questDefs
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -149,14 +151,17 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
             TestConfigPath,
             worldData,
             partyState,
-            questDefs,
             "settlement_action_boundary_test",
             "Settlement Action Boundary Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -166,7 +171,10 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
             }
         }
         await ToSignal(this, SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Quests = questDefs
+        );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SignalName.ProcessFrame);
         return gameSession;
@@ -174,6 +182,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
+        fixture.GameSession?.DiscardPendingSave();
         fixture.Runtime?.Dispose();
         if (fixture.GameSession != null)
         {
@@ -182,7 +191,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
                 (int)Error.Ok,
                 "清理 settlement action boundary 验证存档应成功。"
             );
-            fixture.GameSession.Dispose();
+            fixture.GameSession.QueueFree();
             await ToSignal(this, SignalName.ProcessFrame);
         }
     }
@@ -204,6 +213,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
             ["settlements"] = settlementArray,
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,
@@ -263,26 +273,39 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         };
     }
 
-    private static GDictionary BuildQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildQuestDefs()
     {
-        QuestDef quest = new()
-        {
-            quest_id = "contract_training",
-            display_name = "训练追踪",
-            description = "据点训练进度测试。",
-            provider_interaction_id = "service_training_hidden",
-        };
-        quest.objective_defs.Add(
-            new GDictionary
+        QuestDefinition quest = new(
+            "contract_training",
+            "训练追踪",
+            "据点训练进度测试。",
+            "service_training_hidden",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new QuestObjectiveDefinition[]
             {
-                ["objective_id"] = "train_once",
-                ["objective_type"] = "settlement_action",
-                ["target_id"] = "service:training",
-                ["target_value"] = 1,
-            }
+                new("train_once", "settlement_action", "service:training", 1),
+            },
+            new QuestRewardDefinition[]
+            {
+                new(
+                    "gold",
+                    1,
+                    "",
+                    0,
+                    "",
+                    System.Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
+            },
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            "",
+            "",
+            ""
         );
-        quest.reward_entries.Add(new GDictionary { ["reward_type"] = "gold", ["amount"] = 1 });
-        return new GDictionary { [quest.quest_id] = quest };
+        return new Dictionary<StringName, QuestDefinition> { [quest.QuestId] = quest };
     }
 
     private static bool HasPendingRewardSource(PartyState partyState, StringName sourceId)
@@ -323,7 +346,7 @@ public partial class run_settlement_action_request_boundary_regression : SceneTr
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = 100,
         };
         var hero = new PartyMemberState

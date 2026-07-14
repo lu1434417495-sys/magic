@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_party_command_handler_regression : SceneTree
+public partial class run_game_runtime_party_command_handler_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +18,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
     {
         TestFacadeUsesPartyHandlerSurface();
 
-        Quit(_test.Finish("Game runtime party command handler regression"));
+        RequestTestExit(_test.Finish("Game runtime party command handler regression"));
     }
 
     private void TestFacadeUsesPartyHandlerSurface()
@@ -50,16 +49,12 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         finally
         {
             runtime.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
         }
     }
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState, bool addBronzeSword)
     {
-        using var registry = new ItemContentRegistry();
-        IReadOnlyDictionary<StringName, ItemDef> typedItemDefs =
-            new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped());
-        GDictionary itemDefs = ProjectItemDefs(typedItemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
         int equipmentSerial = 1;
         Func<StringName> equipmentInstanceIdAllocator = () =>
             new StringName($"eq_party_command_{equipmentSerial++:000}");
@@ -67,18 +62,17 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
-            _generation_config =
-                ResourceLoader.Load<WorldMapGenerationConfig>(TestConfigPath)
-                ?? new WorldMapGenerationConfig(),
+            _generation_definition = TestWorldGenerationDefinitionFactory.Load(TestConfigPath),
         };
-        runtime._world_map_data_context.active_generation_config = runtime._generation_config;
+        runtime._world_map_data_context.active_generation_definition =
+            runtime._generation_definition;
         runtime._character_management.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
-            new Dictionary<StringName, ProfessionDef>(),
-            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
             typedItemDefs,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
             equipmentInstanceIdAllocator,
             new ProgressionIdentityCatalogData()
         );
@@ -90,7 +84,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         runtime._party_item_use_service.Setup(
             partyState,
             typedItemDefs,
-            new Dictionary<StringName, SkillDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -112,28 +106,14 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         return runtime;
     }
 
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
-    }
-
     private static PartyState BuildPartyState()
     {
         PartyState partyState = new()
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { new StringName("hero") },
-            reserve_member_ids = new GStringNameArray { new StringName("mage") },
+            active_member_ids = new StringNameList { new StringName("hero") },
+            reserve_member_ids = new StringNameList { new StringName("mage") },
         };
         partyState.SetMemberState(BuildMember("hero", "Hero"));
         partyState.SetMemberState(BuildMember("mage", "Mage"));
@@ -170,7 +150,30 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         };
     }
 
-    private static bool HasMemberId(GStringNameArray memberIds, StringName memberId)
+    private static PendingCharacterReward BuildPendingReward()
+    {
+        PendingCharacterRewardEntry entry = new()
+        {
+            entry_type = "skill_mastery",
+            target_id = "test_skill",
+            target_label = "测试技能",
+            amount = 1,
+            reason_text = "测试奖励",
+        };
+        return new PendingCharacterReward
+        {
+            reward_id = "party_command_reward",
+            member_id = "hero",
+            member_name = "Hero",
+            source_type = "test_reward",
+            source_id = "party_command_reward",
+            source_label = "测试奖励",
+            summary_text = "测试奖励",
+            entries = new List<PendingCharacterRewardEntry> { entry },
+        };
+    }
+
+    private static bool HasMemberId(StringNameList memberIds, StringName memberId)
     {
         if (memberIds == null)
         {
@@ -186,7 +189,7 @@ public partial class run_game_runtime_party_command_handler_regression : SceneTr
         return false;
     }
 
-    private static string MemberIdList(GStringNameArray memberIds)
+    private static string MemberIdList(StringNameList memberIds)
     {
         if (memberIds == null)
         {

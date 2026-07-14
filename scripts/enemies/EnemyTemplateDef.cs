@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using VT = Godot.Variant.Type;
@@ -7,8 +8,11 @@ public partial class EnemyTemplateDef : Resource
 {
     private static readonly StringName DROP_TYPE_ITEM = "item",
         DROP_TYPE_RANDOM_EQUIPMENT = "random_equipment";
-    private static readonly Godot.Collections.Array<StringName> UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS =
-        new() { "weapon_attack_range", "weapon_physical_damage_tag" };
+    private static readonly StringName[] UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS =
+    {
+        "weapon_attack_range",
+        "weapon_physical_damage_tag",
+    };
     private static readonly StringName TagBeast = "beast",
         NATURAL_WEAPON_PROFILE_TYPE_ID = "natural_weapon",
         NATURAL_WEAPON_DEFAULT_DAMAGE_TAG = "physical_blunt";
@@ -45,10 +49,22 @@ public partial class EnemyTemplateDef : Resource
     public int body_size { get; set; } = BattleUnitState.BodySizeMedium;
 
     [Export]
+    public int creature_level { get; set; } = 1;
+
+    [Export]
+    public int hit_die_sides { get; set; } = 8;
+
+    [Export]
     public int action_threshold { get; set; } = BattleUnitState.DefaultActionThreshold;
 
     [Export]
     public Godot.Collections.Array<StringName> tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Dictionary damage_resistances { get; set; } = new();
 
     [Export]
     public StringName attack_equipment_item_id { get; set; } = "";
@@ -97,26 +113,31 @@ public partial class EnemyTemplateDef : Resource
         ProgressionDataUtils.to_string_name(attack_equipment_item_id);
 
     internal WeaponProjection GetWeaponProjectionTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         if (HasTag(TagBeast))
             return GetNaturalWeaponProjectionTyped();
-        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefs);
+        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefinitions);
         if (aep != null && !aep.IsEmpty())
             return aep;
         return GetUnarmedWeaponProjectionTyped();
     }
 
     internal WeaponProjection GetAttackEquipmentProjectionTyped(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         var itemId = GetAttackEquipmentItemIdResolved();
         if (itemId == "")
             return new WeaponProjection();
-        var itemDef = _resolve_attack_equipment_item_def(itemId, itemDefs);
-        return itemDef != null ? _build_weapon_projection_from_item_def(itemDef) : new WeaponProjection();
+        ItemDefinition itemDefinition = _resolve_attack_equipment_item_definition(
+            itemId,
+            itemDefinitions
+        );
+        return itemDefinition != null
+            ? _build_weapon_projection_from_item_definition(itemDefinition)
+            : new WeaponProjection();
     }
 
     internal WeaponProjection GetNaturalWeaponProjectionTyped()
@@ -182,6 +203,73 @@ public partial class EnemyTemplateDef : Resource
     internal IReadOnlyDictionary<StringName, int> GetAttributeOverridesTyped() =>
         BuildIntDictionary(attribute_overrides);
 
+    internal EnemyTemplateDefinition ToDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    ) => EnemyTemplateDefinition.FromResource(this, itemDefinitions);
+
+    internal int GetFootprintCellCountTyped()
+    {
+        Vector2I footprint = BattleUnitState.GetFootprintSizeForBodySize(
+            Mathf.Max(body_size, 1)
+        );
+        return Mathf.Max(footprint.X * footprint.Y, 1);
+    }
+
+    internal int GetDerivedHpMaxTyped()
+    {
+        int level = Mathf.Max(creature_level, 0);
+        int sides = Mathf.Max(hit_die_sides, 1);
+        IReadOnlyDictionary<StringName, int> baseAttributes =
+            GetBaseAttributeOverridesResolvedTyped();
+        int constitution = baseAttributes.TryGetValue("constitution", out int conValue)
+            ? conValue
+            : 0;
+        int constitutionModifier = AttributeSnapshot.CalculateScoreModifier(constitution);
+        // 半点定点整数运算：×2 表示 0.5 粒度，末尾整除 2 取整。
+        // 0 级即享受首级满骰底子；1 级起每级追加一颗骰均值 (sides+1)/2；每级最低半点 2（即 1 HP）。
+        int firstLevelHalfPoints = Math.Max(2, (sides + constitutionModifier * 2) * 2);
+        int perLevelHalfPoints = Math.Max(2, (sides + 1) + constitutionModifier * 4);
+        int totalHalfPoints = firstLevelHalfPoints + perLevelHalfPoints * Math.Max(level - 1, 0);
+        return (totalHalfPoints / 2) * GetFootprintCellCountTyped();
+    }
+
+    internal int GetDerivedAttackBonusTyped(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
+    )
+    {
+        WeaponProjection projection = GetWeaponProjectionTyped(itemDefinitions);
+        int attackRange =
+            projection != null && !projection.IsEmpty() ? projection.weapon_attack_range : 1;
+        StringName abilityId = attackRange > 2 ? "perception" : "strength";
+        IReadOnlyDictionary<StringName, int> baseAttributes =
+            GetBaseAttributeOverridesResolvedTyped();
+        int abilityScore = baseAttributes.TryGetValue(abilityId, out int scoreValue)
+            ? scoreValue
+            : 0;
+        return AttributeSnapshot.CalculateScoreModifier(abilityScore);
+    }
+
+    internal IReadOnlyDictionary<StringName, StringName> GetDamageResistancesTyped()
+    {
+        var result = new Dictionary<StringName, StringName>();
+        if (damage_resistances == null)
+            return result;
+        foreach (Variant rawKey in damage_resistances.Keys)
+        {
+            if (rawKey.VariantType != VT.StringName)
+                continue;
+            StringName damageTag = rawKey.AsStringName();
+            Variant rawValue = damage_resistances[rawKey];
+            if (rawValue.VariantType != VT.StringName)
+                continue;
+            StringName tier = rawValue.AsStringName();
+            if (damageTag == "" || tier == "")
+                continue;
+            result[damageTag] = tier;
+        }
+        return result;
+    }
+
     internal int GetSkillLevelTyped(StringName skillId, int fallback = 1)
     {
         if (skillId == "")
@@ -193,8 +281,8 @@ public partial class EnemyTemplateDef : Resource
 
     internal Godot.Collections.Array<string> ValidateSchemaTyped(
         IReadOnlyDictionary<StringName, EnemyAiBrainDef> knownBrains = null,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -224,6 +312,19 @@ public partial class EnemyTemplateDef : Resource
             errors.Add($"Enemy template {template_id} must have enemy_count >= 1.");
         if (body_size <= 0)
             errors.Add($"Enemy template {template_id} must have body_size >= 1.");
+        if (creature_level < 0)
+            errors.Add($"Enemy template {template_id} must have creature_level >= 0.");
+        if (
+            hit_die_sides != 4
+            && hit_die_sides != 6
+            && hit_die_sides != 8
+            && hit_die_sides != 10
+            && hit_die_sides != 12
+            && hit_die_sides != 20
+        )
+            errors.Add(
+                $"Enemy template {template_id} hit_die_sides must be one of 4, 6, 8, 10, 12, 20; got {hit_die_sides}."
+            );
         if (action_threshold <= 0)
             errors.Add($"Enemy template {template_id} action_threshold must be > 0.");
         else if (action_threshold % 5 != 0)
@@ -234,6 +335,10 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} target_rank must be normal, elite, or boss; got {target_rank}."
             );
+        foreach (var e in _validate_save_advantage_tags())
+            errors.Add(e);
+        foreach (var e in _validate_damage_resistances())
+            errors.Add(e);
         foreach (
             var e in _validate_int_dictionary_key_types(
                 base_attribute_overrides,
@@ -252,12 +357,12 @@ public partial class EnemyTemplateDef : Resource
             errors.Add(
                 $"Enemy template {template_id} must not declare attribute_overrides.armor_class; use base attributes and AC component bonuses."
             );
-        skillDefs ??= new Dictionary<StringName, SkillDef>();
-        itemDefs ??= new Dictionary<StringName, ItemDef>();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
+        itemDefinitions ??= new Dictionary<StringName, ItemDefinition>();
         HashSet<StringName> declaredSkillIds = _build_declared_skill_id_set();
-        foreach (var e in _validate_template_skill_ids(skillDefs))
+        foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
-        foreach (var e in _validate_template_skill_level_map(skillDefs, declaredSkillIds))
+        foreach (var e in _validate_template_skill_level_map(skillDefinitions, declaredSkillIds))
             errors.Add(e);
         foreach (var uk in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS)
             if (_dictionary_has_unsupported_key(attribute_overrides, uk))
@@ -286,7 +391,7 @@ public partial class EnemyTemplateDef : Resource
         }
         else
         {
-            foreach (var e in _validate_attack_equipment(itemDefs))
+            foreach (var e in _validate_attack_equipment(itemDefinitions))
                 errors.Add(e);
         }
         foreach (var entry in drop_entries)
@@ -309,7 +414,7 @@ public partial class EnemyTemplateDef : Resource
                 );
             if (ii == "")
                 errors.Add($"Enemy template {template_id} drop {dei} is missing item_id.");
-            else if (_try_get_indexed_item_def(ii, itemDefs) == null)
+            else if (_try_get_indexed_item_definition(ii, itemDefinitions) == null)
                 errors.Add(
                     $"Enemy template {template_id} drop {dei} references missing item_id {ii}."
                 );
@@ -319,8 +424,99 @@ public partial class EnemyTemplateDef : Resource
         return errors;
     }
 
+    private Godot.Collections.Array<string> _validate_damage_resistances()
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (damage_resistances == null)
+            return errors;
+        foreach (Variant rawKey in damage_resistances.Keys)
+        {
+            if (rawKey.VariantType != VT.StringName)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances key {rawKey} must be a StringName."
+                );
+                continue;
+            }
+            StringName damageTag = rawKey.AsStringName();
+            if (
+                DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances declares unsupported damage tag {damageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+            Variant rawValue = damage_resistances[rawKey];
+            if (rawValue.VariantType != VT.StringName)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances value for {rawKey} must be a StringName mitigation tier."
+                );
+                continue;
+            }
+            StringName tier = rawValue.AsStringName();
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Enemy template {template_id} damage_resistances tier {tier} for {damageTag} is not supported; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
+        return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_save_advantage_tags()
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (save_advantage_tags == null)
+        {
+            return errors;
+        }
+
+        foreach (StringName rawTag in save_advantage_tags)
+        {
+            StringName tag = ProgressionDataUtils.to_string_name(rawTag);
+            if (tag == "")
+            {
+                errors.Add($"Enemy template {template_id} save_advantage_tags contains an empty tag.");
+                continue;
+            }
+
+            StringName baseSaveTag = _base_save_tag_for_advantage_tag(tag);
+            if (baseSaveTag == "" || !BattleSaveContentRules.IsValidSaveTag(baseSaveTag))
+            {
+                errors.Add(
+                    $"Enemy template {template_id} save_advantage_tags entry {tag} has unsupported base save tag {baseSaveTag}."
+                );
+            }
+        }
+        return errors;
+    }
+
+    private static StringName _base_save_tag_for_advantage_tag(StringName tag)
+    {
+        if (tag == "")
+        {
+            return "";
+        }
+
+        string text = tag.ToString();
+        foreach (string suffix in new[] { "_advantage", "_disadvantage", "_immunity" })
+        {
+            if (text.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                return new StringName(text[..^suffix.Length]);
+            }
+        }
+        return tag;
+    }
+
     private Godot.Collections.Array<string> _validate_template_skill_ids(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -338,14 +534,14 @@ public partial class EnemyTemplateDef : Resource
                 errors.Add($"Enemy template {template_id} declares duplicate skill_id {si}.");
                 continue;
             }
-            if (skillDefs == null || !skillDefs.ContainsKey(si))
+            if (skillDefinitions == null || !skillDefinitions.ContainsKey(si))
                 errors.Add($"Enemy template {template_id} references missing skill {si}.");
         }
         return errors;
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_level_map(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlySet<StringName> declaredSkillIds
     )
     {
@@ -373,11 +569,18 @@ public partial class EnemyTemplateDef : Resource
             int lv = rlv.AsInt32();
             if (lv < 1)
                 errors.Add($"Enemy template {template_id} skill_level_map[{si}] must be >= 1.");
-            else if (skillDefs != null && skillDefs.TryGetValue(si, out SkillDef sd))
+            else if (
+                skillDefinitions != null
+                && skillDefinitions.TryGetValue(si, out SkillDefinition skillDefinition)
+            )
             {
-                if (sd != null && sd.max_level > 0 && lv > sd.max_level)
+                if (
+                    skillDefinition != null
+                    && skillDefinition.MaxLevel > 0
+                    && lv > skillDefinition.MaxLevel
+                )
                     errors.Add(
-                        $"Enemy template {template_id} skill_level_map[{si}] = {lv} exceeds skill max_level {sd.max_level}."
+                        $"Enemy template {template_id} skill_level_map[{si}] = {lv} exceeds skill max_level {skillDefinition.MaxLevel}."
                     );
             }
         }
@@ -413,7 +616,7 @@ public partial class EnemyTemplateDef : Resource
     }
 
     private Godot.Collections.Array<string> _validate_attack_equipment(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         var errors = new Godot.Collections.Array<string>();
@@ -425,60 +628,43 @@ public partial class EnemyTemplateDef : Resource
             );
             return errors;
         }
-        var id = _try_get_indexed_item_def(iid, itemDefs);
-        if (id == null)
+        ItemDefinition itemDefinition = _try_get_indexed_item_definition(iid, itemDefinitions);
+        if (itemDefinition == null)
         {
             errors.Add(
                 $"Enemy template {template_id} references missing attack_equipment_item_id {iid}."
             );
             return errors;
         }
-        if (!id.IsWeapon())
+        if (!itemDefinition.IsWeapon())
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must reference a weapon equipment item."
             );
-        if (id.GetWeaponAttackRange() <= 0)
+        if (itemDefinition.GetWeaponAttackRange() <= 0)
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must project weapon attack range >= 1."
             );
-        if (id.GetWeaponPhysicalDamageTag() == "")
+        if (itemDefinition.GetWeaponPhysicalDamageTag() == "")
             errors.Add(
                 $"Enemy template {template_id} attack_equipment_item_id {iid} must project a weapon physical damage tag."
             );
         return errors;
     }
 
-    private static ItemDef _resolve_attack_equipment_item_def(
+    private static ItemDefinition _resolve_attack_equipment_item_definition(
         StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    ) => _resolve_item_def(iid, itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    ) => _try_get_indexed_item_definition(iid, itemDefinitions);
 
-    private static ItemDef _try_get_indexed_item_def(
+    private static ItemDefinition _try_get_indexed_item_definition(
         StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     ) =>
-        itemDefs != null && itemDefs.TryGetValue(iid, out ItemDef itemDef) && itemDef != null
-            ? itemDef
+        itemDefinitions != null
+        && itemDefinitions.TryGetValue(iid, out ItemDefinition itemDefinition)
+        && itemDefinition != null
+            ? itemDefinition
             : null;
-
-    private static ItemDef _resolve_item_def(
-        StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    ) => _resolve_item_def(iid, itemDefs, false);
-
-    private static ItemDef _resolve_item_def(
-        StringName iid,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        bool registryFallbackAttempted
-    )
-    {
-        if (_try_get_indexed_item_def(iid, itemDefs) is ItemDef itemDef)
-            return itemDef;
-        if (registryFallbackAttempted || (itemDefs != null && itemDefs.Count > 0))
-            return null;
-        using var reg = new ItemContentRegistry();
-        return _resolve_item_def(iid, reg.GetItemDefsTyped(), true);
-    }
 
     internal static Dictionary<StringName, EnemyAiBrainDef> BuildBrainIndex(
         Godot.Collections.Dictionary knownBrains
@@ -509,80 +695,13 @@ public partial class EnemyTemplateDef : Resource
         return result;
     }
 
-    internal static Dictionary<StringName, SkillDef> BuildSkillDefIndex(
-        Godot.Collections.Dictionary skillDefs
+    internal static Dictionary<StringName, SkillDefinition> CloneSkillDefinitionIndex(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
-            {
-                continue;
-            }
-            SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
-            if (skillDef == null)
-            {
-                continue;
-            }
-            StringName keySkillId = rawKey.AsStringName();
-            if (keySkillId != "")
-            {
-                result[keySkillId] = skillDef;
-            }
-        }
-        return result;
-    }
-
-    internal static Dictionary<StringName, SkillDef> CloneSkillDefIndex(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        return skillDefs != null
-            ? new Dictionary<StringName, SkillDef>(skillDefs)
-            : new Dictionary<StringName, SkillDef>();
-    }
-
-    internal static Dictionary<StringName, ItemDef> BuildItemDefIndex(
-        Godot.Collections.Dictionary itemDefs
-    )
-    {
-        var result = new Dictionary<StringName, ItemDef>();
-        if (itemDefs == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
-            {
-                continue;
-            }
-            ItemDef itemDef = itemDefs[rawKey].As<ItemDef>();
-            if (itemDef == null)
-            {
-                continue;
-            }
-            StringName keyItemId = rawKey.AsStringName();
-            if (keyItemId != "")
-            {
-                result[keyItemId] = itemDef;
-            }
-        }
-        return result;
-    }
-
-    internal static Dictionary<StringName, ItemDef> CloneItemDefIndex(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
-    )
-    {
-        return itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
+        return skillDefinitions != null
+            ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
+            : new Dictionary<StringName, SkillDefinition>();
     }
 
     private static Dictionary<StringName, int> BuildIntDictionary(Godot.Collections.Dictionary source)
@@ -662,43 +781,49 @@ public partial class EnemyTemplateDef : Resource
         return false;
     }
 
-    private WeaponProjection _build_weapon_projection_from_item_def(ItemDef itemDef)
+    private WeaponProjection _build_weapon_projection_from_item_definition(
+        ItemDefinition itemDefinition
+    )
     {
-        if (itemDef == null || !itemDef.IsWeapon())
+        if (itemDefinition == null || !itemDefinition.IsWeapon())
             return new WeaponProjection();
-        var profile = itemDef.weapon_profile as WeaponProfileDef;
+        WeaponProfileDefinition profile = itemDefinition.WeaponProfile;
         if (profile == null)
             return new WeaponProjection();
-        var ohd = WeaponDice.FromResource(profile.one_handed_dice);
-        var thd = WeaponDice.FromResource(profile.two_handed_dice);
+        WeaponDice ohd = WeaponDice.FromDefinition(profile.OneHandedDice);
+        WeaponDice thd = WeaponDice.FromDefinition(profile.TwoHandedDice);
         var props = _weapon_profile_properties(profile);
         bool isV = props.Contains("versatile");
-        bool ut = _resolve_weapon_uses_two_hands(itemDef, ohd, thd, isV);
+        bool ut = _resolve_weapon_uses_two_hands(itemDefinition, ohd, thd, isV);
         return new WeaponProjection
         {
             weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
-            weapon_item_id = itemDef.item_id,
-            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
+            weapon_item_id = itemDefinition.ItemId,
+            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.WeaponTypeId),
             weapon_current_grip = _resolve_weapon_current_grip(ohd, thd, ut),
-            weapon_attack_range = Mathf.Max(profile.attack_range, 0),
+            weapon_attack_range = Mathf.Max(profile.AttackRange, 0),
             weapon_one_handed_dice = ohd,
             weapon_two_handed_dice = thd,
             weapon_is_versatile = isV,
             weapon_uses_two_hands = ut,
-            weapon_physical_damage_tag = itemDef.GetWeaponPhysicalDamageTag(),
+            weapon_physical_damage_tag = itemDefinition.GetWeaponPhysicalDamageTag(),
         };
     }
 
     private static bool _resolve_weapon_uses_two_hands(
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         WeaponDice ohd,
         WeaponDice thd,
         bool isV
     )
     {
-        if (itemDef == null)
+        if (itemDefinition == null)
             return false;
-        if (itemDef.GetFinalOccupiedSlotIdsTyped("main_hand").Contains(new StringName("off_hand")))
+        if (
+            itemDefinition
+                .GetFinalOccupiedSlotIdsTyped("main_hand")
+                .Contains(new StringName("off_hand"))
+        )
             return true;
         if (ohd.IsEmpty() && !thd.IsEmpty())
             return true;
@@ -717,7 +842,7 @@ public partial class EnemyTemplateDef : Resource
     }
 
     private static Godot.Collections.Array<StringName> _weapon_profile_properties(
-        WeaponProfileDef profile
+        WeaponProfileDefinition profile
     )
     {
         var r = new Godot.Collections.Array<StringName>();
@@ -758,5 +883,6 @@ public partial class EnemyTemplateDef : Resource
     ) => data.ContainsKey(key);
 
     private static bool _is_valid_weapon_physical_damage_tag(StringName dt) =>
-        ItemDef.ToWeaponPhysicalDamageTagKind(dt) != WeaponPhysicalDamageTagKind.Unknown;
+        ItemDefinition.ToWeaponPhysicalDamageTagKind(dt)
+        != WeaponPhysicalDamageTagKind.Unknown;
 }

@@ -1,41 +1,36 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 
-[GlobalClass]
-public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
+public class RecipeContentRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string RECIPE_CONFIG_DIRECTORY = "res://data/configs/recipes";
 
     private const int RECIPE_QUANTITY_MAX = 9999;
 
-    private readonly Dictionary<StringName, RecipeDef> _recipe_defs = new();
+    private readonly IContentResourceLoader _loader;
+
+    private readonly Dictionary<StringName, RecipeDefinition> _recipe_defs = new();
 
     private readonly List<string> _validation_errors = new();
 
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _item_defs = new();
     private bool _disposed;
 
-    public RecipeContentRegistry()
+    internal RecipeContentRegistry(IContentResourceLoader loader)
     {
+        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
         System.GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -45,20 +40,16 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs.Values);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs.Values);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _item_defs.Clear();
     }
 
-    internal void Setup(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    internal void Setup(IReadOnlyDictionary<StringName, ItemDefinition> itemDefs)
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_item_defs.Values);
         _item_defs = itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
+            ? new Dictionary<StringName, ItemDefinition>(itemDefs)
+            : new Dictionary<StringName, ItemDefinition>();
         Rebuild();
     }
 
@@ -69,7 +60,6 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     public void LoadFromDirectory(string directoryPath)
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_recipe_defs.Values);
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _scan_directory(directoryPath);
@@ -83,7 +73,8 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
         return c;
     }
 
-    internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped() => _recipe_defs;
+    internal IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
+        new ReadOnlyDictionary<StringName, RecipeDefinition>(_recipe_defs);
 
     public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 
@@ -95,7 +86,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        var dir = DirAccess.Open(directoryPath);
+        DirAccess dir = DirAccess.Open(directoryPath);
 
         if (dir == null)
         {
@@ -103,40 +94,46 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        dir.ListDirBegin();
-
-        while (true)
+        try
         {
-            string n = dir.GetNext();
-            if (string.IsNullOrEmpty(n))
-                break;
-            if (n == "." || n == "..")
-                continue;
-            string p = $"{directoryPath}/{n}";
-            if (dir.CurrentIsDir())
-                _scan_directory(p);
-            else if (n.EndsWith(".tres") || n.EndsWith(".res"))
-                _register_recipe_resource(p);
-        }
+            dir.ListDirBegin();
 
-        dir.ListDirEnd();
+            while (true)
+            {
+                string n = dir.GetNext();
+                if (string.IsNullOrEmpty(n))
+                    break;
+                if (n == "." || n == "..")
+                    continue;
+                string p = $"{directoryPath}/{n}";
+                if (dir.CurrentIsDir())
+                    _scan_directory(p);
+                else if (n.EndsWith(".tres") || n.EndsWith(".res"))
+                    _register_recipe_resource(p);
+            }
+
+            dir.ListDirEnd();
+        }
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(dir);
+        }
     }
 
     private void _register_recipe_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = _loader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load recipe config {resourcePath}.");
             return;
         }
-
         if (resource is not RecipeDef rd)
         {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Recipe config {resourcePath} is not a RecipeDef.");
             return;
         }
+
         if (rd.recipe_id == "")
         {
             _validation_errors.Add($"Recipe config {resourcePath} is missing recipe_id.");
@@ -152,6 +149,14 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
         if (rd.input_item_ids.Count == 0)
         {
             _validation_errors.Add($"Recipe {rd.recipe_id} must declare at least one input item.");
+            return;
+        }
+
+        if (rd.input_item_quantities == null)
+        {
+            _validation_errors.Add(
+                $"Recipe {rd.recipe_id} input_item_quantities must not be null."
+            );
             return;
         }
 
@@ -267,7 +272,16 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        _recipe_defs[rd.recipe_id] = rd;
+        try
+        {
+            _recipe_defs[rd.recipe_id] = RecipeDefinition.FromResource(rd);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Recipe config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
 }

@@ -90,6 +90,23 @@ public partial class WorldMapGenerationConfig : Resource
     [Export]
     public Godot.Collections.Array<Resource> world_events { get; set; } = new();
 
+    internal Godot.Collections.Array<Resource> SettlementLibraryProjectionBorrowed =>
+        settlement_library;
+    internal Godot.Collections.Array<Resource> FacilityLibraryProjectionBorrowed =>
+        facility_library;
+    internal Godot.Collections.Array<Resource> SettlementDistributionProjectionBorrowed =>
+        settlement_distribution;
+    internal Godot.Collections.Array<Resource> WildMonsterDistributionProjectionBorrowed =>
+        wild_monster_distribution;
+    internal Godot.Collections.Array<Resource> MountedSubmapsProjectionBorrowed =>
+        mounted_submaps;
+    internal Godot.Collections.Array<Resource> WorldEventsProjectionBorrowed => world_events;
+
+    internal WorldGenerationDefinition ToDefinition(
+        string canonicalPath,
+        IContentResourceLoader loader
+    ) => WorldGenerationDefinition.FromResource(canonicalPath, this, loader);
+
     public Vector2I GetWorldSizeCells()
     {
         return new Vector2I(

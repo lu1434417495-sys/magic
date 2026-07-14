@@ -1,0 +1,205 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=38 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="8_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="9_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="10_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="11_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="12_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyBattleTerrainEffectAfterCheckActionPayloadDef.cs" id="13_apply_terrain"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Fact_hp_damage"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"hp_damage"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_hp_damage_gt_zero"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_hp_damage")
+compare = &"gt"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Condition_hp_damage_positive"]
+script = ExtResource("5_condition")
+condition_id = &"condition.mountainbreaker.weapon_hp_damage_positive"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_damage_gt_zero")
+
+[sub_resource type="Resource" id="Fact_target_prone"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"prone"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_prone_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_prone")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_target_prone"]
+script = ExtResource("5_condition")
+condition_id = &"condition.mountainbreaker.target_prone"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_prone_gte_one")
+
+[sub_resource type="Resource" id="Condition_group_hp_damage"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_damage_positive")])
+
+[sub_resource type="Resource" id="Condition_group_target_prone"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_target_prone")])
+
+[sub_resource type="Resource" id="Dice_term_1d8_blunt"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 8
+
+[sub_resource type="Resource" id="Dice_1d8_blunt"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d8_blunt")])
+
+[sub_resource type="Resource" id="Action_followup_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d8_blunt")
+damage_type = &"physical_blunt"
+damage_tags = Array[StringName]([&"physical_blunt"])
+
+[sub_resource type="Resource" id="Action_followup"]
+script = ExtResource("10_action")
+action_id = &"action.mountainbreaker.faultline_followup.add_blunt_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_followup_payload")
+
+[sub_resource type="Resource" id="Action_collapse_payload"]
+script = ExtResource("12_apply_status")
+target_selector = &"attack_target"
+status_id = &"prone"
+duration_tu = 50
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "倒地"
+counts_as_debuff_override = true
+counts_as_debuff = true
+save_dc = 16
+save_ability = &"strength"
+save_tag = &"knockdown"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Action_collapse"]
+script = ExtResource("10_action")
+action_id = &"action.mountainbreaker.mountain_collapse.apply_prone"
+kind = &"apply_status"
+payload = SubResource("Action_collapse_payload")
+
+[sub_resource type="Resource" id="Action_anchor_payload"]
+script = ExtResource("13_apply_terrain")
+anchor_selector = &"attack_target"
+terrain_effect_id = &"mountainbreaker_broken_ground"
+move_cost_delta = 1
+target_team_filter = &"any"
+stack_behavior = &"ignore_existing"
+display_name = "破碎地脉"
+render_overlay_id = &"mountainbreaker_broken_ground"
+overlay_priority = 20
+check_attribute_modifier_id = &"strength_modifier"
+check_compare = &"gt"
+check_threshold = 22
+natural_twenty_auto_success = true
+natural_one_auto_failure = false
+
+[sub_resource type="Resource" id="Action_anchor"]
+script = ExtResource("10_action")
+action_id = &"action.mountainbreaker.leyline_anchor.break_ground"
+kind = &"apply_battle_terrain_effect_after_check"
+payload = SubResource("Action_anchor_payload")
+
+[sub_resource type="Resource" id="Reaction_followup"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.mountainbreaker.faultline_followup.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_target_prone")
+actions = Array[Resource]([SubResource("Action_followup")])
+
+[sub_resource type="Resource" id="Reaction_collapse"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.mountainbreaker.mountain_collapse.after_weapon_damage"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_hp_damage")
+actions = Array[Resource]([SubResource("Action_collapse")])
+
+[sub_resource type="Resource" id="Reaction_anchor"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.mountainbreaker.leyline_anchor.after_weapon_damage"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_hp_damage")
+actions = Array[Resource]([SubResource("Action_anchor")])
+
+[sub_resource type="Resource" id="Binding_followup"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.mountainbreaker.faultline_followup"
+trait_id = &"weapon.axe.mountainbreaker.faultline_followup"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"mountainbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_followup")])
+
+[sub_resource type="Resource" id="Binding_collapse"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.mountainbreaker.mountain_collapse"
+trait_id = &"weapon.axe.mountainbreaker.mountain_collapse"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"mountainbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_collapse")])
+
+[sub_resource type="Resource" id="Binding_anchor"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.mountainbreaker.leyline_anchor"
+trait_id = &"weapon.axe.mountainbreaker.leyline_anchor"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"mountainbreaker"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_anchor")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.mountainbreaker"
+schema_version = 1
+load_order = 393
+bindings = Array[Resource]([SubResource("Binding_followup"), SubResource("Binding_collapse"), SubResource("Binding_anchor")])

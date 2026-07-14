@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -28,7 +29,7 @@ internal enum BattleEdgeInteractionKind
 
 // 战斗边缘 authoring 特征数据。
 // 翻译自 battle_edge_feature_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleEdgeFeatureState : RefCounted
+public class BattleEdgeFeatureState
 {
     private static readonly StringName _FEATURE_NONE = "none";
     private static readonly StringName _FEATURE_WALL = "wall";
@@ -192,6 +193,19 @@ public partial class BattleEdgeFeatureState : RefCounted
             ["state_tag"] = state_tag.ToString(),
         };
     }
+
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain() =>
+        new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["feature_kind"] = feature_kind.ToString(),
+            ["render_kind"] = render_kind.ToString(),
+            ["render_layers"] = render_layers,
+            ["blocks_move"] = blocks_move,
+            ["blocks_occupancy"] = blocks_occupancy,
+            ["blocks_los"] = blocks_los,
+            ["interaction_kind"] = interaction_kind.ToString(),
+            ["state_tag"] = state_tag.ToString(),
+        };
 
     internal static BattleEdgeFeatureState FromDictionary(GDictionary featureDict)
     {

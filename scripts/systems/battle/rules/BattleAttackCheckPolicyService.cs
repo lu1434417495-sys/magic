@@ -60,11 +60,11 @@ internal class BattleAttackCheckPolicyService
         return bundle;
     }
 
-    public BattleAttackCheckPolicyContext BuildAttackContext(
+    public BattleAttackCheckPolicyContext BuildSkillDefinitionAttackContext(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         StringName check_route,
         StringName trace_source,
         bool force_hit_no_crit
@@ -74,7 +74,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_SPELL_ATTACK,
             check_route,
             trace_source
@@ -83,11 +83,11 @@ internal class BattleAttackCheckPolicyService
         return context;
     }
 
-    internal BattleAttackCheckPolicyContext BuildAttackContext(
+    internal BattleAttackCheckPolicyContext BuildSkillDefinitionAttackContext(
         BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         StringName check_route,
         StringName trace_source,
         bool force_hit_no_crit
@@ -97,7 +97,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_SPELL_ATTACK,
             check_route,
             trace_source
@@ -122,23 +122,20 @@ internal class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        if (context.HasReadView)
-        {
-            return _hitResolver.BuildSkillAttackCheck(
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
+        bool hasAdvantage = modifierBundle.HasAdvantage;
+        AttackCheckInput attackCheck = CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
                 context.attacker_view,
                 context.target_view,
-                context.skill_def,
+                context.skill_definition,
                 flat_bonus + modifierBundle.TotalBonus,
-                flat_penalty + modifierBundle.TotalPenalty
-            );
-        }
-        return _hitResolver.BuildSkillAttackCheck(
-            context.attacker,
-            context.target,
-            context.skill_def,
-            flat_bonus + modifierBundle.TotalBonus,
-            flat_penalty + modifierBundle.TotalPenalty
+                flat_penalty + modifierBundle.TotalPenalty,
+                defenseAdjustment
+            ),
+            hasAdvantage
         );
+        return CopyAttackCheckWithCriticalOverride(context, attackCheck);
     }
 
     public AttackPreviewData BuildAttackPreview(BattleAttackCheckPolicyContext context)
@@ -166,48 +163,43 @@ internal class BattleAttackCheckPolicyService
         }
 
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        if (modifierBundle.IsEmpty())
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
+        bool hasCriticalOverride =
+            ResolveRuntime()
+                ?.GetEquipmentAbilityRuntimeService()
+                ?.ResolveCriticalHitOverride(context)
+                ?.ForceCriticalOnHit == true;
+        if (modifierBundle.IsEmpty() && defenseAdjustment.IsEmpty && !hasCriticalOverride)
         {
-            if (context.HasReadView)
-            {
-                return _hitResolver.BuildSkillAttackPreview(
-                    context.battle_state,
-                    context.attacker_view,
-                    context.target_view,
-                    context.skill_def,
-                    false
-                );
-            }
-            return _hitResolver.BuildSkillAttackPreview(
+            return _hitResolver.BuildSkillDefinitionAttackPreview(
                 context.battle_state,
-                context.attacker,
-                context.target,
-                context.skill_def,
+                context.attacker_view,
+                context.target_view,
+                context.skill_definition,
                 false
             );
         }
 
         AttackCheckInput attackCheck = BuildAttackCheck(context, 0, 0);
-        AttackCheckInput resolvedCheck = context.HasReadView
-            ? _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker_view,
-                context.target_view,
-                attackCheck
-            )
-            : _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker,
-                context.target,
-                attackCheck
-            );
+        AttackCheckInput resolvedCheck = _hitResolver.BuildFateAwareAttackCheckPreview(
+            context.battle_state,
+            context.attacker_view,
+            context.target_view,
+            attackCheck
+        );
         int successRate = resolvedCheck.SuccessRatePercent;
         int baseHitRate = resolvedCheck.BaseHitRatePercent;
         string previewText = resolvedCheck.PreviewText;
+        bool forceCriticalOnHit =
+            resolvedCheck.ForceCriticalOnHit
+            && !resolvedCheck.CritLocked
+            && !resolvedCheck.ForceHitNoCrit;
 
         var preview = new AttackPreviewData
         {
-            SummaryText = $"预计命中率 {previewText}",
+            SummaryText = forceCriticalOnHit
+                ? $"预计命中率 {previewText}；命中后必定暴击"
+                : $"预计命中率 {previewText}",
             Stages = new List<AttackPreviewStage>
             {
                 new AttackPreviewStage(
@@ -222,6 +214,8 @@ internal class BattleAttackCheckPolicyService
             HitRatePercent = successRate,
             SuccessRatePercent = successRate,
             BaseHitRatePercent = baseHitRate,
+            ForceCriticalOnHit = forceCriticalOnHit,
+            CritLocked = resolvedCheck.CritLocked,
             FatePreview = BattleFatePreviewData.FromAttackCheck(resolvedCheck),
         };
         AppendModifierBundlePayload(preview, modifierBundle);
@@ -236,11 +230,9 @@ internal class BattleAttackCheckPolicyService
         if (
             _hitResolver == null
             || context == null
-            || (!context.HasReadView && context.attacker == null)
-            || (!context.HasReadView && context.target == null)
-            || (context.HasReadView && !context.attacker_view.IsValid)
-            || (context.HasReadView && !context.target_view.IsValid)
-            || context.skill_def == null
+            || !context.attacker_view.IsValid
+            || !context.target_view.IsValid
+            || context.skill_definition == null
             || stage_specs == null
             || stage_specs.Count == 0
         )
@@ -293,6 +285,10 @@ internal class BattleAttackCheckPolicyService
             BaseHitRatePercent = AverageStageRate(stages, stage => stage.BaseHitRatePercent),
             BaseAttackBonus = stage_specs[0].stage_base_attack_bonus,
             FollowUpAttackPenalty = stage_specs[0].follow_up_attack_penalty,
+            ForceCriticalOnHit = summaryChecks.Exists(
+                check => check.ForceCriticalOnHit && !check.CritLocked && !check.ForceHitNoCrit
+            ),
+            CritLocked = summaryChecks.Count > 0 && summaryChecks[0].CritLocked,
             FatePreview = summaryChecks.Count > 0
                 ? BattleFatePreviewData.FromAttackCheck(summaryChecks[0])
                 : null,
@@ -308,7 +304,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         BattleRepeatAttackStageSpec stage_spec,
         StringName check_route,
         StringName trace_source
@@ -318,7 +314,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_REPEAT_WEAPON_STAGE,
             check_route,
             trace_source
@@ -332,7 +328,7 @@ internal class BattleAttackCheckPolicyService
         BattleState battle_state,
         BattleUnitReadView active_unit,
         BattleUnitReadView target_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         BattleRepeatAttackStageSpec stage_spec,
         StringName check_route,
         StringName trace_source
@@ -342,7 +338,7 @@ internal class BattleAttackCheckPolicyService
             battle_state,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             ROLL_KIND_REPEAT_WEAPON_STAGE,
             check_route,
             trace_source
@@ -362,23 +358,20 @@ internal class BattleAttackCheckPolicyService
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
-        if (context.HasReadView)
-        {
-            return _hitResolver.BuildSkillAttackCheck(
+        EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
+        bool hasAdvantage = modifierBundle.HasAdvantage;
+        AttackCheckInput attackCheck = CopyAttackCheckWithAdvantage(
+            _hitResolver.BuildSkillDefinitionAttackCheck(
                 context.attacker_view,
                 context.target_view,
-                context.skill_def,
+                context.skill_definition,
                 resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-                resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
-            );
-        }
-        return _hitResolver.BuildSkillAttackCheck(
-            context.attacker,
-            context.target,
-            context.skill_def,
-            resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
-            resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty
+                resolvedStageSpec.ResolveStageAttackPenalty() + modifierBundle.TotalPenalty,
+                defenseAdjustment
+            ),
+            hasAdvantage
         );
+        return CopyAttackCheckWithCriticalOverride(context, attackCheck);
     }
 
     public AttackCheckInput BuildFateAwareRepeatAttackStageHitCheck(
@@ -391,19 +384,12 @@ internal class BattleAttackCheckPolicyService
         }
         context.repeat_stage_spec = context.repeat_stage_spec.WithFateAware(true);
         AttackCheckInput baseAttackCheck = BuildRepeatAttackStageHitCheck(context);
-        return context.HasReadView
-            ? _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker_view,
-                context.target_view,
-                baseAttackCheck
-            )
-            : _hitResolver.BuildFateAwareAttackCheckPreview(
-                context.battle_state,
-                context.attacker,
-                context.target,
-                baseAttackCheck
-            );
+        return _hitResolver.BuildFateAwareAttackCheckPreview(
+            context.battle_state,
+            context.attacker_view,
+            context.target_view,
+            baseAttackCheck
+        );
     }
 
     public AttackRollResult RollAttackCheck(BattleState battle_state, AttackCheckInput attack_check)
@@ -461,43 +447,46 @@ internal class BattleAttackCheckPolicyService
         BattleState battleState,
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         StringName rollKind,
         StringName checkRoute,
         StringName traceSource
     )
     {
-        return new BattleAttackCheckPolicyContext
-        {
-            battle_state = battleState ?? ResolveBattleState(),
-            attacker = activeUnit,
-            target = targetUnit,
-            skill_def = skillDef,
-            roll_kind = rollKind,
-            check_route = checkRoute,
-            trace_source = traceSource,
-            distance = ResolveDistance(activeUnit, targetUnit),
-            source_coord = activeUnit != null ? activeUnit.coord : new Vector2I(-1, -1),
-            target_coord = targetUnit != null ? targetUnit.coord : new Vector2I(-1, -1),
-        };
+        // 统一交给 read-view builder 归一化 footprint，再回填 State 引用供
+        // 不纯消费方（装备能力运行时）使用。
+        BattleAttackCheckPolicyContext context = BuildContext(
+            battleState,
+            (BattleUnitReadView)activeUnit,
+            (BattleUnitReadView)targetUnit,
+            skillDefinition,
+            rollKind,
+            checkRoute,
+            traceSource
+        );
+        context.attacker = activeUnit;
+        context.target = targetUnit;
+        return context;
     }
 
     private BattleAttackCheckPolicyContext BuildContext(
         BattleState battleState,
         BattleUnitReadView activeUnit,
         BattleUnitReadView targetUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         StringName rollKind,
         StringName checkRoute,
         StringName traceSource
     )
     {
+        activeUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
+        targetUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
         return new BattleAttackCheckPolicyContext
         {
             battle_state = battleState ?? ResolveBattleState(),
             attacker_view = activeUnit,
             target_view = targetUnit,
-            skill_def = skillDef,
+            skill_definition = skillDefinition,
             roll_kind = rollKind,
             check_route = checkRoute,
             trace_source = traceSource,
@@ -516,7 +505,141 @@ internal class BattleAttackCheckPolicyService
         {
             candidates.Add(spec);
         }
+        foreach (BattleAttackRollModifierSpec spec in CollectStatusModifierCandidates(context))
+        {
+            candidates.Add(spec);
+        }
+        foreach (BattleAttackRollModifierSpec spec in CollectEquipmentAbilityModifierCandidates(context))
+        {
+            candidates.Add(spec);
+        }
         return candidates;
+    }
+
+    private static List<BattleAttackRollModifierSpec> CollectStatusModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        if (context == null)
+            return new List<BattleAttackRollModifierSpec>();
+        return CollectStatusModifierCandidates(context.attacker_view, context.target_view);
+    }
+
+    private static List<BattleAttackRollModifierSpec> CollectStatusModifierCandidates(
+        BattleUnitReadView attacker,
+        BattleUnitReadView target
+    )
+    {
+        var candidates = new List<BattleAttackRollModifierSpec>();
+        if (!attacker.IsValid || !target.IsValid)
+            return candidates;
+
+        foreach (BattleStatusReadView status in attacker.StatusEffects())
+        {
+            if (status.AttackRollAdvantage)
+            {
+                candidates.Add(
+                    new BattleAttackRollModifierSpec
+                    {
+                        source_domain = "status",
+                        source_id = status.StatusId,
+                        source_instance_id = status.SourceUnitId.ToString(),
+                        label = ResolveStatusModifierLabel(status),
+                        modifier_delta = 0,
+                        stack_key = status.StatusId,
+                        stack_mode = "max",
+                        target_team_filter = "any",
+                        endpoint_mode = "target",
+                        footprint_mode = "any_cell",
+                        applies_to = "attack_advantage",
+                    }
+                );
+            }
+
+            int penalty = Math.Max(status.SourceBoundAttackRollPenalty, 0);
+            if (penalty <= 0)
+                continue;
+            int minStacks = Math.Max(status.SourceBoundAttackRollPenaltyMinStacks, 1);
+            if (Math.Max(status.Stacks, 0) < minStacks)
+                continue;
+            if (ProgressionDataUtils.to_string_name(status.SourceUnitId) != target.UnitId)
+                continue;
+
+            candidates.Add(
+                new BattleAttackRollModifierSpec
+                {
+                    source_domain = "status",
+                    source_id = status.StatusId,
+                    source_instance_id = status.SourceUnitId.ToString(),
+                    label = ResolveStatusModifierLabel(status),
+                    modifier_delta = -penalty,
+                    stack_key = status.StatusId,
+                    stack_mode = "max",
+                    target_team_filter = "any",
+                    endpoint_mode = "target",
+                    footprint_mode = "any_cell",
+                    applies_to = "attack_roll",
+                }
+            );
+        }
+        foreach (BattleStatusReadView status in target.StatusEffects())
+        {
+            int bonusPerStack = Math.Max(status.SourceBoundIncomingAttackRollBonusPerStack, 0);
+            if (bonusPerStack <= 0)
+                continue;
+            int minStacks = Math.Max(status.SourceBoundIncomingAttackRollBonusMinStacks, 1);
+            int stacks = Math.Max(status.Stacks, 0);
+            if (stacks < minStacks)
+                continue;
+            if (ProgressionDataUtils.to_string_name(status.SourceUnitId) != attacker.UnitId)
+                continue;
+
+            candidates.Add(
+                new BattleAttackRollModifierSpec
+                {
+                    source_domain = "status",
+                    source_id = status.StatusId,
+                    source_instance_id = status.SourceUnitId.ToString(),
+                    label = ResolveStatusModifierLabel(status),
+                    modifier_delta = bonusPerStack * stacks,
+                    stack_key = status.StatusId,
+                    stack_mode = "max",
+                    target_team_filter = "any",
+                    endpoint_mode = "target",
+                    footprint_mode = "any_cell",
+                    applies_to = "attack_roll",
+                }
+            );
+        }
+        return candidates;
+    }
+
+    private static string ResolveStatusModifierLabel(BattleStatusReadView status)
+    {
+        string label = status.DisplayLabel;
+        return string.IsNullOrWhiteSpace(label) ? status.StatusId.ToString() : label;
+    }
+
+    private List<BattleAttackRollModifierSpec> CollectEquipmentAbilityModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
+        return equipmentAbilityService != null
+            ? equipmentAbilityService.CollectAttackRollModifierCandidates(context)
+            : new List<BattleAttackRollModifierSpec>();
+    }
+
+    private EquipmentAttackDefenseAdjustment BuildAttackDefenseAdjustment(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
+        return equipmentAbilityService != null
+            ? equipmentAbilityService.CollectAttackDefenseAdjustment(context)
+            : new EquipmentAttackDefenseAdjustment();
     }
 
     private List<BattleAttackRollModifierSpec> CollectTerrainModifierCandidates(
@@ -581,11 +704,17 @@ internal class BattleAttackCheckPolicyService
         {
             return false;
         }
-        if (spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackRoll)
+        if (
+            spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackRoll
+            && spec.AppliesToKind != BattleAttackRollModifierApplyTarget.AttackAdvantage
+        )
         {
             return false;
         }
-        if (spec.modifier_delta == 0)
+        if (
+            spec.AppliesToKind == BattleAttackRollModifierApplyTarget.AttackRoll
+            && spec.modifier_delta == 0
+        )
         {
             return false;
         }
@@ -750,6 +879,100 @@ internal class BattleAttackCheckPolicyService
         target.SetAttackRollModifierBreakdown(modifierBundle.Breakdown);
     }
 
+    private static AttackCheckInput CopyAttackCheckWithAdvantage(
+        AttackCheckInput source,
+        bool isAdvantage
+    )
+    {
+        if (!isAdvantage || source.Invalid)
+            return source;
+        return new AttackCheckInput(
+            attackerBaseAttackBonus: source.AttackerBaseAttackBonus,
+            attackerAttackBonus: source.AttackerAttackBonus,
+            attackerBab: source.AttackerBab,
+            targetArmorClass: source.TargetArmorClass,
+            skillAttackBonus: source.SkillAttackBonus,
+            lockedSkillHitBonus: source.LockedSkillHitBonus,
+            situationalAttackBonus: source.SituationalAttackBonus,
+            situationalAttackPenalty: source.SituationalAttackPenalty,
+            requiredRoll: source.RequiredRoll,
+            displayRequiredRoll: source.DisplayRequiredRoll,
+            hitRatePercent: source.HitRatePercent,
+            successRatePercent: source.SuccessRatePercent,
+            baseHitRatePercent: source.BaseHitRatePercent,
+            naturalOneAutoMiss: source.NaturalOneAutoMiss,
+            naturalTwentyAutoHit: source.NaturalTwentyAutoHit,
+            critThreshold: source.CritThreshold,
+            fumbleLowEnd: source.FumbleLowEnd,
+            critLocked: source.CritLocked,
+            critGateDie: source.CritGateDie,
+            effectiveLuck: source.EffectiveLuck,
+            forceHitNoCrit: source.ForceHitNoCrit,
+            forceCriticalOnHit: source.ForceCriticalOnHit,
+            forcedCriticalSourceEquipmentInstanceId: source.ForcedCriticalSourceEquipmentInstanceId,
+            forcedCriticalSourceBindingId: source.ForcedCriticalSourceBindingId,
+            forcedCriticalSourceActionId: source.ForcedCriticalSourceActionId,
+            skillId: source.SkillId,
+            followUpAttackPenalty: source.FollowUpAttackPenalty,
+            exponentialPenalty: source.ExponentialPenalty,
+            isDisadvantage: source.IsDisadvantage,
+            isAdvantage: true,
+            invalid: source.Invalid,
+            errorId: source.ErrorId,
+            errorMessage: source.ErrorMessage,
+            previewText: source.PreviewText
+        );
+    }
+
+    private AttackCheckInput CopyAttackCheckWithCriticalOverride(
+        BattleAttackCheckPolicyContext context,
+        AttackCheckInput source
+    )
+    {
+        if (source.Invalid || source.ForceHitNoCrit || context?.force_hit_no_crit == true)
+            return source;
+        BattleEquipmentAbilityCriticalHitOverrideResult criticalOverride =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService()?.ResolveCriticalHitOverride(context);
+        if (criticalOverride?.ForceCriticalOnHit != true)
+            return source;
+        return new AttackCheckInput(
+            attackerBaseAttackBonus: source.AttackerBaseAttackBonus,
+            attackerAttackBonus: source.AttackerAttackBonus,
+            attackerBab: source.AttackerBab,
+            targetArmorClass: source.TargetArmorClass,
+            skillAttackBonus: source.SkillAttackBonus,
+            lockedSkillHitBonus: source.LockedSkillHitBonus,
+            situationalAttackBonus: source.SituationalAttackBonus,
+            situationalAttackPenalty: source.SituationalAttackPenalty,
+            requiredRoll: source.RequiredRoll,
+            displayRequiredRoll: source.DisplayRequiredRoll,
+            hitRatePercent: source.HitRatePercent,
+            successRatePercent: source.SuccessRatePercent,
+            baseHitRatePercent: source.BaseHitRatePercent,
+            naturalOneAutoMiss: source.NaturalOneAutoMiss,
+            naturalTwentyAutoHit: source.NaturalTwentyAutoHit,
+            critThreshold: source.CritThreshold,
+            fumbleLowEnd: source.FumbleLowEnd,
+            critLocked: source.CritLocked,
+            critGateDie: source.CritGateDie,
+            effectiveLuck: source.EffectiveLuck,
+            forceHitNoCrit: source.ForceHitNoCrit,
+            forceCriticalOnHit: true,
+            forcedCriticalSourceEquipmentInstanceId: criticalOverride.SourceEquipmentInstanceId,
+            forcedCriticalSourceBindingId: criticalOverride.BindingId,
+            forcedCriticalSourceActionId: criticalOverride.ActionId,
+            skillId: source.SkillId,
+            followUpAttackPenalty: source.FollowUpAttackPenalty,
+            exponentialPenalty: source.ExponentialPenalty,
+            isDisadvantage: source.IsDisadvantage,
+            isAdvantage: source.IsAdvantage,
+            invalid: source.Invalid,
+            errorId: source.ErrorId,
+            errorMessage: source.ErrorMessage,
+            previewText: source.PreviewText
+        );
+    }
+
     private BattleAttackCheckPolicyContext CopyContextForRepeatStage(
         BattleAttackCheckPolicyContext sourceContext,
         BattleRepeatAttackStageSpec stageSpec,
@@ -768,8 +991,7 @@ internal class BattleAttackCheckPolicyService
         context.target = sourceContext.target;
         context.attacker_view = sourceContext.attacker_view;
         context.target_view = sourceContext.target_view;
-        context.skill_def = sourceContext.skill_def;
-        context.cast_variant = sourceContext.cast_variant;
+        context.skill_definition = sourceContext.skill_definition;
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         context.check_route = !IsEmpty(checkRoute) ? checkRoute : sourceContext.check_route;
         context.trace_source = sourceContext.trace_source;
@@ -785,55 +1007,19 @@ internal class BattleAttackCheckPolicyService
     private List<Vector2I> CollectEndpointCoords(BattleAttackCheckPolicyContext context)
     {
         var coords = new List<Vector2I>();
-        bool includeAttacker =
-            context != null && (context.attacker != null || context.attacker_view.IsValid);
-        bool includeTarget =
-            context != null && (context.target != null || context.target_view.IsValid);
-        if (includeAttacker)
+        if (context == null)
         {
-            if (context.attacker_view.IsValid)
-            {
-                AppendUnitCoords(coords, context.attacker_view, context.source_coord);
-            }
-            else
-            {
-                AppendUnitCoords(coords, context.attacker, context.source_coord);
-            }
+            return coords;
         }
-        if (includeTarget)
+        if (context.attacker_view.IsValid)
         {
-            if (context.target_view.IsValid)
-            {
-                AppendUnitCoords(coords, context.target_view, context.target_coord);
-            }
-            else
-            {
-                AppendUnitCoords(coords, context.target, context.target_coord);
-            }
+            AppendUnitCoords(coords, context.attacker_view, context.source_coord);
+        }
+        if (context.target_view.IsValid)
+        {
+            AppendUnitCoords(coords, context.target_view, context.target_coord);
         }
         return coords;
-    }
-
-    private void AppendUnitCoords(
-        List<Vector2I> coords,
-        BattleUnitState unitState,
-        Vector2I fallbackCoord
-    )
-    {
-        if (unitState == null)
-        {
-            return;
-        }
-        unitState.RefreshFootprint();
-        if (unitState.occupied_coords.Count == 0)
-        {
-            AppendCoordUnique(coords, fallbackCoord);
-            return;
-        }
-        foreach (Vector2I coord in unitState.occupied_coords)
-        {
-            AppendCoordUnique(coords, coord);
-        }
     }
 
     private void AppendUnitCoords(
@@ -864,14 +1050,14 @@ internal class BattleAttackCheckPolicyService
         BattleAttackCheckPolicyContext context
     )
     {
-        bool attackerContains =
-            context != null && context.attacker_view.IsValid
-                ? UnitContainsCoord(context.attacker_view, coord)
-                : UnitContainsCoord(context?.attacker, coord);
-        bool targetContains =
-            context != null && context.target_view.IsValid
-                ? UnitContainsCoord(context.target_view, coord)
-                : UnitContainsCoord(context?.target, coord);
+        bool attackerContains = UnitContainsCoord(
+            context?.attacker_view ?? default,
+            coord
+        );
+        bool targetContains = UnitContainsCoord(
+            context?.target_view ?? default,
+            coord
+        );
         if (spec.EndpointModeKind == BattleAttackRollModifierEndpointMode.Attacker)
         {
             return attackerContains;
@@ -885,20 +1071,6 @@ internal class BattleAttackCheckPolicyService
             return attackerContains && targetContains;
         }
         return attackerContains || targetContains;
-    }
-
-    private bool UnitContainsCoord(BattleUnitState unitState, Vector2I coord)
-    {
-        if (unitState == null)
-        {
-            return false;
-        }
-        unitState.RefreshFootprint();
-        if (unitState.occupied_coords.Count == 0)
-        {
-            return unitState.coord == coord;
-        }
-        return unitState.occupied_coords.Contains(coord);
     }
 
     private bool UnitContainsCoord(BattleUnitReadView unitState, Vector2I coord)
@@ -944,39 +1116,12 @@ internal class BattleAttackCheckPolicyService
         {
             return false;
         }
-        if (context.HasReadView)
-        {
-            return BattleTargetTeamRules.IsUnitValidForFilter(
-                context.attacker_view,
-                context.target_view,
-                filter,
-                default
-            );
-        }
-        return TeamFilterApplies(filter, context.attacker, context.target);
-    }
-
-    private bool TeamFilterApplies(
-        StringName filter,
-        BattleUnitState attacker,
-        BattleUnitState targetUnit
-    )
-    {
         return BattleTargetTeamRules.IsUnitValidForFilter(
-            attacker,
-            targetUnit,
+            context.attacker_view,
+            context.target_view,
             filter,
             default
         );
-    }
-
-    private int ResolveDistance(BattleUnitState activeUnit, BattleUnitState targetUnit)
-    {
-        if (activeUnit == null || targetUnit == null)
-        {
-            return -1;
-        }
-        return BattleGridDistanceService.GetDistanceBetweenUnits(activeUnit, targetUnit);
     }
 
     private int ResolveDistance(BattleUnitReadView activeUnit, BattleUnitReadView targetUnit)

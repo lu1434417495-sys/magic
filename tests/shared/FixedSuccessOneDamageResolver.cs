@@ -1,24 +1,15 @@
 using Godot;
+using System.Collections.Generic;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class FixedSuccessOneDamageResolver : FixedHitOneDamageResolver
 {
     internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    internal override AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        Godot.Collections.Array effect_defs,
-        GDictionary damage_context = null
-    )
-    {
-        return base.ResolveEffects(source_unit, target_unit, effect_defs, damage_context);
-    }
-
     internal override AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        Godot.Collections.Array effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
         AttackContext attack_context = null
     )
@@ -28,7 +19,7 @@ public partial class FixedSuccessOneDamageResolver : FixedHitOneDamageResolver
         return base.ResolveAttackEffects(
             source_unit,
             target_unit,
-            effect_defs,
+            effect_definitions,
             attack_check,
             fixedContext
         );

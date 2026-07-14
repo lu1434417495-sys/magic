@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_sword_threadweaver_019"
+base_item_id = &"weapon_type_rapier_base"
+display_name = "织命"
+description = "一柄由银色细丝与柔亮铭文缠成的刺剑，剑锋划过时像在空气中缝合命运。"
+is_stackable = false
+base_price = 120000
+buy_price = 120000
+sell_price = 60000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"threadweaver", &"fate", &"psychic", &"rapier"])
+trait_ids = Array[StringName]([&"weapon.sword.threadweaver.fate_thread", &"weapon.sword.threadweaver.fate_weaving", &"weapon.sword.threadweaver.cut_fate_thread", &"weapon.sword.threadweaver.thread_mending"])
+weapon_profile = SubResource("Resource_weapon_profile")

@@ -45,6 +45,8 @@ public partial class BattleDamageResolver : IDisposable
     private static readonly StringName StatusArcherPreAim = "archer_pre_aim";
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName BonusConditionTargetDebuffCount = "target_debuff_count";
+    private static readonly StringName BonusConditionTargetCreatureType =
+        "target_creature_type";
     private static readonly StringName MitigationTierNormal = "normal";
     private static readonly StringName MitigationTierHalf = "half";
     private static readonly StringName MitigationTierDouble = "double";
@@ -75,7 +77,6 @@ public partial class BattleDamageResolver : IDisposable
     private const int BlackStarBrandGuardIgnoreFlat = 4;
 
     private readonly record struct DamageEffectRuntimeParameters(
-        GDictionary RawParams,
         bool UseWeaponPhysicalDamageTag,
         bool AddWeaponDice,
         bool RemoveHarmful,
@@ -85,18 +86,18 @@ public partial class BattleDamageResolver : IDisposable
         bool RequireDamageApplied
     )
     {
-        public static DamageEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        public static DamageEffectRuntimeParameters FromEffect(
+            CombatEffectDefinition effectDefinition
+        )
         {
-            GDictionary parameters = effectDef?.@params ?? new GDictionary();
             return new DamageEffectRuntimeParameters(
-                parameters,
-                effectDef?.use_weapon_physical_damage_tag ?? false,
-                effectDef?.add_weapon_dice ?? false,
-                effectDef?.remove_harmful ?? false,
-                effectDef?.remove_harmful_from_allies ?? true,
-                effectDef?.remove_beneficial ?? false,
-                effectDef?.remove_beneficial_from_enemies ?? true,
-                effectDef?.require_damage_applied ?? false
+                effectDefinition?.UseWeaponPhysicalDamageTag ?? false,
+                effectDefinition?.AddWeaponDice ?? false,
+                effectDefinition?.RemoveHarmful ?? false,
+                effectDefinition?.RemoveHarmfulFromAllies ?? true,
+                effectDefinition?.RemoveBeneficial ?? false,
+                effectDefinition?.RemoveBeneficialFromEnemies ?? true,
+                effectDefinition?.RequireDamageApplied ?? false
             );
         }
     }
@@ -269,7 +270,9 @@ public partial class BattleDamageResolver : IDisposable
             return this with { Event = @event, ResolvedDamage = normalizedDamage };
         }
 
-        public DamageApplicationInput ToDamageApplicationInput()
+        public DamageApplicationInput ToDamageApplicationInput(
+            bool suppressDamageApplicationHook = false
+        )
         {
             return new DamageApplicationInput(
                 Event,
@@ -279,109 +282,19 @@ public partial class BattleDamageResolver : IDisposable
                 ShieldAbsorptionPercent,
                 MinHpAfterDamage,
                 LowLuckBlackStarWedgeTriggered,
-                DamageDiceEvent
+                DamageDiceEvent,
+                suppressDamageApplicationHook
             );
         }
     }
 
-    private readonly record struct DamageApplicationInput(
-        DamageEventResult Event,
-        int ResolvedDamage,
-        bool BypassShield,
-        bool BypassDeathPrevention,
-        double ShieldAbsorptionPercent,
-        int MinHpAfterDamage,
-        bool LowLuckBlackStarWedgeTriggered,
-        DamageDiceEventSnapshot DamageDiceEvent
-    )
-    {
-        public static DamageApplicationInput Empty => new(
-            new DamageEventResult(),
-            0,
-            false,
-            false,
-            100.0,
-            0,
-            false,
-            DamageDiceEventSnapshot.Empty
-        );
-
-        public static DamageApplicationInput Create(
-            DamageEventResult @event,
-            int resolvedDamage,
-            bool bypassShield = false,
-            bool bypassDeathPrevention = false,
-            double shieldAbsorptionPercent = 100.0,
-            int minHpAfterDamage = 0,
-            bool lowLuckBlackStarWedgeTriggered = false,
-            DamageDiceEventSnapshot damageDiceEvent = default
-        )
-        {
-            @event.ResolvedDamage = Math.Max(resolvedDamage, 0);
-            @event.BypassShield = bypassShield;
-            @event.BypassDeathPrevention = bypassDeathPrevention;
-            @event.ShieldAbsorptionPercent = shieldAbsorptionPercent;
-            @event.MinHpAfterDamage = Math.Max(minHpAfterDamage, 0);
-            @event.LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered;
-            return new DamageApplicationInput(
-                @event,
-                Math.Max(resolvedDamage, 0),
-                bypassShield,
-                bypassDeathPrevention,
-                shieldAbsorptionPercent,
-                Math.Max(minHpAfterDamage, 0),
-                lowLuckBlackStarWedgeTriggered,
-                damageDiceEvent
-            );
-        }
-
-        public static DamageApplicationInput Create(
-            GDictionary payload,
-            int resolvedDamage,
-            bool bypassShield = false,
-            bool bypassDeathPrevention = false,
-            double shieldAbsorptionPercent = 100.0,
-            int minHpAfterDamage = 0,
-            bool lowLuckBlackStarWedgeTriggered = false,
-            DamageDiceEventSnapshot damageDiceEvent = default
-        )
-        {
-            return Create(
-                AttackEffectResolutionResultReader.ReadDamageEventPayload(payload),
-                resolvedDamage,
-                bypassShield,
-                bypassDeathPrevention,
-                shieldAbsorptionPercent,
-                minHpAfterDamage,
-                lowLuckBlackStarWedgeTriggered,
-                damageDiceEvent
-            );
-        }
-
-        internal static DamageApplicationInput FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = payload ?? new GDictionary();
-            DamageEventResult @event =
-                AttackEffectResolutionResultReader.ReadDamageEventPayload(normalized);
-            return new DamageApplicationInput(
-                @event,
-                Math.Max(GetInt(normalized, "resolved_damage"), 0),
-                ReadBool(normalized, "bypass_shield"),
-                ReadBool(normalized, "bypass_death_prevention"),
-                GetFloat(normalized, "shield_absorption_percent", 100.0),
-                Math.Max(GetInt(normalized, "min_hp_after_damage"), 0),
-                ReadBool(normalized, "low_luck_black_star_wedge_triggered"),
-                DamageDiceEventSnapshot.FromDictionary(normalized)
-            );
-        }
-
-        internal static bool ReadBool(GDictionary payload, string key)
-        {
-            return TryGet(payload, key, out Variant value)
-                && value.VariantType == Variant.Type.Bool
-                && value.AsBool();
-        }
-    }
+    private readonly record struct EquipmentAbilityTaggedBonusDamageRoll(
+        StringName DamageTag,
+        DicePoolRollResult Roll,
+        bool Subtract,
+        IReadOnlyList<StringName> MitigationBypassDamageTags,
+        IReadOnlyList<StringName> MitigationBypassTiers
+    );
 
     private readonly record struct SpellControlCheckContext(
         BattleState BattleState,
@@ -391,12 +304,16 @@ public partial class BattleDamageResolver : IDisposable
         bool IsDisadvantage
     )
     {
-        public static SpellControlCheckContext ForSkill(BattleState battleState, StringName skillId)
+        public static SpellControlCheckContext ForSkill(
+            BattleState battleState,
+            StringName skillId,
+            bool dispatchEvents = true
+        )
         {
             return new SpellControlCheckContext(
                 battleState,
                 skillId,
-                true,
+                dispatchEvents,
                 false,
                 false
             );
@@ -404,18 +321,17 @@ public partial class BattleDamageResolver : IDisposable
 
         internal static SpellControlCheckContext FromDictionary(GDictionary payload)
         {
-            GDictionary normalized = payload ?? new GDictionary();
             bool hasDisadvantage = false;
             bool isDisadvantage = false;
-            if (TryGetStatusParam(normalized, "is_disadvantage", out object disadvantageValue))
+            if (TryGetStatusParam(payload, "is_disadvantage", out object disadvantageValue))
             {
                 hasDisadvantage = true;
                 isDisadvantage = ToBool(disadvantageValue, false);
             }
             return new SpellControlCheckContext(
-                DictObject<BattleState>(normalized, "battle_state"),
-                DictStringNameLocal(normalized, "skill_id"),
-                ReadDispatchEvents(normalized),
+                null,
+                DictStringNameLocal(payload, "skill_id"),
+                ReadDispatchEvents(payload),
                 hasDisadvantage,
                 isDisadvantage
             );
@@ -458,6 +374,19 @@ public partial class BattleDamageResolver : IDisposable
             -1,
             "",
             Array.Empty<AppliedDamageResult>()
+        );
+    }
+
+    private readonly record struct GradedSaveExecuteEffectResult(
+        bool Applied,
+        IReadOnlyList<AppliedDamageResult> DamageResults,
+        IReadOnlyList<ResolutionDiagnostic> Diagnostics
+    )
+    {
+        public static GradedSaveExecuteEffectResult Empty => new(
+            false,
+            Array.Empty<AppliedDamageResult>(),
+            Array.Empty<ResolutionDiagnostic>()
         );
     }
 
@@ -550,58 +479,16 @@ public partial class BattleDamageResolver : IDisposable
             };
     }
 
-    private readonly record struct DamageDiceEventSnapshot(
-        bool DamageDiceHighTotalRoll,
-        StringName DamageDiceHighTotalRollReason,
-        bool SkillDamageDiceIsMax,
-        DamageDiceMaxReasonKind SkillDamageDiceIsMaxReason,
-        bool WeaponDamageDiceIsMax,
-        DamageDiceMaxReasonKind WeaponDamageDiceIsMaxReason
-    )
-    {
-        public static DamageDiceEventSnapshot Empty => new(
-            false,
-            "",
-            false,
-            DamageDiceMaxReasonKind.None,
-            false,
-            DamageDiceMaxReasonKind.None
-        );
-
-        internal static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
-        {
-            GDictionary normalized = EnsureDamageDiceEventDefaults(payload);
-            return new DamageDiceEventSnapshot(
-                ReadDamageDiceFlag(normalized, "damage_dice_high_total_roll"),
-                DictStringName(normalized, "damage_dice_high_total_roll_reason"),
-                ReadDamageDiceFlag(normalized, "skill_damage_dice_is_max"),
-                AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                    DictStringName(normalized, "skill_damage_dice_is_max_reason")
-                ),
-                ReadDamageDiceFlag(normalized, "weapon_damage_dice_is_max"),
-                AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
-                    DictStringName(normalized, "weapon_damage_dice_is_max_reason")
-                )
-            );
-        }
-
-        private static bool ReadDamageDiceFlag(GDictionary payload, string key)
-        {
-            return TryGet(payload, key, out Variant value)
-                && value.VariantType == Variant.Type.Bool
-                && value.AsBool();
-        }
-    }
-
     private readonly record struct DamageDiceEventFlags(DamageDiceEventSnapshot Snapshot);
 
-    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly List<BattleSkillMasteryGrant> _last_stand_mastery_records = new();
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
     private BattleHitResolver _hit_resolver = new();
-    private bool _suppress_last_stand_mastery_records;
+    private IBattleDamageApplicationHook _damage_application_hook;
+    private BattleEquipmentAbilityRuntimeService _equipment_ability_runtime_service;
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
     {
@@ -644,21 +531,21 @@ public partial class BattleDamageResolver : IDisposable
         };
     }
 
-    internal void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
+    internal void SetSkillDefinitions(IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions)
     {
-        _skillDefIndex.Clear();
-        if (skill_defs == null || skill_defs.Count == 0)
+        _skillDefinitionIndex.Clear();
+        if (skillDefinitions == null || skillDefinitions.Count == 0)
         {
             return;
         }
 
-        foreach ((StringName skillId, SkillDef skillDef) in skill_defs)
+        foreach ((StringName skillId, SkillDefinition skillDefinition) in skillDefinitions)
         {
-            if (skillId == "" || skillDef == null)
+            if (skillId == "" || skillDefinition == null)
             {
                 continue;
             }
-            _skillDefIndex[skillId] = skillDef;
+            _skillDefinitionIndex[skillId] = skillDefinition;
         }
     }
 
@@ -674,6 +561,22 @@ public partial class BattleDamageResolver : IDisposable
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
     }
 
+    internal void SetDamageApplicationHook(IBattleDamageApplicationHook hook)
+    {
+        _damage_application_hook = hook;
+    }
+
+    internal void SetEquipmentAbilityRuntimeService(BattleEquipmentAbilityRuntimeService service)
+    {
+        _equipment_ability_runtime_service = service;
+    }
+
+    internal static DamageApplicationProjection ProjectDamageApplication(
+        BattleUnitState targetUnit,
+        DamageApplicationInput damageInput
+    ) =>
+        DamageApplicationProjection.Project(targetUnit, damageInput);
+
     internal BattleFateEventBus GetFateEventBus()
     {
         return _fate_event_bus;
@@ -682,32 +585,62 @@ public partial class BattleDamageResolver : IDisposable
     internal AttackEffectResolutionResult ResolveSkillResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        if (sourceUnit == null || targetUnit == null || skillDef?.combat_profile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (sourceUnit == null || targetUnit == null || combatProfile == null)
         {
-            return BuildEmptyResolutionResult(skillDef?.skill_id ?? new StringName(""));
+            return BuildEmptyResolutionResult(skillDefinition?.SkillId ?? new StringName(""));
         }
+        int skillLevel =
+            sourceUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId, fallback: 1);
         return ResolveEffects(
             sourceUnit,
             targetUnit,
-            ToValueArray(skillDef.combat_profile.effect_defs),
-            new GDictionary { ["skill_id"] = skillDef.skill_id }
+            FilterEffectDefinitionsForSkillLevel(combatProfile.EffectDefinitions, skillLevel),
+            DamageResolutionContext
+                .ForSkill(skillDefinition.SkillId)
+                .WithSourceSkillLevel(
+                    Math.Max(skillLevel, 1)
+                )
         );
+    }
+
+    private static IReadOnlyList<CombatEffectDefinition> FilterEffectDefinitionsForSkillLevel(
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        int skillLevel
+    )
+    {
+        int normalizedSkillLevel = Math.Max(skillLevel, 1);
+        var result = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (effectDefinition == null)
+            {
+                continue;
+            }
+            int minLevel = Math.Max(effectDefinition.MinSkillLevel, 0);
+            int maxLevel = effectDefinition.MaxSkillLevel;
+            if (normalizedSkillLevel >= minLevel && (maxLevel < 0 || normalizedSkillLevel <= maxLevel))
+            {
+                result.Add(effectDefinition);
+            }
+        }
+        return result.Count == 0 ? Array.Empty<CombatEffectDefinition>() : result;
     }
 
     internal virtual AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check
     )
     {
         return ResolveAttackEffects(
             source_unit,
             target_unit,
-            effect_defs,
+            effect_definitions,
             attack_check,
             new AttackContext()
         );
@@ -716,23 +649,7 @@ public partial class BattleDamageResolver : IDisposable
     internal virtual AttackEffectResolutionResult ResolveAttackEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check
-    )
-    {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            attack_check,
-            new AttackContext()
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
         AttackContext attack_context = null
     )
@@ -747,7 +664,8 @@ public partial class BattleDamageResolver : IDisposable
             return AttackEffectResolutionResultReader.FinalizeTypedResult(emptyResult);
         }
 
-        GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
+        IReadOnlyList<CombatEffectDefinition> resolvedEffectDefinitions =
+            ToEffectDefinitionList(effect_definitions);
         AttackContext normalizedAttackContext = attack_context ?? new AttackContext();
         AttackResolutionMetadata attackMetadata = ResolveAttackMetadata(
             source_unit,
@@ -759,6 +677,15 @@ public partial class BattleDamageResolver : IDisposable
         {
             attackMetadata.SkillId = normalizedAttackContext.SkillId;
         }
+        bool attackIncludesWeaponDamage =
+            EffectDefinitionsIncludeWeaponDamage(resolvedEffectDefinitions);
+        ResolveEquipmentAbilityAttackCheckResult(
+            source_unit,
+            target_unit,
+            attackMetadata,
+            normalizedAttackContext,
+            attackIncludesWeaponDamage
+        );
         if (!attackMetadata.AttackSuccess)
         {
             AttackEffectResolutionResult failedResult = ApplyAttackMetadataResult(
@@ -779,20 +706,17 @@ public partial class BattleDamageResolver : IDisposable
                 normalizedAttackContext
             );
             ClearComboStackOnMiss(source_unit);
+            ConsumeOneShotAttackCheckStatuses(source_unit);
             return AttackEffectResolutionResultReader.FinalizeTypedResult(failedResult);
         }
 
         int secondaryHitDcBase = 10;
-        foreach (var effectValue in resolvedEffectDefs)
+        foreach (CombatEffectDefinition effectDefinition in resolvedEffectDefinitions)
         {
-            CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-            if (
-                effectDef != null
-                && effectDef.TriggerEventKind == CombatEffectTriggerEvent.SecondaryHit
-            )
+            if (effectDefinition?.TriggerEventKind == CombatEffectTriggerEvent.SecondaryHit)
             {
-                secondaryHitDcBase = effectDef.secondary_hit_dc_base > 0
-                    ? effectDef.secondary_hit_dc_base
+                secondaryHitDcBase = effectDefinition.SecondaryHitDcBase > 0
+                    ? effectDefinition.SecondaryHitDcBase
                     : 10;
                 break;
             }
@@ -807,10 +731,27 @@ public partial class BattleDamageResolver : IDisposable
             DamageResolutionContext.FromDictionary(BuildAttackEffectContext(attackMetadata));
 
         AttackEffectResolutionResult resolvedResult = ApplyAttackMetadataResult(
-            ResolveEffectsTypedCore(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
+            ResolveEffectsDefinitionCore(
+                source_unit,
+                target_unit,
+                resolvedEffectDefinitions,
+                attackEffectContext
+            ),
             attackMetadata
         );
         resolvedResult.AttackCheck = attack_check;
+        resolvedResult = ApplyEquipmentAbilityAfterHitResult(
+            source_unit,
+            target_unit,
+            attackMetadata,
+            normalizedAttackContext,
+            resolvedResult
+        );
+        ReconcileEquipmentProjectionAfterDurabilityEvents(
+            target_unit,
+            resolvedResult,
+            normalizedAttackContext.EventBatch
+        );
         resolvedResult = AttachAttackReportEntry(
             resolvedResult,
             source_unit,
@@ -823,41 +764,355 @@ public partial class BattleDamageResolver : IDisposable
             attackMetadata,
             normalizedAttackContext
         );
+        ConsumeOneShotAttackCheckStatuses(source_unit);
         return AttackEffectResolutionResultReader.FinalizeTypedResult(resolvedResult);
     }
 
-    internal virtual AttackEffectResolutionResult ResolveAttackEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check,
-        AttackContext attack_context = null
+    private void ReconcileEquipmentProjectionAfterDurabilityEvents(
+        BattleUnitState targetUnit,
+        AttackEffectResolutionResult result,
+        BattleEventBatch batch
     )
     {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            ToValueArray(effect_defs),
-            attack_check,
-            attack_context
+        foreach (
+            EquipmentDurabilityEventResult durabilityEvent in result.EquipmentDurabilityEvents
+                ?? Array.Empty<EquipmentDurabilityEventResult>()
+        )
+        {
+            if (
+                !durabilityEvent.Destroyed
+                || (
+                    durabilityEvent.TargetUnitId != ""
+                    && durabilityEvent.TargetUnitId != targetUnit?.unit_id
+                )
+            )
+            {
+                continue;
+            }
+            _equipment_ability_runtime_service?.RefreshEquipmentProjectionAfterDurabilityDestruction(
+                targetUnit,
+                batch
+            );
+            return;
+        }
+    }
+
+    private static void ConsumeOneShotAttackCheckStatuses(BattleUnitState sourceUnit)
+    {
+        if (sourceUnit == null)
+            return;
+        List<StringName> consumedStatusIds = new();
+        foreach (StringName statusId in sourceUnit.GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = sourceUnit.GetStatusEffect(statusId);
+            if (status?.consume_on_next_attack_check == true)
+                consumedStatusIds.Add(statusId);
+        }
+        foreach (StringName statusId in consumedStatusIds)
+            sourceUnit.EraseStatusEffect(statusId);
+    }
+
+    private void ResolveEquipmentAbilityAttackCheckResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext,
+        bool attackIncludesWeaponDamage
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (
+            equipmentAbilityService == null
+            || sourceUnit == null
+            || targetUnit == null
+            || !attackIncludesWeaponDamage
+        )
+        {
+            return;
+        }
+
+        equipmentAbilityService.ResolveAttackCheck(
+            new BattleEquipmentAbilityAttackCheckContext
+            {
+                SourceUnit = sourceUnit,
+                TargetUnit = targetUnit,
+                BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                AttackSucceeded = attackMetadata.AttackSuccess,
+                CriticalHit = attackMetadata.CriticalHit,
+                SkillId = attackMetadata.SkillId,
+            }
         );
     }
 
-    internal virtual AttackEffectResolutionResult ResolveAttackEffectsTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        AttackCheckInput attack_check,
-        AttackContext attack_context = null
+    private static bool EffectDefinitionsIncludeWeaponDamage(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions
     )
     {
-        return ResolveAttackEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            attack_check,
-            attack_context
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (
+                effectDefinition != null
+                && (effectDefinition.AddWeaponDice || effectDefinition.RequiresWeapon)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private AttackEffectResolutionResult ApplyEquipmentAbilityAfterHitResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext,
+        AttackEffectResolutionResult result
+    )
+    {
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (
+            equipmentAbilityService == null
+            || sourceUnit == null
+            || targetUnit == null
+            || attackMetadata.AttackSuccess != true
+            || !ResultIncludesWeaponDamage(result)
+        )
+        {
+            return result;
+        }
+
+        int weaponHpDamage = ComputeWeaponHpDamage(result);
+        BattleEquipmentAbilityAfterHitResult afterHitResult =
+            equipmentAbilityService.ResolveAfterHit(
+                new BattleEquipmentAbilityAfterHitContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                    AttackSucceeded = true,
+                    CriticalHit = attackMetadata.CriticalHit,
+                    ApplyDamageDiceActions = false,
+                    WeaponHpDamage = weaponHpDamage,
+                    Batch = attackContext?.EventBatch,
+                    SaveContext = BuildAfterHitSaveContext(attackMetadata, attackContext),
+                }
+            );
+        BattleEquipmentAbilityAfterHitResult hitReceivedResult =
+            targetUnit.unit_id != sourceUnit.unit_id
+                ? equipmentAbilityService.ResolveHitReceived(
+                    new BattleEquipmentAbilityAfterHitContext
+                    {
+                        SourceUnit = targetUnit,
+                        TargetUnit = sourceUnit,
+                        BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                        AttackSucceeded = true,
+                        CriticalHit = attackMetadata.CriticalHit,
+                        ApplyDamageDiceActions = false,
+                        WeaponHpDamage = weaponHpDamage,
+                        Batch = attackContext?.EventBatch,
+                        SaveContext = BuildAfterHitSaveContext(attackMetadata, attackContext),
+                    }
+                )
+                : null;
+        if (afterHitResult?.Resolved != true && hitReceivedResult?.Resolved != true)
+            return result;
+
+        AttackEffectResolutionResult mergedResult =
+            AttackEffectResolutionResultReader.FinalizeTypedResult(result);
+        if (afterHitResult?.Resolved == true)
+        {
+            mergedResult.EquipmentDurabilityEvents = MergeEquipmentDurabilityEvents(
+                mergedResult.EquipmentDurabilityEvents,
+                afterHitResult.DurabilityResults
+            );
+            MergeAfterHitStatusResults(
+                mergedResult.StatusEffectIds,
+                mergedResult.SourceStatusEffectIds,
+                sourceUnit,
+                targetUnit,
+                afterHitResult.StatusResults
+            );
+            mergedResult = MergeTriggeredSkillResults(
+                mergedResult,
+                targetUnit,
+                afterHitResult.TriggeredSkillResults
+            );
+        }
+        if (hitReceivedResult?.Resolved == true)
+        {
+            MergeAfterHitStatusResults(
+                mergedResult.StatusEffectIds,
+                mergedResult.SourceStatusEffectIds,
+                sourceUnit,
+                targetUnit,
+                hitReceivedResult.StatusResults
+            );
+        }
+        return mergedResult;
+    }
+
+    private static AttackEffectResolutionResult MergeTriggeredSkillResults(
+        AttackEffectResolutionResult parent,
+        BattleUnitState parentTarget,
+        IReadOnlyList<BattleEquipmentAbilityTriggeredSkillResult> triggeredResults
+    )
+    {
+        foreach (BattleEquipmentAbilityTriggeredSkillResult triggered in triggeredResults ?? Array.Empty<BattleEquipmentAbilityTriggeredSkillResult>())
+        {
+            if (
+                triggered == null
+                || !triggered.MergeIntoParentResult
+                || triggered.TargetUnitId != (parentTarget?.unit_id ?? new StringName(""))
+            )
+            {
+                continue;
+            }
+            AttackEffectResolutionResult child =
+                AttackEffectResolutionResultReader.FinalizeTypedResult(triggered.Resolution);
+            parent.Applied = parent.Applied || child.Applied;
+            parent.Damage += Math.Max(child.Damage, 0);
+            parent.HpDamage += Math.Max(child.HpDamage, 0);
+            parent.Healing += Math.Max(child.Healing, 0);
+            parent.ShieldAbsorbed += Math.Max(child.ShieldAbsorbed, 0);
+            parent.ShieldBroken = parent.ShieldBroken || child.ShieldBroken;
+            parent.DamageEvents = MergeArrays(parent.DamageEvents, child.DamageEvents);
+            parent.EquipmentDurabilityEvents = MergeArrays(
+                parent.EquipmentDurabilityEvents,
+                child.EquipmentDurabilityEvents
+            );
+            parent.DispelEvents = MergeArrays(parent.DispelEvents, child.DispelEvents);
+            parent.SaveResults = MergeArrays(parent.SaveResults, child.SaveResults);
+            parent.Diagnostics = MergeArrays(parent.Diagnostics, child.Diagnostics);
+            AddUniqueStringNames(parent.StatusEffectIds, child.StatusEffectIds);
+            AddUniqueStringNames(parent.RemovedStatusEffectIds, child.RemovedStatusEffectIds);
+            AddUniqueStringNames(parent.SourceStatusEffectIds, child.SourceStatusEffectIds);
+            AddUniqueStringNames(parent.TerrainEffectIds, child.TerrainEffectIds);
+            if (child.ExecuteOutcome != ExecuteOutcomeKind.None)
+            {
+                parent.ExecuteOutcome = child.ExecuteOutcome;
+                parent.ExecuteStage = child.ExecuteStage;
+            }
+        }
+        return parent;
+    }
+
+    private static T[] MergeArrays<T>(T[] first, T[] second)
+    {
+        int firstCount = first?.Length ?? 0;
+        int secondCount = second?.Length ?? 0;
+        if (firstCount == 0)
+            return secondCount == 0 ? Array.Empty<T>() : (T[])second.Clone();
+        if (secondCount == 0)
+            return first;
+        var merged = new T[firstCount + secondCount];
+        Array.Copy(first, 0, merged, 0, firstCount);
+        Array.Copy(second, 0, merged, firstCount, secondCount);
+        return merged;
+    }
+
+    private static void AddUniqueStringNames(StringNameList target, StringNameList values)
+    {
+        if (target == null || values == null)
+            return;
+        foreach (StringName value in values)
+            AddUniqueStringName(target, value);
+    }
+
+    private static BattleSaveContext BuildAfterHitSaveContext(
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext
+    )
+    {
+        return new BattleSaveContext(
+            attackMetadata.SkillId,
+            attackContext?.SaveRollOverrides ?? Array.Empty<int>()
         );
+    }
+
+    private static bool ResultIncludesWeaponDamage(AttackEffectResolutionResult result)
+    {
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? Array.Empty<DamageEventResult>())
+        {
+            if (
+                damageEvent.AddWeaponDice
+                && damageEvent.WeaponDamageDice.Count > 0
+                && damageEvent.WeaponDamageDice.Sides > 0
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int ComputeWeaponHpDamage(AttackEffectResolutionResult result)
+    {
+        int total = 0;
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? Array.Empty<DamageEventResult>())
+        {
+            if (
+                damageEvent.AddWeaponDice
+                && damageEvent.WeaponDamageDice.Count > 0
+                && damageEvent.WeaponDamageDice.Sides > 0
+            )
+            {
+                total += Math.Max(damageEvent.HpDamage, 0);
+            }
+        }
+        return total;
+    }
+
+    private static EquipmentDurabilityEventResult[] MergeEquipmentDurabilityEvents(
+        EquipmentDurabilityEventResult[] existingEvents,
+        IReadOnlyList<BattleEquipmentAbilityDurabilityResult> durabilityResults
+    )
+    {
+        if (durabilityResults == null || durabilityResults.Count == 0)
+            return existingEvents ?? Array.Empty<EquipmentDurabilityEventResult>();
+
+        var mergedEvents = new List<EquipmentDurabilityEventResult>(
+            existingEvents ?? Array.Empty<EquipmentDurabilityEventResult>()
+        );
+        foreach (BattleEquipmentAbilityDurabilityResult durabilityResult in durabilityResults)
+        {
+            EquipmentDurabilityCommitResult commitResult = durabilityResult?.CommitResult;
+            if (commitResult?.Resolved == true)
+                mergedEvents.Add(BuildEquipmentDurabilityEventResult(commitResult));
+        }
+        return mergedEvents.Count == 0 ? Array.Empty<EquipmentDurabilityEventResult>() : mergedEvents.ToArray();
+    }
+
+    private static void MergeAfterHitStatusResults(
+        StringNameList targetStatusEffectIds,
+        StringNameList sourceStatusEffectIds,
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        IReadOnlyList<BattleEquipmentAbilityStatusActionResult> statusResults
+    )
+    {
+        if (statusResults == null || statusResults.Count == 0)
+            return;
+
+        targetStatusEffectIds ??= new StringNameList();
+        sourceStatusEffectIds ??= new StringNameList();
+        foreach (BattleEquipmentAbilityStatusActionResult statusResult in statusResults)
+        {
+            if (statusResult?.Applied != true || statusResult.StatusId == "")
+                continue;
+            if (statusResult.TargetUnitId == sourceUnit?.unit_id)
+                AddUniqueStringName(sourceStatusEffectIds, statusResult.StatusId);
+            else if (statusResult.TargetUnitId == targetUnit?.unit_id || statusResult.TargetUnitId == "")
+                AddUniqueStringName(targetStatusEffectIds, statusResult.StatusId);
+        }
+    }
+
+    private static void AddUniqueStringName(StringNameList target, StringName value)
+    {
+        if (target == null || value == "" || target.Contains(value))
+            return;
+        target.Add(value);
     }
 
     internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
@@ -874,12 +1129,13 @@ public partial class BattleDamageResolver : IDisposable
     internal BattleSpellControlMetadata ResolveSpellControlCheckTyped(
         BattleUnitState source_unit,
         BattleState battle_state,
-        StringName skill_id
+        StringName skill_id,
+        bool dispatchEvents = true
     )
     {
         return ResolveSpellControlCheck(
             source_unit,
-            SpellControlCheckContext.ForSkill(battle_state, skill_id)
+            SpellControlCheckContext.ForSkill(battle_state, skill_id, dispatchEvents)
         );
     }
 
@@ -903,75 +1159,16 @@ public partial class BattleDamageResolver : IDisposable
         return controlMetadata;
     }
 
-    internal virtual GDictionary PreviewDamageEffect(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        GDictionary damage_context = null,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return BattleDamagePreviewProjection.Project(
-            PreviewDamageEffectTyped(
-                source_unit,
-                target_unit,
-                effect_def,
-                damage_context,
-                roll_mode,
-                save_mode
-            )
-        );
-    }
-
     internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        StringName skill_id,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return PreviewDamageEffectTyped(
-            source_unit,
-            target_unit,
-            effect_def,
-            BuildPreviewDamageContext(skill_id),
-            roll_mode,
-            save_mode
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
-        GDictionary damage_context = null,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
-    )
-    {
-        return PreviewDamageEffectTyped(
-            source_unit,
-            target_unit,
-            effect_def,
-            DamageResolutionContext.FromDictionary(damage_context),
-            roll_mode,
-            save_mode
-        );
-    }
-
-    internal virtual BattleDamagePreviewResult PreviewDamageEffectTyped(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         DamageResolutionContext damage_context,
         BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
         BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
     )
     {
-        if (source_unit == null || target_unit == null || effect_def == null)
+        if (source_unit == null || target_unit == null || effect_definition == null)
         {
             return BattleDamagePreviewResult.Empty();
         }
@@ -999,7 +1196,7 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
             sourcePreview,
             targetPreview,
-            effect_def,
+            effect_definition,
             previewContextFlags
         );
         if (damageOutcome.InvalidDamageTag)
@@ -1011,14 +1208,14 @@ public partial class BattleDamageResolver : IDisposable
                 shieldHpAfter: targetPreview.current_shield_hp,
                 errorCode: damageOutcome.ErrorCode,
                 damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
-                damageResult: new GDictionary(),
+                damageResult: new Dictionary<string, object>(StringComparer.Ordinal),
                 saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
                 diagnostics: new List<object>
                 {
                     BuildInvalidDamageTagDiagnostic(
                         source_unit,
                         target_unit,
-                        effect_def,
+                        effect_definition,
                         damageOutcome
                     ),
                 },
@@ -1031,7 +1228,7 @@ public partial class BattleDamageResolver : IDisposable
         DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
             sourcePreview,
             targetPreview,
-            effect_def,
+            effect_definition,
             previewContextFlags,
             preSaveDamage,
             resolvedSaveMode
@@ -1039,7 +1236,7 @@ public partial class BattleDamageResolver : IDisposable
         damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetPreview,
-            damageOutcome,
+            damageOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         return BattleDamagePreviewResult.Create(
@@ -1063,290 +1260,70 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
+    internal virtual AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs,
-        StringName skill_id,
-        BattleDamagePreviewRollMode roll_mode = BattleDamagePreviewRollMode.Average,
-        BattleDamagePreviewSaveMode save_mode = BattleDamagePreviewSaveMode.Expected
+        IEnumerable<CombatEffectDefinition> effect_definitions,
+        DamageResolutionContext damage_context
     )
     {
-        return preview_damage_sequence_typed(
+        DamageResolutionContext resolvedContext =
+            damage_context ?? DamageResolutionContext.Empty();
+        AttackEffectResolutionResult result = ResolveEffectsDefinitionCore(
             source_unit,
             target_unit,
-            effect_defs,
-            BuildPreviewDamageContext(skill_id),
-            BuildPreviewOptions(roll_mode, save_mode)
+            ToEffectDefinitionList(effect_definitions),
+            resolvedContext
         );
-    }
-
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        GDictionary damage_context = null,
-        BattleDamagePreviewOptions options = null
-    )
-    {
-        return preview_damage_sequence_typed(
-            source_unit,
+        ReconcileEquipmentProjectionAfterDurabilityEvents(
             target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context),
-            options
+            result,
+            resolvedContext.DamageApplicationHookBatch
         );
-    }
-
-    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        DamageResolutionContext damage_context,
-        BattleDamagePreviewOptions options = null
-    )
-    {
-        if (source_unit == null || target_unit == null)
-        {
-            return BattleDamagePreviewResult.Empty();
-        }
-
-        options ??= new BattleDamagePreviewOptions();
-        BattleDamagePreviewRollMode rollMode =
-            options.RollMode == BattleDamagePreviewRollMode.Unknown
-                ? BattleDamagePreviewRollMode.Average
-                : options.RollMode;
-        BattleDamagePreviewSaveMode saveMode =
-            options.SaveMode == BattleDamagePreviewSaveMode.Unknown
-                ? BattleDamagePreviewSaveMode.Expected
-                : options.SaveMode;
-        StringName rollModeName = ToStringName(rollMode);
-        StringName saveModeName = ToStringName(saveMode);
-        DamageResolutionContext previewContextFlags =
-            (damage_context ?? DamageResolutionContext.Empty()).WithDamageRollMode(rollModeName);
-        BattleUnitState sourcePreview = source_unit.clone();
-        BattleUnitState targetPreview = target_unit.clone();
-        if (sourcePreview == null || targetPreview == null)
-        {
-            return BattleDamagePreviewResult.Empty();
-        }
-
-        int totalPreSaveDamage = 0;
-        int totalPostSaveDamage = 0;
-        int totalHpDamage = 0;
-        int totalShieldAbsorbed = 0;
-        bool shieldBroken = false;
-        bool applied = false;
-        bool stableLethalFromBranches = false;
-        int lethalProbabilityBasisPoints = 0;
-        var damageEvents = new List<object>();
-        var diagnostics = new List<object>();
-        var saveEstimates = new List<BattleDamagePreviewSaveEstimate>();
-
-        bool previousSuppression = _suppress_last_stand_mastery_records;
-        _suppress_last_stand_mastery_records = true;
-        try
-        {
-            foreach (var effectValue in CoerceEffectDefs(effect_defs))
-            {
-                CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-                if (effectDef == null || !DoesEffectTrigger(effectDef, previewContextFlags))
-                {
-                    continue;
-                }
-                if (effectDef.EffectKind != BattleEffectKind.Damage)
-                {
-                    continue;
-                }
-                DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
-                    sourcePreview,
-                    targetPreview,
-                    effectDef,
-                    previewContextFlags
-                );
-                if (damageOutcome.InvalidDamageTag)
-                {
-                    diagnostics.Add(
-                        BuildInvalidDamageTagDiagnostic(
-                            sourcePreview,
-                            targetPreview,
-                            effectDef,
-                            damageOutcome
-                        )
-                    );
-                    continue;
-                }
-                int preSaveDamage = damageOutcome.ResolvedDamage;
-                int targetHpBeforeEffect = Math.Max(targetPreview.current_hp, 1);
-                DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
-                    sourcePreview,
-                    targetPreview,
-                    effectDef,
-                    previewContextFlags,
-                    preSaveDamage,
-                    saveMode
-                );
-                DamagePreviewBranchLethalEstimate branchLethal = default;
-                if (saveEstimate.HasSave)
-                {
-                    saveEstimates.Add(saveEstimate.ToPreviewSaveEstimate());
-                    branchLethal = BuildSaveBranchLethalEstimate(
-                        targetPreview,
-                        damageOutcome,
-                        saveEstimate,
-                        sourcePreview
-                    );
-                    stableLethalFromBranches =
-                        stableLethalFromBranches || branchLethal.StableLethal;
-                    lethalProbabilityBasisPoints = Math.Max(
-                        lethalProbabilityBasisPoints,
-                        branchLethal.LethalProbabilityBasisPoints
-                    );
-                }
-                totalPreSaveDamage += preSaveDamage;
-                totalPostSaveDamage += saveEstimate.DamageAfterSave;
-
-                AppliedDamageResult damageResult;
-                if (saveMode == BattleDamagePreviewSaveMode.Expected && saveEstimate.HasSave)
-                {
-                    damageResult = BuildExpectedSaveBranchDamageResult(
-                        targetPreview,
-                        damageOutcome,
-                        saveEstimate,
-                        sourcePreview
-                    );
-                }
-                else
-                {
-                    damageOutcome = WithDamagePreviewSaveEstimate(
-                        damageOutcome,
-                        saveEstimate
-                    );
-                    damageResult = ApplyDamageToTargetResult(
-                        targetPreview,
-                        damageOutcome,
-                        sourcePreview
-                    );
-                }
-
-                int hpDamage = damageResult.HpDamage;
-                if (
-                    branchLethal.FailureKills
-                    && !branchLethal.SuccessKills
-                    && hpDamage >= targetHpBeforeEffect
-                )
-                {
-                    hpDamage = Math.Max(branchLethal.SuccessHpDamage, 0);
-                    damageResult = damageResult.WithHpDamage(hpDamage);
-                }
-                totalHpDamage += hpDamage;
-                totalShieldAbsorbed += damageResult.ShieldAbsorbed;
-                shieldBroken = shieldBroken || damageResult.ShieldBroken;
-                damageEvents.Add(ProjectAppliedDamagePayload(damageResult));
-                applied = true;
-            }
-        }
-        finally
-        {
-            _suppress_last_stand_mastery_records = previousSuppression;
-        }
-
-        bool stableLethal = targetPreview.current_hp <= 0 || stableLethalFromBranches;
-        return BattleDamagePreviewResult.Create(
-            applied: applied,
-            rollMode: rollModeName,
-            saveMode: saveModeName,
-            preSaveDamage: totalPreSaveDamage,
-            postSaveDamage: totalPostSaveDamage,
-            hpDamage: totalHpDamage,
-            damage: totalHpDamage,
-            incomingBudgetDamage: totalPostSaveDamage,
-            shieldAbsorbed: totalShieldAbsorbed,
-            shieldBroken: shieldBroken,
-            shieldHpBefore: target_unit.current_shield_hp,
-            shieldHpAfter: targetPreview.current_shield_hp,
-            stableLethal: stableLethal,
-            lethalProbabilityBasisPoints: targetPreview.current_hp <= 0
-                ? 10000
-                : lethalProbabilityBasisPoints,
-            saveEstimates: saveEstimates,
-            damageEvents: damageEvents,
-            diagnostics: diagnostics,
-            sourcePreviewAfter: sourcePreview,
-            targetPreviewAfter: targetPreview
-        );
-    }
-
-    private static DamageResolutionContext BuildPreviewDamageContext(StringName skillId)
-    {
-        return DamageResolutionContext.ForSkill(skillId);
-    }
-
-    private static BattleDamagePreviewOptions BuildPreviewOptions(
-        BattleDamagePreviewRollMode rollMode,
-        BattleDamagePreviewSaveMode saveMode
-    )
-    {
-        return new BattleDamagePreviewOptions(rollMode, saveMode);
+        return result;
     }
 
     internal virtual AttackEffectResolutionResult ResolveEffects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs
-    )
-    {
-        return ResolveEffects(source_unit, target_unit, effect_defs, DamageResolutionContext.Empty());
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs
+        IEnumerable<CombatEffectDefinition> effect_definitions
     )
     {
         return ResolveEffects(
             source_unit,
             target_unit,
-            ToValueArray(effect_defs),
+            effect_definitions,
             DamageResolutionContext.Empty()
         );
     }
 
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
-        GDictionary damage_context = null
+    private static IReadOnlyList<CombatEffectDefinition> ToEffectDefinitionList(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context)
-        );
+        if (effectDefinitions == null)
+        {
+            return Array.Empty<CombatEffectDefinition>();
+        }
+        if (effectDefinitions is IReadOnlyList<CombatEffectDefinition> typedList)
+        {
+            return typedList;
+        }
+        var result = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        {
+            if (effectDefinition != null)
+            {
+                result.Add(effectDefinition);
+            }
+        }
+        return result.Count == 0 ? Array.Empty<CombatEffectDefinition>() : result;
     }
 
-    internal virtual AttackEffectResolutionResult ResolveEffects(
+    private AttackEffectResolutionResult ResolveEffectsDefinitionCore(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GArray effect_defs,
-        DamageResolutionContext damage_context
-    )
-    {
-        return ResolveEffectsTypedCore(
-            source_unit,
-            target_unit,
-            effect_defs,
-            damage_context ?? DamageResolutionContext.Empty()
-        );
-    }
-
-    private AttackEffectResolutionResult ResolveEffectsTypedCore(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GArray effect_defs,
+        IReadOnlyList<CombatEffectDefinition> effect_definitions,
         DamageResolutionContext damage_context
     )
     {
@@ -1355,7 +1332,6 @@ public partial class BattleDamageResolver : IDisposable
             return BuildEmptyResolutionResult();
         }
 
-        GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
         DamageResolutionContext contextFlags = damage_context ?? DamageResolutionContext.Empty();
         BattleSaveContext saveContext = contextFlags.ToBattleSaveContext();
         int totalDamage = 0;
@@ -1377,22 +1353,26 @@ public partial class BattleDamageResolver : IDisposable
         int executeStage = -1;
         StringName executeOutcome = "";
 
-        foreach (var effectValue in resolvedEffectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effect_definitions ?? Array.Empty<CombatEffectDefinition>())
         {
-            CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-            if (effectDef == null || !DoesEffectTrigger(effectDef, contextFlags))
+            if (effectDefinition == null || !DoesEffectTrigger(effectDefinition, contextFlags))
+            {
+                continue;
+            }
+            if (!TargetStatusRequirementPasses(source_unit, target_unit, effectDefinition))
             {
                 continue;
             }
 
-            BattleEffectKind effectKind = effectDef.EffectKind;
+            BattleEffectKind effectKind = effectDefinition.EffectKind;
             if (effectKind == BattleEffectKind.Damage)
             {
                 DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
                     source_unit,
                     target_unit,
-                    effectDef,
-                    contextFlags
+                    effectDefinition,
+                    contextFlags,
+                    out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls
                 );
                 if (damageOutcome.InvalidDamageTag)
                 {
@@ -1408,7 +1388,7 @@ public partial class BattleDamageResolver : IDisposable
                 BattleSaveResult damageSaveResult = BattleSaveResolver.ResolveSaveResult(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     saveContext
                 );
                 if (damageSaveResult.HasSave)
@@ -1418,12 +1398,13 @@ public partial class BattleDamageResolver : IDisposable
                 damageOutcome = WithSaveResult(
                     damageOutcome,
                     damageSaveResult,
-                    effectDef
+                    effectDefinition
                 );
                 AppliedDamageResult damageResult = ApplyDamageToTargetResult(
                     target_unit,
                     damageOutcome,
-                    source_unit
+                    source_unit,
+                    contextFlags
                 );
                 int hpDamage = damageResult.Damage;
                 totalDamage += hpDamage;
@@ -1436,20 +1417,117 @@ public partial class BattleDamageResolver : IDisposable
                 applied = true;
                 if (damageResult.HasAppliedDamage)
                 {
-                    GrantStatusOnHitToSource(source_unit, effectDef);
+                    GrantStatusOnHitToSource(source_unit, effectDefinition);
+                }
+                if (
+                    ApplySaveFailureStatusFromDamage(
+                        target_unit,
+                        source_unit,
+                        effectDefinition,
+                        damageSaveResult,
+                        out StringName saveFailureStatusId
+                    )
+                )
+                {
+                    AddUnique(statusEffectIds, saveFailureStatusId);
+                }
+                foreach (
+                    CombatDamageSegmentDefinition extraSegment in
+                        effectDefinition.ExtraDamageSegments
+                            ?? Array.Empty<CombatDamageSegmentDefinition>()
+                )
+                {
+                    DamageOutcomeResult extraSegmentOutcome =
+                        ResolveExtraDamageSegmentOutcome(
+                            source_unit,
+                            target_unit,
+                            effectDefinition,
+                            extraSegment,
+                            contextFlags
+                        );
+                    if (extraSegmentOutcome.InvalidDamageTag)
+                    {
+                        diagnostics.Add(
+                            new ResolutionDiagnostic
+                            {
+                                ErrorCode = extraSegmentOutcome.ErrorCode,
+                                Message = extraSegmentOutcome.Reason,
+                            }
+                        );
+                        continue;
+                    }
+                    extraSegmentOutcome = WithSaveResult(
+                        extraSegmentOutcome,
+                        damageSaveResult,
+                        effectDefinition
+                    );
+                    AppliedDamageResult extraSegmentDamageResult =
+                        ApplyDamageToTargetResult(
+                            target_unit,
+                            extraSegmentOutcome,
+                            source_unit,
+                            contextFlags
+                        );
+                    totalDamage += extraSegmentDamageResult.Damage;
+                    totalShieldAbsorbed += extraSegmentDamageResult.ShieldAbsorbed;
+                    damageEvents.Add(extraSegmentDamageResult.Event);
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || extraSegmentDamageResult.LowLuckBlackStarWedgeTriggered;
+                    shieldBroken = shieldBroken || extraSegmentDamageResult.ShieldBroken;
+                    applied = true;
+                }
+                foreach (
+                    EquipmentAbilityTaggedBonusDamageRoll extraEquipmentBonusRoll in
+                        extraEquipmentBonusRolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
+                )
+                {
+                    DamageOutcomeResult extraDamageOutcome =
+                        ResolveEquipmentAbilityBonusDamageOutcome(
+                            source_unit,
+                            target_unit,
+                            effectDefinition,
+                            contextFlags,
+                            extraEquipmentBonusRoll
+                        );
+                    if (extraDamageOutcome.InvalidDamageTag)
+                    {
+                        diagnostics.Add(
+                            new ResolutionDiagnostic
+                            {
+                                ErrorCode = extraDamageOutcome.ErrorCode,
+                                Message = extraDamageOutcome.Reason,
+                            }
+                        );
+                        continue;
+                    }
+                    AppliedDamageResult extraDamageResult = ApplyDamageToTargetResult(
+                        target_unit,
+                        extraDamageOutcome,
+                        source_unit,
+                        contextFlags
+                    );
+                    totalDamage += extraDamageResult.Damage;
+                    totalShieldAbsorbed += extraDamageResult.ShieldAbsorbed;
+                    damageEvents.Add(extraDamageResult.Event);
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || extraDamageResult.LowLuckBlackStarWedgeTriggered;
+                    shieldBroken = shieldBroken || extraDamageResult.ShieldBroken;
+                    applied = true;
                 }
             }
             else if (effectKind == BattleEffectKind.EquipmentDurabilityDamage)
             {
                 EquipmentDurabilityDamageEffectResult durabilityResult =
                     ApplyEquipmentDurabilityDamageEffect(
-                    source_unit,
-                    target_unit,
-                    effectDef,
-                    contextFlags,
-                    totalDamage,
-                    totalShieldAbsorbed
-                );
+                        source_unit,
+                        target_unit,
+                        effectDefinition,
+                        contextFlags,
+                        totalDamage,
+                        totalShieldAbsorbed
+                    );
                 if (durabilityResult.HasEvent)
                 {
                     equipmentDurabilityEvents.Add(durabilityResult.Event);
@@ -1465,7 +1543,7 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.Heal)
             {
-                int healAmount = ResolveHealAmount(source_unit, effectDef);
+                int healAmount = ResolveHealAmount(source_unit, effectDefinition);
                 healAmount = BattleStatusModifierRules.ApplyHealMultiplier(target_unit, healAmount);
                 if (healAmount > 0)
                 {
@@ -1476,12 +1554,17 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.StaminaRestore)
             {
-                ApplyStaminaRestore(source_unit, target_unit, effectDef);
+                ApplyStaminaRestore(source_unit, target_unit, effectDefinition);
                 applied = true;
             }
             else if (effectKind == BattleEffectKind.HealFatal)
             {
-                int healAmount = ResolveHealFatalAmount(target_unit, effectDef);
+                int healAmount = ResolveHealFatalAmount(
+                    source_unit,
+                    target_unit,
+                    effectDefinition,
+                    contextFlags
+                );
                 if (healAmount > 0)
                 {
                     ApplyHealing(target_unit, healAmount);
@@ -1491,13 +1574,13 @@ public partial class BattleDamageResolver : IDisposable
             }
             else if (effectKind == BattleEffectKind.EraseStatus)
             {
-                if (BattleTemporalStatusService.IsTemporalReleaseEffect(effectDef))
+                if (BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition))
                 {
                     List<StringName> releasedStatusIds =
                         BattleTemporalStatusService.ApplyTemporalReleaseEffects(
                             source_unit,
                             target_unit,
-                            effectDef
+                            effectDefinition
                         );
                     foreach (StringName releasedStatusId in releasedStatusIds)
                     {
@@ -1511,12 +1594,12 @@ public partial class BattleDamageResolver : IDisposable
                 else
                 {
                     StringName erasedStatusId = ProgressionDataUtils.to_string_name(
-                        effectDef.status_id
+                        effectDefinition.StatusId
                     );
                     if (erasedStatusId == "")
                     {
                         erasedStatusId = ProgressionDataUtils.to_string_name(
-                            effectDef.trigger_status_id
+                            effectDefinition.TriggerStatusId
                         );
                     }
                     if (erasedStatusId != "" && target_unit.HasStatusEffect(erasedStatusId))
@@ -1531,7 +1614,11 @@ public partial class BattleDamageResolver : IDisposable
                 GStringNameArray removedStatusIds = new();
                 foreach (StringName statusId in target_unit.GetSortedStatusEffectIdsTyped())
                 {
-                    if (BattleStatusSemanticTable.IsCleansableHarmfulStatus(statusId))
+                    if (
+                        BattleStatusSemanticTable.IsCleansableHarmfulStatusEntry(
+                            target_unit.GetStatusEffect(statusId)
+                        )
+                    )
                     {
                         removedStatusIds.Add(statusId);
                     }
@@ -1550,10 +1637,11 @@ public partial class BattleDamageResolver : IDisposable
                 DispelEventResult dispelResult = ApplyDispelMagicEffect(
                     source_unit,
                     target_unit,
-                    effectDef
+                    effectDefinition
                 );
-                GStringNameArray removedIds =
-                    dispelResult.RemovedStatusIds ?? new GStringNameArray();
+                IReadOnlyList<StringName> removedIds = dispelResult.RemovedStatusIds is { } ids
+                    ? ids
+                    : System.Array.Empty<StringName>();
                 if (removedIds.Count > 0)
                 {
                     dispelEvents.Add(dispelResult);
@@ -1575,7 +1663,7 @@ public partial class BattleDamageResolver : IDisposable
                 BattleSaveResult statusSaveResult = BattleSaveResolver.ResolveSaveResult(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     saveContext
                 );
                 if (statusSaveResult.HasSave)
@@ -1586,39 +1674,23 @@ public partial class BattleDamageResolver : IDisposable
                 {
                     continue;
                 }
-                StringName resolvedStatusId = ResolveStatusIdForSave(effectDef, statusSaveResult);
+                StringName resolvedStatusId = ResolveStatusIdForSave(effectDefinition, statusSaveResult);
                 resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
                     target_unit,
                     resolvedStatusId
                 );
                 if (
                     resolvedStatusId != ""
-                    && ApplyStatusEffect(target_unit, source_unit, effectDef, resolvedStatusId)
+                    && ApplyStatusEffect(
+                        target_unit,
+                        source_unit,
+                        effectDefinition,
+                        resolvedStatusId,
+                        contextFlags
+                    )
                 )
                 {
                     AddUnique(statusEffectIds, resolvedStatusId);
-                    applied = true;
-                }
-            }
-            else if (
-                effectKind == BattleEffectKind.Terrain
-                || effectKind == BattleEffectKind.TerrainEffect
-            )
-            {
-                if (effectDef.terrain_effect_id != "")
-                {
-                    AddUnique(terrainEffectIds, effectDef.terrain_effect_id);
-                    applied = true;
-                }
-            }
-            else if (
-                effectKind == BattleEffectKind.Height
-                || effectKind == BattleEffectKind.HeightDelta
-            )
-            {
-                if (effectDef.height_delta != 0)
-                {
-                    totalHeightDelta += effectDef.height_delta;
                     applied = true;
                 }
             }
@@ -1627,7 +1699,7 @@ public partial class BattleDamageResolver : IDisposable
                 ExecuteEffectResult executeResult = ResolveExecuteEffect(
                     source_unit,
                     target_unit,
-                    effectDef,
+                    effectDefinition,
                     contextFlags,
                     statusEffectIds,
                     saveResults
@@ -1649,6 +1721,36 @@ public partial class BattleDamageResolver : IDisposable
                     totalDamage += damageResult.Damage;
                     totalShieldAbsorbed += damageResult.ShieldAbsorbed;
                     shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                    damageEvents.Add(damageResult.Event);
+                }
+            }
+            else if (effectKind == BattleEffectKind.GradedSaveExecute)
+            {
+                GradedSaveExecuteEffectResult gradedSaveResult =
+                    ResolveGradedSaveExecuteEffect(
+                        source_unit,
+                        target_unit,
+                        effectDefinition,
+                        contextFlags,
+                        statusEffectIds,
+                        saveResults
+                    );
+                if (gradedSaveResult.Applied)
+                {
+                    applied = true;
+                }
+                foreach (ResolutionDiagnostic diagnostic in gradedSaveResult.Diagnostics)
+                {
+                    diagnostics.Add(diagnostic);
+                }
+                foreach (AppliedDamageResult damageResult in gradedSaveResult.DamageResults)
+                {
+                    totalDamage += damageResult.Damage;
+                    totalShieldAbsorbed += damageResult.ShieldAbsorbed;
+                    shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || damageResult.LowLuckBlackStarWedgeTriggered;
                     damageEvents.Add(damageResult.Event);
                 }
             }
@@ -1692,41 +1794,8 @@ public partial class BattleDamageResolver : IDisposable
                 ErrorCode = errorCode,
                 SkillId = contextFlags.SkillId,
                 AttackCheck = new AttackCheckInput(skillId: contextFlags.SkillId),
-                TraitTriggerResults = AttackEffectResolutionResultReader.ReadTraitTriggerResults(
-                    contextFlags.RawContext,
-                    "trait_trigger_results"
-                ),
+                TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
             }
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        GDictionary damage_context = null
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            effect_defs,
-            DamageResolutionContext.FromDictionary(damage_context)
-        );
-    }
-
-    internal virtual AttackEffectResolutionResult ResolveEffects(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        IEnumerable<CombatEffectDef> effect_defs,
-        DamageResolutionContext damage_context
-    )
-    {
-        return ResolveEffects(
-            source_unit,
-            target_unit,
-            ToValueArray(effect_defs),
-            damage_context ?? DamageResolutionContext.Empty()
         );
     }
 
@@ -1801,6 +1870,74 @@ public partial class BattleDamageResolver : IDisposable
         return ApplyDamageToTargetResult(targetUnit, rawDamage, sourceUnit).Damage;
     }
 
+    internal int ApplyTaggedDirectDamageToTargetTyped(
+        BattleUnitState targetUnit,
+        int rawDamage,
+        StringName damageTag,
+        BattleUnitState sourceUnit = null
+    )
+    {
+        int normalizedDamage = Math.Max(rawDamage, 0);
+        StringName normalizedDamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        if (
+            targetUnit == null
+            || normalizedDamage <= 0
+            || DamageTagContentRules.ToDamageTagKind(normalizedDamageTag) == DamageTagKind.Unknown
+        )
+        {
+            return 0;
+        }
+
+        MitigationTierResolution mitigation = ResolveMitigationTierResult(
+            targetUnit,
+            normalizedDamageTag
+        );
+        int resolvedDamage = normalizedDamage;
+        if (mitigation.Tier == MitigationTierImmune)
+        {
+            resolvedDamage = 0;
+        }
+        else if (mitigation.Tier == MitigationTierHalf)
+        {
+            resolvedDamage /= 2;
+        }
+        else if (mitigation.Tier == MitigationTierDouble)
+        {
+            resolvedDamage *= 2;
+        }
+
+        DamageEventResult damageOutcome = new()
+        {
+            DamageTag = normalizedDamageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigation.Tier
+            ),
+            MitigationSources = mitigation.Sources,
+            BaseDamage = normalizedDamage,
+            OffenseMultiplier = 1.0,
+            RolledDamage = normalizedDamage,
+            TierAdjustedDamage = resolvedDamage,
+            ResolvedDamage = resolvedDamage,
+            BypassShield = false,
+            ShieldAbsorptionPercent = 100.0,
+            MinHpAfterDamage = 0,
+            FixedMitigationSourceLabels = Array.Empty<string>(),
+            FixedMitigationTotal = 0,
+            FullyAbsorbedByMitigation = false,
+            SourceBoundWeaponBonusSkillIds = Array.Empty<StringName>(),
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
+        };
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            DamageApplicationInput.Create(
+                damageOutcome,
+                resolvedDamage,
+                shieldAbsorptionPercent: 100.0
+            ),
+            sourceUnit
+        ).Damage;
+    }
+
     internal int ApplyDirectDamageToTargetTyped(
         BattleUnitState targetUnit,
         GDictionary resolvedDamageInput,
@@ -1811,15 +1948,15 @@ public partial class BattleDamageResolver : IDisposable
     }
 
     private static bool DoesEffectTrigger(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext context
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return false;
         }
-        return effectDef.TriggerEventKind switch
+        return effectDefinition.TriggerEventKind switch
         {
             CombatEffectTriggerEvent.None => true,
             CombatEffectTriggerEvent.CriticalHit => context.CriticalHit,
@@ -1827,6 +1964,52 @@ public partial class BattleDamageResolver : IDisposable
             CombatEffectTriggerEvent.SecondaryHit => context.SecondaryHitSuccess,
             _ => false,
         };
+    }
+
+    private static bool TargetStatusRequirementPasses(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        StringName requiredStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition?.RequiredTargetStatusId ?? ""
+        );
+        if (requiredStatusId == "")
+        {
+            return true;
+        }
+
+        BattleStatusEffectState statusEntry = targetUnit?.GetStatusEffect(requiredStatusId);
+        if (statusEntry == null)
+        {
+            return false;
+        }
+
+        int requiredStacks = Math.Max(effectDefinition.RequiredTargetStatusMinStacks, 1);
+        if (Math.Max(statusEntry.stacks, 0) < requiredStacks)
+        {
+            return false;
+        }
+
+        StringName sourceSelector = ProgressionDataUtils.to_string_name(
+            effectDefinition.RequiredTargetStatusSourceSelector
+        );
+        if (sourceSelector == "")
+        {
+            return true;
+        }
+        if (
+            sourceSelector == "source"
+            || sourceSelector == "attacker"
+            || sourceSelector == "owner"
+            || sourceSelector == "caster"
+        )
+        {
+            return sourceUnit != null
+                && ProgressionDataUtils.to_string_name(statusEntry.source_unit_id) == sourceUnit.unit_id;
+        }
+        return false;
     }
 
     public bool _resolve_secondary_hit(
@@ -1957,42 +2140,157 @@ public partial class BattleDamageResolver : IDisposable
         return rawValue as IReadOnlyList<object> ?? Array.Empty<object>();
     }
 
+    private static DicePoolRollResult FindEquipmentAbilityBonusDamageRoll(
+        IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> rolls,
+        StringName damageTag,
+        bool subtract = false
+    )
+    {
+        foreach (EquipmentAbilityTaggedBonusDamageRoll roll in rolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>())
+        {
+            if (roll.DamageTag == damageTag && roll.Subtract == subtract)
+                return roll.Roll;
+        }
+        return DicePoolRollResult.Empty;
+    }
+
+    private static IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> FindExtraEquipmentAbilityBonusDamageRolls(
+        IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> rolls,
+        StringName primaryDamageTag
+    )
+    {
+        if (rolls == null || rolls.Count == 0)
+            return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
+        var result = new List<EquipmentAbilityTaggedBonusDamageRoll>();
+        foreach (EquipmentAbilityTaggedBonusDamageRoll roll in rolls)
+        {
+            if (
+                roll.DamageTag != ""
+                && roll.DamageTag != primaryDamageTag
+                && !roll.Subtract
+                && !DicePoolRollIsEmpty(roll.Roll)
+            )
+            {
+                result.Add(roll);
+            }
+        }
+        return result.Count == 0 ? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>() : result;
+    }
+
 
     private DamageOutcomeResult ResolveDamageOutcome(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext
     )
     {
-        StringName damageTag = ResolveDamageTag(sourceUnit, effectDef);
+        return ResolveDamageOutcome(
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            damageContext,
+            out _
+        );
+    }
+
+    private DamageOutcomeResult ResolveDamageOutcome(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        DamageResolutionContext damageContext,
+        out IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> extraEquipmentBonusRolls
+    )
+    {
+        extraEquipmentBonusRolls = Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
+        StringName damageTag = ResolveDamageTag(sourceUnit, effectDefinition);
         if (damageTag == "")
         {
-            return BuildInvalidDamageTagOutcome(sourceUnit, effectDef);
+            return BuildInvalidDamageTagOutcome(sourceUnit, effectDefinition);
         }
         StringName rollMode = damageContext.DamageRollMode;
-        DicePoolRollResult damageRoll = RollDamageDice(effectDef, true, "damage_dice", rollMode);
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (equipmentAbilityService != null)
+        {
+            rollMode = equipmentAbilityService.ResolveDamageRollModeOverride(
+                new BattleEquipmentAbilityDamageRollModeContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = equipmentAbilityService.GetBattleState(),
+                    CurrentRollMode = rollMode,
+                    AttackSucceeded = damageContext.AttackSuccess,
+                    CriticalHit = damageContext.CriticalHit,
+                }
+            );
+        }
+        DicePoolRollResult damageRoll = RollDamageDice(
+            effectDefinition,
+            true,
+            "damage_dice",
+            rollMode
+        );
         DicePoolRollResult weaponRoll = RollWeaponDice(
             sourceUnit,
-            effectDef,
+            effectDefinition,
             true,
             "weapon_damage_dice",
             rollMode
         );
         bool criticalHit = damageContext.CriticalHit;
-        bool bonusConditionMet = HasBonusCondition(effectDef, targetUnit);
+        bool bonusConditionMet = HasBonusCondition(effectDefinition, targetUnit);
         DicePoolRollResult bonusDamageRoll = bonusConditionMet
-            ? RollBonusDamageDice(effectDef, true, "bonus_damage_dice", rollMode)
+            ? RollBonusDamageDice(effectDefinition, true, "bonus_damage_dice", rollMode)
             : DicePoolRollResult.Empty;
+        SourceBoundWeaponBonusDamageRoll sourceBoundWeaponBonusRoll =
+            RollSourceBoundWeaponBonusDamageDice(
+                sourceUnit,
+                targetUnit,
+                !DicePoolRollIsEmpty(weaponRoll),
+                rollMode
+            );
+        bonusDamageRoll = CombineDicePoolRolls(
+            bonusDamageRoll,
+            sourceBoundWeaponBonusRoll.Roll
+        );
+        IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> equipmentBonusRolls =
+            RollEquipmentAbilityBonusDamageDiceByTag(
+                sourceUnit,
+                targetUnit,
+                damageContext,
+                damageTag,
+                !DicePoolRollIsEmpty(weaponRoll),
+                rollMode
+            );
+        bonusDamageRoll = CombineDicePoolRolls(
+            bonusDamageRoll,
+            FindEquipmentAbilityBonusDamageRoll(equipmentBonusRolls, damageTag)
+        );
+        DicePoolRollResult equipmentDamagePenaltyRoll =
+            FindEquipmentAbilityBonusDamageRoll(
+                equipmentBonusRolls,
+                damageTag,
+                subtract: true
+            );
+        extraEquipmentBonusRolls = FindExtraEquipmentAbilityBonusDamageRolls(
+            equipmentBonusRolls,
+            damageTag
+        );
         DicePoolRollResult criticalDamageRoll =
             criticalHit && damageRoll.HasDice
-                ? RollDamageDice(effectDef, false, "critical_extra_damage_dice", rollMode)
+                ? RollDamageDice(
+                    effectDefinition,
+                    false,
+                    "critical_extra_damage_dice",
+                    rollMode
+                )
                 : DicePoolRollResult.Empty;
         DicePoolRollResult criticalWeaponRoll =
             criticalHit && weaponRoll.HasDice
                 ? RollWeaponDice(
                     sourceUnit,
-                    effectDef,
+                    effectDefinition,
                     false,
                     "critical_extra_weapon_damage_dice",
                     rollMode
@@ -2001,7 +2299,7 @@ public partial class BattleDamageResolver : IDisposable
         DicePoolRollResult criticalBonusDamageRoll =
             criticalHit && bonusDamageRoll.HasDice
                 ? RollBonusDamageDice(
-                    effectDef,
+                    effectDefinition,
                     false,
                     "critical_extra_bonus_damage_dice",
                     rollMode
@@ -2010,7 +2308,7 @@ public partial class BattleDamageResolver : IDisposable
         TraitTriggerResultSnapshot traitCritResult = ResolveCritTraitResult(
             sourceUnit,
             targetUnit,
-            effectDef,
+            effectDefinition,
             criticalHit
         );
         DicePoolRollResult traitExtraWeaponRoll = traitCritResult.Triggered
@@ -2024,12 +2322,12 @@ public partial class BattleDamageResolver : IDisposable
             : DicePoolRollResult.Empty;
         DicePoolRollResult consumedStackRoll = RollConsumedStackDice(
             sourceUnit,
-            effectDef,
+            effectDefinition,
             rollMode
         );
 
         int baseDamage =
-            Math.Max(effectDef?.power ?? 0, 0)
+            Math.Max(effectDefinition?.Power ?? 0, 0)
             + weaponRoll.TotalWithBonus
             + damageRoll.TotalWithBonus
             + bonusDamageRoll.TotalWithBonus
@@ -2037,15 +2335,21 @@ public partial class BattleDamageResolver : IDisposable
             + criticalDamageRoll.Total
             + criticalBonusDamageRoll.Total
             + traitExtraWeaponRoll.Total
-            + consumedStackRoll.Total;
-        double offenseMultiplier = BuildOffenseMultiplier(sourceUnit, targetUnit, effectDef);
-        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
-        GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, damageTag);
-        StringName mitigationTier = DictStringName(
-            mitigationTierResult,
-            "tier",
-            MitigationTierNormal
+            + consumedStackRoll.Total
+            - equipmentDamagePenaltyRoll.TotalWithBonus;
+        double offenseMultiplier = BuildOffenseMultiplier(
+            sourceUnit,
+            targetUnit,
+            effectDefinition
         );
+        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            effectDefinition?.MitigationBypassDamageTags,
+            effectDefinition?.MitigationBypassTiers
+        );
+        StringName mitigationTier = mitigationTierResult.Tier;
         int tierAdjustedDamage = rolledDamage;
         if (mitigationTier == MitigationTierImmune)
         {
@@ -2060,7 +2364,13 @@ public partial class BattleDamageResolver : IDisposable
             tierAdjustedDamage *= 2;
         }
 
-        FixedMitigationResult mitigation = BuildFixedMitigation(targetUnit, effectDef, damageTag);
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            damageTag,
+            damageContext
+        );
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
         bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
             mitigation,
@@ -2089,13 +2399,10 @@ public partial class BattleDamageResolver : IDisposable
             MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
                 mitigationTier
             ),
-            MitigationSources =
-                AttackEffectResolutionResultReader.ReadMitigationSourcesFromArray(
-                    GetArray(mitigationTierResult, "sources")
-                ),
+            MitigationSources = mitigationTierResult.Sources,
             BaseDamage = baseDamage,
             CriticalHit = criticalHit,
-            AddWeaponDice = ShouldAddWeaponDice(effectDef),
+            AddWeaponDice = ShouldAddWeaponDice(effectDefinition),
             DamageDice = damageRoll.ToDamageDiceRollDetail(),
             BonusConditionMet = bonusConditionMet,
             BonusDamageDice = bonusDamageRoll.ToDamageDiceRollDetail(),
@@ -2104,6 +2411,10 @@ public partial class BattleDamageResolver : IDisposable
             CriticalExtraBonusDamageDice = criticalBonusDamageRoll.ToDamageDiceRollDetail(),
             CriticalExtraWeaponDamageDice = criticalWeaponRoll.ToDamageDiceRollDetail(),
             TraitExtraWeaponDamageDice = traitExtraWeaponRoll.ToDamageDiceRollDetail(),
+            SourceBoundWeaponBonusSkillIds =
+                sourceBoundWeaponBonusRoll.SkillIds != null
+                    ? new List<StringName>(sourceBoundWeaponBonusRoll.SkillIds).ToArray()
+                    : Array.Empty<StringName>(),
             OffenseMultiplier = offenseMultiplier,
             RolledDamage = rolledDamage,
             TierAdjustedDamage = tierAdjustedDamage,
@@ -2149,6 +2460,292 @@ public partial class BattleDamageResolver : IDisposable
         );
     }
 
+    private DamageOutcomeResult ResolveExtraDamageSegmentOutcome(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        CombatDamageSegmentDefinition segment,
+        DamageResolutionContext damageContext
+    )
+    {
+        if (segment == null)
+        {
+            return BuildInvalidDamageTagOutcomeFromTag("");
+        }
+        StringName damageTag = ProgressionDataUtils.to_string_name(segment.DamageTag);
+        if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
+        {
+            return BuildInvalidDamageTagOutcomeFromTag(damageTag);
+        }
+
+        StringName rollMode = (damageContext ?? DamageResolutionContext.Empty()).DamageRollMode;
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (equipmentAbilityService != null)
+        {
+            rollMode = equipmentAbilityService.ResolveDamageRollModeOverride(
+                new BattleEquipmentAbilityDamageRollModeContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = equipmentAbilityService.GetBattleState(),
+                    CurrentRollMode = rollMode,
+                    AttackSucceeded = damageContext.AttackSuccess,
+                    CriticalHit = false,
+                }
+            );
+        }
+
+        DicePoolRollResult damageRoll = RollDicePool(
+            Math.Max(segment.DiceCount, 0),
+            Math.Max(segment.DiceSides, 0),
+            segment.DiceBonus,
+            "extra_damage_segment_dice",
+            rollMode
+        );
+        int baseDamage = Math.Max(segment.Power, 0) + damageRoll.TotalWithBonus;
+        double offenseMultiplier =
+            BuildOffenseMultiplier(sourceUnit, targetUnit, effectDefinition)
+            * Math.Max(segment.PreResistanceDamageMultiplier, 0.0);
+        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
+        IReadOnlyList<StringName> mitigationBypassDamageTags =
+            segment.MitigationBypassDamageTags != null
+            && segment.MitigationBypassDamageTags.Count > 0
+                ? segment.MitigationBypassDamageTags
+                : effectDefinition?.MitigationBypassDamageTags;
+        IReadOnlyList<StringName> mitigationBypassTiers =
+            segment.MitigationBypassTiers != null
+            && segment.MitigationBypassTiers.Count > 0
+                ? segment.MitigationBypassTiers
+                : effectDefinition?.MitigationBypassTiers;
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            mitigationBypassDamageTags,
+            mitigationBypassTiers
+        );
+        StringName mitigationTier = mitigationTierResult.Tier;
+        int tierAdjustedDamage = rolledDamage;
+        if (mitigationTier == MitigationTierImmune)
+        {
+            tierAdjustedDamage = 0;
+        }
+        else if (mitigationTier == MitigationTierHalf)
+        {
+            tierAdjustedDamage /= 2;
+        }
+        else if (mitigationTier == MitigationTierDouble)
+        {
+            tierAdjustedDamage *= 2;
+        }
+
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            damageTag,
+            damageContext
+        );
+        ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
+        bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
+            mitigation,
+            sourceUnit
+        );
+        TrimFixedMitigationSources(mitigation);
+        int resolvedDamage = Math.Max(tierAdjustedDamage - mitigation.Total, MinDamageFloor);
+        DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
+            false,
+            damageRoll,
+            DicePoolRollResult.Empty
+        );
+        DamageDiceEventSnapshot diceSnapshot = damageDiceEventFlags.Snapshot;
+        DamageEventResult result = new()
+        {
+            DamageTag = damageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigationTier
+            ),
+            MitigationSources = mitigationTierResult.Sources,
+            BaseDamage = baseDamage,
+            CriticalHit = false,
+            AddWeaponDice = false,
+            DamageDice = damageRoll.ToDamageDiceRollDetail(),
+            BonusConditionMet = false,
+            BonusDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            WeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraBonusDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            TraitExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            OffenseMultiplier = offenseMultiplier,
+            RolledDamage = rolledDamage,
+            TierAdjustedDamage = tierAdjustedDamage,
+            ResolvedDamage = resolvedDamage,
+            BuffReduction = mitigation.BuffReduction,
+            StanceReduction = mitigation.StanceReduction,
+            PassiveReduction = mitigation.PassiveReduction,
+            ContentDr = mitigation.ContentDr,
+            GuardBlock = mitigation.GuardBlock,
+            GuardIgnoreApplied = mitigation.GuardIgnoreApplied,
+            FixedMitigationSourceLabels = mitigation.SourceLabels(),
+            LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered,
+            FixedMitigationTotal = mitigation.Total,
+            FullyAbsorbedByMitigation =
+                resolvedDamage <= 0
+                && mitigationTier != MitigationTierImmune
+                && tierAdjustedDamage > 0,
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
+            DamageDiceHighTotalRoll = diceSnapshot.DamageDiceHighTotalRoll,
+            DamageDiceHighTotalRollReason = diceSnapshot.DamageDiceHighTotalRollReason,
+            SkillDamageDiceIsMax = diceSnapshot.SkillDamageDiceIsMax,
+            SkillDamageDiceIsMaxReason = diceSnapshot.SkillDamageDiceIsMaxReason,
+            WeaponDamageDiceIsMax = diceSnapshot.WeaponDamageDiceIsMax,
+            WeaponDamageDiceIsMaxReason = diceSnapshot.WeaponDamageDiceIsMaxReason,
+        };
+        return new DamageOutcomeResult(
+            result,
+            false,
+            "",
+            "",
+            "",
+            damageTag,
+            resolvedDamage,
+            false,
+            false,
+            100.0,
+            0,
+            lowLuckBlackStarWedgeTriggered,
+            damageDiceEventFlags.Snapshot
+        );
+    }
+
+    private DamageOutcomeResult ResolveEquipmentAbilityBonusDamageOutcome(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        DamageResolutionContext damageContext,
+        EquipmentAbilityTaggedBonusDamageRoll taggedRoll
+    )
+    {
+        StringName damageTag = ProgressionDataUtils.to_string_name(taggedRoll.DamageTag);
+        if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
+        {
+            return BuildInvalidDamageTagOutcomeFromTag(damageTag);
+        }
+
+        DicePoolRollResult bonusDamageRoll = taggedRoll.Roll;
+        bool criticalHit = damageContext?.CriticalHit == true;
+        int baseDamage = bonusDamageRoll.TotalWithBonus;
+        double offenseMultiplier = BuildOffenseMultiplier(
+            sourceUnit,
+            targetUnit,
+            effectDefinition
+        );
+        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            taggedRoll.MitigationBypassDamageTags,
+            taggedRoll.MitigationBypassTiers
+        );
+        StringName mitigationTier = mitigationTierResult.Tier;
+        int tierAdjustedDamage = rolledDamage;
+        if (mitigationTier == MitigationTierImmune)
+        {
+            tierAdjustedDamage = 0;
+        }
+        else if (mitigationTier == MitigationTierHalf)
+        {
+            tierAdjustedDamage /= 2;
+        }
+        else if (mitigationTier == MitigationTierDouble)
+        {
+            tierAdjustedDamage *= 2;
+        }
+
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            damageTag,
+            damageContext
+        );
+        ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
+        bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
+            mitigation,
+            sourceUnit
+        );
+        TrimFixedMitigationSources(mitigation);
+        int fixedMitigationTotal = mitigation.Total;
+        int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
+        DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
+            criticalHit,
+            DicePoolRollResult.Empty,
+            DicePoolRollResult.Empty,
+            bonusDamageRoll
+        );
+        DamageDiceEventSnapshot diceSnapshot = damageDiceEventFlags.Snapshot;
+        DamageEventResult result = new()
+        {
+            DamageTag = damageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigationTier
+            ),
+            MitigationSources = mitigationTierResult.Sources,
+            BaseDamage = baseDamage,
+            CriticalHit = criticalHit,
+            AddWeaponDice = false,
+            DamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            BonusConditionMet = false,
+            BonusDamageDice = bonusDamageRoll.ToDamageDiceRollDetail(),
+            WeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraBonusDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            TraitExtraWeaponDamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            OffenseMultiplier = offenseMultiplier,
+            RolledDamage = rolledDamage,
+            TierAdjustedDamage = tierAdjustedDamage,
+            ResolvedDamage = resolvedDamage,
+            BuffReduction = mitigation.BuffReduction,
+            StanceReduction = mitigation.StanceReduction,
+            PassiveReduction = mitigation.PassiveReduction,
+            ContentDr = mitigation.ContentDr,
+            GuardBlock = mitigation.GuardBlock,
+            GuardIgnoreApplied = mitigation.GuardIgnoreApplied,
+            FixedMitigationSourceLabels =
+                mitigation.SourceLabels(),
+            LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered,
+            FixedMitigationTotal = fixedMitigationTotal,
+            FullyAbsorbedByMitigation =
+                resolvedDamage <= 0
+                && mitigationTier != MitigationTierImmune
+                && tierAdjustedDamage > 0,
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
+            DamageDiceHighTotalRoll = diceSnapshot.DamageDiceHighTotalRoll,
+            DamageDiceHighTotalRollReason = diceSnapshot.DamageDiceHighTotalRollReason,
+            SkillDamageDiceIsMax = diceSnapshot.SkillDamageDiceIsMax,
+            SkillDamageDiceIsMaxReason = diceSnapshot.SkillDamageDiceIsMaxReason,
+            WeaponDamageDiceIsMax = diceSnapshot.WeaponDamageDiceIsMax,
+            WeaponDamageDiceIsMaxReason = diceSnapshot.WeaponDamageDiceIsMaxReason,
+        };
+        return new DamageOutcomeResult(
+            result,
+            false,
+            "",
+            "",
+            "equipment_ability_bonus_damage",
+            damageTag,
+            resolvedDamage,
+            false,
+            false,
+            100.0,
+            0,
+            lowLuckBlackStarWedgeTriggered,
+            damageDiceEventFlags.Snapshot
+        );
+    }
+
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         GDictionary damageOutcome,
@@ -2165,20 +2762,23 @@ public partial class BattleDamageResolver : IDisposable
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         DamageOutcomeResult damageOutcome,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        DamageResolutionContext damageContext = null
     )
     {
         return ApplyDamageToTargetResult(
             targetUnit,
             damageOutcome.ToDamageApplicationInput(),
-            sourceUnit
+            sourceUnit,
+            damageContext
         );
     }
 
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         DamageApplicationInput damageInput,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        DamageResolutionContext damageContext = null
     )
     {
         DamageEventResult applicationEvent = damageInput.Event;
@@ -2193,9 +2793,49 @@ public partial class BattleDamageResolver : IDisposable
             );
         }
 
+        DamageApplicationProjection projection = ProjectDamageApplication(targetUnit, damageInput);
+        if (_damage_application_hook != null && !damageInput.SuppressDamageApplicationHook)
+        {
+            IReadOnlyList<Vector2I> currentDamageEventAreaCells =
+                BuildCurrentDamageEventAreaCells(targetUnit);
+            BattleDamageApplicationHookResult hookResult =
+                _damage_application_hook.BeforeDamageResolved(
+                    new BattleDamageApplicationHookContext
+                    {
+                        SourceUnit = sourceUnit,
+                        TargetUnit = targetUnit,
+                        DamageInput = damageInput,
+                        Projection = projection,
+                        Batch = damageContext?.DamageApplicationHookBatch,
+                        Origin = damageContext?.DamageApplicationHookOrigin
+                            ?? BattleEffectOrigin.PlayerCommand(),
+                        CurrentDamageEventAreaCells = currentDamageEventAreaCells,
+                    }
+                );
+            if (hookResult.CancelDamage)
+            {
+                return BuildAppliedDamageResult(
+                    damageInput with { Event = applicationEvent },
+                    0,
+                    0,
+                    false
+                );
+            }
+            if (hookResult.HasModifiedResolvedDamage)
+            {
+                damageInput = damageInput.WithResolvedDamage(hookResult.ModifiedResolvedDamage);
+                applicationEvent = damageInput.Event;
+                normalizedDamage = damageInput.ResolvedDamage;
+                projection = ProjectDamageApplication(targetUnit, damageInput);
+            }
+            if (hookResult.StateMayHaveChanged)
+            {
+                projection = ProjectDamageApplication(targetUnit, damageInput);
+            }
+        }
+
         bool bypassShield = damageInput.BypassShield;
         bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
-        double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;
         int minHpAfterDamage = damageInput.MinHpAfterDamage;
         int hpBeforeDamage = Math.Max(targetUnit.current_hp, 0);
         if (!bypassShield)
@@ -2203,19 +2843,11 @@ public partial class BattleDamageResolver : IDisposable
             targetUnit.NormalizeShieldState();
         }
 
-        int shieldAbsorbed = 0;
+        int shieldAbsorbed = projection.ShieldAbsorbed;
         bool shieldBroken = false;
-        if (!bypassShield && targetUnit.HasShield() && shieldEfficiency > 0.0)
+        if (!bypassShield && shieldAbsorbed > 0)
         {
-            int shieldCapacity = (int)Math.Ceiling(targetUnit.current_shield_hp * shieldEfficiency);
-            shieldAbsorbed = Math.Min(normalizedDamage, shieldCapacity);
-            int actualDrain =
-                shieldEfficiency > 0.0
-                    ? Math.Min(
-                        (int)Math.Ceiling(shieldAbsorbed / shieldEfficiency),
-                        targetUnit.current_shield_hp
-                    )
-                    : 0;
+            int actualDrain = Math.Min(projection.ShieldDrain, targetUnit.current_shield_hp);
             targetUnit.current_shield_hp = Math.Max(targetUnit.current_shield_hp - actualDrain, 0);
             if (targetUnit.current_shield_hp <= 0)
             {
@@ -2228,7 +2860,7 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
 
-        int hpDamage = Math.Max(normalizedDamage - shieldAbsorbed, 0);
+        int hpDamage = projection.HpDamage;
         if (hpDamage > 0)
         {
             int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
@@ -2291,12 +2923,43 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.current_hp, 0), 0);
+        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+            _equipment_ability_runtime_service;
+        if (actualHpDamage > 0 && sourceUnit != null && equipmentAbilityService != null)
+        {
+            equipmentAbilityService.ResolveDamageApplied(
+                new BattleEquipmentAbilityDamageAppliedContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = equipmentAbilityService.GetBattleState(),
+                    HpDamage = actualHpDamage,
+                }
+            );
+        }
         return BuildAppliedDamageResult(
             damageInput with { Event = applicationEvent },
             actualHpDamage,
             shieldAbsorbed,
             shieldBroken
         );
+    }
+
+    private static IReadOnlyList<Vector2I> BuildCurrentDamageEventAreaCells(
+        BattleUnitState targetUnit
+    )
+    {
+        if (targetUnit == null)
+            return Array.Empty<Vector2I>();
+        targetUnit.RefreshFootprint();
+        if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
+            return Array.AsReadOnly(new[] { targetUnit.coord });
+
+        var cells = new List<Vector2I>();
+        foreach (Vector2I cell in targetUnit.occupied_coords)
+            if (!cells.Contains(cell))
+                cells.Add(cell);
+        return cells.Count == 0 ? Array.Empty<Vector2I>() : Array.AsReadOnly(cells.ToArray());
     }
 
     private static bool TryGetBlockingDeathWard(
@@ -2370,12 +3033,12 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
-            failureOutcome,
+            failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
-            successOutcome,
+            successOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
 
@@ -2431,12 +3094,12 @@ public partial class BattleDamageResolver : IDisposable
         DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
-            failureOutcome,
+            failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
         AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
-            successOutcome,
+            successOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
             sourcePreview
         );
 
@@ -2457,7 +3120,7 @@ public partial class BattleDamageResolver : IDisposable
     private DamagePreviewSaveEstimate BuildDamagePreviewSaveEstimate(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         DamageResolutionContext damageContext,
         int damageBeforeSave,
         BattleDamagePreviewSaveMode saveMode
@@ -2467,7 +3130,7 @@ public partial class BattleDamageResolver : IDisposable
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 sourceUnit,
                 targetUnit,
-                effectDef,
+                effectDefinition,
                 (damageContext ?? DamageResolutionContext.Empty()).ToBattleSaveContext()
             );
         if (!probability.HasSave)
@@ -2477,8 +3140,8 @@ public partial class BattleDamageResolver : IDisposable
         int successBasisPoints = Math.Clamp(probability.SuccessProbabilityBasisPoints, 0, 10000);
         int failureBasisPoints = Math.Clamp(probability.FailureProbabilityBasisPoints, 0, 10000);
         int damageOnSaveSuccess =
-            effectDef != null
-            && effectDef.save_partial_on_success
+            effectDefinition != null
+            && effectDefinition.SavePartialOnSuccess
             && !probability.Immune
                 ? damageBeforeSave / 2
                 : 0;
@@ -2497,7 +3160,7 @@ public partial class BattleDamageResolver : IDisposable
             Math.Max(worstDamage, 0),
             damageBeforeSave,
             damageOnSaveSuccess,
-            effectDef != null && effectDef.save_partial_on_success,
+            effectDefinition != null && effectDefinition.SavePartialOnSuccess,
             successBasisPoints,
             RoundToInt(successBasisPoints / 100.0),
             failureBasisPoints,
@@ -2527,11 +3190,13 @@ public partial class BattleDamageResolver : IDisposable
         return result;
     }
 
-    private static GDictionary ProjectAppliedDamagePayload(AppliedDamageResult result) =>
-        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
+    private static Dictionary<string, object> ProjectAppliedDamagePayload(
+        AppliedDamageResult result
+    ) => AttackEffectResolutionPlainPayload.BuildDamageEvent(result.Event);
 
-    private static GDictionary ProjectDamageOutcomePayload(DamageOutcomeResult result) =>
-        AttackEffectResolutionResultReader.BuildDamageEventPayload(result.Event);
+    private static Dictionary<string, object> ProjectDamageOutcomePayload(
+        DamageOutcomeResult result
+    ) => AttackEffectResolutionPlainPayload.BuildDamageEvent(result.Event);
 
     private static DamageOutcomeResult WithDamagePreviewSaveEstimate(
         DamageOutcomeResult damageOutcome,
@@ -2599,14 +3264,14 @@ public partial class BattleDamageResolver : IDisposable
     private static DamageOutcomeResult WithSaveResult(
         DamageOutcomeResult damageOutcome,
         BattleSaveResult saveResult,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
         DamageEventResult @event = damageOutcome.Event;
         int resolvedDamage = ApplySaveResultToDamageEvent(
             ref @event,
             saveResult,
-            effectDef,
+            effectDefinition,
             damageOutcome.ResolvedDamage
         );
         return damageOutcome with
@@ -2619,7 +3284,22 @@ public partial class BattleDamageResolver : IDisposable
     private static int ApplySaveResultToDamageEvent(
         ref DamageEventResult damageEvent,
         BattleSaveResult saveResult,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
+        int preSaveDamage
+    )
+    {
+        return ApplySaveResultToDamageEvent(
+            ref damageEvent,
+            saveResult,
+            effectDefinition != null && effectDefinition.SavePartialOnSuccess,
+            preSaveDamage
+        );
+    }
+
+    private static int ApplySaveResultToDamageEvent(
+        ref DamageEventResult damageEvent,
+        BattleSaveResult saveResult,
+        bool savePartialOnSuccess,
         int preSaveDamage
     )
     {
@@ -2641,8 +3321,7 @@ public partial class BattleDamageResolver : IDisposable
         }
         int adjustedDamage = 0;
         if (
-            effectDef != null
-            && effectDef.save_partial_on_success
+            savePartialOnSuccess
             && !saveResult.Immune
         )
         {
@@ -2697,13 +3376,13 @@ public partial class BattleDamageResolver : IDisposable
     private double BuildOffenseMultiplier(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        double multiplier = GetPreResistanceDamageMultiplier(effectDef);
-        if (HasBonusCondition(effectDef, targetUnit))
+        double multiplier = GetPreResistanceDamageMultiplier(effectDefinition);
+        if (HasBonusCondition(effectDefinition, targetUnit))
         {
-            multiplier *= GetDamageRatioMultiplier(effectDef);
+            multiplier *= GetDamageRatioMultiplier(effectDefinition);
         }
         if (HasStatusEffect(sourceUnit, StatusAttackUp))
         {
@@ -2720,27 +3399,58 @@ public partial class BattleDamageResolver : IDisposable
         multiplier *= GetLowLuckBloodDebtMultiplier(targetUnit);
         multiplier *= GetSourceOutgoingDamageMultiplier(sourceUnit);
         multiplier *= GetTargetIncomingDamageMultiplier(targetUnit);
+        multiplier *= GetTargetDamageMultiplierRuleMultiplier(targetUnit, effectDefinition);
         return Math.Max(multiplier, 0.0);
+    }
+
+    private static double GetTargetDamageMultiplierRuleMultiplier(
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        if (
+            targetUnit == null
+            || effectDefinition?.TargetDamageMultiplierRules == null
+            || effectDefinition.TargetDamageMultiplierRules.Count == 0
+        )
+        {
+            return 1.0;
+        }
+        double multiplier = 1.0;
+        foreach (
+            CombatTargetDamageMultiplierRuleDefinition rule in
+                effectDefinition.TargetDamageMultiplierRules
+        )
+        {
+            if (rule == null || !rule.Matches(targetUnit))
+            {
+                continue;
+            }
+            multiplier *= Math.Max(rule.MultiplierPercent, 0) / 100.0;
+        }
+        return multiplier;
     }
 
     private static StringName ResolveDamageTag(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (ShouldUseWeaponPhysicalDamageTag(effectDef))
+        if (ShouldUseWeaponPhysicalDamageTag(effectDefinition))
         {
             return GetUnitWeaponPhysicalDamageTag(sourceUnit);
         }
-        StringName explicitEffectTag = effectDef?.damage_tag ?? new StringName("");
+        StringName explicitEffectTag = effectDefinition?.DamageTag ?? new StringName("");
         return DamageTagContentRules.ToDamageTagKind(explicitEffectTag) != DamageTagKind.Unknown
             ? explicitEffectTag
             : new StringName("");
     }
 
-    private static bool ShouldUseWeaponPhysicalDamageTag(CombatEffectDef effectDef)
+    private static bool ShouldUseWeaponPhysicalDamageTag(
+        CombatEffectDefinition effectDefinition
+    )
     {
-        return DamageEffectRuntimeParameters.FromEffect(effectDef).UseWeaponPhysicalDamageTag;
+        return DamageEffectRuntimeParameters.FromEffect(effectDefinition).UseWeaponPhysicalDamageTag;
     }
 
     private static StringName GetUnitWeaponPhysicalDamageTag(BattleUnitState unitState)
@@ -2761,7 +3471,7 @@ public partial class BattleDamageResolver : IDisposable
     private TraitTriggerResultSnapshot ResolveCritTraitResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         bool criticalHit
     )
     {
@@ -2778,7 +3488,7 @@ public partial class BattleDamageResolver : IDisposable
                 sourceUnit,
                 targetUnit,
                 criticalHit,
-                ShouldAddWeaponDice(effectDef),
+                ShouldAddWeaponDice(effectDefinition),
                 sourceUnit != null ? sourceUnit.weapon_attack_range : 0,
                 GetCurrentWeaponDamageDiceSides(sourceUnit)
             )
@@ -2808,23 +3518,22 @@ public partial class BattleDamageResolver : IDisposable
     }
 
     private static StringName ResolveStatusIdForSave(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         BattleSaveResult saveResult
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
         {
             return "";
         }
-        if (
-            saveResult.HasSave
-            && !saveResult.Success
-            && effectDef.save_failure_status_id != ""
-        )
+        StringName saveFailureStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.SaveFailureStatusId
+        );
+        if (saveResult.HasSave && !saveResult.Success && saveFailureStatusId != "")
         {
-            return ProgressionDataUtils.to_string_name(effectDef.save_failure_status_id);
+            return saveFailureStatusId;
         }
-        return ProgressionDataUtils.to_string_name(effectDef.status_id);
+        return ProgressionDataUtils.to_string_name(effectDefinition.StatusId);
     }
 
 

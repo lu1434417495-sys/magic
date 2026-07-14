@@ -5,23 +5,23 @@ internal sealed class ProgressionServiceFactory
 {
     internal ProgressionService Build(
         UnitProgress progression,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs
     )
     {
         var assignmentService = new ProfessionAssignmentService();
-        assignmentService.Setup(progression, skillDefs, professionDefs);
+        assignmentService.Setup(progression, skillDefinitions, professionDefs);
 
         var mergeService = new SkillMergeService();
-        mergeService.Setup(progression, skillDefs, assignmentService);
+        mergeService.Setup(progression, skillDefinitions, assignmentService);
 
         var ruleService = new ProfessionRuleService();
-        ruleService.Setup(progression, skillDefs, professionDefs);
+        ruleService.Setup(progression, skillDefinitions, professionDefs);
 
         var progressionService = new ProgressionService();
-        progressionService.Setup(
+        progressionService.SetupDefinitions(
             progression,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             ruleService,
             assignmentService,

@@ -29,6 +29,7 @@ internal enum BattleAttackRollModifierApplyTarget
 {
     Unknown = 0,
     AttackRoll,
+    AttackAdvantage,
 }
 
 public class BattleAttackRollModifierSpec
@@ -43,6 +44,7 @@ public class BattleAttackRollModifierSpec
     private static readonly StringName EndpointModeBoth = "both";
     private static readonly StringName FootprintModeAnyCell = "any_cell";
     private static readonly StringName ApplyTargetAttackRoll = "attack_roll";
+    private static readonly StringName ApplyTargetAttackAdvantage = "attack_advantage";
 
     private static readonly string[] SchemaKeys =
     {
@@ -350,6 +352,8 @@ public class BattleAttackRollModifierSpec
     {
         if (value == ApplyTargetAttackRoll)
             return BattleAttackRollModifierApplyTarget.AttackRoll;
+        if (value == ApplyTargetAttackAdvantage)
+            return BattleAttackRollModifierApplyTarget.AttackAdvantage;
         return BattleAttackRollModifierApplyTarget.Unknown;
     }
 
@@ -358,6 +362,7 @@ public class BattleAttackRollModifierSpec
         return target switch
         {
             BattleAttackRollModifierApplyTarget.AttackRoll => ApplyTargetAttackRoll,
+            BattleAttackRollModifierApplyTarget.AttackAdvantage => ApplyTargetAttackAdvantage,
             _ => "",
         };
     }

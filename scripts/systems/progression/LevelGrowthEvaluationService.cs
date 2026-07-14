@@ -4,17 +4,17 @@ using Godot;
 public sealed class LevelGrowthEvaluationService
 {
     private const int LOCK_HIT_BONUS_DEFAULT = 1;
-    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
 
-    public void Setup(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    public void Setup(IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions)
     {
-        _skillDefs.Clear();
-        if (skillDefs == null)
+        _skillDefinitions.Clear();
+        if (skillDefinitions == null)
             return;
-        foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+        foreach (KeyValuePair<StringName, SkillDefinition> pair in skillDefinitions)
         {
             if (pair.Key != "" && pair.Value != null)
-                _skillDefs[pair.Key] = pair.Value;
+                _skillDefinitions[pair.Key] = pair.Value;
         }
     }
 
@@ -83,15 +83,15 @@ public sealed class LevelGrowthEvaluationService
         if (triggerSkillId == "")
             return false;
         var skillProgress = unitProgress.GetSkillProgress(triggerSkillId);
-        SkillDef skillDef = GetSkillDef(triggerSkillId);
-        if (skillProgress == null || skillDef == null)
+        SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
+        if (skillProgress == null || skillDefinition == null)
             return false;
         if (!skillProgress.is_learned || !skillProgress.is_core)
             return false;
         if (skillProgress.is_level_trigger_locked)
             return false;
         return SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-            skillDef,
+            skillDefinition,
             skillProgress,
             unitProgress
         );
@@ -125,10 +125,13 @@ public sealed class LevelGrowthEvaluationService
         return LevelGrowthTriggerResult.LevelUpSuccess(triggerSkillId);
     }
 
-    private SkillDef GetSkillDef(StringName skillId)
+    private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        if (skillId == "" || !_skillDefs.TryGetValue(skillId, out SkillDef skillDef))
+        if (
+            skillId == ""
+            || !_skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
             return null;
-        return skillDef;
+        return skillDefinition;
     }
 }

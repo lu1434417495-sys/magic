@@ -5,33 +5,41 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
+public partial class run_battle_ai_enemy_template_runtime_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
+    // 共享一份内容装载：GameSession 构建（全内容扫描）约 1-2s，30 个正式模板逐个重建会把
+    // 单测试拖到 2 分钟以上。各用例仍各自新建 BattleRuntimeModule 保持运行时隔离。
+    private GameSession _sharedSession;
+
     public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
     {
         try
         {
-            GodotSharpCleanup.CollectPendingFinalizers();
+            _sharedSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             TestTemplateStartBattleStableIds();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestUnitFactoryDoesNotBuildFallbackEnemy();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestDepletedRangedTemplatesCloseForBasicAttackFallback();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestEnemyTemplateUsesCanonicalTemplateId();
-            GodotSharpCleanup.CollectPendingFinalizers();
-            Quit(_test.Finish("Battle AI enemy template runtime regression"));
+            RequestTestExit(_test.Finish("Battle AI enemy template runtime regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Battle AI enemy template runtime regression"));
+            RequestTestExit(_test.Finish("Battle AI enemy template runtime regression", 1));
+        }
+        finally
+        {
+            _sharedSession?.Dispose();
+            _sharedSession = null;
         }
     }
 
@@ -44,9 +52,8 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedEnemyCount: 2,
             expectedBrainId: "melee_aggressor",
             expectedStateId: "engage",
-            requiredSkills: new[] { "charge", "basic_attack" }
+            requiredSkills: new[] { "basic_attack" }
         );
-        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_vanguard",
             "wolf_vanguard",
@@ -54,9 +61,8 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedEnemyCount: 1,
             expectedBrainId: "frontline_bulwark",
             expectedStateId: "engage",
-            requiredSkills: new[] { "charge", "warrior_guard" }
+            requiredSkills: new[] { "warrior_heavy_strike", "basic_attack" }
         );
-        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_harrier",
             "mist_harrier",
@@ -66,7 +72,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "pressure",
             requiredSkills: new[] { "archer_suppressive_fire", "archer_pinning_shot" }
         );
-        GodotSharpCleanup.CollectPendingFinalizers();
         AssertTemplateStartBattle(
             "encounter_weaver",
             "mist_weaver",
@@ -76,7 +81,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             expectedStateId: "pressure",
             requiredSkills: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
         );
-        GodotSharpCleanup.CollectPendingFinalizers();
+        AssertTemplateStartBattle(
+            "encounter_red_dragon",
+            "red_dragon",
+            "红龙",
+            expectedEnemyCount: 1,
+            expectedBrainId: "dragon_tyrant",
+            expectedStateId: "engage",
+            requiredSkills: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
+        );
     }
 
     private void TestWolfTemplatesSpawnWithPositiveStaminaPool()
@@ -92,9 +105,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         {
             using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
             BattleRuntimeModule runtime = runtimeScope.Runtime;
-            EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
-            BattleState state = runtime.StartBattle(anchor, 106, BuildBattleStartContext("ally_a", "ally_b"));
-            GodotSharpCleanup.DisposeGodotObject(anchor);
+            BattleState state = runtime.StartBattle(
+                BuildEncounterAnchor(encounterId, templateId, displayName),
+                106,
+                BuildBattleStartContext("ally_a", "ally_b")
+            );
             _test.True(IsStartedState(state), $"{templateId} 模板应能正式生成战斗状态。");
             if (!IsStartedState(state))
             {
@@ -122,37 +137,33 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
     private void TestUnitFactoryDoesNotBuildFallbackEnemy()
     {
-        using var gameSession = new GameSessionScope();
         var runtime = new BattleRuntimeModule();
         try
         {
-            EncounterAnchorData anchor = BuildEncounterAnchor(
-                "runtime_factory_fallback_affordability",
-                "missing_runtime_factory_template",
-                "工厂 fallback 敌人"
-            );
             runtime.setup(
                 null,
-                gameSession.Session.GetSkillDefsTyped(),
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
-                null
+                _sharedSession.GetSkillDefinitionsTyped(),
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
+                null,
+                item_defs: _sharedSession.GetItemDefsTyped()
             );
             var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
-                anchor,
+                BuildEncounterAnchor(
+                    "runtime_factory_fallback_affordability",
+                    "missing_runtime_factory_template",
+                    "工厂 fallback 敌人"
+                ),
                 new GDictionary
                 {
                     ["default_enemy_stamina"] = 0,
                     ["enemy_unit_count"] = 1,
                 }
             );
-            GodotSharpCleanup.DisposeGodotObject(anchor);
             _test.True(
                 enemyUnits.Count == 0,
                 "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
             );
-            foreach (BattleUnitState enemyUnit in enemyUnits)
-                BattleTestFixture.DisposeBattleUnit(enemyUnit);
         }
         finally
         {
@@ -207,7 +218,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             BattlePreview preview = null;
             try
             {
-                decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                decision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(decision != null && decision.command != null, $"{templateId} pressure probe 应产出正式 AI 指令。");
                 if (decision?.command == null)
                 {
@@ -266,7 +279,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             BattleAiDecision moveDecision = null;
             try
             {
-                moveDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                moveDecision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(moveDecision != null && moveDecision.command != null, $"{templateId} 法力耗尽时仍应产出 fallback 指令。");
                 if (moveDecision?.command != null)
                 {
@@ -312,7 +327,9 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             BattleAiDecision attackDecision = null;
             try
             {
-                attackDecision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, enemyUnit));
+                attackDecision = runtime._ai_service
+                    .ChooseCommand(BuildAiContext(runtime, enemyUnit), captureTrace: false)
+                    ?.Decision;
                 _test.True(attackDecision != null && attackDecision.command != null, $"{templateId} 近身 depleted fallback 应产出基础攻击。");
                 if (attackDecision?.command != null)
                 {
@@ -333,13 +350,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     private void TestEnemyTemplateUsesCanonicalTemplateId()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        EncounterAnchorData anchor = BuildEncounterAnchor(
-            "encounter_wolf_pack_canonical",
-            "wolf_pack",
-            "荒狼群"
+        BattleState state = runtimeScope.Runtime.StartBattle(
+            BuildEncounterAnchor("encounter_wolf_pack_canonical", "wolf_pack", "荒狼群"),
+            102,
+            BuildBattleStartContext("ally_a")
         );
-        BattleState state = runtimeScope.Runtime.StartBattle(anchor, 102, BuildBattleStartContext("ally_a"));
-        GodotSharpCleanup.DisposeGodotObject(anchor);
         _test.True(IsStartedState(state), "wolf_pack 正式 template_id 应能创建战斗状态。");
         if (!IsStartedState(state))
         {
@@ -365,9 +380,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     )
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
-        BattleState state = runtimeScope.Runtime.StartBattle(anchor, 101, BuildBattleStartContext("ally_a", "ally_b"));
-        GodotSharpCleanup.DisposeGodotObject(anchor);
+        BattleState state = runtimeScope.Runtime.StartBattle(
+            BuildEncounterAnchor(encounterId, templateId, displayName),
+            101,
+            BuildBattleStartContext("ally_a", "ally_b")
+        );
         _test.True(IsStartedState(state), $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。");
         if (!IsStartedState(state))
         {
@@ -388,22 +405,22 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         }
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
+    private BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
-            null
+            _sharedSession.GetSkillDefinitionsTyped(),
+            _sharedSession.GetEnemyTemplateDefinitions(),
+            _sharedSession.GetEnemyAiBrainDefinitions(),
+            null,
+            item_defs: _sharedSession.GetItemDefsTyped()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        return new BattleRuntimeScope(runtime, gameSession);
+        return new BattleRuntimeScope(runtime);
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
@@ -440,11 +457,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
     private static bool IsStartedState(BattleState state) => state != null && !state.IsEmpty();
 
-    private static List<StringName> GetFormalEnemyTemplateIds()
+    private List<StringName> GetFormalEnemyTemplateIds()
     {
-        using var gameSession = new GameSessionScope();
         var results = new List<StringName>();
-        results.AddRange(gameSession.Session.GetEnemyTemplatesTyped().Keys);
+        results.AddRange(_sharedSession.GetEnemyTemplateDefinitions().Keys);
         results.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return results;
     }
@@ -454,13 +470,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         BattleState state = null;
         try
         {
-            EncounterAnchorData anchor = BuildEncounterAnchor(
-                $"probe_{templateId}",
-                templateId,
-                templateId.ToString()
+            state = runtime.StartBattle(
+                BuildEncounterAnchor($"probe_{templateId}", templateId, templateId.ToString()),
+                1701,
+                BuildBattleStartContext("ally_probe")
             );
-            state = runtime.StartBattle(anchor, 1701, BuildBattleStartContext("ally_probe"));
-            GodotSharpCleanup.DisposeGodotObject(anchor);
             if (!IsStartedState(state) || state.enemy_unit_ids.Count == 0)
             {
                 return null;
@@ -494,22 +508,28 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
             return 1;
         }
         if (
-            !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(enemyUnit.ai_brain_id, out EnemyAiBrainDef brain)
+            !runtime
+                .GetEnemyAiBrainIndexTyped()
+                .TryGetValue(enemyUnit.ai_brain_id, out EnemyAiBrainDefinition brain)
         )
         {
             return 1;
         }
-        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
+        foreach (EnemyAiTransitionRuleDefinition rule in brain.TransitionRules)
         {
-            if (rule == null || rule.rule_id != (StringName)"pressure_enter")
+            if (rule == null || rule.RuleId != (StringName)"pressure_enter")
             {
                 continue;
             }
-            foreach (EnemyAiTransitionConditionDef condition in rule.GetTypedConditions())
+            foreach (EnemyAiTransitionConditionDefinition condition in rule.Conditions)
             {
-                if (condition != null && condition.predicate == (StringName)"nearest_enemy_distance_at_or_below")
+                if (
+                    condition != null
+                    && condition.Predicate
+                        == (StringName)"nearest_enemy_distance_at_or_below"
+                )
                 {
-                    return Math.Clamp(condition.max_distance, 1, 7);
+                    return Math.Clamp(condition.MaxDistance, 1, 7);
                 }
             }
         }
@@ -520,13 +540,16 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
     {
         if (
             runtime == null
-            || !runtime.GetSkillDefIndexTyped().TryGetValue("basic_attack", out SkillDef skillDef)
-            || skillDef.combat_profile == null
+            || !runtime
+                .GetSkillDefinitionIndexTyped()
+                .TryGetValue("basic_attack", out SkillDefinition skillDefinition)
+            || skillDefinition.CombatProfile == null
         )
         {
             return 5;
         }
-        CombatSkillResourceCosts costs = skillDef.combat_profile.GetEffectiveResourceCostValues(1);
+        CombatSkillResourceCosts costs =
+            skillDefinition.CombatProfile.GetEffectiveResourceCostValues(1);
         return Math.Max(costs.StaminaCost, 0);
     }
 
@@ -574,7 +597,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -680,19 +703,16 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
 
     private static void DisposeDecision(BattleAiDecision decision)
     {
-        GodotSharpCleanup.DisposeGodotObject(decision?.command);
+        BattleTestFixture.DisposeBattleCommand(decision?.command);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.score_input);
         BattleTestFixture.DisposeBattleAiScoreInput(decision?.skill_score_input);
     }
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        private readonly GameSession _gameSession;
-
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
+        internal BattleRuntimeScope(BattleRuntimeModule runtime)
         {
             Runtime = runtime;
-            _gameSession = gameSession;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -700,22 +720,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
-            _gameSession?.Dispose();
-        }
-    }
-
-    private sealed class GameSessionScope : IDisposable
-    {
-        internal GameSessionScope()
-        {
-            Session = new GameSession();
-        }
-
-        internal GameSession Session { get; }
-
-        public void Dispose()
-        {
-            Session?.Dispose();
         }
     }
 }

@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // 战斗时间轴状态数据。
 // 翻译自 battle_timeline_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleTimelineState : RefCounted
+public class BattleTimelineState
 {
     internal const int TuGranularity = 5;
 
@@ -19,7 +19,7 @@ public partial class BattleTimelineState : RefCounted
     public int current_tu { get; set; }
     public int tu_per_tick { get; set; } = TuGranularity;
     public bool frozen { get; set; }
-    public Godot.Collections.Array<StringName> ready_unit_ids { get; set; } = new();
+    public StringNameList ready_unit_ids { get; set; } = new();
 
     public void clear()
     {
@@ -36,7 +36,7 @@ public partial class BattleTimelineState : RefCounted
             current_tu = current_tu,
             tu_per_tick = tu_per_tick,
             frozen = frozen,
-            ready_unit_ids = new Godot.Collections.Array<StringName>(ready_unit_ids),
+            ready_unit_ids = ready_unit_ids?.Duplicate() ?? new StringNameList(),
         };
     }
 
@@ -77,7 +77,7 @@ public partial class BattleTimelineState : RefCounted
             return null;
         }
 
-        Godot.Collections.Array<StringName> parsedReadyUnitIds = StringsToStringNameArray(readyUnitIds);
+        StringNameList parsedReadyUnitIds = StringsToStringNameArray(readyUnitIds);
         if (parsedReadyUnitIds == null)
         {
             return null;
@@ -93,11 +93,11 @@ public partial class BattleTimelineState : RefCounted
     }
 
     private static Godot.Collections.Array<string> StringNameArrayToStrings(
-        Godot.Collections.Array<StringName> values
+        System.Collections.Generic.IEnumerable<StringName> values
     )
     {
         var results = new Godot.Collections.Array<string>();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
         {
             results.Add(value.ToString());
         }
@@ -120,11 +120,11 @@ public partial class BattleTimelineState : RefCounted
         return true;
     }
 
-    private static Godot.Collections.Array<StringName> StringsToStringNameArray(
+    private static StringNameList StringsToStringNameArray(
         Godot.Collections.Array values
     )
     {
-        var results = new Godot.Collections.Array<StringName>();
+        var results = new StringNameList();
         foreach (var value in values)
         {
             string valueTypeName = value.VariantType.ToString();

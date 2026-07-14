@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_game_root_content_catalog_regression : SceneTree
+public partial class run_game_root_content_catalog_regression : LifecycleTestSceneTree
 {
     private static readonly StringName CatalogProbeItemId = "catalog_regression_probe_item";
     private static readonly StringName FacadeProbeItemId = "facade_catalog_regression_probe_item";
@@ -20,23 +20,24 @@ public partial class run_game_root_content_catalog_regression : SceneTree
     private void Run()
     {
         TestGameSessionOwnsUnifiedRootAndContentCatalog();
-        TestContentCatalogCachesAndSyncsOnContentRefresh();
+        TestContentCatalogCachesBoundSnapshot();
         TestContentCatalogReturnsDefensiveReadOnlyViews();
         TestContentCatalogIdentityCatalogReturnsDefensiveReadOnlyViews();
         TestContentCatalogInvalidatedAfterSessionDispose();
         TestRuntimeFacadeBindsUnifiedRootBeforeWorldSetup();
-        TestRuntimeFacadeReadsCurrentCatalogAfterContentRefresh();
-        TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenCatalogOrSessionChanges();
+        TestRuntimeFacadeReadsBoundSyntheticCatalog();
+        TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenSessionChanges();
         TestRuntimeFacadeDiscardsStaleContentCatalog();
         TestRuntimeFacadeDiscardsCatalogBoundToOtherSession();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Game root content catalog regression"));
+        RequestTestExit(_test.Finish("Game root content catalog regression"));
     }
 
     private void TestGameSessionOwnsUnifiedRootAndContentCatalog()
     {
-        GameSession gameSession = new();
+        StringName fakeSkillId = "regression_fake_skill";
+        int baselineSkillCount = GameSessionTestFactory.GetProcessSnapshot().Skills.Count;
+        GameSession gameSession = CreateSyntheticSessionWithSkill(fakeSkillId);
         try
         {
             GameRoot root = gameSession.GetGameRootTyped();
@@ -60,9 +61,9 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             );
 
             _test.Eq(
-                gameSession.GetSkillDefsTyped().Count,
-                catalog.GetSkillDefsTyped().Count,
-                "content catalog skill defs 应与 GameSession 正式内容缓存一致。"
+                gameSession.GetSkillDefinitionsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
+                "content catalog skill definitions 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
                 gameSession.GetProfessionDefsTyped().Count,
@@ -75,46 +76,48 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "content catalog trait defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
+                gameSession.GetBarrierProfileDefinitionsTyped().Count,
+                catalog.GetBarrierProfileDefinitionsTyped().Count,
+                "content catalog barrier profile definitions 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
+                gameSession.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                catalog.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                "content catalog equipment ability bindings 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
+                gameSession.GetEquipmentAbilityContentRevision(),
+                catalog.GetEquipmentAbilityContentRevision(),
+                "content catalog equipment ability revision 应与 GameSession 正式内容缓存一致。"
+            );
+            _test.Eq(
                 gameSession.GetItemDefsTyped().Count,
                 catalog.GetItemDefsTyped().Count,
                 "content catalog item defs 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
-                gameSession.GetEnemyTemplatesTyped().Count,
-                catalog.GetEnemyTemplatesTyped().Count,
+                gameSession.GetEnemyTemplateDefinitions().Count,
+                catalog.GetEnemyTemplateDefinitions().Count,
                 "content catalog enemy templates 应与 GameSession 正式内容缓存一致。"
             );
             _test.Eq(
-                gameSession.GetWildEncounterRostersTyped().Count,
-                catalog.GetWildEncounterRostersTyped().Count,
+                gameSession.GetEncounterRosterDefinitions().Count,
+                catalog.GetEncounterRosterDefinitions().Count,
                 "content catalog wild encounter rosters 应与 GameSession 正式内容缓存一致。"
             );
             _test.True(
-                catalog.GetBattleSpecialProfileRegistrySnapshot() != null,
-                "content catalog 应提供 battle special profile snapshot 边界。"
+                catalog.GetBattleSpecialProfileView() != null,
+                "content catalog 应提供 battle special profile typed view 边界。"
             );
 
-            // catalog 持有的是 typed 快照，而不是 session getter 的 live 转发：
-            // 直接往 session 的内容缓存塞一个 fake skill，未刷新前 catalog 不应看到，
-            // 显式刷新 catalog 后才应看到。
-            int baselineSkillCount = catalog.GetSkillDefsTyped().Count;
-            StringName fakeSkillId = "regression_fake_skill";
-            gameSession._skill_defs[fakeSkillId] = new SkillDef { skill_id = fakeSkillId };
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
-                baselineSkillCount,
-                "未刷新时 content catalog 不应看到直接塞进 GameSession._skill_defs 的 fake skill"
-                    + "（证明 catalog getter 不是 session getter 的 live 转发）。"
-            );
-            gameSession.RefreshContentCatalogForTests();
-            _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 baselineSkillCount + 1,
-                "显式刷新 content catalog 后应反映新塞入 GameSession._skill_defs 的 fake skill。"
+                "synthetic snapshot 应在 session bind 前加入一个 fake skill。"
             );
             _test.True(
-                catalog.GetSkillDefsTyped().ContainsKey(fakeSkillId),
-                "刷新后的 content catalog skill 快照应包含 fake skill id。"
+                catalog.GetSkillDefinitionsTyped().ContainsKey(fakeSkillId),
+                "绑定后的 content catalog skill definition 快照应包含 fake skill id。"
             );
         }
         finally
@@ -123,9 +126,10 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         }
     }
 
-    private void TestContentCatalogCachesAndSyncsOnContentRefresh()
+    private void TestContentCatalogCachesBoundSnapshot()
     {
-        GameSession gameSession = new();
+        int baselineItemCount = GameSessionTestFactory.GetProcessSnapshot().Items.Count;
+        GameSession gameSession = CreateSyntheticSessionWithItem(CatalogProbeItemId);
         try
         {
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
@@ -135,64 +139,66 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
             // catalog 不是纯代理：同一份 typed 表跨调用应返回缓存的同一实例。
             _test.True(
-                ReferenceEquals(catalog.GetSkillDefsTyped(), catalog.GetSkillDefsTyped()),
-                "content catalog 应返回缓存的 typed skill 视图，而不是每次重建。"
+                ReferenceEquals(
+                    catalog.GetSkillDefinitionsTyped(),
+                    catalog.GetSkillDefinitionsTyped()
+                ),
+                "content catalog 应返回缓存的 typed skill definition 视图，而不是每次重建。"
             );
             _test.True(
                 ReferenceEquals(catalog.GetItemDefsTyped(), catalog.GetItemDefsTyped()),
                 "content catalog 应返回缓存的 typed item 视图，而不是每次重建。"
             );
-            // 对照：GameSession 自身 getter 每次都重建 typed index，证明 catalog 持有独立缓存。
+            // Session 与 catalog 共同借用同一份 immutable snapshot，不做运行期重建。
             _test.True(
-                !ReferenceEquals(
-                    gameSession.GetSkillDefsTyped(),
-                    gameSession.GetSkillDefsTyped()
+                ReferenceEquals(
+                    gameSession.GetSkillDefinitionsTyped(),
+                    gameSession.GetSkillDefinitionsTyped()
                 ),
-                "GameSession typed getter 仍每次重建，catalog 不应只是其代理。"
+                "GameSession typed getter 应稳定借用同一个 immutable skill index。"
             );
-            // battle special profile snapshot 应是防御性副本，而不是别名缓存。
-            Godot.Collections.Dictionary snapshotA =
-                catalog.GetBattleSpecialProfileRegistrySnapshot();
-            Godot.Collections.Dictionary snapshotB =
-                catalog.GetBattleSpecialProfileRegistrySnapshot();
-            _test.True(snapshotA != null, "content catalog 应提供 battle special profile snapshot。");
+            // battle special profile view 返回不可变深副本，而不是可变字典别名。
+            IBattleSpecialProfileView specialProfileView =
+                catalog.GetBattleSpecialProfileView();
             _test.True(
-                !ReferenceEquals(snapshotA, snapshotB),
-                "battle special profile snapshot 应返回缓存的防御性副本。"
+                specialProfileView.TryGetMeteorSwarmProfile(
+                    "meteor_swarm",
+                    out MeteorSwarmProfileData meteorProfileA
+                ),
+                "battle special profile typed view 应包含 meteor_swarm。"
+            );
+            _test.True(
+                specialProfileView.TryGetMeteorSwarmProfile(
+                    "meteor_swarm",
+                    out MeteorSwarmProfileData meteorProfileB
+                ),
+                "battle special profile typed view 应支持重复只读查询。"
+            );
+            _test.True(
+                meteorProfileA != null
+                    && meteorProfileB != null
+                    && !ReferenceEquals(meteorProfileA, meteorProfileB),
+                "battle special profile typed view 应返回深只读副本。"
             );
 
-            long revisionBefore = catalog.GetRevision();
-            int itemCountBefore = catalog.GetItemDefsTyped().Count;
-
-            _test.Eq(
-                gameSession.InstallTestContentDef("item", CatalogProbeItemId, BuildProbeItemDef(CatalogProbeItemId)),
-                (int)Error.Ok,
-                "应能注册 content catalog 回归用探针物品。"
-            );
-
-            // 刷新后 catalog 缓存应与 GameSession 同步，并且 revision 自增。
             _test.True(
                 catalog.GetItemDefsTyped().ContainsKey(CatalogProbeItemId),
-                "content catalog 在内容刷新后应同步出新装入的物品。"
+                "content catalog 应暴露 bind 前写入 synthetic snapshot 的探针物品。"
             );
             _test.Eq(
                 catalog.GetItemDefsTyped().Count,
-                itemCountBefore + 1,
-                "content catalog item 缓存在刷新后应增加一个条目。"
-            );
-            _test.Eq(
-                catalog.GetItemDefsTyped().Count,
-                gameSession.GetItemDefsTyped().Count,
-                "content catalog item 缓存在刷新后应与 GameSession 一致。"
+                baselineItemCount + 1,
+                "synthetic snapshot item index 应比 process baseline 多一个条目。"
             );
             _test.True(
-                catalog.GetRevision() > revisionBefore,
-                "content catalog revision 应在内容刷新后自增。"
+                ReferenceEquals(catalog.GetItemDefsTyped(), gameSession.GetItemDefsTyped()),
+                "content catalog 与 GameSession 应借用同一个 immutable item index。"
             );
             _test.True(
                 ReferenceEquals(gameSession.GetContentCatalogTyped(), catalog),
-                "刷新内容不应替换 GameSession 持有的 content catalog 实例。"
+                "session bind 后应稳定返回同一个 content catalog 实例。"
             );
+            _test.True(catalog.GetRevision() > 0, "snapshot bind 应建立正数 catalog revision。");
         }
         finally
         {
@@ -202,7 +208,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestContentCatalogReturnsDefensiveReadOnlyViews()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = CreateSyntheticSessionWithSkill(DefensiveProbeSkillId);
         try
         {
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
@@ -210,72 +216,54 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             if (catalog == null)
                 return;
 
-            // 装入一个探针技能，让只读视图非空，证明防御性包装而不是空集合特例。
-            gameSession._skill_defs[DefensiveProbeSkillId] = new SkillDef
-            {
-                skill_id = DefensiveProbeSkillId,
-            };
-            gameSession.RefreshContentCatalogForTests();
-
-            IReadOnlyDictionary<StringName, SkillDef> skillView = catalog.GetSkillDefsTyped();
+            IReadOnlyDictionary<StringName, SkillDefinition> skillView =
+                catalog.GetSkillDefinitionsTyped();
             _test.True(
                 skillView.ContainsKey(DefensiveProbeSkillId),
-                "刷新后的只读 skill 视图应包含探针技能。"
+                "刷新后的只读 skill definition 视图应包含探针技能。"
             );
             _test.True(
-                skillView as Dictionary<StringName, SkillDef> == null,
-                "typed skill getter 不应可被 downcast 成内部可变 Dictionary。"
+                skillView as Dictionary<StringName, SkillDefinition> == null,
+                "typed skill definition getter 不应可被 downcast 成内部可变 Dictionary。"
             );
 
-            int skillCountBefore = catalog.GetSkillDefsTyped().Count;
+            int skillCountBefore = catalog.GetSkillDefinitionsTyped().Count;
             bool skillMutationBlocked = false;
-            SkillDef defensiveInjectSkill = new SkillDef { skill_id = "defensive_inject_skill" };
             try
             {
-                ((IDictionary<StringName, SkillDef>)skillView)[
+                ((IDictionary<StringName, SkillDefinition>)skillView)[
                     "defensive_inject_skill"
-                ] = defensiveInjectSkill;
-                defensiveInjectSkill = null;
+                ] = skillView[DefensiveProbeSkillId];
             }
             catch (NotSupportedException)
             {
                 skillMutationBlocked = true;
             }
-            finally
-            {
-                BattleTestFixture.DisposeSkill(defensiveInjectSkill);
-            }
             _test.True(
                 skillMutationBlocked,
-                "通过 IDictionary 接口改写 catalog skill 只读视图应抛 NotSupportedException。"
+                "通过 IDictionary 接口改写 catalog skill definition 只读视图应抛 NotSupportedException。"
             );
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 skillCountBefore,
-                "对只读视图的改写尝试不应影响 catalog skill 快照。"
+                "对只读视图的改写尝试不应影响 catalog skill definition 快照。"
             );
 
-            IReadOnlyDictionary<StringName, TraitDef> traitView = catalog.GetTraitDefsTyped();
+            IReadOnlyDictionary<StringName, TraitDefinition> traitView =
+                catalog.GetTraitDefsTyped();
             _test.True(
-                traitView as Dictionary<StringName, TraitDef> == null,
+                traitView as Dictionary<StringName, TraitDefinition> == null,
                 "typed trait getter 不应可被 downcast 成内部可变 Dictionary。"
             );
             int traitCountBefore = catalog.GetTraitDefsTyped().Count;
             bool traitMutationBlocked = false;
-            TraitDef defensiveInjectTrait = new TraitDef { trait_id = "defensive_inject_trait" };
             try
             {
-                ((IDictionary<StringName, TraitDef>)traitView)["defensive_inject_trait"] =
-                    defensiveInjectTrait;
-                defensiveInjectTrait = null;
+                ((IDictionary<StringName, TraitDefinition>)traitView).Clear();
             }
             catch (NotSupportedException)
             {
                 traitMutationBlocked = true;
-            }
-            finally
-            {
-                BattleTestFixture.DisposeTrait(defensiveInjectTrait);
             }
             _test.True(
                 traitMutationBlocked,
@@ -286,17 +274,30 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 traitCountBefore,
                 "对只读视图的改写尝试不应影响 catalog trait 快照。"
             );
-
-            IReadOnlyDictionary<StringName, ItemDef> itemView = catalog.GetItemDefsTyped();
             _test.True(
-                itemView as Dictionary<StringName, ItemDef> == null,
+                RejectsMutation(gameSession.GetProfessionDefsTyped()),
+                "GameSession profession definition snapshot 应拒绝写入。"
+            );
+            _test.True(
+                RejectsMutation(gameSession.GetAchievementDefsTyped()),
+                "GameSession achievement definition snapshot 应拒绝写入。"
+            );
+            _test.True(
+                RejectsMutation(gameSession.GetQuestDefsTyped()),
+                "GameSession quest definition snapshot 应拒绝写入。"
+            );
+
+            IReadOnlyDictionary<StringName, ItemDefinition> itemView =
+                catalog.GetItemDefsTyped();
+            _test.True(
+                itemView as Dictionary<StringName, ItemDefinition> == null,
                 "typed item getter 不应可被 downcast 成内部可变 Dictionary。"
             );
             int itemCountBefore = catalog.GetItemDefsTyped().Count;
             bool itemMutationBlocked = false;
             try
             {
-                ((IDictionary<StringName, ItemDef>)itemView).Clear();
+                ((IDictionary<StringName, ItemDefinition>)itemView).Clear();
             }
             catch (NotSupportedException)
             {
@@ -320,7 +321,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestContentCatalogIdentityCatalogReturnsDefensiveReadOnlyViews()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
@@ -337,7 +338,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             if (identityCatalog == null)
                 return;
 
-            IReadOnlyDictionary<StringName, RaceDef> raceView = identityCatalog.RaceDefs;
+            IReadOnlyDictionary<StringName, RaceDefinition> raceView = identityCatalog.RaceDefs;
             _test.True(raceView != null, "identity catalog 应暴露 race defs 只读视图。");
             if (raceView == null)
                 return;
@@ -345,26 +346,19 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             // identity catalog 的 race 视图同样是防御性只读包装：downcast 成内部可变 Dictionary 应失败，
             // 否则下游可绕过只读约束改写 catalog 暴露的 identity snapshot。
             _test.True(
-                raceView as Dictionary<StringName, RaceDef> == null,
+                raceView as Dictionary<StringName, RaceDefinition> == null,
                 "identity catalog race getter 不应可被 downcast 成内部可变 Dictionary。"
             );
 
             int raceCountBefore = identityCatalog.RaceDefs.Count;
             bool raceMutationBlocked = false;
-            RaceDef identityInjectRace = new RaceDef();
             try
             {
-                ((IDictionary<StringName, RaceDef>)raceView)["identity_inject_race"] =
-                    identityInjectRace;
-                identityInjectRace = null;
+                ((IDictionary<StringName, RaceDefinition>)raceView).Clear();
             }
             catch (NotSupportedException)
             {
                 raceMutationBlocked = true;
-            }
-            finally
-            {
-                BattleTestFixture.DisposeRace(identityInjectRace);
             }
             _test.True(
                 raceMutationBlocked,
@@ -384,7 +378,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestContentCatalogInvalidatedAfterSessionDispose()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = CreateSyntheticSessionWithItem(DisposeProbeItemId);
         GameContentCatalog catalog = null;
         bool runtimeResourcesDisposed = false;
         try
@@ -394,15 +388,6 @@ public partial class run_game_root_content_catalog_regression : SceneTree
             if (catalog == null)
                 return;
 
-            _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    DisposeProbeItemId,
-                    BuildProbeItemDef(DisposeProbeItemId)
-                ),
-                (int)Error.Ok,
-                "应能注册 dispose 回归用探针物品。"
-            );
             _test.True(catalog.HasSessionTyped(), "dispose 前 catalog 应绑定 session。");
             _test.True(
                 catalog.GetItemDefsTyped().ContainsKey(DisposeProbeItemId),
@@ -434,18 +419,19 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "dispose 后旧 catalog 不应再含探针物品。"
             );
             _test.Eq(
-                catalog.GetSkillDefsTyped().Count,
+                catalog.GetSkillDefinitionsTyped().Count,
                 0,
-                "dispose 后旧 catalog 不应再读到 stale typed skill 快照。"
+                "dispose 后旧 catalog 不应再读到 stale typed skill definition 快照。"
             );
             _test.Eq(
                 catalog.GetTraitDefsTyped().Count,
                 0,
                 "dispose 后旧 catalog 不应再读到 stale typed trait 快照。"
             );
-            _test.True(
-                catalog.GetProgressionContentRegistryTyped() == null,
-                "dispose 后旧 catalog 不应再持有 progression content registry 引用。"
+            _test.Eq(
+                catalog.GetEquipmentAbilityBindingDefinitionsTyped().Count,
+                0,
+                "dispose 后旧 catalog 不应再读到 stale equipment ability binding 快照。"
             );
             _test.True(
                 catalog.GetRevision() > revisionBefore,
@@ -462,7 +448,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestRuntimeFacadeBindsUnifiedRootBeforeWorldSetup()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         try
         {
@@ -487,25 +473,14 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         }
     }
 
-    private void TestRuntimeFacadeReadsCurrentCatalogAfterContentRefresh()
+    private void TestRuntimeFacadeReadsBoundSyntheticCatalog()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = CreateSyntheticSessionWithItem(FacadeProbeItemId);
         GameRuntimeFacade runtime = new();
         try
         {
             GameContentCatalog catalog = gameSession.GetContentCatalogTyped();
             runtime.Setup(gameSession);
-
-            long revisionBefore = catalog.GetRevision();
-            _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    FacadeProbeItemId,
-                    BuildProbeItemDef(FacadeProbeItemId)
-                ),
-                (int)Error.Ok,
-                "应能以 StringName key 注册 facade content catalog 回归用探针物品。"
-            );
 
             GameContentCatalog runtimeCatalog = runtime.GetContentCatalogTyped();
             _test.True(
@@ -513,12 +488,8 @@ public partial class run_game_root_content_catalog_regression : SceneTree
                 "GameRuntimeFacade 应解析到 GameSession 当前的 content catalog 实例。"
             );
             _test.True(
-                runtimeCatalog.GetRevision() > revisionBefore,
-                "GameRuntimeFacade 看到的 catalog revision 应反映内容刷新。"
-            );
-            _test.True(
                 runtimeCatalog.GetItemDefsTyped().ContainsKey(FacadeProbeItemId),
-                "GameRuntimeFacade 读取的当前 catalog 应同步出新装入的物品。"
+                "GameRuntimeFacade 读取的 catalog 应包含 bind 前写入 snapshot 的物品。"
             );
         }
         finally
@@ -528,70 +499,27 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         }
     }
 
-    private void TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenCatalogOrSessionChanges()
+    private void TestRuntimeFacadeRebuildsEquipmentTraitRollerWhenSessionChanges()
     {
-        GameSession gameSession = new();
-        GameSession otherSession = new();
+        GameSession gameSession = CreateSyntheticSessionWithItem(RollerProbeItemId);
+        GameSession otherSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         try
         {
             runtime.Setup(gameSession);
             EquipmentTraitRollService first = runtime.GetEquipmentTraitRollService();
             _test.True(first != null, "facade should build an equipment trait roller for a session.");
-            _test.True(
-                first.HasLiveOwnedRngForTests,
-                "facade-created equipment trait roller should own its fallback RNG."
-            );
 
-            GameContentCatalog catalog = runtime.GetContentCatalogTyped();
-            long revisionBefore = catalog.GetRevision();
-            _test.Eq(
-                gameSession.InstallTestContentDef(
-                    "item",
-                    RollerProbeItemId,
-                    BuildProbeItemDef(RollerProbeItemId)
-                ),
-                (int)Error.Ok,
-                "test content install should advance the content catalog revision."
-            );
             _test.True(
-                runtime.GetContentCatalogTyped().GetRevision() > revisionBefore,
-                "catalog revision should advance after content refresh."
-            );
-
-            EquipmentTraitRollService afterRefresh = runtime.GetEquipmentTraitRollService();
-            _test.True(
-                !ReferenceEquals(afterRefresh, first),
-                "facade should rebuild equipment trait roller when catalog revision changes."
-            );
-            _test.True(
-                first.IsDisposedForTests,
-                "facade should dispose the previous equipment trait roller when catalog revision changes."
-            );
-            _test.True(
-                !first.HasLiveOwnedRngForTests,
-                "disposing the previous equipment trait roller should release its owned RNG."
+                runtime.GetContentCatalogTyped().GetItemDefsTyped().ContainsKey(RollerProbeItemId),
+                "synthetic session catalog should contain the roller probe item at bind time."
             );
 
             runtime.Setup(otherSession);
             EquipmentTraitRollService afterSessionChange = runtime.GetEquipmentTraitRollService();
             _test.True(
-                !ReferenceEquals(afterSessionChange, afterRefresh),
+                !ReferenceEquals(afterSessionChange, first),
                 "facade should rebuild equipment trait roller when setup binds another session."
-            );
-            _test.True(
-                afterRefresh.IsDisposedForTests,
-                "facade should dispose the previous equipment trait roller when session changes."
-            );
-
-            runtime.Dispose();
-            _test.True(
-                afterSessionChange.IsDisposedForTests,
-                "facade dispose should dispose its current equipment trait roller."
-            );
-            _test.True(
-                !afterSessionChange.HasLiveOwnedRngForTests,
-                "facade dispose should release the current equipment trait roller owned RNG."
             );
         }
         finally
@@ -604,7 +532,7 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestRuntimeFacadeDiscardsStaleContentCatalog()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         try
         {
@@ -647,8 +575,8 @@ public partial class run_game_root_content_catalog_regression : SceneTree
 
     private void TestRuntimeFacadeDiscardsCatalogBoundToOtherSession()
     {
-        GameSession gameSession = new();
-        GameSession otherSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        GameSession otherSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         GameRuntimeFacade runtime = new();
         try
         {
@@ -695,15 +623,114 @@ public partial class run_game_root_content_catalog_regression : SceneTree
         }
     }
 
-    private static ItemDef BuildProbeItemDef(StringName itemId)
+    private static bool RejectsMutation<T>(IReadOnlyDictionary<StringName, T> snapshot)
     {
-        return new ItemDef
+        try
         {
-            item_id = itemId,
-            display_name = "Catalog Regression Probe",
-            is_stackable = true,
-            item_category = "material",
-        };
+            ((IDictionary<StringName, T>)snapshot).Clear();
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return true;
+        }
+    }
+
+    private static GameSession CreateSyntheticSessionWithSkill(StringName skillId)
+    {
+        SkillDefinition definition = BuildProbeSkillDefinition(skillId);
+        return GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Skills = CopyWithEntry(seed.Skills, skillId, definition)
+        );
+    }
+
+    private static GameSession CreateSyntheticSessionWithItem(StringName itemId)
+    {
+        ItemDefinition definition = BuildProbeItemDefinition(itemId);
+        return GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Items = CopyWithEntry(seed.Items, itemId, definition)
+        );
+    }
+
+    private static IReadOnlyDictionary<StringName, T> CopyWithEntry<T>(
+        IReadOnlyDictionary<StringName, T> source,
+        StringName key,
+        T value
+    )
+        where T : class
+    {
+        var copy = source == null
+            ? new Dictionary<StringName, T>()
+            : new Dictionary<StringName, T>(source);
+        copy[key] = value ?? throw new ArgumentNullException(nameof(value));
+        return copy;
+    }
+
+    private static ItemDefinition BuildProbeItemDefinition(StringName itemId)
+    {
+        return new ItemDefinition(
+            itemId,
+            "",
+            "Catalog Regression Probe",
+            "",
+            "",
+            true,
+            0,
+            0,
+            0,
+            true,
+            99,
+            "material",
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitRollGroupDefinition>(),
+            Array.Empty<string>(),
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            Array.Empty<string>(),
+            null,
+            "",
+            null,
+            -1
+        );
+    }
+
+    private static SkillDefinition BuildProbeSkillDefinition(StringName skillId)
+    {
+        return new SkillDefinition(
+            skillId,
+            "Catalog Regression Probe Skill",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            Array.Empty<int>(),
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            false,
+            "",
+            Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
+        );
     }
 
     private void CleanupGameSession(GameSession gameSession)

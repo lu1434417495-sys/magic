@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_titan_colossus_form_regression : SceneTree
+public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TitanColossusForm = "titan_colossus_form";
     private static readonly StringName TitanGiantFormStatus = "titan_giant_form";
@@ -21,9 +21,8 @@ public partial class run_titan_colossus_form_regression : SceneTree
         TestTitanColossusFormChangesAndRestoresBodySize();
         TestBodySizeRestoreWaitsWhenPreviousFootprintIsBlocked();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
 
-        Quit(_test.Finish("Titan colossus form regression"));
+        RequestTestExit(_test.Finish("Titan colossus form regression"));
     }
 
     private void TestTitanColossusFormChangesAndRestoresBodySize()
@@ -47,9 +46,11 @@ public partial class run_titan_colossus_form_regression : SceneTree
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = titan.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(TitanColossusForm),
             skill_id = TitanColossusForm,
             target_unit_id = titan.unit_id,
         };
+        command.AddTargetUnitId(titan.unit_id);
 
         BattlePreview preview = runtime.PreviewCommand(command);
         _test.True(preview != null && preview.allowed, "Titan Colossus Form 应允许自施放。");
@@ -158,13 +159,13 @@ public partial class run_titan_colossus_form_regression : SceneTree
 
     private static BattleRuntimeModule BuildRuntime()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleRuntimeModule runtime = new();
         runtime.setup(
             null,
-            registry.GetSkillDefsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            registry.GetSkillDefinitionsTyped(),
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         registry.Dispose();
         return runtime;

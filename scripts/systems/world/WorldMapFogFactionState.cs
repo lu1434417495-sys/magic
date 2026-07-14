@@ -13,15 +13,15 @@ public sealed class WorldMapFogFactionState
         _visibleNow.Clear();
     }
 
-    public void MarkVisible(Vector2I coord)
+    public bool MarkVisible(Vector2I coord)
     {
         _visibleNow.Add(coord);
-        _explored.Add(coord);
+        return _explored.Add(coord);
     }
 
-    public void MarkExplored(Vector2I coord)
+    public bool MarkExplored(Vector2I coord)
     {
-        _explored.Add(coord);
+        return _explored.Add(coord);
     }
 
     public bool IsVisible(Vector2I coord)

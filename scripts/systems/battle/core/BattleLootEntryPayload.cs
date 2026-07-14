@@ -84,11 +84,71 @@ internal static class BattleLootEntryPayload
         {
             if (payloadEntryValue.VariantType != Variant.Type.Dictionary)
                 continue;
-            BattleLootEntry entry = FormalDropEntryPayloadToTyped(
-                payloadEntryValue.AsGodotDictionary()
-            );
+            using GDictionary payloadEntry = payloadEntryValue.AsGodotDictionary();
+            BattleLootEntry entry = FormalDropEntryPayloadToTyped(payloadEntry);
             if (entry != null)
                 result.Add(entry);
+        }
+        return result;
+    }
+
+    internal static List<BattleLootEntry> ParseEntriesPlain(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> payloadEntries
+    )
+    {
+        var result = new List<BattleLootEntry>();
+        if (payloadEntries == null)
+            return result;
+
+        foreach (IReadOnlyDictionary<string, object> payloadEntry in payloadEntries)
+        {
+            if (
+                payloadEntry == null
+                || !HasExactPlainFields(payloadEntry, ItemDropEntryFields)
+                || ReadPlainRequiredString(payloadEntry, "drop_type") != "item"
+            )
+            {
+                continue;
+            }
+
+            string sourceKindText = ReadPlainRequiredString(
+                payloadEntry,
+                "drop_source_kind"
+            );
+            BattleLootSourceKind sourceKind = sourceKindText switch
+            {
+                "enemy_template" or "encounter_roster" => BattleLootSourceKind.EnemyUnit,
+                _ => BattleLootIds.ToSourceKind(new StringName(sourceKindText)),
+            };
+            StringName sourceId = ReadPlainRequiredString(payloadEntry, "drop_source_id");
+            string sourceLabel = ReadPlainRequiredString(
+                payloadEntry,
+                "drop_source_label"
+            );
+            StringName dropEntryId = ReadPlainRequiredString(payloadEntry, "drop_entry_id");
+            StringName itemId = ReadPlainRequiredString(payloadEntry, "item_id");
+            if (
+                sourceKind == BattleLootSourceKind.Unknown
+                || sourceId == ""
+                || string.IsNullOrEmpty(sourceLabel)
+                || dropEntryId == ""
+                || itemId == ""
+                || !TryReadPlainPositiveInt(payloadEntry, "quantity", out int quantity)
+            )
+            {
+                continue;
+            }
+
+            result.Add(
+                BattleLootEntry.CreateItem(
+                    sourceKind,
+                    sourceId,
+                    sourceLabel,
+                    dropEntryId,
+                    itemId,
+                    quantity
+                )
+            );
         }
         return result;
     }
@@ -277,6 +337,54 @@ internal static class BattleLootEntryPayload
             seenLookup[keyText] = true;
         }
         return seenLookup.Count == expectedLookup.Count;
+    }
+
+    private static bool HasExactPlainFields(
+        IReadOnlyDictionary<string, object> payload,
+        IReadOnlyList<string> expectedFields
+    )
+    {
+        if (payload == null || payload.Count != expectedFields.Count)
+            return false;
+        foreach (string expectedField in expectedFields)
+        {
+            if (!payload.ContainsKey(expectedField))
+                return false;
+        }
+        return true;
+    }
+
+    private static string ReadPlainRequiredString(
+        IReadOnlyDictionary<string, object> payload,
+        string key
+    )
+    {
+        return payload != null
+            && payload.TryGetValue(key, out object value)
+            && value is string stringValue
+            ? stringValue.Trim()
+            : "";
+    }
+
+    private static bool TryReadPlainPositiveInt(
+        IReadOnlyDictionary<string, object> payload,
+        string key,
+        out int value
+    )
+    {
+        value = 0;
+        if (payload == null || !payload.TryGetValue(key, out object rawValue))
+            return false;
+        long longValue = rawValue switch
+        {
+            int intValue => intValue,
+            long value64 => value64,
+            _ => 0,
+        };
+        if (longValue <= 0 || longValue > int.MaxValue)
+            return false;
+        value = (int)longValue;
+        return true;
     }
 
     private static GDictionary CreateBaseFormalDropEntry(

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"battleaxe"
+training_group = &"martial"
+range_type = &"melee"
+family = &"axe"
+damage_tag = &"physical_slash"
+attack_range = 1
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_battleaxe_lumberjack_383"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "伐木工之斧"
+description = "一柄宽刃沉重的传奇战斧。命中存活目标后留下 60TU 劈痕，继续攻击自己的劈痕目标时获得 +1 命中并追加 1D4 挥砍伤害；对植物额外造成 2D6 挥砍伤害，砍倒已有自身劈痕的目标时可封顶恢复 1 AP。"
+is_stackable = false
+base_price = 38000
+buy_price = 38000
+sell_price = 19000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"lumberjack_axe", &"lumberjack", &"plant_slayer"])
+trait_ids = Array[StringName]([&"weapon.axe.lumberjack.chopping_rhythm", &"weapon.axe.lumberjack.plant_slayer", &"weapon.axe.lumberjack.felling_momentum"])
+weapon_profile = SubResource("Resource_weapon_profile")

@@ -54,7 +54,12 @@ public sealed class SettlementShopService : IDisposable
         int MaxRandomItems
     );
 
-    private sealed record ShopStockEntry(string ItemId, ItemDef ItemDef, int Quantity, int UnitPrice);
+    private sealed record ShopStockEntry(
+        string ItemId,
+        ItemDefinition Definition,
+        int Quantity,
+        int UnitPrice
+    );
     private static readonly ShopDefinition[] ShopDefs =
     {
         new(
@@ -169,31 +174,21 @@ public sealed class SettlementShopService : IDisposable
         ),
     };
 
-    private RandomNumberGenerator _rng = new();
-    private bool _disposed;
+    private readonly RuntimeRandom _rng = new();
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
         System.GC.SuppressFinalize(this);
-        RandomNumberGenerator rng = _rng;
-        _rng = null;
-        if (rng != null && GodotObject.IsInstanceValid(rng))
-        {
-            System.GC.SuppressFinalize(rng);
-            rng.Dispose();
-        }
     }
 
     public GDictionary BuildWindowDataTyped(
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
-        int currentGold)
+        int currentGold,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null)
     {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
@@ -214,14 +209,14 @@ public sealed class SettlementShopService : IDisposable
 
             bool canBuy = stockEntry.Quantity > 0 && currentGold >= stockEntry.UnitPrice;
             string stockText = stockEntry.Quantity <= 0 ? "售罄" : $"库存 {stockEntry.Quantity}";
-            string description = stockEntry.ItemDef?.description ?? "";
+            string description = stockEntry.Definition?.Description ?? "";
             buyEntries.Add(new GDictionary
             {
                 { "item_id", stockEntry.ItemId },
                 { "entry_id", $"buy:{stockEntry.ItemId}" },
-                { "display_name", GetItemDisplayName(stockEntry.ItemDef, stockEntry.ItemId) },
+                { "display_name", GetItemDisplayName(stockEntry.Definition, stockEntry.ItemId) },
                 { "description", description },
-                { "icon", stockEntry.ItemDef?.icon ?? "" },
+                { "icon", stockEntry.Definition?.Icon ?? "" },
                 { "quantity", stockEntry.Quantity },
                 { "unit_price", stockEntry.UnitPrice },
                 { "stock_text", stockText },
@@ -229,7 +224,7 @@ public sealed class SettlementShopService : IDisposable
                 { "state_label", canBuy ? "状态：可购" : "状态：不可购" },
                 { "cost_label", $"单价 {stockEntry.UnitPrice} 金" },
                 { "summary_text", stockText },
-                { "details_text", description },
+                { "details_text", ItemTraitDetailText.Compose(description, stockEntry.Definition, traitDefs) },
                 { "is_enabled", canBuy },
                 { "disabled_reason", canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足" },
                 { "shop_action", "buy" },
@@ -241,8 +236,9 @@ public sealed class SettlementShopService : IDisposable
         {
             foreach (WarehouseInventoryEntry entryData in warehouse.GetInventoryEntriesTyped())
             {
-                ItemDef itemDef = entryData.ItemDef ?? GetItemDef(itemDefs, entryData.ItemId.ToString());
-                if (itemDef == null || !itemDef.sellable)
+                ItemDefinition itemDef = entryData.ItemDefinition
+                    ?? GetItemDef(itemDefs, entryData.ItemId.ToString());
+                if (itemDef == null || !itemDef.Sellable)
                 {
                     continue;
                 }
@@ -263,8 +259,8 @@ public sealed class SettlementShopService : IDisposable
                     { "entry_id", !string.IsNullOrEmpty(instanceId) ? $"sell:{itemId}:{instanceId}" : $"sell:{itemId}" },
                     { "instance_id", instanceId },
                     { "display_name", GetItemDisplayName(itemDef, itemId) },
-                    { "description", itemDef.description },
-                    { "icon", itemDef.icon },
+                    { "description", itemDef.Description },
+                    { "icon", itemDef.Icon },
                     { "quantity", totalQuantity },
                     { "unit_price", unitPrice },
                     { "stock_text", stockText },
@@ -272,7 +268,7 @@ public sealed class SettlementShopService : IDisposable
                     { "state_label", "状态：可售" },
                     { "cost_label", $"回收 {unitPrice} 金" },
                     { "summary_text", stockText },
-                    { "details_text", itemDef.description },
+                    { "details_text", ItemTraitDetailText.Compose(itemDef.Description, itemDef, traitDefs) },
                     { "is_enabled", true },
                     { "disabled_reason", "" },
                     { "shop_action", "sell" },
@@ -314,7 +310,7 @@ public sealed class SettlementShopService : IDisposable
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
         PartyState party,
         StringName itemId,
@@ -390,7 +386,7 @@ public sealed class SettlementShopService : IDisposable
         string interactionScriptId,
         GDictionary settlementRecord,
         GDictionary settlementState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouse,
         PartyState party,
         StringName itemId,
@@ -415,12 +411,12 @@ public sealed class SettlementShopService : IDisposable
 
         string normalizedItemId = NormalizeId(itemId);
         string normalizedInstanceId = NormalizeId(instanceId);
-        ItemDef itemDef = GetItemDef(itemDefs, normalizedItemId);
+        ItemDefinition itemDef = GetItemDef(itemDefs, normalizedItemId);
         if (itemDef == null)
         {
             return BuildFail("未找到该物品的定义。");
         }
-        if (!itemDef.sellable)
+        if (!itemDef.Sellable)
         {
             return BuildFail($"{GetItemDisplayName(itemDef, normalizedItemId)} 当前不能出售。");
         }
@@ -482,7 +478,7 @@ public sealed class SettlementShopService : IDisposable
     private GDictionary GetOrRefreshShopState(
         ShopDefinition shopDef,
         GDictionary settlementState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         int currentWorldStep)
     {
         GDictionary shopStates = GetDictionary(settlementState, "shop_states");
@@ -508,12 +504,12 @@ public sealed class SettlementShopService : IDisposable
 
     private GDictionary GenerateShopState(
         ShopDefinition shopDef,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         int currentWorldStep
     )
     {
-        ulong seed = (ulong)TrueRandomSeedService.GenerateSeed();
-        _rng.Seed = seed;
+        long seed = TrueRandomSeedService.GenerateSeed();
+        _rng.Reseed(seed);
         var inventory = new GDictionaryArray();
         foreach (ShopItemSeed source in shopDef.GuaranteedItems)
         {
@@ -544,18 +540,18 @@ public sealed class SettlementShopService : IDisposable
         {
             { "shop_id", shopDef.ShopId },
             { "current_inventory", inventory },
-            { "seed", (long)seed },
+            { "seed", seed },
             { "last_refresh_step", currentWorldStep },
         };
     }
 
     private GDictionary BuildShopEntry(
         ShopItemSeed source,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         string itemId = ToItemIdString(source.ItemId);
-        ItemDef itemDef = GetItemDef(itemDefs, itemId);
+        ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
         if (string.IsNullOrEmpty(itemId) || itemDef == null)
         {
             return new GDictionary();
@@ -597,7 +593,7 @@ public sealed class SettlementShopService : IDisposable
         inventory.Add(builtEntry);
     }
 
-    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RandomNumberGenerator rng)
+    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RuntimeRandom rng)
     {
         int totalWeight = 0;
         foreach (ShopItemSeed entry in pool)
@@ -626,7 +622,7 @@ public sealed class SettlementShopService : IDisposable
         return null;
     }
 
-    private static int ResolveBuyPrice(ItemDef itemDef, int priceBasisPoints)
+    private static int ResolveBuyPrice(ItemDefinition itemDef, int priceBasisPoints)
     {
         if (itemDef == null)
         {
@@ -636,7 +632,7 @@ public sealed class SettlementShopService : IDisposable
         return price > 0 ? price : 0;
     }
 
-    private static int ResolveSellPrice(ItemDef itemDef)
+    private static int ResolveSellPrice(ItemDefinition itemDef)
     {
         if (itemDef == null)
         {
@@ -649,7 +645,7 @@ public sealed class SettlementShopService : IDisposable
     private static ShopStockEntry FindInventoryEntry(
         GDictionary shopState,
         string itemId,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         foreach (GDictionary inventoryEntry in GetShopCurrentInventory(shopState))
@@ -667,7 +663,7 @@ public sealed class SettlementShopService : IDisposable
         GDictionary shopState,
         string itemId,
         int quantity,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         GDictionaryArray inventory = GetShopCurrentInventory(shopState);
@@ -719,7 +715,7 @@ public sealed class SettlementShopService : IDisposable
 
     private static ShopStockEntry ParseShopStockEntry(
         GDictionary entryData,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
     )
     {
         if (!TryGetStrictInt(entryData, "quantity", out int quantity)
@@ -747,7 +743,7 @@ public sealed class SettlementShopService : IDisposable
         }
 
         string itemId = NormalizeId(entryData, "item_id");
-        ItemDef itemDef = GetItemDef(itemDefs, itemId);
+        ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
         return itemDef != null
             ? new ShopStockEntry(itemId, itemDef, quantity, unitPrice)
             : null;
@@ -759,7 +755,7 @@ public sealed class SettlementShopService : IDisposable
     }
 
     private static string BuildSellRemoveFailureMessage(
-        ItemDef itemDef,
+        ItemDefinition itemDef,
         string itemId,
         PartyWarehouseService.WarehouseRemoveItemResult removeResult
     )
@@ -861,8 +857,8 @@ public sealed class SettlementShopService : IDisposable
         return result;
     }
 
-    private static ItemDef GetItemDef(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+    private static ItemDefinition GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         string itemId
     )
     {
@@ -870,12 +866,16 @@ public sealed class SettlementShopService : IDisposable
         {
             return null;
         }
-        return itemDefs.TryGetValue(new StringName(itemId), out ItemDef itemDef) ? itemDef : null;
+        return itemDefs.TryGetValue(new StringName(itemId), out ItemDefinition itemDef)
+            ? itemDef
+            : null;
     }
 
-    private static string GetItemDisplayName(ItemDef itemDef, string itemId)
+    private static string GetItemDisplayName(ItemDefinition itemDef, string itemId)
     {
-        return itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : itemId;
+        return itemDef != null && itemDef.DisplayName.Length > 0
+            ? itemDef.DisplayName
+            : itemId;
     }
 
     private static string ToItemIdString(ShopItemId itemId)

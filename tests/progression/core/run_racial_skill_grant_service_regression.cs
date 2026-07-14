@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_racial_skill_grant_service_regression : SceneTree
+public partial class run_racial_skill_grant_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,116 +12,101 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestBackfillAndRevokeRaceGrantedSkill();
-        }
-        finally
-        {
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestBackfillAndRevokeRaceGrantedSkill();
 
-        Quit(_test.Finish("Racial skill grant service regression"));
+        RequestTestExit(_test.Finish("Racial skill grant service regression"));
     }
 
     private void TestBackfillAndRevokeRaceGrantedSkill()
     {
         StringName skillId = "race_stone_skin";
-        RacialGrantedSkill grant = null;
-        RaceDef race = null;
-        SkillDef skillDef = null;
-        PartyMemberState member = null;
-        bool grantDetached = false;
-        try
+        RacialGrantedSkill grant = new()
         {
-            grant = new()
-            {
-                skill_id = skillId,
-                minimum_skill_level = 2,
-            };
-            race = new()
-            {
-                race_id = "stonefolk",
-                racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill> { grant },
-            };
-            skillDef = new()
-            {
-                skill_id = skillId,
-                display_name = "Stone Skin",
-                max_level = 3,
-                learn_source = "race",
-            };
-            ProgressionIdentityCatalogData identityCatalog = new(
-                new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-                new Dictionary<StringName, SubraceDef>(),
-                new Dictionary<StringName, AgeProfileDef>(),
-                new Dictionary<StringName, BloodlineDef>(),
-                new Dictionary<StringName, BloodlineStageDef>(),
-                new Dictionary<StringName, AscensionDef>(),
-                new Dictionary<StringName, AscensionStageDef>(),
-                new Dictionary<StringName, StageAdvancementModifier>()
-            );
-            Dictionary<StringName, SkillDef> skillDefs = new() { [skillDef.skill_id] = skillDef };
-            Dictionary<StringName, ProfessionDef> professionDefs = new();
-            member = MakeMember("hero", race.race_id);
-
-            _test.True(
-                RacialSkillGrantService.BackfillMember(
-                    member,
-                    identityCatalog,
-                    skillDefs,
-                    professionDefs
-                ),
-                "身份技能补授应报告发生变化。"
-            );
-            UnitSkillProgress grantedProgress = member.progression.GetSkillProgress(skillId);
-            _test.True(grantedProgress != null, "身份技能补授应创建 UnitSkillProgress。");
-            if (grantedProgress != null)
-            {
-                _test.True(grantedProgress.is_learned, "身份技能补授应标记技能已学会。");
-                _test.Eq(grantedProgress.skill_level, 2, "身份技能补授应写入 minimum_skill_level。");
-                _test.Eq(
-                    grantedProgress.granted_source_type,
-                    UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Race),
-                    "来源类型应为 race。"
-                );
-                _test.Eq(grantedProgress.granted_source_id, race.race_id, "来源 id 应为 race id。");
-            }
-
-            _test.False(
-                RacialSkillGrantService.BackfillMember(
-                    member,
-                    identityCatalog,
-                    skillDefs,
-                    professionDefs
-                ),
-                "重复补授已学会身份技能不应报告变化。"
-            );
-
-            race.racial_granted_skills.Clear();
-            grantDetached = true;
-            _test.True(
-                RacialSkillGrantService.RevokeOrphanMember(
-                    member,
-                    identityCatalog,
-                    skillDefs,
-                    professionDefs
-                ),
-                "身份内容移除 grant 后应撤销孤儿身份技能。"
-            );
-            _test.True(
-                member.progression.GetSkillProgress(skillId) == null,
-                "孤儿身份技能应从 UnitProgress 移除。"
-            );
-        }
-        finally
+            skill_id = skillId,
+            minimum_skill_level = 2,
+        };
+        RaceDef race = new()
         {
-            if (grantDetached)
-                GodotSharpCleanup.DisposeGodotObject(grant);
-            BattleTestFixture.DisposeRace(race);
-            BattleTestFixture.DisposeSkill(skillDef);
-            member?.Dispose();
+            race_id = "stonefolk",
+            racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill> { grant },
+        };
+        SkillDefinition skillDefinition = BuildSkillDefinition(skillId, "Stone Skin", 3, "race");
+        ProgressionIdentityCatalogData identityCatalog = new(
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
+        );
+        Dictionary<StringName, SkillDefinition> skillDefinitions =
+            new() { [skillDefinition.SkillId] = skillDefinition };
+        Dictionary<StringName, ProfessionDefinition> professionDefs = new();
+        PartyMemberState member = MakeMember("hero", race.race_id);
+
+        _test.True(
+            RacialSkillGrantService.BackfillMember(
+                member,
+                identityCatalog,
+                skillDefinitions,
+                professionDefs
+            ),
+            "身份技能补授应报告发生变化。"
+        );
+        UnitSkillProgress grantedProgress = member.progression.GetSkillProgress(skillId);
+        _test.True(grantedProgress != null, "身份技能补授应创建 UnitSkillProgress。");
+        if (grantedProgress != null)
+        {
+            _test.True(grantedProgress.is_learned, "身份技能补授应标记技能已学会。");
+            _test.Eq(grantedProgress.skill_level, 2, "身份技能补授应写入 minimum_skill_level。");
+            _test.Eq(
+                grantedProgress.granted_source_type,
+                UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Race),
+                "来源类型应为 race。"
+            );
+            _test.Eq(grantedProgress.granted_source_id, race.race_id, "来源 id 应为 race id。");
         }
+
+        _test.False(
+            RacialSkillGrantService.BackfillMember(
+                member,
+                identityCatalog,
+                skillDefinitions,
+                professionDefs
+            ),
+            "重复补授已学会身份技能不应报告变化。"
+        );
+
+        race.racial_granted_skills.Clear();
+        identityCatalog = new ProgressionIdentityCatalogData(
+            TestProgressionDefinitionProjection.Races(
+                new Dictionary<StringName, RaceDef> { [race.race_id] = race }
+            ),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
+        );
+        _test.True(
+            RacialSkillGrantService.RevokeOrphanMember(
+                member,
+                identityCatalog,
+                skillDefinitions,
+                professionDefs
+            ),
+            "身份内容移除 grant 后应撤销孤儿身份技能。"
+        );
+        _test.True(
+            member.progression.GetSkillProgress(skillId) == null,
+            "孤儿身份技能应从 UnitProgress 移除。"
+        );
     }
 
     private static PartyMemberState MakeMember(StringName memberId, StringName raceId)
@@ -140,5 +125,45 @@ public partial class run_racial_skill_grant_service_regression : SceneTree
         };
     }
 
+    private static SkillDefinition BuildSkillDefinition(
+        StringName skillId,
+        string displayName,
+        int maxLevel,
+        StringName learnSource
+    )
+    {
+        return new SkillDefinition(
+            skillId,
+            displayName,
+            skillId,
+            "",
+            "passive",
+            maxLevel,
+            0,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            learnSource,
+            System.Array.Empty<StringName>(),
+            "standard",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
+        );
+    }
 
 }

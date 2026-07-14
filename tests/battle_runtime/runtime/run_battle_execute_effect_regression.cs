@@ -2,27 +2,19 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_execute_effect_regression : SceneTree
+public partial class run_battle_execute_effect_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        try
-        {
-            TestExecuteFinishesLowHpTarget();
-            TestExecuteDoesNothingOnHighHpTarget();
-            TestExecuteIgnoresBossTargetFlag();
-            TestExecuteBypassesShieldWithoutMutation();
-            TestExecuteAppliesSoulFractureOnSuccessfulSave();
-            TestExecuteMinHpNeverHeals();
-        }
-        finally
-        {
-            _test.DisposeTrackedGodotObjects();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        Quit(_test.Finish("Battle execute effect regression"));
+        TestExecuteFinishesLowHpTarget();
+        TestExecuteDoesNothingOnHighHpTarget();
+        TestExecuteIgnoresBossTargetFlag();
+        TestExecuteBypassesShieldWithoutMutation();
+        TestExecuteAppliesSoulFractureOnSuccessfulSave();
+        TestExecuteMinHpNeverHeals();
+        RequestTestExit(_test.Finish("Battle execute effect regression"));
     }
 
     private void TestExecuteFinishesLowHpTarget()
@@ -30,14 +22,16 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("weak_target", "hostile");
         target.current_hp = 1;
-        CombatEffectDef effect = MakeExecuteEffect();
-        using var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        CombatEffectDefinition effect = MakeExecuteEffect();
+        var resolver = new BattleDamageResolver();
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         ));
+        GDictionary result = resultLease.Value;
 
         _test.False(target.is_alive, "execute on HP=1 target with failed save should kill.");
         _test.True(DictInt(result, "damage") > 0, "execute should register damage.");
@@ -59,9 +53,13 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("healthy_target", "hostile");
         target.current_hp = 30;
-        CombatEffectDef effect = MakeExecuteEffect();
-        using var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
+        CombatEffectDefinition effect = MakeExecuteEffect();
+        var resolver = new BattleDamageResolver();
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
 
         _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
         _test.Eq(target.current_hp, 30, "high-HP execute should not deal non-lethal damage.");
@@ -74,13 +72,13 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState target = MakeUnit("boss_target", "hostile");
         target.attribute_snapshot.SetValue("boss_target", 1);
         target.current_hp = 5;
-        CombatEffectDef effect = MakeExecuteEffect();
-        using var resolver = new BattleDamageResolver();
+        CombatEffectDefinition effect = MakeExecuteEffect();
+        var resolver = new BattleDamageResolver();
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
         _test.False(target.is_alive, "PWK should ignore boss_target for low-HP fatal execute.");
@@ -95,14 +93,16 @@ public partial class run_battle_execute_effect_regression : SceneTree
         target.current_shield_hp = 20;
         target.shield_max_hp = 20;
         target.shield_duration = 10;
-        CombatEffectDef effect = MakeExecuteEffect();
-        using var resolver = new BattleDamageResolver();
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        CombatEffectDefinition effect = MakeExecuteEffect();
+        var resolver = new BattleDamageResolver();
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["save_roll_override"] = 1 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary firstEvent = FirstDamageEvent(result);
 
         _test.Eq(DictInt(firstEvent, "shield_absorbed"), 0, "PWK should bypass shield absorption.");
@@ -117,17 +117,18 @@ public partial class run_battle_execute_effect_regression : SceneTree
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("cursed_target", "hostile");
         target.current_hp = 5;
-        CombatEffectDef effect = MakeExecuteEffect();
-        effect.soul_fracture_duration_tu = 60;
-        effect.heal_multiplier_percent = 50;
-        effect.shield_gain_multiplier_percent = 40;
-        using var resolver = new BattleDamageResolver();
+        CombatEffectDefinition effect = MakeExecuteEffect(
+            soulFractureDurationTu: 60,
+            healMultiplierPercent: 50,
+            shieldGainMultiplierPercent: 40
+        );
+        var resolver = new BattleDamageResolver();
 
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["save_roll_override"] = 20 }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 20 })
         );
 
         _test.True(target.is_alive, "successful save should leave the low-HP target alive.");
@@ -154,35 +155,38 @@ public partial class run_battle_execute_effect_regression : SceneTree
             ["resolved_damage"] = 0,
             ["min_hp_after_damage"] = 1,
         };
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         int damage = resolver.ApplyDirectDamageToTargetTyped(target, outcome, source);
 
         _test.Eq(target.current_hp, 1, "min_hp_after_damage=1 with 0 damage should not heal.");
         _test.Eq(damage, 0, "0 resolved damage should yield 0 hp_damage.");
     }
 
-    private CombatEffectDef MakeExecuteEffect()
+    private static CombatEffectDefinition MakeExecuteEffect(
+        int soulFractureDurationTu = 60,
+        int healMultiplierPercent = 50,
+        int shieldGainMultiplierPercent = 50
+    )
     {
-        return _test.Track(new CombatEffectDef
-        {
-            effect_type = "execute",
-            save_dc_mode = "static",
-            save_dc = 10,
-            save_ability = "willpower",
-            save_tag = "magic",
-            threshold_max_hp_ratio_percent = 20,
-            threshold_level_anchor = 17,
-            threshold_level_bonus_per_delta = 5,
-            threshold_cap_max_hp_ratio_percent = 50,
-            soul_fracture_duration_tu = 60,
-            heal_multiplier_percent = 50,
-            shield_gain_multiplier_percent = 50,
-        });
+        return TestSkillDefinitionProjection.BuildEffect(
+            "execute",
+            saveDcMode: "static",
+            saveDc: 10,
+            saveAbility: "willpower",
+            saveTag: "magic",
+            thresholdMaxHpRatioPercent: 20,
+            thresholdLevelAnchor: 17,
+            thresholdLevelBonusPerDelta: 5,
+            thresholdCapMaxHpRatioPercent: 50,
+            soulFractureDurationTu: soulFractureDurationTu,
+            healMultiplierPercent: healMultiplierPercent,
+            shieldGainMultiplierPercent: shieldGainMultiplierPercent
+        );
     }
 
-    private BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        var unit = _test.Track(new BattleUnitState
+        var unit = new BattleUnitState
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -193,7 +197,7 @@ public partial class run_battle_execute_effect_regression : SceneTree
             current_ap = 2,
             current_stamina = 20,
             is_alive = true,
-        });
+        };
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);

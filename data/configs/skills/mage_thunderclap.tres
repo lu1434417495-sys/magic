@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_cru87"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_8dkd2"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_8xbe2"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="6_contingency"]
 
 [sub_resource type="Resource" id="Resource_2pgq5"]
 script = ExtResource("3_cru87")
@@ -136,6 +137,14 @@ level_overrides = {
 }
 effect_defs = Array[ExtResource("3_cru87")]([SubResource("Resource_2pgq5"), SubResource("Resource_dam52"), SubResource("Resource_cru87"), SubResource("Resource_8dkd2"), SubResource("Resource_8xbe2"), SubResource("Resource_ncvi3"), SubResource("Resource_ri5l1"), SubResource("Resource_fox88")])
 
+[sub_resource type="Resource" id="ContingencyAutomation"]
+script = ExtResource("6_contingency")
+can_be_stored_in_contingency = true
+min_contingency_skill_level = 5
+effect_category = &"damage"
+allowed_target_resolvers = Array[StringName]([&"owner_centered_area"])
+allowed_parameter_bindings = {}
+
 [resource]
 script = ExtResource("5_8xbe2")
 skill_id = &"mage_thunderclap"
@@ -228,3 +237,4 @@ level_description_configs = {
 }
 }
 combat_profile = SubResource("Resource_mdi0p")
+contingency_automation_profile = SubResource("ContingencyAutomation")

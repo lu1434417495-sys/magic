@@ -2,11 +2,16 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTree
+public partial class run_battle_ai_charge_path_aoe_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
     {
         try
         {
@@ -19,15 +24,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle AI charge path AOE behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI charge path AOE behavior regression"));
     }
 
     private void TestAssemblerAddsWhirlwindChargePathAction()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
         BattleRuntimeModule runtime = runtimeScope.Runtime;
-        EnemyAiBrainDef brain = GetEnemyBrain(runtime, "melee_aggressor");
+        EnemyAiBrainDefinition brain = GetEnemyBrain(runtime, "melee_aggressor");
         BattleUnitState spinner = BuildAiUnit(
             "whirlwind_assembler",
             "自动旋风狼",
@@ -42,23 +46,26 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         PrepareTestWhirlwindUser(spinner);
 
         var assembler = new BattleAiActionAssembler();
-        BattleAiRuntimeActionPlan plan = assembler.BuildUnitActionPlan(
+        using BattleAiRuntimeActionPlan plan = assembler.BuildUnitActionPlan(
             spinner,
             brain,
-            runtime.GetSkillDefIndexTyped()
+            runtime.GetSkillDefinitionIndexTyped()
         );
         bool foundPathAction = false;
-        UseChargePathAoeAction generatedPathAction = null;
-        foreach (EnemyAiAction action in plan.GetActions("engage"))
+        foreach (BattleAiRuntimeActionEntry entry in plan.GetActionEntries("engage"))
         {
-            if (action is not UseChargePathAoeAction chargePathAction)
+            UseChargePathAoeActionDefinition chargePathAction =
+                entry?.Action as UseChargePathAoeActionDefinition;
+            if (chargePathAction == null)
             {
                 continue;
             }
-            foundPathAction = chargePathAction.skill_ids.Contains("warrior_whirlwind_slash");
+            foundPathAction = ContainsSkillId(
+                chargePathAction.DeclaredSkillIds,
+                "warrior_whirlwind_slash"
+            );
             if (foundPathAction)
             {
-                generatedPathAction = chargePathAction;
                 break;
             }
         }
@@ -67,7 +74,18 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
             foundPathAction,
             "AI 自动装配器应为 warrior_whirlwind_slash 生成 charge + path_step_aoe Action。"
         );
-        GodotSharpCleanup.DisposeGodotObject(generatedPathAction);
+    }
+
+    private static bool ContainsSkillId(IReadOnlyList<StringName> skillIds, StringName skillId)
+    {
+        foreach (StringName candidate in skillIds ?? Array.Empty<StringName>())
+        {
+            if (candidate == skillId)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void TestChargePathAoeScoresRepeatHits()
@@ -99,40 +117,34 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = new UseChargePathAoeAction
+        var action = TestResourceOwnership.Own(
+            new UseChargePathAoeAction
         {
             action_id = "whirlwind_path_aoe_probe",
             target_selector = "nearest_enemy",
             minimum_hit_count = 2,
-        };
+            },
+            "battle_ai_charge_path_aoe.action"
+        );
         action.skill_ids.Add("warrior_whirlwind_slash");
 
-        BattleAiDecision decision = null;
-        BattlePreview preview = null;
-        try
-        {
-            decision = action.Decide(BuildAiContext(runtime, spinner));
-            _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
-            _test.True(
-                decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
-                "路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
-            );
-            _test.True(
-                decision?.score_input != null && decision.score_input.path_step_payoff_score > 0,
-                "路径 AOE 评分应把沿途命中转成正向 hit payoff。"
-            );
-            preview = runtime.PreviewCommand(decision?.command);
-            _test.True(
-                preview?.allowed == true,
-                "旋风斩路径 AOE Action 生成的命令必须通过 preview_command。"
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattlePreview(preview);
-            DisposeDecision(decision);
-            GodotSharpCleanup.DisposeGodotObject(action);
-        }
+        BattleAiDecision decision = new BattleAiChargePathAoeActionEvaluator().Evaluate(
+            (UseChargePathAoeActionDefinition)action.ToDefinition(),
+            BuildAiContext(runtime, spinner)
+        );
+        _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
+        _test.True(
+            decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
+            "路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
+        );
+        _test.True(
+            decision?.score_input != null && decision.score_input.path_step_payoff_score > 0,
+            "路径 AOE 评分应把沿途命中转成正向 hit payoff。"
+        );
+        _test.True(
+            runtime.PreviewCommand(decision?.command)?.allowed == true,
+            "旋风斩路径 AOE Action 生成的命令必须通过 preview_command。"
+        );
     }
 
     private void TestRuntimePlanUsesAutoWhirlwindAction()
@@ -165,50 +177,50 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         runtime.SetupStateForTests(state);
         runtime._build_ai_action_plans();
 
-        BattleAiDecision decision = null;
-        try
-        {
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, spinner));
-            _test.True(decision?.command != null, "运行时自动 Action plan 应能产出 AI 指令。");
-            _test.Eq(
-                decision?.command?.skill_id ?? (StringName)"",
-                (StringName)"warrior_whirlwind_slash",
-                "未在 brain .tres 手写列出的 warrior_whirlwind_slash 应通过自动装配参与决策。"
-            );
-            _test.True(
-                decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
-                "运行时选择旋风斩时应携带路径 AOE 评分指标。"
-            );
-        }
-        finally
-        {
-            DisposeDecision(decision);
-        }
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, spinner), captureTrace: false)
+            ?.Decision;
+        _test.True(decision?.command != null, "运行时自动 Action plan 应能产出 AI 指令。");
+        _test.Eq(
+            decision?.command?.skill_id ?? (StringName)"",
+            (StringName)"warrior_whirlwind_slash",
+            "未在 brain .tres 手写列出的 warrior_whirlwind_slash 应通过自动装配参与决策。"
+        );
+        _test.True(
+            decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
+            "运行时选择旋风斩时应携带路径 AOE 评分指标。"
+        );
     }
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
         return new BattleRuntimeScope(runtime, gameSession);
     }
 
-    private static EnemyAiBrainDef GetEnemyBrain(BattleRuntimeModule runtime, StringName brainId)
+    private static EnemyAiBrainDefinition GetEnemyBrain(
+        BattleRuntimeModule runtime,
+        StringName brainId
+    )
     {
         if (
             runtime == null
-            || !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(brainId, out EnemyAiBrainDef brain)
+            || !runtime.GetEnemyAiBrainIndexTyped().TryGetValue(
+                brainId,
+                out EnemyAiBrainDefinition brain
+            )
         )
         {
             return null;
@@ -260,7 +272,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -411,20 +423,6 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
-    private static void DisposeDecision(BattleAiDecision decision)
-    {
-        if (decision == null)
-        {
-            return;
-        }
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
-        GodotSharpCleanup.DisposeGodotObject(decision.command);
-        decision.command = null;
-        decision.score_input = null;
-        decision.skill_score_input = null;
-    }
-
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
@@ -441,7 +439,6 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : SceneTr
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

@@ -14,4 +14,10 @@ public partial class MountedSubmapConfig : Resource
 
     [Export]
     public string return_hint_text = "点击任意地点返回原位置。";
+
+    internal MountedSubmapDefinition ToDefinition(
+        string canonicalGenerationPath,
+        WorldGenerationDefinition generation,
+        string path
+    ) => MountedSubmapDefinition.FromResource(this, canonicalGenerationPath, generation, path);
 }

@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
-[ext_resource type="Texture2D" path="res://icon.svg" id="2_wolf_sprite"]
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/enemy/wolf_board.png" id="2_wolf_sprite"]
 [ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="3_dropdef"]
 
 [sub_resource type="Resource" id="Resource_drop_wolf_hide"]
@@ -19,21 +19,22 @@ battle_sprite_texture = ExtResource("2_wolf_sprite")
 brain_id = &"melee_aggressor"
 initial_state_id = &"engage"
 enemy_count = 2
+creature_level = 0
+hit_die_sides = 8
 action_threshold = 35
 tags = Array[StringName]([&"beast", &"wolf", &"bite"])
+save_advantage_tags = Array[StringName]([&"charm_advantage"])
 base_attribute_overrides = {
-&"strength": 6,
-&"agility": 7,
-&"constitution": 5,
-&"perception": 5,
+&"strength": 12,
+&"agility": 14,
+&"constitution": 13,
+&"perception": 12,
 &"intelligence": 3,
-&"willpower": 4,
+&"willpower": 6,
 }
-skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_ids = Array[StringName]([&"basic_attack"])
 drop_entries = Array[Resource]([SubResource("Resource_drop_wolf_hide")])
 attribute_overrides = {
-&"hp_max": 28,
 &"mp_max": 0,
 &"action_points": 2,
-&"attack_bonus": 5,
 }

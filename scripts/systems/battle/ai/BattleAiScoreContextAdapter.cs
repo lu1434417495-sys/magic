@@ -4,14 +4,17 @@ using Godot;
 
 internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 {
-    private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
-        new Dictionary<StringName, SkillDef>();
+    private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =
+        new Dictionary<StringName, SkillDefinition>();
 
     private BattleState _state;
     private BattleUnitState _unitState;
     private BattleGridService _gridService;
     private BattleAiScoreService _scoreService;
-    private IReadOnlyDictionary<StringName, SkillDef> _skillDefs = EmptySkillDefs;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions =
+        EmptySkillDefinitions;
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
+        new Dictionary<StringName, BarrierProfileDefinition>();
     private ISkillCatalog _skillCatalog;
 
     BattleState IBattleAiScoreContext.state => _state;
@@ -20,7 +23,11 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 
     BattleGridService IBattleAiScoreContext.grid_service => _gridService;
 
-    IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefs;
+    IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
+        _skillDefinitions;
+
+    IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
+        _barrierProfileDefinitions;
 
     ISkillCatalog IBattleAiScoreContext.skill_catalog => _skillCatalog;
 
@@ -29,8 +36,9 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         BattleState battleState,
         BattleUnitState actorUnitState,
         BattleGridService battleGridService,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        ISkillCatalog skillCatalog = null
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
         ClearRuntimeBindings();
@@ -69,8 +77,14 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _state = battleState;
         _unitState = actorUnitState;
         _gridService = battleGridService;
-        _skillDefs = skillDefs ?? EmptySkillDefs;
+        _skillDefinitions =
+            skillDefinitions
+            ?? skillCatalog?.GetSkillDefinitionsTyped()
+            ?? EmptySkillDefinitions;
         _skillCatalog = skillCatalog;
+        _barrierProfileDefinitions =
+            barrierProfileDefinitions
+            ?? new Dictionary<StringName, BarrierProfileDefinition>();
     }
 
     internal void ClearRuntimeBindings()
@@ -79,7 +93,8 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         _state = null;
         _unitState = null;
         _gridService = null;
-        _skillDefs = EmptySkillDefs;
+        _skillDefinitions = EmptySkillDefinitions;
+        _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
         _skillCatalog = null;
     }
 
@@ -124,7 +139,7 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
         StringName skillId,
         BattleCommand command,
         BattlePreview preview,
-        IReadOnlyList<CombatEffectDef> effectDefs,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyDictionary<string, object> metadata
     )
     {
@@ -134,10 +149,10 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             return null;
         }
 
-        SkillDef skillDef = ResolveSkillDef(skillId);
-        if (skillDef == null || skillDef.combat_profile == null)
+        SkillDefinition skillDefinition = ResolveSkillDefinition(skillId);
+        if (skillDefinition == null || skillDefinition.CombatProfile == null)
         {
-            Fail($"BattleAiScoreContextAdapter missing SkillDef for {skillId}.");
+            Fail($"BattleAiScoreContextAdapter missing SkillDefinition for {skillId}.");
             return null;
         }
         if (!ValidateCommandActorMatch(command))
@@ -155,15 +170,15 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 
         BattleAiScoreInput scoreInput = _scoreService.BuildSkillScoreInput(
             this,
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            effectDefs ?? System.Array.Empty<CombatEffectDef>(),
+            effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
             metadata
         );
         if (scoreInput != null)
         {
-            StripRuntimeSkillResource(scoreInput, skillDef.skill_id);
+            StripRuntimeSkillResource(scoreInput, skillDefinition.SkillId);
         }
         return ValidateScoreInput(scoreInput);
     }
@@ -250,18 +265,21 @@ internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
             scoreInput.runtime_action_metadata?.Clone() ?? new BattleAiScoreRuntimeMetadata();
         metadata.skill_id = ProgressionDataUtils.to_string_name(skillId);
         scoreInput.runtime_action_metadata = metadata;
-        scoreInput.skill_def = null;
+        scoreInput.skill_id = metadata.skill_id;
     }
 
-    private SkillDef ResolveSkillDef(StringName skillId)
+    private SkillDefinition ResolveSkillDefinition(StringName skillId)
     {
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (IsEmpty(normalizedSkillId))
         {
             return null;
         }
-        return _skillDefs.TryGetValue(normalizedSkillId, out SkillDef skillDef)
-            ? skillDef
+        return _skillDefinitions.TryGetValue(
+            normalizedSkillId,
+            out SkillDefinition skillDefinition
+        )
+            ? skillDefinition
             : null;
     }
 

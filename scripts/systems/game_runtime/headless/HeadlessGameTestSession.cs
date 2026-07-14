@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 // Development-only headless bridge for automation and debugging.
 // This is not a player-facing startup path or UI layer.
-public sealed class HeadlessGameTestSession : IDisposable
+public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownParticipant
 {
+    private const string ApplicationShutdownParticipantId = "headless-game-test-session";
+    private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
+        ApplicationShutdownParticipantStage.Runtime;
+    private const int ApplicationShutdownOrder = 0;
     internal readonly struct SessionCommandOutcome
     {
         public SessionCommandOutcome(
@@ -54,13 +58,59 @@ public sealed class HeadlessGameTestSession : IDisposable
     private GameSession _gameSession;
     private GameRuntimeFacade _runtime;
     private bool _ownsGameSession;
+    private bool _initialized;
     private bool _disposed;
+    private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
     private EncounterAnchorData _activeHeadlessEncounterAnchor;
     private string _lastBattleStartDiagnostic = "";
 
+    string IApplicationShutdownParticipant.ShutdownParticipantId =>
+        ApplicationShutdownParticipantId;
+
+    ApplicationShutdownParticipantStage IApplicationShutdownParticipant.ShutdownStage =>
+        ApplicationShutdownStage;
+
+    int IApplicationShutdownParticipant.ShutdownOrder => ApplicationShutdownOrder;
+
+    ValueTask IApplicationShutdownParticipant.CloseForApplicationShutdownAsync(
+        ShutdownReport report
+    )
+    {
+        Dispose(false);
+        return ValueTask.CompletedTask;
+    }
+
     public void initialize()
     {
+        _initialized = true;
         EnsureGameSession();
+    }
+
+    internal void BindOwnedGameSessionForTests(GameSession gameSession)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(gameSession);
+        if (
+            _initialized
+            || _gameSession != null
+            || _runtime != null
+            || _ownsGameSession
+        )
+        {
+            throw new InvalidOperationException(
+                "A test-owned GameSession must be bound before headless initialization."
+            );
+        }
+        if (!GodotObject.IsInstanceValid(gameSession) || gameSession.IsClosed)
+        {
+            throw new ArgumentException(
+                "The test-owned GameSession must be valid and open.",
+                nameof(gameSession)
+            );
+        }
+
+        _gameSession = gameSession;
+        _ownsGameSession = true;
     }
 
     public GameSession GetGameSession()
@@ -82,15 +132,13 @@ public sealed class HeadlessGameTestSession : IDisposable
         return _runtime != null;
     }
 
-    internal Godot.Collections.Array<GDictionary> ListPresets()
-    {
-        return WorldPresetRegistry.ListPresets();
-    }
+    internal IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> ListPresetsTyped() =>
+        WorldPresetRegistry.ListPresetsTyped();
 
-    internal Godot.Collections.Array<GDictionary> ListSaveSlots()
+    internal List<Dictionary<string, object>> ListSaveSlotsPlain()
     {
         EnsureGameSession();
-        return _gameSession.ListSaveSlots();
+        return _gameSession.ListSaveSlotsPlain();
     }
 
     internal SessionCommandOutcome CreateNewGameTyped(StringName preset_id)
@@ -230,10 +278,25 @@ public sealed class HeadlessGameTestSession : IDisposable
                 : TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(
             encounterAnchor,
-            pendingRequest.CloneContext()
+            pendingRequest.CloneContextPlain()
         );
-        GDictionary context = ProjectTypedDictionary(typedContext);
-        BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
+        BattleState runtimeState;
+        using (
+            GodotProjectionLease<GDictionary> contextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    typedContext,
+                    "headless-battle-start-context",
+                    LifetimeDomain.Request,
+                    "HeadlessGameTestSession.TryStartPendingBattle"
+                )
+        )
+        {
+            runtimeState = battleRuntime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                contextLease.Value
+            );
+        }
         BattleState storedState = battleRuntime.GetState();
         _lastBattleStartDiagnostic = BuildBattleStartDiagnostic(
             runtimeState,
@@ -345,9 +408,24 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         _runtime.PrepareBattleStart(encounterAnchor);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(encounterAnchor);
-        GDictionary context = ProjectTypedDictionary(typedContext);
         int seed = TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
-        BattleState runtimeState = battleRuntime.StartBattle(encounterAnchor, seed, context);
+        BattleState runtimeState;
+        using (
+            GodotProjectionLease<GDictionary> contextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    typedContext,
+                    "headless-battle-start-context",
+                    LifetimeDomain.Request,
+                    "HeadlessGameTestSession.StartBattleDirect"
+                )
+        )
+        {
+            runtimeState = battleRuntime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                contextLease.Value
+            );
+        }
         BattleState storedState = battleRuntime.GetState();
         _lastBattleStartDiagnostic = BuildBattleStartDiagnostic(
             runtimeState,
@@ -511,7 +589,9 @@ public sealed class HeadlessGameTestSession : IDisposable
         SettleFrames(1);
 
         ChangeEquipmentReportSummary report = FindLastChangeEquipmentReport(
-            batch != null ? batch.ReportEntriesTyped : Array.Empty<GDictionary>()
+            batch != null
+                ? batch.ReportEntriesTyped
+                : Array.Empty<IReadOnlyDictionary<string, object>>()
         );
         if (report == null)
         {
@@ -538,9 +618,17 @@ public sealed class HeadlessGameTestSession : IDisposable
         };
     }
 
-    public GDictionary BuildSnapshot() => ProjectTypedDictionary(BuildSnapshotTyped());
+    internal GodotProjectionLease<GDictionary> BuildSnapshotLease()
+    {
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "headless-game-test-session-snapshot",
+            LifetimeDomain.Request,
+            "HeadlessGameTestSession.root"
+        );
+    }
 
-    internal Dictionary<string, object> BuildSnapshotTyped()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         var sessionSnapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -548,28 +636,34 @@ public sealed class HeadlessGameTestSession : IDisposable
             ["generation_config_path"] =
                 _gameSession != null ? _gameSession.GetGenerationConfigPath() : "",
             ["world_loaded"] = HasWorldLoaded(),
-            ["presets"] = NormalizeEnumerable(WorldPresetRegistry.ListPresets()),
+            ["presets"] = BuildPresetSnapshotsPlain(),
             ["save_slots"] =
-                NormalizeEnumerable(_gameSession != null ? _gameSession.PeekSaveSlots() : new GArray()),
+                ClonePlainDictionaryList(
+                    _gameSession != null
+                        ? _gameSession.PeekSaveSlotsPlain()
+                        : new List<Dictionary<string, object>>()
+                ),
         };
 
         var snapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["session"] = sessionSnapshot,
-            ["validation"] = NormalizeDictionary(
+            ["validation"] =
                 _gameSession != null
                     ? _gameSession.GetContentValidationSnapshot()
-                    : new GDictionary()
-            ),
+                    : new Dictionary<string, object>(StringComparer.Ordinal),
             ["status"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["view"] = "none",
                 ["text"] = "",
             },
             ["modal"] = new Dictionary<string, object>(StringComparer.Ordinal) { ["id"] = "" },
-            ["logs"] = NormalizeDictionary(
-                _gameSession != null ? _gameSession.GetLogSnapshot() : new GDictionary()
-            ),
+            ["logs"] =
+                _gameSession != null
+                    ? RuntimePlainPayload.CloneDictionary(
+                        _gameSession.GetLogSnapshotPlain()
+                    )
+                    : new Dictionary<string, object>(StringComparer.Ordinal),
             ["world"] = new Dictionary<string, object>(StringComparer.Ordinal),
             ["submap"] = new Dictionary<string, object>(StringComparer.Ordinal),
             ["party"] = new Dictionary<string, object>(StringComparer.Ordinal),
@@ -583,11 +677,12 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         if (HasWorldLoaded())
         {
-            Dictionary<string, object> worldSnapshot = NormalizeDictionary(
-                _runtime.BuildHeadlessSnapshot()
+            Dictionary<string, object> worldSnapshot = RuntimePlainPayload.CloneDictionary(
+                _runtime.BuildHeadlessSnapshotPlain()
             );
             foreach ((string key, object value) in worldSnapshot)
                 snapshot[key] = value;
+            AugmentPartyContingencySnapshotTyped(snapshot);
             AugmentBattleSnapshotTyped(snapshot);
         }
         return snapshot;
@@ -595,7 +690,7 @@ public sealed class HeadlessGameTestSession : IDisposable
 
     internal string BuildTextSnapshot()
     {
-        return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshot());
+        return GameTextSnapshotRenderer.RenderFullSnapshot(BuildSnapshotPlain());
     }
 
     public void Dispose()
@@ -607,9 +702,11 @@ public sealed class HeadlessGameTestSession : IDisposable
     {
         if (_disposed)
         {
+            UnregisterApplicationShutdownParticipant();
             return;
         }
         _disposed = true;
+        UnregisterApplicationShutdownParticipant();
         UnloadWorldScene();
         if (_gameSession != null && GodotObject.IsInstanceValid(_gameSession))
         {
@@ -625,13 +722,13 @@ public sealed class HeadlessGameTestSession : IDisposable
         _gameSession = null;
         _ownsGameSession = false;
         _activeHeadlessEncounterAnchor = null;
-        GC.SuppressFinalize(this);
     }
 
     private void EnsureGameSession()
     {
         if (_gameSession != null && GodotObject.IsInstanceValid(_gameSession))
         {
+            RegisterApplicationShutdownParticipantIfAvailable();
             return;
         }
 
@@ -644,15 +741,46 @@ public sealed class HeadlessGameTestSession : IDisposable
         _gameSession = sceneTree.Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
         {
+            GC.KeepAlive(_gameSession);
             _ownsGameSession = false;
+            RegisterApplicationShutdownParticipantIfAvailable();
             return;
         }
 
-        _gameSession = new GameSession();
-        _gameSession.Name = "GameSession";
-        sceneTree.Root.AddChild(_gameSession);
-        _ownsGameSession = true;
-        SettleFrames(1);
+        throw new InvalidOperationException(
+            "HeadlessGameTestSession requires the canonical GameSession or an explicit "
+                + "BindOwnedGameSessionForTests call before initialization."
+        );
+    }
+
+    private void RegisterApplicationShutdownParticipantIfAvailable()
+    {
+        if (_disposed)
+            return;
+
+        SceneTree sceneTree = GetSceneTree();
+        ApplicationLifetimeCoordinator coordinator = sceneTree
+            ?.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        if (coordinator == null)
+            return;
+        if (ReferenceEquals(_applicationLifetimeCoordinator, coordinator))
+            return;
+
+        UnregisterApplicationShutdownParticipant();
+        coordinator.RegisterParticipant(this);
+        _applicationLifetimeCoordinator = coordinator;
+    }
+
+    private void UnregisterApplicationShutdownParticipant()
+    {
+        ApplicationLifetimeCoordinator coordinator = _applicationLifetimeCoordinator;
+        _applicationLifetimeCoordinator = null;
+        if (coordinator == null || !GodotObject.IsInstanceValid(coordinator))
+            return;
+
+        coordinator.UnregisterParticipant(this);
     }
 
     private void UnloadWorldScene()
@@ -748,9 +876,8 @@ public sealed class HeadlessGameTestSession : IDisposable
 
     private IReadOnlyList<EncounterAnchorData> GetWorldEncounterAnchorsTyped()
     {
-        return _runtime != null
-            ? ReadEncounterAnchorsTyped(_runtime.GetWorldData(), "encounter_anchors")
-            : Array.Empty<EncounterAnchorData>();
+        return _runtime?.GetActiveWorldRuntimeData()?.EncounterAnchors
+            ?? Array.Empty<EncounterAnchorData>();
     }
 
     private bool EncounterHasFormalLoot(EncounterAnchorData encounterAnchor)
@@ -760,19 +887,19 @@ public sealed class HeadlessGameTestSession : IDisposable
             return false;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters =
-            _gameSession.GetWildEncounterRostersTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            _gameSession.GetEnemyTemplatesTyped();
-        var builder = new EncounterRosterBuilder();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
+            _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            _gameSession.GetEnemyTemplateDefinitions();
+        using var builder = new EncounterRosterBuilder();
         builder.Setup(wildEncounterRosters, enemyTemplates);
-        return builder
-                .BuildLootEntriesTyped(
-                    encounterAnchor,
-                    enemyTemplates: enemyTemplates,
-                    itemDefs: _gameSession.GetItemDefsTyped()
-                )
-                .Count > 0;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
+            builder.BuildLootEntriesPlain(
+            encounterAnchor,
+            enemyTemplates: enemyTemplates,
+            itemDefs: _gameSession.GetItemDefsTyped()
+        );
+        return lootEntries.Count > 0;
     }
 
     private EncounterAnchorData BuildHeadlessEncounterAnchor(StringName encounterKind)
@@ -782,8 +909,8 @@ public sealed class HeadlessGameTestSession : IDisposable
             return null;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> rosters =
-            _gameSession.GetWildEncounterRostersTyped();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> rosters =
+            _gameSession.GetEncounterRosterDefinitions();
         if (!rosters.ContainsKey(HeadlessSettlementLootProfileId))
         {
             return null;
@@ -820,10 +947,10 @@ public sealed class HeadlessGameTestSession : IDisposable
 
     private static Dictionary<string, object> BuildBattleStartContextTyped(
         EncounterAnchorData encounterAnchor,
-        GDictionary baseContext = null
+        IReadOnlyDictionary<string, object> baseContext = null
     )
     {
-        Dictionary<string, object> context = NormalizeDictionary(baseContext);
+        Dictionary<string, object> context = RuntimePlainPayload.CloneDictionary(baseContext);
         if (!context.ContainsKey("world_coord"))
         {
             context["world_coord"] = encounterAnchor != null ? encounterAnchor.world_coord : default(Vector2I);
@@ -866,9 +993,13 @@ public sealed class HeadlessGameTestSession : IDisposable
             return;
         }
 
+        GameContentCatalog contentCatalog = _gameSession.GetContentCatalogTyped();
         battleRuntime.SyncContentCatalogsTyped(
-            _gameSession.GetSkillDefsTyped(),
-            _gameSession.GetItemDefsTyped()
+            contentCatalog.GetItemDefsTyped(),
+            contentCatalog.GetSkillDefinitionsTyped(),
+            contentCatalog.GetTraitDefsTyped(),
+            contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped(),
+            contentCatalog.GetBarrierProfileDefinitionsTyped()
         );
     }
 
@@ -894,23 +1025,30 @@ public sealed class HeadlessGameTestSession : IDisposable
             return;
         }
 
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> wildEncounterRosters =
-            _gameSession.GetWildEncounterRostersTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            _gameSession.GetEnemyTemplatesTyped();
-        var rosterBuilder = new EncounterRosterBuilder();
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
+            _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            _gameSession.GetEnemyTemplateDefinitions();
+        using var rosterBuilder = new EncounterRosterBuilder();
         rosterBuilder.Setup(wildEncounterRosters, enemyTemplates);
-        GArray previewLootEntries = rosterBuilder.BuildLootEntriesTyped(
-            _activeHeadlessEncounterAnchor,
-            enemyTemplates: enemyTemplates,
-            itemDefs: _gameSession.GetItemDefsTyped()
-        );
+        IReadOnlyList<IReadOnlyDictionary<string, object>> previewLootEntries =
+            rosterBuilder.BuildLootEntriesPlain(
+                _activeHeadlessEncounterAnchor,
+                enemyTemplates: enemyTemplates,
+                itemDefs: _gameSession.GetItemDefsTyped()
+            );
         if (previewLootEntries.Count == 0)
         {
             return;
         }
-        foreach (BattleLootEntry lootEntry in BattleLootEntryPayload.ParseEntries(previewLootEntries))
+        foreach (
+            BattleLootEntry lootEntry in BattleLootEntryPayload.ParseEntriesPlain(
+                previewLootEntries
+            )
+        )
+        {
             battleRuntime._active_loot_entries.Add(lootEntry);
+        }
     }
 
     private BattleEquipmentInstanceSelection ResolveBattleBackpackEquipmentInstance(
@@ -995,7 +1133,7 @@ public sealed class HeadlessGameTestSession : IDisposable
     }
 
     private static ChangeEquipmentReportSummary FindLastChangeEquipmentReport(
-        IReadOnlyList<GDictionary> reportEntries
+        IReadOnlyList<IReadOnlyDictionary<string, object>> reportEntries
     )
     {
         if (reportEntries == null)
@@ -1004,13 +1142,13 @@ public sealed class HeadlessGameTestSession : IDisposable
         }
         for (int index = reportEntries.Count - 1; index >= 0; index--)
         {
-            GDictionary report = reportEntries[index];
+            IReadOnlyDictionary<string, object> report = reportEntries[index];
             if (report == null || report.Count == 0)
             {
                 continue;
             }
 
-            Dictionary<string, object> typedReport = NormalizeDictionary(report);
+            Dictionary<string, object> typedReport = RuntimePlainPayload.CloneDictionary(report);
             string reportType = ReadTypedString(typedReport, "type");
             if (reportType == "change_equipment")
             {
@@ -1022,6 +1160,41 @@ public sealed class HeadlessGameTestSession : IDisposable
             }
         }
         return null;
+    }
+
+    private void AugmentPartyContingencySnapshotTyped(Dictionary<string, object> snapshot)
+    {
+        Dictionary<string, object> partySnapshot = ReadTypedDictionary(snapshot, "party");
+        Dictionary<string, object> statusByMember = ReadTypedDictionary(
+            partySnapshot,
+            "contingency_status_by_member"
+        );
+        if (statusByMember.Count == 0 || _runtime == null)
+        {
+            return;
+        }
+
+        foreach (object statusValue in statusByMember.Values)
+        {
+            if (statusValue is not Dictionary<string, object> memberStatus)
+            {
+                continue;
+            }
+            StringName memberId = ReadTypedStringName(memberStatus, "member_id");
+            AttributeSnapshot attributeSnapshot = _runtime.GetMemberAttributeSnapshot(memberId);
+            PartyMemberState memberState = _runtime.GetPartyState()?.GetMemberState(memberId);
+            int effectiveMpMax = Mathf.Max(
+                attributeSnapshot?.GetValue(AttributeService.MP_MAX)
+                    ?? memberState?.current_mp
+                    ?? 0,
+                0
+            );
+            foreach (object setupValue in ReadTypedArray(memberStatus, "setups"))
+            {
+                if (setupValue is Dictionary<string, object> setupSnapshot)
+                    setupSnapshot["effective_mp_max"] = effectiveMpMax;
+            }
+        }
     }
 
     private void AugmentBattleSnapshotTyped(Dictionary<string, object> snapshot)
@@ -1040,6 +1213,10 @@ public sealed class HeadlessGameTestSession : IDisposable
 
         battleSnapshot["party_backpack"] = BuildBattleBackpackSnapshotTyped(
             battleState.GetPartyBackpackView()
+        );
+        Dictionary<string, object> contingencySnapshot = ReadTypedDictionary(
+            battleSnapshot,
+            "contingency"
         );
         IReadOnlyList<object> units = ReadTypedArray(battleSnapshot, "units");
         foreach (object unitSnapshotValue in units)
@@ -1060,6 +1237,29 @@ public sealed class HeadlessGameTestSession : IDisposable
                 unitState.GetEquipmentView()
             );
             unitSnapshot["hp_max"] = GetBattleUnitHpMax(unitState);
+            unitSnapshot["mp_max"] = GetBattleUnitAttributeValue(
+                unitState,
+                AttributeService.MP_MAX
+            );
+            unitSnapshot["reserved_mp_max"] = GetBattleUnitAttributeValue(
+                unitState,
+                AttributeService.RESERVED_MP_MAX
+            );
+            unitSnapshot["contingency_state"] = ResolveBattleUnitContingencyState(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["contingency_suppressed"] = ResolveBattleUnitContingencySuppressed(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["contingency_release_queue_count"] = CountQueuedContingencyContextsForOwner(
+                contingencySnapshot,
+                unitState.unit_id
+            );
+            unitSnapshot["consumed_contingency_setup_ids"] = StringNameArrayToStringList(
+                unitState.GetConsumedContingencySetupIdsTyped()
+            );
             unitSnapshot["equipment"] = equipmentEntries;
             unitSnapshot["equipment_count"] = equipmentEntries.Count;
         }
@@ -1156,6 +1356,92 @@ public sealed class HeadlessGameTestSession : IDisposable
         );
     }
 
+    private static int GetBattleUnitAttributeValue(
+        BattleUnitState unitState,
+        StringName attributeId
+    )
+    {
+        if (unitState?.attribute_snapshot == null)
+        {
+            return 0;
+        }
+        return Mathf.Max(unitState.attribute_snapshot.GetValue(attributeId), 0);
+    }
+
+    private static string ResolveBattleUnitContingencyState(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        bool hasInstance = false;
+        foreach (Dictionary<string, object> instance in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "instances"
+        ))
+        {
+            if (ReadTypedString(instance, "owner_unit_id") != unitId.ToString())
+            {
+                continue;
+            }
+            hasInstance = true;
+            if (!ReadTypedBool(instance, "consumed", false))
+            {
+                return "armed";
+            }
+        }
+        return hasInstance ? "consumed" : "none";
+    }
+
+    private static bool ResolveBattleUnitContingencySuppressed(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        foreach (Dictionary<string, object> instance in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "instances"
+        ))
+        {
+            if (
+                ReadTypedString(instance, "owner_unit_id") == unitId.ToString()
+                && ReadTypedBool(instance, "suppressed", false)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int CountQueuedContingencyContextsForOwner(
+        Dictionary<string, object> contingencySnapshot,
+        StringName unitId
+    )
+    {
+        int count = 0;
+        foreach (Dictionary<string, object> context in ContingencySnapshotDictionaries(
+            contingencySnapshot,
+            "queued_release_contexts"
+        ))
+        {
+            if (ReadTypedString(context, "owner_unit_id") == unitId.ToString())
+            {
+                count += 1;
+            }
+        }
+        return count;
+    }
+
+    private static IEnumerable<Dictionary<string, object>> ContingencySnapshotDictionaries(
+        Dictionary<string, object> contingencySnapshot,
+        string key
+    )
+    {
+        foreach (object value in ReadTypedArray(contingencySnapshot, key))
+            if (value is Dictionary<string, object> dictionary)
+                yield return dictionary;
+    }
+
     private static List<object> StringNameArrayToStringList(
         IEnumerable<StringName> values
     )
@@ -1196,116 +1482,34 @@ public sealed class HeadlessGameTestSession : IDisposable
         return result;
     }
 
-    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
+    private static List<object> BuildPresetSnapshotsPlain()
     {
-        var result = new Dictionary<string, object>(StringComparer.Ordinal);
-        if (source == null)
-            return result;
-        foreach (Variant rawKey in source.Keys)
+        var result = new List<object>();
+        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
         {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-                continue;
-            result[key] = NormalizeValue(source[rawKey]);
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["preset_id"] = preset.PresetId,
+                    ["display_name"] = preset.DisplayName,
+                    ["size_label"] = preset.SizeLabel,
+                    ["generation_config_path"] = preset.GenerationConfigPath,
+                }
+            );
         }
         return result;
     }
 
-    private static List<object> NormalizeArray(GArray source)
+    private static List<object> ClonePlainDictionaryList(
+        IEnumerable<Dictionary<string, object>> source
+    )
     {
         var result = new List<object>();
         if (source == null)
             return result;
-        foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
+        foreach (Dictionary<string, object> entry in source)
+            result.Add(RuntimePlainPayload.CloneDictionary(entry));
         return result;
-    }
-
-    private static List<object> NormalizeEnumerable(System.Collections.IEnumerable source)
-    {
-        var result = new List<object>();
-        if (source == null)
-            return result;
-        foreach (object rawValue in source)
-            result.Add(NormalizeValue(rawValue));
-        return result;
-    }
-
-    private static object NormalizeValue(object rawValue)
-    {
-        if (rawValue is Variant variantValue)
-            return NormalizeVariant(variantValue);
-        if (rawValue is GDictionary dictionaryValue)
-            return NormalizeDictionary(dictionaryValue);
-        if (rawValue is GArray arrayValue)
-            return NormalizeArray(arrayValue);
-        return rawValue;
-    }
-
-    private static object NormalizeVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
-        };
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        if (source == null)
-            return projection;
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        if (source == null)
-            return projection;
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObjectValue => godotObjectValue,
-            _ => value.ToString() ?? "",
-        };
     }
 
     private static Dictionary<string, object> ReadTypedDictionary(
@@ -1372,75 +1576,6 @@ public sealed class HeadlessGameTestSession : IDisposable
         if (source == null || !source.TryGetValue(key, out object rawValue))
             return fallback;
         return rawValue is bool boolValue ? boolValue : fallback;
-    }
-
-    private static IReadOnlyList<EncounterAnchorData> ReadEncounterAnchorsTyped(
-        GDictionary source,
-        string key
-    )
-    {
-        object rawValue = null;
-        if (source == null || string.IsNullOrEmpty(key))
-        {
-            return Array.Empty<EncounterAnchorData>();
-        }
-
-        if (source.ContainsKey(key))
-        {
-            rawValue = source[key];
-        }
-
-        if (rawValue is not Variant value || value.VariantType != Variant.Type.Array)
-        {
-            return Array.Empty<EncounterAnchorData>();
-        }
-
-        GArray rawAnchors = value.AsGodotArray();
-        var anchors = new List<EncounterAnchorData>(rawAnchors.Count);
-        foreach (object encounterValue in rawAnchors)
-        {
-            if (encounterValue is EncounterAnchorData typedAnchor)
-            {
-                anchors.Add(typedAnchor);
-                continue;
-            }
-
-            if (encounterValue is Variant variantValue)
-            {
-                EncounterAnchorData variantAnchor =
-                    variantValue.AsGodotObject() as EncounterAnchorData;
-                if (variantAnchor != null)
-                {
-                    anchors.Add(variantAnchor);
-                }
-            }
-        }
-        return anchors;
-    }
-
-    private static GDictionary Result(
-        bool ok,
-        string message,
-        GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.None
-    )
-    {
-        GameRuntimeFacade.RuntimeCommandCode resolvedCode =
-            code != GameRuntimeFacade.RuntimeCommandCode.None
-                ? code
-                : ok
-                    ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                    : GameRuntimeFacade.RuntimeCommandCode.Failed;
-        return new GDictionary
-        {
-            ["ok"] = ok,
-            ["message"] = message ?? "",
-            ["code"] = (int)resolvedCode,
-        };
-    }
-
-    private static GDictionary Result(SessionCommandOutcome outcome)
-    {
-        return Result(outcome.Ok, outcome.Message, outcome.Code);
     }
 
 }

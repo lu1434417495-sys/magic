@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_awakening"
+display_name = "灰烬觉醒"
+description = "余烬祭所的篝火永不熄灭——或者说，不能熄灭。你在这里醒来，第一只迷雾兽已经在祭所外围徘徊。证明你能在这里活下去。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"ashen_intersection", &"main_story"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_mist_beast", &"objective_type": &"defeat_enemy", &"target_id": &"mist_beast", &"target_value": 1}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 100}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"warrior_backstep", &"amount": 1}])}])
+is_repeatable = false

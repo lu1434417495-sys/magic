@@ -3,35 +3,38 @@ using Godot;
 
 internal static class BattleValidationResultProjection
 {
-    internal static Godot.Collections.Dictionary ProjectUnitSkill(
+    internal static GodotProjectionLease<Godot.Collections.Dictionary> ProjectUnitSkillLease(
         BattleUnitSkillValidationResult result
-    ) =>
-        new()
+    )
+    {
+        var payload = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["allowed"] = result.Allowed,
             ["message"] = result.Message ?? "",
-            ["target_unit_ids"] = ToStringNameArray(result.TargetUnitIds),
-            ["target_units"] = ToUnitArray(result.TargetUnits),
-            ["random_chain_candidate_unit_ids"] = ToStringNameArray(
+            ["target_unit_ids"] = ToPlainList(result.TargetUnitIds),
+            ["target_units"] = BuildUnitSnapshotsPlain(result.TargetUnits),
+            ["random_chain_candidate_unit_ids"] = ToPlainList(
                 result.RandomChainCandidateUnitIds
             ),
-            ["preview_coords"] = ToVector2IArray(result.PreviewCoords),
+            ["preview_coords"] = ToPlainList(result.PreviewCoords),
         };
+        return ProjectLease(payload, "unit-skill");
+    }
 
-    internal static Godot.Collections.Dictionary ProjectGroundSkill(
+    internal static GodotProjectionLease<Godot.Collections.Dictionary> ProjectGroundSkillLease(
         BattleGroundSkillValidationResult result
     )
     {
-        var payload = new Godot.Collections.Dictionary
+        var payload = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
             ["allowed"] = result.Allowed,
             ["message"] = result.Message ?? "",
-            ["target_coords"] = ToVector2IArray(result.TargetCoords),
+            ["target_coords"] = ToPlainList(result.TargetCoords),
             ["resolved_anchor_coord"] = result.ResolvedAnchorCoord,
         };
         if (result.HasPreviewCoords)
         {
-            payload["preview_coords"] = ToVector2IArray(result.PreviewCoords);
+            payload["preview_coords"] = ToPlainList(result.PreviewCoords);
         }
         if (result.Direction != Vector2I.Zero)
         {
@@ -41,61 +44,55 @@ internal static class BattleValidationResultProjection
         {
             payload["distance"] = result.Distance;
         }
-        return payload;
+        return ProjectLease(payload, "ground-skill");
     }
 
-    internal static Godot.Collections.Dictionary ProjectTargetCollection(
+    internal static GodotProjectionLease<Godot.Collections.Dictionary> ProjectTargetCollectionLease(
         BattleTargetCollectionResult result
     )
     {
         if (result == null)
-            return new Godot.Collections.Dictionary();
-        return new Godot.Collections.Dictionary
-        {
-            ["handled"] = result.Handled,
-            ["target_coords"] = ToVector2IArray(result.TargetCoords),
-        };
+            return ProjectLease(new Dictionary<string, object>(), "target-collection-empty");
+        return ProjectLease(
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
+            {
+                ["handled"] = result.Handled,
+                ["target_coords"] = ToPlainList(result.TargetCoords),
+            },
+            "target-collection"
+        );
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IReadOnlyList<StringName> ids
-    )
+    private static GodotProjectionLease<Godot.Collections.Dictionary> ProjectLease(
+        IReadOnlyDictionary<string, object> payload,
+        string operation
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            payload,
+            "battle-validation-result",
+            LifetimeDomain.Request,
+            $"BattleValidationResultProjection.{operation}"
+        );
+
+    private static List<object> ToPlainList<T>(IReadOnlyList<T> values)
     {
-        var result = new Godot.Collections.Array<StringName>();
-        if (ids == null)
-            return result;
-        foreach (StringName id in ids)
-        {
-            result.Add(id);
-        }
+        var result = new List<object>();
+        foreach (T value in values ?? System.Array.Empty<T>())
+            result.Add(value);
         return result;
     }
 
-    private static Godot.Collections.Array ToUnitArray(IReadOnlyList<BattleUnitState> units)
+    private static List<object> BuildUnitSnapshotsPlain(
+        IReadOnlyList<BattleUnitState> units
+    )
     {
-        var result = new Godot.Collections.Array();
+        var result = new List<object>();
         if (units == null)
             return result;
         foreach (BattleUnitState unit in units)
         {
             if (unit != null)
-            {
-                result.Add(unit);
-            }
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
-        IReadOnlyList<Vector2I> coords
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (coords == null)
-            return result;
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
+                result.Add(unit.BuildSnapshotPlain());
         }
         return result;
     }

@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_wve6n"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="4_contingency"]
 
 [sub_resource type="Resource" id="MagicShield_l0"]
 script = ExtResource("1_effect")
@@ -93,6 +94,14 @@ mastery_trigger_mode = &"effect_applied"
 ai_tags = Array[StringName]([&"support", &"defense"])
 effect_defs = Array[ExtResource("1_effect")]([SubResource("MagicShield_l0"), SubResource("MagicShield_l3"), SubResource("MagicShield_l5"), SubResource("MagicShield_l7"), SubResource("Shield_l5"), SubResource("Shield_l7")])
 
+[sub_resource type="Resource" id="ContingencyAutomation"]
+script = ExtResource("4_contingency")
+can_be_stored_in_contingency = true
+min_contingency_skill_level = 3
+effect_category = &"shield"
+allowed_target_resolvers = Array[StringName]([&"self"])
+allowed_parameter_bindings = {}
+
 [resource]
 script = ExtResource("3_skill")
 skill_id = &"mage_magic_shield"
@@ -180,3 +189,4 @@ level_description_configs = {
 }
 }
 combat_profile = SubResource("Combat")
+contingency_automation_profile = SubResource("ContingencyAutomation")

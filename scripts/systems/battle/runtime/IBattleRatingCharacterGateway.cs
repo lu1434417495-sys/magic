@@ -6,22 +6,54 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class BattleEffectiveTraitProjection
 {
+    private readonly StringNameList _effectiveTraitIds;
+
     public BattleEffectiveTraitProjection(
-        Godot.Collections.Array<BattleEffectiveTraitInstanceState> effective_trait_instances = null)
+        IEnumerable<BattleEffectiveTraitInstanceState> effective_trait_instances = null)
     {
         EffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
-            effective_trait_instances
-                ?? new Godot.Collections.Array<BattleEffectiveTraitInstanceState>()
+            effective_trait_instances ?? System.Array.Empty<BattleEffectiveTraitInstanceState>()
         );
-        EffectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
+        _effectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
             EffectiveTraitInstances
         );
     }
 
     public static BattleEffectiveTraitProjection Empty => new();
 
-    public Godot.Collections.Array<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
-    public GStringNameArray EffectiveTraitIds { get; }
+    public IReadOnlyList<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
+    public GStringNameArray EffectiveTraitIds
+    {
+        get
+        {
+            var result = new GStringNameArray();
+            foreach (StringName traitId in _effectiveTraitIds)
+                result.Add(traitId);
+            return result;
+        }
+    }
+}
+
+public sealed class BattleResourceCommitResult
+{
+    public bool Ok { get; init; }
+    public string ErrorCode { get; init; } = "";
+    public StringName MemberId { get; init; } = "";
+
+    public static BattleResourceCommitResult Success(StringName memberId) =>
+        new()
+        {
+            Ok = true,
+            MemberId = ProgressionDataUtils.to_string_name(memberId),
+        };
+
+    public static BattleResourceCommitResult Failure(string errorCode, StringName memberId) =>
+        new()
+        {
+            Ok = false,
+            ErrorCode = errorCode ?? "",
+            MemberId = ProgressionDataUtils.to_string_name(memberId),
+        };
 }
 
 public interface IBattleRatingCharacterGateway
@@ -45,11 +77,11 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
 {
     PartyState GetPartyState();
 
-    IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped();
+    IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped();
 
     bool HasItemDefCatalog();
 
-    ItemDef GetItemDef(StringName item_id);
+    ItemDefinition GetItemDef(StringName item_id);
 
     PartyMemberState GetMemberState(StringName member_id);
 
@@ -79,11 +111,21 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
         PromotionSelectionData selection
     );
 
-    void CommitBattleResources(
+    BattleResourceCommitResult CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,
         int current_aura
+    );
+
+    ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    );
+
+    ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
     );
 
     void CommitBattleDeath(StringName member_id);

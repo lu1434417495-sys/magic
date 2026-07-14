@@ -4,6 +4,7 @@ public enum RuntimeModalKind
     Settlement,
     Shop,
     ContractBoard,
+    NpcQuestOffer,
     Forge,
     Stagecoach,
     CharacterInfo,
@@ -15,6 +16,7 @@ public enum RuntimeModalKind
     Reward,
     GameOver,
     BattleLoading,
+    ResourceHarvestConfirm,
 }
 
 internal static class RuntimeModalKinds
@@ -25,6 +27,7 @@ internal static class RuntimeModalKinds
             RuntimeModalKind.Settlement => "settlement",
             RuntimeModalKind.Shop => "shop",
             RuntimeModalKind.ContractBoard => "contract_board",
+            RuntimeModalKind.NpcQuestOffer => "npc_quest_offer",
             RuntimeModalKind.Forge => "forge",
             RuntimeModalKind.Stagecoach => "stagecoach",
             RuntimeModalKind.CharacterInfo => "character_info",
@@ -36,6 +39,7 @@ internal static class RuntimeModalKinds
             RuntimeModalKind.Reward => "reward",
             RuntimeModalKind.GameOver => "game_over",
             RuntimeModalKind.BattleLoading => "battle_loading",
+            RuntimeModalKind.ResourceHarvestConfirm => "resource_harvest_confirm",
             _ => "",
         };
 

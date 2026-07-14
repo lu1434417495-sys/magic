@@ -22,7 +22,7 @@ internal sealed class BattleAiMutationViolationReport
         BattleAiContext context,
         IEnumerable<string> violations,
         string stage,
-        EnemyAiAction action,
+        BattleAiRuntimeActionEntry actionEntry,
         int actionIndex,
         string callSite
     )
@@ -41,12 +41,12 @@ internal sealed class BattleAiMutationViolationReport
         UnitName = context?.unit_state?.display_name ?? "";
         BattleId = context?.state?.battle_id.ToString() ?? "";
         ActionIndex = actionIndex;
-        ActionId = action?.action_id.ToString() ?? "";
-        ActionType = action?.GetType().FullName ?? "";
+        ActionId = actionEntry?.Action?.ActionId.ToString() ?? "";
+        ActionType = actionEntry?.Action?.GetType().FullName ?? "";
         SuspectedCallSite =
             !string.IsNullOrEmpty(callSite)
                 ? callSite
-                : BuildActionCallSite(action, actionIndex);
+                : BuildActionCallSite(actionEntry, actionIndex);
         DetectionStack = new StackTrace(1, true).ToString();
         Message = BuildMessage();
     }
@@ -73,12 +73,16 @@ internal sealed class BattleAiMutationViolationReport
 
     internal string Message { get; }
 
-    internal static string BuildActionCallSite(EnemyAiAction action, int actionIndex)
+    internal static string BuildActionCallSite(
+        BattleAiRuntimeActionEntry actionEntry,
+        int actionIndex
+    )
     {
+        EnemyAiActionDefinition action = actionEntry?.Action;
         string actionType = action?.GetType().FullName ?? "unknown_action_type";
-        string actionId = action?.action_id.ToString() ?? "";
+        string actionId = action?.ActionId.ToString() ?? "";
         string indexText = actionIndex >= 0 ? actionIndex.ToString() : "?";
-        return $"action[{indexText}] {actionType}.Decide(action_id={actionId})";
+        return $"action[{indexText}] {actionType}.Evaluate(action_id={actionId})";
     }
 
     internal Dictionary<string, string> ToMetadata()

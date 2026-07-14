@@ -20,26 +20,26 @@ public static class AgeStageResolver
 
     public static AgeStageResolution ResolveEffectiveStage(
         PartyMemberState member_state,
-        AgeProfileDef age_profile,
-        IEnumerable<StageAdvancementModifier> stage_advancement_modifiers = null,
-        BloodlineDef _bloodline_def = null,
-        BloodlineStageDef _bloodline_stage_def = null,
-        AscensionDef ascension_def = null,
-        AscensionStageDef ascension_stage_def = null
+        AgeProfileDefinition age_profile,
+        IEnumerable<StageAdvancementDefinition> stage_advancement_modifiers = null,
+        BloodlineDefinition _bloodline_def = null,
+        BloodlineStageDefinition _bloodline_stage_def = null,
+        AscensionDefinition ascension_def = null,
+        AscensionStageDefinition ascension_stage_def = null
     )
     {
         var base_stage_id = _resolve_base_stage_id(member_state);
         if (
             ascension_def != null
             && ascension_stage_def != null
-            && (bool)ascension_def.replaces_age_growth
-            && ascension_stage_def.stage_id != ""
+            && ascension_def.ReplacesAgeGrowth
+            && ascension_stage_def.StageId != ""
         )
         {
             return _build_result(
-                ascension_stage_def.stage_id,
+                ascension_stage_def.StageId,
                 SourceTypeAscension,
-                ascension_stage_def.stage_id
+                ascension_stage_def.StageId
             );
         }
 
@@ -75,7 +75,7 @@ public static class AgeStageResolver
                 resolved_result = _build_result(
                     modifier_stage_id,
                     SourceTypeStageAdvancement,
-                    modifier.modifier_id
+                    modifier.ModifierId
                 );
             }
         }
@@ -94,48 +94,48 @@ public static class AgeStageResolver
             : "adult";
     }
 
-    private static List<StringName> _collect_age_stage_order(AgeProfileDef age_profile)
+    private static List<StringName> _collect_age_stage_order(AgeProfileDefinition age_profile)
     {
         var stage_order = new List<StringName>();
         if (age_profile == null)
             return stage_order;
-        foreach (var stage_rule in age_profile.stage_rules)
+        foreach (var stage_rule in age_profile.StageRules)
         {
-            if (stage_rule == null || stage_rule.stage_id == "")
+            if (stage_rule == null || stage_rule.StageId == "")
                 continue;
-            if (!(bool)stage_rule.reachable_by_aging)
+            if (!stage_rule.ReachableByAging)
                 continue;
-            if (stage_order.Contains(stage_rule.stage_id))
+            if (stage_order.Contains(stage_rule.StageId))
                 continue;
-            stage_order.Add(stage_rule.stage_id);
+            stage_order.Add(stage_rule.StageId);
         }
         return stage_order;
     }
 
     private static StageCandidate _resolve_modifier_stage_result(
-        StageAdvancementModifier modifier,
+        StageAdvancementDefinition modifier,
         StringName base_stage_id,
         int base_stage_index,
         List<StringName> stage_order
     )
     {
-        if (modifier == null || (int)modifier.stage_offset <= 0)
+        if (modifier == null || modifier.StageOffset <= 0)
             return new StageCandidate(base_stage_id, base_stage_index);
         if (_uses_identity_stage_axis(modifier.TargetAxisKind))
-            return new StageCandidate(modifier.max_stage_id, -1);
+            return new StageCandidate(modifier.MaxStageId, -1);
         if (base_stage_index < 0 || stage_order.Count == 0)
             return new StageCandidate(
-                modifier.max_stage_id != "" ? modifier.max_stage_id : base_stage_id,
+                modifier.MaxStageId != "" ? modifier.MaxStageId : base_stage_id,
                 -1
             );
 
         var target_index = Mathf.Min(
-            base_stage_index + (int)modifier.stage_offset,
+            base_stage_index + modifier.StageOffset,
             stage_order.Count - 1
         );
-        if (modifier.max_stage_id != "")
+        if (modifier.MaxStageId != "")
         {
-            var max_stage_index = stage_order.IndexOf(modifier.max_stage_id);
+            var max_stage_index = stage_order.IndexOf(modifier.MaxStageId);
             if (max_stage_index >= 0)
                 target_index = Mathf.Min(target_index, max_stage_index);
         }
@@ -149,7 +149,7 @@ public static class AgeStageResolver
     }
 
     private static bool _modifier_applies_to_member(
-        StageAdvancementModifier modifier,
+        StageAdvancementDefinition modifier,
         PartyMemberState member_state
     )
     {
@@ -157,26 +157,34 @@ public static class AgeStageResolver
             return false;
 
         if (
-            modifier.applies_to_race_ids.Count > 0
-            && !modifier.applies_to_race_ids.Contains(member_state.race_id)
+            modifier.AppliesToRaceIds.Count > 0
+            && !_contains_id(modifier.AppliesToRaceIds, member_state.race_id)
         )
             return false;
         if (
-            modifier.applies_to_subrace_ids.Count > 0
-            && !modifier.applies_to_subrace_ids.Contains(member_state.subrace_id)
+            modifier.AppliesToSubraceIds.Count > 0
+            && !_contains_id(modifier.AppliesToSubraceIds, member_state.subrace_id)
         )
             return false;
         if (
-            modifier.applies_to_bloodline_ids.Count > 0
-            && !modifier.applies_to_bloodline_ids.Contains(member_state.bloodline_id)
+            modifier.AppliesToBloodlineIds.Count > 0
+            && !_contains_id(modifier.AppliesToBloodlineIds, member_state.bloodline_id)
         )
             return false;
         if (
-            modifier.applies_to_ascension_ids.Count > 0
-            && !modifier.applies_to_ascension_ids.Contains(member_state.ascension_id)
+            modifier.AppliesToAscensionIds.Count > 0
+            && !_contains_id(modifier.AppliesToAscensionIds, member_state.ascension_id)
         )
             return false;
         return true;
+    }
+
+    private static bool _contains_id(IReadOnlyList<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values)
+            if (value == expected)
+                return true;
+        return false;
     }
 
     private static AgeStageResolution _build_result(

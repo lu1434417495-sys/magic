@@ -1,17 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class WorldMapSpawnSystem : IDisposable
+public sealed class WorldMapSpawnSystem
 {
     private const string EncounterKindSingle = "single";
     private const string EncounterKindSettlement = "settlement";
-    private const string DefaultMainWorldSettlementBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres";
-    private const string DefaultMainWorldWildSpawnBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres";
     private const string DefaultMainWorldSettlementNamePoolPath =
         "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
     private const string DefaultMainWorldTownNamePoolPath =
@@ -59,61 +54,24 @@ public sealed class WorldMapSpawnSystem : IDisposable
         ["service_hire_expert"] = "service:hire_expert",
     };
 
-    private RandomNumberGenerator _rng = new();
+    private readonly RuntimeRandom _rng = new();
     private long _mapSeed;
-    private bool _disposed;
-    private WorldMapGenerationConfig _generationConfig;
+    private WorldGenerationDefinition _generationDefinition;
     private WorldMapGridSystem _gridSystem;
-    private readonly Dictionary<string, FacilityConfig> _facilityLibraryById = new(
+    private readonly Dictionary<string, FacilityDefinition> _facilityLibraryById = new(
         StringComparer.Ordinal
     );
-    private readonly Dictionary<string, SettlementConfig> _settlementLibraryById = new(
+    private readonly Dictionary<string, SettlementDefinition> _settlementLibraryById = new(
         StringComparer.Ordinal
     );
-    private readonly List<FacilityConfig> _resolvedFacilityLibrary = new();
-    private readonly List<SettlementConfig> _resolvedSettlementLibrary = new();
-    private readonly List<WildSpawnRule> _resolvedWildSpawnRules = new();
-    private WorldMapSettlementBundle _defaultMainWorldSettlementBundle;
-    private WorldMapWildSpawnBundle _defaultMainWorldWildSpawnBundle;
+    private readonly List<FacilityDefinition> _resolvedFacilityLibrary = new();
+    private readonly List<SettlementDefinition> _resolvedSettlementLibrary = new();
+    private readonly List<WildSpawnRuleDefinition> _resolvedWildSpawnRules = new();
     private List<string> _remainingDefaultMainWorldSettlementDisplayNames = new();
     private List<string> _remainingDefaultMainWorldTownDisplayNames = new();
     private List<string> _remainingDefaultMainWorldCityDisplayNames = new();
     private List<string> _remainingDefaultMainWorldCapitalDisplayNames = new();
     private List<string> _remainingDefaultMainWorldMetropolisDisplayNames = new();
-
-    internal bool IsDisposedForTests => _disposed;
-    internal bool HasLiveOwnedRngForTests =>
-        _rng != null && GodotObject.IsInstanceValid(_rng);
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GC.SuppressFinalize(this);
-        RandomNumberGenerator rng = _rng;
-        _rng = null;
-        DisposeOwnedRng(rng);
-        ClearBorrowedResourceReferences();
-    }
-
-    private void ClearBorrowedResourceReferences()
-    {
-        _generationConfig = null;
-        _gridSystem = null;
-        _facilityLibraryById.Clear();
-        _settlementLibraryById.Clear();
-        _resolvedFacilityLibrary.Clear();
-        _resolvedSettlementLibrary.Clear();
-        _resolvedWildSpawnRules.Clear();
-        _defaultMainWorldSettlementBundle = null;
-        _defaultMainWorldWildSpawnBundle = null;
-        _remainingDefaultMainWorldSettlementDisplayNames.Clear();
-        _remainingDefaultMainWorldTownDisplayNames.Clear();
-        _remainingDefaultMainWorldCityDisplayNames.Clear();
-        _remainingDefaultMainWorldCapitalDisplayNames.Clear();
-        _remainingDefaultMainWorldMetropolisDisplayNames.Clear();
-    }
 
     internal sealed class WorldBuildData
     {
@@ -121,6 +79,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
         public List<SettlementInstanceData> Settlements { get; } = new();
         public List<WorldNpcInstanceData> WorldNpcs { get; } = new();
         public List<EncounterAnchorData> EncounterAnchors { get; } = new();
+        public List<WorldMapResourceNodeData> ResourceNodes { get; } = new();
         public List<WorldEventInstanceData> WorldEvents { get; } = new();
         public List<MountedSubmapInstanceData> MountedSubmaps { get; } = new();
         public Vector2I PlayerStartCoord { get; init; } = Vector2I.Zero;
@@ -370,18 +329,17 @@ public sealed class WorldMapSpawnSystem : IDisposable
     }
 
     internal WorldBuildData BuildWorldTyped(
-        WorldMapGenerationConfig generation_config,
+        WorldGenerationDefinition generationDefinition,
         WorldMapGridSystem grid_system
     )
     {
-        ThrowIfDisposed();
-        _generationConfig = generation_config;
+        _generationDefinition = generationDefinition;
         _gridSystem = grid_system;
-        if (_generationConfig == null || _gridSystem == null)
+        if (_generationDefinition == null || _gridSystem == null)
             return new WorldBuildData();
 
         _mapSeed = TrueRandomSeedService.GenerateSeed();
-        _rng.Seed = (ulong)Math.Max(_mapSeed, 1L);
+        _rng.Reseed(_mapSeed);
         BuildLibraries();
 
         List<SettlementInstanceData> settlements = GenerateSettlements();
@@ -390,6 +348,15 @@ public sealed class WorldMapSpawnSystem : IDisposable
         List<WorldNpcInstanceData> worldNpcs = GenerateWorldNpcs(settlements);
         List<EncounterAnchorData> encounterAnchors = GenerateEncounterAnchors(
             settlements,
+            playerStartCoord
+        );
+        List<WorldEventInstanceData> worldEvents = GenerateWorldEvents();
+        List<WorldMapResourceNodeData> resourceNodes = GenerateResourceNodes(
+            settlements,
+            worldNpcs,
+            encounterAnchors,
+            worldEvents,
+            playerStartSettlement,
             playerStartCoord
         );
 
@@ -403,7 +370,8 @@ public sealed class WorldMapSpawnSystem : IDisposable
         result.Settlements.AddRange(settlements);
         result.WorldNpcs.AddRange(worldNpcs);
         result.EncounterAnchors.AddRange(encounterAnchors);
-        result.WorldEvents.AddRange(GenerateWorldEvents());
+        result.ResourceNodes.AddRange(resourceNodes);
+        result.WorldEvents.AddRange(worldEvents);
         result.MountedSubmaps.AddRange(GenerateMountedSubmaps());
         return result;
     }
@@ -412,8 +380,6 @@ public sealed class WorldMapSpawnSystem : IDisposable
     {
         _facilityLibraryById.Clear();
         _settlementLibraryById.Clear();
-        _defaultMainWorldSettlementBundle = LoadDefaultMainWorldSettlementBundle();
-        _defaultMainWorldWildSpawnBundle = LoadDefaultMainWorldWildSpawnBundle();
         _remainingDefaultMainWorldSettlementDisplayNames =
             BuildDefaultMainWorldSettlementDisplayNames();
         _remainingDefaultMainWorldTownDisplayNames = BuildDefaultMainWorldTownDisplayNames();
@@ -423,31 +389,31 @@ public sealed class WorldMapSpawnSystem : IDisposable
             BuildDefaultMainWorldMetropolisDisplayNames();
 
         _resolvedFacilityLibrary.Clear();
-        _resolvedFacilityLibrary.AddRange(ResolveEffectiveFacilityLibrary());
+        _resolvedFacilityLibrary.AddRange(_generationDefinition.EffectiveFacilityLibrary);
         _resolvedSettlementLibrary.Clear();
-        _resolvedSettlementLibrary.AddRange(ResolveEffectiveSettlementLibrary());
+        _resolvedSettlementLibrary.AddRange(_generationDefinition.EffectiveSettlementLibrary);
         _resolvedWildSpawnRules.Clear();
-        _resolvedWildSpawnRules.AddRange(ResolveEffectiveWildSpawnRules());
+        _resolvedWildSpawnRules.AddRange(_generationDefinition.EffectiveWildSpawnRules);
 
-        foreach (FacilityConfig facilityConfig in _resolvedFacilityLibrary)
+        foreach (FacilityDefinition facilityDefinition in _resolvedFacilityLibrary)
         {
-            string facilityTemplateId = GetFacilityTemplateId(facilityConfig);
+            string facilityTemplateId = GetFacilityTemplateId(facilityDefinition);
             if (facilityTemplateId.Length == 0)
                 continue;
-            _facilityLibraryById[facilityTemplateId] = facilityConfig;
+            _facilityLibraryById[facilityTemplateId] = facilityDefinition;
         }
-        foreach (SettlementConfig settlementConfig in _resolvedSettlementLibrary)
+        foreach (SettlementDefinition settlementDefinition in _resolvedSettlementLibrary)
         {
-            string settlementTemplateId = GetSettlementTemplateId(settlementConfig);
+            string settlementTemplateId = GetSettlementTemplateId(settlementDefinition);
             if (settlementTemplateId.Length == 0)
                 continue;
-            _settlementLibraryById[settlementTemplateId] = settlementConfig;
+            _settlementLibraryById[settlementTemplateId] = settlementDefinition;
         }
     }
 
     private List<SettlementInstanceData> GenerateSettlements()
     {
-        return _generationConfig.procedural_generation_enabled
+        return _generationDefinition.ProceduralGenerationEnabled
             ? GenerateProceduralSettlements()
             : GenerateFixedSettlements();
     }
@@ -456,21 +422,22 @@ public sealed class WorldMapSpawnSystem : IDisposable
     {
         var settlements = new List<SettlementInstanceData>();
         var instanceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (Resource ruleResource in _generationConfig.settlement_distribution)
+        foreach (
+            SettlementDistributionDefinition distributionRule in _generationDefinition.SettlementDistribution
+        )
         {
-            var distributionRule = ruleResource as SettlementDistributionRule;
             string settlementTemplateId = GetDistributionRuleTemplateId(distributionRule);
             if (
                 !_settlementLibraryById.TryGetValue(
                     settlementTemplateId,
-                    out SettlementConfig settlementConfig
+                    out SettlementDefinition settlementDefinition
                 )
             )
                 continue;
             SettlementInstanceData settlement = CreateSettlementInstance(
-                settlementConfig,
-                distributionRule.preferred_origin,
-                distributionRule.faction_id,
+                settlementDefinition,
+                distributionRule.PreferredOrigin,
+                distributionRule.FactionId,
                 instanceCounts,
                 false
             );
@@ -484,10 +451,11 @@ public sealed class WorldMapSpawnSystem : IDisposable
     {
         var settlements = new List<SettlementInstanceData>();
         var instanceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        Dictionary<int, List<SettlementConfig>> templatesByTier = BuildSettlementTemplatesByTier();
-        SettlementConfig playerVillageTemplate = PickSettlementTemplateForTier(
+        Dictionary<int, List<SettlementDefinition>> templatesByTier =
+            BuildSettlementTemplatesByTier();
+        SettlementDefinition playerVillageTemplate = PickSettlementTemplateForTier(
             templatesByTier,
-            (int)SettlementConfig.SettlementTier.VILLAGE,
+            (int)SettlementTierKind.Village,
             0
         );
         if (playerVillageTemplate != null)
@@ -506,21 +474,21 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
         int[] generationOrder =
         {
-            (int)SettlementConfig.SettlementTier.METROPOLIS,
-            (int)SettlementConfig.SettlementTier.WORLD_STRONGHOLD,
-            (int)SettlementConfig.SettlementTier.CAPITAL,
-            (int)SettlementConfig.SettlementTier.CITY,
-            (int)SettlementConfig.SettlementTier.TOWN,
-            (int)SettlementConfig.SettlementTier.VILLAGE,
+            (int)SettlementTierKind.Metropolis,
+            (int)SettlementTierKind.WorldStronghold,
+            (int)SettlementTierKind.Capital,
+            (int)SettlementTierKind.City,
+            (int)SettlementTierKind.Town,
+            (int)SettlementTierKind.Village,
         };
         foreach (int tier in generationOrder)
         {
-            int targetCount = _generationConfig.GetTargetSettlementCount(tier);
-            if (tier == (int)SettlementConfig.SettlementTier.VILLAGE && settlements.Count > 0)
+            int targetCount = _generationDefinition.GetTargetSettlementCount(tier);
+            if (tier == (int)SettlementTierKind.Village && settlements.Count > 0)
                 targetCount = Math.Max(targetCount - 1, 0);
             for (int tierIndex = 0; tierIndex < targetCount; tierIndex++)
             {
-                SettlementConfig settlementTemplate = PickSettlementTemplateForTier(
+                SettlementDefinition settlementTemplate = PickSettlementTemplateForTier(
                     templatesByTier,
                     tier,
                     tierIndex
@@ -530,7 +498,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
                 Vector2I origin = FindProceduralOrigin(
                     settlementTemplate.GetFootprintSize(),
                     settlements,
-                    _generationConfig.GetSettlementSpacingCells(tier)
+                    _generationDefinition.GetSettlementSpacingCells(tier)
                 );
                 if (origin == new Vector2I(-1, -1))
                 {
@@ -555,27 +523,27 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return settlements;
     }
 
-    private Dictionary<int, List<SettlementConfig>> BuildSettlementTemplatesByTier()
+    private Dictionary<int, List<SettlementDefinition>> BuildSettlementTemplatesByTier()
     {
-        var templatesByTier = new Dictionary<int, List<SettlementConfig>>();
-        foreach (SettlementConfig settlementConfig in _resolvedSettlementLibrary)
+        var templatesByTier = new Dictionary<int, List<SettlementDefinition>>();
+        foreach (SettlementDefinition settlementDefinition in _resolvedSettlementLibrary)
         {
-            int tier = settlementConfig.tier;
+            int tier = settlementDefinition.Tier;
             if (!templatesByTier.ContainsKey(tier))
-                templatesByTier[tier] = new List<SettlementConfig>();
-            templatesByTier[tier].Add(settlementConfig);
+                templatesByTier[tier] = new List<SettlementDefinition>();
+            templatesByTier[tier].Add(settlementDefinition);
         }
         return templatesByTier;
     }
 
-    private static SettlementConfig PickSettlementTemplateForTier(
-        Dictionary<int, List<SettlementConfig>> templatesByTier,
+    private static SettlementDefinition PickSettlementTemplateForTier(
+        Dictionary<int, List<SettlementDefinition>> templatesByTier,
         int tier,
         int index
     )
     {
         if (
-            !templatesByTier.TryGetValue(tier, out List<SettlementConfig> tierTemplates)
+            !templatesByTier.TryGetValue(tier, out List<SettlementDefinition> tierTemplates)
             || tierTemplates.Count == 0
         )
             return null;
@@ -583,24 +551,24 @@ public sealed class WorldMapSpawnSystem : IDisposable
     }
 
     private SettlementInstanceData CreateSettlementInstance(
-        SettlementConfig settlementConfig,
+        SettlementDefinition settlementDefinition,
         Vector2I origin,
         string factionId,
         Dictionary<string, int> instanceCounts,
         bool isPlayerStart
     )
     {
-        Vector2I footprintSize = settlementConfig.GetFootprintSize();
+        Vector2I footprintSize = settlementDefinition.FootprintSize;
         if (!_gridSystem.CanPlaceFootprint(origin, footprintSize))
         {
             GameLog.Error(
-                $"Invalid settlement placement for {GetSettlementTemplateId(settlementConfig)} at {origin}",
+                $"Invalid settlement placement for {GetSettlementTemplateId(settlementDefinition)} at {origin}",
                 "world.spawn.invalid_placement",
                 "world"
             );
             return null;
         }
-        string templateId = GetSettlementTemplateId(settlementConfig);
+        string templateId = GetSettlementTemplateId(settlementDefinition);
         if (templateId.Length == 0)
         {
             GameLog.Error($"Settlement template is missing template_id for placement at {origin}.", "world.spawn.settlement_missing_id", "world");
@@ -612,7 +580,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
         instanceCounts[templateId] = instanceIndex;
         string settlementId = BuildSettlementInstanceId(templateId, instanceIndex);
         string displayName = ResolveSettlementDisplayName(
-            settlementConfig,
+            settlementDefinition,
             templateId,
             instanceIndex
         );
@@ -621,7 +589,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
         List<FacilityInstanceData> facilities = GenerateFacilitiesForSettlement(
             settlementId,
-            settlementConfig,
+            settlementDefinition,
             origin
         );
         var settlement = new SettlementInstanceData
@@ -630,8 +598,8 @@ public sealed class WorldMapSpawnSystem : IDisposable
             TemplateId = templateId,
             SettlementId = settlementId,
             DisplayName = displayName,
-            Tier = settlementConfig.tier,
-            TierName = settlementConfig.GetTierName(),
+            Tier = settlementDefinition.Tier,
+            TierName = settlementDefinition.TierName,
             FactionId = factionId,
             Origin = origin,
             FootprintSize = footprintSize,
@@ -646,25 +614,25 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
     private List<FacilityInstanceData> GenerateFacilitiesForSettlement(
         string settlementId,
-        SettlementConfig settlementConfig,
+        SettlementDefinition settlementDefinition,
         Vector2I settlementOrigin
     )
     {
         var generatedFacilities = new List<FacilityInstanceData>();
         var usedSlotIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (string facilityTemplateId in settlementConfig.guaranteed_facility_ids)
+        foreach (string facilityTemplateId in settlementDefinition.GuaranteedFacilityIds)
         {
             if (
                 !_facilityLibraryById.TryGetValue(
                     facilityTemplateId,
-                    out FacilityConfig facilityConfig
+                    out FacilityDefinition facilityDefinition
                 )
             )
                 continue;
             FacilityInstanceData placedFacility = TryPlaceFacility(
                 settlementId,
-                facilityConfig,
-                settlementConfig,
+                facilityDefinition,
+                settlementDefinition,
                 settlementOrigin,
                 usedSlotIds
             );
@@ -672,15 +640,12 @@ public sealed class WorldMapSpawnSystem : IDisposable
                 generatedFacilities.Add(placedFacility);
         }
         int optionalLimit = Math.Min(
-            settlementConfig.max_optional_facilities,
-            Math.Max(settlementConfig.facility_slots.Count - generatedFacilities.Count, 0)
+            settlementDefinition.MaxOptionalFacilities,
+            Math.Max(settlementDefinition.FacilitySlots.Count - generatedFacilities.Count, 0)
         );
-        var optionalPool = new List<WeightedFacilityEntry>();
-        foreach (Resource entryResource in settlementConfig.optional_facility_pool)
-        {
-            if (entryResource is WeightedFacilityEntry entry)
-                optionalPool.Add(entry);
-        }
+        var optionalPool = new List<WeightedFacilityDefinition>(
+            settlementDefinition.OptionalFacilityPool
+        );
         for (int optionalIndex = 0; optionalIndex < optionalLimit; optionalIndex++)
         {
             string selectedFacilityTemplateId = PickWeightedFacility(optionalPool);
@@ -689,14 +654,14 @@ public sealed class WorldMapSpawnSystem : IDisposable
             if (
                 !_facilityLibraryById.TryGetValue(
                     selectedFacilityTemplateId,
-                    out FacilityConfig facilityConfig
+                    out FacilityDefinition facilityDefinition
                 )
             )
                 continue;
             FacilityInstanceData placedFacility = TryPlaceFacility(
                 settlementId,
-                facilityConfig,
-                settlementConfig,
+                facilityDefinition,
+                settlementDefinition,
                 settlementOrigin,
                 usedSlotIds
             );
@@ -710,41 +675,39 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
     private FacilityInstanceData TryPlaceFacility(
         string settlementId,
-        FacilityConfig facilityConfig,
-        SettlementConfig settlementConfig,
+        FacilityDefinition facilityDefinition,
+        SettlementDefinition settlementDefinition,
         Vector2I settlementOrigin,
         HashSet<string> usedSlotIds
     )
     {
-        if (facilityConfig.min_settlement_tier > settlementConfig.tier)
+        if (facilityDefinition.MinSettlementTier > settlementDefinition.Tier)
             return null;
-        string facilityTemplateId = GetFacilityTemplateId(facilityConfig);
+        string facilityTemplateId = GetFacilityTemplateId(facilityDefinition);
         if (facilityTemplateId.Length == 0)
             return null;
-        foreach (Resource slotResource in settlementConfig.facility_slots)
+        foreach (FacilitySlotDefinition slotDefinition in settlementDefinition.FacilitySlots)
         {
-            var slotConfig = slotResource as FacilitySlotConfig;
-            if (slotConfig == null)
+            if (slotDefinition == null)
                 continue;
-            if (usedSlotIds.Contains(slotConfig.slot_id))
+            if (usedSlotIds.Contains(slotDefinition.SlotId))
                 continue;
             if (
-                facilityConfig.allowed_slot_tags.Count > 0
-                && !facilityConfig.allowed_slot_tags.Contains(slotConfig.slot_tag)
+                facilityDefinition.AllowedSlotTags.Count > 0
+                && !facilityDefinition.AllowedSlotTags.Contains(slotDefinition.SlotTag)
             )
                 continue;
-            usedSlotIds.Add(slotConfig.slot_id);
+            usedSlotIds.Add(slotDefinition.SlotId);
             string facilityId = BuildFacilityInstanceId(
                 settlementId,
                 facilityTemplateId,
-                slotConfig.slot_id
+                slotDefinition.SlotId
             );
             var serviceNpcs = new List<ServiceNpcInstanceData>();
             int npcIndex = 0;
-            foreach (Resource npcResource in facilityConfig.bound_service_npcs)
+            foreach (FacilityNpcDefinition npcDefinition in facilityDefinition.BoundServiceNpcs)
             {
-                var npcConfig = npcResource as FacilityNpcConfig;
-                string npcTemplateId = GetNpcTemplateId(npcConfig);
+                string npcTemplateId = GetNpcTemplateId(npcDefinition);
                 if (npcTemplateId.Length == 0)
                     continue;
                 serviceNpcs.Add(
@@ -754,16 +717,16 @@ public sealed class WorldMapSpawnSystem : IDisposable
                         NpcId = BuildNpcInstanceId(
                             facilityId,
                             npcTemplateId,
-                            npcConfig.local_slot_id,
+                            npcDefinition.LocalSlotId,
                             npcIndex
                         ),
-                        DisplayName = npcConfig.display_name,
-                        ServiceType = npcConfig.service_type,
-                        InteractionScriptId = npcConfig.interaction_script_id,
-                        LocalSlotId = npcConfig.local_slot_id,
+                        DisplayName = npcDefinition.DisplayName,
+                        ServiceType = npcDefinition.ServiceType,
+                        InteractionScriptId = npcDefinition.InteractionScriptId,
+                        LocalSlotId = npcDefinition.LocalSlotId,
                         FacilityId = facilityId,
                         FacilityTemplateId = facilityTemplateId,
-                        FacilityName = facilityConfig.display_name,
+                        FacilityName = facilityDefinition.DisplayName,
                         SettlementId = settlementId,
                     }
                 );
@@ -773,13 +736,13 @@ public sealed class WorldMapSpawnSystem : IDisposable
             {
                 TemplateId = facilityTemplateId,
                 FacilityId = facilityId,
-                DisplayName = facilityConfig.display_name,
-                Category = facilityConfig.category,
-                InteractionType = facilityConfig.interaction_type,
-                SlotId = slotConfig.slot_id,
-                SlotTag = slotConfig.slot_tag,
-                LocalCoord = slotConfig.local_coord,
-                WorldCoord = settlementOrigin + slotConfig.local_coord,
+                DisplayName = facilityDefinition.DisplayName,
+                Category = facilityDefinition.Category,
+                InteractionType = facilityDefinition.InteractionType,
+                SlotId = slotDefinition.SlotId,
+                SlotTag = slotDefinition.SlotTag,
+                LocalCoord = slotDefinition.LocalCoord,
+                WorldCoord = settlementOrigin + slotDefinition.LocalCoord,
                 SettlementId = settlementId,
             };
             facility.ServiceNpcs.AddRange(serviceNpcs);
@@ -878,35 +841,41 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return $"service:{normalizedServiceType}";
     }
 
-    private static string GetSettlementTemplateId(SettlementConfig settlementConfig)
+    private static string GetSettlementTemplateId(SettlementDefinition settlementDefinition)
     {
-        return settlementConfig == null
+        return settlementDefinition == null
             ? ""
-            : (settlementConfig.GetTemplateId() ?? "").StripEdges();
+            : (settlementDefinition.TemplateId ?? "").StripEdges();
     }
 
-    private static string GetDistributionRuleTemplateId(SettlementDistributionRule distributionRule)
+    private static string GetDistributionRuleTemplateId(
+        SettlementDistributionDefinition distributionRule
+    )
     {
         return distributionRule == null
             ? ""
-            : (distributionRule.GetSettlementTemplateId() ?? "").StripEdges();
+            : (distributionRule.SettlementTemplateId ?? "").StripEdges();
     }
 
-    private static string GetFacilityTemplateId(FacilityConfig facilityConfig)
+    private static string GetFacilityTemplateId(FacilityDefinition facilityDefinition)
     {
-        return facilityConfig == null ? "" : (facilityConfig.GetTemplateId() ?? "").StripEdges();
+        return facilityDefinition == null
+            ? ""
+            : (facilityDefinition.TemplateId ?? "").StripEdges();
     }
 
-    private static string GetNpcTemplateId(FacilityNpcConfig npcConfig)
+    private static string GetNpcTemplateId(FacilityNpcDefinition npcDefinition)
     {
-        return npcConfig == null ? "" : (npcConfig.GetTemplateId() ?? "").StripEdges();
+        return npcDefinition == null ? "" : (npcDefinition.TemplateId ?? "").StripEdges();
     }
 
-    private static string GetWeightedFacilityTemplateId(WeightedFacilityEntry weightedEntry)
+    private static string GetWeightedFacilityTemplateId(
+        WeightedFacilityDefinition weightedEntry
+    )
     {
         return weightedEntry == null
             ? ""
-            : (weightedEntry.GetFacilityTemplateId() ?? "").StripEdges();
+            : (weightedEntry.FacilityTemplateId ?? "").StripEdges();
     }
 
     private static string BuildSettlementInstanceId(string templateId, int instanceIndex)
@@ -945,20 +914,20 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return $"{facilityId}__{normalizedTemplateId}__{normalizedSlotId}";
     }
 
-    private string PickWeightedFacility(List<WeightedFacilityEntry> optionalPool)
+    private string PickWeightedFacility(List<WeightedFacilityDefinition> optionalPool)
     {
         if (optionalPool.Count == 0)
             return "";
         int totalWeight = 0;
-        foreach (WeightedFacilityEntry entry in optionalPool)
-            totalWeight += Math.Max(entry.weight, 0);
+        foreach (WeightedFacilityDefinition entry in optionalPool)
+            totalWeight += Math.Max(entry.Weight, 0);
         if (totalWeight <= 0)
             return "";
         int roll = _rng.RandiRange(1, totalWeight);
         int cursor = 0;
-        foreach (WeightedFacilityEntry entry in optionalPool)
+        foreach (WeightedFacilityDefinition entry in optionalPool)
         {
-            cursor += Math.Max(entry.weight, 0);
+            cursor += Math.Max(entry.Weight, 0);
             if (roll <= cursor)
                 return GetWeightedFacilityTemplateId(entry);
         }
@@ -966,7 +935,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
     }
 
     private static void RemoveWeightedEntry(
-        List<WeightedFacilityEntry> optionalPool,
+        List<WeightedFacilityDefinition> optionalPool,
         string facilityId
     )
     {
@@ -1013,6 +982,513 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return worldNpcs;
     }
 
+    private List<WorldMapResourceNodeData> GenerateResourceNodes(
+        IReadOnlyList<SettlementInstanceData> settlements,
+        IReadOnlyList<WorldNpcInstanceData> worldNpcs,
+        IReadOnlyList<EncounterAnchorData> encounterAnchors,
+        IReadOnlyList<WorldEventInstanceData> worldEvents,
+        SettlementInstanceData playerStartSettlement,
+        Vector2I playerStartCoord
+    )
+    {
+        var resourceNodes = new List<WorldMapResourceNodeData>();
+        var reservedCoords = BuildResourceReservedCoords(worldNpcs, encounterAnchors, worldEvents);
+        int nextIndex = 1;
+
+        if (playerStartSettlement != null)
+        {
+            TryAddSettlementResourceNode(
+                resourceNodes,
+                reservedCoords,
+                playerStartSettlement,
+                WorldMapResourceNodeData.KindHerbGarden,
+                ref nextIndex,
+                1,
+                6
+            );
+            TryAddSettlementResourceNode(
+                resourceNodes,
+                reservedCoords,
+                playerStartSettlement,
+                WorldMapResourceNodeData.KindFarm,
+                ref nextIndex,
+                1,
+                5
+            );
+        }
+
+        foreach (SettlementInstanceData settlement in settlements)
+        {
+            if (settlement == null)
+                continue;
+            int farmCount = GetSettlementFarmTargetCount(settlement);
+            int herbGardenCount = GetSettlementHerbGardenTargetCount(settlement);
+            if (ReferenceEquals(settlement, playerStartSettlement))
+            {
+                farmCount = Math.Max(farmCount - 1, 0);
+                herbGardenCount = Math.Max(herbGardenCount - 1, 0);
+            }
+            for (int index = 0; index < farmCount; index++)
+            {
+                TryAddSettlementResourceNode(
+                    resourceNodes,
+                    reservedCoords,
+                    settlement,
+                    WorldMapResourceNodeData.KindFarm,
+                    ref nextIndex,
+                    1,
+                    6
+                );
+            }
+            for (int index = 0; index < herbGardenCount; index++)
+            {
+                TryAddSettlementResourceNode(
+                    resourceNodes,
+                    reservedCoords,
+                    settlement,
+                    WorldMapResourceNodeData.KindHerbGarden,
+                    ref nextIndex,
+                    2,
+                    8
+                );
+            }
+        }
+
+        PlaceMineResourceNodes(
+            resourceNodes,
+            reservedCoords,
+            settlements,
+            playerStartCoord,
+            ref nextIndex
+        );
+        return resourceNodes;
+    }
+
+    private HashSet<Vector2I> BuildResourceReservedCoords(
+        IReadOnlyList<WorldNpcInstanceData> worldNpcs,
+        IReadOnlyList<EncounterAnchorData> encounterAnchors,
+        IReadOnlyList<WorldEventInstanceData> worldEvents
+    )
+    {
+        var reservedCoords = new HashSet<Vector2I>();
+        if (worldNpcs != null)
+        {
+            foreach (WorldNpcInstanceData npc in worldNpcs)
+                if (npc != null)
+                    reservedCoords.Add(npc.Coord);
+        }
+        if (encounterAnchors != null)
+        {
+            foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+                if (encounterAnchor != null)
+                    reservedCoords.Add(encounterAnchor.world_coord);
+        }
+        if (worldEvents != null)
+        {
+            foreach (WorldEventInstanceData worldEvent in worldEvents)
+                if (worldEvent != null)
+                    reservedCoords.Add(worldEvent.WorldCoord);
+        }
+        return reservedCoords;
+    }
+
+    private bool TryAddSettlementResourceNode(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        SettlementInstanceData settlement,
+        string nodeKind,
+        ref int nextIndex,
+        int minDistance,
+        int maxDistance
+    )
+    {
+        Vector2I coord = FindSettlementResourceCoord(
+            settlement,
+            nodeKind,
+            resourceNodes,
+            reservedCoords,
+            minDistance,
+            maxDistance
+        );
+        if (coord == new Vector2I(-1, -1))
+            return false;
+        return AddResourceNode(
+            resourceNodes,
+            reservedCoords,
+            nodeKind,
+            coord,
+            settlement?.SettlementId ?? "",
+            ref nextIndex
+        );
+    }
+
+    private Vector2I FindSettlementResourceCoord(
+        SettlementInstanceData settlement,
+        string nodeKind,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        int minDistance,
+        int maxDistance
+    )
+    {
+        if (settlement == null)
+            return new Vector2I(-1, -1);
+        Vector2I center = settlement.Origin + settlement.FootprintSize / 2;
+        Vector2I bestCoord = new(-1, -1);
+        double bestScore = double.NegativeInfinity;
+        int minDistanceToFootprint = Math.Max(minDistance, 1);
+        int maxDistanceToFootprint = Math.Max(maxDistance, minDistanceToFootprint);
+        for (int y = -maxDistanceToFootprint; y <= maxDistanceToFootprint; y++)
+        {
+            for (int x = -maxDistanceToFootprint; x <= maxDistanceToFootprint; x++)
+            {
+                Vector2I candidate = center + new Vector2I(x, y);
+                int distance = DistanceToSettlementFootprint(candidate, settlement);
+                if (distance < minDistanceToFootprint || distance > maxDistanceToFootprint)
+                    continue;
+                if (
+                    !IsResourceCoordAvailable(
+                        candidate,
+                        reservedCoords,
+                        resourceNodes,
+                        nodeKind,
+                        2
+                    )
+                )
+                    continue;
+                double score = ScoreSettlementResourceCoord(
+                    candidate,
+                    settlement,
+                    nodeKind,
+                    distance
+                );
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                bestCoord = candidate;
+            }
+        }
+        return bestCoord;
+    }
+
+    private double ScoreSettlementResourceCoord(
+        Vector2I candidate,
+        SettlementInstanceData settlement,
+        string nodeKind,
+        int distanceToFootprint
+    )
+    {
+        double jitter = Hash01($"resource_{nodeKind}", candidate) * 4.0;
+        if (nodeKind == WorldMapResourceNodeData.KindFarm)
+        {
+            return -Math.Abs(distanceToFootprint - 1) * 8.0 - settlement.Tier + jitter;
+        }
+        if (nodeKind == WorldMapResourceNodeData.KindHerbGarden)
+        {
+            return -Math.Abs(distanceToFootprint - 3) * 7.0 + settlement.Tier * 0.5 + jitter;
+        }
+        return jitter;
+    }
+
+    private int GetSettlementFarmTargetCount(SettlementInstanceData settlement)
+    {
+        if (settlement == null)
+            return 0;
+        return settlement.Tier switch
+        {
+            (int)SettlementTierKind.Village => 1,
+            (int)SettlementTierKind.Town => 2,
+            (int)SettlementTierKind.City => 2,
+            (int)SettlementTierKind.Capital => 1,
+            (int)SettlementTierKind.Metropolis => 1,
+            _ => 0,
+        };
+    }
+
+    private int GetSettlementHerbGardenTargetCount(SettlementInstanceData settlement)
+    {
+        if (settlement == null)
+            return 0;
+        if (settlement.Tier == (int)SettlementTierKind.Village)
+            return 1;
+        if (settlement.Tier == (int)SettlementTierKind.Town)
+            return 1;
+        if (
+            settlement.Tier == (int)SettlementTierKind.City
+            && Hash01("resource_city_herb", settlement.Origin) >= 0.45
+        )
+            return 1;
+        if (
+            settlement.Tier == (int)SettlementTierKind.Capital
+            && Hash01("resource_capital_herb", settlement.Origin) >= 0.65
+        )
+            return 1;
+        return 0;
+    }
+
+    private void PlaceMineResourceNodes(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        IReadOnlyList<SettlementInstanceData> settlements,
+        Vector2I playerStartCoord,
+        ref int nextIndex
+    )
+    {
+        int targetCount = GetMineResourceTargetCount();
+        if (targetCount <= 0)
+            return;
+
+        List<Vector2I> chunkCoords = BuildAllChunkCoords();
+        chunkCoords.Sort(
+            (a, b) => ScoreMineChunk(b, settlements).CompareTo(ScoreMineChunk(a, settlements))
+        );
+        foreach (Vector2I chunkCoord in chunkCoords)
+        {
+            if (CountResourceNodesOfKind(resourceNodes, WorldMapResourceNodeData.KindMine) >= targetCount)
+                return;
+            Vector2I coord = FindMineResourceCoordInChunk(
+                chunkCoord,
+                settlements,
+                resourceNodes,
+                reservedCoords,
+                playerStartCoord,
+                8,
+                10
+            );
+            if (coord == new Vector2I(-1, -1))
+                continue;
+            AddResourceNode(
+                resourceNodes,
+                reservedCoords,
+                WorldMapResourceNodeData.KindMine,
+                coord,
+                "",
+                ref nextIndex
+            );
+        }
+    }
+
+    private int GetMineResourceTargetCount()
+    {
+        Vector2I worldChunks = _generationDefinition.WorldSizeInChunks;
+        int chunkCount = Math.Max(worldChunks.X * worldChunks.Y, 1);
+        return Math.Min(Math.Max(3, chunkCount / 90), 24);
+    }
+
+    private List<Vector2I> BuildAllChunkCoords()
+    {
+        var chunkCoords = new List<Vector2I>();
+        Vector2I worldChunks = _generationDefinition.WorldSizeInChunks;
+        for (int y = 0; y < worldChunks.Y; y++)
+        for (int x = 0; x < worldChunks.X; x++)
+            chunkCoords.Add(new Vector2I(x, y));
+        return chunkCoords;
+    }
+
+    private Vector2I FindMineResourceCoordInChunk(
+        Vector2I chunkCoord,
+        IReadOnlyList<SettlementInstanceData> settlements,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        Vector2I playerStartCoord,
+        int minDistanceToSettlement,
+        int minDistanceToPlayerStart
+    )
+    {
+        Vector2I origin = new(
+            chunkCoord.X * _generationDefinition.ChunkSize.X,
+            chunkCoord.Y * _generationDefinition.ChunkSize.Y
+        );
+        Vector2I bestCoord = new(-1, -1);
+        double bestScore = double.NegativeInfinity;
+        for (int y = 0; y < _generationDefinition.ChunkSize.Y; y++)
+        {
+            for (int x = 0; x < _generationDefinition.ChunkSize.X; x++)
+            {
+                Vector2I candidate = origin + new Vector2I(x, y);
+                if (
+                    !IsResourceCoordAvailable(
+                        candidate,
+                        reservedCoords,
+                        resourceNodes,
+                        WorldMapResourceNodeData.KindMine,
+                        12
+                    )
+                )
+                    continue;
+                int settlementDistance = DistanceToNearestSettlementFootprint(
+                    candidate,
+                    settlements
+                );
+                if (settlementDistance < minDistanceToSettlement)
+                    continue;
+                int startDistance = ManhattanDistance(candidate, playerStartCoord);
+                if (startDistance < minDistanceToPlayerStart)
+                    continue;
+
+                double score =
+                    ScoreMineChunk(chunkCoord, settlements) * 100.0
+                    + settlementDistance * 0.35
+                    + Math.Min(startDistance, 40) * 0.2
+                    + Hash01("resource_mine_coord", candidate) * 8.0;
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                bestCoord = candidate;
+            }
+        }
+        return bestCoord;
+    }
+
+    private double ScoreMineChunk(
+        Vector2I chunkCoord,
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
+    {
+        double noise = Hash01("resource_mine_geology", chunkCoord);
+        double ridge = Math.Abs(
+            Math.Sin((chunkCoord.X + (_mapSeed % 97)) * 0.73)
+                + Math.Cos((chunkCoord.Y - (_mapSeed % 53)) * 0.61)
+        ) * 0.5;
+        int distance = DistanceToNearestSettlementFootprint(
+            new Vector2I(
+                chunkCoord.X * _generationDefinition.ChunkSize.X
+                    + _generationDefinition.ChunkSize.X / 2,
+                chunkCoord.Y * _generationDefinition.ChunkSize.Y
+                    + _generationDefinition.ChunkSize.Y / 2
+            ),
+            settlements
+        );
+        double remoteBonus = Math.Min(distance, 50) / 50.0;
+        return noise * 0.55 + ridge * 0.3 + remoteBonus * 0.15;
+    }
+
+    private bool AddResourceNode(
+        List<WorldMapResourceNodeData> resourceNodes,
+        HashSet<Vector2I> reservedCoords,
+        string nodeKind,
+        Vector2I coord,
+        string sourceSettlementId,
+        ref int nextIndex
+    )
+    {
+        string nodeId = $"resource_{nodeKind}_{nextIndex}";
+        WorldMapResourceNodeData resourceNode = WorldMapResourceNodeData.Create(
+            nodeId,
+            nodeKind,
+            coord,
+            sourceSettlementId
+        );
+        if (resourceNode == null || !resourceNode.Exists)
+            return false;
+        resourceNodes.Add(resourceNode);
+        reservedCoords.Add(coord);
+        nextIndex++;
+        return true;
+    }
+
+    private bool IsResourceCoordAvailable(
+        Vector2I candidate,
+        HashSet<Vector2I> reservedCoords,
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        string nodeKind,
+        int minSameKindDistance
+    )
+    {
+        if (!_gridSystem.IsCellInsideWorld(candidate))
+            return false;
+        if (_gridSystem.GetOccupantRoot(candidate) != "")
+            return false;
+        if (reservedCoords.Contains(candidate))
+            return false;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+        {
+            if (resourceNode == null)
+                continue;
+            int distance = ManhattanDistance(resourceNode.WorldCoord, candidate);
+            if (distance == 0)
+                return false;
+            if (resourceNode.NodeKind == nodeKind && distance < minSameKindDistance)
+                return false;
+        }
+        return true;
+    }
+
+    private static int CountResourceNodesOfKind(
+        IReadOnlyList<WorldMapResourceNodeData> resourceNodes,
+        string nodeKind
+    )
+    {
+        int count = 0;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+        {
+            if (resourceNode != null && resourceNode.NodeKind == nodeKind)
+                count++;
+        }
+        return count;
+    }
+
+    private static int DistanceToNearestSettlementFootprint(
+        Vector2I coord,
+        IReadOnlyList<SettlementInstanceData> settlements
+    )
+    {
+        if (settlements == null || settlements.Count == 0)
+            return int.MaxValue / 4;
+        int nearestDistance = int.MaxValue / 4;
+        foreach (SettlementInstanceData settlement in settlements)
+        {
+            if (settlement == null)
+                continue;
+            nearestDistance = Math.Min(
+                nearestDistance,
+                DistanceToSettlementFootprint(coord, settlement)
+            );
+        }
+        return nearestDistance;
+    }
+
+    private static int DistanceToSettlementFootprint(
+        Vector2I coord,
+        SettlementInstanceData settlement
+    )
+    {
+        if (settlement == null)
+            return int.MaxValue / 4;
+        Vector2I origin = settlement.Origin;
+        Vector2I size = settlement.FootprintSize;
+        int maxX = origin.X + Math.Max(size.X, 1) - 1;
+        int maxY = origin.Y + Math.Max(size.Y, 1) - 1;
+        int dx = coord.X < origin.X ? origin.X - coord.X : coord.X > maxX ? coord.X - maxX : 0;
+        int dy = coord.Y < origin.Y ? origin.Y - coord.Y : coord.Y > maxY ? coord.Y - maxY : 0;
+        return dx + dy;
+    }
+
+    private double Hash01(string salt, Vector2I coord)
+    {
+        unchecked
+        {
+            ulong hash = 1469598103934665603UL;
+            Mix(ref hash, (ulong)_mapSeed);
+            Mix(ref hash, (ulong)(uint)coord.X);
+            Mix(ref hash, (ulong)(uint)coord.Y);
+            foreach (char ch in salt ?? "")
+                Mix(ref hash, ch);
+            return (hash & ((1UL << 53) - 1UL)) / (double)(1UL << 53);
+        }
+    }
+
+    private static void Mix(ref ulong hash, ulong value)
+    {
+        hash ^= value;
+        hash *= 1099511628211UL;
+        hash ^= value >> 32;
+        hash *= 1099511628211UL;
+    }
+
+    private static int ManhattanDistance(Vector2I a, Vector2I b) =>
+        Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+
     private List<EncounterAnchorData> GenerateEncounterAnchors(
         IReadOnlyList<SettlementInstanceData> settlements,
         Vector2I playerStartCoord
@@ -1032,12 +1508,12 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
         var placementContext = new WildSpawnPlacementContext(
             _gridSystem,
-            _generationConfig.chunk_size,
+            _generationDefinition.ChunkSize,
             settlementCells
         );
 
         List<EncounterAnchorData> encounterAnchors;
-        if (_generationConfig.procedural_generation_enabled)
+        if (_generationDefinition.ProceduralGenerationEnabled)
         {
             encounterAnchors = GenerateProceduralEncounterAnchors(placementContext);
         }
@@ -1045,15 +1521,15 @@ public sealed class WorldMapSpawnSystem : IDisposable
         {
             encounterAnchors = new List<EncounterAnchorData>();
             int monsterIndex = 0;
-            foreach (WildSpawnRule rule in _resolvedWildSpawnRules)
+            foreach (WildSpawnRuleDefinition rule in _resolvedWildSpawnRules)
             {
-                foreach (Vector2I chunkCoord in rule.chunk_coords)
+                foreach (Vector2I chunkCoord in rule.ChunkCoords)
                 {
-                    for (int offset = 0; offset < Math.Max(rule.density_per_chunk, 0); offset++)
+                    for (int offset = 0; offset < Math.Max(rule.DensityPerChunk, 0); offset++)
                     {
                         Vector2I spawnCoord = PickMonsterCoordForChunk(
                             chunkCoord,
-                            rule.min_distance_to_settlement,
+                            rule.MinDistanceToSettlement,
                             placementContext,
                             offset
                         );
@@ -1063,13 +1539,13 @@ public sealed class WorldMapSpawnSystem : IDisposable
                         encounterAnchors.Add(
                             BuildEncounterAnchor(
                                 new StringName($"wild_{monsterIndex}"),
-                                rule.enemy_roster_template_id,
-                                rule.monster_name,
+                                rule.EnemyRosterTemplateId,
+                                rule.MonsterName,
                                 spawnCoord,
-                                rule.vision_range,
-                                new StringName(rule.region_tag),
+                                rule.VisionRange,
+                                rule.RegionTag,
                                 new StringName(EncounterKindSingle),
-                                rule.encounter_profile_id
+                                rule.EncounterProfileId
                             )
                         );
                     }
@@ -1088,10 +1564,10 @@ public sealed class WorldMapSpawnSystem : IDisposable
         var encounterAnchors = new List<EncounterAnchorData>();
         if (_resolvedWildSpawnRules.Count == 0)
             return encounterAnchors;
-        Vector2I worldChunks = _generationConfig.world_size_in_chunks;
+        Vector2I worldChunks = _generationDefinition.WorldSizeInChunks;
         int monsterIndex = 0;
         int spawnChunkChanceDenominator = Math.Max(
-            _generationConfig.procedural_wild_spawn_chunk_chance_denominator,
+            _generationDefinition.ProceduralWildSpawnChunkChanceDenominator,
             1
         );
         for (int chunkY = 0; chunkY < worldChunks.Y; chunkY++)
@@ -1099,17 +1575,17 @@ public sealed class WorldMapSpawnSystem : IDisposable
             for (int chunkX = 0; chunkX < worldChunks.X; chunkX++)
             {
                 var chunkCoord = new Vector2I(chunkX, chunkY);
-                WildSpawnRule rule = ResolveProceduralWildSpawnRuleForChunkY(chunkY);
+                WildSpawnRuleDefinition rule = ResolveProceduralWildSpawnRuleForChunkY(chunkY);
                 if (rule == null)
                     continue;
                 int chunkSeed = (int)TrueRandomSeedService.GenerateSeed();
                 if (PosMod(chunkSeed, spawnChunkChanceDenominator) != 0)
                     continue;
-                for (int offset = 0; offset < Math.Max(rule.density_per_chunk, 0); offset++)
+                for (int offset = 0; offset < Math.Max(rule.DensityPerChunk, 0); offset++)
                 {
                     Vector2I spawnCoord = PickMonsterCoordForChunk(
                         chunkCoord,
-                        rule.min_distance_to_settlement,
+                        rule.MinDistanceToSettlement,
                         placementContext,
                         chunkSeed + offset
                     );
@@ -1119,13 +1595,13 @@ public sealed class WorldMapSpawnSystem : IDisposable
                     encounterAnchors.Add(
                         BuildEncounterAnchor(
                             new StringName($"wild_{monsterIndex}"),
-                            rule.enemy_roster_template_id,
-                            rule.monster_name,
+                            rule.EnemyRosterTemplateId,
+                            rule.MonsterName,
                             spawnCoord,
-                            rule.vision_range,
-                            new StringName(rule.region_tag),
+                            rule.VisionRange,
+                            rule.RegionTag,
                             new StringName(EncounterKindSingle),
-                            rule.encounter_profile_id
+                            rule.EncounterProfileId
                         )
                     );
                 }
@@ -1140,14 +1616,14 @@ public sealed class WorldMapSpawnSystem : IDisposable
         Vector2I playerStartCoord
     )
     {
-        if (!_generationConfig.guarantee_starting_wild_encounter)
+        if (!_generationDefinition.GuaranteeStartingWildEncounter)
             return;
         if (!_gridSystem.IsCellInsideWorld(playerStartCoord))
             return;
         if (_resolvedWildSpawnRules.Count == 0)
             return;
-        WildSpawnRule rule = _resolvedWildSpawnRules[0];
-        if (_generationConfig.procedural_generation_enabled)
+        WildSpawnRuleDefinition rule = _resolvedWildSpawnRules[0];
+        if (_generationDefinition.ProceduralGenerationEnabled)
         {
             Vector2I playerChunkCoord = _gridSystem.GetChunkCoord(playerStartCoord);
             rule = ResolveProceduralWildSpawnRuleForChunkY(playerChunkCoord.Y);
@@ -1155,13 +1631,13 @@ public sealed class WorldMapSpawnSystem : IDisposable
         if (rule == null)
             return;
         int minDistance = Math.Max(
-            _generationConfig.starting_wild_spawn_min_distance,
-            rule.min_distance_to_settlement
+            _generationDefinition.StartingWildSpawnMinDistance,
+            rule.MinDistanceToSettlement
         );
         int maxDistance = Math.Max(
             Math.Max(
-                _generationConfig.starting_wild_spawn_min_distance,
-                _generationConfig.starting_wild_spawn_max_distance
+                _generationDefinition.StartingWildSpawnMinDistance,
+                _generationDefinition.StartingWildSpawnMaxDistance
             ),
             minDistance
         );
@@ -1186,13 +1662,13 @@ public sealed class WorldMapSpawnSystem : IDisposable
         encounterAnchors.Add(
             BuildEncounterAnchor(
                 new StringName($"wild_{encounterAnchors.Count + 1}"),
-                rule.enemy_roster_template_id,
-                rule.monster_name,
+                rule.EnemyRosterTemplateId,
+                rule.MonsterName,
                 spawnCoord,
-                rule.vision_range,
-                new StringName(rule.region_tag),
+                rule.VisionRange,
+                rule.RegionTag,
                 new StringName(EncounterKindSingle),
-                rule.encounter_profile_id
+                rule.EncounterProfileId
             )
         );
     }
@@ -1272,15 +1748,15 @@ public sealed class WorldMapSpawnSystem : IDisposable
             if (existingAnchor.encounter_kind == new StringName(EncounterKindSettlement))
                 return;
         }
-        foreach (WildSpawnRule rule in _resolvedWildSpawnRules)
+        foreach (WildSpawnRuleDefinition rule in _resolvedWildSpawnRules)
         {
-            if (rule == null || rule.enemy_roster_template_id != new StringName("wolf_pack"))
+            if (rule == null || rule.EnemyRosterTemplateId != new StringName("wolf_pack"))
                 continue;
             foreach (Vector2I chunkCoord in BuildDefaultSettlementCandidateChunks(rule))
             {
                 Vector2I spawnCoord = PickMonsterCoordForChunk(
                     chunkCoord,
-                    Math.Max(rule.min_distance_to_settlement, 2),
+                    Math.Max(rule.MinDistanceToSettlement, 2),
                     placementContext,
                     (int)TrueRandomSeedService.GenerateSeed()
                 );
@@ -1291,11 +1767,11 @@ public sealed class WorldMapSpawnSystem : IDisposable
                 encounterAnchors.Add(
                     BuildEncounterAnchor(
                         new StringName($"wild_settlement_{encounterAnchors.Count + 1}"),
-                        rule.enemy_roster_template_id,
+                        rule.EnemyRosterTemplateId,
                         "荒狼巢穴",
                         spawnCoord,
-                        Math.Max(rule.vision_range, 2),
-                        new StringName(rule.region_tag),
+                        Math.Max(rule.VisionRange, 2),
+                        rule.RegionTag,
                         new StringName(EncounterKindSettlement),
                         new StringName("wolf_den"),
                         0
@@ -1306,106 +1782,25 @@ public sealed class WorldMapSpawnSystem : IDisposable
         }
     }
 
-    private List<Vector2I> BuildDefaultSettlementCandidateChunks(WildSpawnRule rule)
+    private List<Vector2I> BuildDefaultSettlementCandidateChunks(WildSpawnRuleDefinition rule)
     {
-        if (rule != null && rule.chunk_coords.Count > 0)
-            return new List<Vector2I>(rule.chunk_coords);
+        if (rule != null && rule.ChunkCoords.Count > 0)
+            return new List<Vector2I>(rule.ChunkCoords);
         var candidateChunks = new List<Vector2I>();
-        Vector2I worldChunks = _generationConfig.world_size_in_chunks;
+        Vector2I worldChunks = _generationDefinition.WorldSizeInChunks;
         int midpointChunkY = worldChunks.Y / 2;
         for (int chunkY = 0; chunkY < worldChunks.Y; chunkY++)
         for (int chunkX = 0; chunkX < worldChunks.X; chunkX++)
         {
             if (
                 rule != null
-                && rule.enemy_roster_template_id == new StringName("wolf_pack")
+                && rule.EnemyRosterTemplateId == new StringName("wolf_pack")
                 && chunkY >= midpointChunkY
             )
                 continue;
             candidateChunks.Add(new Vector2I(chunkX, chunkY));
         }
         return candidateChunks;
-    }
-
-    private List<SettlementConfig> ResolveEffectiveSettlementLibrary()
-    {
-        var resolved = new List<SettlementConfig>();
-        if (_defaultMainWorldSettlementBundle != null)
-        {
-            foreach (
-                Resource settlementResource in _defaultMainWorldSettlementBundle.settlement_library
-            )
-                if (settlementResource is SettlementConfig settlementConfig)
-                    resolved.Add(settlementConfig);
-        }
-        foreach (Resource settlementResource in _generationConfig.settlement_library)
-            if (settlementResource is SettlementConfig settlementConfig)
-                resolved.Add(settlementConfig);
-        return resolved;
-    }
-
-    private List<FacilityConfig> ResolveEffectiveFacilityLibrary()
-    {
-        var resolved = new List<FacilityConfig>();
-        if (_defaultMainWorldSettlementBundle != null)
-        {
-            foreach (
-                Resource facilityResource in _defaultMainWorldSettlementBundle.facility_library
-            )
-                if (facilityResource is FacilityConfig facilityConfig)
-                    resolved.Add(facilityConfig);
-        }
-        foreach (Resource facilityResource in _generationConfig.facility_library)
-            if (facilityResource is FacilityConfig facilityConfig)
-                resolved.Add(facilityConfig);
-        return resolved;
-    }
-
-    private List<WildSpawnRule> ResolveEffectiveWildSpawnRules()
-    {
-        var resolved = new List<WildSpawnRule>();
-        if (_defaultMainWorldWildSpawnBundle != null)
-        {
-            foreach (
-                Resource ruleResource in _defaultMainWorldWildSpawnBundle.wild_monster_distribution
-            )
-                if (ruleResource is WildSpawnRule rule)
-                    resolved.Add(rule);
-        }
-        foreach (Resource ruleResource in _generationConfig.wild_monster_distribution)
-            if (ruleResource is WildSpawnRule rule)
-                resolved.Add(rule);
-        return resolved;
-    }
-
-    private WorldMapSettlementBundle LoadDefaultMainWorldSettlementBundle()
-    {
-        if (_generationConfig == null || !_generationConfig.inject_default_main_world_content)
-            return null;
-        var settlementBundle = GD.Load<WorldMapSettlementBundle>(
-            DefaultMainWorldSettlementBundlePath
-        );
-        if (settlementBundle == null)
-            GameLog.Warning(
-                $"Unable to load default main-world settlement bundle from {DefaultMainWorldSettlementBundlePath}.",
-                "world.spawn.settlement_bundle_load_failed",
-                "world"
-            );
-        return settlementBundle;
-    }
-
-    private WorldMapWildSpawnBundle LoadDefaultMainWorldWildSpawnBundle()
-    {
-        if (_generationConfig == null || !_generationConfig.inject_default_main_world_content)
-            return null;
-        var wildSpawnBundle = GD.Load<WorldMapWildSpawnBundle>(DefaultMainWorldWildSpawnBundlePath);
-        if (wildSpawnBundle == null)
-            GameLog.Warning(
-                $"Unable to load default main-world wild spawn bundle from {DefaultMainWorldWildSpawnBundlePath}.",
-                "world.spawn.wild_spawn_bundle_load_failed",
-                "world"
-            );
-        return wildSpawnBundle;
     }
 
     private List<string> BuildDefaultMainWorldSettlementDisplayNames()
@@ -1450,54 +1845,45 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
     private List<string> BuildShuffledDisplayNamesFromPool(string resourcePath, string warningLabel)
     {
-        WorldMapSettlementNamePool namePool = LoadDefaultMainWorldSettlementNamePool(
-            resourcePath,
-            warningLabel
-        );
-        if (namePool == null)
+        if (
+            _generationDefinition == null
+            || !_generationDefinition.InjectDefaultMainWorldContent
+        )
             return new List<string>();
+        if (
+            !_generationDefinition.SettlementNamePools.TryGetValue(
+                ContentPathCanonicalizer.Canonicalize(resourcePath),
+                out WorldMapSettlementNamePoolDefinition namePool
+            )
+            || namePool == null
+        )
+        {
+            GameLog.Warning(
+                $"Unable to resolve {warningLabel} name pool from projected content {resourcePath}.",
+                "world.spawn.name_pool_missing",
+                "world"
+            );
+            return new List<string>();
+        }
         var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
         if (uniqueNames.Count == 0)
             return uniqueNames;
-        RandomNumberGenerator nameRng = new()
+        var nameRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+        for (int index = uniqueNames.Count - 1; index > 0; index--)
         {
-            Seed = (ulong)Math.Max(TrueRandomSeedService.GenerateSeed(), 1L),
-        };
-        try
-        {
-            for (int index = uniqueNames.Count - 1; index > 0; index--)
-            {
-                int swapIndex = nameRng.RandiRange(0, index);
-                (uniqueNames[index], uniqueNames[swapIndex]) = (
-                    uniqueNames[swapIndex],
-                    uniqueNames[index]
-                );
-            }
-        }
-        finally
-        {
-            DisposeOwnedRng(nameRng);
+            int swapIndex = nameRng.RandiRange(0, index);
+            (uniqueNames[index], uniqueNames[swapIndex]) = (
+                uniqueNames[swapIndex],
+                uniqueNames[index]
+            );
         }
         return uniqueNames;
     }
 
-    private WorldMapSettlementNamePool LoadDefaultMainWorldSettlementNamePool(
-        string resourcePath,
-        string warningLabel
-    )
+    private WildSpawnRuleDefinition ResolveProceduralWildSpawnRuleForChunkY(int chunkY)
     {
-        if (_generationConfig == null || !_generationConfig.inject_default_main_world_content)
-            return null;
-        var namePool = GD.Load<WorldMapSettlementNamePool>(resourcePath);
-        if (namePool == null)
-            GameLog.Warning($"Unable to load {warningLabel} name pool from {resourcePath}.", "world.spawn.name_pool_load_failed", "world");
-        return namePool;
-    }
-
-    private WildSpawnRule ResolveProceduralWildSpawnRuleForChunkY(int chunkY)
-    {
-        WildSpawnRule northRule = FindWildSpawnRuleByRegionTag(new StringName("north_wilds"));
-        WildSpawnRule southRule = FindWildSpawnRuleByRegionTag(new StringName("south_wilds"));
+        WildSpawnRuleDefinition northRule = FindWildSpawnRuleByRegionTag("north_wilds");
+        WildSpawnRuleDefinition southRule = FindWildSpawnRuleByRegionTag("south_wilds");
         if (northRule == null && _resolvedWildSpawnRules.Count > 0)
             northRule = _resolvedWildSpawnRules[0];
         if (southRule == null)
@@ -1506,24 +1892,24 @@ public sealed class WorldMapSpawnSystem : IDisposable
             return southRule;
         if (southRule == null)
             return northRule;
-        int midpointChunkY = _generationConfig.world_size_in_chunks.Y / 2;
+        int midpointChunkY = _generationDefinition.WorldSizeInChunks.Y / 2;
         return chunkY < midpointChunkY ? northRule : southRule;
     }
 
-    private WildSpawnRule FindWildSpawnRuleByRegionTag(StringName regionTag)
+    private WildSpawnRuleDefinition FindWildSpawnRuleByRegionTag(StringName regionTag)
     {
-        foreach (WildSpawnRule rule in _resolvedWildSpawnRules)
+        foreach (WildSpawnRuleDefinition rule in _resolvedWildSpawnRules)
         {
             if (rule == null)
                 continue;
-            if (new StringName(rule.region_tag) == regionTag)
+            if (rule.RegionTag == regionTag)
                 return rule;
         }
         return null;
     }
 
     private string ResolveSettlementDisplayName(
-        SettlementConfig settlementConfig,
+        SettlementDefinition settlementDefinition,
         string templateId,
         int instanceIndex
     )
@@ -1544,7 +1930,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
             return PopBack(_remainingDefaultMainWorldMetropolisDisplayNames);
         if (templateId == "template_world_stronghold")
         {
-            string strongholdDisplayName = settlementConfig.display_name;
+            string strongholdDisplayName = settlementDefinition.DisplayName;
             if (instanceIndex > 1)
                 strongholdDisplayName = $"{strongholdDisplayName} {instanceIndex:00}";
             return strongholdDisplayName;
@@ -1554,7 +1940,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
             && _remainingDefaultMainWorldSettlementDisplayNames.Count > 0
         )
             return PopBack(_remainingDefaultMainWorldSettlementDisplayNames);
-        string displayName = settlementConfig.display_name;
+        string displayName = settlementDefinition.DisplayName;
         if (instanceIndex > 1)
             displayName = $"{displayName} {instanceIndex:00}";
         return displayName;
@@ -1593,23 +1979,22 @@ public sealed class WorldMapSpawnSystem : IDisposable
     private List<WorldEventInstanceData> GenerateWorldEvents()
     {
         var generatedEvents = new List<WorldEventInstanceData>();
-        foreach (Resource eventResource in _generationConfig.world_events)
+        foreach (WorldEventDefinition eventDefinition in _generationDefinition.WorldEvents)
         {
-            var eventConfig = eventResource as WorldEventConfig;
-            if (eventConfig == null || eventConfig.event_id == new StringName(""))
+            if (eventDefinition == null || eventDefinition.EventId == new StringName(""))
                 continue;
             generatedEvents.Add(
                 new WorldEventInstanceData
                 {
-                    EventId = eventConfig.event_id.ToString(),
-                    DisplayName = eventConfig.display_name,
-                    WorldCoord = eventConfig.world_coord,
-                    EventType = eventConfig.event_type.ToString(),
-                    TargetSubmapId = eventConfig.target_submap_id.ToString(),
-                    DiscoveryConditionId = eventConfig.discovery_condition_id.ToString(),
-                    PromptTitle = eventConfig.prompt_title,
-                    PromptText = eventConfig.prompt_text,
-                    IsDiscovered = IsWorldEventDiscoveredByDefault(eventConfig),
+                    EventId = eventDefinition.EventId.ToString(),
+                    DisplayName = eventDefinition.DisplayName,
+                    WorldCoord = eventDefinition.WorldCoord,
+                    EventType = eventDefinition.EventType.ToString(),
+                    TargetSubmapId = eventDefinition.TargetSubmapId.ToString(),
+                    DiscoveryConditionId = eventDefinition.DiscoveryConditionId.ToString(),
+                    PromptTitle = eventDefinition.PromptTitle,
+                    PromptText = eventDefinition.PromptText,
+                    IsDiscovered = IsWorldEventDiscoveredByDefault(eventDefinition),
                 }
             );
         }
@@ -1619,18 +2004,17 @@ public sealed class WorldMapSpawnSystem : IDisposable
     private List<MountedSubmapInstanceData> GenerateMountedSubmaps()
     {
         var mountedSubmaps = new List<MountedSubmapInstanceData>();
-        foreach (Resource submapResource in _generationConfig.mounted_submaps)
+        foreach (MountedSubmapDefinition submapDefinition in _generationDefinition.MountedSubmaps)
         {
-            var submapConfig = submapResource as MountedSubmapConfig;
-            if (submapConfig == null || submapConfig.submap_id == new StringName(""))
+            if (submapDefinition == null || submapDefinition.SubmapId == new StringName(""))
                 continue;
             mountedSubmaps.Add(
                 new MountedSubmapInstanceData
                 {
-                    SubmapId = submapConfig.submap_id.ToString(),
-                    DisplayName = submapConfig.display_name,
-                    GenerationConfigPath = submapConfig.generation_config_path,
-                    ReturnHintText = submapConfig.return_hint_text,
+                    SubmapId = submapDefinition.SubmapId.ToString(),
+                    DisplayName = submapDefinition.DisplayName,
+                    GenerationConfigPath = submapDefinition.GenerationConfigPath,
+                    ReturnHintText = submapDefinition.ReturnHintText,
                     IsGenerated = false,
                     PlayerCoord = new Vector2I(-1, -1),
                 }
@@ -1639,11 +2023,11 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return mountedSubmaps;
     }
 
-    private static bool IsWorldEventDiscoveredByDefault(WorldEventConfig eventConfig)
+    private static bool IsWorldEventDiscoveredByDefault(WorldEventDefinition eventDefinition)
     {
-        if (eventConfig == null)
+        if (eventDefinition == null)
             return false;
-        string conditionId = eventConfig.discovery_condition_id.ToString().StripEdges();
+        string conditionId = eventDefinition.DiscoveryConditionId.ToString().StripEdges();
         return conditionId.Length == 0 || conditionId == "always_true";
     }
 
@@ -1682,7 +2066,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
         {
             if (
                 settlement != null
-                && settlement.Tier == (int)SettlementConfig.SettlementTier.VILLAGE
+                && settlement.Tier == (int)SettlementTierKind.Village
             )
                 return settlement;
         }
@@ -1691,12 +2075,14 @@ public sealed class WorldMapSpawnSystem : IDisposable
 
     private Vector2I ResolvePlayerStartCoord(SettlementInstanceData playerStartSettlement)
     {
-        return playerStartSettlement == null ? _generationConfig.player_start_coord : playerStartSettlement.Origin;
+        return playerStartSettlement == null
+            ? _generationDefinition.PlayerStartCoord
+            : playerStartSettlement.Origin;
     }
 
     private Vector2I GetCenteredOrigin(Vector2I footprintSize)
     {
-        Vector2I worldSize = _generationConfig.GetWorldSizeCells();
+        Vector2I worldSize = _generationDefinition.GetWorldSizeCells();
         int maxX = Math.Max(worldSize.X - footprintSize.X, 0);
         int maxY = Math.Max(worldSize.Y - footprintSize.Y, 0);
         return new Vector2I(Mathf.Clamp(maxX / 2, 0, maxX), Mathf.Clamp(maxY / 2, 0, maxY));
@@ -1708,7 +2094,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
         int minDistanceCells
     )
     {
-        Vector2I worldSize = _generationConfig.GetWorldSizeCells();
+        Vector2I worldSize = _generationDefinition.GetWorldSizeCells();
         int maxX = worldSize.X - footprintSize.X;
         int maxY = worldSize.Y - footprintSize.Y;
         if (maxX < 0 || maxY < 0)
@@ -1747,7 +2133,7 @@ public sealed class WorldMapSpawnSystem : IDisposable
             int otherTier = settlement.Tier;
             float requiredDistance = Math.Max(
                 minDistanceCells,
-                _generationConfig.GetSettlementSpacingCells(otherTier)
+                _generationDefinition.GetSettlementSpacingCells(otherTier)
             );
             if (candidateCenter.DistanceTo(otherCenter) < requiredDistance)
                 return false;
@@ -1819,17 +2205,4 @@ public sealed class WorldMapSpawnSystem : IDisposable
         return result;
     }
 
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(WorldMapSpawnSystem));
-    }
-
-    private static void DisposeOwnedRng(RandomNumberGenerator rng)
-    {
-        if (rng == null || !GodotObject.IsInstanceValid(rng))
-            return;
-        GC.SuppressFinalize(rng);
-        rng.Dispose();
-    }
 }

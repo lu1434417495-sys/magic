@@ -2,35 +2,31 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_damage_resistance_regression : SceneTree
+public partial class run_damage_resistance_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        try
-        {
-            TestDamageResistanceHalvesMatchingDamageTag();
-            TestDamageResistanceCancelsWithStatusVulnerability();
-            TestDamageResistanceImmuneKeepsHighestPriority();
-            TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback();
-            TestMissingWeaponDamageProjectionFailsClosed();
-        }
-        finally
-        {
-            _test.DisposeTrackedGodotObjects();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        Quit(_test.Finish("Damage resistance regression"));
+        TestDamageResistanceHalvesMatchingDamageTag();
+        TestDamageResistanceCancelsWithStatusVulnerability();
+        TestDamageResistanceImmuneKeepsHighestPriority();
+        TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback();
+        TestMissingWeaponDamageProjectionFailsClosed();
+        RequestTestExit(_test.Finish("Damage resistance regression"));
     }
 
     private void TestDamageResistanceHalvesMatchingDamageTag()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("resistance_source", "enemy");
         BattleUnitState target = MakeUnit("fire_resistant_target", "player");
         target.damage_resistances["fire"] = new StringName("half");
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) })
+            );
+        GDictionary result = resultLease.Value;
 
         _test.Eq(ReadInt(result, "damage", -1), 5, "damage_resistances fire=half should halve fire damage.");
         GDictionary @event = FirstDamageEvent(result);
@@ -43,13 +39,17 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestDamageResistanceCancelsWithStatusVulnerability()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("cancel_source", "enemy");
         BattleUnitState target = MakeUnit("cancel_target", "player");
         target.damage_resistances["fire"] = new StringName("half");
         SetStatus(target, "fire_vulnerability", new GDictionary { ["damage_tag"] = new StringName("fire") }, "double");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("fire", 10) })
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(ReadInt(result, "damage", -1), 10, "damage_resistance half should cancel matching double status.");
         GDictionary @event = FirstDamageEvent(result);
         _test.Eq(ReadString(@event, "mitigation_tier"), "normal", "canceled half/double should record normal tier.");
@@ -60,13 +60,21 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestDamageResistanceImmuneKeepsHighestPriority()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("immune_source", "enemy");
         BattleUnitState target = MakeUnit("immune_target", "player");
         target.damage_resistances["negative_energy"] = new StringName("immune");
         SetStatus(target, "negative_vulnerability", new GDictionary { ["damage_tag"] = new StringName("negative_energy") }, "double");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { MakeDamageEffect("negative_energy", 10) }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { MakeDamageEffect("negative_energy", 10) }
+                )
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(ReadInt(result, "damage", -1), 0, "immune damage_resistance should override matching double status.");
         GDictionary @event = FirstDamageEvent(result);
         _test.Eq(ReadString(@event, "mitigation_tier"), "immune", "immune resistance should record immune tier.");
@@ -76,13 +84,20 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestMissingDamageTagFailsClosedWithoutPhysicalSlashFallback()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("missing_tag_source", "enemy");
         BattleUnitState target = MakeUnit("missing_tag_target", "player");
-        var effect = _test.Track(new CombatEffectDef { effect_type = "damage", power = 10 });
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 10
+        );
 
         int hpBefore = target.current_hp;
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.False(ReadBool(result, "applied", true), "缺少 damage_tag 的伤害效果不应被当作已应用。");
         _test.Eq(ReadInt(result, "damage", -1), 0, "缺少 damage_tag 的伤害效果不应通过 hidden physical_slash fallback 造成伤害。");
         _test.Eq(target.current_hp, hpBefore, "缺少 damage_tag 时目标 HP 不应变化。");
@@ -92,19 +107,22 @@ public partial class run_damage_resistance_regression : SceneTree
 
     private void TestMissingWeaponDamageProjectionFailsClosed()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("missing_weapon_projection_source", "enemy");
         source.weapon_physical_damage_tag = "";
         BattleUnitState target = MakeUnit("missing_weapon_projection_target", "player");
-        var effect = _test.Track(new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 10,
-            use_weapon_physical_damage_tag = true,
-        });
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 10,
+            useWeaponPhysicalDamageTag: true
+        );
 
         int hpBefore = target.current_hp;
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new[] { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.False(ReadBool(result, "applied", true), "武器伤害类型投影缺失时不应被当作已应用。");
         _test.Eq(ReadInt(result, "damage", -1), 0, "武器伤害类型投影缺失时不应 fallback 到 physical_slash。");
         _test.Eq(target.current_hp, hpBefore, "武器伤害类型投影缺失时目标 HP 不应变化。");
@@ -112,12 +130,16 @@ public partial class run_damage_resistance_regression : SceneTree
         _test.Eq(ReadString(result, "error_code"), "invalid_damage_tag", "武器伤害类型投影缺失应返回 invalid_damage_tag 诊断。");
     }
 
-    private CombatEffectDef MakeDamageEffect(StringName damageTag, int power) =>
-        _test.Track(new CombatEffectDef { effect_type = "damage", damage_tag = damageTag, power = power });
+    private static CombatEffectDefinition MakeDamageEffect(StringName damageTag, int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: damageTag,
+            power: power
+        );
 
-    private BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        var unit = _test.Track(new BattleUnitState
+        var unit = new BattleUnitState
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -128,7 +150,7 @@ public partial class run_damage_resistance_regression : SceneTree
             current_ap = 2,
             current_stamina = 20,
             is_alive = true,
-        });
+        };
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 30);
         unit.attribute_snapshot.SetValue(AttributeService.MP_MAX, 0);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);

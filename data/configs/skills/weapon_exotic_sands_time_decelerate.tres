@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
+
+[sub_resource type="Resource" id="Combat_sands_time_decelerate"]
+script = ExtResource("1_combat")
+skill_id = &"weapon_exotic_sands_time_decelerate"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 6
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+attack_resolution_mode = &"direct_effect"
+cooldown_tu = 0
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"sands_time", &"time", &"weapon"])
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"weapon_exotic_sands_time_decelerate"
+display_name = "时间减速"
+icon_id = &"weapon_exotic_sands_time_decelerate"
+description = "装备技能。一场战斗一次，同一行动回合限用一次；1AP，30尺内一个敌人下一行动回合 AP 归零，但仍可移动。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"sands_time", &"time", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_sands_time_decelerate")

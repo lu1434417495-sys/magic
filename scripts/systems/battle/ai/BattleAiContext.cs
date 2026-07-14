@@ -22,22 +22,27 @@ public class BattleAiContext : IBattleAiScoreContext
         "action_id",
     };
 
-    private IReadOnlyDictionary<StringName, SkillDef> _skillDefsSource;
-    private Dictionary<StringName, SkillDef> _skillDefsById = new();
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitionsSource;
+    private Dictionary<StringName, SkillDefinition> _skillDefinitionsById = new();
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
+        new Dictionary<StringName, BarrierProfileDefinition>();
 
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
-    public BattleAiScoreProfile active_score_profile { get; set; }
+    public BattleAiScoreProfileDefinition active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
-    IReadOnlyDictionary<StringName, SkillDef> IBattleAiScoreContext.skill_defs => _skillDefsById;
+    IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
+        _skillDefinitionsById;
+    IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
+        _barrierProfileDefinitions;
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
     public Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > skill_score_input_callback { get; set; }
@@ -55,13 +60,12 @@ public class BattleAiContext : IBattleAiScoreContext
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
     public Func<
         BattleUnitState,
-        SkillDef,
+        SkillDefinition,
         BattleSkillCastBlockReasonKind
     > skill_cast_block_reason_callback { get; set; }
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     internal BattleAiQueryService ai_query_service;
     internal BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
-    public bool allow_authored_action_fallback_for_tests { get; set; }
     public bool trace_enabled { get; set; }
 
     private int _action_trace_nonce;
@@ -70,6 +74,8 @@ public class BattleAiContext : IBattleAiScoreContext
     private readonly List<string> _mutation_guard_violation_entries = new();
     private readonly BattleAiSkillAffordanceClassifier _skill_affordance_classifier = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_id =
+        new();
+    private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_entry_id =
         new();
     private readonly Dictionary<TargetSortCacheKey, List<BattleUnitState>> _sorted_target_units_cache =
         new();
@@ -440,9 +446,10 @@ public class BattleAiContext : IBattleAiScoreContext
         BattleUnitState actorUnitState,
         BattleGridService battleGridService,
         BattleAiRuntimeActionPlan actionPlan,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         bool traceEnabled,
-        ISkillCatalog skillCatalog = null
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
         state = battleState;
@@ -454,9 +461,13 @@ public class BattleAiContext : IBattleAiScoreContext
         trace_enabled = traceEnabled;
         ai_query_service = null;
         candidate_evaluator = null;
-        allow_authored_action_fallback_for_tests = false;
         ClearDecisionState();
-        SetSkillDefsCached(skillDefs);
+        SetSkillDefinitionsCached(
+            skillDefinitions
+                ?? skillCatalog?.GetSkillDefinitionsTyped()
+                ?? new Dictionary<StringName, SkillDefinition>()
+        );
+        SetBarrierProfileDefinitions(barrierProfileDefinitions);
     }
 
     internal void ClearRuntimeBindings()
@@ -469,17 +480,35 @@ public class BattleAiContext : IBattleAiScoreContext
         ai_query_service = null;
         candidate_evaluator = null;
         trace_enabled = false;
-        allow_authored_action_fallback_for_tests = false;
         move_cost_callback = null;
         preview_command_callback = null;
         skill_score_input_callback = null;
         action_score_input_callback = null;
         skill_cast_block_reason_callback = null;
         ClearDecisionState();
-        _skillDefsSource = null;
+        _skillDefinitionsSource = null;
         skill_catalog = null;
-        _skillDefsById.Clear();
+        _skillDefinitionsById.Clear();
+        _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
     }
+
+    internal bool HasRuntimeBindings =>
+        state != null
+        || unit_state != null
+        || grid_service != null
+        || active_score_profile != null
+        || skill_catalog != null
+        || runtime_action_plan != null
+        || ai_query_service != null
+        || candidate_evaluator != null
+        || move_cost_callback != null
+        || preview_command_callback != null
+        || skill_score_input_callback != null
+        || action_score_input_callback != null
+        || skill_cast_block_reason_callback != null
+        || _skillDefinitionsSource != null
+        || _skillDefinitionsById.Count != 0
+        || _barrierProfileDefinitions.Count != 0;
 
     private void ClearDecisionState()
     {
@@ -488,6 +517,7 @@ public class BattleAiContext : IBattleAiScoreContext
         _action_trace_entries.Clear();
         _mutation_guard_violation_entries.Clear();
         _skill_affordance_records_by_skill_id.Clear();
+        _skill_affordance_records_by_skill_entry_id.Clear();
         _sorted_target_units_cache.Clear();
     }
 
@@ -529,10 +559,8 @@ public class BattleAiContext : IBattleAiScoreContext
 
     internal BattleAiDecision EvaluateCandidateRequest(BattleAiCandidateRequest request)
     {
-        AiTraceRecorder.Enter("candidate:context.evaluate_request");
-        BattleAiDecision result = EvaluateCandidateRequestImpl(request);
-        AiTraceRecorder.Exit("candidate:context.evaluate_request");
-        return result;
+        using BattleAiTraceSpan trace = new("candidate:context.evaluate_request");
+        return EvaluateCandidateRequestImpl(request);
     }
 
     private BattleAiDecision EvaluateCandidateRequestImpl(BattleAiCandidateRequest request)
@@ -600,23 +628,23 @@ public class BattleAiContext : IBattleAiScoreContext
     }
 
     internal BattleAiScoreInput BuildSkillScoreInputTyped(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         BattleCommand command,
         BattlePreview preview,
-        IEnumerable<CombatEffectDef> effectDefs = null,
+        IEnumerable<CombatEffectDefinition> effectDefinitions = null,
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
-        if (skill_score_input_callback == null || skillDef == null || command == null)
+        if (skill_score_input_callback == null || skillDefinition == null || command == null)
         {
             return null;
         }
         return skill_score_input_callback.Invoke(
             this,
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            CopyCombatEffectList(effectDefs),
+            CopyCombatEffectDefinitionList(effectDefinitions),
             metadata
         );
     }
@@ -645,13 +673,24 @@ public class BattleAiContext : IBattleAiScoreContext
         );
     }
 
-    internal IReadOnlyList<EnemyAiAction> GetRuntimeActionsTyped(StringName state_id)
+    internal IReadOnlyList<EnemyAiActionDefinition> GetRuntimeActionsTyped(StringName state_id)
     {
         if (IsEmpty(state_id) || runtime_action_plan == null)
         {
-            return System.Array.Empty<EnemyAiAction>();
+            return System.Array.Empty<EnemyAiActionDefinition>();
         }
         return runtime_action_plan.GetActions(state_id);
+    }
+
+    internal IReadOnlyList<BattleAiRuntimeActionEntry> GetRuntimeActionEntriesTyped(
+        StringName state_id
+    )
+    {
+        if (IsEmpty(state_id) || runtime_action_plan == null)
+        {
+            return System.Array.Empty<BattleAiRuntimeActionEntry>();
+        }
+        return runtime_action_plan.GetActionEntries(state_id);
     }
 
     internal bool HasRuntimeActionState(StringName state_id)
@@ -661,14 +700,14 @@ public class BattleAiContext : IBattleAiScoreContext
             && runtime_action_plan.HasState(state_id);
     }
 
-    internal bool IsRuntimeActionPlanStale(EnemyAiBrainDef brain)
+    internal bool IsRuntimeActionPlanStale(EnemyAiBrainDefinition brain)
     {
         return runtime_action_plan != null
             && runtime_action_plan.IsStaleFor(unit_state, brain);
     }
 
     internal BattleAiRuntimeActionPlan.RuntimeActionMetadata GetRuntimeActionMetadataTyped(
-        EnemyAiAction action
+        EnemyAiActionDefinition action
     )
     {
         return runtime_action_plan != null
@@ -676,56 +715,22 @@ public class BattleAiContext : IBattleAiScoreContext
             : new BattleAiRuntimeActionPlan.RuntimeActionMetadata();
     }
 
-    private static List<CombatEffectDef> CopyCombatEffectList(IEnumerable<CombatEffectDef> effectDefs)
-    {
-        var result = new List<CombatEffectDef>();
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effectDef != null)
-                result.Add(effectDef);
-        }
-        return result;
-    }
-
-    private static GDictionary ToStringNameIntDictionary(
-        IReadOnlyDictionary<StringName, int> source
+    private static List<CombatEffectDefinition> CopyCombatEffectDefinitionList(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        var result = new GDictionary();
-        if (source == null)
-            return result;
-
-        foreach (KeyValuePair<StringName, int> entry in source)
+        var result = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (entry.Key != "")
-                result[entry.Key] = entry.Value;
+            if (effectDefinition != null)
+                result.Add(effectDefinition);
         }
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName value in values ?? Array.Empty<StringName>())
-        {
-            result.Add(ProgressionDataUtils.to_string_name(value));
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
-        IEnumerable<Vector2I> values
-    )
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
-        {
-            result.Add(value);
-        }
-        return result;
-    }
     internal BattleAiSkillAffordanceRecord GetSkillAffordanceRecordTyped(StringName skill_id)
     {
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
@@ -756,15 +761,31 @@ public class BattleAiContext : IBattleAiScoreContext
             return cachedRecord;
         }
 
-        if (!TryGetSkillDefTyped(normalizedSkillId, out SkillDef skillDef))
+        if (!TryGetSkillDefinitionTyped(normalizedSkillId, out SkillDefinition skillDefinition))
         {
             return null;
         }
+        BattleAvailableSkillEntry availabilityEntry = ResolveAvailableSkillEntry(normalizedSkillId);
+        if (availabilityEntry == null)
+        {
+            return null;
+        }
+        StringName skillEntryId = availabilityEntry.EntryRef.SkillEntryId;
+        if (
+            !IsEmpty(skillEntryId)
+            && _skill_affordance_records_by_skill_entry_id.TryGetValue(
+                skillEntryId,
+                out BattleAiSkillAffordanceRecord cachedEntryRecord
+            )
+        )
+        {
+            _skill_affordance_records_by_skill_id[normalizedSkillId] = cachedEntryRecord;
+            return cachedEntryRecord;
+        }
 
-        int skillLevel =
-            unit_state != null ? Math.Max(unit_state.GetKnownSkillLevelTyped(normalizedSkillId), 1) : 1;
+        int skillLevel = availabilityEntry.SkillLevel;
         BattleAiSkillAffordanceRecord record = _skill_affordance_classifier.ClassifySkill(
-            skillDef,
+            availabilityEntry.SkillDefinition ?? skillDefinition,
             skillLevel,
             skill_catalog
         );
@@ -773,6 +794,10 @@ public class BattleAiContext : IBattleAiScoreContext
             record.skill_id = normalizedSkillId;
         }
         _skill_affordance_records_by_skill_id[normalizedSkillId] = record;
+        if (!IsEmpty(skillEntryId))
+        {
+            _skill_affordance_records_by_skill_entry_id[skillEntryId] = record;
+        }
         return record;
     }
 
@@ -789,9 +814,9 @@ public class BattleAiContext : IBattleAiScoreContext
             return false;
         }
 
-        foreach (StringName rawSkillId in unit_state.known_active_skill_ids)
+        foreach (BattleAvailableSkillEntry entry in ResolveAvailableSkillEntries(null))
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            StringName skillId = ProgressionDataUtils.to_string_name(entry.EntryRef.SkillId);
             if (IsEmpty(skillId))
             {
                 continue;
@@ -841,55 +866,144 @@ public class BattleAiContext : IBattleAiScoreContext
             : (IReadOnlyList<StringName>)System.Array.Empty<StringName>();
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefsById;
-
-    internal void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    private List<BattleAvailableSkillEntry> ResolveAvailableSkillEntries(
+        IEnumerable<StringName> preferredSkillIds
+    )
     {
-        _skillDefsSource = null;
-        RebuildSkillDefs(skillDefs);
-    }
-
-    private void SetSkillDefsCached(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        if (ReferenceEquals(_skillDefsSource, skillDefs))
+        var results = new List<BattleAvailableSkillEntry>();
+        if (unit_state == null)
         {
-            return;
+            return results;
         }
-        RebuildSkillDefs(skillDefs);
-        _skillDefsSource = skillDefs;
-    }
 
-    private void RebuildSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        _skillDefsById = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-        {
-            return;
-        }
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-            if (!IsEmpty(normalizedSkillId) && skillDef != null)
+        BattleSkillAvailabilityService availabilityService = new(
+            skill_catalog,
+            _skillDefinitionsById
+        );
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
             {
-                _skillDefsById[normalizedSkillId] = skillDef;
+                User = unit_state,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+
+        List<StringName> preferred = new();
+        foreach (StringName value in preferredSkillIds ?? System.Array.Empty<StringName>())
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalized))
+            {
+                preferred.Add(normalized);
             }
         }
+        if (preferred.Count == 0)
+        {
+            results.AddRange(availabilityView.SkillEntries);
+            return results;
+        }
+
+        var seen = new HashSet<StringName>();
+        foreach (StringName skillId in preferred)
+        {
+            if (!seen.Add(skillId))
+            {
+                continue;
+            }
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.EntryRef.SkillId == skillId)
+                {
+                    results.Add(entry);
+                    break;
+                }
+            }
+        }
+        return results;
     }
 
-    internal SkillDef GetSkillDefTyped(StringName skillId)
+    private BattleAvailableSkillEntry ResolveAvailableSkillEntry(StringName skillId)
     {
-        return TryGetSkillDefTyped(skillId, out SkillDef skillDef) ? skillDef : null;
+        List<BattleAvailableSkillEntry> entries = ResolveAvailableSkillEntries(
+            new[] { skillId }
+        );
+        return entries.Count > 0 ? entries[0] : null;
     }
 
-    internal bool TryGetSkillDefTyped(StringName skillId, out SkillDef skillDef)
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() =>
+        _skillDefinitionsById;
+
+    internal void SetSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
     {
-        skillDef = null;
+        _skillDefinitionsSource = null;
+        RebuildSkillDefinitions(skillDefinitions);
+    }
+
+    internal void SetBarrierProfileDefinitions(
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions
+    )
+    {
+        _barrierProfileDefinitions =
+            barrierProfileDefinitions
+            ?? new Dictionary<StringName, BarrierProfileDefinition>();
+    }
+
+    private void SetSkillDefinitionsCached(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        if (ReferenceEquals(_skillDefinitionsSource, skillDefinitions))
+        {
+            return;
+        }
+        RebuildSkillDefinitions(skillDefinitions);
+        _skillDefinitionsSource = skillDefinitions;
+    }
+
+    internal SkillDefinition GetSkillDefinitionTyped(StringName skillId)
+    {
+        return TryGetSkillDefinitionTyped(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
+    }
+
+    internal bool TryGetSkillDefinitionTyped(
+        StringName skillId,
+        out SkillDefinition skillDefinition
+    )
+    {
+        skillDefinition = null;
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (IsEmpty(normalizedSkillId))
         {
             return false;
         }
-        return _skillDefsById.TryGetValue(normalizedSkillId, out skillDef) && skillDef != null;
+        return _skillDefinitionsById.TryGetValue(normalizedSkillId, out skillDefinition)
+            && skillDefinition != null;
+    }
+
+    private void RebuildSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        _skillDefinitionsById = new Dictionary<StringName, SkillDefinition>();
+        if (skillDefinitions == null)
+        {
+            return;
+        }
+        foreach ((StringName skillId, SkillDefinition skillDefinition) in skillDefinitions)
+        {
+            StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+            if (!IsEmpty(normalizedSkillId) && skillDefinition != null)
+            {
+                _skillDefinitionsById[normalizedSkillId] = skillDefinition;
+            }
+        }
     }
 
     private static HashSet<StringName> DecodeStringNameSet(IEnumerable<StringName> values)

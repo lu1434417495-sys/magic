@@ -133,9 +133,24 @@ public partial class BattleSimUnitSpec : Resource
     [Export]
     public GDictionary base_attributes = new();
 
-    public BattleUnitState ToBattleUnitState(
+    internal BattleSimUnitDefinition ToDefinition(
         StringName default_faction_id = default,
         StringName default_control_mode = default
+    )
+    {
+        BattleUnitState projectedState = BuildProjectedRuntimeState(
+            default_faction_id,
+            default_control_mode
+        );
+        return BattleSimUnitDefinition.FromProjectedState(
+            projectedState,
+            $"BattleSimUnitSpec[{unit_id}]"
+        );
+    }
+
+    private BattleUnitState BuildProjectedRuntimeState(
+        StringName default_faction_id,
+        StringName default_control_mode
     )
     {
         if (IsEmpty(default_control_mode))

@@ -67,10 +67,34 @@ internal static class EnemyAiActionHelper
         StringName skillId,
         BattleUnitState targetUnit,
         StringName skillVariantId = default
+    ) => BuildUnitSkillCommand(
+        context,
+        new BattleSkillEntryRef(
+            BattleSkillEntryIds.KnownSkill(skillId),
+            ProgressionDataUtils.to_string_name(skillId),
+            BattleSkillEntrySourceKind.KnownSkill,
+            ""
+        ),
+        targetUnit,
+        skillVariantId
+    );
+
+    internal static BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        BattleUnitState targetUnit,
+        StringName skillVariantId = default
+    ) => BuildUnitSkillCommand(context, entry?.EntryRef ?? default, targetUnit, skillVariantId);
+
+    internal static BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleSkillEntryRef entryRef,
+        BattleUnitState targetUnit,
+        StringName skillVariantId = default
     )
     {
         BattleUnitState unitState = context?.unit_state;
-        if (unitState == null || targetUnit == null)
+        if (unitState == null || targetUnit == null || IsEmpty(entryRef.SkillId))
         {
             return null;
         }
@@ -78,7 +102,8 @@ internal static class EnemyAiActionHelper
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
-            skill_id = skillId,
+            skill_entry_id = entryRef.SkillEntryId,
+            skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.coord,
@@ -90,21 +115,46 @@ internal static class EnemyAiActionHelper
         StringName skillId,
         StringName skillVariantId,
         IEnumerable<Vector2I> targetCoords
+    ) => BuildGroundSkillCommand(
+        context,
+        new BattleSkillEntryRef(
+            BattleSkillEntryIds.KnownSkill(skillId),
+            ProgressionDataUtils.to_string_name(skillId),
+            BattleSkillEntrySourceKind.KnownSkill,
+            ""
+        ),
+        skillVariantId,
+        targetCoords
+    );
+
+    internal static BattleCommand BuildGroundSkillCommand(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        StringName skillVariantId,
+        IEnumerable<Vector2I> targetCoords
+    ) => BuildGroundSkillCommand(context, entry?.EntryRef ?? default, skillVariantId, targetCoords);
+
+    internal static BattleCommand BuildGroundSkillCommand(
+        BattleAiContext context,
+        BattleSkillEntryRef entryRef,
+        StringName skillVariantId,
+        IEnumerable<Vector2I> targetCoords
     )
     {
         BattleUnitState unitState = context?.unit_state;
-        if (unitState == null)
+        if (unitState == null || IsEmpty(entryRef.SkillId))
         {
             return null;
         }
-        Godot.Collections.Array<Vector2I> sortedCoords = SortCoords(targetCoords);
+        List<Vector2I> sortedCoords = SortCoords(targetCoords);
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = unitState.unit_id,
-            skill_id = skillId,
+            skill_entry_id = entryRef.SkillEntryId,
+            skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
-            target_coords = sortedCoords,
+            target_coords = new Vector2IList(sortedCoords),
         };
         if (command.TargetCoordsTyped.Count > 0)
         {
@@ -113,7 +163,7 @@ internal static class EnemyAiActionHelper
         return command;
     }
 
-    internal static Godot.Collections.Array<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
+    internal static List<Vector2I> SortCoords(IEnumerable<Vector2I> coords)
     {
         List<Vector2I> coordList = coords != null ? new List<Vector2I>(coords) : new();
         coordList.Sort(
@@ -123,12 +173,7 @@ internal static class EnemyAiActionHelper
                 return yComparison != 0 ? yComparison : left.X.CompareTo(right.X);
             }
         );
-        var sortedCoords = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in coordList)
-        {
-            sortedCoords.Add(coord);
-        }
-        return sortedCoords;
+        return coordList;
     }
 
     internal static string CoordSetKey(IEnumerable<Vector2I> coords)
@@ -211,21 +256,24 @@ internal static class EnemyAiActionHelper
     }
 
     internal static string FormatSkillVariantLabel(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
         {
             return "";
         }
-        if (castVariant == null || castVariant.display_name.Length == 0)
+        if (castVariant == null || castVariant.DisplayName.Length == 0)
         {
-            return skillDef.display_name;
+            return skillDefinition.DisplayName;
         }
-        return $"{skillDef.display_name}·{castVariant.display_name}";
+        return $"{skillDefinition.DisplayName}·{castVariant.DisplayName}";
     }
 
     internal static AiCommandSummary BuildCommandSummary(BattleCommand command) =>
         AiCommandSummary.FromCommand(command);
+
+    private static bool IsEmpty(StringName value) =>
+        value == null || string.IsNullOrEmpty(value.ToString());
 }

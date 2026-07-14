@@ -3,11 +3,12 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_submap_regression : SceneTree
+public partial class run_world_submap_regression : LifecycleTestSceneTree
 {
     private const string AshenWorldConfig = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -19,10 +20,46 @@ public partial class run_world_submap_regression : SceneTree
         TestMountedSubmapSerializerContract();
         TestSubmapReturnBlocksWhileBattleActive();
         TestSubmapReturnBlocksWhileModalOpen();
+        TestSubmapEntryRollsBackOnPersistFailure();
+        TestSubmapReturnRollsBackOnPersistFailure();
         TestSubmapEntryReturnAndReload();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("World submap regression"));
+        DisposeWorldDataLeases();
+        RequestTestExit(_test.Finish("World submap regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary ProjectWorldData(GameRuntimeFacade facade)
+    {
+        GodotProjectionLease<GDictionary> lease = facade.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary ProjectWorldData(IReadOnlyDictionary<string, object> worldData)
+    {
+        GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                worldData,
+                "world-submap-serializer-assertion",
+                LifetimeDomain.Request,
+                "run_world_submap_regression.ProjectWorldData"
+            );
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestSubmapReturnBlocksWhileBattleActive()
@@ -43,7 +80,7 @@ public partial class run_world_submap_regression : SceneTree
             Vector2I expectedCoord = context.Facade.GetPlayerCoord();
             string expectedMapId = context.Facade.GetActiveMapId();
             string expectedActiveSubmapId = DictString(
-                context.GameSession.GetWorldData(),
+                ProjectWorldData(context.GameSession),
                 "active_submap_id"
             );
             BattleState battleState = new() { battle_id = "submap_guard_battle" };
@@ -61,7 +98,7 @@ public partial class run_world_submap_regression : SceneTree
                 "battle active 阻断后 active_map_id 应保持不变。"
             );
             _test.Eq(
-                DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                 expectedActiveSubmapId,
                 "battle active 阻断后 active_submap_id 应保持不变。"
             );
@@ -100,7 +137,7 @@ public partial class run_world_submap_regression : SceneTree
             Vector2I expectedCoord = context.Facade.GetPlayerCoord();
             string expectedMapId = context.Facade.GetActiveMapId();
             string expectedActiveSubmapId = DictString(
-                context.GameSession.GetWorldData(),
+                ProjectWorldData(context.GameSession),
                 "active_submap_id"
             );
             context.Facade.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
@@ -116,7 +153,7 @@ public partial class run_world_submap_regression : SceneTree
                 "modal-open 阻断后 active_map_id 应保持不变。"
             );
             _test.Eq(
-                DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                 expectedActiveSubmapId,
                 "modal-open 阻断后 active_submap_id 应保持不变。"
             );
@@ -170,7 +207,7 @@ public partial class run_world_submap_regression : SceneTree
                 "子地图内移动后 active fog 应立即刷新到玩家当前位置。"
             );
             _test.True(
-                IsFormalFogState(context.Facade.GetWorldData()["fog_states"]),
+                IsFormalFogState(ProjectWorldData(context.Facade)["fog_states"]),
                 "子地图 active world_data 应保存正式 fog_states。"
             );
 
@@ -212,7 +249,7 @@ public partial class run_world_submap_regression : SceneTree
                     "返回后应恢复到进入前的原坐标。"
                 );
                 _test.Eq(
-                    DictString(context.GameSession.GetWorldData(), "active_submap_id"),
+                    DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
                     "",
                     "成功返回后应清空 active_submap_id。"
                 );
@@ -229,7 +266,7 @@ public partial class run_world_submap_regression : SceneTree
                     "返回主世界后 active fog 应立即刷新到返回坐标。"
                 );
                 _test.True(
-                    IsFormalFogState(context.GameSession.GetWorldData()["fog_states"]),
+                    IsFormalFogState(ProjectWorldData(context.GameSession)["fog_states"]),
                     "返回主世界后 root world_data 应保存正式 fog_states。"
                 );
             }
@@ -244,6 +281,96 @@ public partial class run_world_submap_regression : SceneTree
         }
     }
 
+    private void TestSubmapEntryRollsBackOnPersistFailure()
+    {
+        RuntimeContext context = CreateAshenRuntimeContext();
+        if (context == null)
+            return;
+
+        try
+        {
+            GameRuntimeFacade.RuntimeCommandResult moveResult =
+                context.Facade.CommandWorldMoveTyped(Vector2I.Right, 3);
+            _test.True(moveResult.Ok, "进入失败回归前置：应能走到灰烬入口。");
+            Vector2I expectedCoord = context.Facade.GetPlayerCoord();
+            string expectedMapId = context.Facade.GetActiveMapId();
+            string expectedPromptTarget = DictString(
+                context.Facade.GetPendingSubmapPrompt(),
+                "target_submap_id"
+            );
+
+            context.GameSession.fail_payload_write = true;
+            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+                context.Facade.CommandConfirmSubmapEntryTyped();
+
+            _test.True(!confirmResult.Ok, "子地图 entry payload 写入失败时命令应失败。");
+            _test.True(!context.Facade.IsSubmapActive(), "entry 持久化失败后应回滚到主世界。");
+            _test.Eq(context.Facade.GetActiveMapId(), expectedMapId, "entry 回滚应恢复 active map。");
+            _test.Eq(context.Facade.GetPlayerCoord(), expectedCoord, "entry 回滚应恢复运行时坐标。");
+            _test.Eq(context.GameSession.GetPlayerCoord(), expectedCoord, "entry 回滚应恢复 session 坐标。");
+            _test.Eq(
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
+                "",
+                "entry 回滚后 session root 不应残留 active_submap_id。"
+            );
+            _test.Eq(
+                context.Facade.GetActiveModalId(),
+                "submap_confirm",
+                "entry 回滚后原确认窗口应保持可重试。"
+            );
+            _test.Eq(
+                DictString(context.Facade.GetPendingSubmapPrompt(), "target_submap_id"),
+                expectedPromptTarget,
+                "entry 回滚后原 prompt 应保持可重试。"
+            );
+        }
+        finally
+        {
+            context.GameSession.fail_payload_write = false;
+            context.Dispose();
+        }
+    }
+
+    private void TestSubmapReturnRollsBackOnPersistFailure()
+    {
+        RuntimeContext context = CreateAshenRuntimeContext();
+        if (context == null)
+            return;
+
+        try
+        {
+            if (!EnterAshenSubmap(context.Facade))
+                return;
+
+            Vector2I expectedCoord = context.Facade.GetPlayerCoord();
+            string expectedMapId = context.Facade.GetActiveMapId();
+            string expectedActiveSubmapId = DictString(
+                ProjectWorldData(context.GameSession),
+                "active_submap_id"
+            );
+
+            context.GameSession.fail_payload_write = true;
+            GameRuntimeFacade.RuntimeCommandResult returnResult =
+                context.Facade.CommandReturnFromSubmapTyped();
+
+            _test.True(!returnResult.Ok, "子地图 return payload 写入失败时命令应失败。");
+            _test.True(context.Facade.IsSubmapActive(), "return 持久化失败后应恢复子地图状态。");
+            _test.Eq(context.Facade.GetActiveMapId(), expectedMapId, "return 回滚应恢复 active map。");
+            _test.Eq(context.Facade.GetPlayerCoord(), expectedCoord, "return 回滚应恢复运行时坐标。");
+            _test.Eq(context.GameSession.GetPlayerCoord(), expectedCoord, "return 回滚应恢复 session 坐标。");
+            _test.Eq(
+                DictString(ProjectWorldData(context.GameSession), "active_submap_id"),
+                expectedActiveSubmapId,
+                "return 回滚后 session root 应保留 active_submap_id。"
+            );
+        }
+        finally
+        {
+            context.GameSession.fail_payload_write = false;
+            context.Dispose();
+        }
+    }
+
     private void TestMountedSubmapSerializerContract()
     {
         SaveSerializer serializer = new();
@@ -253,7 +380,14 @@ public partial class run_world_submap_regression : SceneTree
             ["ashen_ashlands"] = BuildMountedSubmapEntry(false, new GDictionary()),
         };
 
-        GDictionary normalizedWorldData = serializer.NormalizeWorldData(rootWorldData);
+        bool normalized = serializer.TryNormalizeWorldDataPlain(
+            rootWorldData,
+            out Dictionary<string, object> normalizedWorldDataPlain
+        );
+        _test.True(normalized, "合法 root world_data 应能规范化为 plain payload。");
+        if (!normalized)
+            return;
+        GDictionary normalizedWorldData = ProjectWorldData(normalizedWorldDataPlain);
         GDictionary normalizedEntry = GetMountedSubmapEntry(normalizedWorldData, "ashen_ashlands");
         _test.True(normalizedEntry.Count > 0, "未生成子地图占位应能穿过 normalize_world_data。");
         _test.True(!DictBool(normalizedEntry, "is_generated", true), "未生成子地图 normalize 后应保持 is_generated=false。");
@@ -262,7 +396,9 @@ public partial class run_world_submap_regression : SceneTree
             "未生成子地图 normalize 后应保持空 world_data。"
         );
 
-        GDictionary serializedWorldData = serializer.SerializeWorldData(normalizedWorldData);
+        GDictionary serializedWorldData = ProjectWorldData(
+            serializer.SerializeWorldDataPlain(normalizedWorldDataPlain)
+        );
         GDictionary serializedEntry = GetMountedSubmapEntry(serializedWorldData, "ashen_ashlands");
         _test.True(serializedEntry.Count > 0, "未生成子地图占位应能穿过 serialize_world_data。");
         _test.True(
@@ -276,8 +412,14 @@ public partial class run_world_submap_regression : SceneTree
         {
             ["ashen_ashlands"] = BuildMountedSubmapEntry(true, generatedSubmapWorldData),
         };
-        GDictionary serializedGeneratedWorldData =
-            serializer.SerializeWorldData(generatedRootWorldData);
+        Dictionary<string, object> generatedRootWorldDataPlain =
+            RuntimePlainPayload.NormalizeDictionaryStrict(
+                generatedRootWorldData,
+                "run_world_submap_regression.generated_root_world_data"
+            );
+        GDictionary serializedGeneratedWorldData = ProjectWorldData(
+            serializer.SerializeWorldDataPlain(generatedRootWorldDataPlain)
+        );
         GDictionary serializedGeneratedEntry =
             GetMountedSubmapEntry(serializedGeneratedWorldData, "ashen_ashlands");
         GDictionary serializedGeneratedSubmapWorldData = Dict(
@@ -337,6 +479,36 @@ public partial class run_world_submap_regression : SceneTree
             $"root world_data 的负数 world_step 应直接判为坏档。 error={negativeWorldStepError}"
         );
 
+        GDictionary rootMissingResourceNodes = BuildMinimalWorldData(710);
+        rootMissingResourceNodes.Remove("resource_nodes");
+        string missingResourceNodesError =
+            serializer.GetWorldDataSchemaValidationError(rootMissingResourceNodes);
+        _test.True(
+            !string.IsNullOrEmpty(missingResourceNodesError),
+            $"root world_data 缺少 resource_nodes 应直接判为坏档。 error={missingResourceNodesError}"
+        );
+
+        GDictionary rootInvalidResourceNode = BuildMinimalWorldData(711);
+        rootInvalidResourceNode["resource_nodes"] = new GArray
+        {
+            BuildResourceNode(
+                "resource_bad_1",
+                WorldMapResourceNodeData.KindFarm,
+                "坏资源",
+                new Vector2I(2, 2),
+                WorldMapResourceNodeData.YieldIronOre,
+                "",
+                3,
+                3
+            ),
+        };
+        string invalidResourceNodeError =
+            serializer.GetWorldDataValidationError(rootInvalidResourceNode);
+        _test.True(
+            !string.IsNullOrEmpty(invalidResourceNodeError),
+            $"resource node 类型与产出不匹配应直接判为坏档。 error={invalidResourceNodeError}"
+        );
+
         GDictionary generatedMissingSeed = BuildMinimalWorldData(606);
         generatedMissingSeed.Remove("map_seed");
         string missingSeedError = serializer.GetMountedSubmapWorldDataValidationError(
@@ -388,7 +560,7 @@ public partial class run_world_submap_regression : SceneTree
 
     private RuntimeContext CreateAshenRuntimeContext()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(AshenWorldConfig);
         _test.True(createError == (int)Error.Ok, "灰烬交界预设应能创建新存档。");
         if (createError != (int)Error.Ok)
@@ -445,7 +617,32 @@ public partial class run_world_submap_regression : SceneTree
             ["settlements"] = new GArray(),
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
+        };
+    }
+
+    private static GDictionary BuildResourceNode(
+        string nodeId,
+        string nodeKind,
+        string displayName,
+        Vector2I worldCoord,
+        string yieldItemId,
+        string sourceSettlementId,
+        int maxCharges,
+        int remainingCharges
+    )
+    {
+        return new GDictionary
+        {
+            ["node_id"] = nodeId,
+            ["node_kind"] = nodeKind,
+            ["display_name"] = displayName,
+            ["world_coord"] = worldCoord,
+            ["yield_item_id"] = yieldItemId,
+            ["source_settlement_id"] = sourceSettlementId,
+            ["max_charges"] = maxCharges,
+            ["remaining_charges"] = remainingCharges,
         };
     }
 

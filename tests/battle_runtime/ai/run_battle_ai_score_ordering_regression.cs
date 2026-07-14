@@ -2,7 +2,7 @@ using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_score_ordering_regression : SceneTree
+public partial class run_battle_ai_score_ordering_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         TestDecisionEngineOrderingMigratedFromGdRunner();
         TestGroundControlMinimumPolicyMigratedFromGdRunner();
 
-        Quit(_test.Finish("Battle AI score ordering regression"));
+        RequestTestExit(_test.Finish("Battle AI score ordering regression"));
     }
 
     private void TestNullCandidateRules()
@@ -108,7 +108,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
     private void TestDecisionEngineOrderingMigratedFromGdRunner()
     {
         var engine = new BattleAiDecisionEngine();
-        var actionProbe = new ScoreComparisonProbeAction();
+        var actionProbe = new BattleAiDecisionEngine();
 
         BattleAiScoreInput lethalThreatOffense = ScoreForDecisionOrdering(
             "mist_offense",
@@ -271,7 +271,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
         MarkNonfatalSurvivalProjection(zeroDamageSafe, 0, 0, 24);
         MarkNonfatalSurvivalProjection(zeroDamageRisky, 1, 0, 24);
         _test.True(
-            actionProbe.IsBetter(zeroDamageSafe, zeroDamageRisky),
+            actionProbe.IsBetterScoreInput(zeroDamageSafe, zeroDamageRisky),
             "闪现候选同等收益且预期伤害同为 0 时，仍应优先无威胁落点。"
         );
 
@@ -316,7 +316,7 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             "跨 action 比较中，更高收益的非致死风险换位仍应允许胜出。"
         );
         _test.True(
-            actionProbe.IsBetter(higherValueRiskyEscape, riskFreeEscape),
+            actionProbe.IsBetterScoreInput(higherValueRiskyEscape, riskFreeEscape),
             "闪现候选中，更高收益的非致死风险落点仍应允许胜出。"
         );
 
@@ -333,34 +333,44 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
             "击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
         _test.True(
-            actionProbe.IsBetter(higherValueLethalRisky, lethalSafe),
+            actionProbe.IsBetterScoreInput(higherValueLethalRisky, lethalSafe),
             "单个 action 内击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
         );
     }
 
     private void TestGroundControlMinimumPolicyMigratedFromGdRunner()
     {
-        var action = new UseGroundSkillAction
+        var action = TestResourceOwnership.Own(
+            new UseGroundSkillAction
         {
             action_id = "partial_hit_ground_control_probe",
             minimum_hit_count = 2,
             allow_empty_ground_control = true,
             minimum_ground_control_score = 1,
-        };
+            },
+            "battle_ai_score_ordering.ground_action"
+        );
         var scoreInput = new BattleAiScoreInput
         {
             effective_target_count = 1,
             estimated_ground_control_cell_count = 3,
             ground_control_score = 999,
         };
+        var evaluator = new BattleAiGroundSkillActionEvaluator();
         _test.True(
-            !action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
+            !evaluator.PassesMinimumEffectiveTargetOrGroundControl(
+                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                scoreInput
+            ),
             "已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
         );
 
         action.allow_ground_control_supplement_partial_hits = true;
         _test.True(
-            action.PassesMinimumEffectiveTargetOrGroundControl(scoreInput),
+            evaluator.PassesMinimumEffectiveTargetOrGroundControl(
+                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                scoreInput
+            ),
             "显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"
         );
     }
@@ -473,19 +483,16 @@ public partial class run_battle_ai_score_ordering_regression : SceneTree
     }
 
     private void AssertActionBetter(
-        ScoreComparisonProbeAction action,
+        BattleAiDecisionEngine action,
         BattleAiScoreInput candidate,
         BattleAiScoreInput best,
         string message
     )
     {
-        _test.True(action.IsBetter(candidate, best), message);
-        _test.True(!action.IsBetter(best, candidate), $"{message} 反向比较不应成立。");
-    }
-
-    private sealed partial class ScoreComparisonProbeAction : EnemyAiAction
-    {
-        public bool IsBetter(BattleAiScoreInput candidate, BattleAiScoreInput best) =>
-            _is_better_skill_score_input(candidate, best);
+        _test.True(action.IsBetterScoreInput(candidate, best), message);
+        _test.True(
+            !action.IsBetterScoreInput(best, candidate),
+            $"{message} 反向比较不应成立。"
+        );
     }
 }

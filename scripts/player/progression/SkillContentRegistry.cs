@@ -3,8 +3,7 @@ using Godot;
 using Godot.Collections;
 using VT = Godot.Variant.Type;
 
-[GlobalClass]
-public partial class SkillContentRegistry : RefCounted
+public class SkillContentRegistry : System.IDisposable
 {
     private const string SkillConfigDirectory = "res://data/configs/skills";
     private const int TuGranularity = 5;
@@ -52,6 +51,10 @@ public partial class SkillContentRegistry : RefCounted
             { "heal_multiplier_percent", "heal_multiplier_percent" },
             { "shield_gain_multiplier_percent", "shield_gain_multiplier_percent" },
             { "attack_roll_penalty", "attack_roll_penalty" },
+            { "attack_roll_bonus", "attack_roll_bonus" },
+            { "attack_roll_advantage", "attack_roll_advantage" },
+            { "consume_on_next_attack_check", "consume_on_next_attack_check" },
+            { "consume_on_next_save", "consume_on_next_save" },
             { "undispellable", "undispellable" },
             { "dispellable_magic", "dispellable_magic" },
             { "dispellable_harmful_magic", "dispellable_harmful_magic" },
@@ -60,6 +63,7 @@ public partial class SkillContentRegistry : RefCounted
             { "counts_as_debuff_override", "counts_as_debuff_override" },
             { "counts_as_debuff", "counts_as_debuff" },
             { "lock_counterattack", "lock_counterattack" },
+            { "lock_guard", "lock_guard" },
             { "lock_dodge_bonus", "lock_dodge_bonus" },
             { "lock_crit", "lock_crit" },
             { "save_bonus", "save_bonus" },
@@ -77,10 +81,48 @@ public partial class SkillContentRegistry : RefCounted
             { "free_move_points_gain", "free_move_points_gain" },
         };
 
+    private static readonly string[] GradedSaveExecuteParamKeys =
+    {
+        "profile_id",
+        "failure_execute_threshold_fixed",
+        "failure_execute_threshold_max_hp_percent",
+        "failure_damage_dice_count",
+        "failure_damage_dice_sides",
+        "failure_frightened_duration_tu",
+        "failure_reaction_lock_duration_tu",
+        "critical_failure_execute_threshold_max_hp_percent",
+        "critical_failure_damage_dice_count",
+        "critical_failure_damage_dice_sides",
+        "critical_failure_frightened_duration_tu",
+        "critical_failure_stunned_duration_tu",
+        "success_aftershock_duration_tu",
+    };
+
+    private static readonly HashSet<string> GradedSaveExecuteParamKeySet =
+        new(GradedSaveExecuteParamKeys, System.StringComparer.Ordinal);
+
+    private static readonly string GradedSaveExecuteParamKeyLabel = string.Join(
+        ", ",
+        GradedSaveExecuteParamKeys
+    );
+
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
     public Dictionary _skill_defs { get; set; } = new();
-    public Array<string> _validation_errors { get; set; } = new();
+    private readonly IContentResourceLoader _resourceLoader;
+    private readonly List<string> _validationErrors = new();
+    public Array<string> _validation_errors
+    {
+        get => ToGodotStringArray(_validationErrors);
+        set
+        {
+            _validationErrors.Clear();
+            if (value == null)
+                return;
+            foreach (string error in value)
+                _validationErrors.Add(error);
+        }
+    }
     private bool _disposed;
 
     private readonly record struct EquipmentDurabilityDamageValidationParameters(
@@ -109,28 +151,28 @@ public partial class SkillContentRegistry : RefCounted
         }
     }
 
-    public SkillContentRegistry()
+    internal SkillContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal SkillContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
     {
-        Rebuild();
+        _resourceLoader = resourceLoader
+            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        if (loadDefaultContent)
+            Rebuild();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
         System.GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -140,10 +182,8 @@ public partial class SkillContentRegistry : RefCounted
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _skill_defs.Clear();
-        _validation_errors.Clear();
+        _validationErrors.Clear();
     }
 
     public void Rebuild()
@@ -153,14 +193,18 @@ public partial class SkillContentRegistry : RefCounted
 
     public void LoadFromDirectory(string directoryPath)
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_skill_defs);
         _skill_defs.Clear();
-        _validation_errors.Clear();
+        _validationErrors.Clear();
         ScanDirectory(directoryPath);
-        AppendArray(_validation_errors, CollectValidationErrors());
+        AppendArray(_validationErrors, CollectValidationErrors());
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    internal Dictionary DuplicateSkillResourceBucketForProgressionRegistry()
+    {
+        return _skill_defs.Duplicate();
+    }
+
+    private IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefIndex()
     {
         var result = new System.Collections.Generic.Dictionary<StringName, SkillDef>();
         foreach (Variant key in _skill_defs.Keys)
@@ -178,10 +222,15 @@ public partial class SkillContentRegistry : RefCounted
         return result;
     }
 
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
+    {
+        return SkillDefinition.ProjectIndex(BuildSkillDefIndex());
+    }
+
     public Array<string> Validate()
     {
         var copy = new Array<string>();
-        foreach (string error in _validation_errors)
+        foreach (string error in _validationErrors)
             copy.Add(error);
         return copy;
     }
@@ -190,81 +239,71 @@ public partial class SkillContentRegistry : RefCounted
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
         {
-            _validation_errors.Add($"SkillContentRegistry could not find {directoryPath}.");
+            _validationErrors.Add($"SkillContentRegistry could not find {directoryPath}.");
             return;
         }
 
-        using var directory = DirAccess.Open(directoryPath);
+        DirAccess directory = DirAccess.Open(directoryPath);
         if (directory == null)
         {
-            _validation_errors.Add($"SkillContentRegistry could not open {directoryPath}.");
+            _validationErrors.Add($"SkillContentRegistry could not open {directoryPath}.");
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
+            directory.ListDirBegin();
+            while (true)
             {
-                ScanDirectory(entryPath);
-                continue;
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == "..")
+                    continue;
+
+                string entryPath = $"{directoryPath}/{entryName}";
+                if (directory.CurrentIsDir())
+                {
+                    ScanDirectory(entryPath);
+                    continue;
+                }
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterSkillResource(entryPath);
             }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterSkillResource(entryPath);
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
     }
 
     private void RegisterSkillResource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
-            _validation_errors.Add($"Failed to load skill config {resourcePath}.");
+            _validationErrors.Add($"Failed to load skill config {resourcePath}.");
             return;
         }
         if (resource is not SkillDef skillDef)
         {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
-            _validation_errors.Add($"Skill config {resourcePath} is not a SkillDef.");
+            _validationErrors.Add($"Skill config {resourcePath} is not a SkillDef.");
             return;
         }
-        NormalizeSkillDef(skillDef);
-
         if (skillDef.skill_id == "")
         {
-            _validation_errors.Add($"Skill config {resourcePath} is missing skill_id.");
+            _validationErrors.Add($"Skill config {resourcePath} is missing skill_id.");
             return;
         }
         if (_skill_defs.ContainsKey(skillDef.skill_id))
         {
-            _validation_errors.Add($"Duplicate skill_id registered: {skillDef.skill_id}");
+            _validationErrors.Add($"Duplicate skill_id registered: {skillDef.skill_id}");
             return;
         }
 
         _skill_defs[skillDef.skill_id] = skillDef;
-    }
-
-    private void NormalizeSkillDef(SkillDef skillDef)
-    {
-        if (skillDef == null)
-            return;
-        if (skillDef.skill_id != "" && skillDef.icon_id == "")
-            skillDef.icon_id = skillDef.skill_id;
-        if (
-            skillDef.combat_profile != null
-            && skillDef.skill_id != ""
-            && skillDef.combat_profile.skill_id == ""
-        )
-            skillDef.combat_profile.skill_id = skillDef.skill_id;
     }
 
     private Array<string> CollectValidationErrors()
@@ -292,8 +331,6 @@ public partial class SkillContentRegistry : RefCounted
 
         if (skillDef.display_name.StripEdges().Length == 0)
             errors.Add($"Skill {skillId} is missing display_name.");
-        if (skillDef.icon_id == "")
-            errors.Add($"Skill {skillId} is missing icon_id.");
         if (skillDef.max_level < 0 && skillDef.dynamic_max_level_stat_id == "")
             errors.Add($"Skill {skillId} must have max_level >= 0.");
         if (skillDef.non_core_max_level < 0)
@@ -326,6 +363,20 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add($"Skill {skillId} is active but missing combat_profile.");
         AppendPracticeSkillValidationErrors(errors, skillId, skillDef);
         AppendAttributeGrowthValidationErrors(errors, skillId, skillDef);
+        AppendRawIntRequirementEntryErrors(
+            errors,
+            skillId,
+            skillDef.SkillLevelRequirementEntriesTyped,
+            "skill_level_requirements",
+            "skill_id"
+        );
+        AppendRawIntRequirementEntryErrors(
+            errors,
+            skillId,
+            skillDef.AttributeRequirementEntriesTyped,
+            "attribute_requirements",
+            "attribute_id"
+        );
         foreach (
             string error in SkillLevelDescriptionContentRules.CollectValidationErrors(
                 skillId,
@@ -335,6 +386,8 @@ public partial class SkillContentRegistry : RefCounted
         {
             errors.Add(error);
         }
+        AppendPhantasmalKillLevelDescriptionValidationErrors(errors, skillId, skillDef);
+        AppendPhantasmalKillCombatProfileValidationErrors(errors, skillId, skillDef);
 
         if (skillDef.combat_profile != null)
             AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
@@ -406,6 +459,37 @@ public partial class SkillContentRegistry : RefCounted
             );
     }
 
+    private static void AppendRawIntRequirementEntryErrors(
+        Array<string> errors,
+        StringName skillId,
+        IReadOnlyList<SkillDef.IntRequirementEntryData> entries,
+        string contextLabel,
+        string idLabel
+    )
+    {
+        foreach (SkillDef.IntRequirementEntryData entry in entries ?? System.Array.Empty<SkillDef.IntRequirementEntryData>())
+        {
+            if (!entry.HasStringLikeKey)
+            {
+                errors.Add(
+                    $"Skill {skillId} has a non-string {idLabel} key {entry.RawKeyLabel} in {contextLabel}."
+                );
+                continue;
+            }
+            if (!entry.HasNonEmptyKey)
+            {
+                errors.Add($"Skill {skillId} has an empty {idLabel} in {contextLabel}.");
+                continue;
+            }
+            if (!entry.HasStrictIntAmount)
+            {
+                errors.Add(
+                    $"Skill {skillId} requires integer value for {entry.RequirementId} in {contextLabel}."
+                );
+            }
+        }
+    }
+
     public void AppendAttributeGrowthValidationErrors(
         Array<string> errors,
         StringName skillId,
@@ -475,7 +559,7 @@ public partial class SkillContentRegistry : RefCounted
         SkillDef skillDef
     )
     {
-        if (combatProfile.skill_id != skillId)
+        if (combatProfile.skill_id != "" && combatProfile.skill_id != skillId)
             errors.Add($"Skill {skillId} combat_profile.skill_id must match skill_id.");
         if (combatProfile.target_mode == "")
             errors.Add($"Skill {skillId} combat_profile is missing target_mode.");
@@ -529,6 +613,10 @@ public partial class SkillContentRegistry : RefCounted
             );
         if (combatProfile.range_value < 0)
             errors.Add($"Skill {skillId} combat_profile range_value must be >= 0.");
+        if (!IsValidWeaponRangePolicy(combatProfile.weapon_range_policy))
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported weapon_range_policy {combatProfile.weapon_range_policy}; expected empty, current_weapon, or configured."
+            );
         if (combatProfile.area_value < 0)
             errors.Add($"Skill {skillId} combat_profile area_value must be >= 0.");
         if (
@@ -553,6 +641,10 @@ public partial class SkillContentRegistry : RefCounted
         if (!IsValidPendingCastBindingMode(combatProfile.pending_cast_binding_mode))
             errors.Add(
                 $"Skill {skillId} combat_profile pending_cast_binding_mode uses unsupported value {combatProfile.pending_cast_binding_mode}."
+            );
+        if (combatProfile.AttackResolutionModeKind == CombatSkillAttackResolutionMode.Unknown)
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported attack_resolution_mode {combatProfile.attack_resolution_mode}."
             );
         bool hasCastingTime = combatProfile.casting_time_tu > 0;
         if (hasCastingTime)
@@ -1067,6 +1159,21 @@ public partial class SkillContentRegistry : RefCounted
                 errors.Add(
                     $"Skill {skillId} status effect in {contextLabel} params.range_bonus is unsupported; use CombatEffectDef.range_bonus."
                 );
+            bool hasSourceBoundWeaponBonusDice =
+                effectDef.source_bound_weapon_bonus_damage_dice_count > 0
+                || effectDef.source_bound_weapon_bonus_damage_dice_sides > 0
+                || effectDef.source_bound_weapon_bonus_damage_dice_bonus != 0;
+            if (hasSourceBoundWeaponBonusDice)
+            {
+                if (effectDef.source_bound_weapon_bonus_damage_dice_count < 1)
+                    errors.Add(
+                        $"Skill {skillId} status effect in {contextLabel} source_bound_weapon_bonus_damage_dice_count must be positive."
+                    );
+                if (effectDef.source_bound_weapon_bonus_damage_dice_sides < 1)
+                    errors.Add(
+                        $"Skill {skillId} status effect in {contextLabel} source_bound_weapon_bonus_damage_dice_sides must be positive."
+                    );
+            }
             AppendStatusDamageFilterValidationErrors(
                 errors,
                 skillId,
@@ -1275,6 +1382,85 @@ public partial class SkillContentRegistry : RefCounted
         {
             AppendExecuteEffectValidationErrors(errors, skillId, effectDef, contextLabel);
         }
+        else if (effectKind == BattleEffectKind.GradedSaveExecute)
+        {
+            AppendGradedSaveExecuteValidationErrors(errors, skillId, effectDef, contextLabel);
+        }
+    }
+
+    private void AppendPhantasmalKillLevelDescriptionValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef
+    )
+    {
+        if (skillId != "mage_phantasmal_kill" || skillDef == null)
+            return;
+
+        var coveredLevels = new HashSet<int>();
+        foreach (
+            SkillDef.LevelDescriptionConfigEntryData entry in skillDef.LevelDescriptionConfigEntriesTyped
+        )
+        {
+            if (entry.KeyIsStrictString && entry.HasParsedLevelKey && entry.ValueIsDictionary)
+                coveredLevels.Add(entry.Level);
+        }
+
+        for (int level = 0; level <= 9; level++)
+        {
+            if (!coveredLevels.Contains(level))
+                errors.Add(
+                    $"Skill {skillId} level_description_configs must include level {level}."
+                );
+        }
+    }
+
+    private void AppendPhantasmalKillCombatProfileValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        SkillDef skillDef
+    )
+    {
+        if (skillId != "mage_phantasmal_kill" || skillDef?.combat_profile == null)
+            return;
+
+        CombatSkillDef combatProfile = skillDef.combat_profile;
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_mode",
+            combatProfile.target_mode,
+            "ground"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_team_filter",
+            combatProfile.target_team_filter,
+            "any"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.target_selection_mode",
+            combatProfile.target_selection_mode,
+            "single_coord"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.area_pattern",
+            combatProfile.area_pattern,
+            "square"
+        );
+        RequireInt(errors, skillId, "combat_profile.area_value", combatProfile.area_value, 3);
+        RequireStringName(
+            errors,
+            skillId,
+            "combat_profile.special_resolution_profile_id",
+            combatProfile.special_resolution_profile_id,
+            ""
+        );
     }
 
     private void AppendExecuteCombatProfileValidationErrors(
@@ -1401,28 +1587,52 @@ public partial class SkillContentRegistry : RefCounted
             effectDef.effect_target_team_filter,
             "enemy"
         );
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_dc_mode",
-            effectDef.save_dc_mode,
-            BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell)
+        BattleSaveDcMode saveDcMode = effectDef.SaveDcModeKind;
+        if (
+            saveDcMode != BattleSaveDcMode.Static
+            && saveDcMode != BattleSaveDcMode.CasterSpell
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc_mode must be static or caster_spell."
+            );
+        }
+        if (saveDcMode == BattleSaveDcMode.Static && effectDef.save_dc <= 0)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc must be > 0 for static execute saves."
+            );
+        }
+        if (saveDcMode == BattleSaveDcMode.CasterSpell && effectDef.save_dc != 0)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc must be 0 for caster_spell execute saves."
+            );
+        }
+        StringName saveDcSourceAbility = ProgressionDataUtils.to_string_name(
+            effectDef.save_dc_source_ability
         );
-        RequireInt(errors, skillId, $"{contextLabel}.save_dc", effectDef.save_dc, 0);
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_dc_source_ability",
-            effectDef.save_dc_source_ability,
-            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)
-        );
-        RequireStringName(
-            errors,
-            skillId,
-            $"{contextLabel}.save_ability",
-            effectDef.save_ability,
-            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)
-        );
+        if (saveDcMode == BattleSaveDcMode.CasterSpell)
+        {
+            if (!BattleSaveContentRules.IsValidSaveAbility(saveDcSourceAbility))
+            {
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel}.save_dc_source_ability must be a valid base ability for caster_spell execute saves."
+                );
+            }
+        }
+        else if (saveDcSourceAbility != "")
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_dc_source_ability must be empty unless save_dc_mode is caster_spell."
+            );
+        }
+        if (!BattleSaveContentRules.IsValidSaveAbility(effectDef.save_ability))
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.save_ability must be a valid base ability."
+            );
+        }
         RequireStringName(
             errors,
             skillId,
@@ -1430,7 +1640,12 @@ public partial class SkillContentRegistry : RefCounted
             effectDef.save_tag,
             BattleSaveContentRules.ToStringName(BattleSaveTagKind.Execute)
         );
-        RequireStringName(errors, skillId, $"{contextLabel}.damage_tag", effectDef.damage_tag, "negative_energy");
+        if (DamageTagContentRules.ToDamageTagKind(effectDef.damage_tag) == DamageTagKind.Unknown)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel}.damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}."
+            );
+        }
         RequireBool(
             errors,
             skillId,
@@ -1484,10 +1699,16 @@ public partial class SkillContentRegistry : RefCounted
             0,
             100
         );
-        if (effectDef.soul_fracture_duration_tu <= 0 || !IsValidTuValue(effectDef.soul_fracture_duration_tu))
+        if (
+            effectDef.soul_fracture_duration_tu < 0
+            || (
+                effectDef.soul_fracture_duration_tu > 0
+                && !IsValidTuValue(effectDef.soul_fracture_duration_tu)
+            )
+        )
         {
             errors.Add(
-                $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be > 0 and divisible by {TuGranularity}."
+                $"Skill {skillId} effect {contextLabel}.soul_fracture_duration_tu must be 0 or a positive value divisible by {TuGranularity}."
             );
         }
         if (effectDef.@params != null && effectDef.@params.Count > 0)
@@ -1496,6 +1717,169 @@ public partial class SkillContentRegistry : RefCounted
                 $"Skill {skillId} effect {contextLabel} execute must not use params payload."
             );
         }
+    }
+
+    private void AppendGradedSaveExecuteValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.effect_target_team_filter",
+            effectDef.effect_target_team_filter,
+            "any"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.damage_tag",
+            effectDef.damage_tag,
+            "psychic"
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_mode",
+            effectDef.save_dc_mode,
+            BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell)
+        );
+        RequireInt(errors, skillId, $"{contextLabel}.save_dc", effectDef.save_dc, 0);
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_dc_source_ability",
+            effectDef.save_dc_source_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_ability",
+            effectDef.save_ability,
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower)
+        );
+        RequireStringName(
+            errors,
+            skillId,
+            $"{contextLabel}.save_tag",
+            effectDef.save_tag,
+            BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion)
+        );
+        RequireBool(
+            errors,
+            skillId,
+            $"{contextLabel}.save_partial_on_success",
+            effectDef.save_partial_on_success,
+            false
+        );
+
+        Dictionary parameters = effectDef.@params ?? new Dictionary();
+        AppendGradedSaveExecuteParamKeyValidationErrors(
+            errors,
+            skillId,
+            parameters,
+            contextLabel
+        );
+        RequireStringNameParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "profile_id",
+            "phantasmal_kill"
+        );
+        RequireNonNegativeIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_execute_threshold_fixed"
+        );
+        RequireIntRangeParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_execute_threshold_max_hp_percent",
+            1,
+            100
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_damage_dice_count"
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_damage_dice_sides"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_frightened_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "failure_reaction_lock_duration_tu"
+        );
+        RequireIntRangeParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_execute_threshold_max_hp_percent",
+            1,
+            100
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_damage_dice_count"
+        );
+        RequirePositiveIntParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_damage_dice_sides"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_frightened_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "critical_failure_stunned_duration_tu"
+        );
+        RequirePositiveTuParam(
+            errors,
+            skillId,
+            parameters,
+            contextLabel,
+            "success_aftershock_duration_tu"
+        );
     }
 
     private void AppendDamageEffectValidationErrors(
@@ -1534,10 +1918,43 @@ public partial class SkillContentRegistry : RefCounted
                 );
         }
 
+        AppendDamageEffectMitigationBypassValidationErrors(
+            errors,
+            skillId,
+            effectDef,
+            contextLabel
+        );
+        AppendExtraDamageSegmentValidationErrors(errors, skillId, effectDef, contextLabel);
+        AppendTargetDamageMultiplierRuleValidationErrors(
+            errors,
+            skillId,
+            effectDef,
+            contextLabel
+        );
+
         if (effectDef.hp_ratio_threshold_percent < 0 || effectDef.hp_ratio_threshold_percent > 100)
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} hp_ratio_threshold_percent must be 0 or from 1 to 100."
             );
+
+        if (
+            effectDef.bonus_condition == "target_creature_type"
+            && effectDef.bonus_condition_creature_type_tag == ""
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_condition target_creature_type requires bonus_condition_creature_type_tag."
+            );
+        }
+        if (
+            effectDef.bonus_condition_creature_type_tag != ""
+            && effectDef.bonus_condition != "target_creature_type"
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_condition_creature_type_tag requires bonus_condition target_creature_type."
+            );
+        }
 
         bool hasBonusDamageDice =
             effectDef.bonus_damage_dice_count > 0
@@ -1557,6 +1974,264 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice_sides must be positive."
             );
+    }
+
+    private static void AppendExtraDamageSegmentValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (effectDef?.extra_damage_segments == null)
+            return;
+        for (int index = 0; index < effectDef.extra_damage_segments.Count; index++)
+        {
+            CombatDamageSegmentDef segment = effectDef.extra_damage_segments[index];
+            if (segment == null)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must be set."
+                );
+                continue;
+            }
+            if (segment.damage_tag == "")
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must declare damage_tag."
+                );
+            }
+            else if (DamageTagContentRules.ToDamageTagKind(segment.damage_tag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] uses unsupported damage_tag {segment.damage_tag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+            bool hasDamageBudget =
+                segment.power > 0
+                || segment.dice_count > 0
+                || segment.dice_sides > 0
+                || segment.dice_bonus != 0;
+            if (!hasDamageBudget)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must set power or dice_count/dice_sides."
+                );
+            }
+            if (
+                (segment.dice_count > 0 || segment.dice_sides > 0 || segment.dice_bonus != 0)
+                && (segment.dice_count < 1 || segment.dice_sides < 1)
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must set dice_count and dice_sides >= 1 together."
+                );
+            }
+            for (int damageTagIndex = 0; damageTagIndex < segment.damage_tags.Count; damageTagIndex++)
+            {
+                StringName damageTag = ProgressionDataUtils.to_string_name(
+                    segment.damage_tags[damageTagIndex]
+                );
+                if (
+                    damageTag == ""
+                    || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+                )
+                {
+                    errors.Add(
+                        $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}].damage_tags[{damageTagIndex}] must be one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                    );
+                }
+            }
+            AppendDamageSegmentMitigationBypassValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                segment,
+                index
+            );
+        }
+    }
+
+    private static void AppendDamageSegmentMitigationBypassValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        CombatDamageSegmentDef segment,
+        int segmentIndex
+    )
+    {
+        int damageTagCount = segment.mitigation_bypass_damage_tags?.Count ?? 0;
+        int tierCount = segment.mitigation_bypass_tiers?.Count ?? 0;
+        if (damageTagCount == 0 && tierCount == 0)
+            return;
+        if (damageTagCount == 0 || tierCount == 0)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}] mitigation bypass requires both mitigation_bypass_damage_tags and mitigation_bypass_tiers."
+            );
+        }
+        for (int index = 0; index < damageTagCount; index++)
+        {
+            StringName bypassDamageTag = ProgressionDataUtils.to_string_name(
+                segment.mitigation_bypass_damage_tags[index]
+            );
+            if (DamageTagContentRules.ToDamageTagKind(bypassDamageTag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}].mitigation_bypass_damage_tags[{index}] uses unsupported damage tag {bypassDamageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+        }
+        for (int index = 0; index < tierCount; index++)
+        {
+            StringName tier = ProgressionDataUtils.to_string_name(
+                segment.mitigation_bypass_tiers[index]
+            );
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{segmentIndex}].mitigation_bypass_tiers[{index}] uses unsupported mitigation tier {tier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
+    }
+
+    private static void AppendTargetDamageMultiplierRuleValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (effectDef?.target_damage_multiplier_rules == null)
+            return;
+        for (int index = 0; index < effectDef.target_damage_multiplier_rules.Count; index++)
+        {
+            CombatTargetDamageMultiplierRuleDef rule =
+                effectDef.target_damage_multiplier_rules[index];
+            if (rule == null)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] must be set."
+                );
+                continue;
+            }
+            if (rule.multiplier_percent < 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] multiplier_percent must be >= 0."
+                );
+            }
+            bool hasTargetCondition =
+                (rule.any_creature_type_tags?.Count ?? 0) > 0
+                || (rule.all_creature_type_tags?.Count ?? 0) > 0;
+            if (!hasTargetCondition)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} target_damage_multiplier_rules[{index}] must declare any_creature_type_tags or all_creature_type_tags."
+                );
+            }
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].any_creature_type_tags",
+                rule.any_creature_type_tags
+            );
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].all_creature_type_tags",
+                rule.all_creature_type_tags
+            );
+            AppendStringNameListValidationErrors(
+                errors,
+                skillId,
+                contextLabel,
+                $"target_damage_multiplier_rules[{index}].excluded_creature_type_tags",
+                rule.excluded_creature_type_tags
+            );
+        }
+    }
+
+    private static void AppendStringNameListValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        string contextLabel,
+        string fieldLabel,
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        if (values == null)
+            return;
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < values.Count; index++)
+        {
+            StringName value = ProgressionDataUtils.to_string_name(values[index]);
+            if (value == "")
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} {fieldLabel}[{index}] must be non-empty."
+                );
+                continue;
+            }
+            if (!seen.Add(value))
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} {fieldLabel} repeats {value}."
+                );
+            }
+        }
+    }
+
+    private static void AppendDamageEffectMitigationBypassValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        int damageTagCount = effectDef.mitigation_bypass_damage_tags?.Count ?? 0;
+        int tierCount = effectDef.mitigation_bypass_tiers?.Count ?? 0;
+        if (damageTagCount == 0 && tierCount == 0)
+            return;
+        if (damageTagCount == 0 || tierCount == 0)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} mitigation bypass requires both mitigation_bypass_damage_tags and mitigation_bypass_tiers."
+            );
+        }
+        for (int index = 0; index < damageTagCount; index++)
+        {
+            StringName bypassDamageTag = ProgressionDataUtils.to_string_name(
+                effectDef.mitigation_bypass_damage_tags[index]
+            );
+            if (DamageTagContentRules.ToDamageTagKind(bypassDamageTag) == DamageTagKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} mitigation_bypass_damage_tags[{index}] uses unsupported damage tag {bypassDamageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                );
+            }
+        }
+        for (int index = 0; index < tierCount; index++)
+        {
+            StringName tier = ProgressionDataUtils.to_string_name(
+                effectDef.mitigation_bypass_tiers[index]
+            );
+            if (
+                DamageTagContentRules.ToMitigationTierKind(tier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} mitigation_bypass_tiers[{index}] uses unsupported mitigation tier {tier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
     }
 
     private void AppendStatusDamageFilterValidationErrors(
@@ -1674,12 +2349,17 @@ public partial class SkillContentRegistry : RefCounted
             parameters,
             "target_slots"
         );
+        if (parameters.ContainsKey("slot_weight_map"))
+        {
+            errors.Add(
+                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.slot_weight_map is unsupported; use equipment_durability_slot_weights."
+            );
+        }
         _append_equipment_slot_weight_validation_errors(
             errors,
             skillId,
             contextLabel,
-            parameters,
-            "slot_weight_map"
+            effectDef.equipment_durability_slot_weights
         );
     }
 
@@ -1723,39 +2403,41 @@ public partial class SkillContentRegistry : RefCounted
         Array<string> errors,
         StringName skillId,
         string contextLabel,
-        Dictionary parameters,
-        string paramName
+        Godot.Collections.Array<CombatEffectSlotWeightDef> slotWeights
     )
     {
-        if (parameters == null || !parameters.ContainsKey(paramName))
+        if (slotWeights == null || slotWeights.Count == 0)
             return;
-        object value = parameters[paramName];
-        if (!TryAsDictionary(value, out Dictionary weightMap))
+        var seenSlots = new HashSet<StringName>();
+        for (int index = 0; index < slotWeights.Count; index++)
         {
-            errors.Add(
-                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} must be a Dictionary."
-            );
-            return;
-        }
-        foreach (Variant rawKey in weightMap.Keys)
-        {
-            if (rawKey.VariantType != VT.StringName)
+            CombatEffectSlotWeightDef slotWeight = slotWeights[index];
+            if (slotWeight == null)
             {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} key {rawKey} must be a StringName."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights[{index}] must be set."
                 );
                 continue;
             }
-            var slotId = rawKey.AsStringName();
+            var slotId = ProgressionDataUtils.to_string_name(slotWeight.slot_id);
             if (!EquipmentRules.IsValidSlot(slotId))
+            {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} uses unsupported slot {slotId}."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights uses unsupported slot {slotId}."
                 );
-            TryGetDictionaryValue(weightMap, rawKey, out object weightVariant);
-            if (!TryStrictInt(weightVariant, out int weight) || weight <= 0)
+            }
+            else if (!seenSlots.Add(slotId))
+            {
                 errors.Add(
-                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName}.{slotId} must be a positive int."
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights repeats slot {slotId}."
                 );
+            }
+            if (slotWeight.weight <= 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} equipment_durability_damage effect in {contextLabel} equipment_durability_slot_weights[{slotId}] must be a positive int."
+                );
+            }
         }
     }
 
@@ -1834,9 +2516,10 @@ public partial class SkillContentRegistry : RefCounted
             effectDef.save_failure_status_id != ""
             && effectKind != BattleEffectKind.Status
             && effectKind != BattleEffectKind.ApplyStatus
+            && effectKind != BattleEffectKind.Damage
         )
             errors.Add(
-                $"Skill {skillId} effect {contextLabel} save_failure_status_id is only supported on status effects."
+                $"Skill {skillId} effect {contextLabel} save_failure_status_id is only supported on status or damage effects."
             );
     }
 
@@ -1932,9 +2615,9 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(
                 $"Skill {skillId} jump effect in {contextLabel} must have forced_move_distance >= 0 (0 = no max_range cap)."
             );
-        if (effectDef.jump_arc_ratio < CombatEffectDef.MIN_JUMP_ARC_RATIO())
+        if (effectDef.jump_arc_ratio < CombatEffectContentRules.MinJumpArcRatio)
             errors.Add(
-                $"Skill {skillId} jump effect in {contextLabel} requires jump_arc_ratio >= {CombatEffectDef.MIN_JUMP_ARC_RATIO():0.00}; jump must lift the unit."
+                $"Skill {skillId} jump effect in {contextLabel} requires jump_arc_ratio >= {CombatEffectContentRules.MinJumpArcRatio:0.00}; jump must lift the unit."
             );
         if (effectDef.jump_arc_ratio > 1.0)
             errors.Add(
@@ -2094,11 +2777,176 @@ public partial class SkillContentRegistry : RefCounted
         }
     }
 
+    private static void AppendGradedSaveExecuteParamKeyValidationErrors(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel
+    )
+    {
+        parameters ??= new Dictionary();
+        foreach (Variant rawKey in parameters.Keys)
+        {
+            string keyLabel = ParameterKeyLabel(rawKey);
+            if (!GradedSaveExecuteParamKeySet.Contains(keyLabel))
+            {
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} params.{keyLabel} is unsupported; expected only {GradedSaveExecuteParamKeyLabel}."
+                );
+            }
+        }
+
+        foreach (string requiredKey in GradedSaveExecuteParamKeys)
+        {
+            if (!parameters.ContainsKey(requiredKey))
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} params.{requiredKey} is required."
+                );
+        }
+    }
+
+    private static void RequireStringNameParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        StringName expected
+    )
+    {
+        if (!TryGetParameter(parameters, paramName, out object rawValue))
+            return;
+        StringName actual = ProgressionDataUtils.to_string_name(rawValue);
+        if (actual != expected)
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be {expected}."
+            );
+        }
+    }
+
+    private static void RequirePositiveIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && value <= 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be a positive int."
+            );
+        }
+    }
+
+    private static void RequireNonNegativeIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && value < 0
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be >= 0."
+            );
+        }
+    }
+
+    private static void RequireIntRangeParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        int minimum,
+        int maximum
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && (value < minimum || value > maximum)
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be between {minimum} and {maximum}."
+            );
+        }
+    }
+
+    private void RequirePositiveTuParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName
+    )
+    {
+        if (
+            TryReadStrictIntParam(errors, skillId, parameters, contextLabel, paramName, out int value)
+            && (value <= 0 || !IsValidTuValue(value))
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} params.{paramName} must be a positive multiple of {TuGranularity}."
+            );
+        }
+    }
+
+    private static bool TryReadStrictIntParam(
+        Array<string> errors,
+        StringName skillId,
+        Dictionary parameters,
+        string contextLabel,
+        string paramName,
+        out int value
+    )
+    {
+        if (!TryGetParameter(parameters, paramName, out object rawValue))
+        {
+            value = 0;
+            return false;
+        }
+        if (TryStrictInt(rawValue, out value))
+            return true;
+
+        errors.Add(
+            $"Skill {skillId} effect {contextLabel} params.{paramName} must be an int."
+        );
+        return false;
+    }
+
+    private static string ParameterKeyLabel(Variant rawKey)
+    {
+        return rawKey.VariantType switch
+        {
+            VT.String => rawKey.AsString(),
+            VT.StringName => rawKey.AsStringName().ToString(),
+            _ => rawKey.ToString(),
+        };
+    }
+
     private bool IsValidPendingCastBindingMode(StringName value)
     {
         return value == BattleTypedNames.PendingCastBindingSoftAnchor
             || value == BattleTypedNames.PendingCastBindingHardAnchor
             || value == BattleTypedNames.PendingCastBindingGroundBind;
+    }
+
+    private static bool IsValidWeaponRangePolicy(StringName value)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        return normalized == "" || normalized == "current_weapon" || normalized == "configured";
     }
 
     private void AppendCastingTimeCompatibilityErrors(
@@ -2334,7 +3182,7 @@ public partial class SkillContentRegistry : RefCounted
         bool hasTemporalRelease = false;
         foreach ((CombatEffectDef effect, string _) in labeledEffects)
         {
-            if (BattleTemporalStatusService.IsTemporalReleaseEffect(effect))
+            if (IsTemporalReleaseEffectResource(effect))
             {
                 hasTemporalRelease = true;
                 break;
@@ -2344,12 +3192,21 @@ public partial class SkillContentRegistry : RefCounted
             return;
         foreach ((CombatEffectDef effect, string label) in labeledEffects)
         {
-            if (effect == null || BattleTemporalStatusService.IsTemporalReleaseEffect(effect))
+            if (effect == null || IsTemporalReleaseEffectResource(effect))
                 continue;
             errors.Add(
                 $"Skill {skillId} {label} cannot mix {effect.effect_type} with temporal release effects; temporal release skills must stay temporal-only."
             );
         }
+    }
+
+    private static bool IsTemporalReleaseEffectResource(CombatEffectDef effectDef)
+    {
+        CombatEffectDefinition effectDefinition = CombatEffectDefinition.FromResource(
+            effectDef,
+            "skill_content_validation.temporal_release_effect"
+        );
+        return BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition);
     }
 
     private static bool IsIdentityLearnSource(StringName learnSource)
@@ -2609,9 +3466,19 @@ public partial class SkillContentRegistry : RefCounted
         return null;
     }
 
-    private static void AppendArray(Array<string> target, Array<string> source)
+    private static void AppendArray(List<string> target, Array<string> source)
     {
         foreach (string value in source)
             target.Add(value);
+    }
+
+    private static Array<string> ToGodotStringArray(IEnumerable<string> values)
+    {
+        var result = new Array<string>();
+        if (values == null)
+            return result;
+        foreach (string value in values)
+            result.Add(value);
+        return result;
     }
 }

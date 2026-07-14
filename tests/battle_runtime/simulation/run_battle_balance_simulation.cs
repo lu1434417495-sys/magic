@@ -1,12 +1,18 @@
 using System.Collections.Generic;
 using Godot;
-public partial class run_battle_balance_simulation : SceneTree
+public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 {
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
     }
 
     private int Run()
@@ -20,17 +26,23 @@ public partial class run_battle_balance_simulation : SceneTree
             return 1;
         }
 
-        BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
-        if (scenario == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
+        if (scenarioResource == null)
         {
             GD.PushError($"Failed to load BattleSimScenarioDef from {args[0]}.");
             return 1;
         }
+        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
-        var profiles = new List<BattleSimProfileDef>();
+        var profiles = new List<BattleSimProfileDefinition>();
         for (int index = 1; index < args.Length; index++)
         {
-            BattleSimProfileDef profile = ResourceLoader.Load<BattleSimProfileDef>(args[index]);
+            BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(
+                args[index]
+            );
+            BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
             if (profile == null)
             {
                 GD.PushError($"Failed to load BattleSimProfileDef from {args[index]}.");
@@ -39,7 +51,9 @@ public partial class run_battle_balance_simulation : SceneTree
             profiles.Add(profile);
         }
 
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
+        );
         runner.SetProgressLoggingEnabled(true);
         runner.SetProgressLogPath("res://battle_sim_progress.log");
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);

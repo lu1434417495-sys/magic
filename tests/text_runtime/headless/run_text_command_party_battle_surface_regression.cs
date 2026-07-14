@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_party_battle_surface_regression : SceneTree
+public partial class run_text_command_party_battle_surface_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
     {
         TestPartyEquipAndBattleCommandsUseTypedRuntimeBoundary();
 
-        Quit(_test.Finish("Text command party/battle surface regression"));
+        RequestTestExit(_test.Finish("Text command party/battle surface regression"));
     }
 
     private void TestPartyEquipAndBattleCommandsUseTypedRuntimeBoundary()
@@ -98,7 +98,9 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
                 "battle start settlement 应成功。"
             );
             AdvanceUntilBattleActive(runner);
-            GDictionary battleSnapshot = Dict(session.BuildSnapshot(), "battle");
+            using GodotProjectionLease<GDictionary> battleSnapshotLease =
+                session.BuildSnapshotLease();
+            GDictionary battleSnapshot = Dict(battleSnapshotLease.Value, "battle");
             _test.True(Bool(battleSnapshot, "active"), "battle start 后应进入 active battle。");
             _test.True(
                 Bool(battleSnapshot, "start_confirm_visible"),
@@ -143,7 +145,9 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
                 "battle equip target_unit_id self-only 失败应返回 InvalidState code。"
             );
 
-            Vector2I activeCoord = FindActiveUnitCoord(session.BuildSnapshot());
+            Vector2I activeCoord;
+            using (GodotProjectionLease<GDictionary> activeCoordSnapshotLease = session.BuildSnapshotLease())
+                activeCoord = FindActiveUnitCoord(activeCoordSnapshotLease.Value);
             _test.True(activeCoord != new Vector2I(-1, -1), "应能找到当前行动单位坐标。");
             if (activeCoord != new Vector2I(-1, -1))
             {
@@ -181,8 +185,13 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
     {
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            GDictionary battleSnapshot = Dict(runner.GetSession()?.BuildSnapshot(), "battle");
-            if (Bool(battleSnapshot, "active"))
+            HeadlessGameTestSession session = runner.GetSession();
+            if (session == null)
+                break;
+            bool battleActive;
+            using (GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease())
+                battleActive = Bool(Dict(snapshotLease.Value, "battle"), "active");
+            if (battleActive)
                 return;
             runner.ExecuteLine("battle tick 1");
         }
@@ -192,12 +201,22 @@ public partial class run_text_command_party_battle_surface_regression : SceneTre
     {
         for (int tick = 0; tick < maxTicks; tick++)
         {
-            GDictionary battleSnapshot = Dict(runner.GetSession()?.BuildSnapshot(), "battle");
-            if (!Bool(battleSnapshot, "active"))
+            HeadlessGameTestSession session = runner.GetSession();
+            if (session == null)
                 break;
-            string activeUnitId = DictString(battleSnapshot, "active_unit_id", "");
-            GDictionary activeUnit = FindBattleUnit(battleSnapshot, activeUnitId);
-            if (DictString(activeUnit, "control_mode", "") == "manual")
+            bool battleActive;
+            bool manualTurn;
+            using (GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease())
+            {
+                GDictionary battleSnapshot = Dict(snapshotLease.Value, "battle");
+                battleActive = Bool(battleSnapshot, "active");
+                string activeUnitId = DictString(battleSnapshot, "active_unit_id", "");
+                GDictionary activeUnit = FindBattleUnit(battleSnapshot, activeUnitId);
+                manualTurn = DictString(activeUnit, "control_mode", "") == "manual";
+            }
+            if (!battleActive)
+                break;
+            if (manualTurn)
                 return;
             AssertCommandOk(runner.ExecuteLine("battle tick 1"), "推进到手动回合的 battle tick 应成功。");
         }

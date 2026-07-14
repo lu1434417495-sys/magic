@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_barrier_profile_schema_contract_regression : SceneTree
+public partial class run_barrier_profile_schema_contract_regression : LifecycleTestSceneTree
 {
     private const string ProfilePath = "res://data/configs/barriers/prismatic_sphere.tres";
 
@@ -61,18 +61,11 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestBarrierProfileScriptsExist();
-            TestPrismaticSphereProfileIsDataOwned();
-            TestPrismaticSphereProfileDeclares2eContract();
-        }
-        finally
-        {
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestBarrierProfileScriptsExist();
+        TestPrismaticSphereProfileIsDataOwned();
+        TestPrismaticSphereProfileDeclares2eContract();
 
-        Quit(_test.Finish("Barrier profile schema contract regression"));
+        RequestTestExit(_test.Finish("Barrier profile schema contract regression"));
     }
 
     private void TestBarrierProfileScriptsExist()
@@ -210,10 +203,6 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
 
         Resource resource = GD.Load<Resource>(ProfilePath);
         BarrierProfileDef profile = resource as BarrierProfileDef;
-        if (profile != null)
-            KeepBorrowedBarrierProfile(profile);
-        else
-            KeepBorrowedGodotObject(resource);
         if (profile == null && reportMissing)
         {
             _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
@@ -234,7 +223,6 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
         {
             _test.Fail($"Required barrier content script must load: {path}.");
         }
-        KeepBorrowedGodotObject(script);
     }
 
     private void AssertHasProperty(GodotObject instance, string propertyName, string message)
@@ -260,26 +248,5 @@ public partial class run_barrier_profile_schema_contract_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private static void KeepBorrowedBarrierProfile(BarrierProfileDef profile)
-    {
-        if (profile == null)
-            return;
-        KeepBorrowedGodotObject(profile);
-        foreach (BarrierLayerDef layer in profile.layers)
-        {
-            if (layer == null)
-                continue;
-            KeepBorrowedGodotObject(layer);
-            foreach (BarrierOutcomeDef outcome in layer.passage_outcomes)
-                KeepBorrowedGodotObject(outcome);
-        }
-    }
-
-    private static void KeepBorrowedGodotObject(GodotObject value)
-    {
-        if (value != null)
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(value);
     }
 }

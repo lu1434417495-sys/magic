@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
+public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,314 +20,272 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI role threat scoring regression"));
+        RequestTestExit(_test.Finish("Battle AI role threat scoring regression"));
     }
 
     private void TestMultiUnitSkillScoresRoleThreatTargetGroups()
     {
         using Fixture fixture = BuildFixture("multi_unit_role_threat_scoring");
-        BattleAiScoreInput normalScore = null;
-        BattleAiScoreInput threatScore = null;
-        try
+        SkillDefinition attackSkill = BuildSkill(
+            "archer_multishot_probe",
+            "Multishot Probe",
+            BuildDamageEffect(10)
+        );
+        SkillDefinition healerRoleSkill = BuildHealSkill();
+        SkillDefinition normalRoleSkill = BuildSkill(
+            "warrior_heavy_strike_probe",
+            "Heavy Strike Probe",
+            BuildDamageEffect(3)
+        );
+
+        fixture.AddSkill(attackSkill);
+        fixture.AddSkill(healerRoleSkill);
+        fixture.AddSkill(normalRoleSkill);
+
+        BattleUnitState actor = BuildUnit("role_threat_multishot_archer", "hostile", new Vector2I(1, 2));
+        BattleUnitState normalA = BuildUnit("multi_role_normal_a", "player", new Vector2I(4, 1));
+        BattleUnitState normalB = BuildUnit("multi_role_normal_b", "player", new Vector2I(4, 2));
+        BattleUnitState healer = BuildUnit("multi_role_healer", "player", new Vector2I(4, 3));
+        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(normalA);
+        fixture.AddUnit(normalB);
+        fixture.AddUnit(healer);
+
+        BattleAiContext context = fixture.BuildContext(actor);
+        BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            attackSkill,
+            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
+            BuildPreview(normalA, normalB),
+            new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(normalA, 3, 6)
+        );
+        BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            attackSkill,
+            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
+            BuildPreview(normalA, healer),
+            new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(normalA, 3, 6)
+        );
+
+        _test.True(normalScore != null && threatScore != null, "multi-unit 威胁评分应生成两个合法 score input。");
+        if (normalScore == null || threatScore == null)
         {
-            SkillDef attackSkill = BuildSkill(
-                "archer_multishot_probe",
-                "Multishot Probe",
-                BuildDamageEffect(10)
-            );
-            SkillDef healerRoleSkill = BuildHealSkill();
-            SkillDef normalRoleSkill = BuildSkill(
-                "warrior_heavy_strike_probe",
-                "Heavy Strike Probe",
-                BuildDamageEffect(3)
-            );
-
-            fixture.AddSkill(attackSkill);
-            fixture.AddSkill(healerRoleSkill);
-            fixture.AddSkill(normalRoleSkill);
-
-            BattleUnitState actor = BuildUnit("role_threat_multishot_archer", "hostile", new Vector2I(1, 2));
-            BattleUnitState normalA = BuildUnit("multi_role_normal_a", "player", new Vector2I(4, 1));
-            BattleUnitState normalB = BuildUnit("multi_role_normal_b", "player", new Vector2I(4, 2));
-            BattleUnitState healer = BuildUnit("multi_role_healer", "player", new Vector2I(4, 3));
-            normalA.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-            normalB.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-            healer.known_active_skill_ids.Add(healerRoleSkill.skill_id);
-            fixture.AddUnit(actor);
-            fixture.AddUnit(normalA);
-            fixture.AddUnit(normalB);
-            fixture.AddUnit(healer);
-
-            BattleAiContext context = fixture.BuildContext(actor);
-            normalScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                attackSkill,
-                BuildCommand(actor, attackSkill.skill_id, normalA.coord),
-                BuildPreview(normalA, normalB),
-                new[] { attackSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(normalA, 3, 6)
-            );
-            threatScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                attackSkill,
-                BuildCommand(actor, attackSkill.skill_id, normalA.coord),
-                BuildPreview(normalA, healer),
-                new[] { attackSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(normalA, 3, 6)
-            );
-
-            _test.True(normalScore != null && threatScore != null, "multi-unit 威胁评分应生成两个合法 score input。");
-            if (normalScore == null || threatScore == null)
-            {
-                return;
-            }
-            _test.Eq(normalScore.target_count, threatScore.target_count, "两个 multi-unit 候选应命中相同目标数。");
-            _test.True(
-                threatScore.target_priority_score > normalScore.target_priority_score,
-                "multi-unit 技能应对包含治疗威胁目标的组合产生更高 target_priority_score。"
-            );
-            _test.True(
-                threatScore.total_score > normalScore.total_score,
-                "multi-unit 技能在命中数相同时，应因目标威胁优先包含治疗单位的组合。"
-            );
+            return;
         }
-        finally
-        {
-            BattleTestFixture.DisposeBattleAiScoreInput(normalScore);
-            BattleTestFixture.DisposeBattleAiScoreInput(threatScore);
-        }
+        _test.Eq(normalScore.target_count, threatScore.target_count, "两个 multi-unit 候选应命中相同目标数。");
+        _test.True(
+            threatScore.target_priority_score > normalScore.target_priority_score,
+            "multi-unit 技能应对包含治疗威胁目标的组合产生更高 target_priority_score。"
+        );
+        _test.True(
+            threatScore.total_score > normalScore.total_score,
+            "multi-unit 技能在命中数相同时，应因目标威胁优先包含治疗单位的组合。"
+        );
     }
 
     private void TestGroundSkillScoresRoleThreatAreaTargets()
     {
         using Fixture fixture = BuildFixture("ground_role_threat_scoring");
-        BattleAiScoreInput normalScore = null;
-        BattleAiScoreInput threatScore = null;
-        try
+        SkillDefinition fireballSkill = BuildSkill(
+            "mage_fireball_probe",
+            "Fireball Probe",
+            BuildDamageEffect(10)
+        );
+        SkillDefinition healerRoleSkill = BuildHealSkill();
+        SkillDefinition normalRoleSkill = BuildSkill(
+            "warrior_heavy_strike_probe",
+            "Heavy Strike Probe",
+            BuildDamageEffect(3)
+        );
+
+        fixture.AddSkill(fireballSkill);
+        fixture.AddSkill(healerRoleSkill);
+        fixture.AddSkill(normalRoleSkill);
+
+        BattleUnitState actor = BuildUnit("role_threat_fireballer", "hostile", new Vector2I(1, 3));
+        BattleUnitState normalA = BuildUnit("ground_role_normal_a", "player", new Vector2I(4, 1));
+        BattleUnitState normalB = BuildUnit("ground_role_normal_b", "player", new Vector2I(4, 2));
+        BattleUnitState healer = BuildUnit("ground_role_healer", "player", new Vector2I(4, 4));
+        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
+        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(normalA);
+        fixture.AddUnit(normalB);
+        fixture.AddUnit(healer);
+
+        BattleAiContext context = fixture.BuildContext(actor);
+        BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            fireballSkill,
+            BuildCommand(actor, fireballSkill.SkillId, normalB.coord),
+            BuildPreview(normalA, normalB),
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(null, 3, 4)
+        );
+        BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            fireballSkill,
+            BuildCommand(actor, fireballSkill.SkillId, healer.coord),
+            BuildPreview(normalA, healer),
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(null, 3, 4)
+        );
+
+        _test.True(normalScore != null && threatScore != null, "范围威胁评分应生成两个合法 score input。");
+        if (normalScore == null || threatScore == null)
         {
-            SkillDef fireballSkill = BuildSkill(
-                "mage_fireball_probe",
-                "Fireball Probe",
-                BuildDamageEffect(10)
-            );
-            SkillDef healerRoleSkill = BuildHealSkill();
-            SkillDef normalRoleSkill = BuildSkill(
-                "warrior_heavy_strike_probe",
-                "Heavy Strike Probe",
-                BuildDamageEffect(3)
-            );
-
-            fixture.AddSkill(fireballSkill);
-            fixture.AddSkill(healerRoleSkill);
-            fixture.AddSkill(normalRoleSkill);
-
-            BattleUnitState actor = BuildUnit("role_threat_fireballer", "hostile", new Vector2I(1, 3));
-            BattleUnitState normalA = BuildUnit("ground_role_normal_a", "player", new Vector2I(4, 1));
-            BattleUnitState normalB = BuildUnit("ground_role_normal_b", "player", new Vector2I(4, 2));
-            BattleUnitState healer = BuildUnit("ground_role_healer", "player", new Vector2I(4, 4));
-            normalA.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-            normalB.known_active_skill_ids.Add(normalRoleSkill.skill_id);
-            healer.known_active_skill_ids.Add(healerRoleSkill.skill_id);
-            fixture.AddUnit(actor);
-            fixture.AddUnit(normalA);
-            fixture.AddUnit(normalB);
-            fixture.AddUnit(healer);
-
-            BattleAiContext context = fixture.BuildContext(actor);
-            normalScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                fireballSkill,
-                BuildCommand(actor, fireballSkill.skill_id, normalB.coord),
-                BuildPreview(normalA, normalB),
-                new[] { fireballSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(null, 3, 4)
-            );
-            threatScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                fireballSkill,
-                BuildCommand(actor, fireballSkill.skill_id, healer.coord),
-                BuildPreview(normalA, healer),
-                new[] { fireballSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(null, 3, 4)
-            );
-
-            _test.True(normalScore != null && threatScore != null, "范围威胁评分应生成两个合法 score input。");
-            if (normalScore == null || threatScore == null)
-            {
-                return;
-            }
-            _test.Eq(normalScore.target_count, threatScore.target_count, "两个范围候选应命中相同目标数。");
-            _test.True(
-                threatScore.target_priority_score > normalScore.target_priority_score,
-                "范围技能应对覆盖治疗威胁目标的地格产生更高 target_priority_score。"
-            );
-            _test.True(
-                threatScore.total_score > normalScore.total_score,
-                "范围技能在命中数相同时，应因目标威胁优先覆盖治疗单位。"
-            );
+            return;
         }
-        finally
-        {
-            BattleTestFixture.DisposeBattleAiScoreInput(normalScore);
-            BattleTestFixture.DisposeBattleAiScoreInput(threatScore);
-        }
+        _test.Eq(normalScore.target_count, threatScore.target_count, "两个范围候选应命中相同目标数。");
+        _test.True(
+            threatScore.target_priority_score > normalScore.target_priority_score,
+            "范围技能应对覆盖治疗威胁目标的地格产生更高 target_priority_score。"
+        );
+        _test.True(
+            threatScore.total_score > normalScore.total_score,
+            "范围技能在命中数相同时，应因目标威胁优先覆盖治疗单位。"
+        );
     }
 
     private void TestSkillScorePrioritizesLethalThreatTargets()
     {
         using Fixture fixture = BuildFixture("lethal_threat_scoring");
-        BattleAiScoreInput fireballScore = null;
-        BattleAiScoreInput chainScore = null;
-        try
+        SkillDefinition fireballSkill = BuildSkill(
+            "mage_fireball_probe",
+            "Fireball Probe",
+            BuildDamageEffect(15)
+        );
+        SkillDefinition chainSkill = BuildSkill(
+            "mage_chain_lightning_probe",
+            "Chain Probe",
+            BuildDamageEffect(15)
+        );
+        SkillDefinition rangedThreatSkill = BuildRangedThreatSkill();
+        fixture.AddSkill(fireballSkill);
+        fixture.AddSkill(chainSkill);
+        fixture.AddSkill(rangedThreatSkill);
+
+        BattleUnitState actor = BuildUnit("lethal_threat_mage", "hostile", new Vector2I(1, 2));
+        BattleUnitState archerA = BuildUnit("lethal_threat_archer_a", "player", new Vector2I(5, 2), hp: 10);
+        BattleUnitState archerB = BuildUnit("lethal_threat_archer_b", "player", new Vector2I(5, 4), hp: 10);
+        archerA.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
+        archerB.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
+        fixture.AddUnit(actor);
+        fixture.AddUnit(archerA);
+        fixture.AddUnit(archerB);
+
+        BattleAiContext context = fixture.BuildContext(actor);
+        BattleAiScoreInput fireballScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            fireballSkill,
+            BuildCommand(actor, fireballSkill.SkillId, archerA.coord),
+            BuildPreview(archerA, archerB),
+            new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(null, 4, 5)
+        );
+        BattleAiScoreInput chainScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            chainSkill,
+            BuildCommand(actor, chainSkill.SkillId, archerA.coord, archerA),
+            BuildPreview(archerA),
+            new[] { chainSkill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(archerA, 4, 5)
+        );
+
+        _test.True(fireballScore != null && chainScore != null, "击杀威胁评分应生成两个合法 score input。");
+        if (fireballScore == null || chainScore == null)
         {
-            SkillDef fireballSkill = BuildSkill(
-                "mage_fireball_probe",
-                "Fireball Probe",
-                BuildDamageEffect(15)
-            );
-            SkillDef chainSkill = BuildSkill(
-                "mage_chain_lightning_probe",
-                "Chain Probe",
-                BuildDamageEffect(15)
-            );
-            SkillDef rangedThreatSkill = BuildRangedThreatSkill();
-            fixture.AddSkill(fireballSkill);
-            fixture.AddSkill(chainSkill);
-            fixture.AddSkill(rangedThreatSkill);
-
-            BattleUnitState actor = BuildUnit("lethal_threat_mage", "hostile", new Vector2I(1, 2));
-            BattleUnitState archerA = BuildUnit("lethal_threat_archer_a", "player", new Vector2I(5, 2), hp: 10);
-            BattleUnitState archerB = BuildUnit("lethal_threat_archer_b", "player", new Vector2I(5, 4), hp: 10);
-            archerA.known_active_skill_ids.Add(rangedThreatSkill.skill_id);
-            archerB.known_active_skill_ids.Add(rangedThreatSkill.skill_id);
-            fixture.AddUnit(actor);
-            fixture.AddUnit(archerA);
-            fixture.AddUnit(archerB);
-
-            BattleAiContext context = fixture.BuildContext(actor);
-            fireballScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                fireballSkill,
-                BuildCommand(actor, fireballSkill.skill_id, archerA.coord),
-                BuildPreview(archerA, archerB),
-                new[] { fireballSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(null, 4, 5)
-            );
-            chainScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                chainSkill,
-                BuildCommand(actor, chainSkill.skill_id, archerA.coord, archerA),
-                BuildPreview(archerA),
-                new[] { chainSkill.combat_profile.effect_defs[0] },
-                BuildPositionMetadata(archerA, 4, 5)
-            );
-
-            _test.True(fireballScore != null && chainScore != null, "击杀威胁评分应生成两个合法 score input。");
-            if (fireballScore == null || chainScore == null)
-            {
-                return;
-            }
-            _test.True(
-                fireballScore.estimated_lethal_threat_target_count >= 2,
-                "范围技能应识别会死亡的多个威胁目标。"
-            );
-            _test.Eq(
-                chainScore.estimated_lethal_threat_target_count,
-                1,
-                "单体技能只应识别一个会死亡的威胁目标。"
-            );
-            _test.True(
-                fireballScore.total_score > chainScore.total_score,
-                "当范围技能能击杀更多威胁单位时，应优先杀人而不是先打单体。"
-            );
+            return;
         }
-        finally
-        {
-            BattleTestFixture.DisposeBattleAiScoreInput(fireballScore);
-            BattleTestFixture.DisposeBattleAiScoreInput(chainScore);
-        }
+        _test.True(
+            fireballScore.estimated_lethal_threat_target_count >= 2,
+            "范围技能应识别会死亡的多个威胁目标。"
+        );
+        _test.Eq(
+            chainScore.estimated_lethal_threat_target_count,
+            1,
+            "单体技能只应识别一个会死亡的威胁目标。"
+        );
+        _test.True(
+            fireballScore.total_score > chainScore.total_score,
+            "当范围技能能击杀更多威胁单位时，应优先杀人而不是先打单体。"
+        );
     }
 
     private void TestLowHpBonusUsesFormalParamOnly()
     {
         using Fixture fixture = BuildFixture("low_hp_bonus_scoring");
-        BattleAiScoreInput formalScore = null;
-        BattleAiScoreInput legacyScore = null;
-        try
+        BattleUnitState actor = BuildUnit("low_hp_bonus_actor", "hostile", new Vector2I(1, 1));
+        BattleUnitState target = BuildUnit("ai_score_low_hp_target", "player", new Vector2I(2, 1), hp: 30);
+        target.current_hp = 18;
+        fixture.AddUnit(actor);
+        fixture.AddUnit(target);
+
+        SkillDefinition formalSkill = BuildSkill(
+            "formal_low_hp_bonus_probe",
+            "Formal Low HP Bonus",
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                power: 10,
+                bonusCondition: "target_low_hp",
+                hpRatioThresholdPercent: 70,
+                bonusDamageDiceCount: 2,
+                bonusDamageDiceSides: 1
+            )
+        );
+        SkillDefinition legacySkill = BuildSkill(
+            "legacy_low_hp_bonus_probe",
+            "Legacy Low HP Bonus",
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                power: 10,
+                bonusCondition: "target_low_hp",
+                parameters: new Dictionary<string, object> { ["low_hp_ratio"] = 0.7 },
+                bonusDamageDiceCount: 2,
+                bonusDamageDiceSides: 1
+            )
+        );
+        fixture.AddSkill(formalSkill);
+        fixture.AddSkill(legacySkill);
+
+        BattleAiContext context = fixture.BuildContext(actor);
+        BattleAiScoreInput formalScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            formalSkill,
+            BuildCommand(actor, formalSkill.SkillId, target.coord, target),
+            BuildPreview(target),
+            new[] { formalSkill.CombatProfile.EffectDefinitions[0] },
+            new Dictionary<string, object>(StringComparer.Ordinal)
+        );
+        BattleAiScoreInput legacyScore = fixture.ScoreService.BuildSkillScoreInput(
+            context,
+            legacySkill,
+            BuildCommand(actor, legacySkill.SkillId, target.coord, target),
+            BuildPreview(target),
+            new[] { legacySkill.CombatProfile.EffectDefinitions[0] },
+            new Dictionary<string, object>(StringComparer.Ordinal)
+        );
+
+        _test.True(formalScore != null && legacyScore != null, "低血追加骰评分应生成两个合法 score input。");
+        if (formalScore == null || legacyScore == null)
         {
-            BattleUnitState actor = BuildUnit("low_hp_bonus_actor", "hostile", new Vector2I(1, 1));
-            BattleUnitState target = BuildUnit("ai_score_low_hp_target", "player", new Vector2I(2, 1), hp: 30);
-            target.current_hp = 18;
-            fixture.AddUnit(actor);
-            fixture.AddUnit(target);
-
-            SkillDef formalSkill = BuildSkill(
-                "formal_low_hp_bonus_probe",
-                "Formal Low HP Bonus",
-                new CombatEffectDef
-                {
-                    effect_type = "damage",
-                    power = 10,
-                    bonus_condition = "target_low_hp",
-                    hp_ratio_threshold_percent = 70,
-                    bonus_damage_dice_count = 2,
-                    bonus_damage_dice_sides = 1,
-                }
-            );
-            SkillDef legacySkill = BuildSkill(
-                "legacy_low_hp_bonus_probe",
-                "Legacy Low HP Bonus",
-                new CombatEffectDef
-                {
-                    effect_type = "damage",
-                    power = 10,
-                    bonus_condition = "target_low_hp",
-                    @params = new GDictionary { ["low_hp_ratio"] = 0.7 },
-                    bonus_damage_dice_count = 2,
-                    bonus_damage_dice_sides = 1,
-                }
-            );
-            fixture.AddSkill(formalSkill);
-            fixture.AddSkill(legacySkill);
-
-            BattleAiContext context = fixture.BuildContext(actor);
-            formalScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                formalSkill,
-                BuildCommand(actor, formalSkill.skill_id, target.coord, target),
-                BuildPreview(target),
-                new[] { formalSkill.combat_profile.effect_defs[0] },
-                new Dictionary<string, object>(StringComparer.Ordinal)
-            );
-            legacyScore = fixture.ScoreService.BuildSkillScoreInput(
-                context,
-                legacySkill,
-                BuildCommand(actor, legacySkill.skill_id, target.coord, target),
-                BuildPreview(target),
-                new[] { legacySkill.combat_profile.effect_defs[0] },
-                new Dictionary<string, object>(StringComparer.Ordinal)
-            );
-
-            _test.True(formalScore != null && legacyScore != null, "低血追加骰评分应生成两个合法 score input。");
-            if (formalScore == null || legacyScore == null)
-            {
-                return;
-            }
-            _test.True(
-                formalScore.estimated_damage > legacyScore.estimated_damage,
-                "AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
-            );
-            _test.Eq(
-                legacyScore.estimated_damage,
-                10,
-                "AI 评分不应再读取旧 low_hp_ratio alias。"
-            );
+            return;
         }
-        finally
-        {
-            BattleTestFixture.DisposeBattleAiScoreInput(formalScore);
-            BattleTestFixture.DisposeBattleAiScoreInput(legacyScore);
-        }
+        _test.True(
+            formalScore.estimated_damage > legacyScore.estimated_damage,
+            "AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
+        );
+        _test.Eq(
+            legacyScore.estimated_damage,
+            10,
+            "AI 评分不应再读取旧 low_hp_ratio alias。"
+        );
     }
 
     private static BattleState BuildState(string battleId)
@@ -373,60 +329,53 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params CombatEffectDef[] effects)
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        params CombatEffectDefinition[] effects
+    ) =>
+        BuildSkill(skillId, displayName, targetTeamFilter: default, rangeValue: 4, effects: effects);
+
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        StringName targetTeamFilter,
+        int rangeValue,
+        params CombatEffectDefinition[] effects
+    )
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            range_value = 4,
-            ap_cost = 0,
-            mp_cost = 0,
-            stamina_cost = 0,
-            cooldown_tu = 0,
-        };
-        foreach (CombatEffectDef effect in effects ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effect != null)
-            {
-                combatProfile.effect_defs.Add(effect);
-            }
-        }
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName,
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects ?? Array.Empty<CombatEffectDefinition>(),
+                targetTeamFilter: targetTeamFilter,
+                rangeValue: rangeValue
+            )
+        );
     }
 
-    private static SkillDef BuildHealSkill()
-    {
-        SkillDef skill = BuildSkill(
+    private static SkillDefinition BuildHealSkill() =>
+        BuildSkill(
             "mage_temporal_rewind_probe",
             "Temporal Rewind Probe",
-            new CombatEffectDef { effect_type = "heal", power = 8 }
+            targetTeamFilter: "ally",
+            rangeValue: 4,
+            effects: new[] { TestSkillDefinitionProjection.BuildEffect("heal", power: 8) }
         );
-        skill.combat_profile.target_team_filter = "ally";
-        return skill;
-    }
 
-    private static SkillDef BuildRangedThreatSkill()
-    {
-        SkillDef skill = BuildSkill(
+    private static SkillDefinition BuildRangedThreatSkill() =>
+        BuildSkill(
             "archer_aimed_shot_probe",
             "Aimed Shot Probe",
-            BuildDamageEffect(8)
+            targetTeamFilter: default,
+            rangeValue: 5,
+            effects: new[] { BuildDamageEffect(8) }
         );
-        skill.combat_profile.range_value = 5;
-        return skill;
-    }
 
-    private static CombatEffectDef BuildDamageEffect(int power) =>
-        new()
-        {
-            effect_type = "damage",
-            power = power,
-        };
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect("damage", power: power);
 
     private static BattleCommand BuildCommand(
         BattleUnitState actor,
@@ -491,18 +440,23 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
     {
         public readonly BattleState State;
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
 
         public Fixture(string battleId)
         {
             State = BuildState(battleId);
         }
 
-        public void AddSkill(SkillDef skillDef)
+        public void Dispose()
         {
-            if (skillDef != null && skillDef.skill_id != "")
+            ScoreService.Dispose();
+        }
+
+        public void AddSkill(SkillDefinition skillDefinition)
+        {
+            if (skillDefinition != null && skillDefinition.SkillId != "")
             {
-                _skillDefs[skillDef.skill_id] = skillDef;
+                _skillDefinitions[skillDefinition.SkillId] = skillDefinition;
             }
         }
 
@@ -522,16 +476,8 @@ public partial class run_battle_ai_role_threat_scoring_regression : SceneTree
                 state = State,
                 unit_state = actor,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(_skillDefinitions);
             return context;
-        }
-
-        public void Dispose()
-        {
-            foreach (SkillDef skillDef in _skillDefs.Values)
-                BattleTestFixture.DisposeSkill(skillDef);
-            _skillDefs.Clear();
-            BattleTestFixture.DisposeBattleState(State);
         }
     }
 

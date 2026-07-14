@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_enemy_template_attribute_projection_regression : SceneTree
+public partial class run_enemy_template_attribute_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,23 +15,25 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
     private void Run()
     {
         TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Enemy template attribute projection regression"));
+        RequestTestExit(_test.Finish("Enemy template attribute projection regression"));
     }
 
     private void TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EnemyTemplateDef template = BuildTemplate();
         using EncounterRosterBuilder builder = new();
 
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
-            gameSession.GetEnemyTemplatesTyped()
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+            gameSession.GetEnemyTemplateDefinitions()
         )
         {
-            [template.template_id] = template
+            [template.template_id] = template.ToDefinition(gameSession.GetItemDefsTyped())
         };
-        builder.Setup(new Dictionary<StringName, WildEncounterRosterDef>(), enemyTemplates);
+        builder.Setup(
+            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            enemyTemplates
+        );
 
         IReadOnlyDictionary<StringName, int> typedBaseAttributes =
             template.GetBaseAttributeOverridesResolvedTyped();
@@ -60,13 +62,14 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             "typed skill level 读取应支持正式 StringName key basic_attack。"
         );
 
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             BuildEncounterAnchor(template.template_id),
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             enemyTemplates,
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
 
         _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应只构建一个敌方单位。");
         if (enemyUnits.Count == 0)
@@ -74,7 +77,7 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             return;
         }
 
-        BattleUnitState unit = enemyUnits[0].AsGodotObject() as BattleUnitState;
+        BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit);
         _test.True(unit != null, "EncounterRosterBuilder 应返回 BattleUnitState。");
         if (unit == null || unit.attribute_snapshot == null)
         {
@@ -208,50 +211,6 @@ public partial class run_enemy_template_attribute_projection_regression : SceneT
             }
         }
         return fallback;
-    }
-
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
-    )
-    {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
-            result[templateId] = template;
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyAiBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
-    )
-    {
-        GDictionary result = new();
-        if (enemyAiBrains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
-            result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-            result[itemId] = itemDef;
-        return result;
     }
 
 }

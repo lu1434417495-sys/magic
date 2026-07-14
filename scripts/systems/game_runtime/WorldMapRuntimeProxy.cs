@@ -38,9 +38,15 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetActiveModalId() ?? "";
     }
 
-    public Dictionary GetGameOverContext()
+    internal GodotProjectionLease<Dictionary> GetGameOverContextLease()
     {
-        return _runtime?.GetGameOverContext() ?? new Dictionary();
+        return _runtime?.GetGameOverContextLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.game_over_context",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.game_over_context"
+            );
     }
 
     public string GetActiveSettlementId()
@@ -68,19 +74,52 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetPendingSubmapPrompt() ?? new Dictionary();
     }
 
-    public Dictionary GetPendingBattleStartPrompt()
+    internal GodotProjectionLease<Dictionary> GetPendingBattleStartPromptLease()
     {
-        return _runtime?.GetPendingBattleStartPrompt() ?? new Dictionary();
+        return _runtime?.GetPendingBattleStartPromptLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.pending_battle_start_prompt",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.pending_battle_start_prompt"
+            );
     }
 
-    public Dictionary GetLogSnapshot(int limit = 80)
+    public Dictionary GetPendingResourceHarvestPrompt()
     {
-        return _runtime?.GetLogSnapshot(limit) ?? new Dictionary();
+        return _runtime?.GetPendingResourceHarvestPrompt() ?? new Dictionary();
     }
 
-    public Dictionary BuildHeadlessSnapshot()
+    public System.Collections.Generic.IReadOnlyDictionary<string, object> GetLogSnapshotPlain(
+        int limit = 80
+    )
     {
-        return _runtime?.BuildHeadlessSnapshot() ?? new Dictionary();
+        return _runtime?.GetLogSnapshotPlain(limit)
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+    }
+
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object> BuildHeadlessSnapshotPlain()
+    {
+        return _runtime?.BuildHeadlessSnapshotPlain()
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+    }
+
+    internal GodotProjectionLease<Dictionary> BuildHeadlessSnapshotLease()
+    {
+        return _runtime != null
+            ? _runtime.BuildHeadlessSnapshotLease()
+            : RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(
+                    StringComparer.Ordinal
+                ),
+                "world-map-runtime-proxy-headless-snapshot",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.empty"
+            );
     }
 
     public string BuildTextSnapshot()
@@ -108,10 +147,8 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.IsWorldCoordVisible(coord, factionId) ?? false;
     }
 
-    public Dictionary GetWorldData()
-    {
-        return _runtime?.GetWorldData() ?? new Dictionary();
-    }
+    internal WorldRuntimeData GetWorldRuntimeData() =>
+        _runtime?.GetActiveWorldRuntimeData() ?? WorldRuntimeData.Empty();
 
     public Vector2I GetPlayerCoord()
     {
@@ -148,9 +185,24 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetLastAdvanceBattleRefreshMode() ?? "";
     }
 
+    internal BattlePresentationDelta GetLastAdvanceBattlePresentationDelta()
+    {
+        return _runtime?.GetLastAdvanceBattlePresentationDelta() ?? BattlePresentationDelta.None;
+    }
+
+    internal BattlePresentationDelta GetLastCommandBattlePresentationDelta()
+    {
+        return _runtime?.GetLastCommandBattlePresentationDelta() ?? BattlePresentationDelta.None;
+    }
+
     public StringName GetSelectedBattleSkillId()
     {
         return _runtime?.GetSelectedBattleSkillId() ?? new StringName("");
+    }
+
+    public StringName GetSelectedBattleSkillEntryId()
+    {
+        return _runtime?.GetSelectedBattleSkillEntryId() ?? new StringName("");
     }
 
     public string GetSelectedBattleSkillName()
@@ -168,19 +220,19 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSelectedBattleSkillVariantId() ?? new StringName("");
     }
 
-    public Array<Vector2I> GetSelectedBattleSkillTargetCoords()
+    public System.Collections.Generic.IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoords()
     {
-        return _runtime?.GetSelectedBattleSkillTargetCoords() ?? new Array<Vector2I>();
+        return _runtime?.GetSelectedBattleSkillTargetCoords() ?? System.Array.Empty<Vector2I>();
     }
 
-    public Array<StringName> GetSelectedBattleSkillTargetUnitIds()
+    public System.Collections.Generic.IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIds()
     {
-        return _runtime?.GetSelectedBattleSkillTargetUnitIds() ?? new Array<StringName>();
+        return _runtime?.GetSelectedBattleSkillTargetUnitIds() ?? System.Array.Empty<StringName>();
     }
 
-    public Array<Vector2I> GetBattleOverlayTargetCoords()
+    public System.Collections.Generic.IReadOnlyList<Vector2I> GetBattleOverlayTargetCoords()
     {
-        return _runtime?.GetBattleOverlayTargetCoords() ?? new Array<Vector2I>();
+        return _runtime?.GetBattleOverlayTargetCoords() ?? System.Array.Empty<Vector2I>();
     }
 
     public int GetSelectedBattleSkillRequiredCoordCount()
@@ -213,29 +265,44 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSettlementFeedbackText() ?? "";
     }
 
-    public Dictionary GetShopWindowData()
+    internal GodotProjectionLease<Dictionary> GetShopWindowDataLease() =>
+        _runtime?.GetShopWindowDataLease()
+        ?? EmptyWindowDataLease("shop");
+
+    internal GodotProjectionLease<Dictionary> GetContractBoardWindowDataLease() =>
+        _runtime?.GetContractBoardWindowDataLease()
+        ?? EmptyWindowDataLease("contract-board");
+
+    internal NpcQuestOfferWindowData GetNpcQuestOfferWindowDataTyped()
     {
-        return _runtime?.GetShopWindowData() ?? new Dictionary();
+        return _runtime?.GetActiveNpcQuestOfferData();
     }
 
-    public Dictionary GetContractBoardWindowData()
-    {
-        return _runtime?.GetContractBoardWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetForgeWindowDataLease() =>
+        _runtime?.GetForgeWindowDataLease()
+        ?? EmptyWindowDataLease("forge");
 
-    public Dictionary GetForgeWindowData()
-    {
-        return _runtime?.GetForgeWindowData() ?? new Dictionary();
-    }
+    internal GodotProjectionLease<Dictionary> GetStagecoachWindowDataLease() =>
+        _runtime?.GetStagecoachWindowDataLease()
+        ?? EmptyWindowDataLease("stagecoach");
 
-    public Dictionary GetStagecoachWindowData()
-    {
-        return _runtime?.GetStagecoachWindowData() ?? new Dictionary();
-    }
+    private static GodotProjectionLease<Dictionary> EmptyWindowDataLease(string windowId) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+            $"world-map-proxy-{windowId}",
+            LifetimeDomain.Request,
+            $"WorldMapRuntimeProxy.{windowId}"
+        );
 
-    public Dictionary GetCharacterInfoContext()
+    internal GodotProjectionLease<Dictionary> GetCharacterInfoContextLease()
     {
-        return _runtime?.GetCharacterInfoContext() ?? new Dictionary();
+        return _runtime?.GetCharacterInfoContextLease()
+            ?? RuntimePlainPayload.ProjectDictionaryLease(
+                new System.Collections.Generic.Dictionary<string, object>(System.StringComparer.Ordinal),
+                "WorldMapRuntimeProxy.character_info_context",
+                LifetimeDomain.Request,
+                "WorldMapRuntimeProxy.character_info_context"
+            );
     }
 
     public PartyState GetPartyState()
@@ -258,9 +325,13 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetWarehouseWindowData() ?? new Dictionary();
     }
 
-    public Dictionary GetCurrentPromotionPrompt()
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object>
+        GetCurrentPromotionPromptSnapshotPlain()
     {
-        return _runtime?.GetCurrentPromotionPrompt() ?? new Dictionary();
+        return _runtime?.GetCurrentPromotionPromptSnapshotPlain()
+            ?? new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            );
     }
 
     public PendingCharacterReward GetActiveReward()
@@ -387,12 +458,9 @@ internal sealed class WorldMapRuntimeProxy
         return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardOneTyped(itemId, instanceId));
     }
 
-    internal RuntimeCommandResult CommandWarehouseDiscardAll(
-        StringName itemId,
-        StringName instanceId = default
-    )
+    internal RuntimeCommandResult CommandWarehouseDiscardAll(StringName itemId)
     {
-        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardAllTyped(itemId, instanceId));
+        return RunRuntimeCommand(() => _runtime.CommandWarehouseDiscardAllTyped(itemId));
     }
 
     internal RuntimeCommandResult CommandWarehouseUseItem(
@@ -498,6 +566,7 @@ internal sealed class WorldMapRuntimeProxy
                 "战斗命令无效。",
                 GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
             );
+        _runtime.ResetLastCommandBattlePresentationDelta();
         var refreshMode = _runtime.IssueBattleCommand(command);
         if (refreshMode == BattleRefreshMode.None)
             refreshMode = BattleRefreshMode.Full;
@@ -507,7 +576,7 @@ internal sealed class WorldMapRuntimeProxy
             GameRuntimeFacade.RuntimeCommandCode.Ok,
             refreshMode
         );
-        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
+        RenderRuntimeCommandResult(result);
         return result;
     }
 
@@ -534,6 +603,16 @@ internal sealed class WorldMapRuntimeProxy
     internal RuntimeCommandResult CommandCancelSubmapEntry()
     {
         return RunRuntimeCommand(() => _runtime.CommandCancelSubmapEntryTyped());
+    }
+
+    internal RuntimeCommandResult CommandConfirmResourceHarvest()
+    {
+        return RunRuntimeCommand(() => _runtime.CommandConfirmResourceHarvestTyped());
+    }
+
+    internal RuntimeCommandResult CommandCancelResourceHarvest()
+    {
+        return RunRuntimeCommand(() => _runtime.CommandCancelResourceHarvestTyped());
     }
 
     internal RuntimeCommandResult CommandReturnFromSubmap()
@@ -606,8 +685,9 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
+        _runtime.ResetLastCommandBattlePresentationDelta();
         RuntimeCommandResult result = command?.Invoke() ?? RuntimeCommandResult.Failure("");
-        _renderTarget?.RenderFromRuntime(true, RuntimeCommandResultProjection.Project(result));
+        RenderRuntimeCommandResult(result);
         return result;
     }
 
@@ -615,9 +695,34 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeCommandResultProjection.Project(RuntimeUnavailableError());
+        _runtime.ResetLastCommandBattlePresentationDelta();
         Dictionary result = command?.Invoke() ?? new Dictionary();
-        _renderTarget?.RenderFromRuntime(true, result);
+        RenderCommandPayload(result);
         return result;
+    }
+
+    private void RenderRuntimeCommandResult(RuntimeCommandResult result)
+    {
+        if (TryRenderLastCommandPresentationDelta())
+            return;
+        using Dictionary payload = RuntimeCommandResultProjection.Project(result);
+        _renderTarget?.RenderFromRuntime(true, payload);
+    }
+
+    private void RenderCommandPayload(Dictionary commandResult)
+    {
+        if (TryRenderLastCommandPresentationDelta())
+            return;
+        _renderTarget?.RenderFromRuntime(true, commandResult);
+    }
+
+    private bool TryRenderLastCommandPresentationDelta()
+    {
+        BattlePresentationDelta delta = GetLastCommandBattlePresentationDelta();
+        if (_runtime?.IsBattleActive() != true || !delta.HasChanges)
+            return false;
+        _renderTarget?.RenderFromRuntime(true, delta);
+        return true;
     }
 
     private static RuntimeCommandResult RuntimeUnavailableError()

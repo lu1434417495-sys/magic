@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 [GlobalClass]
 public partial class BattleMapPanel : Control
@@ -20,6 +17,15 @@ public partial class BattleMapPanel : Control
 
     [Signal]
     public delegate void battle_skill_slot_selectedEventHandler(int index);
+
+    [Signal]
+    public delegate void battle_resolve_pressedEventHandler();
+
+    [Signal]
+    public delegate void battle_cycle_variant_pressedEventHandler(int step);
+
+    [Signal]
+    public delegate void battle_clear_skill_pressedEventHandler();
 
     [Signal]
     public delegate void battle_equipment_equip_requestedEventHandler(
@@ -61,14 +67,15 @@ public partial class BattleMapPanel : Control
     private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
     private const string SKILL_ICON_GRAYSCALE_SHADER =
         "res://assets/shaders/skill_icon_grayscale.gdshader";
+    private const string BATTLE_BOARD_SCENE_PATH =
+        "res://scenes/ui/battle_board_2d.tscn";
     private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
     private ShaderMaterial _skill_icon_grayscale_material;
+    private GodotProjectionLease<ShaderMaterial> _presentationLease;
 
     private readonly BattleHudAdapter _hud_adapter = new();
     private readonly Dictionary<string, Texture2D> _skill_icon_cache = new();
-    private static readonly PackedScene BATTLE_BOARD_SCENE = GD.Load<PackedScene>(
-        "res://scenes/ui/battle_board_2d.tscn"
-    );
+    private readonly List<TextureRect> _skill_icon_nodes = new();
 
     private SubViewport _map_subviewport;
     private ColorRect _battle_background_rect;
@@ -85,17 +92,18 @@ public partial class BattleMapPanel : Control
     private StringName _pending_selected_skill_id = "";
     private string _pending_selected_skill_name = "";
     private string _pending_selected_skill_variant_name = "";
-    private GVector2IArray _pending_selected_skill_target_coords = new();
-    private GVector2IArray _pending_selected_skill_valid_target_coords = new();
+    private List<Vector2I> _pending_selected_skill_target_coords = new();
+    private List<Vector2I> _pending_selected_skill_valid_target_coords = new();
     private int _pending_selected_skill_required_coord_count;
-    private GStringNameArray _pending_selected_skill_target_unit_ids = new();
+    private List<StringName> _pending_selected_skill_target_unit_ids = new();
     private StringName _pending_selected_skill_variant_id = "";
 
-    private GDictionary _battle_equipment_snapshot = new();
+    private BattleHudEquipmentPanelSnapshot _battleEquipmentSnapshot;
     private string _battle_equipment_feedback_text = "";
     private StringName _selected_backpack_instance_id = "";
     private StringName _selected_backpack_slot_id = "";
-    private readonly List<GDictionary> _battle_equipment_backpack_entries_by_index = new();
+    private readonly List<BattleHudBackpackEntrySnapshot> _battleEquipmentBackpackEntriesByIndex =
+        new();
     private readonly List<StringName> _battle_equipment_slot_ids_by_index = new();
     private Button _battle_equipment_button;
     private Control _battle_equipment_overlay;
@@ -103,6 +111,7 @@ public partial class BattleMapPanel : Control
     public Label _battle_equipment_meta_label;
     public Label _battle_equipment_summary_label;
     public Label _battle_equipment_status_label;
+    public Label barrier_status_label;
     public VBoxContainer _battle_equipment_slot_list;
     public ItemList _battle_equipment_backpack_list;
     public Label _battle_equipment_details_label;
@@ -145,11 +154,28 @@ public partial class BattleMapPanel : Control
     public GridContainer skill_grid;
     public BattleHoverPreviewOverlay hover_overlay;
 
+    // Command dock (A2): rebuilt button band + info column, created in code so the
+    // enable states / signals live next to each other. See _create_command_dock.
+    public Button resolve_button;
+    public Button clear_skill_button;
+    public Button prev_variant_button;
+    public Button next_variant_button;
+    public Label variant_name_label;
+    public Label command_summary_label;
+    public Label hint_label;
+    public Label log_label;
+    private string _last_skill_grid_signature = "";
+
     private Vector2I _hover_preview_coord = InvalidHoverCoord;
-    private GVector2IArray _hover_preview_valid_coords = new();
+    private List<Vector2I> _hover_preview_valid_coords = new();
     private StringName _hover_preview_selected_skill_id = "";
     private StringName _hover_preview_selected_skill_variant_id = "";
     private BattleState _hover_preview_battle_state;
+    private BattlePreview _selected_skill_preview_cache;
+    private StringName _selected_skill_preview_cache_battle_id = "";
+    private Vector2I _selected_skill_preview_cache_coord = InvalidHoverCoord;
+    private StringName _selected_skill_preview_cache_skill_id = "";
+    private StringName _selected_skill_preview_cache_variant_id = "";
 
     public static Vector2I INVALID_HOVER_COORD() => InvalidHoverCoord;
 
@@ -191,6 +217,7 @@ public partial class BattleMapPanel : Control
         skill_grid.Resized += _update_skill_grid_columns;
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
+        _create_command_dock();
         _ensure_battle_board();
         map_viewport_container.GuiInput += _on_map_viewport_container_gui_input;
         _apply_static_skin();
@@ -224,67 +251,22 @@ public partial class BattleMapPanel : Control
             _battle_equipment_close_button.Pressed -= _close_battle_equipment_panel;
         if (_battle_equipment_equip_button != null)
             _battle_equipment_equip_button.Pressed -= _on_battle_equipment_equip_pressed;
-        SuppressNodeFieldFinalizers();
         _runtime_proxy = null;
         _hud_adapter.SetupRuntimeContext(null, null);
         _hud_adapter.Dispose();
+        ClearSelectedSkillPreviewCache();
+        ClearSkillIconPresentationBindings();
         _skill_icon_cache.Clear();
-        _battle_equipment_backpack_entries_by_index.Clear();
+        _battleEquipmentBackpackEntriesByIndex.Clear();
         _battle_equipment_slot_ids_by_index.Clear();
+        GodotProjectionLease<ShaderMaterial> presentationLease =
+            _presentationLease;
+        _presentationLease = null;
+        if (_skill_icon_grayscale_material != null)
+            _skill_icon_grayscale_material.Shader = null;
+        _skill_icon_grayscale_material = null;
+        presentationLease?.Dispose();
         ClearDynamicNodeRefs();
-        GC.SuppressFinalize(this);
-    }
-
-    private void SuppressNodeFieldFinalizers()
-    {
-        SuppressGodotFinalizer(map_frame);
-        SuppressGodotFinalizer(map_viewport_container);
-        SuppressGodotFinalizer(top_bar);
-        SuppressGodotFinalizer(bottom_panel);
-        SuppressGodotFinalizer(header_title_label);
-        SuppressGodotFinalizer(timeline_row);
-        SuppressGodotFinalizer(round_chip);
-        SuppressGodotFinalizer(tu_label);
-        SuppressGodotFinalizer(ready_label);
-        SuppressGodotFinalizer(mode_chip);
-        SuppressGodotFinalizer(mode_value_label);
-        SuppressGodotFinalizer(unit_card);
-        SuppressGodotFinalizer(portrait_frame);
-        SuppressGodotFinalizer(portrait_glyph_label);
-        SuppressGodotFinalizer(unit_name_label);
-        SuppressGodotFinalizer(unit_role_label);
-        SuppressGodotFinalizer(hp_bar);
-        SuppressGodotFinalizer(hp_value_label);
-        SuppressGodotFinalizer(stamina_bar);
-        SuppressGodotFinalizer(stamina_value_label);
-        SuppressGodotFinalizer(mp_bar);
-        SuppressGodotFinalizer(mp_value_label);
-        SuppressGodotFinalizer(aura_bar);
-        SuppressGodotFinalizer(aura_value_label);
-        SuppressGodotFinalizer(ap_dot_container);
-        SuppressGodotFinalizer(ap_value_label);
-        SuppressGodotFinalizer(equipment_button_slot);
-        SuppressGodotFinalizer(skill_panel);
-        SuppressGodotFinalizer(skill_header);
-        SuppressGodotFinalizer(skill_subtitle_label);
-        SuppressGodotFinalizer(fate_badge_row);
-        SuppressGodotFinalizer(skill_grid);
-        SuppressGodotFinalizer(hover_overlay);
-        SuppressGodotFinalizer(_map_subviewport);
-        SuppressGodotFinalizer(_battle_background_rect);
-        SuppressGodotFinalizer(_battle_board);
-        SuppressGodotFinalizer(_battle_equipment_button);
-        SuppressGodotFinalizer(_battle_equipment_overlay);
-        SuppressGodotFinalizer(_battle_equipment_title_label);
-        SuppressGodotFinalizer(_battle_equipment_meta_label);
-        SuppressGodotFinalizer(_battle_equipment_summary_label);
-        SuppressGodotFinalizer(_battle_equipment_status_label);
-        SuppressGodotFinalizer(_battle_equipment_slot_list);
-        SuppressGodotFinalizer(_battle_equipment_backpack_list);
-        SuppressGodotFinalizer(_battle_equipment_details_label);
-        SuppressGodotFinalizer(_battle_equipment_slot_selector);
-        SuppressGodotFinalizer(_battle_equipment_equip_button);
-        SuppressGodotFinalizer(_battle_equipment_close_button);
     }
 
     private void ClearDynamicNodeRefs()
@@ -303,12 +285,6 @@ public partial class BattleMapPanel : Control
         _battle_equipment_slot_selector = null;
         _battle_equipment_equip_button = null;
         _battle_equipment_close_button = null;
-    }
-
-    private static void SuppressGodotFinalizer(GodotObject instance)
-    {
-        if (instance != null)
-            GC.SuppressFinalize(instance);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -358,10 +334,10 @@ public partial class BattleMapPanel : Control
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id
     )
     {
@@ -407,10 +383,10 @@ public partial class BattleMapPanel : Control
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id
     )
     {
@@ -420,12 +396,12 @@ public partial class BattleMapPanel : Control
         _pending_selected_skill_id = NormalizeStringName(selected_skill_id);
         _pending_selected_skill_name = selected_skill_name ?? "";
         _pending_selected_skill_variant_name = selected_skill_variant_name ?? "";
-        _pending_selected_skill_target_coords = CloneVector2IArray(selected_skill_target_coords);
-        _pending_selected_skill_valid_target_coords = CloneVector2IArray(
+        _pending_selected_skill_target_coords = CloneVector2IList(selected_skill_target_coords);
+        _pending_selected_skill_valid_target_coords = CloneVector2IList(
             selected_skill_valid_target_coords
         );
         _pending_selected_skill_required_coord_count = selected_skill_required_coord_count;
-        _pending_selected_skill_target_unit_ids = CloneStringNameArray(
+        _pending_selected_skill_target_unit_ids = CloneStringNameList(
             selected_skill_target_unit_ids
         );
         _pending_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
@@ -437,10 +413,10 @@ public partial class BattleMapPanel : Control
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id
     )
     {
@@ -459,16 +435,108 @@ public partial class BattleMapPanel : Control
         );
     }
 
+    internal void RefreshOverlayWithPreview(
+        BattleState battle_state,
+        Vector2I selected_coord,
+        StringName selected_skill_id,
+        string selected_skill_name,
+        string selected_skill_variant_name,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
+        int selected_skill_required_coord_count,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
+        StringName selected_skill_variant_id,
+        BattlePreview selected_skill_preview
+    )
+    {
+        _refresh_internal(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_name,
+            selected_skill_variant_name,
+            selected_skill_target_coords,
+            selected_skill_valid_target_coords,
+            selected_skill_required_coord_count,
+            selected_skill_target_unit_ids,
+            selected_skill_variant_id,
+            false,
+            selected_skill_preview,
+            true
+        );
+    }
+
+    internal bool RefreshOverlayWithCachedPreview(
+        BattleState battle_state,
+        Vector2I selected_coord,
+        StringName selected_skill_id,
+        string selected_skill_name,
+        string selected_skill_variant_name,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
+        int selected_skill_required_coord_count,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
+        StringName selected_skill_variant_id
+    )
+    {
+        if (
+            !HasCachedSelectedSkillPreview(
+                battle_state,
+                selected_coord,
+                selected_skill_id,
+                selected_skill_variant_id
+            )
+        )
+        {
+            return false;
+        }
+        RefreshOverlayWithPreview(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_name,
+            selected_skill_variant_name,
+            selected_skill_target_coords,
+            selected_skill_valid_target_coords,
+            selected_skill_required_coord_count,
+            selected_skill_target_unit_ids,
+            selected_skill_variant_id,
+            _selected_skill_preview_cache
+        );
+        return true;
+    }
+
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        if (_battle_board == null || battle_state == null || changed_unit_ids == null)
+            return;
+        _battle_board.RefreshUnits(battle_state, changed_unit_ids);
+        _request_map_viewport_update();
+    }
+
+    public void RefreshLogs(BattleState battle_state)
+    {
+        if (log_label == null)
+            return;
+        log_label.Text = BuildRecentLogText(battle_state);
+    }
+
+    internal static string BuildRecentLogText(BattleState battleState) =>
+        string.Join("\n", BattleHudAdapter.BuildRecentBattleLogLines(battleState));
+
     public void Refresh(
         BattleState battle_state,
         Vector2I selected_coord,
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id
     )
     {
@@ -493,12 +561,14 @@ public partial class BattleMapPanel : Control
         StringName selected_skill_id,
         string selected_skill_name,
         string selected_skill_variant_name,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
+        IEnumerable<Vector2I> selected_skill_target_coords,
+        IEnumerable<Vector2I> selected_skill_valid_target_coords,
         int selected_skill_required_coord_count,
-        GStringNameArray selected_skill_target_unit_ids,
+        IEnumerable<StringName> selected_skill_target_unit_ids,
         StringName selected_skill_variant_id,
-        bool redraw_board
+        bool redraw_board,
+        BattlePreview selected_skill_preview_override = null,
+        bool use_selected_skill_preview_override = false
     )
     {
         if (battle_state == null)
@@ -507,16 +577,28 @@ public partial class BattleMapPanel : Control
             return;
         }
 
-        var targetCoords = CloneVector2IArray(selected_skill_target_coords);
-        var validTargetCoords = CloneVector2IArray(selected_skill_valid_target_coords);
-        var targetUnitIds = CloneStringNameArray(selected_skill_target_unit_ids);
+        List<Vector2I> targetCoords = CloneVector2IList(selected_skill_target_coords);
+        List<Vector2I> validTargetCoords = CloneVector2IList(selected_skill_valid_target_coords);
+        List<StringName> targetUnitIds = CloneStringNameList(selected_skill_target_unit_ids);
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
-        BattlePreview selectedSkillPreview = !StringNameIsEmpty(selected_skill_id)
-            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
-            : null;
+        BattlePreview selectedSkillPreview = use_selected_skill_preview_override
+            ? selected_skill_preview_override
+            : !StringNameIsEmpty(selected_skill_id)
+                ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
+                : null;
+        if (!use_selected_skill_preview_override)
+        {
+            CacheSelectedSkillPreview(
+                battle_state,
+                selected_coord,
+                selected_skill_id,
+                selected_skill_variant_id,
+                selectedSkillPreview
+            );
+        }
 
-        GDictionary snapshot = _hud_adapter.BuildSnapshot(
+        BattleHudSnapshot snapshot = _hud_adapter.BuildSnapshot(
             battle_state,
             selected_coord,
             selected_skill_id,
@@ -533,13 +615,16 @@ public partial class BattleMapPanel : Control
         if (_battle_board != null)
         {
             StringName targetSelectionMode = new(
-                DictString(snapshot, "selected_skill_target_selection_mode", "single_unit")
+                string.IsNullOrEmpty(snapshot.SelectedSkillTargetSelectionMode)
+                    ? "single_unit"
+                    : snapshot.SelectedSkillTargetSelectionMode
             );
             if (StringNameIsEmpty(selected_skill_id) && validTargetCoords.Count > 0)
                 targetSelectionMode = "movement";
-            int minCount = DictInt(snapshot, "selected_skill_target_min_count", 1);
-            int maxCount = DictInt(snapshot, "selected_skill_target_max_count", 1);
-            GDictionary hitBadges = _build_selected_skill_target_hit_badges(
+            int minCount = snapshot.SelectedSkillTargetMinCount;
+            int maxCount = snapshot.SelectedSkillTargetMaxCount;
+            IReadOnlyDictionary<Vector2I, string> hitBadges =
+                _build_selected_skill_target_hit_badges(
                 selected_coord,
                 selected_skill_id,
                 targetCoords,
@@ -577,18 +662,18 @@ public partial class BattleMapPanel : Control
             _resize_map_viewport();
     }
 
-    private GDictionary _build_selected_skill_target_hit_badges(
+    private IReadOnlyDictionary<Vector2I, string> _build_selected_skill_target_hit_badges(
         Vector2I selected_coord,
         StringName selected_skill_id,
-        GVector2IArray selected_skill_target_coords,
-        GVector2IArray selected_skill_valid_target_coords,
-        GDictionary snapshot
+        IReadOnlyCollection<Vector2I> selected_skill_target_coords,
+        IReadOnlyCollection<Vector2I> selected_skill_valid_target_coords,
+        BattleHudSnapshot snapshot
     )
     {
-        var badges = new GDictionary();
+        var badges = new Dictionary<Vector2I, string>();
         if (StringNameIsEmpty(selected_skill_id))
             return badges;
-        string badgeText = DictString(snapshot, "selected_skill_hit_badge_text", "");
+        string badgeText = snapshot?.SelectedSkillHitBadgeText ?? "";
         if (string.IsNullOrEmpty(badgeText))
             return badges;
         bool canShowOnSelected =
@@ -605,6 +690,7 @@ public partial class BattleMapPanel : Control
         _has_pending_show_battle_payload = false;
         _close_battle_equipment_panel();
         ClearHoverPreview();
+        ClearSelectedSkillPreviewCache();
         _set_placeholder_state();
         Visible = false;
         _battle_board?.ClearBoard();
@@ -708,10 +794,10 @@ public partial class BattleMapPanel : Control
             _pending_selected_skill_id,
             _pending_selected_skill_name,
             _pending_selected_skill_variant_name,
-            CloneVector2IArray(_pending_selected_skill_target_coords),
-            CloneVector2IArray(_pending_selected_skill_valid_target_coords),
+            CloneVector2IList(_pending_selected_skill_target_coords),
+            CloneVector2IList(_pending_selected_skill_valid_target_coords),
             _pending_selected_skill_required_coord_count,
-            CloneStringNameArray(_pending_selected_skill_target_unit_ids),
+            CloneStringNameList(_pending_selected_skill_target_unit_ids),
             _pending_selected_skill_variant_id
         );
     }
@@ -738,33 +824,33 @@ public partial class BattleMapPanel : Control
     public void _on_battle_board_cell_hovered(Vector2I coord) =>
         EmitSignal(SignalName.battle_cell_hovered, coord);
 
-    public void UpdateHoverPreview(
+    public BattlePreview UpdateHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
-        GVector2IArray valid_target_coords,
+        IEnumerable<Vector2I> valid_target_coords,
         StringName selected_skill_id,
         StringName selected_skill_variant_id
     )
     {
         if (hover_overlay == null)
-            return;
+            return null;
         if (battle_state == null || hover_coord == InvalidHoverCoord)
         {
             _clear_hover_preview_state();
             hover_overlay.Clear();
-            return;
+            return null;
         }
-        var validTargetCoords = CloneVector2IArray(valid_target_coords);
+        List<Vector2I> validTargetCoords = CloneVector2IList(valid_target_coords);
         _hover_preview_battle_state = battle_state;
         _hover_preview_coord = hover_coord;
-        _hover_preview_valid_coords = CloneVector2IArray(validTargetCoords);
+        _hover_preview_valid_coords = CloneVector2IList(validTargetCoords);
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
         _hover_preview_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
         BattlePreview hoverPreview = !StringNameIsEmpty(_hover_preview_selected_skill_id)
             ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(hover_coord)
             : null;
 
-        GDictionary preview = _hud_adapter.BuildHoverPreview(
+        BattleHoverSnapshot preview = _hud_adapter.BuildHoverPreview(
             battle_state,
             hover_coord,
             _hover_preview_selected_skill_id,
@@ -774,8 +860,9 @@ public partial class BattleMapPanel : Control
         );
         hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)
-            return;
+            return hoverPreview;
         _position_hover_overlay(hover_coord);
+        return hoverPreview;
     }
 
     public void ClearHoverPreview()
@@ -793,6 +880,50 @@ public partial class BattleMapPanel : Control
         _hover_preview_selected_skill_variant_id = "";
     }
 
+    private void CacheSelectedSkillPreview(
+        BattleState battleState,
+        Vector2I selectedCoord,
+        StringName selectedSkillId,
+        StringName selectedSkillVariantId,
+        BattlePreview preview
+    )
+    {
+        if (battleState == null || StringNameIsEmpty(selectedSkillId))
+        {
+            ClearSelectedSkillPreviewCache();
+            return;
+        }
+        _selected_skill_preview_cache = preview;
+        _selected_skill_preview_cache_battle_id = battleState.battle_id;
+        _selected_skill_preview_cache_coord = selectedCoord;
+        _selected_skill_preview_cache_skill_id = NormalizeStringName(selectedSkillId);
+        _selected_skill_preview_cache_variant_id = NormalizeStringName(selectedSkillVariantId);
+    }
+
+    private bool HasCachedSelectedSkillPreview(
+        BattleState battleState,
+        Vector2I selectedCoord,
+        StringName selectedSkillId,
+        StringName selectedSkillVariantId
+    )
+    {
+        return battleState != null
+            && _selected_skill_preview_cache_battle_id == battleState.battle_id
+            && _selected_skill_preview_cache_coord == selectedCoord
+            && _selected_skill_preview_cache_skill_id == NormalizeStringName(selectedSkillId)
+            && _selected_skill_preview_cache_variant_id
+                == NormalizeStringName(selectedSkillVariantId);
+    }
+
+    private void ClearSelectedSkillPreviewCache()
+    {
+        _selected_skill_preview_cache = null;
+        _selected_skill_preview_cache_battle_id = "";
+        _selected_skill_preview_cache_coord = InvalidHoverCoord;
+        _selected_skill_preview_cache_skill_id = "";
+        _selected_skill_preview_cache_variant_id = "";
+    }
+
     public override void _Process(double delta)
     {
         if (hover_overlay == null || !hover_overlay.Visible)
@@ -802,42 +933,19 @@ public partial class BattleMapPanel : Control
         _position_hover_overlay(_hover_preview_coord);
     }
 
+    // 放大后的 preview 跟随悬停会压住战场单位贴图,改为固定钉在地图视口左侧居中
+    // (右上角已被战斗日志占用),不再随光标移动。hover_coord 保留参数以兼容调用点。
     private void _position_hover_overlay(Vector2I hover_coord)
     {
-        if (hover_overlay == null || _battle_board == null || map_viewport_container == null)
+        if (hover_overlay == null || map_viewport_container == null)
             return;
-        if (!_battle_board.IsCoordInViewport(hover_coord))
-        {
-            hover_overlay.Visible = false;
-            return;
-        }
-        Vector2 viewportPosition = _battle_board.CoordToViewportPosition(hover_coord);
-        if (
-            float.IsNegativeInfinity(viewportPosition.X)
-            || float.IsNegativeInfinity(viewportPosition.Y)
-        )
-        {
-            hover_overlay.Visible = false;
-            return;
-        }
         hover_overlay.ResetSize();
         Vector2 overlaySize = hover_overlay.Size;
-        Vector2 anchorScreenPosition = map_viewport_container.Position + viewportPosition;
-        Vector2 overlayPosition =
-            anchorScreenPosition
-            - new Vector2(overlaySize.X * 0.5f, overlaySize.Y + HOVER_OVERLAY_ANCHOR_OFFSET_Y);
-        Vector2 panelSize = Size;
-        if (overlayPosition.Y < HOVER_OVERLAY_EDGE_MARGIN)
-            overlayPosition.Y = anchorScreenPosition.Y + HOVER_OVERLAY_ANCHOR_OFFSET_Y;
-        if (overlayPosition.X < HOVER_OVERLAY_EDGE_MARGIN)
-            overlayPosition.X = HOVER_OVERLAY_EDGE_MARGIN;
-        float maxX = panelSize.X - overlaySize.X - HOVER_OVERLAY_EDGE_MARGIN;
-        if (overlayPosition.X > maxX)
-            overlayPosition.X = Mathf.Max(maxX, HOVER_OVERLAY_EDGE_MARGIN);
-        float maxY = panelSize.Y - overlaySize.Y - HOVER_OVERLAY_EDGE_MARGIN;
-        if (overlayPosition.Y > maxY)
-            overlayPosition.Y = Mathf.Max(maxY, HOVER_OVERLAY_EDGE_MARGIN);
-        hover_overlay.Position = overlayPosition;
+        Vector2 mapPosition = map_viewport_container.Position;
+        Vector2 mapSize = map_viewport_container.Size;
+        float x = mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN;
+        float y = mapPosition.Y + Mathf.Max((mapSize.Y - overlaySize.Y) * 0.5f, HOVER_OVERLAY_EDGE_MARGIN);
+        hover_overlay.Position = new Vector2(x, y);
     }
 
     private void _on_map_viewport_container_gui_input(InputEvent @event)
@@ -925,7 +1033,9 @@ public partial class BattleMapPanel : Control
         };
         _map_subviewport.AddChild(_battle_background_rect);
 
-        Node boardInstance = BATTLE_BOARD_SCENE.Instantiate();
+        Node boardInstance = EngineAssetAccess
+            .ResolveBorrowed<PackedScene>(this, BATTLE_BOARD_SCENE_PATH)
+            .Instantiate();
         _battle_board = boardInstance as BattleBoard2D;
         if (_battle_board == null)
             return;
@@ -1067,7 +1177,8 @@ public partial class BattleMapPanel : Control
 
     private void _set_placeholder_state()
     {
-        _battle_equipment_snapshot.Clear();
+        _battleEquipmentSnapshot = null;
+        _battleEquipmentBackpackEntriesByIndex.Clear();
         _battle_equipment_feedback_text = "";
         _selected_backpack_instance_id = "";
         _selected_backpack_slot_id = "";
@@ -1089,41 +1200,203 @@ public partial class BattleMapPanel : Control
         aura_value_label.Visible = false;
         skill_subtitle_label.Text = "等待战斗数据";
         skill_subtitle_label.TooltipText = "";
-        _rebuild_fate_badges(new GArray());
-        _rebuild_skill_grid(new GArray());
-        _rebuild_timeline_row(new GArray());
+        if (barrier_status_label != null)
+        {
+            barrier_status_label.Text = "";
+            barrier_status_label.Visible = false;
+        }
+        _rebuild_fate_badges(Array.Empty<BattleHudFateBadgeSnapshot>());
+        _rebuild_skill_grid(Array.Empty<BattleHudSkillSlotSnapshot>());
+        _rebuild_timeline_row(Array.Empty<BattleHudQueueEntrySnapshot>());
+        _apply_command_dock(BattleHudSnapshot.Empty);
         _refresh_battle_equipment_ui();
     }
 
-    public void _apply_snapshot(GDictionary snapshot)
+    internal void _apply_snapshot(BattleHudSnapshot snapshot)
     {
-        GDictionary equipmentSnapshot = DictDictionary(snapshot, "equipment_panel");
-        _battle_equipment_snapshot =
-            equipmentSnapshot.Count > 0
-                ? (GDictionary)equipmentSnapshot.Duplicate(true)
-                : new GDictionary();
-        header_title_label.Text = DictString(snapshot, "header_title", "战斗地图");
-        GDictionary roundBadge = DictDictionary(snapshot, "round_badge");
-        tu_label.Text = DictString(roundBadge, "tu_text", "TU --");
-        ready_label.Text = DictString(roundBadge, "ready_text", "READY 0");
-        mode_value_label.Text = DictString(snapshot, "mode_text", "手动");
-        _refresh_focus_unit_card(DictDictionary(snapshot, "focus_unit"));
-        _rebuild_timeline_row(DictArray(snapshot, "queue_entries"));
-        _rebuild_skill_grid(DictArray(snapshot, "skill_slots"));
-        skill_subtitle_label.Text = DictString(snapshot, "skill_subtitle", "");
-        skill_subtitle_label.TooltipText = DictString(
-            snapshot,
-            "selected_skill_preview_tooltip_text",
-            ""
-        );
-        _rebuild_fate_badges(DictArray(snapshot, "selected_skill_fate_badges"));
+        if (snapshot == null || snapshot.IsEmpty)
+        {
+            _set_placeholder_state();
+            return;
+        }
+        _battleEquipmentSnapshot = snapshot.EquipmentPanel;
+        header_title_label.Text = string.IsNullOrEmpty(snapshot.HeaderTitle)
+            ? "战斗地图"
+            : snapshot.HeaderTitle;
+        tu_label.Text = snapshot.RoundBadge?.TuText ?? "TU --";
+        ready_label.Text = snapshot.RoundBadge?.ReadyText ?? "READY 0";
+        mode_value_label.Text = string.IsNullOrEmpty(snapshot.ModeText)
+            ? "手动"
+            : snapshot.ModeText;
+        _refresh_focus_unit_card(snapshot.FocusUnit);
+        _rebuild_timeline_row(snapshot.QueueEntries);
+        _rebuild_skill_grid(snapshot.SkillSlots);
+        skill_subtitle_label.Text = snapshot.SkillSubtitle;
+        skill_subtitle_label.TooltipText = snapshot.SelectedSkillPreviewTooltipText;
+        _rebuild_fate_badges(snapshot.SelectedSkillFateBadges);
+        _apply_command_dock(snapshot);
         _refresh_battle_equipment_ui();
     }
 
-    private void _refresh_focus_unit_card(GDictionary focus_unit)
+    // Region A — resolve button in the TopBar right cell; regions B/C — the command
+    // band and the hint/log info rows inside the skill panel column. Built in code so
+    // each button's enable state and emitted signal stay together. The panel stays a
+    // pure renderer: buttons emit panel-level signals, WorldMapSystem routes them.
+    private void _create_command_dock()
     {
-        Color edgeColor = DictColor(focus_unit, "edge_color", BattleUiTheme.PANEL_EDGE());
-        Color primaryColor = DictColor(focus_unit, "primary_color", BattleUiTheme.PANEL_BG_ALT());
+        if (mode_chip?.GetParent() is HBoxContainer rightCell)
+        {
+            resolve_button = _create_dock_button("ResolveBattleButton", "结算 ⏎");
+            resolve_button.Pressed += _on_resolve_pressed;
+            rightCell.AddChild(resolve_button);
+            rightCell.MoveChild(resolve_button, 0);
+        }
+
+        if (skill_grid?.GetParent() is not VBoxContainer skillLayout)
+            return;
+
+        var dockRow = new HBoxContainer { Name = "CommandDock" };
+        dockRow.AddThemeConstantOverride("separation", 8);
+
+        clear_skill_button = _create_dock_button("ClearSkillButton", "取消 Esc");
+        clear_skill_button.Pressed += _on_clear_skill_pressed;
+        prev_variant_button = _create_dock_button("PrevVariantButton", "◀ Q");
+        prev_variant_button.Pressed += _on_prev_variant_pressed;
+        variant_name_label = new Label
+        {
+            Name = "VariantNameLabel",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        next_variant_button = _create_dock_button("NextVariantButton", "E ▶");
+        next_variant_button.Pressed += _on_next_variant_pressed;
+        command_summary_label = new Label
+        {
+            Name = "CommandSummaryLabel",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        };
+
+        dockRow.AddChild(clear_skill_button);
+        dockRow.AddChild(prev_variant_button);
+        dockRow.AddChild(variant_name_label);
+        dockRow.AddChild(next_variant_button);
+        dockRow.AddChild(command_summary_label);
+        skillLayout.AddChild(dockRow);
+        skillLayout.MoveChild(dockRow, 1);
+
+        hint_label = new Label
+        {
+            Name = "HintLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        hint_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        barrier_status_label = new Label
+        {
+            Name = "BarrierStatusLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            Visible = false,
+        };
+        barrier_status_label.AddThemeFontSizeOverride("font_size", 11);
+        barrier_status_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
+        log_label = new Label
+        {
+            Name = "LogLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        log_label.AddThemeFontSizeOverride("font_size", 11);
+        log_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        skillLayout.AddChild(barrier_status_label);
+        skillLayout.AddChild(hint_label);
+        skillLayout.AddChild(log_label);
+    }
+
+    private static Button _create_dock_button(string name, string text)
+    {
+        return new Button
+        {
+            Name = name,
+            Text = text,
+            FocusMode = FocusModeEnum.None,
+            Disabled = true,
+        };
+    }
+
+    private void _on_resolve_pressed() => EmitSignal(SignalName.battle_resolve_pressed);
+
+    private void _on_clear_skill_pressed() => EmitSignal(SignalName.battle_clear_skill_pressed);
+
+    private void _on_prev_variant_pressed() =>
+        EmitSignal(SignalName.battle_cycle_variant_pressed, -1);
+
+    private void _on_next_variant_pressed() =>
+        EmitSignal(SignalName.battle_cycle_variant_pressed, 1);
+
+    private void _apply_command_dock(BattleHudSnapshot snapshot)
+    {
+        BattleHudCommandDockSnapshot dock = snapshot?.CommandDock
+            ?? BattleHudCommandDockSnapshot.Empty;
+        if (resolve_button != null)
+        {
+            resolve_button.Disabled = !dock.ResolveEnabled;
+            // A1 residual: light up the resolve button when a multi-target cast has
+            // reached its minimum and is ready to confirm.
+            _set_resolve_highlight(snapshot?.SelectedSkillConfirmReady == true);
+        }
+        if (clear_skill_button != null)
+            clear_skill_button.Disabled = !dock.ClearSkillEnabled;
+        if (prev_variant_button != null)
+            prev_variant_button.Disabled = !dock.PrevVariantEnabled;
+        if (next_variant_button != null)
+            next_variant_button.Disabled = !dock.NextVariantEnabled;
+        if (variant_name_label != null)
+            variant_name_label.Text = snapshot?.SelectedSkillVariantName ?? "";
+        if (command_summary_label != null)
+            command_summary_label.Text = _build_command_summary(snapshot);
+        if (hint_label != null)
+            hint_label.Text = snapshot?.HintText ?? "";
+        if (barrier_status_label != null)
+        {
+            barrier_status_label.Text = snapshot?.BarrierSummaryText ?? "";
+            barrier_status_label.Visible = !string.IsNullOrEmpty(barrier_status_label.Text);
+        }
+        if (log_label != null)
+            log_label.Text = _join_recent_log_lines(snapshot);
+    }
+
+    private void _set_resolve_highlight(bool highlighted)
+    {
+        if (resolve_button == null)
+            return;
+        if (highlighted)
+            resolve_button.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
+        else
+            resolve_button.RemoveThemeColorOverride("font_color");
+    }
+
+    private static string _build_command_summary(BattleHudSnapshot snapshot)
+    {
+        if (snapshot?.SelectedSkillTargetSelectionMode != "multi_unit")
+            return "";
+        int count = snapshot.SelectedSkillTargetCount;
+        int maxCount = Mathf.Max(snapshot.SelectedSkillTargetMaxCount, 1);
+        return $"已选 {count}/{maxCount} 目标";
+    }
+
+    private static string _join_recent_log_lines(BattleHudSnapshot snapshot)
+    {
+        var parts = new List<string>();
+        foreach (string line in snapshot?.RecentBattleLogLines ?? Array.Empty<string>())
+        {
+            if (!string.IsNullOrEmpty(line))
+                parts.Add(line);
+        }
+        return string.Join("\n", parts);
+    }
+
+    private void _refresh_focus_unit_card(BattleHudFocusUnitSnapshot focusUnit)
+    {
+        Color edgeColor = focusUnit?.EdgeColor ?? BattleUiTheme.PANEL_EDGE();
+        Color primaryColor = focusUnit?.PrimaryColor ?? BattleUiTheme.PANEL_BG_ALT();
         portrait_frame.AddThemeStyleboxOverride(
             "panel",
             _build_panel_style(
@@ -1133,71 +1406,53 @@ public partial class BattleMapPanel : Control
                 BattleUiTheme.PANEL_BORDER()
             )
         );
-        portrait_glyph_label.Text = DictString(focus_unit, "glyph", "?");
-        unit_name_label.Text = DictString(focus_unit, "name", "待命");
-        unit_role_label.Text = DictString(focus_unit, "role_text", "未选中单位");
-        GDictionary resourceInfo = DictDictionary(focus_unit, "resource_info");
+        portrait_glyph_label.Text = focusUnit?.Glyph ?? "?";
+        unit_name_label.Text = focusUnit?.Name ?? "待命";
+        unit_role_label.Text = focusUnit?.RoleText ?? "未选中单位";
+        BattleHudResourceInfoSnapshot resourceInfo = focusUnit?.ResourceInfo;
 
         _set_progress_bar_values(
             hp_bar,
             hp_value_label,
-            DictInt(focus_unit, "hp_current", 0),
-            DictInt(focus_unit, "hp_max", 1),
+            focusUnit?.HpCurrent ?? 0,
+            focusUnit?.HpMax ?? 1,
             "HP",
             BattleUiTheme.RESOURCE_HP()
         );
         _set_progress_bar_values(
             stamina_bar,
             stamina_value_label,
-            DictInt(focus_unit, "stamina_current", _get_resource_current(resourceInfo, "stamina")),
-            DictInt(focus_unit, "stamina_max", _get_resource_max(resourceInfo, "stamina")),
+            focusUnit?.StaminaCurrent ?? resourceInfo?.Stamina?.Current ?? 0,
+            focusUnit?.StaminaMax ?? resourceInfo?.Stamina?.Max ?? 1,
             "体力",
             BattleUiTheme.RESOURCE_STAMINA()
         );
         _set_progress_bar_values(
             mp_bar,
             mp_value_label,
-            DictInt(focus_unit, "mp_current", 0),
-            DictInt(focus_unit, "mp_max", 1),
+            focusUnit?.MpCurrent ?? 0,
+            focusUnit?.MpMax ?? 1,
             "MP",
             BattleUiTheme.RESOURCE_MP()
         );
         _set_progress_bar_values(
             aura_bar,
             aura_value_label,
-            DictInt(focus_unit, "aura_current", _get_resource_current(resourceInfo, "aura")),
-            DictInt(focus_unit, "aura_max", _get_resource_max(resourceInfo, "aura")),
+            focusUnit?.AuraCurrent ?? resourceInfo?.Aura?.Current ?? 0,
+            focusUnit?.AuraMax ?? resourceInfo?.Aura?.Max ?? 1,
             "斗气",
             BattleUiTheme.RESOURCE_AURA()
         );
         _rebuild_ap_dots(
-            DictInt(focus_unit, "move_current", 0),
-            DictInt(focus_unit, "move_max", 2)
+            focusUnit?.MoveCurrent ?? 0,
+            focusUnit?.MoveMax ?? 2
         );
-        _set_resource_row_visible(mp_bar, mp_value_label, _is_resource_visible(resourceInfo, "mp"));
+        _set_resource_row_visible(mp_bar, mp_value_label, resourceInfo?.Mp?.Visible ?? true);
         _set_resource_row_visible(
             aura_bar,
             aura_value_label,
-            _is_resource_visible(resourceInfo, "aura")
+            resourceInfo?.Aura?.Visible ?? true
         );
-    }
-
-    private static int _get_resource_current(GDictionary resource_info, string resource_key)
-    {
-        GDictionary data = DictDictionary(resource_info, resource_key);
-        return data.Count > 0 ? DictInt(data, "current", 0) : 0;
-    }
-
-    private static int _get_resource_max(GDictionary resource_info, string resource_key)
-    {
-        GDictionary data = DictDictionary(resource_info, resource_key);
-        return data.Count > 0 ? DictInt(data, "max", 1) : 1;
-    }
-
-    private static bool _is_resource_visible(GDictionary resource_info, string resource_key)
-    {
-        GDictionary data = DictDictionary(resource_info, resource_key);
-        return data.Count > 0 ? DictBool(data, "visible", true) : true;
     }
 
     private void _apply_chip_skin(PanelContainer panel, Color edge)
@@ -1536,7 +1791,7 @@ public partial class BattleMapPanel : Control
     {
         if (_battle_equipment_overlay == null)
             return;
-        if (_battle_equipment_snapshot.Count == 0)
+        if (_battleEquipmentSnapshot == null)
             return;
         _battle_equipment_feedback_text = "";
         _battle_equipment_overlay.Visible = true;
@@ -1554,7 +1809,7 @@ public partial class BattleMapPanel : Control
     {
         if (_battle_equipment_button != null)
         {
-            bool hasSnapshot = _battle_equipment_snapshot.Count > 0;
+            bool hasSnapshot = _battleEquipmentSnapshot != null;
             _battle_equipment_button.Disabled = !hasSnapshot;
             _battle_equipment_button.TooltipText = hasSnapshot
                 ? "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
@@ -1563,22 +1818,17 @@ public partial class BattleMapPanel : Control
         if (_battle_equipment_overlay == null || !_battle_equipment_overlay.Visible)
             return;
 
+        BattleHudEquipmentPanelSnapshot battleEquipmentSnapshot = _battleEquipmentSnapshot;
         string disabledReason = _get_battle_equipment_panel_disabled_reason();
-        _battle_equipment_title_label.Text = DictString(
-            _battle_equipment_snapshot,
-            "title",
-            "队伍共享背包（战斗局部）"
-        );
-        _battle_equipment_meta_label.Text = DictString(
-            _battle_equipment_snapshot,
-            "meta",
-            "战中不展示或访问据点共享仓库入口。"
-        );
-        _battle_equipment_summary_label.Text = DictString(
-            _battle_equipment_snapshot,
-            "summary_text",
-            ""
-        );
+        _battle_equipment_title_label.Text =
+            !string.IsNullOrEmpty(battleEquipmentSnapshot?.Title)
+                ? battleEquipmentSnapshot.Title
+                : "队伍共享背包（战斗局部）";
+        _battle_equipment_meta_label.Text =
+            !string.IsNullOrEmpty(battleEquipmentSnapshot?.Meta)
+                ? battleEquipmentSnapshot.Meta
+                : "战中不展示或访问据点共享仓库入口。";
+        _battle_equipment_summary_label.Text = battleEquipmentSnapshot?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(_battle_equipment_feedback_text))
             _battle_equipment_status_label.Text = _battle_equipment_feedback_text;
         else if (!string.IsNullOrEmpty(disabledReason))
@@ -1593,11 +1843,13 @@ public partial class BattleMapPanel : Control
 
     private string _get_battle_equipment_panel_disabled_reason()
     {
-        if (_battle_equipment_snapshot.Count == 0)
+        if (_battleEquipmentSnapshot == null)
             return "战斗装备数据尚未就绪。";
-        if (DictBool(_battle_equipment_snapshot, "can_change_equipment", false))
+        if (_battleEquipmentSnapshot.CanChangeEquipment)
             return "";
-        return DictString(_battle_equipment_snapshot, "disabled_reason", "当前不能换装。");
+        return !string.IsNullOrEmpty(_battleEquipmentSnapshot.DisabledReason)
+            ? _battleEquipmentSnapshot.DisabledReason
+            : "当前不能换装。";
     }
 
     private void _rebuild_battle_equipment_slot_rows()
@@ -1605,7 +1857,8 @@ public partial class BattleMapPanel : Control
         if (_battle_equipment_slot_list == null)
             return;
         _clear_container(_battle_equipment_slot_list);
-        GArray slots = DictArray(_battle_equipment_snapshot, "slots");
+        IReadOnlyList<BattleHudEquipmentSlotSnapshot> slots =
+            _battleEquipmentSnapshot?.Slots ?? Array.Empty<BattleHudEquipmentSlotSnapshot>();
         if (slots.Count == 0)
         {
             var emptyLabel = new Label
@@ -1617,13 +1870,13 @@ public partial class BattleMapPanel : Control
             _battle_equipment_slot_list.AddChild(emptyLabel);
             return;
         }
-        foreach (GDictionary slot in ReadDictionaryItems(slots))
+        foreach (BattleHudEquipmentSlotSnapshot slot in slots)
         {
             _battle_equipment_slot_list.AddChild(_create_battle_equipment_slot_row(slot));
         }
     }
 
-    private Control _create_battle_equipment_slot_row(GDictionary slot)
+    private Control _create_battle_equipment_slot_row(BattleHudEquipmentSlotSnapshot slot)
     {
         var row = new PanelContainer
         {
@@ -1658,7 +1911,7 @@ public partial class BattleMapPanel : Control
         var title = new Label
         {
             Text =
-                $"{DictString(slot, "slot_label", "槽位")}：{DictString(slot, "item_display_name", "空")}",
+                $"{(!string.IsNullOrEmpty(slot?.SlotLabel) ? slot.SlotLabel : "槽位")}：{(!string.IsNullOrEmpty(slot?.ItemDisplayName) ? slot.ItemDisplayName : "空")}",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
         title.AddThemeFontSizeOverride("font_size", 12);
@@ -1667,15 +1920,16 @@ public partial class BattleMapPanel : Control
 
         var detail = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
         var detailLines = new List<string>();
-        string instanceId = DictString(slot, "instance_id", "");
+        string instanceId = slot?.InstanceId ?? "";
         if (string.IsNullOrEmpty(instanceId))
             detailLines.Add("未装备");
         else
             detailLines.Add($"实例 {instanceId}");
-        List<string> occupiedLabels = _to_string_list(DictArray(slot, "occupied_slot_labels"));
+        IReadOnlyList<string> occupiedLabels =
+            slot?.OccupiedSlotLabels ?? Array.Empty<string>();
         if (occupiedLabels.Count > 0)
             detailLines.Add($"占用 {string.Join("、", occupiedLabels)}");
-        string disabledReason = DictString(slot, "disabled_reason", "");
+        string disabledReason = slot?.DisabledReason ?? "";
         if (!string.IsNullOrEmpty(disabledReason))
             detailLines.Add(disabledReason);
         detail.Text = string.Join("  |  ", detailLines);
@@ -1688,27 +1942,30 @@ public partial class BattleMapPanel : Control
         string panelDisabledReason = _get_battle_equipment_panel_disabled_reason();
         bool canUnequip =
             string.IsNullOrEmpty(panelDisabledReason)
-            && DictBool(slot, "can_unequip", false)
+            && slot?.CanUnequip == true
             && !string.IsNullOrEmpty(instanceId);
         button.Disabled = !canUnequip;
         button.TooltipText = canUnequip
             ? ""
             : _resolve_unequip_disabled_reason(slot, panelDisabledReason);
-        StringName entrySlotId = new(DictString(slot, "entry_slot_id", ""));
+        StringName entrySlotId = new(slot?.EntrySlotId ?? "");
         StringName slotInstanceId = new(instanceId);
         button.Pressed += () => _on_battle_equipment_unequip_pressed(entrySlotId, slotInstanceId);
         layout.AddChild(button);
         return row;
     }
 
-    private string _resolve_unequip_disabled_reason(GDictionary slot, string panel_disabled_reason)
+    private string _resolve_unequip_disabled_reason(
+        BattleHudEquipmentSlotSnapshot slot,
+        string panel_disabled_reason
+    )
     {
         if (!string.IsNullOrEmpty(panel_disabled_reason))
             return panel_disabled_reason;
-        string disabledReason = DictString(slot, "disabled_reason", "");
+        string disabledReason = slot?.DisabledReason ?? "";
         if (!string.IsNullOrEmpty(disabledReason))
             return disabledReason;
-        if (string.IsNullOrEmpty(DictString(slot, "instance_id", "")))
+        if (string.IsNullOrEmpty(slot?.InstanceId))
             return "该槽位没有可卸下的装备。";
         return "只能从装备入口槽卸下。";
     }
@@ -1719,8 +1976,10 @@ public partial class BattleMapPanel : Control
             return;
         StringName previousSelection = _selected_backpack_instance_id;
         _battle_equipment_backpack_list.Clear();
-        _battle_equipment_backpack_entries_by_index.Clear();
-        GArray entries = DictArray(_battle_equipment_snapshot, "backpack_entries");
+        _battleEquipmentBackpackEntriesByIndex.Clear();
+        IReadOnlyList<BattleHudBackpackEntrySnapshot> entries =
+            _battleEquipmentSnapshot?.BackpackEntries
+            ?? Array.Empty<BattleHudBackpackEntrySnapshot>();
         if (entries.Count == 0)
         {
             _battle_equipment_backpack_list.AddItem(BATTLE_EQUIPMENT_EMPTY_TEXT);
@@ -1731,13 +1990,13 @@ public partial class BattleMapPanel : Control
         }
         int selectedIndex = -1;
         int firstIndex = -1;
-        foreach (GDictionary entry in ReadDictionaryItems(entries))
+        foreach (BattleHudBackpackEntrySnapshot entry in entries)
         {
-            string itemStatus = DictBool(entry, "can_equip", false) ? "可装备" : "不可用";
+            string itemStatus = entry.CanEquip ? "可装备" : "不可用";
             int itemIndex = _battle_equipment_backpack_list.AddItem(
-                $"{DictString(entry, "display_name", "")}  ·  {itemStatus}"
+                $"{entry.DisplayName}  ·  {itemStatus}"
             );
-            _battle_equipment_backpack_entries_by_index.Add(entry.Duplicate(true));
+            _battleEquipmentBackpackEntriesByIndex.Add(entry);
             _battle_equipment_backpack_list.SetItemTooltipEnabled(itemIndex, true);
             _battle_equipment_backpack_list.SetItemTooltip(
                 itemIndex,
@@ -1745,7 +2004,7 @@ public partial class BattleMapPanel : Control
             );
             if (firstIndex < 0)
                 firstIndex = itemIndex;
-            if (new StringName(DictString(entry, "instance_id", "")) == previousSelection)
+            if (new StringName(entry.InstanceId) == previousSelection)
                 selectedIndex = itemIndex;
         }
         if (selectedIndex < 0)
@@ -1753,26 +2012,26 @@ public partial class BattleMapPanel : Control
         if (selectedIndex >= 0)
         {
             _battle_equipment_backpack_list.Select(selectedIndex);
-            GDictionary selectedEntry = _get_backpack_entry_at_index(selectedIndex);
-            _selected_backpack_instance_id = new StringName(
-                DictString(selectedEntry, "instance_id", "")
-            );
+            BattleHudBackpackEntrySnapshot selectedEntry =
+                _get_backpack_entry_at_index(selectedIndex);
+            _selected_backpack_instance_id = new StringName(selectedEntry?.InstanceId ?? "");
             _sync_selected_backpack_slot(selectedEntry);
         }
     }
 
-    private string _build_backpack_entry_tooltip(GDictionary entry)
+    private string _build_backpack_entry_tooltip(BattleHudBackpackEntrySnapshot entry)
     {
         var lines = new List<string>
         {
-            DictString(entry, "display_name", ""),
-            $"实例：{DictString(entry, "instance_id", "")}",
+            entry?.DisplayName ?? "",
+            $"实例：{entry?.InstanceId ?? ""}",
             BATTLE_EQUIPMENT_SOURCE_HINT,
         };
-        List<string> allowedLabels = _to_string_list(DictArray(entry, "allowed_slot_labels"));
+        IReadOnlyList<string> allowedLabels =
+            entry?.AllowedSlotLabels ?? Array.Empty<string>();
         if (allowedLabels.Count > 0)
             lines.Add($"可装备槽位：{string.Join("、", allowedLabels)}");
-        string disabledReason = DictString(entry, "disabled_reason", "");
+        string disabledReason = entry?.DisabledReason ?? "";
         if (!string.IsNullOrEmpty(disabledReason))
             lines.Add($"不可用：{disabledReason}");
         return string.Join("\n", lines);
@@ -1780,15 +2039,15 @@ public partial class BattleMapPanel : Control
 
     public void _on_battle_equipment_backpack_selected(int index)
     {
-        GDictionary entry = _get_backpack_entry_at_index(index);
-        if (entry.Count == 0)
+        BattleHudBackpackEntrySnapshot entry = _get_backpack_entry_at_index(index);
+        if (entry == null)
         {
             _selected_backpack_instance_id = "";
             _selected_backpack_slot_id = "";
         }
         else
         {
-            _selected_backpack_instance_id = new StringName(DictString(entry, "instance_id", ""));
+            _selected_backpack_instance_id = new StringName(entry.InstanceId);
             _sync_selected_backpack_slot(entry);
         }
         _refresh_battle_equipment_backpack_details();
@@ -1814,10 +2073,10 @@ public partial class BattleMapPanel : Control
             || _battle_equipment_equip_button == null
         )
             return;
-        GDictionary entry = _get_selected_backpack_entry();
+        BattleHudBackpackEntrySnapshot entry = _get_selected_backpack_entry();
         _battle_equipment_slot_selector.Clear();
         _battle_equipment_slot_ids_by_index.Clear();
-        if (entry.Count == 0)
+        if (entry == null)
         {
             _battle_equipment_details_label.Text =
                 BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT;
@@ -1828,8 +2087,8 @@ public partial class BattleMapPanel : Control
         }
 
         _sync_selected_backpack_slot(entry);
-        List<string> allowedSlotIds = _to_string_list(DictArray(entry, "allowed_slot_ids"));
-        List<string> allowedSlotLabels = _to_string_list(DictArray(entry, "allowed_slot_labels"));
+        IReadOnlyList<string> allowedSlotIds = entry.AllowedSlotIds;
+        IReadOnlyList<string> allowedSlotLabels = entry.AllowedSlotLabels;
         int selectedIndex = -1;
         for (int index = 0; index < allowedSlotIds.Count; index++)
         {
@@ -1846,9 +2105,9 @@ public partial class BattleMapPanel : Control
 
         var detailLines = new List<string>
         {
-            $"{DictString(entry, "display_name", "")}  |  物品 {DictString(entry, "item_id", "")}  |  实例 {DictString(entry, "instance_id", "")}",
+            $"{entry.DisplayName}  |  物品 {entry.ItemId}  |  实例 {entry.InstanceId}",
             $"可装备槽位：{(allowedSlotLabels.Count > 0 ? string.Join("、", allowedSlotLabels) : "无")}",
-            DictString(entry, "description", "暂无说明。"),
+            !string.IsNullOrEmpty(entry.Description) ? entry.Description : "暂无说明。",
             BATTLE_EQUIPMENT_SOURCE_HINT,
         };
         string disabledReason = _get_equip_disabled_reason(entry);
@@ -1859,9 +2118,10 @@ public partial class BattleMapPanel : Control
         _battle_equipment_equip_button.TooltipText = disabledReason;
     }
 
-    private void _sync_selected_backpack_slot(GDictionary entry)
+    private void _sync_selected_backpack_slot(BattleHudBackpackEntrySnapshot entry)
     {
-        List<string> allowedSlotIds = _to_string_list(DictArray(entry, "allowed_slot_ids"));
+        IReadOnlyList<string> allowedSlotIds =
+            entry?.AllowedSlotIds ?? Array.Empty<string>();
         if (allowedSlotIds.Count == 0)
         {
             _selected_backpack_slot_id = "";
@@ -1872,53 +2132,53 @@ public partial class BattleMapPanel : Control
             && allowedSlotIds.Contains(_selected_backpack_slot_id.ToString())
         )
             return;
-        string defaultSlot = DictString(entry, "default_slot_id", "");
+        string defaultSlot = entry?.DefaultSlotId ?? "";
         _selected_backpack_slot_id = new StringName(
             allowedSlotIds.Contains(defaultSlot) ? defaultSlot : allowedSlotIds[0]
         );
     }
 
-    private string _get_equip_disabled_reason(GDictionary entry)
+    private string _get_equip_disabled_reason(BattleHudBackpackEntrySnapshot entry)
     {
         string panelDisabledReason = _get_battle_equipment_panel_disabled_reason();
         if (!string.IsNullOrEmpty(panelDisabledReason))
             return panelDisabledReason;
-        string entryDisabledReason = DictString(entry, "disabled_reason", "");
+        string entryDisabledReason = entry?.DisabledReason ?? "";
         if (!string.IsNullOrEmpty(entryDisabledReason))
             return entryDisabledReason;
-        if (!DictBool(entry, "can_equip", false))
+        if (entry?.CanEquip != true)
             return "该实例当前不能装备。";
         if (StringNameIsEmpty(_selected_backpack_slot_id))
             return "请选择装备槽位。";
         return "";
     }
 
-    private GDictionary _get_selected_backpack_entry()
+    private BattleHudBackpackEntrySnapshot _get_selected_backpack_entry()
     {
         if (_battle_equipment_backpack_list == null)
-            return new GDictionary();
+            return null;
         int[] selectedItems = _battle_equipment_backpack_list.GetSelectedItems();
         if (selectedItems.Length == 0)
-            return new GDictionary();
+            return null;
         return _get_backpack_entry_at_index(selectedItems[0]);
     }
 
-    private GDictionary _get_backpack_entry_at_index(int index)
+    private BattleHudBackpackEntrySnapshot _get_backpack_entry_at_index(int index)
     {
         if (
             _battle_equipment_backpack_list == null
             || index < 0
             || index >= _battle_equipment_backpack_list.ItemCount
-            || index >= _battle_equipment_backpack_entries_by_index.Count
+            || index >= _battleEquipmentBackpackEntriesByIndex.Count
         )
-            return new GDictionary();
-        return _battle_equipment_backpack_entries_by_index[index].Duplicate(true);
+            return null;
+        return _battleEquipmentBackpackEntriesByIndex[index];
     }
 
     public void _on_battle_equipment_equip_pressed()
     {
-        GDictionary entry = _get_selected_backpack_entry();
-        if (entry.Count == 0)
+        BattleHudBackpackEntrySnapshot entry = _get_selected_backpack_entry();
+        if (entry == null)
         {
             _set_battle_equipment_feedback("请选择战斗局部队伍共享背包中的装备实例。");
             return;
@@ -1929,14 +2189,14 @@ public partial class BattleMapPanel : Control
             _set_battle_equipment_feedback(disabledReason);
             return;
         }
-        StringName activeUnitId = new(DictString(_battle_equipment_snapshot, "active_unit_id", ""));
+        StringName activeUnitId = new(_battleEquipmentSnapshot?.ActiveUnitId ?? "");
         if (StringNameIsEmpty(activeUnitId))
         {
             _set_battle_equipment_feedback("当前没有可换装单位。");
             return;
         }
-        StringName itemId = new(DictString(entry, "item_id", ""));
-        StringName instanceId = new(DictString(entry, "instance_id", ""));
+        StringName itemId = new(entry.ItemId);
+        StringName instanceId = new(entry.InstanceId);
         var command = new BattleCommand
         {
             CommandKind = BattleCommandKind.ChangeEquipment,
@@ -1964,7 +2224,7 @@ public partial class BattleMapPanel : Control
             _set_battle_equipment_feedback(panelDisabledReason);
             return;
         }
-        StringName activeUnitId = new(DictString(_battle_equipment_snapshot, "active_unit_id", ""));
+        StringName activeUnitId = new(_battleEquipmentSnapshot?.ActiveUnitId ?? "");
         if (StringNameIsEmpty(activeUnitId))
         {
             _set_battle_equipment_feedback("当前没有可换装单位。");
@@ -2014,14 +2274,6 @@ public partial class BattleMapPanel : Control
         _refresh_battle_equipment_ui();
     }
 
-    private static List<string> _to_string_list(GArray values)
-    {
-        var result = new List<string>();
-        foreach (var item in values)
-            result.Add(item.ToString());
-        return result;
-    }
-
     private void _set_progress_bar_values(
         ProgressBar progress_bar,
         Label value_label,
@@ -2038,22 +2290,57 @@ public partial class BattleMapPanel : Control
         value_label.Text = $"{label_prefix} {current_value}/{safeMax}";
     }
 
-    private void _rebuild_skill_grid(GArray slots)
+    private void _rebuild_skill_grid(IReadOnlyList<BattleHudSkillSlotSnapshot> slots)
     {
+        // Rebuilding 20 slot nodes (panels + margins + glyphs + labels + styleboxes)
+        // on every battle snapshot apply is expensive. The slot set/state usually
+        // doesn't change between ticks, so skip the teardown+recreate when the
+        // render-affecting data is identical to the last build.
+        string signature = _build_skill_grid_signature(slots);
+        if (skill_grid.GetChildCount() > 0 && signature == _last_skill_grid_signature)
+            return;
+        _last_skill_grid_signature = signature;
+
+        ClearSkillIconPresentationBindings();
         _clear_container(skill_grid);
         if (slots.Count == 0)
         {
             for (int index = 0; index < 20; index++)
                 skill_grid.AddChild(
-                    _create_skill_slot(new GDictionary { ["index"] = index, ["is_empty"] = true })
+                    _create_skill_slot(new BattleHudSkillSlotSnapshot(index, true))
                 );
             return;
         }
-        foreach (GDictionary slot in ReadDictionaryItems(slots))
+        foreach (BattleHudSkillSlotSnapshot slot in slots)
         {
             skill_grid.AddChild(_create_skill_slot(slot));
         }
         _update_skill_grid_columns();
+    }
+
+    private static string _build_skill_grid_signature(
+        IReadOnlyList<BattleHudSkillSlotSnapshot> slots
+    )
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (BattleHudSkillSlotSnapshot slot in slots)
+        {
+            builder.Append(slot.Index).Append('|');
+            if (slot.IsEmpty)
+            {
+                builder.Append("e;");
+                continue;
+            }
+            builder
+                .Append(slot.ShortName).Append('|')
+                .Append(slot.FooterText).Append('|')
+                .Append(slot.IconKey).Append('|')
+                .Append(slot.IsSelected ? '1' : '0')
+                .Append(slot.IsDisabled ? '1' : '0')
+                .Append(slot.Cooldown)
+                .Append(';');
+        }
+        return builder.ToString();
     }
 
     private void _update_skill_grid_columns()
@@ -2074,40 +2361,40 @@ public partial class BattleMapPanel : Control
             skill_grid.Columns = columns;
     }
 
-    private void _rebuild_fate_badges(GArray badges)
+    private void _rebuild_fate_badges(IReadOnlyList<BattleHudFateBadgeSnapshot> badges)
     {
         _clear_container(fate_badge_row);
         fate_badge_row.Visible = badges.Count > 0;
         if (badges.Count == 0)
             return;
-        foreach (GDictionary badge in ReadDictionaryItems(badges))
+        foreach (BattleHudFateBadgeSnapshot badge in badges)
         {
             fate_badge_row.AddChild(_create_fate_badge(badge));
         }
     }
 
-    private void _rebuild_timeline_row(GArray entries)
+    private void _rebuild_timeline_row(IReadOnlyList<BattleHudQueueEntrySnapshot> entries)
     {
         _clear_container(timeline_row);
         timeline_row.Visible = entries.Count > 0;
         if (entries.Count == 0)
             return;
-        foreach (GDictionary entry in ReadDictionaryItems(entries))
+        foreach (BattleHudQueueEntrySnapshot entry in entries)
         {
             timeline_row.AddChild(
-                DictBool(entry, "is_overflow", false)
+                entry.IsOverflow
                     ? _create_timeline_overflow(entry)
                     : _create_timeline_entry(entry)
             );
         }
     }
 
-    private Control _create_timeline_entry(GDictionary entry)
+    private Control _create_timeline_entry(BattleHudQueueEntrySnapshot entry)
     {
-        bool isActive = DictBool(entry, "is_active", false);
-        bool isReady = DictBool(entry, "is_ready", false);
-        bool isEnemy = DictBool(entry, "is_enemy", false);
-        float hpRatio = Mathf.Clamp(DictFloat(entry, "hp_ratio", 1.0f), 0.0f, 1.0f);
+        bool isActive = entry.IsActive;
+        bool isReady = entry.IsReady;
+        bool isEnemy = entry.IsEnemy;
+        float hpRatio = Mathf.Clamp(entry.HpRatio, 0.0f, 1.0f);
         Color ringColor = isEnemy
             ? BattleUiTheme.TIMELINE_ENEMY_RING()
             : BattleUiTheme.TIMELINE_ALLY_RING();
@@ -2117,9 +2404,9 @@ public partial class BattleMapPanel : Control
         var stack = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkCenter };
         stack.AddThemeConstantOverride("separation", 2);
         stack.TooltipText = BuildTimelineTooltip(
-            DictString(entry, "name", "?"),
-            DictString(entry, "hp_text", ""),
-            DictString(entry, "ap_text", "")
+            string.IsNullOrEmpty(entry.Name) ? "?" : entry.Name,
+            entry.HpText,
+            entry.ApText
         );
         if (!isReady && !isActive)
             stack.Modulate = new Color(1.0f, 1.0f, 1.0f, BattleUiTheme.TIMELINE_INACTIVE_ALPHA());
@@ -2145,7 +2432,7 @@ public partial class BattleMapPanel : Control
 
         var glyphLabel = new Label
         {
-            Text = DictString(entry, "glyph", "?"),
+            Text = string.IsNullOrEmpty(entry.Glyph) ? "?" : entry.Glyph,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -2196,7 +2483,7 @@ public partial class BattleMapPanel : Control
     private static string BuildTimelineTooltip(string name, string hpText, string apText) =>
         $"{name}\n{hpText}\n{apText}";
 
-    private Control _create_timeline_overflow(GDictionary entry)
+    private Control _create_timeline_overflow(BattleHudQueueEntrySnapshot entry)
     {
         var chip = new PanelContainer
         {
@@ -2216,7 +2503,7 @@ public partial class BattleMapPanel : Control
 
         var label = new Label
         {
-            Text = DictString(entry, "overflow_text", "+"),
+            Text = string.IsNullOrEmpty(entry?.OverflowText) ? "+" : entry.OverflowText,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -2226,16 +2513,16 @@ public partial class BattleMapPanel : Control
         return chip;
     }
 
-    private Control _create_fate_badge(GDictionary badge)
+    private Control _create_fate_badge(BattleHudFateBadgeSnapshot badge)
     {
         var panel = new PanelContainer
         {
             SizeFlagsHorizontal = SizeFlags.ShrinkBegin,
-            TooltipText = DictString(badge, "tooltip_text", ""),
+            TooltipText = badge?.TooltipText ?? "",
         };
         panel.AddThemeStyleboxOverride(
             "panel",
-            _build_fate_badge_style(new StringName(DictString(badge, "tone", "gate")))
+            _build_fate_badge_style(badge?.Tone ?? new StringName("gate"))
         );
 
         var margin = new MarginContainer();
@@ -2245,17 +2532,17 @@ public partial class BattleMapPanel : Control
         margin.AddThemeConstantOverride("margin_bottom", 4);
         panel.AddChild(margin);
 
-        var label = new Label { Text = DictString(badge, "text", "") };
+        var label = new Label { Text = badge?.Text ?? "" };
         label.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_LABEL());
         label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         margin.AddChild(label);
         return panel;
     }
 
-    private Control _create_skill_slot(GDictionary slot)
+    private Control _create_skill_slot(BattleHudSkillSlotSnapshot slot)
     {
-        bool isEmpty = DictBool(slot, "is_empty", false);
-        bool isDisabled = DictBool(slot, "is_disabled", false);
+        bool isEmpty = slot?.IsEmpty != false;
+        bool isDisabled = slot?.IsDisabled == true;
 
         var panel = new PanelContainer
         {
@@ -2285,14 +2572,14 @@ public partial class BattleMapPanel : Control
 
         var hotkeyLabel = new Label
         {
-            Text = DictString(slot, "hotkey", ""),
+            Text = slot?.Hotkey ?? "",
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
         hotkeyLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
         hotkeyLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_MUTED());
         hotkeyRow.AddChild(hotkeyLabel);
 
-        int cdValue = DictInt(slot, "cooldown", 0);
+        int cdValue = slot?.Cooldown ?? 0;
         var cdLabel = new Label
         {
             Text = cdValue > 0 ? $"CD {cdValue}" : "",
@@ -2321,7 +2608,7 @@ public partial class BattleMapPanel : Control
                 OffsetRight = 0.0f,
                 OffsetBottom = 0.0f,
             };
-            Color accentColor = DictColor(slot, "accent_color", BattleUiTheme.FATE_GATE());
+            Color accentColor = slot?.AccentColor ?? BattleUiTheme.FATE_GATE();
             if (isDisabled)
                 accentColor = new Color(accentColor.R, accentColor.G, accentColor.B, 0.32f);
             glowBand.Color = accentColor;
@@ -2343,19 +2630,15 @@ public partial class BattleMapPanel : Control
         };
         if (!isEmpty)
         {
-            clickTarget.TooltipText = DictString(slot, "display_name", "");
-            clickTarget.skill_display_name = DictString(slot, "display_name", "");
-            clickTarget.skill_description = DictString(slot, "description", "");
-            clickTarget.skill_footer_text = DictString(slot, "footer_text", "");
-            clickTarget.skill_disabled_reason = DictString(slot, "disabled_reason", "");
-            clickTarget.skill_cooldown = DictInt(slot, "cooldown", 0);
-            clickTarget.skill_accent_color = DictColor(
-                slot,
-                "accent_color",
-                BattleUiTheme.FATE_GATE()
-            );
+            clickTarget.TooltipText = slot.DisplayName;
+            clickTarget.skill_display_name = slot.DisplayName;
+            clickTarget.skill_description = slot.Description;
+            clickTarget.skill_footer_text = slot.FooterText;
+            clickTarget.skill_disabled_reason = slot.DisabledReason;
+            clickTarget.skill_cooldown = slot.Cooldown;
+            clickTarget.skill_accent_color = slot.AccentColor;
         }
-        int slotIndex = DictInt(slot, "index", -1);
+        int slotIndex = slot?.Index ?? -1;
         clickTarget.Pressed += () => _on_skill_slot_pressed(slotIndex);
         panel.AddChild(clickTarget);
         return panel;
@@ -2368,19 +2651,19 @@ public partial class BattleMapPanel : Control
         EmitSignal(SignalName.battle_skill_slot_selected, index);
     }
 
-    private string _build_skill_slot_tooltip(GDictionary slot)
+    private string _build_skill_slot_tooltip(BattleHudSkillSlotSnapshot slot)
     {
-        if (DictBool(slot, "is_empty", false))
+        if (slot == null || slot.IsEmpty)
             return "";
-        var lines = new List<string> { DictString(slot, "display_name", "") };
-        string disabledReason = DictString(slot, "disabled_reason", "");
+        var lines = new List<string> { slot.DisplayName };
+        string disabledReason = slot.DisabledReason;
         if (!string.IsNullOrEmpty(disabledReason))
         {
             lines.Add($"不可用：{disabledReason}");
         }
         else
         {
-            string footerText = DictString(slot, "footer_text", "");
+            string footerText = slot.FooterText;
             if (!string.IsNullOrEmpty(footerText) && footerText != "READY")
                 lines.Add($"信息：{footerText}");
         }
@@ -2398,7 +2681,11 @@ public partial class BattleMapPanel : Control
         }
     }
 
-    private Control _create_skill_glyph_node(GDictionary slot, bool is_empty, bool is_disabled)
+    private Control _create_skill_glyph_node(
+        BattleHudSkillSlotSnapshot slot,
+        bool is_empty,
+        bool is_disabled
+    )
     {
         if (is_empty)
         {
@@ -2409,7 +2696,7 @@ public partial class BattleMapPanel : Control
             };
         }
 
-        string iconKey = DictString(slot, "icon_key", "");
+        string iconKey = slot?.IconKey ?? "";
         Texture2D texture = _resolve_skill_icon(iconKey)
             ?? _resolve_skill_icon(SKILL_ICON_FALLBACK_KEY);
         if (texture != null)
@@ -2428,12 +2715,13 @@ public partial class BattleMapPanel : Control
                 icon.Modulate = SKILL_ICON_DISABLED_MODULATE;
                 icon.Material = _get_skill_icon_grayscale_material();
             }
+            _skill_icon_nodes.Add(icon);
             return icon;
         }
 
         var glyphLabel = new Label
         {
-            Text = DictString(slot, "short_name", "--"),
+            Text = !string.IsNullOrEmpty(slot?.ShortName) ? slot.ShortName : "--",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             SizeFlagsVertical = SizeFlags.ExpandFill,
@@ -2446,6 +2734,18 @@ public partial class BattleMapPanel : Control
         return glyphLabel;
     }
 
+    private void ClearSkillIconPresentationBindings()
+    {
+        foreach (TextureRect icon in _skill_icon_nodes)
+        {
+            if (!GodotObject.IsInstanceValid(icon))
+                continue;
+            icon.Material = null;
+            icon.Texture = null;
+        }
+        _skill_icon_nodes.Clear();
+    }
+
     private Texture2D _resolve_skill_icon(string icon_key)
     {
         if (string.IsNullOrEmpty(icon_key))
@@ -2455,22 +2755,64 @@ public partial class BattleMapPanel : Control
         string path = $"{SKILL_ICON_DIR}{icon_key}.png";
         Texture2D texture = null;
         if (ResourceLoader.Exists(path, "Texture2D"))
-            texture = ResourceLoader.Load<Texture2D>(path);
+            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(this, path);
         _skill_icon_cache[icon_key] = texture;
         return texture;
     }
 
     private ShaderMaterial _get_skill_icon_grayscale_material()
     {
-        if (_skill_icon_grayscale_material != null)
+        if (_skill_icon_grayscale_material?.Shader != null)
             return _skill_icon_grayscale_material;
         if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
-            && ResourceLoader.Load<Shader>(SKILL_ICON_GRAYSCALE_SHADER) is Shader shader)
+            && EngineAssetAccess.ResolveBorrowed<Shader>(
+                this,
+                SKILL_ICON_GRAYSCALE_SHADER
+            ) is Shader shader)
         {
-            _skill_icon_grayscale_material = new ShaderMaterial { Shader = shader };
+            _skill_icon_grayscale_material = EnsurePresentationLease().Value;
+            _skill_icon_grayscale_material.Shader = shader;
         }
-        return _skill_icon_grayscale_material;
+        return _skill_icon_grayscale_material?.Shader != null
+            ? _skill_icon_grayscale_material
+            : null;
     }
+
+    private GodotProjectionLease<ShaderMaterial> EnsurePresentationLease()
+    {
+        if (_presentationLease != null)
+            return _presentationLease;
+        var material = new ShaderMaterial();
+        try
+        {
+            _presentationLease = GodotProjectionLease<ShaderMaterial>.CreateOwnedRoot(
+                material,
+                "battle-map-panel-presentation",
+                LifetimeDomain.SceneTree,
+                "BattleMapPanel.skill_icon_grayscale_material"
+            );
+            _skill_icon_grayscale_material = material;
+            return _presentationLease;
+        }
+        catch
+        {
+            if (GodotObject.IsInstanceValid(material))
+                material.Dispose();
+            throw;
+        }
+    }
+
+    internal ShaderMaterial ResolveSkillIconGrayscaleMaterialForTest() =>
+        _get_skill_icon_grayscale_material();
+
+    internal Texture2D ResolveSkillIconForTest(string iconKey) =>
+        _resolve_skill_icon(iconKey);
+
+    internal bool HasPresentationLeaseForTest() =>
+        _presentationLease != null;
+
+    internal static PackedScene BattleBoardSceneForTest() =>
+        EngineAssetAccess.ResolveBorrowed<PackedScene>(BATTLE_BOARD_SCENE_PATH);
 
     private void _apply_button_skin(Button button, bool is_compact, bool is_primary = false)
     {
@@ -2519,10 +2861,10 @@ public partial class BattleMapPanel : Control
         );
     }
 
-    private StyleBoxFlat _build_skill_slot_style(GDictionary slot)
+    private StyleBoxFlat _build_skill_slot_style(BattleHudSkillSlotSnapshot slot)
     {
         int radius = BattleUiTheme.PANEL_RADIUS_TINY();
-        if (DictBool(slot, "is_empty", false))
+        if (slot == null || slot.IsEmpty)
         {
             Color edge = BattleUiTheme.PANEL_EDGE_SOFT();
             Color emptyEdge = new(edge.R, edge.G, edge.B, 0.4f);
@@ -2534,7 +2876,7 @@ public partial class BattleMapPanel : Control
                 new Color(0, 0, 0, 0)
             );
         }
-        if (DictBool(slot, "is_selected", false))
+        if (slot.IsSelected)
             return _build_panel_style(
                 BattleUiTheme.PANEL_BG_ALT(),
                 BattleUiTheme.TEXT_ACCENT(),
@@ -2542,7 +2884,7 @@ public partial class BattleMapPanel : Control
                 2,
                 new Color(0, 0, 0, 0)
             );
-        if (DictBool(slot, "is_disabled", false))
+        if (slot.IsDisabled)
         {
             Color bg = BattleUiTheme.PANEL_BG_DEEP();
             Color dimBg = new(bg.R, bg.G, bg.B, 0.78f);
@@ -2657,23 +2999,19 @@ public partial class BattleMapPanel : Control
         };
     }
 
-    private static GVector2IArray CloneVector2IArray(GVector2IArray source)
-    {
-        var result = new GVector2IArray();
-        if (source == null)
-            return result;
-        foreach (Vector2I coord in source)
-            result.Add(coord);
-        return result;
-    }
+    private static List<Vector2I> CloneVector2IList(IEnumerable<Vector2I> source) =>
+        source != null ? new List<Vector2I>(source) : new List<Vector2I>();
 
-    private static GStringNameArray CloneStringNameArray(GStringNameArray source)
+    private static List<StringName> CloneStringNameList(IEnumerable<StringName> source)
     {
-        var result = new GStringNameArray();
+        var result = new List<StringName>();
         if (source == null)
             return result;
-        foreach (StringName id in source)
-            result.Add(id);
+        foreach (StringName value in source)
+        {
+            if (!StringNameIsEmpty(value))
+                result.Add(value);
+        }
         return result;
     }
 
@@ -2682,91 +3020,4 @@ public partial class BattleMapPanel : Control
     private static bool StringNameIsEmpty(StringName value) =>
         value == null || string.IsNullOrEmpty(value.ToString());
 
-    private static GDictionary DictDictionary(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GArray DictArray(GDictionary dict, string key)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
-
-    private static string DictString(GDictionary dict, string key, string fallback = "")
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static int DictInt(GDictionary dict, string key, int fallback = 0)
-    {
-        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : fallback;
-    }
-
-    private static float DictFloat(GDictionary dict, string key, float fallback = 0.0f)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (float)value.AsDouble(),
-            _ => fallback,
-        };
-    }
-
-    private static bool DictBool(GDictionary dict, string key, bool fallback = false)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static Color DictColor(GDictionary dict, string key, Color fallback)
-    {
-        return
-            TryRead(dict, key, out Variant value)
-            && value.VariantType == Variant.Type.Color
-            ? value.AsColor()
-            : fallback;
-    }
-
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
-    {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
-    {
-        if (dict == null || string.IsNullOrEmpty(key))
-        {
-            value = default;
-            return false;
-        }
-        if (dict.ContainsKey(key))
-        {
-            value = dict[key];
-            return true;
-        }
-        value = default;
-        return false;
-    }
 }

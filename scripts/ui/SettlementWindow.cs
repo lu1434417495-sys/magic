@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -32,7 +33,6 @@ public partial class SettlementWindow : Control
     public RichTextLabel service_details_label;
     public Label feedback_label;
     public Button close_button;
-    public Godot.Collections.Array<GDictionary> _services = new();
 
     private SettlementWindowData _windowData = SettlementWindowData.Empty();
     private string _settlementId = "";
@@ -97,7 +97,6 @@ public partial class SettlementWindow : Control
 
         _windowData = normalized;
         _settlementId = _windowData.SettlementId;
-        _sync_public_service_contract();
         _selectedMemberId = _windowData.ResolveDefaultMemberId();
         _selectedServiceIndex = -1;
         Visible = true;
@@ -109,7 +108,6 @@ public partial class SettlementWindow : Control
         Visible = false;
         _windowData = SettlementWindowData.Empty();
         _settlementId = "";
-        _services.Clear();
         _selectedMemberId = "";
         _selectedServiceIndex = -1;
 
@@ -368,32 +366,6 @@ public partial class SettlementWindow : Control
         );
     }
 
-    private GDictionary _build_service_payload(ResolvedService service)
-    {
-        GDictionary payload = (GDictionary)service.Payload.Duplicate(true);
-        payload["settlement_id"] = _settlementId;
-        payload["member_id"] = _selectedMemberId.ToString();
-        payload["default_member_id"] = _selectedMemberId.ToString();
-        payload["state_summary_text"] = _windowData.StateSummaryText;
-        payload["summary_text"] = service.SummaryText;
-        payload["details_text"] = _build_service_detail_text(service);
-        payload["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
-            SettlementSubmissionSource.Settlement
-        );
-        string panelKindText = SettlementPanelKinds.ToPayloadValue(service.PanelKind);
-        if (!string.IsNullOrEmpty(panelKindText))
-            payload["panel_kind"] = panelKindText;
-        return payload;
-    }
-
-    public GDictionary _resolve_service_for_selected_member(GDictionary service)
-    {
-        ServiceEntry entry = ServiceEntry.From(service);
-        if (entry == null)
-            return new GDictionary();
-        return ResolveServiceForSelectedMember(entry).Payload;
-    }
-
     private ResolvedService ResolveServiceForSelectedMember(ServiceEntry service)
     {
         ResolvedService resolved = service.ToResolved();
@@ -433,13 +405,6 @@ public partial class SettlementWindow : Control
         _refresh_member_state();
         _rebuild_service_buttons();
         _refresh_service_details();
-    }
-
-    private void _sync_public_service_contract()
-    {
-        _services.Clear();
-        foreach (ServiceEntry service in _windowData.Services)
-            _services.Add((GDictionary)service.Payload.Duplicate(true));
     }
 
     private void _close_from_button()
@@ -634,7 +599,7 @@ public partial class SettlementWindow : Control
         public SettlementPanelKind PanelKind { get; private init; } = SettlementPanelKind.None;
         public Dictionary<string, MemberAvailability> MemberAvailability { get; private init; } =
             new();
-        public GDictionary Payload { get; private init; } = new();
+        public Dictionary<string, object> Payload { get; private init; } = new();
 
         public ResolvedService ToResolved()
         {
@@ -651,7 +616,7 @@ public partial class SettlementWindow : Control
                 IsEnabled = IsEnabled,
                 DisabledReason = DisabledReason,
                 PanelKind = PanelKind,
-                Payload = (GDictionary)Payload.Duplicate(true),
+                Payload = new Dictionary<string, object>(Payload, StringComparer.Ordinal),
             };
         }
 
@@ -705,7 +670,10 @@ public partial class SettlementWindow : Control
             if (data.ContainsKey("interaction_type") && !HasString(data, "interaction_type"))
                 return null;
 
-            GDictionary payload = (GDictionary)data.Duplicate(true);
+            Dictionary<string, object> payload = RuntimePlainPayload.NormalizeDictionary(
+                data,
+                "SettlementWindow.ServiceEntry"
+            );
             payload["is_enabled"] = isEnabled;
             payload["disabled_reason"] = disabledReason;
             string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
@@ -746,7 +714,7 @@ public partial class SettlementWindow : Control
         public bool IsEnabled;
         public string DisabledReason = "";
         public SettlementPanelKind PanelKind = SettlementPanelKind.None;
-        public GDictionary Payload = new();
+        public Dictionary<string, object> Payload = new(StringComparer.Ordinal);
 
         public void ApplyToPayload()
         {
@@ -976,7 +944,9 @@ public partial class SettlementWindow : Control
     {
         if (!TryRead(data, "party_state", out Variant value))
             return null;
-        return value.AsGodotObject() as PartyState;
+        return PartyState.TryReadPartyPayload(value, out PartyState partyState)
+            ? partyState
+            : null;
     }
 
     private static bool HasArray(GDictionary data, string key)

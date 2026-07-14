@@ -2,14 +2,14 @@
   "schema": "magic.prd.v1",
   "title": "Chain Contingency V1 PRD",
   "source_document": "docs/discussions/chain_contingency_data_structure.md",
-  "status": "implementation_ready",
-  "updated_on": "2026-06-12",
+  "status": "design_ready_full_v1_confirmed",
+  "updated_on": "2026-06-23",
   "language": "zh-CN",
   "summary": {
     "feature_name": "连锁应急术",
     "player_value": "玩家可以在战斗外为角色配置并充能一个自用应急术式，在战斗中满足条件时自动释放预存法术，用于保命、反控、反近身或战斗开场预案。",
     "v1_positioning": "V1 只做玩家 active party member 的持久充能矩阵；敌人、召唤物、boss、战斗中存档、队友绑定、非战斗触发和复杂扩展能力均不进入首版。",
-    "implementation_strategy": "先落 typed 内容和持久 schema，再落 MP 封存、战后提交防线、战斗外配置/充能事务、battle-local instance，最后接入自动施法和伤害类 hook。"
+    "implementation_strategy": "先落 typed 内容和持久 schema，再落 MP 封存、战后提交防线、战斗外配置/充能事务、battle-local instance，最后接入自动施法和伤害类 hook；这些是内部依赖顺序，不是分阶段发布范围，V1 必须完整触发器、UI、headless、真实技能资源、quantity-aware 仓库 API 和失败回滚一起完成。"
   },
   "product_goals": [
     {
@@ -63,14 +63,20 @@
     "提交型战斗结算时，存活成员先 CommitContingencyConsumedSetups，再 CommitBattleResources；失败或重试不写回 consumed 状态。"
   ],
   "hard_constraints": [
-    "V1 不做旧存档兼容；新增字段后 root save 升 8，PartyState.version 升 4。",
+    "V1 不做旧存档兼容；新增字段时基于当前 root save 9 / PartyState.version 5 做下一次破坏性升级，当前落地目标为 root save 10、PartyState.version 6。",
     "V1 不允许战斗中存档，也不持久化 battle-local instance、release_context 或 release queue。",
     "V1 每名玩家角色同一时间最多一个 charged setup。",
     "连锁应急术严格自用，owner 必须等于 caster。",
     "自动施法产生的派生事件不能触发任何连锁应急术。",
     "MP 封存不修改 raw mp_max，所有资源上限判定使用 effective mp_max。",
     "充能事务必须全成功才提交；失败不得留下材料、setup 或 current_mp 的部分 mutation。",
-    "战后 consumed setup 写回必须发生在 CommitBattleResources clamp 前。"
+    "战后 consumed setup 写回必须发生在 CommitBattleResources clamp 前。",
+    "V1 必须一次性完成全部玩家可选触发器，包括伤害类、状态类、位移类和法术影响类触发；不发布非伤害触发限定版。",
+    "V1 必须同时提供战斗外玩家 UI 和 headless 命令；headless 不能替代玩家 UI。",
+    "V1 必须新增真实 mage_chain_contingency 技能资源并接入 content catalog；测试 fixture 不能替代正式内容。",
+    "V1 必须实现 quantity-aware typed warehouse API，充能材料扣除不得用 N 条 batch entry 展开作为正式方案。",
+    "读档流程必须在 content catalog 可用后校验 contingency setup 内容契约；非法 stored skill、resolver、binding 或 allowlist 冲突直接导致读档失败。",
+    "EndBattle / FinalizeBattleResolution 的 consumed 写回、资源提交、party/world persist 或 flush 任一步失败时必须恢复结算前内存快照并保留可重试结果。"
   ],
   "requirements": [
     {
@@ -84,7 +90,9 @@
         "can_be_stored_in_contingency=false 或未声明时拒绝储存。",
         "forbidden_stored_skill_tags 与 skill tags 任一相交时拒绝，禁止 tags 优先。",
         "parameter_bindings 只允许 bool、int、float、String/StringName、Array[StringName]。",
-        "content validator 在 catalog 加载后校验技能 ID、resolver、binding key 和 binding value，不把 content 查询塞进 FromDictionary。"
+        "正式 mage_chain_contingency 技能资源随 V1 一起新增并接入 content catalog。",
+        "content validator 在 catalog 加载后校验技能 ID、resolver、binding key 和 binding value，不把 content 查询塞进 FromDictionary。",
+        "读档流程在 catalog 可用后运行 contingency content validator；validator 失败时本次 save load 失败。"
       ],
       "source_sections": [
         "14",
@@ -137,12 +145,13 @@
       "id": "REQ-004",
       "name": "Setup edit, clear and charge commands",
       "priority": "must",
-      "owner_area": "runtime/headless/progression/warehouse",
+      "owner_area": "ui/headless/runtime/progression/warehouse",
       "description": "提供战斗外保存预设、编辑预设、清除充能、查询状态和充能命令。充能命令只引用 existing setup，不同时承载保存配置。",
       "acceptance_criteria": [
         "战斗中或 battle lock 时拒绝保存、编辑、清除和充能 mutation。",
         "已 charged setup 不允许直接编辑，必须先 clear charge。",
         "清除充能后 charged=false、reserved_mp_max=0、material_costs=[]，宝石不返还，current_mp 不自动增加。",
+        "战斗外玩家 UI 和 headless 命令都覆盖保存、编辑、清除、查询和充能；两者都走 PartyContingencySetupService。",
         "命令结果提供稳定 code、reason_id、charged、reserved_mp_max、material quantity 字段，测试不依赖中文日志。",
         "runtime persist failure 时恢复命令前 PartyState / runtime snapshot。"
       ],
@@ -162,7 +171,7 @@
       "description": "PartyContingencySetupService 作为唯一充能入口，协调仓库材料扣除、setup charged 写入和 current_mp clamp。",
       "acceptance_criteria": [
         "任一步失败时恢复 warehouse_state、member contingency setups 和 current_mp。",
-        "材料 quantity 必须展开为多条 batch entry，或先实现 quantity-aware typed warehouse API。",
+        "材料 quantity 必须通过 quantity-aware typed warehouse API 预检和提交；不得用多条 batch entry 展开作为正式实现。",
         "读档、进战和战斗开始确认永不扣材料。",
         "失败时返回稳定 error_code，不写充能成功日志。",
         "不新增通用 party-wide transaction framework。"
@@ -309,8 +318,9 @@
       ],
       "deliverables": [
         "ContingencyAutomationDef or equivalent typed content fields",
+        "Real mage_chain_contingency skill resource and catalog registration",
         "ContingencyMatrixSetupState and child state classes",
-        "Save version bump to root 8 and PartyState 4",
+        "Save version bump from current root 9 / PartyState 5 to root 10 / PartyState 6",
         "Content validator and schema regression"
       ]
     },
@@ -361,14 +371,14 @@
       ],
       "deliverables": [
         "PartyContingencySetupService",
-        "Save/edit/clear/status/charge headless commands",
-        "Warehouse material quantity handling",
+        "Save/edit/clear/status/charge UI flow and headless commands",
+        "Quantity-aware warehouse material API",
         "Charge transaction rollback regression"
       ]
     },
     {
       "id": "SLICE-005",
-      "name": "Battle-local instance and non-damage trigger loop",
+      "name": "Battle-local instance and full V1 trigger loop",
       "depends_on": [
         "SLICE-004"
       ],
@@ -382,6 +392,7 @@
         "BattleContingencySystem sidecar",
         "OnBattleConfirmed minimal trigger",
         "OwnerTurnStarted sequential queue progression",
+        "status_applied, enemy_enter_radius, affected_by_spell, hp_below_percent hook entry points",
         "Origin suppression baseline",
         "Battle report entries and headless snapshots"
       ]
@@ -407,6 +418,16 @@
       ]
     }
   ],
+  "release_policy": {
+    "v1_release_gate": "All implementation_slices are internal dependency slices only. V1 is releasable only when full trigger coverage, player UI, headless commands, real mage_chain_contingency content, quantity-aware warehouse API, auto-cast origin suppression, damage hooks, and failure rollback are all complete.",
+    "partial_release_disallowed": [
+      "non-damage-trigger-only gameplay slice",
+      "headless-only setup flow",
+      "fixture-only chain contingency skill",
+      "warehouse material quantity expansion instead of quantity-aware API",
+      "battle settlement without failure rollback"
+    ]
+  },
   "v1_non_goals": [
     "旧存档兼容、字段默认补齐、alias table、semantic hash、技能 ID 自动迁移或旧 payload fallback",
     "自然过期、维护费、charged_at_world_step、过期时间、world_step 哨兵值或 expired 状态",
@@ -466,8 +487,8 @@
     },
     {
       "id": "DEF-008",
-      "name": "quantity-aware 仓库 API",
-      "condition_to_revisit": "V1 先展开 material quantity；若出现通用需求，再扩展 PartyWarehouseService typed API。"
+      "name": "通用批量仓库 API",
+      "condition_to_revisit": "V1 只要求 contingency 所需的 quantity-aware typed warehouse API；是否扩展成所有 UI / 系统通用的批量交易 API，等出现跨系统需求后再评估。"
     },
     {
       "id": "DEF-009",
@@ -488,7 +509,9 @@
         "旧 payload 拒绝",
         "strict exact fields",
         "未知 trigger/resolver type 拒绝",
-        "content validator 在 catalog 加载后拒绝非法 stored skill"
+        "正式 mage_chain_contingency 技能资源进入 catalog",
+        "content validator 在 catalog 加载后拒绝非法 stored skill",
+        "读档流程因非法 contingency 内容契约失败而拒绝 save load"
       ]
     },
     {
@@ -496,6 +519,7 @@
       "target": "charge transaction",
       "checks": [
         "材料不足时仓库、setup、current_mp 不变",
+        "quantity-aware typed warehouse API 按数量预检和提交材料扣除",
         "材料扣除成功但 setup 写入失败时仓库回滚",
         "充能成功后材料扣除、charged=true、current_mp clamp",
         "runtime persist failure 恢复命令前 PartyState"
@@ -541,6 +565,16 @@
         "ModifiedResolvedDamage 和 StateMayHaveChanged 重新投影",
         "hook report entries 被 batch/headless 读取"
       ]
+    },
+    {
+      "id": "TEST-007",
+      "target": "ui and headless setup flow",
+      "checks": [
+        "战斗外 UI 覆盖保存、编辑、清除、查询和充能",
+        "headless 命令覆盖保存、编辑、清除、查询和充能",
+        "UI 与 headless 都只通过 PartyContingencySetupService mutation",
+        "已充能编辑必须先清除并显示宝石不返还、MP 上限释放但当前 MP 不恢复"
+      ]
     }
   ],
   "project_context_units_impact": {
@@ -552,6 +586,6 @@
       "CU-16",
       "CU-21"
     ],
-    "reason": "本次只新增 PRD JSON，不改变代码 ownership 或推荐读集。实际新增 PartyContingencySetupService、BattleContingencySystem、AutoCastRequest、state classes 或 headless commands 后再更新 docs/design/project_context_units.md。"
+    "reason": "本次只做 discussion / PRD 文档校准，不改变代码 ownership 或推荐读集。实际新增 PartyContingencySetupService、BattleContingencySystem、AutoCastRequest、state classes 或 headless commands 后再更新 docs/design/project_context_units.md。"
   }
 }

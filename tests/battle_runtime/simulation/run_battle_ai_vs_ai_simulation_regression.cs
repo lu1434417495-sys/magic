@@ -3,30 +3,41 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_ai_vs_ai_simulation_regression : SceneTree
+public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSceneTree
 {
     private const string AiVsAiScenarioPath =
         "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres";
-    private const string BaselineProfilePath =
-        "res://data/configs/battle_sim/profiles/baseline.tres";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        CallDeferred(nameof(RunDeferred));
     }
 
-    private int Run()
+    private void RunDeferred()
     {
-        BattleSimScenarioDef scenario = ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
-        BattleSimProfileDef baselineProfile = ResourceLoader.Load<BattleSimProfileDef>(
-            BaselineProfilePath
-        );
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
+    }
+
+    private TestResult Run()
+    {
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(AiVsAiScenarioPath);
+        BattleSimScenarioDefinition scenario = scenarioResource?.ToDefinition();
+        scenarioResource = null;
+        BattleSimProfileDefinition baselineProfile = GameSessionTestFactory
+            .GetProcessSnapshot()
+            .BattleSimProfiles["baseline"];
+        bool scenarioContextBuilt = false;
+        if (scenario != null)
+        {
+            using GodotProjectionLease<GDictionary> contextLease =
+                scenario.BuildStartContextLease();
+            scenarioContextBuilt = contextLease.Value != null;
+        }
         _test.True(
-            scenario != null && scenario.BuildStartContext() != null,
+            scenarioContextBuilt,
             "AI vs AI 示例场景资源应能被 BattleSimScenarioDef 正常加载。"
         );
         _test.True(
@@ -36,10 +47,12 @@ public partial class run_battle_ai_vs_ai_simulation_regression : SceneTree
         if (scenario == null || baselineProfile == null)
             return _test.Finish("Battle AI vs AI simulation regression");
 
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             scenario,
-            new List<BattleSimProfileDef> { baselineProfile }
+            new List<BattleSimProfileDefinition> { baselineProfile }
         );
         _test.Eq(report.ProfileEntries.Count, 1, "单 profile 的 AI vs AI 示例应只产出 1 个 profile entry。");
         _test.Eq(report.Comparisons.Count, 0, "单 profile 的 AI vs AI 示例不应生成 comparison。");
@@ -83,12 +96,14 @@ public partial class run_battle_ai_vs_ai_simulation_regression : SceneTree
                         sawHostileAiTrace = true;
                 }
 
-                GArray finalUnits = run?.FinalUnits ?? new GArray();
-                foreach (Variant unitEntryValue in finalUnits)
+                IReadOnlyList<Dictionary<string, object>> finalUnits =
+                    run?.FinalUnits ?? System.Array.Empty<Dictionary<string, object>>();
+                foreach (Dictionary<string, object> unitEntry in finalUnits)
                 {
-                    GDictionary unitEntry = GetSelfDict(unitEntryValue);
                     _test.Eq(
-                        GetString(unitEntry, "control_mode"),
+                        unitEntry.TryGetValue("control_mode", out object controlMode)
+                            ? controlMode as string ?? ""
+                            : "",
                         "ai",
                         "AI vs AI 示例中的最终单位快照不应出现 manual control_mode。"
                     );

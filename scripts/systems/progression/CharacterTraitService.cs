@@ -5,31 +5,31 @@ internal sealed class CharacterTraitService
 {
     internal interface ICharacterTraitGateway
     {
-        RaceDef GetRaceDefForTraitAggregation(StringName memberId);
-        SubraceDef GetSubraceDefForTraitAggregation(StringName memberId);
-        BloodlineDef GetBloodlineDefForTraitAggregation(StringName memberId);
-        BloodlineStageDef GetBloodlineStageDefForTraitAggregation(StringName memberId);
-        AscensionDef GetAscensionDefForTraitAggregation(StringName memberId);
-        AscensionStageDef GetAscensionStageDefForTraitAggregation(StringName memberId);
+        RaceDefinition GetRaceDefForTraitAggregation(StringName memberId);
+        SubraceDefinition GetSubraceDefForTraitAggregation(StringName memberId);
+        BloodlineDefinition GetBloodlineDefForTraitAggregation(StringName memberId);
+        BloodlineStageDefinition GetBloodlineStageDefForTraitAggregation(StringName memberId);
+        AscensionDefinition GetAscensionDefForTraitAggregation(StringName memberId);
+        AscensionStageDefinition GetAscensionStageDefForTraitAggregation(StringName memberId);
         PartyMemberState GetMemberStateForTraitAggregation(StringName memberId);
         EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId);
-        ItemDef GetItemDefForTraitAggregation(StringName itemId);
+        ItemDefinition GetItemDefForTraitAggregation(StringName itemId);
     }
 
-    private readonly List<TraitDef> _traitDefs;
+    private readonly List<TraitDefinition> _traitDefinitions;
     private readonly ICharacterTraitGateway _gateway;
 
     public CharacterTraitService(
-        IEnumerable<TraitDef> traitDefs,
+        IEnumerable<TraitDefinition> traitDefinitions,
         ICharacterTraitGateway gateway
     )
     {
-        _traitDefs = new List<TraitDef>();
-        if (traitDefs != null)
+        _traitDefinitions = new List<TraitDefinition>();
+        if (traitDefinitions != null)
         {
-            foreach (TraitDef traitDef in traitDefs)
-                if (traitDef != null)
-                    _traitDefs.Add(traitDef);
+            foreach (TraitDefinition traitDefinition in traitDefinitions)
+                if (traitDefinition != null)
+                    _traitDefinitions.Add(traitDefinition);
         }
         _gateway = gateway;
     }
@@ -49,64 +49,71 @@ internal sealed class CharacterTraitService
         return new EffectiveTraitSet(ApplyStackPolicies(raw));
     }
 
-    public List<AttributeModifier> ResolveTraitAttributeModifiers(EffectiveTraitSet set)
+    public IReadOnlyList<AttributeModifierDefinition> ResolveTraitAttributeModifiers(
+        EffectiveTraitSet set
+    )
     {
-        List<AttributeModifier> result = new();
+        List<AttributeModifierDefinition> result = new();
         if (set == null)
-            return result;
+            return System.Array.Empty<AttributeModifierDefinition>();
 
         foreach (EffectiveTraitInstance instance in set.Instances)
             AppendAttributeModifiers(result, instance);
-        return result;
+        return result.Count > 0
+            ? result.AsReadOnly()
+            : System.Array.Empty<AttributeModifierDefinition>();
     }
 
     private void CollectIdentity(StringName memberId, List<EffectiveTraitInstance> raw)
     {
-        RaceDef raceDef = _gateway.GetRaceDefForTraitAggregation(memberId);
-        SubraceDef subraceDef = _gateway.GetSubraceDefForTraitAggregation(memberId);
-        BloodlineDef bloodlineDef = _gateway.GetBloodlineDefForTraitAggregation(memberId);
-        BloodlineStageDef bloodlineStageDef = _gateway.GetBloodlineStageDefForTraitAggregation(
-            memberId
-        );
-        AscensionDef ascensionDef = _gateway.GetAscensionDefForTraitAggregation(memberId);
-        AscensionStageDef ascensionStageDef = _gateway.GetAscensionStageDefForTraitAggregation(
-            memberId
-        );
+        RaceDefinition raceDef = _gateway.GetRaceDefForTraitAggregation(memberId);
+        SubraceDefinition subraceDef = _gateway.GetSubraceDefForTraitAggregation(memberId);
+        BloodlineDefinition bloodlineDef = _gateway.GetBloodlineDefForTraitAggregation(memberId);
+        BloodlineStageDefinition bloodlineStageDef =
+            _gateway.GetBloodlineStageDefForTraitAggregation(memberId);
+        AscensionDefinition ascensionDef = _gateway.GetAscensionDefForTraitAggregation(memberId);
+        AscensionStageDefinition ascensionStageDef =
+            _gateway.GetAscensionStageDefForTraitAggregation(memberId);
 
-        if (ascensionDef?.suppresses_original_race_traits != true)
+        if (ascensionDef?.SuppressesOriginalRaceTraits != true)
         {
-            AppendDefinitionTraits(raw, raceDef?.trait_ids, TraitSourceKind.Identity, raceDef?.race_id);
             AppendDefinitionTraits(
                 raw,
-                subraceDef?.trait_ids,
+                raceDef?.TraitIds,
                 TraitSourceKind.Identity,
-                subraceDef?.subrace_id
+                raceDef?.RaceId ?? ""
+            );
+            AppendDefinitionTraits(
+                raw,
+                subraceDef?.TraitIds,
+                TraitSourceKind.Identity,
+                subraceDef?.SubraceId ?? ""
             );
         }
 
         AppendDefinitionTraits(
             raw,
-            bloodlineDef?.trait_ids,
+            bloodlineDef?.TraitIds,
             TraitSourceKind.Identity,
-            bloodlineDef?.bloodline_id
+            bloodlineDef?.BloodlineId ?? ""
         );
         AppendDefinitionTraits(
             raw,
-            bloodlineStageDef?.trait_ids,
+            bloodlineStageDef?.TraitIds,
             TraitSourceKind.Identity,
-            bloodlineStageDef?.stage_id
+            bloodlineStageDef?.StageId ?? ""
         );
         AppendDefinitionTraits(
             raw,
-            ascensionDef?.trait_ids,
+            ascensionDef?.TraitIds,
             TraitSourceKind.Identity,
-            ascensionDef?.ascension_id
+            ascensionDef?.AscensionId ?? ""
         );
         AppendDefinitionTraits(
             raw,
-            ascensionStageDef?.trait_ids,
+            ascensionStageDef?.TraitIds,
             TraitSourceKind.Identity,
-            ascensionStageDef?.stage_id
+            ascensionStageDef?.StageId ?? ""
         );
     }
 
@@ -151,13 +158,13 @@ internal sealed class CharacterTraitService
         EquipmentEntryState entry
     )
     {
-        ItemDef itemDef = _gateway.GetItemDefForTraitAggregation(entry.item_id);
-        if (itemDef == null)
+        ItemDefinition itemDefinition = _gateway.GetItemDefForTraitAggregation(entry.item_id);
+        if (itemDefinition == null)
             return;
 
         AppendDefinitionTraits(
             raw,
-            itemDef.GetTraitIdsTyped(),
+            itemDefinition.GetTraitIdsTyped(),
             TraitSourceKind.EquipmentFixed,
             entry.instance_id
         );
@@ -176,23 +183,29 @@ internal sealed class CharacterTraitService
         foreach (StringName traitId in traitIds)
         {
             StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-            if (!TryGetAllowedTraitDef(normalizedTraitId, sourceKind, out TraitDef traitDef))
+            if (
+                !TryGetAllowedTraitDef(
+                    normalizedTraitId,
+                    sourceKind,
+                    out TraitDefinition traitDefinition
+                )
+            )
                 continue;
 
             raw.Add(
                 new EffectiveTraitInstance
                 {
                     TraitId = normalizedTraitId,
-                    TraitDef = traitDef,
+                    Definition = traitDefinition,
                     SourceKind = sourceKind,
                     SourceId = sourceId,
                     EffectiveInstanceKey = RawKey(sourceKind, sourceId, normalizedTraitId, null),
-                    StackPolicy = traitDef.StackPolicyKind,
-                    ChargeScope = traitDef.ChargeScopeKind,
-                    ChargeResetTiming = traitDef.ChargeResetTimingKind,
+                    StackPolicy = traitDefinition.StackPolicyKind,
+                    ChargeScope = traitDefinition.ChargeScopeKind,
+                    ChargeResetTiming = traitDefinition.ChargeResetTimingKind,
                     Rank = 1,
                     Stacks = 1,
-                    RollValues = new Godot.Collections.Array<TraitRollValueState>(),
+                    RollValues = new List<TraitRollValueState>(),
                 }
             );
         }
@@ -229,10 +242,16 @@ internal sealed class CharacterTraitService
             return;
         }
 
-        if (!TryGetAllowedTraitDef(traitId, expectedSourceKind, out TraitDef traitDef))
+        if (
+            !TryGetAllowedTraitDef(
+                traitId,
+                expectedSourceKind,
+                out TraitDefinition traitDefinition
+            )
+        )
             return;
 
-        string validationError = instance.ValidateAgainstDef(traitDef);
+        string validationError = instance.ValidateAgainstDef(traitDefinition);
         if (validationError.Length > 0)
         {
             GameLog.Error(validationError, "trait.validation_failed", "progression");
@@ -243,7 +262,7 @@ internal sealed class CharacterTraitService
             new EffectiveTraitInstance
             {
                 TraitId = traitId,
-                TraitDef = traitDef,
+                Definition = traitDefinition,
                 TraitInstance = instance,
                 SourceKind = expectedSourceKind,
                 SourceId = instance.source_id,
@@ -253,9 +272,9 @@ internal sealed class CharacterTraitService
                     traitId,
                     instance
                 ),
-                StackPolicy = traitDef.StackPolicyKind,
-                ChargeScope = traitDef.ChargeScopeKind,
-                ChargeResetTiming = traitDef.ChargeResetTimingKind,
+                StackPolicy = traitDefinition.StackPolicyKind,
+                ChargeScope = traitDefinition.ChargeScopeKind,
+                ChargeResetTiming = traitDefinition.ChargeResetTimingKind,
                 Rank = Mathf.Max(instance.rank, 1),
                 Stacks = Mathf.Max(instance.stacks, 1),
                 RollValues = TraitInstanceState.NormalizeRollValues(instance.roll_values),
@@ -266,15 +285,15 @@ internal sealed class CharacterTraitService
     private bool TryGetAllowedTraitDef(
         StringName traitId,
         TraitSourceKind sourceKind,
-        out TraitDef traitDef
+        out TraitDefinition traitDefinition
     )
     {
-        traitDef = null;
-        TraitDef found = FindTraitDef(traitId);
+        traitDefinition = null;
+        TraitDefinition found = FindTraitDef(traitId);
         if (traitId == "" || found == null)
         {
             GameLog.Error(
-                $"Missing TraitDef for trait {traitId}.",
+                $"Missing trait definition for trait {traitId}.",
                 "trait.missing_def",
                 "progression"
             );
@@ -291,7 +310,7 @@ internal sealed class CharacterTraitService
             return false;
         }
 
-        traitDef = found;
+        traitDefinition = found;
         return true;
     }
 
@@ -349,7 +368,7 @@ internal sealed class CharacterTraitService
     private static EffectiveTraitInstance CollapseHighestRoll(List<EffectiveTraitInstance> group)
     {
         EffectiveTraitInstance selected = group[0];
-        StringName compareKey = selected.TraitDef?.GetHighestRollCompareKey() ?? "";
+        StringName compareKey = selected.Definition?.HighestRollCompareKey ?? "";
         int selectedValue = GetCompareRoll(selected, compareKey);
 
         for (int index = 1; index < group.Count; index++)
@@ -395,7 +414,7 @@ internal sealed class CharacterTraitService
         return new EffectiveTraitInstance
         {
             TraitId = source.TraitId,
-            TraitDef = source.TraitDef,
+            Definition = source.Definition,
             TraitInstance = source.TraitInstance,
             SourceKind = source.SourceKind,
             SourceId = source.SourceId,
@@ -409,12 +428,15 @@ internal sealed class CharacterTraitService
         };
     }
 
-    private TraitDef FindTraitDef(StringName traitId)
+    private TraitDefinition FindTraitDef(StringName traitId)
     {
         StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-        foreach (TraitDef traitDef in _traitDefs)
-            if (traitDef != null && traitDef.trait_id == normalizedTraitId)
-                return traitDef;
+        foreach (TraitDefinition traitDefinition in _traitDefinitions)
+            if (
+                traitDefinition != null
+                && traitDefinition.TraitId == normalizedTraitId
+            )
+                return traitDefinition;
         return null;
     }
 
@@ -443,34 +465,34 @@ internal sealed class CharacterTraitService
     }
 
     private static void AppendAttributeModifiers(
-        List<AttributeModifier> result,
+        List<AttributeModifierDefinition> result,
         EffectiveTraitInstance instance
     )
     {
-        if (instance?.TraitDef?.attribute_modifiers == null)
+        if (instance?.Definition?.AttributeModifiers == null)
             return;
 
         StringName sourceType = TraitContentRules.ToAttributeSourceType(instance.SourceKind);
         if (sourceType == "" || instance.EffectiveInstanceKey == "")
             return;
 
-        foreach (AttributeModifier baseModifier in instance.TraitDef.attribute_modifiers)
+        foreach (
+            AttributeModifierDefinition baseModifier in instance.Definition.AttributeModifiers
+        )
         {
             if (baseModifier == null)
                 continue;
 
             result.Add(
-                new AttributeModifier
-                {
-                    attribute_id = baseModifier.attribute_id,
-                    mode = baseModifier.mode,
-                    value =
-                        baseModifier.GetValueForRank(instance.Rank)
+                new AttributeModifierDefinition(
+                    baseModifier.AttributeId,
+                    baseModifier.Mode,
+                    baseModifier.GetValueForRank(instance.Rank)
                         * Mathf.Max(instance.Stacks, 1),
-                    value_per_rank = 0,
-                    source_type = sourceType,
-                    source_id = instance.EffectiveInstanceKey,
-                }
+                    0,
+                    sourceType,
+                    instance.EffectiveInstanceKey
+                )
             );
         }
     }

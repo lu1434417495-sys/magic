@@ -90,6 +90,15 @@ public partial class ProfessionDef : Resource
     internal ProfessionDependencyVisibilityMode DependencyVisibilityModeKind =>
         ToDependencyVisibilityMode(dependency_visibility_mode);
 
+    internal Godot.Collections.Array<ProfessionRankRequirement> RankRequirementsProjectionBorrowed =>
+        rank_requirements;
+    internal Godot.Collections.Array<ProfessionGrantedSkill> GrantedSkillsProjectionBorrowed =>
+        granted_skills;
+    internal Godot.Collections.Array<AttributeModifier> AttributeModifiersProjectionBorrowed =>
+        attribute_modifiers;
+    internal Godot.Collections.Array<ProfessionActiveCondition> ActiveConditionsProjectionBorrowed =>
+        active_conditions;
+
     public bool RequiresKnowledgeUnlock() => !is_initial_profession;
 
     internal static ProfessionReactivationMode ToReactivationMode(StringName value)

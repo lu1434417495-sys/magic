@@ -1,0 +1,195 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_hunter_mark_status_lv1"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 1
+max_skill_level = 1
+status_id = &"hunter_marked"
+power = 1
+duration_tu = 60
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_magic = true
+dispellable_harmful_magic = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_hunter_mark_status_lv2"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 2
+max_skill_level = 2
+status_id = &"hunter_marked"
+power = 1
+duration_tu = 70
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_magic = true
+dispellable_harmful_magic = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_hunter_mark_status_lv3"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 3
+max_skill_level = 3
+status_id = &"hunter_marked"
+power = 1
+duration_tu = 80
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_magic = true
+dispellable_harmful_magic = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_hunter_mark_status_lv4"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 4
+max_skill_level = 4
+status_id = &"hunter_marked"
+power = 1
+duration_tu = 100
+source_bound_weapon_bonus_damage_dice_count = 1
+source_bound_weapon_bonus_damage_dice_sides = 6
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_magic = true
+dispellable_harmful_magic = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Effect_hunter_mark_status_lv5"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+min_skill_level = 5
+max_skill_level = 5
+status_id = &"hunter_marked"
+power = 1
+duration_tu = 120
+source_bound_weapon_bonus_damage_dice_count = 2
+source_bound_weapon_bonus_damage_dice_sides = 4
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_magic = true
+dispellable_harmful_magic = true
+effect_tags = Array[StringName]([&"mark", &"quarry"])
+
+[sub_resource type="Resource" id="Combat_hunter_mark"]
+script = ExtResource("2_combat")
+skill_id = &"archer_hunter_mark"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 4
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+stamina_cost = 20
+cooldown_tu = 90
+mastery_trigger_mode = &"source_bound_weapon_bonus_damage"
+mastery_amount_mode = &"per_target_rank"
+delivery_categories = Array[StringName]([&"martial", &"mark", &"ranger"])
+level_overrides = {
+2: {
+"cooldown_tu": 80,
+"stamina_cost": 19,
+},
+3: {
+"cooldown_tu": 70,
+"range_value": 5,
+"stamina_cost": 18,
+},
+4: {
+"cooldown_tu": 60,
+"stamina_cost": 17,
+},
+5: {
+"range_value": 6,
+"stamina_cost": 16,
+},
+}
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_hunter_mark_status_lv1"), SubResource("Effect_hunter_mark_status_lv2"), SubResource("Effect_hunter_mark_status_lv3"), SubResource("Effect_hunter_mark_status_lv4"), SubResource("Effect_hunter_mark_status_lv5")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"archer_hunter_mark"
+display_name = "猎人标记"
+icon_id = &"archer_hunter_mark"
+description = "标记一个猎物。施放者本人以武器命中该目标时，额外造成同次攻击伤害并获得猎人标记熟练度；其他单位不会触发该奖励。等级提升会增加持续时间、射程，并降低体力与冷却压力；5级额外伤害提升为2D4。"
+level_description_template = "标记目标{duration}TU；施放者武器命中目标额外{bonus_damage}伤害。射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU。"
+level_description_configs = {
+	"0": {
+		"duration": "60",
+		"bonus_damage": "1D6",
+		"range": "4",
+		"ap": "1",
+		"stamina": "20",
+		"cooldown": "90",
+	},
+	"1": {
+		"duration": "60",
+		"bonus_damage": "1D6",
+		"range": "4",
+		"ap": "1",
+		"stamina": "20",
+		"cooldown": "90",
+	},
+	"2": {
+		"duration": "70",
+		"bonus_damage": "1D6",
+		"range": "4",
+		"ap": "1",
+		"stamina": "19",
+		"cooldown": "80",
+	},
+	"3": {
+		"duration": "80",
+		"bonus_damage": "1D6",
+		"range": "5",
+		"ap": "1",
+		"stamina": "18",
+		"cooldown": "70",
+	},
+	"4": {
+		"duration": "100",
+		"bonus_damage": "1D6",
+		"range": "5",
+		"ap": "1",
+		"stamina": "17",
+		"cooldown": "60",
+	},
+	"5": {
+		"duration": "120",
+		"bonus_damage": "2D4",
+		"range": "6",
+		"ap": "1",
+		"stamina": "16",
+		"cooldown": "60",
+	},
+}
+skill_type = &"active"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(80, 180, 360, 620, 980)
+growth_tier = &"basic"
+attribute_growth_progress = { "agility": 40, "willpower": 20 }
+tags = Array[StringName]([&"archer", &"ranger", &"mark", &"debuff", &"weapon_support"])
+learn_source = &"book"
+combat_profile = SubResource("Combat_hunter_mark")

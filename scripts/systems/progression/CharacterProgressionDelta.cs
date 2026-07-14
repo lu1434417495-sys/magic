@@ -2,9 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class CharacterProgressionDelta : RefCounted
+public class CharacterProgressionDelta
 {
     private readonly List<StringName> _leveledSkillIds = new();
     private readonly List<StringName> _grantedSkillIds = new();
@@ -110,6 +111,11 @@ public partial class CharacterProgressionDelta : RefCounted
             if (value is PendingProfessionChoice choice)
             {
                 AddPendingProfessionChoice(choice);
+                continue;
+            }
+            if (TryParsePendingProfessionChoicePayload(value, out PendingProfessionChoice payloadChoice))
+            {
+                AddPendingProfessionChoice(payloadChoice);
             }
         }
     }
@@ -166,6 +172,93 @@ public partial class CharacterProgressionDelta : RefCounted
     public void AppendAttributeChanges(IEnumerable<CharacterAttributeChangeFact> values)
     {
         AppendAttributeChangeEntries(_attributeChanges, values);
+    }
+
+    public CharacterProgressionDelta DuplicateState()
+    {
+        var copy = new CharacterProgressionDelta
+        {
+            member_id = member_id,
+            character_level_before = character_level_before,
+            character_level_after = character_level_after,
+            needs_promotion_modal = needs_promotion_modal,
+        };
+        copy.SetLeveledSkillIds(_leveledSkillIds);
+        copy.SetGrantedSkillIds(_grantedSkillIds);
+        copy.SetChangedProfessionIds(_changedProfessionIds);
+        copy.SetPendingProfessionChoices(_pendingProfessionChoices);
+        copy.AppendMasteryChanges(_masteryChanges);
+        copy.SetUnlockedAchievementIds(_unlockedAchievementIds);
+        copy.AppendKnowledgeChanges(_knowledgeChanges);
+        copy.AppendAttributeChanges(_attributeChanges);
+        return copy;
+    }
+
+    public GDictionary ToDictionary() =>
+        new()
+        {
+            ["member_id"] = member_id,
+            ["leveled_skill_ids"] = BuildStringNamePayloadArray(_leveledSkillIds),
+            ["granted_skill_ids"] = BuildStringNamePayloadArray(_grantedSkillIds),
+            ["changed_profession_ids"] = BuildStringNamePayloadArray(_changedProfessionIds),
+            ["character_level_before"] = character_level_before,
+            ["character_level_after"] = character_level_after,
+            ["pending_profession_choices"] = BuildPendingProfessionChoicesArray(),
+            ["needs_promotion_modal"] = needs_promotion_modal,
+            ["unlocked_achievement_ids"] = BuildStringNamePayloadArray(_unlockedAchievementIds),
+            ["mastery_changes"] = BuildMasteryChangesArray(),
+            ["knowledge_changes"] = BuildKnowledgeChangesArray(),
+            ["attribute_changes"] = BuildAttributeChangesArray(),
+        };
+
+    public static CharacterProgressionDelta FromDictionary(GDictionary data)
+    {
+        if (data == null)
+            return null;
+        if (!TryGetStringName(data, "member_id", out StringName memberId))
+            return null;
+        if (!TryGetArray(data, "leveled_skill_ids", out GArray leveledSkillIds))
+            return null;
+        if (!TryGetArray(data, "granted_skill_ids", out GArray grantedSkillIds))
+            return null;
+        if (!TryGetArray(data, "changed_profession_ids", out GArray changedProfessionIds))
+            return null;
+        if (!TryGetInt(data, "character_level_before", out int levelBefore))
+            return null;
+        if (!TryGetInt(data, "character_level_after", out int levelAfter))
+            return null;
+        if (!TryGetArray(data, "pending_profession_choices", out GArray pendingChoices))
+            return null;
+        if (!TryGetBool(data, "needs_promotion_modal", out bool needsPromotionModal))
+            return null;
+        if (!TryGetArray(data, "unlocked_achievement_ids", out GArray unlockedAchievementIds))
+            return null;
+        if (!TryGetArray(data, "mastery_changes", out GArray masteryChanges))
+            return null;
+        if (!TryGetArray(data, "knowledge_changes", out GArray knowledgeChanges))
+            return null;
+        if (!TryGetArray(data, "attribute_changes", out GArray attributeChanges))
+            return null;
+
+        var result = new CharacterProgressionDelta
+        {
+            member_id = memberId,
+            character_level_before = levelBefore,
+            character_level_after = levelAfter,
+            needs_promotion_modal = needsPromotionModal,
+        };
+        result.SetLeveledSkillIds(leveledSkillIds);
+        result.SetGrantedSkillIds(grantedSkillIds);
+        result.SetChangedProfessionIds(changedProfessionIds);
+        result.SetPendingProfessionChoices(pendingChoices);
+        result.SetUnlockedAchievementIds(unlockedAchievementIds);
+        if (!AppendMasteryChangesFromPayload(result, masteryChanges))
+            return null;
+        if (!AppendKnowledgeChangesFromPayload(result, knowledgeChanges))
+            return null;
+        if (!AppendAttributeChangesFromPayload(result, attributeChanges))
+            return null;
+        return result;
     }
 
     private static void SetUniqueStringNames(List<StringName> target, IEnumerable values)
@@ -323,14 +416,376 @@ public partial class CharacterProgressionDelta : RefCounted
         return result;
     }
 
+    private static GArray BuildStringNamePayloadArray(IEnumerable<StringName> values)
+    {
+        var result = new GArray();
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
+
     private GArray BuildPendingProfessionChoicesArray()
     {
         var result = new GArray();
         foreach (PendingProfessionChoice choice in _pendingProfessionChoices)
         {
-            result.Add(choice?.DuplicateState());
+            result.Add(choice?.ToDictionary() ?? new GDictionary());
         }
         return result;
+    }
+
+    private static bool TryParsePendingProfessionChoicePayload(
+        object value,
+        out PendingProfessionChoice choice
+    )
+    {
+        choice = null;
+        if (value is GDictionary dictionary)
+        {
+            choice = PendingProfessionChoice.FromDictionary(dictionary);
+            return choice != null;
+        }
+        if (value is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            choice = PendingProfessionChoice.FromDictionary(variant.AsGodotDictionary());
+            return choice != null;
+        }
+        return false;
+    }
+
+    private GArray BuildMasteryChangesArray()
+    {
+        var result = new GArray();
+        foreach (CharacterMasteryChangeFact change in _masteryChanges)
+        {
+            if (change == null)
+                continue;
+            result.Add(
+                new GDictionary
+                {
+                    ["skill_id"] = change.SkillId,
+                    ["skill_name"] = change.SkillName,
+                    ["mastery_amount"] = change.MasteryAmount,
+                    ["source_type"] = change.SourceType,
+                    ["source_label"] = change.SourceLabel,
+                    ["reason_text"] = change.ReasonText,
+                }
+            );
+        }
+        return result;
+    }
+
+    private GArray BuildKnowledgeChangesArray()
+    {
+        var result = new GArray();
+        foreach (CharacterKnowledgeChangeFact change in _knowledgeChanges)
+        {
+            if (change == null)
+                continue;
+            result.Add(
+                new GDictionary
+                {
+                    ["knowledge_id"] = change.KnowledgeId,
+                    ["knowledge_label"] = change.KnowledgeLabel,
+                    ["reason_text"] = change.ReasonText,
+                }
+            );
+        }
+        return result;
+    }
+
+    private GArray BuildAttributeChangesArray()
+    {
+        var result = new GArray();
+        foreach (CharacterAttributeChangeFact change in _attributeChanges)
+        {
+            if (change == null)
+                continue;
+            var payload = new GDictionary
+            {
+                ["attribute_id"] = change.AttributeId,
+                ["attribute_label"] = change.AttributeLabel,
+                ["delta"] = change.Delta,
+                ["reason_text"] = change.ReasonText,
+            };
+            AddOptionalInt(payload, "progress_delta", change.ProgressDelta);
+            AddOptionalInt(payload, "progress_before", change.ProgressBefore);
+            AddOptionalInt(payload, "progress_after", change.ProgressAfter);
+            AddOptionalInt(payload, "attribute_before", change.AttributeBefore);
+            AddOptionalInt(payload, "attribute_after", change.AttributeAfter);
+            result.Add(payload);
+        }
+        return result;
+    }
+
+    private static void AddOptionalInt(GDictionary payload, string key, int? value)
+    {
+        if (value.HasValue)
+            payload[key] = value.Value;
+    }
+
+    private static bool AppendMasteryChangesFromPayload(
+        CharacterProgressionDelta target,
+        GArray values
+    )
+    {
+        foreach (object value in values)
+        {
+            if (!TryAsDictionary(value, out GDictionary payload))
+                return false;
+            if (!TryGetStringName(payload, "skill_id", out StringName skillId))
+                return false;
+            if (!TryGetString(payload, "skill_name", out string skillName))
+                return false;
+            if (!TryGetInt(payload, "mastery_amount", out int masteryAmount))
+                return false;
+            if (!TryGetStringName(payload, "source_type", out StringName sourceType))
+                return false;
+            if (!TryGetString(payload, "source_label", out string sourceLabel))
+                return false;
+            if (!TryGetString(payload, "reason_text", out string reasonText))
+                return false;
+            target.AddMasteryChange(
+                new CharacterMasteryChangeFact(
+                    skillId,
+                    skillName,
+                    masteryAmount,
+                    sourceType,
+                    sourceLabel,
+                    reasonText
+                )
+            );
+        }
+        return true;
+    }
+
+    private static bool AppendKnowledgeChangesFromPayload(
+        CharacterProgressionDelta target,
+        GArray values
+    )
+    {
+        foreach (object value in values)
+        {
+            if (!TryAsDictionary(value, out GDictionary payload))
+                return false;
+            if (!TryGetStringName(payload, "knowledge_id", out StringName knowledgeId))
+                return false;
+            if (!TryGetString(payload, "knowledge_label", out string knowledgeLabel))
+                return false;
+            if (!TryGetString(payload, "reason_text", out string reasonText))
+                return false;
+            target.AddKnowledgeChange(
+                new CharacterKnowledgeChangeFact(knowledgeId, knowledgeLabel, reasonText)
+            );
+        }
+        return true;
+    }
+
+    private static bool AppendAttributeChangesFromPayload(
+        CharacterProgressionDelta target,
+        GArray values
+    )
+    {
+        foreach (object value in values)
+        {
+            if (!TryAsDictionary(value, out GDictionary payload))
+                return false;
+            if (!TryGetStringName(payload, "attribute_id", out StringName attributeId))
+                return false;
+            if (!TryGetString(payload, "attribute_label", out string attributeLabel))
+                return false;
+            if (!TryGetInt(payload, "delta", out int delta))
+                return false;
+            if (!TryGetString(payload, "reason_text", out string reasonText))
+                return false;
+            if (!TryGetOptionalInt(payload, "progress_delta", out int? progressDelta))
+                return false;
+            if (!TryGetOptionalInt(payload, "progress_before", out int? progressBefore))
+                return false;
+            if (!TryGetOptionalInt(payload, "progress_after", out int? progressAfter))
+                return false;
+            if (!TryGetOptionalInt(payload, "attribute_before", out int? attributeBefore))
+                return false;
+            if (!TryGetOptionalInt(payload, "attribute_after", out int? attributeAfter))
+                return false;
+            target.AddAttributeChange(
+                new CharacterAttributeChangeFact(
+                    attributeId,
+                    attributeLabel,
+                    delta,
+                    reasonText,
+                    progressDelta,
+                    progressBefore,
+                    progressAfter,
+                    attributeBefore,
+                    attributeAfter
+                )
+            );
+        }
+        return true;
+    }
+
+    private static bool TryGetStringName(GDictionary data, string key, out StringName value)
+    {
+        value = default;
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return false;
+        return TryAsStringName(rawValue, out value);
+    }
+
+    private static bool TryGetString(GDictionary data, string key, out string value)
+    {
+        value = "";
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return false;
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType != Variant.Type.String)
+                return false;
+            value = variant.AsString();
+            return true;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryGetInt(GDictionary data, string key, out int value)
+    {
+        value = 0;
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return false;
+        return TryAsInt(rawValue, out value);
+    }
+
+    private static bool TryGetOptionalInt(GDictionary data, string key, out int? value)
+    {
+        value = null;
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return true;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Nil)
+            return true;
+        if (!TryAsInt(rawValue, out int parsed))
+            return false;
+        value = parsed;
+        return true;
+    }
+
+    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    {
+        value = false;
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return false;
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType != Variant.Type.Bool)
+                return false;
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryGetArray(GDictionary data, string key, out GArray value)
+    {
+        value = null;
+        if (!TryGetRawValue(data, key, out object rawValue))
+            return false;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
+        {
+            value = variant.AsGodotArray();
+            return true;
+        }
+        if (rawValue is GArray array)
+        {
+            value = array;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsStringName(object rawValue, out StringName value)
+    {
+        value = default;
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = new StringName(variant.AsString());
+                return true;
+            }
+            return false;
+        }
+        if (rawValue is StringName stringName)
+        {
+            value = stringName;
+            return true;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = new StringName(stringValue);
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryAsInt(object rawValue, out int value)
+    {
+        value = 0;
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType != Variant.Type.Int)
+                return false;
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryGetRawValue(GDictionary data, string key, out object value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = null;
+        return false;
     }
 
 }

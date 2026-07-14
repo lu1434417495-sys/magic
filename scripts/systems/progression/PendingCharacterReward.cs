@@ -1,6 +1,7 @@
 using Godot;
+using System.Collections.Generic;
 
-public partial class PendingCharacterReward : RefCounted
+public class PendingCharacterReward
 {
     public StringName reward_id = "";
 
@@ -16,32 +17,7 @@ public partial class PendingCharacterReward : RefCounted
 
     public string summary_text = "";
 
-    public Godot.Collections.Array<PendingCharacterRewardEntry> entries = new();
-    private bool _disposed;
-
-    public new void Dispose()
-    {
-        if (_disposed)
-            return;
-        System.GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            DisposeManagedState();
-        base.Dispose(disposing);
-    }
-
-    private void DisposeManagedState()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GodotRefCountedDisposer.DisposeAll(entries);
-        entries.Clear();
-    }
+    public List<PendingCharacterRewardEntry> entries = new();
 
     public bool IsEmpty()
     {

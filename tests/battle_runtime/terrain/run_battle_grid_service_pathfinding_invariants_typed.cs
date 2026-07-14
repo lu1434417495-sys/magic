@@ -2,14 +2,15 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_grid_service_pathfinding_invariants_typed : SceneTree
+public partial class run_battle_grid_service_pathfinding_invariants_typed : LifecycleTestSceneTree
 {
     public override void _Initialize()
     {
-        int exitCode = BattleGridServicePathfindingInvariantsRunner.RunAll();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(RunForWrapper());
     }
+
+    internal static TestResult RunForWrapper() =>
+        BattleGridServicePathfindingInvariantsRunner.RunAll();
 }
 
 internal sealed class BattleGridServicePathfindingInvariantsRunner
@@ -27,22 +28,21 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
     };
 
     private readonly TestHarness _test = new();
+    private readonly GodotTransientResourceScope _runtimeScope =
+        new("battle_grid_service_pathfinding_invariants");
     private BattleGridService _grid = null!;
-    private readonly List<BattleState> _ownedStates = new();
-    private readonly List<BattleUnitState> _ownedUnits = new();
 
-    public static int RunAll()
+    public static TestResult RunAll()
     {
-        BattleGridServicePathfindingInvariantsRunner runner = new();
+        var runner = new BattleGridServicePathfindingInvariantsRunner();
         return runner.Run();
     }
 
-    private int Run()
+    private TestResult Run()
     {
+        _grid = new BattleGridService();
         try
         {
-            _grid = new BattleGridService();
-
             TestStepCostFloor();
             TestAStarSimpleOptimality();
             TestAStarStopsWhenMoveBudgetBelowHeuristic();
@@ -54,10 +54,8 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         }
         finally
         {
-            DisposeOwnedFixtures();
-            GodotSharpCleanup.CollectPendingFinalizers();
+            DisposeOwnedRuntimeState();
         }
-
         return _test.Finish("Battle grid service pathfinding inoptions");
     }
 
@@ -249,83 +247,75 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
 
     private void TestAStarMatchesReferenceRandomized()
     {
-        var rng = new RandomNumberGenerator();
-        rng.Seed = 0xA11C0DE;
+        var rng = new RuntimeRandom(0xA11C0DE);
         int trialsRun = 0;
 
-        try
+        for (int trial = 0; trial < 12; trial++)
         {
-            for (int trial = 0; trial < 12; trial++)
+            Vector2I size = new(rng.RandiRange(4, 8), rng.RandiRange(4, 8));
+            BattleState state = BuildState(size);
+            BattleUnitState unit = BuildUnit(Vector2I.Zero);
+            state.SetUnit(unit);
+            if (!_grid.PlaceUnit(state, unit, unit.coord, true))
             {
-                Vector2I size = new(rng.RandiRange(4, 8), rng.RandiRange(4, 8));
-                BattleState state = BuildState(size);
-                BattleUnitState unit = BuildUnit(Vector2I.Zero);
-                state.SetUnit(unit);
-                if (!_grid.PlaceUnit(state, unit, unit.coord, true))
-                {
-                    continue;
-                }
-
-                int mudCount = rng.RandiRange(0, (size.X * size.Y) / 4);
-                for (int i = 0; i < mudCount; i++)
-                {
-                    Vector2I mudCoord = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
-                    if (mudCoord == unit.coord)
-                    {
-                        continue;
-                    }
-                    BattleCellState cell = state.GetCell(mudCoord);
-                    if (cell != null)
-                    {
-                        cell.base_terrain = "mud";
-                    }
-                }
-
-                Vector2I dest = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
-                if (dest == unit.coord)
-                {
-                    continue;
-                }
-
-                int referenceCost = ReferenceDijkstraCost(state, unit, unit.coord, dest);
-                BattleMovePathResult aStar = _grid.ResolveUnitMovePathTyped(
-                    state,
-                    unit,
-                    unit.coord,
-                    dest,
-                    9999,
-                    null
-                );
-
-                if (referenceCost < 0)
-                {
-                    if (aStar.Allowed)
-                    {
-                        _test.Fail($"randomized trial {trial}: reference says unreachable but A* allows path.");
-                    }
-                    continue;
-                }
-
-                if (!aStar.Allowed)
-                {
-                    _test.Fail(
-                        $"randomized trial {trial} size={size} dest={dest}: A* refused a path reference reaches at cost {referenceCost}."
-                    );
-                    continue;
-                }
-
-                if (aStar.Cost != referenceCost)
-                {
-                    _test.Fail(
-                        $"randomized trial {trial} size={size} dest={dest}: A* cost={aStar.Cost} != reference={referenceCost}."
-                    );
-                }
-                trialsRun++;
+                continue;
             }
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(rng);
+
+            int mudCount = rng.RandiRange(0, (size.X * size.Y) / 4);
+            for (int i = 0; i < mudCount; i++)
+            {
+                Vector2I mudCoord = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
+                if (mudCoord == unit.coord)
+                {
+                    continue;
+                }
+                BattleCellState cell = state.GetCell(mudCoord);
+                if (cell != null)
+                {
+                    cell.base_terrain = "mud";
+                }
+            }
+
+            Vector2I dest = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
+            if (dest == unit.coord)
+            {
+                continue;
+            }
+
+            int referenceCost = ReferenceDijkstraCost(state, unit, unit.coord, dest);
+            BattleMovePathResult aStar = _grid.ResolveUnitMovePathTyped(
+                state,
+                unit,
+                unit.coord,
+                dest,
+                9999,
+                null
+            );
+
+            if (referenceCost < 0)
+            {
+                if (aStar.Allowed)
+                {
+                    _test.Fail($"randomized trial {trial}: reference says unreachable but A* allows path.");
+                }
+                continue;
+            }
+
+            if (!aStar.Allowed)
+            {
+                _test.Fail(
+                    $"randomized trial {trial} size={size} dest={dest}: A* refused a path reference reaches at cost {referenceCost}."
+                );
+                continue;
+            }
+
+            if (aStar.Cost != referenceCost)
+            {
+                _test.Fail(
+                    $"randomized trial {trial} size={size} dest={dest}: A* cost={aStar.Cost} != reference={referenceCost}."
+                );
+            }
+            trialsRun++;
         }
 
         if (trialsRun == 0)
@@ -488,22 +478,28 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
 
     private BattleState BuildState(Vector2I mapSize)
     {
-        var state = new BattleState { map_size = mapSize };
+        var state = _runtimeScope.OwnWrapper(
+            new BattleState { map_size = mapSize },
+            "battle-state"
+        );
         for (int y = 0; y < mapSize.Y; y++)
         {
             for (int x = 0; x < mapSize.X; x++)
             {
                 Vector2I coord = new(x, y);
-                var cell = new BattleCellState
-                {
-                    coord = coord,
-                    base_terrain = "land",
-                    passable = true,
-                };
+                var cell = _runtimeScope.OwnWrapper(
+                    new BattleCellState
+                    {
+                        coord = coord,
+                        base_terrain = "land",
+                        passable = true,
+                    },
+                    "battle-cell"
+                );
                 state.SetCell(coord, cell);
             }
         }
-        _ownedStates.Add(state);
+        _runtimeScope.OwnWrapper(state, "battle-state-built");
         return state;
     }
 
@@ -518,18 +514,13 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             is_alive = true,
         };
         unit.RefreshFootprint();
-        _ownedUnits.Add(unit);
-        return unit;
+        return _runtimeScope.OwnWrapper(unit, "battle-unit");
     }
 
-    private void DisposeOwnedFixtures()
+    private void DisposeOwnedRuntimeState()
     {
-        foreach (BattleState state in _ownedStates)
-            BattleTestFixture.DisposeBattleState(state);
-        _ownedStates.Clear();
-
-        foreach (BattleUnitState unit in _ownedUnits)
-            BattleTestFixture.DisposeFixtureObject(unit);
-        _ownedUnits.Clear();
+        _runtimeScope.Close();
+        _grid?.Dispose();
+        _grid = null!;
     }
 }

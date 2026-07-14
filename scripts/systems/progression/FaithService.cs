@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 public sealed class FaithDevotionResult
@@ -17,60 +19,42 @@ public sealed class FaithDevotionResult
 
 public class FaithService
 {
-    private const string ConfigDirectory = "res://data/configs/faith";
-
     internal static readonly StringName SourceTypeFaithRankReward = "faith_rank_reward";
     internal static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
 
-    private readonly Dictionary<StringName, FaithDeityDef> _faithDeityDefs = new();
-    private readonly List<string> _validationErrors = new();
+    private static readonly IReadOnlyDictionary<StringName, FaithDeityDefinition> EmptyDefinitions =
+        new ReadOnlyDictionary<StringName, FaithDeityDefinition>(
+            new Dictionary<StringName, FaithDeityDefinition>()
+        );
 
-    public FaithService()
+    private IReadOnlyDictionary<StringName, FaithDeityDefinition> _faithDeityDefs =
+        EmptyDefinitions;
+
+    public FaithService(
+        IReadOnlyDictionary<StringName, FaithDeityDefinition> faithDeityDefinitions
+    )
     {
-        Rebuild();
+        Setup(faithDeityDefinitions);
     }
 
-    public void Setup(IEnumerable<FaithDeityDef> faithDeityDefs = null)
+    public void Setup(
+        IReadOnlyDictionary<StringName, FaithDeityDefinition> faithDeityDefinitions
+    )
     {
-        _faithDeityDefs.Clear();
-        _validationErrors.Clear();
-
-        if (faithDeityDefs != null)
-        {
-            foreach (FaithDeityDef deityDef in faithDeityDefs)
-            {
-                if (deityDef == null || deityDef.deity_id == "")
-                    continue;
-                _faithDeityDefs[deityDef.deity_id] = deityDef;
-            }
-        }
-
-        CollectValidationErrorsInto(_validationErrors);
+        ArgumentNullException.ThrowIfNull(faithDeityDefinitions);
+        _faithDeityDefs = faithDeityDefinitions;
     }
 
-    public void Rebuild()
-    {
-        _faithDeityDefs.Clear();
-        _validationErrors.Clear();
-        ScanDirectory(ConfigDirectory);
-        CollectValidationErrorsInto(_validationErrors);
-    }
-
-    public IReadOnlyDictionary<StringName, FaithDeityDef> GetFaithDeityDefs()
+    public IReadOnlyDictionary<StringName, FaithDeityDefinition> GetFaithDeityDefs()
     {
         return _faithDeityDefs;
     }
 
-    public FaithDeityDef GetFaithDeityDef(StringName deityId)
+    public FaithDeityDefinition GetFaithDeityDef(StringName deityId)
     {
-        return _faithDeityDefs.TryGetValue(deityId, out FaithDeityDef deityDef)
+        return _faithDeityDefs.TryGetValue(deityId, out FaithDeityDefinition deityDef)
             ? deityDef
             : null;
-    }
-
-    public IReadOnlyList<string> Validate()
-    {
-        return new List<string>(_validationErrors);
     }
 
     public FaithDevotionResult ExecuteDevotion(
@@ -100,7 +84,7 @@ public class FaithService
             return result;
         }
 
-        FaithDeityDef deityDef = GetFaithDeityDef(deityId);
+        FaithDeityDefinition deityDef = GetFaithDeityDef(deityId);
         if (deityDef == null)
         {
             result.ErrorCode = "deity_not_found";
@@ -115,20 +99,20 @@ public class FaithService
             return result;
         }
 
-        FaithRankDef nextRank = deityDef.GetRankDef(currentRank + 1);
+        FaithRankDefinition nextRank = deityDef.GetRankDefinition(currentRank + 1);
         if (nextRank == null)
         {
             result.ErrorCode = "missing_rank_def";
             return result;
         }
-        result.TargetRank = nextRank.rank_index;
+        result.TargetRank = nextRank.RankIndex;
 
-        if (!partyState.CanAfford(nextRank.required_gold))
+        if (!partyState.CanAfford(nextRank.RequiredGold))
         {
             result.ErrorCode = "insufficient_gold";
             return result;
         }
-        if (progress.character_level < nextRank.required_level)
+        if (progress.character_level < nextRank.RequiredLevel)
         {
             result.ErrorCode = "level_too_low";
             return result;
@@ -136,7 +120,7 @@ public class FaithService
         if (!MeetsPlaceholderRequirements(memberState, nextRank, result))
             return result;
 
-        if (!partyState.SpendGold(nextRank.required_gold))
+        if (!partyState.SpendGold(nextRank.RequiredGold))
         {
             result.ErrorCode = "insufficient_gold";
             return result;
@@ -146,14 +130,14 @@ public class FaithService
         PendingCharacterReward reward = BuildRankReward(memberState, deityDef, nextRank);
         if (reward == null || reward.IsEmpty())
         {
-            partyState.AddGold(nextRank.required_gold);
+            partyState.AddGold(nextRank.RequiredGold);
             result.ErrorCode = "invalid_rank_reward";
             return result;
         }
 
         partyState.EnqueuePendingCharacterReward(reward);
         result.Success = true;
-        result.GoldSpent = nextRank.required_gold;
+        result.GoldSpent = nextRank.RequiredGold;
         result.PendingReward = reward;
         return result;
     }
@@ -162,7 +146,7 @@ public class FaithService
         PartyState partyState,
         StringName memberId,
         StringName deityId,
-        FaithDeityDef deityDef = null
+        FaithDeityDefinition deityDef = null
     )
     {
         deityDef ??= GetFaithDeityDef(deityId);
@@ -186,108 +170,31 @@ public class FaithService
 
     public void Dispose()
     {
-        _faithDeityDefs.Clear();
-        _validationErrors.Clear();
-    }
-
-    private void ScanDirectory(string directoryPath)
-    {
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-        {
-            _validationErrors.Add($"FaithService could not open {directoryPath}.");
-            return;
-        }
-
-        directory.ListDirBegin();
-        while (true)
-        {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == "..")
-                continue;
-
-            string entryPath = $"{directoryPath}/{entryName}";
-            if (directory.CurrentIsDir())
-            {
-                ScanDirectory(entryPath);
-                continue;
-            }
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterDeityResource(entryPath);
-        }
-        directory.ListDirEnd();
-    }
-
-    private void RegisterDeityResource(string resourcePath)
-    {
-        Resource resource = ResourceLoader.Load<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add($"Failed to load faith config {resourcePath}.");
-            return;
-        }
-        if (resource is not FaithDeityDef deityDef)
-        {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
-            _validationErrors.Add($"Faith config {resourcePath} failed to cast to FaithDeityDef.");
-            return;
-        }
-        if (deityDef.deity_id == "")
-        {
-            _validationErrors.Add($"Faith config {resourcePath} is missing deity_id.");
-            return;
-        }
-        if (_faithDeityDefs.ContainsKey(deityDef.deity_id))
-        {
-            _validationErrors.Add($"Duplicate faith deity_id registered: {deityDef.deity_id}");
-            return;
-        }
-
-        _faithDeityDefs[deityDef.deity_id] = deityDef;
-    }
-
-    private void CollectValidationErrorsInto(List<string> errors)
-    {
-        var sortedIds = new List<string>();
-        foreach (StringName deityId in _faithDeityDefs.Keys)
-            sortedIds.Add(deityId.ToString());
-        sortedIds.Sort();
-
-        foreach (string deityIdText in sortedIds)
-        {
-            FaithDeityDef deityDef = GetFaithDeityDef(deityIdText);
-            if (deityDef == null)
-                continue;
-            foreach (string error in deityDef.Validate())
-                errors.Add(error);
-        }
+        _faithDeityDefs = EmptyDefinitions;
     }
 
     private static bool MeetsPlaceholderRequirements(
         PartyMemberState memberState,
-        FaithRankDef rankDef,
+        FaithRankDefinition rankDef,
         FaithDevotionResult result
     )
     {
         if (rankDef.HasCustomStatRequirement())
         {
-            int currentValue = GetCustomStatValue(memberState, rankDef.required_custom_stat_id);
-            if (currentValue < rankDef.required_custom_stat_min_value)
+            int currentValue = GetCustomStatValue(memberState, rankDef.RequiredCustomStatId);
+            if (currentValue < rankDef.RequiredCustomStatMinValue)
             {
                 result.ErrorCode = "custom_stat_requirement_unmet";
-                result.MissingCustomStatId = rankDef.required_custom_stat_id;
+                result.MissingCustomStatId = rankDef.RequiredCustomStatId;
                 return false;
             }
         }
         if (rankDef.HasAchievementRequirement())
         {
-            if (!IsAchievementUnlocked(memberState, rankDef.required_achievement_id))
+            if (!IsAchievementUnlocked(memberState, rankDef.RequiredAchievementId))
             {
                 result.ErrorCode = "achievement_requirement_unmet";
-                result.MissingAchievementId = rankDef.required_achievement_id;
+                result.MissingAchievementId = rankDef.RequiredAchievementId;
                 return false;
             }
         }
@@ -354,14 +261,14 @@ public class FaithService
 
     private static void EnsureWritableRewardAttributeSeeds(
         PartyMemberState memberState,
-        FaithRankDef rankDef
+        FaithRankDefinition rankDef
     )
     {
         if (memberState == null || rankDef == null)
             return;
-        foreach (FaithRankRewardEntrySpec rewardEntry in rankDef.GetRewardEntrySpecs())
+        foreach (FaithRankRewardEntryDefinition rewardEntry in rankDef.RewardEntries)
         {
-            if (rewardEntry.EntryType != "attribute_delta")
+            if (rewardEntry == null || rewardEntry.EntryType != "attribute_delta")
                 continue;
             EnsureWritableCustomStatSeed(memberState, rewardEntry.TargetId);
         }
@@ -380,40 +287,40 @@ public class FaithService
         attributes.custom_stats[statId] = attributes.GetAttributeValue(statId);
     }
 
-    private static StringName ResolveRankProgressStatId(FaithDeityDef deityDef)
+    private static StringName ResolveRankProgressStatId(FaithDeityDefinition deityDef)
     {
-        if (deityDef == null || deityDef.rank_progress_stat_id == "")
+        if (deityDef == null || deityDef.RankProgressStatId == "")
             return FaithLuckBonusStatId;
-        return deityDef.rank_progress_stat_id;
+        return deityDef.RankProgressStatId;
     }
 
     private static PendingCharacterReward BuildRankReward(
         PartyMemberState memberState,
-        FaithDeityDef deityDef,
-        FaithRankDef rankDef
+        FaithDeityDefinition deityDef,
+        FaithRankDefinition rankDef
     )
     {
         if (memberState == null || deityDef == null || rankDef == null)
             return null;
 
-        string sourceLabel = !string.IsNullOrEmpty(deityDef.display_name)
-            ? deityDef.display_name
-            : deityDef.deity_id.ToString();
+        string sourceLabel = !string.IsNullOrEmpty(deityDef.DisplayName)
+            ? deityDef.DisplayName
+            : deityDef.DeityId.ToString();
         var reward = new PendingCharacterReward
         {
-            reward_id = BuildRewardId(memberState.member_id, deityDef.deity_id, rankDef.rank_index),
+            reward_id = BuildRewardId(memberState.member_id, deityDef.DeityId, rankDef.RankIndex),
             member_id = memberState.member_id,
             member_name = !string.IsNullOrEmpty(memberState.display_name)
                 ? memberState.display_name
                 : memberState.member_id.ToString(),
             source_type = SourceTypeFaithRankReward,
-            source_id = deityDef.deity_id,
+            source_id = deityDef.DeityId,
             source_label = sourceLabel,
-            summary_text = $"{sourceLabel} 晋升为 {rankDef.rank_name}",
+            summary_text = $"{sourceLabel} 晋升为 {rankDef.RankName}",
         };
 
         reward.entries = new();
-        foreach (FaithRankRewardEntrySpec rewardSpec in rankDef.GetRewardEntrySpecs())
+        foreach (FaithRankRewardEntryDefinition rewardSpec in rankDef.RewardEntries)
         {
             PendingCharacterRewardEntry rewardEntry = BuildRewardEntry(
                 rewardSpec,
@@ -429,11 +336,16 @@ public class FaithService
     }
 
     private static PendingCharacterRewardEntry BuildRewardEntry(
-        FaithRankRewardEntrySpec rewardSpec,
+        FaithRankRewardEntryDefinition rewardSpec,
         string defaultReasonText
     )
     {
-        if (rewardSpec.IsEmpty)
+        if (
+            rewardSpec == null
+            || rewardSpec.EntryType == ""
+            || rewardSpec.TargetId == ""
+            || rewardSpec.Amount == 0
+        )
             return null;
         if (!PendingCharacterRewardContentRules.IsSupportedEntryType(rewardSpec.EntryType))
             return null;

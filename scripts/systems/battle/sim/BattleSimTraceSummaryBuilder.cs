@@ -35,10 +35,34 @@ public sealed class BattleSimTraceSummaryBuilder
         return false;
     }
 
-    public Dictionary Build(
+    internal GodotProjectionLease<Dictionary> BuildLease(
         BattleSimScenarioReport report,
         string sourceReportPath = "",
         TraceSummaryOptionsData options = null
+    ) =>
+        TraceDictionaryProjection.BuildLease(
+            BuildPlainSummary(report, sourceReportPath, options),
+            "battle_sim_trace_summary",
+            LifetimeDomain.Request,
+            "BattleSimTraceSummaryBuilder.BuildLease"
+        );
+
+    internal GodotProjectionLease<Dictionary> BuildFileLease(
+        BattleSimScenarioReport report,
+        string sourceReportPath = "",
+        TraceSummaryOptionsData options = null
+    ) =>
+        TraceDictionaryProjection.BuildJsonSafeLease(
+            BuildPlainSummary(report, sourceReportPath, options),
+            "battle-sim-trace-summary-file",
+            LifetimeDomain.Request,
+            "BattleSimTraceSummaryBuilder.BuildFileLease"
+        );
+
+    private System.Collections.Generic.Dictionary<string, object> BuildPlainSummary(
+        BattleSimScenarioReport report,
+        string sourceReportPath,
+        TraceSummaryOptionsData options
     )
     {
         TraceSummaryOptionsData summaryOptions = options ?? new TraceSummaryOptionsData();
@@ -50,14 +74,12 @@ public sealed class BattleSimTraceSummaryBuilder
             {
                 if (profileEntry == null)
                     continue;
-
-                string profileId = profileEntry.Profile?.profile_id.ToString() ?? "";
+                string profileId = profileEntry.Profile?.ProfileId.ToString() ?? "";
                 foreach (BattleSimRunReport run in profileEntry.Runs)
                 {
                     if (run == null)
                         continue;
-
-                    CompactRunTraceData compactRun = BuildCompactRunTraceData(
+                    CompactRunTraceData compactRun = BuildCompactRunTraceDataManaged(
                         run,
                         profileId,
                         summaryOptions.ResolvedFocusFactionId,
@@ -69,49 +91,50 @@ public sealed class BattleSimTraceSummaryBuilder
             }
         }
 
-        var comparisons = new Godot.Collections.Array();
-        var profileSummaries = new Godot.Collections.Array();
+        var comparisons = new List<object>();
+        var profileSummaries = new List<object>();
         if (report != null)
         {
             foreach (BattleSimProfileComparison comparison in report.Comparisons)
-                comparisons.Add(BattleSimReportProjection.Project(comparison));
+                comparisons.Add(BattleSimFilePayloadProjection.BuildComparisonFacts(comparison));
             foreach (BattleSimProfileReportEntry entry in report.ProfileEntries)
             {
                 profileSummaries.Add(
-                    new Dictionary
-                    {
-                        ["profile"] = BattleSimReportProjection.Project(entry?.Profile),
-                        ["summary"] = BattleSimReportProjection.Project(entry?.Summary),
-                    }
+                    PlainMap(
+                        ("profile", BattleSimFilePayloadProjection.BuildProfileFacts(entry?.Profile)),
+                        ("summary", BattleSimFilePayloadProjection.BuildSummaryFacts(entry?.Summary))
+                    )
                 );
             }
         }
 
-        return new Dictionary
-        {
-            ["source_report"] = sourceReportPath,
-            ["scenario"] = BattleSimReportProjection.Project(report?.ScenarioDef),
-            ["batch_id"] = 0,
-            ["generated_at_unix"] = report?.GeneratedAtUnix ?? 0,
-            ["profile_count"] = report?.ProfileEntries.Count ?? 0,
-            ["run_count"] = compactRuns.Count,
-            ["trace_count"] = traceCount,
-            ["elapsed_seconds"] = 0.0f,
-            ["ended_count"] = 0,
-            ["avg_iterations"] = 0.0f,
-            ["avg_timeline_steps"] = 0.0f,
-            ["win_rate"] = new Dictionary(),
-            ["comparisons"] = comparisons,
-            ["profile_summaries"] = profileSummaries,
-            ["global"] = new Dictionary(),
-            ["player"] = new Dictionary(),
-            ["hostile"] = new Dictionary(),
-            ["trace_compaction"] = summaryOptions.ToDictionary(),
-            ["runs"] = ToGodotArray(compactRuns),
-        };
+        var runs = new List<object>();
+        foreach (CompactRunTraceData compactRun in compactRuns)
+            runs.Add(compactRun.ToPlainDictionary());
+        return PlainMap(
+            ("source_report", sourceReportPath ?? ""),
+            ("scenario", BattleSimFilePayloadProjection.BuildScenarioFacts(report?.Scenario)),
+            ("batch_id", 0),
+            ("generated_at_unix", report?.GeneratedAtUnix ?? 0),
+            ("profile_count", report?.ProfileEntries.Count ?? 0),
+            ("run_count", compactRuns.Count),
+            ("trace_count", traceCount),
+            ("elapsed_seconds", 0.0f),
+            ("ended_count", 0),
+            ("avg_iterations", 0.0f),
+            ("avg_timeline_steps", 0.0f),
+            ("win_rate", PlainMap()),
+            ("comparisons", comparisons),
+            ("profile_summaries", profileSummaries),
+            ("global", PlainMap()),
+            ("player", PlainMap()),
+            ("hostile", PlainMap()),
+            ("trace_compaction", summaryOptions.ToPlainDictionary()),
+            ("runs", runs)
+        );
     }
 
-    private CompactRunTraceData BuildCompactRunTraceData(
+    private CompactRunTraceData BuildCompactRunTraceDataManaged(
         BattleSimRunReport runEntry,
         string profileId,
         string focusFactionId,
@@ -130,79 +153,82 @@ public sealed class BattleSimTraceSummaryBuilder
             TimelineSteps = runEntry?.TimelineSteps ?? 0,
         };
 
-        if (runEntry?.AiTurnTraces != null)
+        foreach (
+            BattleAiTurnTraceProjection trace
+            in runEntry?.AiTurnTraces ?? System.Array.Empty<BattleAiTurnTraceProjection>()
+        )
         {
-            foreach (BattleAiTurnTraceProjection traceEntryProjection in runEntry.AiTurnTraces)
+            if (trace == null)
+                continue;
+            result.TraceCount++;
+            string factionId = trace.FactionId ?? "";
+            string actionId = trace.ActionId ?? "";
+            CompactCommandSummaryData commandSummary = SummarizeTraceCommandData(trace.Command);
+            string commandType = commandSummary.CommandType;
+            IncrementNestedCounterData(result.ActionCountsByFaction, factionId, actionId);
+            IncrementNestedCounterData(result.CommandCountsByFaction, factionId, commandType);
+            if (commandType == "wait")
+                IncrementNestedCounterData(result.WaitCountsByFaction, factionId, actionId);
+
+            List<CompactActionTraceData> actionTraces = SummarizeActionTracesData(
+                trace.ActionTraces,
+                factionId,
+                result.BlockReasonsByFaction,
+                topCandidateLimit
+            );
+            if (factionId != focusFactionId)
+                continue;
+
+            var turnSummary = new CompactTurnTraceData
             {
-                if (traceEntryProjection == null)
-                    continue;
-                Dictionary traceEntry = BattleAiTurnTracePayloadProjection.Project(
-                    traceEntryProjection
-                );
-                result.TraceCount++;
-                string factionId = ReadString(traceEntry, "faction_id");
-                string actionId = ReadString(traceEntry, "action_id");
-                CompactCommandSummaryData commandSummary = SummarizeTraceCommandData(
-                    ReadDictionary(traceEntry, "command")
-                );
-                string commandType = commandSummary.CommandType;
-
-                IncrementNestedCounterData(result.ActionCountsByFaction, factionId, actionId);
-                IncrementNestedCounterData(result.CommandCountsByFaction, factionId, commandType);
-                if (commandType == "wait")
-                    IncrementNestedCounterData(result.WaitCountsByFaction, factionId, actionId);
-
-                List<CompactActionTraceData> actionTraces = SummarizeActionTracesData(
-                    ReadArray(traceEntry, "action_traces"),
-                    factionId,
-                    result.BlockReasonsByFaction,
-                    topCandidateLimit
-                );
-
-                if (factionId != focusFactionId)
-                    continue;
-
-                var turnSummary = new CompactTurnTraceData
-                {
-                    TurnStartedTu = ReadInt(traceEntry, "turn_started_tu", -1),
-                    UnitId = ReadString(traceEntry, "unit_id"),
-                    UnitName = ReadString(traceEntry, "unit_name"),
-                    FactionId = factionId,
-                    BrainId = ReadString(traceEntry, "brain_id"),
-                    StateId = ReadString(traceEntry, "state_id"),
-                    ActionId = actionId,
-                    ReasonText = ReadString(traceEntry, "reason_text"),
-                    Command = commandSummary,
-                    Score = SummarizeScoreInputData(traceEntryProjection.ScoreInput),
-                    DecisionTargetSnapshots = SummarizeUnitSnapshotsData(
-                        ReadArray(traceEntry, "decision_target_snapshots")
-                    ),
-                    ExecutionResult = SummarizeExecutionResultData(
-                        ReadDictionary(traceEntry, "execution_result")
-                    ),
-                    ActionTraces = actionTraces,
-                };
-                result.FocusTurns.Add(turnSummary);
-                if (commandType == "wait")
-                    result.FocusWaitTurns.Add(turnSummary);
-            }
+                TurnStartedTu = trace.TurnStartedTu,
+                UnitId = trace.UnitId ?? "",
+                UnitName = trace.UnitName ?? "",
+                FactionId = factionId,
+                BrainId = trace.BrainId ?? "",
+                StateId = trace.StateId ?? "",
+                ActionId = actionId,
+                ReasonText = trace.ReasonText ?? "",
+                Command = commandSummary,
+                Score = SummarizeScoreInputData(trace.ScoreInput),
+                DecisionTargetSnapshots = SummarizeUnitSnapshotsData(
+                    trace.DecisionTargetSnapshots
+                ),
+                ExecutionResult = SummarizeExecutionResultData(trace.ExecutionResult),
+                ActionTraces = actionTraces,
+            };
+            result.FocusTurns.Add(turnSummary);
+            if (commandType == "wait")
+                result.FocusWaitTurns.Add(turnSummary);
         }
 
-        if (runEntry?.MetricsSnapshot != null)
+        foreach (
+            (string factionId, BattleSimUnitMetricsSnapshot faction)
+            in runEntry?.MetricsSnapshot?.Factions
+                ?? new System.Collections.Generic.Dictionary<
+                    string,
+                    BattleSimUnitMetricsSnapshot
+                >(StringComparer.Ordinal)
+        )
         {
-            result.Factions = BattleSimReportProjection.ProjectFactionMetrics(
-                runEntry.MetricsSnapshot.Factions
-            );
-            result.Units = BattleSimReportProjection.ProjectUnitMetrics(
-                runEntry.MetricsSnapshot.Units
-            );
+            result.FactionFacts[factionId] = faction?.BuildFactionPlain() ?? PlainMap();
         }
-
+        foreach (
+            (string unitId, BattleSimUnitMetricsSnapshot unit)
+            in runEntry?.MetricsSnapshot?.Units
+                ?? new System.Collections.Generic.Dictionary<
+                    string,
+                    BattleSimUnitMetricsSnapshot
+                >(StringComparer.Ordinal)
+        )
+        {
+            result.UnitFacts[unitId] = unit?.BuildPlain() ?? PlainMap();
+        }
         return result;
     }
 
     private List<CompactActionTraceData> SummarizeActionTracesData(
-        object actionTracesValue,
+        IReadOnlyList<AiActionTrace> actionTraces,
         string factionId,
         System.Collections.Generic.Dictionary<
             string,
@@ -212,304 +238,336 @@ public sealed class BattleSimTraceSummaryBuilder
     )
     {
         var summaries = new List<CompactActionTraceData>();
-        if (!TryRawArray(actionTracesValue, out Godot.Collections.Array actionTraces))
-            return summaries;
-
-        foreach (object actionTraceValue in actionTraces)
+        foreach (AiActionTrace trace in actionTraces ?? System.Array.Empty<AiActionTrace>())
         {
-            if (!TryRawDictionary(actionTraceValue, out Dictionary actionTrace))
+            if (trace == null)
                 continue;
-
-            Dictionary blockReasons = ReadDictionary(actionTrace, "block_reasons");
-            foreach (Variant reasonKey in blockReasons.Keys)
-            {
-                IncrementNestedCounterData(
-                    blockReasonsByFaction,
-                    factionId,
-                    AsString(reasonKey),
-                    ReadInt(blockReasons, reasonKey, 0)
-                );
-            }
-
+            foreach ((string reason, int count) in trace.BlockReasons)
+                IncrementNestedCounterData(blockReasonsByFaction, factionId, reason, count);
             summaries.Add(
                 new CompactActionTraceData
                 {
-                    TraceId = ReadString(actionTrace, "trace_id"),
-                    ActionId = ReadString(actionTrace, "action_id"),
-                    Chosen = ReadBool(actionTrace, "chosen"),
-                    ScoreBucketId = ReadString(actionTrace, "score_bucket_id"),
-                    Metadata = ReadDictionary(actionTrace, "metadata"),
-                    BlockReasons = ToStringIntMap(blockReasons),
-                    BlockedCount = ReadInt(actionTrace, "blocked_count", 0),
-                    CandidateCount = ReadInt(actionTrace, "candidate_count", 0),
-                    EvaluationCount = ReadInt(actionTrace, "evaluation_count", 0),
-                    PreviewRejectCount = ReadInt(actionTrace, "preview_reject_count", 0),
+                    TraceId = trace.TraceId.ToString(),
+                    ActionId = trace.ActionId ?? "",
+                    Chosen = trace.Chosen,
+                    ScoreBucketId = trace.ScoreBucketId ?? "",
+                    MetadataFacts = new System.Collections.Generic.Dictionary<string, object>(
+                        trace.Metadata,
+                        StringComparer.Ordinal
+                    ),
+                    BlockReasons = new System.Collections.Generic.Dictionary<string, int>(
+                        trace.BlockReasons,
+                        StringComparer.Ordinal
+                    ),
+                    BlockedCount = trace.BlockedCount,
+                    CandidateCount = trace.CandidateCount,
+                    EvaluationCount = trace.EvaluationCount,
+                    PreviewRejectCount = trace.PreviewRejectCount,
                     TopCandidates = SummarizeTopCandidatesData(
-                        ReadArray(actionTrace, "top_candidates"),
+                        trace.TopCandidates,
                         topCandidateLimit
                     ),
                 }
             );
         }
-
         return summaries;
     }
 
     private List<CompactTopCandidateData> SummarizeTopCandidatesData(
-        object candidatesValue,
+        IReadOnlyList<AiCandidateSummary> candidates,
         int limit
     )
     {
         var summaries = new List<CompactTopCandidateData>();
-        if (!TryRawArray(candidatesValue, out Godot.Collections.Array candidates))
-            return summaries;
-
-        foreach (object candidateValue in candidates)
+        foreach (
+            AiCandidateSummary candidate
+            in candidates ?? System.Array.Empty<AiCandidateSummary>()
+        )
         {
-            if (!TryRawDictionary(candidateValue, out Dictionary candidate))
-                continue;
-            if (summaries.Count >= limit)
+            if (candidate == null || summaries.Count >= limit)
                 break;
-
-            CompactScoreInputData scoreSummary = SummarizeScoreInputData(
-                ReadDictionary(candidate, "score_input")
-            );
-            var candidateSummary = new CompactTopCandidateData
+            CompactScoreInputData scoreSummary = SummarizeScoreInputData(candidate.ScoreInput);
+            var summary = new CompactTopCandidateData
             {
-                Label = ReadString(candidate, "label"),
-                TotalScore = ReadInt(candidate, "total_score", scoreSummary.TotalScore),
-                PredictedDistance = candidate.ContainsKey("predicted_distance")
-                    ? ReadInt(candidate, "predicted_distance", -1)
-                    : -1,
-                Command = SummarizeTraceCommandData(
-                    ReadDictionary(candidate, "command")
+                Label = candidate.Label ?? "",
+                TotalScore = candidate.TotalScore,
+                PredictedDistance = ReadPlainInt(
+                    candidate.ExtraFields,
+                    "predicted_distance",
+                    -1
                 ),
+                Command = SummarizeTraceCommandData(candidate.Command),
                 Score = scoreSummary,
             };
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_bonus");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_penalty");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_path_cost_delta");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_base_path_cost");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_blocked_path_cost");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_current_bonus");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_candidate_bonus");
-            CopyOptionalCandidateIntData(candidateSummary, candidate, "screening_uncapped_bonus");
-            CopyOptionalCandidateStringData(candidateSummary, candidate, "screening_threat_unit_id");
+            CopyOptionalCandidateIntData(summary, candidate.ExtraFields, "screening_bonus");
+            CopyOptionalCandidateIntData(summary, candidate.ExtraFields, "screening_penalty");
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_path_cost_delta"
+            );
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_base_path_cost"
+            );
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_blocked_path_cost"
+            );
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_current_bonus"
+            );
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_candidate_bonus"
+            );
+            CopyOptionalCandidateIntData(
+                summary,
+                candidate.ExtraFields,
+                "screening_uncapped_bonus"
+            );
             CopyOptionalCandidateStringData(
-                candidateSummary,
-                candidate,
+                summary,
+                candidate.ExtraFields,
+                "screening_threat_unit_id"
+            );
+            CopyOptionalCandidateStringData(
+                summary,
+                candidate.ExtraFields,
                 "screening_protected_unit_id"
             );
-            CopyOptionalCandidateBoolData(candidateSummary, candidate, "screening_on_shortest_path");
-            CopyOptionalCandidateBoolData(candidateSummary, candidate, "screening_keeps_contact");
-            CopyOptionalCandidateBoolData(candidateSummary, candidate, "screening_can_counterattack");
-            CopyOptionalCandidateBoolData(candidateSummary, candidate, "screening_hard_block");
             CopyOptionalCandidateBoolData(
-                candidateSummary,
-                candidate,
+                summary,
+                candidate.ExtraFields,
+                "screening_on_shortest_path"
+            );
+            CopyOptionalCandidateBoolData(
+                summary,
+                candidate.ExtraFields,
+                "screening_keeps_contact"
+            );
+            CopyOptionalCandidateBoolData(
+                summary,
+                candidate.ExtraFields,
+                "screening_can_counterattack"
+            );
+            CopyOptionalCandidateBoolData(
+                summary,
+                candidate.ExtraFields,
+                "screening_hard_block"
+            );
+            CopyOptionalCandidateBoolData(
+                summary,
+                candidate.ExtraFields,
                 "screening_distance_band_capped"
             );
-            summaries.Add(candidateSummary);
+            summaries.Add(summary);
         }
-
         return summaries;
     }
 
-    private CompactCommandSummaryData SummarizeTraceCommandData(object commandValue)
+    private CompactCommandSummaryData SummarizeTraceCommandData(AiCommandSummary command)
     {
-        if (!TryRawDictionary(commandValue, out Dictionary command))
+        if (command == null)
             return new CompactCommandSummaryData();
-
         return new CompactCommandSummaryData
         {
-            CommandType = ReadString(command, "command_type"),
-            UnitId = ReadString(command, "unit_id"),
-            SkillId = ReadString(command, "skill_id"),
-            SkillVariantId = ReadString(command, "skill_variant_id"),
-            TargetUnitId = ReadString(command, "target_unit_id"),
-            TargetUnitIds = StringifyArrayList(ReadArray(command, "target_unit_ids")),
-            TargetCoord = ReadString(command, "target_coord"),
-            TargetCoords = StringifyArrayList(ReadArray(command, "target_coords")),
+            CommandType = command.CommandType ?? "",
+            UnitId = command.UnitId ?? "",
+            SkillId = command.SkillId ?? "",
+            SkillVariantId = command.SkillVariantId ?? "",
+            TargetUnitId = command.TargetUnitId ?? "",
+            TargetUnitIds = StringifyStringNames(command.TargetUnitIds),
+            TargetCoord = AsString(command.TargetCoord),
+            TargetCoords = StringifyCoords(command.TargetCoords),
         };
     }
 
-    private CompactExecutionResultData SummarizeExecutionResultData(object resultValue)
+    private CompactExecutionResultData SummarizeExecutionResultData(
+        BattleAiTraceExecutionResultProjection result
+    )
     {
-        if (!TryRawDictionary(resultValue, out Dictionary result))
+        if (result == null)
             return new CompactExecutionResultData();
-
+        var unitResults = new List<CompactUnitResultData>();
+        foreach (
+            BattleAiTraceUnitResultProjection unitResult
+            in result.UnitResults ?? System.Array.Empty<BattleAiTraceUnitResultProjection>()
+        )
+        {
+            if (unitResult != null)
+                unitResults.Add(SummarizeUnitResultData(unitResult));
+        }
         return new CompactExecutionResultData
         {
-            CommandType = ReadString(result, "command_type"),
-            SkillId = ReadString(result, "skill_id"),
-            SkillVariantId = ReadString(result, "skill_variant_id"),
-            ChangedUnitIds = StringifyArrayList(ReadArray(result, "changed_unit_ids")),
-            TrackedUnitIds = StringifyArrayList(ReadArray(result, "tracked_unit_ids")),
-            UnitResults = SummarizeUnitResultsData(ReadArray(result, "unit_results")),
-            LogLines = StringifyArrayList(ReadArray(result, "log_lines")),
-            ReportEntries = ReadArray(result, "report_entries"),
+            CommandType = result.CommandType ?? "",
+            SkillId = result.SkillId ?? "",
+            SkillVariantId = result.SkillVariantId ?? "",
+            ChangedUnitIds = new List<string>(result.ChangedUnitIds ?? System.Array.Empty<string>()),
+            TrackedUnitIds = new List<string>(result.TrackedUnitIds ?? System.Array.Empty<string>()),
+            UnitResults = unitResults,
+            LogLines = new List<string>(result.LogLines ?? System.Array.Empty<string>()),
+            ReportEntries = result.ReportEntries
+                ?? System.Array.Empty<IReadOnlyDictionary<string, object>>(),
         };
     }
 
-    private List<CompactUnitResultData> SummarizeUnitResultsData(object resultsValue)
-    {
-        var summaries = new List<CompactUnitResultData>();
-        if (!TryRawArray(resultsValue, out Godot.Collections.Array results))
-            return summaries;
-
-        foreach (object resultValue in results)
+    private CompactUnitResultData SummarizeUnitResultData(
+        BattleAiTraceUnitResultProjection result
+    ) =>
+        new()
         {
-            if (!TryRawDictionary(resultValue, out Dictionary result))
-                continue;
-
-            summaries.Add(
-                new CompactUnitResultData
-                {
-                    UnitId = ReadString(result, "unit_id"),
-                    Before = SummarizeUnitSnapshotData(ReadDictionary(result, "before")),
-                    After = SummarizeUnitSnapshotData(ReadDictionary(result, "after")),
-                    HpDelta = ReadInt(result, "hp_delta", 0),
-                    HpDamage = ReadInt(result, "hp_damage", 0),
-                    HpHealing = ReadInt(result, "hp_healing", 0),
-                    ShieldDelta = ReadInt(result, "shield_delta", 0),
-                    ShieldDamage = ReadInt(result, "shield_damage", 0),
-                    ShieldRestored = ReadInt(result, "shield_restored", 0),
-                    Killed = ReadBool(result, "killed"),
-                    Revived = ReadBool(result, "revived"),
-                    Moved = ReadBool(result, "moved"),
-                }
-            );
-        }
-
-        return summaries;
-    }
-
-    private List<CompactUnitSnapshotData> SummarizeUnitSnapshotsData(object snapshotsValue)
-    {
-        var summaries = new List<CompactUnitSnapshotData>();
-        if (!TryRawArray(snapshotsValue, out Godot.Collections.Array snapshots))
-            return summaries;
-
-        foreach (object snapshotValue in snapshots)
-        {
-            CompactUnitSnapshotData summary = SummarizeUnitSnapshotData(snapshotValue);
-            if (!summary.IsEmpty)
-                summaries.Add(summary);
-        }
-        return summaries;
-    }
-
-    private CompactUnitSnapshotData SummarizeUnitSnapshotData(object snapshotValue)
-    {
-        if (!TryRawDictionary(snapshotValue, out Dictionary snapshot))
-            return new CompactUnitSnapshotData();
-
-        return new CompactUnitSnapshotData
-        {
-            UnitId = ReadString(snapshot, "unit_id"),
-            DisplayName = ReadString(snapshot, "display_name"),
-            FactionId = ReadString(snapshot, "faction_id"),
-            Coord = ReadString(snapshot, "coord"),
-            Alive = ReadBool(snapshot, "alive"),
-            Hp = ReadInt(snapshot, "hp", 0),
-            HpMax = ReadInt(snapshot, "hp_max", 0),
-            ShieldHp = ReadInt(snapshot, "shield_hp", 0),
-            ShieldMaxHp = ReadInt(snapshot, "shield_max_hp", 0),
-            Ap = ReadInt(snapshot, "ap", 0),
-            MovePoints = ReadInt(snapshot, "move_points", 0),
+            UnitId = result?.UnitId ?? "",
+            Before = SummarizeUnitSnapshotData(result?.Before),
+            After = SummarizeUnitSnapshotData(result?.After),
+            HpDelta = result?.HpDelta ?? 0,
+            HpDamage = result?.HpDamage ?? 0,
+            HpHealing = result?.HpHealing ?? 0,
+            ShieldDelta = result?.ShieldDelta ?? 0,
+            ShieldDamage = result?.ShieldDamage ?? 0,
+            ShieldRestored = result?.ShieldRestored ?? 0,
+            Killed = result?.Killed ?? false,
+            Revived = result?.Revived ?? false,
+            Moved = result?.Moved ?? false,
         };
+
+    private List<CompactUnitSnapshotData> SummarizeUnitSnapshotsData(
+        IReadOnlyList<BattleAiTraceUnitSnapshotProjection> snapshots
+    )
+    {
+        var result = new List<CompactUnitSnapshotData>();
+        foreach (
+            BattleAiTraceUnitSnapshotProjection snapshot
+            in snapshots ?? System.Array.Empty<BattleAiTraceUnitSnapshotProjection>()
+        )
+        {
+            CompactUnitSnapshotData compact = SummarizeUnitSnapshotData(snapshot);
+            if (!compact.IsEmpty)
+                result.Add(compact);
+        }
+        return result;
     }
 
-    private CompactScoreInputData SummarizeScoreInputData(object scoreValue)
+    private static CompactUnitSnapshotData SummarizeUnitSnapshotData(
+        BattleAiTraceUnitSnapshotProjection snapshot
+    ) =>
+        new()
+        {
+            UnitId = snapshot?.UnitId ?? "",
+            DisplayName = snapshot?.DisplayName ?? "",
+            FactionId = snapshot?.FactionId ?? "",
+            Coord = snapshot?.Coord ?? "",
+            Alive = snapshot?.Alive ?? false,
+            Hp = snapshot?.Hp ?? 0,
+            HpMax = snapshot?.HpMax ?? 0,
+            ShieldHp = snapshot?.ShieldHp ?? 0,
+            ShieldMaxHp = snapshot?.ShieldMaxHp ?? 0,
+            Ap = snapshot?.Ap ?? 0,
+            MovePoints = snapshot?.MovePoints ?? 0,
+        };
+
+    private CompactScoreInputData SummarizeScoreInputData(
+        IReadOnlyDictionary<string, object> score
+    )
     {
-        if (scoreValue is BattleAiScoreInput typedScore)
-            return SummarizeScoreInputData(typedScore);
-        if (!TryRawDictionary(scoreValue, out Dictionary score))
+        if (score == null)
             return new CompactScoreInputData();
-
         return new CompactScoreInputData
         {
-            TotalScore = ReadInt(score, "total_score", 0),
-            ScoreBucketId = ReadString(score, "score_bucket_id"),
-            ScoreBucketPriority = ReadInt(score, "score_bucket_priority", 0),
-            CommandType = ReadString(score, "command_type"),
-            SkillId = ReadString(score, "skill_id"),
-            TargetCount = ReadInt(score, "target_count", 0),
-            EffectiveTargetCount = ReadInt(score, "effective_target_count", 0),
-            EnemyTargetCount = ReadInt(score, "enemy_target_count", 0),
-            AllyTargetCount = ReadInt(score, "ally_target_count", 0),
-            TargetUnitIds = StringifyArrayList(ReadArray(score, "target_unit_ids")),
-            TargetCoords = StringifyArrayList(ReadArray(score, "target_coords")),
-            EstimatedDamage = ReadInt(score, "estimated_damage", 0),
-            EstimatedHitRatePercent = ReadInt(score, "estimated_hit_rate_percent", 0),
+            TotalScore = ReadPlainInt(score, "total_score"),
+            ScoreBucketId = ReadPlainString(score, "score_bucket_id"),
+            ScoreBucketPriority = ReadPlainInt(score, "score_bucket_priority"),
+            CommandType = ReadPlainString(score, "command_type"),
+            SkillId = ReadPlainString(score, "skill_id"),
+            TargetCount = ReadPlainInt(score, "target_count"),
+            EffectiveTargetCount = ReadPlainInt(score, "effective_target_count"),
+            EnemyTargetCount = ReadPlainInt(score, "enemy_target_count"),
+            AllyTargetCount = ReadPlainInt(score, "ally_target_count"),
+            TargetUnitIds = ReadPlainStringList(score, "target_unit_ids"),
+            TargetCoords = ReadPlainStringList(score, "target_coords"),
+            EstimatedDamage = ReadPlainInt(score, "estimated_damage"),
+            EstimatedHitRatePercent = ReadPlainInt(score, "estimated_hit_rate_percent"),
             SaveEstimatesByTargetId = SummarizeSaveEstimatesByTargetIdData(
-                ReadDictionary(score, "save_estimates_by_target_id")
+                ReadPlainDictionary(score, "save_estimates_by_target_id")
             ),
-            EstimatedLethalTargetCount = ReadInt(score, "estimated_lethal_target_count", 0),
-            EstimatedLethalThreatTargetCount = ReadInt(
+            EstimatedLethalTargetCount = ReadPlainInt(
                 score,
-                "estimated_lethal_threat_target_count",
-                0
+                "estimated_lethal_target_count"
             ),
-            EstimatedLethalTargetIds = StringifyArrayList(
-                ReadArray(score, "estimated_lethal_target_ids")
+            EstimatedLethalThreatTargetCount = ReadPlainInt(
+                score,
+                "estimated_lethal_threat_target_count"
             ),
-            EstimatedLethalThreatTargetIds = StringifyArrayList(
-                ReadArray(score, "estimated_lethal_threat_target_ids")
+            EstimatedLethalTargetIds = ReadPlainStringList(
+                score,
+                "estimated_lethal_target_ids"
             ),
-            EstimatedControlTargetIds = StringifyArrayList(
-                ReadArray(score, "estimated_control_target_ids")
+            EstimatedLethalThreatTargetIds = ReadPlainStringList(
+                score,
+                "estimated_lethal_threat_target_ids"
             ),
-            EstimatedControlThreatTargetIds = StringifyArrayList(
-                ReadArray(score, "estimated_control_threat_target_ids")
+            EstimatedControlTargetIds = ReadPlainStringList(
+                score,
+                "estimated_control_target_ids"
             ),
-            HasPostActionThreatProjection = ReadBool(
+            EstimatedControlThreatTargetIds = ReadPlainStringList(
+                score,
+                "estimated_control_threat_target_ids"
+            ),
+            HasPostActionThreatProjection = ReadPlainBool(
                 score,
                 "has_post_action_threat_projection"
             ),
-            ProjectedActorCoord = ReadString(score, "projected_actor_coord"),
-            PreActionThreatUnitIds = StringifyArrayList(
-                ReadArray(score, "pre_action_threat_unit_ids")
-            ),
-            PreActionThreatCount = ReadInt(score, "pre_action_threat_count", 0),
-            PreActionThreatExpectedDamage = ReadInt(
+            ProjectedActorCoord = ReadPlainString(score, "projected_actor_coord"),
+            PreActionThreatUnitIds = ReadPlainStringList(
                 score,
-                "pre_action_threat_expected_damage",
-                0
+                "pre_action_threat_unit_ids"
             ),
-            PreActionSurvivalMargin = ReadInt(score, "pre_action_survival_margin", 0),
-            PreActionIsLethalSurvivalRisk = ReadBool(
+            PreActionThreatCount = ReadPlainInt(score, "pre_action_threat_count"),
+            PreActionThreatExpectedDamage = ReadPlainInt(
+                score,
+                "pre_action_threat_expected_damage"
+            ),
+            PreActionSurvivalMargin = ReadPlainInt(score, "pre_action_survival_margin"),
+            PreActionIsLethalSurvivalRisk = ReadPlainBool(
                 score,
                 "pre_action_is_lethal_survival_risk"
             ),
-            PostActionRemainingThreatUnitIds = StringifyArrayList(
-                ReadArray(score, "post_action_remaining_threat_unit_ids")
-            ),
-            PostActionRemainingThreatCount = ReadInt(
+            PostActionRemainingThreatUnitIds = ReadPlainStringList(
                 score,
-                "post_action_remaining_threat_count",
-                0
+                "post_action_remaining_threat_unit_ids"
             ),
-            PostActionRemainingThreatExpectedDamage = ReadInt(
+            PostActionRemainingThreatCount = ReadPlainInt(
                 score,
-                "post_action_remaining_threat_expected_damage",
-                0
+                "post_action_remaining_threat_count"
             ),
-            PostActionSurvivalMargin = ReadInt(score, "post_action_survival_margin", 0),
-            PostActionIsLethalSurvivalRisk = ReadBool(
+            PostActionRemainingThreatExpectedDamage = ReadPlainInt(
+                score,
+                "post_action_remaining_threat_expected_damage"
+            ),
+            PostActionSurvivalMargin = ReadPlainInt(
+                score,
+                "post_action_survival_margin"
+            ),
+            PostActionIsLethalSurvivalRisk = ReadPlainBool(
                 score,
                 "post_action_is_lethal_survival_risk"
             ),
-            HitPayoffScore = ReadInt(score, "hit_payoff_score", 0),
-            PositionObjectiveKind = ReadString(score, "position_objective_kind"),
-            PositionObjectiveScore = ReadInt(score, "position_objective_score", 0),
-            ResourceCostScore = ReadInt(score, "resource_cost_score", 0),
-            DistanceToPrimaryCoord = ReadInt(score, "distance_to_primary_coord", -1),
-            ApCost = ReadInt(score, "ap_cost", 0),
-            StaminaCost = ReadInt(score, "stamina_cost", 0),
-            MpCost = ReadInt(score, "mp_cost", 0),
-            AuraCost = ReadInt(score, "aura_cost", 0),
-            MoveCost = ReadInt(score, "move_cost", 0),
+            HitPayoffScore = ReadPlainInt(score, "hit_payoff_score"),
+            PositionObjectiveKind = ReadPlainString(score, "position_objective_kind"),
+            PositionObjectiveScore = ReadPlainInt(score, "position_objective_score"),
+            ResourceCostScore = ReadPlainInt(score, "resource_cost_score"),
+            DistanceToPrimaryCoord = ReadPlainInt(score, "distance_to_primary_coord", -1),
+            ApCost = ReadPlainInt(score, "ap_cost"),
+            StaminaCost = ReadPlainInt(score, "stamina_cost"),
+            MpCost = ReadPlainInt(score, "mp_cost"),
+            AuraCost = ReadPlainInt(score, "aura_cost"),
+            MoveCost = ReadPlainInt(score, "move_cost"),
         };
     }
 
@@ -528,7 +586,7 @@ public sealed class BattleSimTraceSummaryBuilder
                 ? score.command.skill_id.ToString()
                 : !string.IsNullOrEmpty(score.runtime_action_metadata?.skill_id.ToString())
                     ? score.runtime_action_metadata.skill_id.ToString()
-                    : score.skill_def?.skill_id.ToString() ?? "",
+                    : score.skill_id.ToString(),
             TargetCount = score.target_count,
             EffectiveTargetCount = score.effective_target_count,
             EnemyTargetCount = score.enemy_target_count,
@@ -580,68 +638,6 @@ public sealed class BattleSimTraceSummaryBuilder
         string,
         List<CompactSaveEstimateData>
     > SummarizeSaveEstimatesByTargetIdData(
-        object value
-    )
-    {
-        var summary = new System.Collections.Generic.Dictionary<string, List<CompactSaveEstimateData>>(
-            StringComparer.Ordinal
-        );
-        if (!TryRawDictionary(value, out Dictionary estimatesByTarget))
-            return summary;
-
-        var targetKeys = new List<object>();
-        foreach (object targetKey in estimatesByTarget.Keys)
-            targetKeys.Add(targetKey);
-        targetKeys.Sort((a, b) => string.Compare(AsString(a), AsString(b), StringComparison.Ordinal));
-
-        foreach (object targetKey in targetKeys)
-        {
-            string targetKeyStr = AsString(targetKey);
-            if (!TryRawArray(ReadValue(estimatesByTarget, targetKey, new Godot.Collections.Array()), out var estimates))
-                continue;
-
-            var compactEstimates = new List<CompactSaveEstimateData>();
-            foreach (object estimateValue in estimates)
-            {
-                if (!TryRawDictionary(estimateValue, out Dictionary estimate))
-                    continue;
-
-                compactEstimates.Add(
-                    new CompactSaveEstimateData
-                    {
-                        DamageBeforeSave = ReadInt(estimate, "damage_before_save", 0),
-                        DamageAfterSaveEstimate = ReadInt(
-                            estimate,
-                            "damage_after_save_estimate",
-                            0
-                        ),
-                        DamageOnSaveSuccess = ReadInt(estimate, "damage_on_save_success", 0),
-                        SaveSuccessRatePercent = ReadInt(
-                            estimate,
-                            "save_success_rate_percent",
-                            0
-                        ),
-                        Dc = ReadInt(estimate, "dc", 0),
-                        Ability = ReadString(estimate, "ability"),
-                        SaveTag = ReadString(estimate, "save_tag"),
-                        AdvantageState = ReadString(estimate, "advantage_state"),
-                        Immune = ReadBool(estimate, "immune"),
-                        HitCount = ReadInt(estimate, "hit_count", 1),
-                    }
-                );
-            }
-
-            if (compactEstimates.Count > 0)
-                summary[targetKeyStr] = compactEstimates;
-        }
-
-        return summary;
-    }
-
-    private System.Collections.Generic.Dictionary<
-        string,
-        List<CompactSaveEstimateData>
-    > SummarizeSaveEstimatesByTargetIdData(
         BattleAiScoreInput score
     )
     {
@@ -679,11 +675,11 @@ public sealed class BattleSimTraceSummaryBuilder
                         DamageOnSaveSuccess = estimate.DamageOnSaveSuccess,
                         SaveSuccessRatePercent = estimate.SaveSuccessRatePercent,
                         Dc = estimate.Dc,
-                        Ability = estimate.Ability.ToString(),
-                        SaveTag = estimate.SaveTag.ToString(),
-                        AdvantageState = estimate.AdvantageState.ToString(),
+                        Ability = estimate.Ability ?? "",
+                        SaveTag = estimate.SaveTag ?? "",
+                        AdvantageState = estimate.AdvantageState ?? "",
                         Immune = estimate.Immune,
-                        HitCount = estimate.HitCount,
+                        HitCount = Math.Max(estimate.HitCount, 1),
                     }
                 );
             }
@@ -695,34 +691,96 @@ public sealed class BattleSimTraceSummaryBuilder
         return summary;
     }
 
+    private System.Collections.Generic.Dictionary<
+        string,
+        List<CompactSaveEstimateData>
+    > SummarizeSaveEstimatesByTargetIdData(
+        IReadOnlyDictionary<string, object> estimatesByTarget
+    )
+    {
+        var summary = new System.Collections.Generic.Dictionary<
+            string,
+            List<CompactSaveEstimateData>
+        >(StringComparer.Ordinal);
+        if (estimatesByTarget == null)
+            return summary;
+        var targetKeys = new List<string>(estimatesByTarget.Keys);
+        targetKeys.Sort(StringComparer.Ordinal);
+        foreach (string targetId in targetKeys)
+        {
+            if (
+                string.IsNullOrEmpty(targetId)
+                || !estimatesByTarget.TryGetValue(targetId, out object rawEstimates)
+                || rawEstimates is not System.Collections.IEnumerable estimates
+                || rawEstimates is string
+            )
+            {
+                continue;
+            }
+            var compactEstimates = new List<CompactSaveEstimateData>();
+            foreach (object rawEstimate in estimates)
+            {
+                if (rawEstimate is not IReadOnlyDictionary<string, object> estimate)
+                    continue;
+                compactEstimates.Add(
+                    new CompactSaveEstimateData
+                    {
+                        DamageBeforeSave = ReadPlainInt(estimate, "damage_before_save"),
+                        DamageAfterSaveEstimate = ReadPlainInt(
+                            estimate,
+                            "damage_after_save_estimate"
+                        ),
+                        DamageOnSaveSuccess = ReadPlainInt(
+                            estimate,
+                            "damage_on_save_success"
+                        ),
+                        SaveSuccessRatePercent = ReadPlainInt(
+                            estimate,
+                            "save_success_rate_percent"
+                        ),
+                        Dc = ReadPlainInt(estimate, "dc"),
+                        Ability = ReadPlainString(estimate, "ability"),
+                        SaveTag = ReadPlainString(estimate, "save_tag"),
+                        AdvantageState = ReadPlainString(estimate, "advantage_state"),
+                        Immune = ReadPlainBool(estimate, "immune"),
+                        HitCount = ReadPlainInt(estimate, "hit_count", 1),
+                    }
+                );
+            }
+            if (compactEstimates.Count > 0)
+                summary[targetId] = compactEstimates;
+        }
+        return summary;
+    }
+
     private static void CopyOptionalCandidateIntData(
         CompactTopCandidateData target,
-        Dictionary source,
+        IReadOnlyDictionary<string, object> source,
         string key
     )
     {
-        if (source.ContainsKey(key))
-            target.OptionalInts[key] = (int)source[key];
+        if (source != null && source.ContainsKey(key))
+            target.OptionalInts[key] = ReadPlainInt(source, key);
     }
 
     private static void CopyOptionalCandidateStringData(
         CompactTopCandidateData target,
-        Dictionary source,
+        IReadOnlyDictionary<string, object> source,
         string key
     )
     {
-        if (source.ContainsKey(key))
-            target.OptionalStrings[key] = source[key].ToString();
+        if (source != null && source.ContainsKey(key))
+            target.OptionalStrings[key] = ReadPlainString(source, key);
     }
 
     private static void CopyOptionalCandidateBoolData(
         CompactTopCandidateData target,
-        Dictionary source,
+        IReadOnlyDictionary<string, object> source,
         string key
     )
     {
-        if (source.ContainsKey(key))
-            target.OptionalBools[key] = (bool)source[key];
+        if (source != null && source.ContainsKey(key))
+            target.OptionalBools[key] = ReadPlainBool(source, key);
     }
 
     private static void IncrementNestedCounterData(
@@ -752,15 +810,6 @@ public sealed class BattleSimTraceSummaryBuilder
         inner[innerKey] = (inner.TryGetValue(innerKey, out int existing) ? existing : 0) + amount;
     }
 
-    private List<string> StringifyArrayList(object value)
-    {
-        var results = new List<string>();
-        if (!TryRawArray(value, out Godot.Collections.Array values))
-            return results;
-        foreach (object entry in values)
-            results.Add(AsString(entry));
-        return results;
-    }
 
     private List<string> StringifyStringNames(IEnumerable<StringName> values)
     {
@@ -778,84 +827,6 @@ public sealed class BattleSimTraceSummaryBuilder
         return results;
     }
 
-    private static Godot.Collections.Array ToGodotArray<T>(IEnumerable<T> entries)
-        where T : IGodotDictionaryConvertible
-    {
-        var result = new Godot.Collections.Array();
-        if (entries == null)
-            return result;
-        foreach (T entry in entries)
-            result.Add(entry?.ToDictionary() ?? new Dictionary());
-        return result;
-    }
-
-    private static Godot.Collections.Array ToGodotArray(IEnumerable<string> entries)
-    {
-        var result = new Godot.Collections.Array();
-        if (entries == null)
-            return result;
-        foreach (string entry in entries)
-            result.Add(entry ?? "");
-        return result;
-    }
-
-    private static Godot.Collections.Dictionary ToStringIntDictionary(
-        IReadOnlyDictionary<string, int> source
-    )
-    {
-        var result = new Dictionary();
-        if (source == null)
-            return result;
-        foreach (KeyValuePair<string, int> entry in source)
-            result[entry.Key] = entry.Value;
-        return result;
-    }
-
-    private static System.Collections.Generic.Dictionary<string, int> ToStringIntMap(
-        Godot.Collections.Dictionary source
-    )
-    {
-        var result = new System.Collections.Generic.Dictionary<string, int>(
-            StringComparer.Ordinal
-        );
-        if (source == null)
-            return result;
-        foreach (Variant key in source.Keys)
-            result[key.ToString()] = ReadInt(source, key, 0);
-        return result;
-    }
-
-    private static Godot.Collections.Dictionary ToNestedStringIntDictionary(
-        IReadOnlyDictionary<string, System.Collections.Generic.Dictionary<string, int>> source
-    )
-    {
-        var result = new Dictionary();
-        if (source == null)
-            return result;
-        foreach (
-            KeyValuePair<string, System.Collections.Generic.Dictionary<string, int>> entry in source
-        )
-            result[entry.Key] = ToStringIntDictionary(entry.Value);
-        return result;
-    }
-
-    private static Godot.Collections.Dictionary ToSaveEstimatesDictionary(
-        IReadOnlyDictionary<string, List<CompactSaveEstimateData>> source
-    )
-    {
-        var result = new Dictionary();
-        if (source == null)
-            return result;
-        foreach (KeyValuePair<string, List<CompactSaveEstimateData>> entry in source)
-            result[entry.Key] = ToGodotArray(entry.Value);
-        return result;
-    }
-
-    private interface IGodotDictionaryConvertible
-    {
-        Dictionary ToDictionary();
-    }
-
     public sealed class TraceSummaryOptionsData
     {
         public string FocusFactionId { get; set; } = DefaultFocusFactionId;
@@ -867,17 +838,17 @@ public sealed class BattleSimTraceSummaryBuilder
 
         internal int ResolvedTopCandidateLimit => Mathf.Max(TopCandidateLimit, 0);
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["full_trace_embedded_in_source_report"] = true,
-                ["focus_faction_id"] = ResolvedFocusFactionId,
-                ["focus_turns_keep_action_trace_summaries"] = true,
-                ["top_candidates_per_action_trace"] = ResolvedTopCandidateLimit,
-            };
+
+        internal System.Collections.Generic.Dictionary<string, object> ToPlainDictionary() =>
+            PlainMap(
+                ("full_trace_embedded_in_source_report", true),
+                ("focus_faction_id", ResolvedFocusFactionId),
+                ("focus_turns_keep_action_trace_summaries", true),
+                ("top_candidates_per_action_trace", ResolvedTopCandidateLimit)
+            );
     }
 
-    private sealed class CompactRunTraceData : IGodotDictionaryConvertible
+    private sealed class CompactRunTraceData
     {
         public string ProfileId { get; set; } = "";
         public int RunIndex { get; set; }
@@ -888,8 +859,10 @@ public sealed class BattleSimTraceSummaryBuilder
         public int Iterations { get; set; }
         public int TimelineSteps { get; set; }
         public int TraceCount { get; set; }
-        public Dictionary Factions { get; set; } = new();
-        public Dictionary Units { get; set; } = new();
+        public System.Collections.Generic.Dictionary<string, object> FactionFacts { get; } =
+            new(StringComparer.Ordinal);
+        public System.Collections.Generic.Dictionary<string, object> UnitFacts { get; } =
+            new(StringComparer.Ordinal);
         public System.Collections.Generic.Dictionary<
             string,
             System.Collections.Generic.Dictionary<string, int>
@@ -909,30 +882,38 @@ public sealed class BattleSimTraceSummaryBuilder
         public List<CompactTurnTraceData> FocusTurns { get; } = new();
         public List<CompactTurnTraceData> FocusWaitTurns { get; } = new();
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["profile_id"] = ProfileId,
-                ["run_index"] = RunIndex,
-                ["seed"] = Seed,
-                ["battle_ended"] = BattleEnded,
-                ["winner_faction_id"] = WinnerFactionId,
-                ["final_tu"] = FinalTu,
-                ["iterations"] = Iterations,
-                ["timeline_steps"] = TimelineSteps,
-                ["trace_count"] = TraceCount,
-                ["factions"] = Factions,
-                ["units"] = Units,
-                ["action_counts_by_faction"] = ToNestedStringIntDictionary(ActionCountsByFaction),
-                ["command_counts_by_faction"] = ToNestedStringIntDictionary(CommandCountsByFaction),
-                ["wait_counts_by_faction"] = ToNestedStringIntDictionary(WaitCountsByFaction),
-                ["block_reasons_by_faction"] = ToNestedStringIntDictionary(BlockReasonsByFaction),
-                ["focus_turns"] = ToGodotArray(FocusTurns),
-                ["focus_wait_turns"] = ToGodotArray(FocusWaitTurns),
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
+        {
+            var focusTurns = new List<object>();
+            foreach (CompactTurnTraceData turn in FocusTurns)
+                focusTurns.Add(turn.ToPlainDictionary());
+            var focusWaitTurns = new List<object>();
+            foreach (CompactTurnTraceData turn in FocusWaitTurns)
+                focusWaitTurns.Add(turn.ToPlainDictionary());
+            return PlainMap(
+                ("profile_id", ProfileId),
+                ("run_index", RunIndex),
+                ("seed", Seed),
+                ("battle_ended", BattleEnded),
+                ("winner_faction_id", WinnerFactionId),
+                ("final_tu", FinalTu),
+                ("iterations", Iterations),
+                ("timeline_steps", TimelineSteps),
+                ("trace_count", TraceCount),
+                ("factions", FactionFacts),
+                ("units", UnitFacts),
+                ("action_counts_by_faction", BoxNestedIntMap(ActionCountsByFaction)),
+                ("command_counts_by_faction", BoxNestedIntMap(CommandCountsByFaction)),
+                ("wait_counts_by_faction", BoxNestedIntMap(WaitCountsByFaction)),
+                ("block_reasons_by_faction", BoxNestedIntMap(BlockReasonsByFaction)),
+                ("focus_turns", focusTurns),
+                ("focus_wait_turns", focusWaitTurns)
+            );
+        }
     }
 
-    private sealed class CompactTurnTraceData : IGodotDictionaryConvertible
+    private sealed class CompactTurnTraceData
     {
         public int TurnStartedTu { get; set; }
         public string UnitId { get; set; } = "";
@@ -948,32 +929,41 @@ public sealed class BattleSimTraceSummaryBuilder
         public CompactExecutionResultData ExecutionResult { get; set; } = new();
         public List<CompactActionTraceData> ActionTraces { get; set; } = new();
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["turn_started_tu"] = TurnStartedTu,
-                ["unit_id"] = UnitId,
-                ["unit_name"] = UnitName,
-                ["faction_id"] = FactionId,
-                ["brain_id"] = BrainId,
-                ["state_id"] = StateId,
-                ["action_id"] = ActionId,
-                ["reason_text"] = ReasonText,
-                ["command"] = Command.ToDictionary(),
-                ["score"] = Score.ToDictionary(),
-                ["decision_target_snapshots"] = ToGodotArray(DecisionTargetSnapshots),
-                ["execution_result"] = ExecutionResult.ToDictionary(),
-                ["action_traces"] = ToGodotArray(ActionTraces),
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
+        {
+            var snapshots = new List<object>();
+            foreach (CompactUnitSnapshotData snapshot in DecisionTargetSnapshots)
+                snapshots.Add(snapshot.ToPlainDictionary());
+            var actionTraces = new List<object>();
+            foreach (CompactActionTraceData trace in ActionTraces)
+                actionTraces.Add(trace.ToPlainDictionary());
+            return PlainMap(
+                ("turn_started_tu", TurnStartedTu),
+                ("unit_id", UnitId),
+                ("unit_name", UnitName),
+                ("faction_id", FactionId),
+                ("brain_id", BrainId),
+                ("state_id", StateId),
+                ("action_id", ActionId),
+                ("reason_text", ReasonText),
+                ("command", Command.ToPlainDictionary()),
+                ("score", Score.ToPlainDictionary()),
+                ("decision_target_snapshots", snapshots),
+                ("execution_result", ExecutionResult.ToPlainDictionary()),
+                ("action_traces", actionTraces)
+            );
+        }
     }
 
-    private sealed class CompactActionTraceData : IGodotDictionaryConvertible
+    private sealed class CompactActionTraceData
     {
         public string TraceId { get; set; } = "";
         public string ActionId { get; set; } = "";
         public bool Chosen { get; set; }
         public string ScoreBucketId { get; set; } = "";
-        public Dictionary Metadata { get; set; } = new();
+        public System.Collections.Generic.Dictionary<string, object> MetadataFacts { get; set; } =
+            new(StringComparer.Ordinal);
         public System.Collections.Generic.Dictionary<string, int> BlockReasons { get; set; } =
             new(StringComparer.Ordinal);
         public int BlockedCount { get; set; }
@@ -982,24 +972,29 @@ public sealed class BattleSimTraceSummaryBuilder
         public int PreviewRejectCount { get; set; }
         public List<CompactTopCandidateData> TopCandidates { get; set; } = new();
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["trace_id"] = TraceId,
-                ["action_id"] = ActionId,
-                ["chosen"] = Chosen,
-                ["score_bucket_id"] = ScoreBucketId,
-                ["metadata"] = Metadata,
-                ["block_reasons"] = ToStringIntDictionary(BlockReasons),
-                ["blocked_count"] = BlockedCount,
-                ["candidate_count"] = CandidateCount,
-                ["evaluation_count"] = EvaluationCount,
-                ["preview_reject_count"] = PreviewRejectCount,
-                ["top_candidates"] = ToGodotArray(TopCandidates),
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
+        {
+            var candidates = new List<object>();
+            foreach (CompactTopCandidateData candidate in TopCandidates)
+                candidates.Add(candidate.ToPlainDictionary());
+            return PlainMap(
+                ("trace_id", TraceId),
+                ("action_id", ActionId),
+                ("chosen", Chosen),
+                ("score_bucket_id", ScoreBucketId),
+                ("metadata", MetadataFacts),
+                ("block_reasons", BoxIntMap(BlockReasons)),
+                ("blocked_count", BlockedCount),
+                ("candidate_count", CandidateCount),
+                ("evaluation_count", EvaluationCount),
+                ("preview_reject_count", PreviewRejectCount),
+                ("top_candidates", candidates)
+            );
+        }
     }
 
-    private sealed class CompactTopCandidateData : IGodotDictionaryConvertible
+    private sealed class CompactTopCandidateData
     {
         public string Label { get; set; } = "";
         public int TotalScore { get; set; }
@@ -1013,27 +1008,27 @@ public sealed class BattleSimTraceSummaryBuilder
         public System.Collections.Generic.Dictionary<string, bool> OptionalBools { get; } =
             new(StringComparer.Ordinal);
 
-        public Dictionary ToDictionary()
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
         {
-            var payload = new Dictionary
-            {
-                ["label"] = Label,
-                ["total_score"] = TotalScore,
-                ["predicted_distance"] = PredictedDistance,
-                ["command"] = Command.ToDictionary(),
-                ["score"] = Score.ToDictionary(),
-            };
-            foreach (KeyValuePair<string, int> entry in OptionalInts)
-                payload[entry.Key] = entry.Value;
-            foreach (KeyValuePair<string, string> entry in OptionalStrings)
-                payload[entry.Key] = entry.Value;
-            foreach (KeyValuePair<string, bool> entry in OptionalBools)
-                payload[entry.Key] = entry.Value;
-            return payload;
+            System.Collections.Generic.Dictionary<string, object> result = PlainMap(
+                ("label", Label),
+                ("total_score", TotalScore),
+                ("predicted_distance", PredictedDistance),
+                ("command", Command.ToPlainDictionary()),
+                ("score", Score.ToPlainDictionary())
+            );
+            foreach ((string key, int value) in OptionalInts)
+                result[key] = value;
+            foreach ((string key, string value) in OptionalStrings)
+                result[key] = value;
+            foreach ((string key, bool value) in OptionalBools)
+                result[key] = value;
+            return result;
         }
     }
 
-    private sealed class CompactCommandSummaryData : IGodotDictionaryConvertible
+    private sealed class CompactCommandSummaryData
     {
         public string CommandType { get; set; } = "";
         public string UnitId { get; set; } = "";
@@ -1044,21 +1039,21 @@ public sealed class BattleSimTraceSummaryBuilder
         public string TargetCoord { get; set; } = "";
         public List<string> TargetCoords { get; set; } = new();
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["command_type"] = CommandType,
-                ["unit_id"] = UnitId,
-                ["skill_id"] = SkillId,
-                ["skill_variant_id"] = SkillVariantId,
-                ["target_unit_id"] = TargetUnitId,
-                ["target_unit_ids"] = ToGodotArray(TargetUnitIds),
-                ["target_coord"] = TargetCoord,
-                ["target_coords"] = ToGodotArray(TargetCoords),
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary() =>
+            PlainMap(
+                ("command_type", CommandType),
+                ("unit_id", UnitId),
+                ("skill_id", SkillId),
+                ("skill_variant_id", SkillVariantId),
+                ("target_unit_id", TargetUnitId),
+                ("target_unit_ids", new List<string>(TargetUnitIds)),
+                ("target_coord", TargetCoord),
+                ("target_coords", new List<string>(TargetCoords))
+            );
     }
 
-    private sealed class CompactExecutionResultData : IGodotDictionaryConvertible
+    private sealed class CompactExecutionResultData
     {
         public string CommandType { get; set; } = "";
         public string SkillId { get; set; } = "";
@@ -1067,23 +1062,37 @@ public sealed class BattleSimTraceSummaryBuilder
         public List<string> TrackedUnitIds { get; set; } = new();
         public List<CompactUnitResultData> UnitResults { get; set; } = new();
         public List<string> LogLines { get; set; } = new();
-        public Godot.Collections.Array ReportEntries { get; set; } = new();
+        public IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntries { get; set; } =
+            System.Array.Empty<IReadOnlyDictionary<string, object>>();
 
-        public Dictionary ToDictionary() =>
-            new()
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
+        {
+            var unitResults = new List<object>();
+            foreach (CompactUnitResultData unitResult in UnitResults)
+                unitResults.Add(unitResult.ToPlainDictionary());
+            var reportEntries = new List<object>();
+            foreach (
+                IReadOnlyDictionary<string, object> reportEntry
+                in ReportEntries ?? System.Array.Empty<IReadOnlyDictionary<string, object>>()
+            )
             {
-                ["command_type"] = CommandType,
-                ["skill_id"] = SkillId,
-                ["skill_variant_id"] = SkillVariantId,
-                ["changed_unit_ids"] = ToGodotArray(ChangedUnitIds),
-                ["tracked_unit_ids"] = ToGodotArray(TrackedUnitIds),
-                ["unit_results"] = ToGodotArray(UnitResults),
-                ["log_lines"] = ToGodotArray(LogLines),
-                ["report_entries"] = ReportEntries,
-            };
+                reportEntries.Add(reportEntry ?? PlainMap());
+            }
+            return PlainMap(
+                ("command_type", CommandType),
+                ("skill_id", SkillId),
+                ("skill_variant_id", SkillVariantId),
+                ("changed_unit_ids", new List<string>(ChangedUnitIds)),
+                ("tracked_unit_ids", new List<string>(TrackedUnitIds)),
+                ("unit_results", unitResults),
+                ("log_lines", new List<string>(LogLines)),
+                ("report_entries", reportEntries)
+            );
+        }
     }
 
-    private sealed class CompactUnitResultData : IGodotDictionaryConvertible
+    private sealed class CompactUnitResultData
     {
         public string UnitId { get; set; } = "";
         public CompactUnitSnapshotData Before { get; set; } = new();
@@ -1098,25 +1107,25 @@ public sealed class BattleSimTraceSummaryBuilder
         public bool Revived { get; set; }
         public bool Moved { get; set; }
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["unit_id"] = UnitId,
-                ["before"] = Before.ToDictionary(),
-                ["after"] = After.ToDictionary(),
-                ["hp_delta"] = HpDelta,
-                ["hp_damage"] = HpDamage,
-                ["hp_healing"] = HpHealing,
-                ["shield_delta"] = ShieldDelta,
-                ["shield_damage"] = ShieldDamage,
-                ["shield_restored"] = ShieldRestored,
-                ["killed"] = Killed,
-                ["revived"] = Revived,
-                ["moved"] = Moved,
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary() =>
+            PlainMap(
+                ("unit_id", UnitId),
+                ("before", Before.ToPlainDictionary()),
+                ("after", After.ToPlainDictionary()),
+                ("hp_delta", HpDelta),
+                ("hp_damage", HpDamage),
+                ("hp_healing", HpHealing),
+                ("shield_delta", ShieldDelta),
+                ("shield_damage", ShieldDamage),
+                ("shield_restored", ShieldRestored),
+                ("killed", Killed),
+                ("revived", Revived),
+                ("moved", Moved)
+            );
     }
 
-    private sealed class CompactUnitSnapshotData : IGodotDictionaryConvertible
+    private sealed class CompactUnitSnapshotData
     {
         public string UnitId { get; set; } = "";
         public string DisplayName { get; set; } = "";
@@ -1131,24 +1140,24 @@ public sealed class BattleSimTraceSummaryBuilder
         public int MovePoints { get; set; }
         public bool IsEmpty => string.IsNullOrEmpty(UnitId) && string.IsNullOrEmpty(DisplayName);
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["unit_id"] = UnitId,
-                ["display_name"] = DisplayName,
-                ["faction_id"] = FactionId,
-                ["coord"] = Coord,
-                ["alive"] = Alive,
-                ["hp"] = Hp,
-                ["hp_max"] = HpMax,
-                ["shield_hp"] = ShieldHp,
-                ["shield_max_hp"] = ShieldMaxHp,
-                ["ap"] = Ap,
-                ["move_points"] = MovePoints,
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary() =>
+            PlainMap(
+                ("unit_id", UnitId),
+                ("display_name", DisplayName),
+                ("faction_id", FactionId),
+                ("coord", Coord),
+                ("alive", Alive),
+                ("hp", Hp),
+                ("hp_max", HpMax),
+                ("shield_hp", ShieldHp),
+                ("shield_max_hp", ShieldMaxHp),
+                ("ap", Ap),
+                ("move_points", MovePoints)
+            );
     }
 
-    private sealed class CompactScoreInputData : IGodotDictionaryConvertible
+    private sealed class CompactScoreInputData
     {
         public int TotalScore { get; set; }
         public string ScoreBucketId { get; set; } = "";
@@ -1196,55 +1205,79 @@ public sealed class BattleSimTraceSummaryBuilder
         public int AuraCost { get; set; }
         public int MoveCost { get; set; }
 
-        public Dictionary ToDictionary() =>
-            new()
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary()
+        {
+            var saveEstimates = new System.Collections.Generic.Dictionary<string, object>(
+                StringComparer.Ordinal
+            );
+            foreach ((string targetId, List<CompactSaveEstimateData> estimates) in SaveEstimatesByTargetId)
             {
-                ["total_score"] = TotalScore,
-                ["score_bucket_id"] = ScoreBucketId,
-                ["score_bucket_priority"] = ScoreBucketPriority,
-                ["command_type"] = CommandType,
-                ["skill_id"] = SkillId,
-                ["target_count"] = TargetCount,
-                ["effective_target_count"] = EffectiveTargetCount,
-                ["enemy_target_count"] = EnemyTargetCount,
-                ["ally_target_count"] = AllyTargetCount,
-                ["target_unit_ids"] = ToGodotArray(TargetUnitIds),
-                ["target_coords"] = ToGodotArray(TargetCoords),
-                ["estimated_damage"] = EstimatedDamage,
-                ["estimated_hit_rate_percent"] = EstimatedHitRatePercent,
-                ["save_estimates_by_target_id"] = ToSaveEstimatesDictionary(SaveEstimatesByTargetId),
-                ["estimated_lethal_target_count"] = EstimatedLethalTargetCount,
-                ["estimated_lethal_threat_target_count"] = EstimatedLethalThreatTargetCount,
-                ["estimated_lethal_target_ids"] = ToGodotArray(EstimatedLethalTargetIds),
-                ["estimated_lethal_threat_target_ids"] = ToGodotArray(EstimatedLethalThreatTargetIds),
-                ["estimated_control_target_ids"] = ToGodotArray(EstimatedControlTargetIds),
-                ["estimated_control_threat_target_ids"] = ToGodotArray(EstimatedControlThreatTargetIds),
-                ["has_post_action_threat_projection"] = HasPostActionThreatProjection,
-                ["projected_actor_coord"] = ProjectedActorCoord,
-                ["pre_action_threat_unit_ids"] = ToGodotArray(PreActionThreatUnitIds),
-                ["pre_action_threat_count"] = PreActionThreatCount,
-                ["pre_action_threat_expected_damage"] = PreActionThreatExpectedDamage,
-                ["pre_action_survival_margin"] = PreActionSurvivalMargin,
-                ["pre_action_is_lethal_survival_risk"] = PreActionIsLethalSurvivalRisk,
-                ["post_action_remaining_threat_unit_ids"] = ToGodotArray(PostActionRemainingThreatUnitIds),
-                ["post_action_remaining_threat_count"] = PostActionRemainingThreatCount,
-                ["post_action_remaining_threat_expected_damage"] = PostActionRemainingThreatExpectedDamage,
-                ["post_action_survival_margin"] = PostActionSurvivalMargin,
-                ["post_action_is_lethal_survival_risk"] = PostActionIsLethalSurvivalRisk,
-                ["hit_payoff_score"] = HitPayoffScore,
-                ["position_objective_kind"] = PositionObjectiveKind,
-                ["position_objective_score"] = PositionObjectiveScore,
-                ["resource_cost_score"] = ResourceCostScore,
-                ["distance_to_primary_coord"] = DistanceToPrimaryCoord,
-                ["ap_cost"] = ApCost,
-                ["stamina_cost"] = StaminaCost,
-                ["mp_cost"] = MpCost,
-                ["aura_cost"] = AuraCost,
-                ["move_cost"] = MoveCost,
-            };
+                var values = new List<object>();
+                foreach (CompactSaveEstimateData estimate in estimates)
+                    values.Add(estimate.ToPlainDictionary());
+                saveEstimates[targetId] = values;
+            }
+            return PlainMap(
+                ("total_score", TotalScore),
+                ("score_bucket_id", ScoreBucketId),
+                ("score_bucket_priority", ScoreBucketPriority),
+                ("command_type", CommandType),
+                ("skill_id", SkillId),
+                ("target_count", TargetCount),
+                ("effective_target_count", EffectiveTargetCount),
+                ("enemy_target_count", EnemyTargetCount),
+                ("ally_target_count", AllyTargetCount),
+                ("target_unit_ids", new List<string>(TargetUnitIds)),
+                ("target_coords", new List<string>(TargetCoords)),
+                ("estimated_damage", EstimatedDamage),
+                ("estimated_hit_rate_percent", EstimatedHitRatePercent),
+                ("save_estimates_by_target_id", saveEstimates),
+                ("estimated_lethal_target_count", EstimatedLethalTargetCount),
+                ("estimated_lethal_threat_target_count", EstimatedLethalThreatTargetCount),
+                ("estimated_lethal_target_ids", new List<string>(EstimatedLethalTargetIds)),
+                (
+                    "estimated_lethal_threat_target_ids",
+                    new List<string>(EstimatedLethalThreatTargetIds)
+                ),
+                ("estimated_control_target_ids", new List<string>(EstimatedControlTargetIds)),
+                (
+                    "estimated_control_threat_target_ids",
+                    new List<string>(EstimatedControlThreatTargetIds)
+                ),
+                ("has_post_action_threat_projection", HasPostActionThreatProjection),
+                ("projected_actor_coord", ProjectedActorCoord),
+                ("pre_action_threat_unit_ids", new List<string>(PreActionThreatUnitIds)),
+                ("pre_action_threat_count", PreActionThreatCount),
+                ("pre_action_threat_expected_damage", PreActionThreatExpectedDamage),
+                ("pre_action_survival_margin", PreActionSurvivalMargin),
+                ("pre_action_is_lethal_survival_risk", PreActionIsLethalSurvivalRisk),
+                (
+                    "post_action_remaining_threat_unit_ids",
+                    new List<string>(PostActionRemainingThreatUnitIds)
+                ),
+                ("post_action_remaining_threat_count", PostActionRemainingThreatCount),
+                (
+                    "post_action_remaining_threat_expected_damage",
+                    PostActionRemainingThreatExpectedDamage
+                ),
+                ("post_action_survival_margin", PostActionSurvivalMargin),
+                ("post_action_is_lethal_survival_risk", PostActionIsLethalSurvivalRisk),
+                ("hit_payoff_score", HitPayoffScore),
+                ("position_objective_kind", PositionObjectiveKind),
+                ("position_objective_score", PositionObjectiveScore),
+                ("resource_cost_score", ResourceCostScore),
+                ("distance_to_primary_coord", DistanceToPrimaryCoord),
+                ("ap_cost", ApCost),
+                ("stamina_cost", StaminaCost),
+                ("mp_cost", MpCost),
+                ("aura_cost", AuraCost),
+                ("move_cost", MoveCost)
+            );
+        }
     }
 
-    private sealed class CompactSaveEstimateData : IGodotDictionaryConvertible
+    private sealed class CompactSaveEstimateData
     {
         public int DamageBeforeSave { get; set; }
         public int DamageAfterSaveEstimate { get; set; }
@@ -1257,20 +1290,133 @@ public sealed class BattleSimTraceSummaryBuilder
         public bool Immune { get; set; }
         public int HitCount { get; set; } = 1;
 
-        public Dictionary ToDictionary() =>
-            new()
-            {
-                ["damage_before_save"] = DamageBeforeSave,
-                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
-                ["damage_on_save_success"] = DamageOnSaveSuccess,
-                ["save_success_rate_percent"] = SaveSuccessRatePercent,
-                ["dc"] = Dc,
-                ["ability"] = Ability,
-                ["save_tag"] = SaveTag,
-                ["advantage_state"] = AdvantageState,
-                ["immune"] = Immune,
-                ["hit_count"] = HitCount,
-            };
+
+        public System.Collections.Generic.Dictionary<string, object> ToPlainDictionary() =>
+            PlainMap(
+                ("damage_before_save", DamageBeforeSave),
+                ("damage_after_save_estimate", DamageAfterSaveEstimate),
+                ("damage_on_save_success", DamageOnSaveSuccess),
+                ("save_success_rate_percent", SaveSuccessRatePercent),
+                ("dc", Dc),
+                ("ability", Ability),
+                ("save_tag", SaveTag),
+                ("advantage_state", AdvantageState),
+                ("immune", Immune),
+                ("hit_count", HitCount)
+            );
+    }
+
+    private static System.Collections.Generic.Dictionary<string, object> PlainMap(
+        params (string Key, object Value)[] entries
+    )
+    {
+        var result = new System.Collections.Generic.Dictionary<string, object>(
+            StringComparer.Ordinal
+        );
+        foreach ((string key, object value) in entries)
+            result[key] = value;
+        return result;
+    }
+
+    private static System.Collections.Generic.Dictionary<string, object> BoxIntMap(
+        IReadOnlyDictionary<string, int> source
+    )
+    {
+        var result = new System.Collections.Generic.Dictionary<string, object>(
+            StringComparer.Ordinal
+        );
+        if (source != null)
+            foreach ((string key, int value) in source)
+                result[key] = value;
+        return result;
+    }
+
+    private static System.Collections.Generic.Dictionary<string, object> BoxNestedIntMap(
+        IReadOnlyDictionary<
+            string,
+            System.Collections.Generic.Dictionary<string, int>
+        > source
+    )
+    {
+        var result = new System.Collections.Generic.Dictionary<string, object>(
+            StringComparer.Ordinal
+        );
+        if (source != null)
+            foreach ((string key, System.Collections.Generic.Dictionary<string, int> value) in source)
+                result[key] = BoxIntMap(value);
+        return result;
+    }
+
+    private static object ReadPlainObject(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    ) =>
+        source != null && source.TryGetValue(key, out object value) ? value : null;
+
+    private static IReadOnlyDictionary<string, object> ReadPlainDictionary(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    ) => ReadPlainObject(source, key) as IReadOnlyDictionary<string, object>;
+
+    private static string ReadPlainString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    )
+    {
+        object value = ReadPlainObject(source, key);
+        return value switch
+        {
+            null => fallback,
+            string text => text,
+            StringName name => name.ToString(),
+            _ => value.ToString() ?? fallback,
+        };
+    }
+
+    private static int ReadPlainInt(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        int fallback = 0
+    )
+    {
+        object value = ReadPlainObject(source, key);
+        return value switch
+        {
+            int number => number,
+            long number => (int)number,
+            float number => (int)number,
+            double number => (int)number,
+            _ => int.TryParse(value?.ToString(), out int parsed) ? parsed : fallback,
+        };
+    }
+
+    private static bool ReadPlainBool(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        bool fallback = false
+    )
+    {
+        object value = ReadPlainObject(source, key);
+        return value switch
+        {
+            bool flag => flag,
+            _ => bool.TryParse(value?.ToString(), out bool parsed) ? parsed : fallback,
+        };
+    }
+
+    private List<string> ReadPlainStringList(
+        IReadOnlyDictionary<string, object> source,
+        string key
+    )
+    {
+        var result = new List<string>();
+        object raw = ReadPlainObject(source, key);
+        if (raw is not System.Collections.IEnumerable values || raw is string)
+            return result;
+        foreach (object value in values)
+            result.Add(AsString(value));
+        return result;
     }
 
     private string AsString(object rawValue)
@@ -1283,247 +1429,5 @@ public sealed class BattleSimTraceSummaryBuilder
         };
     }
 
-    private static object ReadValue(Dictionary source, object key, object fallback = null)
-    {
-        if (
-            source != null
-            && key != null
-            && TryGetVariantKey(key, out Variant variantKey)
-            && source.ContainsKey(variantKey)
-        )
-        {
-            return source[variantKey];
-        }
-        return fallback;
-    }
-
-    private static bool TryGetVariantKey(object key, out Variant variantKey)
-    {
-        switch (key)
-        {
-            case Variant value:
-                variantKey = value;
-                return true;
-            case string text:
-                variantKey = text;
-                return true;
-            case StringName stringName:
-                variantKey = stringName;
-                return true;
-            case int intValue:
-                variantKey = intValue;
-                return true;
-            case long longValue:
-                variantKey = longValue;
-                return true;
-            case bool boolValue:
-                variantKey = boolValue;
-                return true;
-            case Vector2I vectorValue:
-                variantKey = vectorValue;
-                return true;
-            default:
-                variantKey = default;
-                return false;
-        }
-    }
-
-    private string ReadString(Dictionary source, string key, string fallback = "")
-    {
-        return AsString(ReadValue(source, key, fallback));
-    }
-
-    private static int ReadInt(Dictionary source, object key, int fallback = 0)
-    {
-        object rawValue = ReadValue(source, key, fallback);
-        return rawValue switch
-        {
-            Variant value => value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32(),
-            int intValue => intValue,
-            long longValue => (int)longValue,
-            float floatValue => (int)floatValue,
-            double doubleValue => (int)doubleValue,
-            _ => int.TryParse(rawValue?.ToString(), out int parsed) ? parsed : fallback,
-        };
-    }
-
-    private static bool ReadBool(Dictionary source, object key, bool fallback = false)
-    {
-        object rawValue = ReadValue(source, key, fallback);
-        return rawValue switch
-        {
-            Variant value => value.VariantType == Variant.Type.Nil ? fallback : value.AsBool(),
-            bool boolValue => boolValue,
-            _ => bool.TryParse(rawValue?.ToString(), out bool parsed) ? parsed : fallback,
-        };
-    }
-
-    private static Dictionary ReadDictionary(Dictionary source, object key)
-    {
-        object rawValue = ReadValue(source, key, new Dictionary());
-        return TryRawDictionary(rawValue, out Dictionary values) ? values : new Dictionary();
-    }
-
-    private static Godot.Collections.Array ReadArray(Dictionary source, object key)
-    {
-        object rawValue = ReadValue(source, key, new Godot.Collections.Array());
-        return TryRawArray(rawValue, out Godot.Collections.Array values)
-            ? values
-            : new Godot.Collections.Array();
-    }
-
-    private static bool TryRawArray(object rawValue, out Godot.Collections.Array values)
-    {
-        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
-        {
-            values = value.AsGodotArray();
-            return true;
-        }
-        if (rawValue is Godot.Collections.Array array)
-        {
-            values = array;
-            return true;
-        }
-        if (rawValue is System.Collections.IEnumerable enumerable && rawValue is not string)
-        {
-            values = new Godot.Collections.Array();
-            foreach (object entry in enumerable)
-                AddArrayEntry(values, entry);
-            return true;
-        }
-        values = new Godot.Collections.Array();
-        return false;
-    }
-
-    private static void AddArrayEntry(Godot.Collections.Array values, object entry)
-    {
-        switch (entry)
-        {
-            case null:
-                values.Add("");
-                break;
-            case Variant variant:
-                values.Add(variant);
-                break;
-            case string text:
-                values.Add(text);
-                break;
-            case StringName stringName:
-                values.Add(stringName);
-                break;
-            case int intValue:
-                values.Add(intValue);
-                break;
-            case long longValue:
-                values.Add(longValue);
-                break;
-            case float floatValue:
-                values.Add(floatValue);
-                break;
-            case double doubleValue:
-                values.Add(doubleValue);
-                break;
-            case bool boolValue:
-                values.Add(boolValue);
-                break;
-            case Godot.Collections.Dictionary dictionary:
-                values.Add(dictionary);
-                break;
-            case AiCommandSummary command:
-                values.Add(TraceDictionaryProjection.ToDictionary(command.ToTraceDictionary()));
-                break;
-            case AiCandidateSummary candidate:
-                values.Add(TraceDictionaryProjection.ToDictionary(candidate.ToTraceDictionary()));
-                break;
-            case AiActionTrace actionTrace:
-                values.Add(TraceDictionaryProjection.ToDictionary(actionTrace.ToTraceDictionary()));
-                break;
-            case BattleAiTurnTraceProjection turnTrace:
-                values.Add(TraceDictionaryProjection.ToDictionary(turnTrace.ToTraceDictionary()));
-                break;
-            case BattleAiTraceTransitionProjection transition:
-                values.Add(TraceDictionaryProjection.ToDictionary(transition.ToTraceDictionary()));
-                break;
-            case BattleAiTraceTransitionConditionProjection condition:
-                values.Add(TraceDictionaryProjection.ToDictionary(condition.ToTraceDictionary()));
-                break;
-            case BattleAiTraceUnitSnapshotProjection snapshot:
-                values.Add(TraceDictionaryProjection.ToDictionary(snapshot.ToTraceDictionary()));
-                break;
-            case BattleAiTraceUnitResultProjection unitResult:
-                values.Add(TraceDictionaryProjection.ToDictionary(unitResult.ToTraceDictionary()));
-                break;
-            case BattleAiTraceExecutionResultProjection executionResult:
-                values.Add(TraceDictionaryProjection.ToDictionary(executionResult.ToTraceDictionary()));
-                break;
-            case IReadOnlyDictionary<string, object> objectDictionary:
-                values.Add(TraceDictionaryProjection.ToDictionary(objectDictionary));
-                break;
-            default:
-                values.Add(entry.ToString());
-                break;
-        }
-    }
-
-    private static bool TryRawDictionary(object rawValue, out Dictionary values)
-    {
-        if (rawValue is Variant value && value.VariantType == Variant.Type.Dictionary)
-        {
-            values = value.AsGodotDictionary();
-            return true;
-        }
-        if (rawValue is Dictionary dictionary)
-        {
-            values = dictionary;
-            return true;
-        }
-        if (rawValue is AiCommandSummary command)
-        {
-            values = TraceDictionaryProjection.ToDictionary(command.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is AiCandidateSummary candidate)
-        {
-            values = TraceDictionaryProjection.ToDictionary(candidate.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is AiActionTrace actionTrace)
-        {
-            values = TraceDictionaryProjection.ToDictionary(actionTrace.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTurnTraceProjection turnTrace)
-        {
-            values = TraceDictionaryProjection.ToDictionary(turnTrace.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTraceTransitionProjection transition)
-        {
-            values = TraceDictionaryProjection.ToDictionary(transition.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTraceTransitionConditionProjection condition)
-        {
-            values = TraceDictionaryProjection.ToDictionary(condition.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTraceUnitSnapshotProjection snapshot)
-        {
-            values = TraceDictionaryProjection.ToDictionary(snapshot.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTraceUnitResultProjection unitResult)
-        {
-            values = TraceDictionaryProjection.ToDictionary(unitResult.ToTraceDictionary());
-            return true;
-        }
-        if (rawValue is BattleAiTraceExecutionResultProjection executionResult)
-        {
-            values = TraceDictionaryProjection.ToDictionary(executionResult.ToTraceDictionary());
-            return true;
-        }
-        values = new Dictionary();
-        return false;
-    }
 
 }

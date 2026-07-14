@@ -1,10 +1,9 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class PartyMemberState : RefCounted
+public partial class PartyMemberState
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "member_id",
         "display_name",
@@ -39,6 +38,7 @@ public partial class PartyMemberState : RefCounted
         "biological_age_years",
         "astral_memory_years",
         "trait_instances",
+        "contingency_matrix_setups",
     };
 
     public StringName member_id = "";
@@ -47,7 +47,7 @@ public partial class PartyMemberState : RefCounted
     public StringName portrait_id = "";
     public UnitProgress progression;
     public EquipmentState equipment_state = new EquipmentState();
-    public Godot.Collections.Array<TraitInstanceState> trait_instances = new();
+    public List<TraitInstanceState> trait_instances = new();
     public StringName control_mode = "manual";
     internal BattleUnitControlMode ControlModeKind
     {
@@ -70,7 +70,7 @@ public partial class PartyMemberState : RefCounted
     public int body_size { get; internal set; } = 2;
     public StringName body_size_category { get; internal set; } = "medium";
     public StringName versatility_pick { get; internal set; } = "";
-    public Godot.Collections.Array<StringName> active_stage_advancement_modifier_ids { get; internal set; } = new();
+    public StringNameList active_stage_advancement_modifier_ids { get; internal set; } = new();
     public StringName bloodline_id { get; internal set; } = "";
     public StringName bloodline_stage_id { get; internal set; } = "";
     public StringName ascension_id { get; internal set; } = "";
@@ -79,87 +79,107 @@ public partial class PartyMemberState : RefCounted
     public StringName original_race_id_before_ascension { get; internal set; } = "";
     public int biological_age_years { get; internal set; } = 24;
     public int astral_memory_years { get; internal set; }
-    private bool _disposed;
+    private List<ContingencyMatrixSetupState> _contingencyMatrixSetups = new();
 
     public PartyMemberState()
     {
         progression = new UnitProgress();
     }
 
-    public new void Dispose()
+    internal IReadOnlyList<ContingencyMatrixSetupState> GetContingencySetupsTyped()
     {
-        if (_disposed)
-            return;
-        System.GC.SuppressFinalize(this);
-        Dispose(true);
+        List<ContingencyMatrixSetupState> result = new();
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null)
+                result.Add(setup.DuplicateState());
+        return result;
     }
 
-    protected override void Dispose(bool disposing)
+    internal bool TryGetContingencySetupTyped(
+        StringName setupId,
+        out ContingencyMatrixSetupState setup
+    )
     {
-        if (disposing)
-            DisposeManagedState();
-        base.Dispose(disposing);
+        setup = null;
+        if (setupId == "")
+            return false;
+        foreach (ContingencyMatrixSetupState candidate in _contingencyMatrixSetups)
+        {
+            if (candidate == null || candidate.SetupId != setupId)
+                continue;
+            setup = candidate.DuplicateState();
+            return true;
+        }
+        return false;
     }
 
-    private void DisposeManagedState()
+    internal int GetTotalReservedMpMax()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GodotRefCountedDisposer.DisposeIfValid(progression);
-        GodotRefCountedDisposer.DisposeIfValid(equipment_state);
-        GodotRefCountedDisposer.DisposeAll(trait_instances);
-        progression = null;
-        equipment_state = null;
-        trait_instances.Clear();
-        active_stage_advancement_modifier_ids.Clear();
+        int total = 0;
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null && setup.Charged)
+                total += Mathf.Max(setup.ReservedMpMax, 0);
+        return total;
+    }
+
+    internal int GetChargedContingencySetupCount()
+    {
+        int count = 0;
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+            if (setup != null && setup.Charged)
+                count += 1;
+        return count;
+    }
+
+    internal PartyMemberState WithContingencySetupsForMutation(
+        IReadOnlyList<ContingencyMatrixSetupState> setups
+    )
+    {
+        PartyMemberState copy = DuplicateState();
+        copy._contingencyMatrixSetups = DuplicateContingencySetups(setups);
+        return copy;
     }
 
     public PartyMemberState DuplicateState()
     {
-        var copy = new PartyMemberState();
-        GodotRefCountedDisposer.DisposeIfValid(copy.progression);
-        GodotRefCountedDisposer.DisposeIfValid(copy.equipment_state);
-        copy.member_id = member_id;
-        copy.display_name = display_name;
-        copy.faction_id = faction_id;
-        copy.portrait_id = portrait_id;
-        copy.progression = progression?.DuplicateState() ?? new UnitProgress();
-        copy.equipment_state = equipment_state?.DuplicateState() ?? new EquipmentState();
-        copy.control_mode = control_mode;
-        copy.CopyOwnerFieldsFrom(this);
-        copy.trait_instances = TraitInstanceCollection.Duplicate(trait_instances);
-        return copy;
-    }
-
-    private void CopyOwnerFieldsFrom(PartyMemberState source)
-    {
-        current_hp = source.current_hp;
-        current_mp = source.current_mp;
-        current_aura = source.current_aura;
-        is_dead = source.is_dead;
-        race_id = source.race_id;
-        subrace_id = source.subrace_id;
-        age_years = source.age_years;
-        birth_at_world_step = source.birth_at_world_step;
-        age_profile_id = source.age_profile_id;
-        natural_age_stage_id = source.natural_age_stage_id;
-        effective_age_stage_id = source.effective_age_stage_id;
-        effective_age_stage_source_type = source.effective_age_stage_source_type;
-        effective_age_stage_source_id = source.effective_age_stage_source_id;
-        body_size = source.body_size;
-        body_size_category = source.body_size_category;
-        versatility_pick = source.versatility_pick;
-        active_stage_advancement_modifier_ids =
-            new Godot.Collections.Array<StringName>(source.active_stage_advancement_modifier_ids);
-        bloodline_id = source.bloodline_id;
-        bloodline_stage_id = source.bloodline_stage_id;
-        ascension_id = source.ascension_id;
-        ascension_stage_id = source.ascension_stage_id;
-        ascension_started_at_world_step = source.ascension_started_at_world_step;
-        original_race_id_before_ascension = source.original_race_id_before_ascension;
-        biological_age_years = source.biological_age_years;
-        astral_memory_years = source.astral_memory_years;
+        return new PartyMemberState
+        {
+            member_id = member_id,
+            display_name = display_name,
+            faction_id = faction_id,
+            portrait_id = portrait_id,
+            progression = progression?.DuplicateState() ?? new UnitProgress(),
+            equipment_state = equipment_state?.DuplicateState() ?? new EquipmentState(),
+            control_mode = control_mode,
+            current_hp = current_hp,
+            current_mp = current_mp,
+            current_aura = current_aura,
+            is_dead = is_dead,
+            race_id = race_id,
+            subrace_id = subrace_id,
+            age_years = age_years,
+            birth_at_world_step = birth_at_world_step,
+            age_profile_id = age_profile_id,
+            natural_age_stage_id = natural_age_stage_id,
+            effective_age_stage_id = effective_age_stage_id,
+            effective_age_stage_source_type = effective_age_stage_source_type,
+            effective_age_stage_source_id = effective_age_stage_source_id,
+            body_size = body_size,
+            body_size_category = body_size_category,
+            versatility_pick = versatility_pick,
+            active_stage_advancement_modifier_ids =
+                active_stage_advancement_modifier_ids?.Duplicate() ?? new StringNameList(),
+            bloodline_id = bloodline_id,
+            bloodline_stage_id = bloodline_stage_id,
+            ascension_id = ascension_id,
+            ascension_stage_id = ascension_stage_id,
+            ascension_started_at_world_step = ascension_started_at_world_step,
+            original_race_id_before_ascension = original_race_id_before_ascension,
+            biological_age_years = biological_age_years,
+            astral_memory_years = astral_memory_years,
+            trait_instances = TraitInstanceCollection.Duplicate(trait_instances),
+            _contingencyMatrixSetups = DuplicateContingencySetups(_contingencyMatrixSetups),
+        };
     }
 
     public int GetHiddenLuckAtBirth()
@@ -315,7 +335,7 @@ public partial class PartyMemberState : RefCounted
 
     public void SetActiveStageAdvancementModifierIds(IEnumerable<StringName> modifierIds)
     {
-        active_stage_advancement_modifier_ids = new Godot.Collections.Array<StringName>();
+        active_stage_advancement_modifier_ids = new StringNameList();
         if (modifierIds == null)
             return;
 
@@ -422,7 +442,29 @@ public partial class PartyMemberState : RefCounted
             { "biological_age_years", biological_age_years },
             { "astral_memory_years", astral_memory_years },
             { "trait_instances", TraitInstanceCollection.ToPayloadArray(trait_instances) },
+            { "contingency_matrix_setups", ContingencySetupsToPayloadArray() },
         };
+    }
+
+    internal static bool TryReadMemberPayload(object rawValue, out PartyMemberState value)
+    {
+        value = null;
+        switch (rawValue)
+        {
+            case null:
+                return false;
+            case PartyMemberState member:
+                value = member;
+                return value != null;
+            case Variant variantValue when variantValue.VariantType == Variant.Type.Dictionary:
+                value = FromDictionary(variantValue.AsGodotDictionary());
+                return value != null;
+            case Godot.Collections.Dictionary payload:
+                value = FromDictionary(payload);
+                return value != null;
+            default:
+                return false;
+        }
     }
 
     public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data)
@@ -565,6 +607,12 @@ public partial class PartyMemberState : RefCounted
         );
         if (traitInstances == null)
             return null;
+        if (!TryGetArray(data, "contingency_matrix_setups", out Godot.Collections.Array setupPayloads))
+            return null;
+        List<ContingencyMatrixSetupState> contingencySetups =
+            ParseContingencySetups(setupPayloads);
+        if (contingencySetups == null)
+            return null;
 
         var ms = new PartyMemberState
         {
@@ -599,6 +647,7 @@ public partial class PartyMemberState : RefCounted
             biological_age_years = biologicalAgeYears,
             astral_memory_years = astralMemoryYears,
             trait_instances = traitInstances,
+            _contingencyMatrixSetups = contingencySetups,
         };
         ms.progression = UnitProgress.FromDictionary(progData);
         ms.equipment_state = EquipmentState.FromDictionary(esData);
@@ -612,6 +661,66 @@ public partial class PartyMemberState : RefCounted
     }
 
     private UnitBaseAttributes _get_unit_base_attributes() => progression?.unit_base_attributes;
+
+    private Godot.Collections.Array<Godot.Collections.Dictionary> ContingencySetupsToPayloadArray()
+    {
+        var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (ContingencyMatrixSetupState setup in _contingencyMatrixSetups)
+        {
+            if (setup != null)
+            {
+                using GodotProjectionLease<Godot.Collections.Dictionary> lease =
+                    setup.ToDictionaryLease();
+                result.Add(lease.Value);
+            }
+        }
+        return result;
+    }
+
+    internal List<ContingencyMatrixSetupState> ReleaseContingencySetupsForDispose()
+    {
+        List<ContingencyMatrixSetupState> released = _contingencyMatrixSetups;
+        _contingencyMatrixSetups = new List<ContingencyMatrixSetupState>();
+        return released ?? new List<ContingencyMatrixSetupState>();
+    }
+
+    private static List<ContingencyMatrixSetupState> DuplicateContingencySetups(
+        IReadOnlyList<ContingencyMatrixSetupState> setups
+    )
+    {
+        List<ContingencyMatrixSetupState> result = new();
+        if (setups == null)
+            return result;
+        foreach (ContingencyMatrixSetupState setup in setups)
+            if (setup != null)
+                result.Add(setup.DuplicateState());
+        return result;
+    }
+
+    private static List<ContingencyMatrixSetupState> ParseContingencySetups(
+        Godot.Collections.Array setupPayloads
+    )
+    {
+        List<ContingencyMatrixSetupState> result = new();
+        HashSet<StringName> seenSetupIds = new();
+        int chargedCount = 0;
+        foreach (Variant rawSetup in setupPayloads)
+        {
+            if (rawSetup.VariantType != Variant.Type.Dictionary)
+                return null;
+            ContingencyMatrixSetupState setup = ContingencyMatrixSetupState.FromDictionary(
+                rawSetup.AsGodotDictionary()
+            );
+            if (setup == null || !seenSetupIds.Add(setup.SetupId))
+                return null;
+            if (setup.Charged)
+                chargedCount += 1;
+            if (chargedCount > 1)
+                return null;
+            result.Add(setup);
+        }
+        return result;
+    }
 
     private static int ClampResource(int value, int maxValue)
     {
@@ -633,18 +742,17 @@ public partial class PartyMemberState : RefCounted
         return p;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array a
     )
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var s = new Godot.Collections.Dictionary();
+        var r = new StringNameList();
+        var s = new HashSet<StringName>();
         foreach (var raw in a)
         {
             var p = _parse_string_name_field(raw, false, out bool o);
-            if (!o || s.ContainsKey(p))
+            if (!o || !s.Add(p))
                 return null;
-            s[p] = true;
             r.Add(p);
         }
         return r;
@@ -652,28 +760,20 @@ public partial class PartyMemberState : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary d,
-        Godot.Collections.Array<string> e
+        IReadOnlyCollection<string> e
     )
     {
         if (d.Count != e.Count)
             return false;
-        var el = new Godot.Collections.Dictionary();
-        foreach (string fn in e)
-            el[fn] = true;
+        HashSet<string> remainingFields = new(e);
         foreach (var k in d.Keys)
         {
             if (!TryAsStringLike(k, out string ks))
                 return false;
-            if (!el.ContainsKey(ks))
-                return false;
-            if ((bool)el[ks])
-            {
-                el[ks] = false;
-            }
-            else
+            if (!remainingFields.Remove(ks))
                 return false;
         }
-        return true;
+        return remainingFields.Count == 0;
     }
 
     private static bool TryGetStrictString(

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_game_session_random_start_skill_regression : SceneTree
+public partial class run_game_session_random_start_skill_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -16,12 +16,12 @@ public partial class run_game_session_random_start_skill_regression : SceneTree
     {
         TestStartingEquipmentMatchesRandomSkillWithTypedLookup();
 
-        Quit(_test.Finish("GameSession random start skill regression"));
+        RequestTestExit(_test.Finish("GameSession random start skill regression"));
     }
 
     private void TestStartingEquipmentMatchesRandomSkillWithTypedLookup()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -37,17 +37,17 @@ public partial class run_game_session_random_start_skill_regression : SceneTree
             if (memberState == null)
                 return;
 
-            SkillDef randomSkillDef = FindRandomStartingSkillDef(gameSession, memberState);
-            _test.True(randomSkillDef != null, "新建主角应记录一条 player 来源的随机起始技能。");
-            if (randomSkillDef == null)
+            SkillDefinition randomSkillDefinition = FindRandomStartingSkillDefinition(gameSession, memberState);
+            _test.True(randomSkillDefinition != null, "新建主角应记录一条 player 来源的随机起始技能。");
+            if (randomSkillDefinition == null)
                 return;
 
-            StringName expectedItemId = ResolveExpectedStartingWeaponItemId(gameSession, randomSkillDef);
+            StringName expectedItemId = ResolveExpectedStartingWeaponItemId(gameSession, randomSkillDefinition);
             StringName equippedItemId = memberState.equipment_state.GetEquippedItemId("main_hand");
             _test.Eq(
                 equippedItemId,
                 expectedItemId,
-                $"随机起始技能类型应匹配主手基础装备。 skill_id={randomSkillDef.skill_id}"
+                $"随机起始技能类型应匹配主手基础装备。 skill_id={randomSkillDefinition.SkillId}"
             );
             _test.True(
                 memberState.equipment_state.GetEquippedInstanceId("main_hand") != "",
@@ -68,13 +68,14 @@ public partial class run_game_session_random_start_skill_regression : SceneTree
         }
     }
 
-    private static SkillDef FindRandomStartingSkillDef(
+    private static SkillDefinition FindRandomStartingSkillDefinition(
         GameSession gameSession,
         PartyMemberState memberState
     )
     {
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
-        foreach (StringName skillId in GetSortedSkillIds(skillDefs))
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+        foreach (StringName skillId in GetSortedSkillIds(skillDefinitions))
         {
             UnitSkillProgress skillProgress = memberState.progression?.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
@@ -86,54 +87,57 @@ public partial class run_game_session_random_start_skill_regression : SceneTree
                 continue;
             if (skillProgress.granted_source_id != "")
                 continue;
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            return skillDef;
+            return skillDefinition;
         }
         return null;
     }
 
     private static StringName ResolveExpectedStartingWeaponItemId(
         GameSession gameSession,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
         var candidates = new List<StringName>();
-        if (SkillMatches(skillDef, "crossbow", "crossbow"))
+        if (SkillMatches(skillDefinition, "crossbow", "crossbow"))
             candidates.Add("militia_light_crossbow");
-        if (SkillMatches(skillDef, new[] { "archer", "bow" }, "archer_"))
+        if (SkillMatches(skillDefinition, new[] { "archer", "bow" }, "archer_"))
             candidates.Add("ash_shortbow");
-        if (SkillMatches(skillDef, new[] { "mage", "magic", "spell" }, "mage_"))
+        if (SkillMatches(skillDefinition, new[] { "mage", "magic", "spell" }, "mage_"))
             candidates.Add("oak_quarterstaff");
-        if (SkillMatches(skillDef, new[] { "priest", "faith", "heal" }, "priest_", "saint_"))
+        if (SkillMatches(skillDefinition, new[] { "priest", "faith", "heal" }, "priest_", "saint_"))
             candidates.Add("watchman_mace");
-        if (SkillMatches(skillDef, new[] { "warrior", "melee", "shield" }, "warrior_"))
+        if (SkillMatches(skillDefinition, new[] { "warrior", "melee", "shield" }, "warrior_"))
             candidates.Add("steel_longsword");
         candidates.Add("steel_longsword");
         return FirstValidWeaponItemId(gameSession, candidates);
     }
 
     private static bool SkillMatches(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         string tagId,
         params string[] skillIdPrefixes
-    ) => SkillMatches(skillDef, new[] { tagId }, skillIdPrefixes);
+    ) => SkillMatches(skillDefinition, new[] { tagId }, skillIdPrefixes);
 
     private static bool SkillMatches(
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         IEnumerable<string> tagIds,
         params string[] skillIdPrefixes
     )
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return false;
         foreach (string tagId in tagIds)
         {
-            if (skillDef.tags.Contains(tagId))
+            if (skillDefinition.HasTag(tagId))
                 return true;
         }
 
-        string skillIdText = skillDef.skill_id.ToString();
+        string skillIdText = skillDefinition.SkillId.ToString();
         foreach (string prefix in skillIdPrefixes)
         {
             if (skillIdText.StartsWith(prefix))
@@ -147,24 +151,28 @@ public partial class run_game_session_random_start_skill_regression : SceneTree
         IEnumerable<StringName> candidates
     )
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            gameSession.GetItemDefsTyped();
         foreach (StringName itemId in candidates)
         {
             if (itemId == "")
                 continue;
-            if (!itemDefs.TryGetValue(itemId, out ItemDef itemDef) || itemDef == null)
+            if (
+                !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                || itemDefinition == null
+            )
                 continue;
-            if (itemDef.IsWeapon())
+            if (itemDefinition.IsWeapon())
                 return itemId;
         }
         return new StringName();
     }
 
     private static List<StringName> GetSortedSkillIds(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return sortedSkillIds;
     }

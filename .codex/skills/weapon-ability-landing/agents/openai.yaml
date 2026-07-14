@@ -1,0 +1,4 @@
+interface:
+  display_name: "Weapon Ability Landing"
+  short_description: "Land configured weapon abilities safely"
+  default_prompt: "Use $weapon-ability-landing to implement a configured weapon ability in E:\\game\\magic."

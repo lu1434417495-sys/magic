@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
-public partial class run_profession_assignment_service_regression : SceneTree
+public partial class run_profession_assignment_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,13 +16,13 @@ public partial class run_profession_assignment_service_regression : SceneTree
         TestAssignLearnedCoreSkillToProfession();
         TestPromoteMatchingLearnedSkillToCore();
 
-        Quit(_test.Finish("Profession assignment service regression"));
+        RequestTestExit(_test.Finish("Profession assignment service regression"));
     }
 
     private void TestAssignLearnedCoreSkillToProfession()
     {
         UnitProgress progress = MakeProgress("hero");
-        SkillDef heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
+        SkillDefinition heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
         UnitSkillProgress skillProgress = MakeSkillProgress("heavy_strike", learned: true, isCore: true, level: 2);
         UnitProfessionProgress warriorProgress = MakeProfessionProgress("warrior", rank: 1);
         progress.SetSkillProgress(skillProgress);
@@ -64,7 +64,7 @@ public partial class run_profession_assignment_service_regression : SceneTree
     private void TestPromoteMatchingLearnedSkillToCore()
     {
         UnitProgress progress = MakeProgress("hero");
-        SkillDef guardBreak = MakeSkill("guard_break", "martial", maxLevel: 1);
+        SkillDefinition guardBreak = MakeSkill("guard_break", "martial", maxLevel: 1);
         UnitSkillProgress skillProgress = MakeSkillProgress("guard_break", learned: true, isCore: false, level: 1);
         UnitProfessionProgress warriorProgress = MakeProfessionProgress("warrior", rank: 1);
         progress.SetSkillProgress(skillProgress);
@@ -98,14 +98,14 @@ public partial class run_profession_assignment_service_regression : SceneTree
 
     private static ProfessionAssignmentService MakeService(
         UnitProgress progress,
-        IEnumerable<SkillDef> skillDefs,
+        IEnumerable<SkillDefinition> skillDefinitions,
         IEnumerable<ProfessionDef> professionDefs
     )
     {
-        Dictionary<StringName, SkillDef> indexedSkillDefs = new();
-        foreach (SkillDef skillDef in skillDefs)
+        Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions)
         {
-            indexedSkillDefs[skillDef.skill_id] = skillDef;
+            indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
         }
 
         Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
@@ -115,7 +115,11 @@ public partial class run_profession_assignment_service_regression : SceneTree
         }
 
         ProfessionAssignmentService service = new();
-        service.Setup(progress, indexedSkillDefs, indexedProfessionDefs);
+        service.Setup(
+            progress,
+            indexedSkillDefinitions,
+            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+        );
         return service;
     }
 
@@ -128,16 +132,13 @@ public partial class run_profession_assignment_service_regression : SceneTree
         };
     }
 
-    private static SkillDef MakeSkill(StringName skillId, StringName tag, int maxLevel)
-    {
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            max_level = maxLevel,
-            tags = new Godot.Collections.Array<StringName> { tag },
-        };
-    }
+    private static SkillDefinition MakeSkill(StringName skillId, StringName tag, int maxLevel) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: maxLevel,
+            tags: new[] { tag }
+        );
 
     private static UnitSkillProgress MakeSkillProgress(
         StringName skillId,

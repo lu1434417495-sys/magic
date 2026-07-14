@@ -14,6 +14,7 @@ public enum BattleSkillCastBlockReasonKind
     InsufficientMp,
     InsufficientStamina,
     Petrified,
+    Paralyzed,
     InsufficientAura,
     RacialSkillPerBattleChargeDepleted,
     RacialSkillPerTurnChargeDepleted,
@@ -27,6 +28,7 @@ public enum BattleSkillCastBlockReasonKind
     MisfortuneSidecarMissing,
     MisfortuneBlocked,
     BlackStarGuardLock,
+    GuardLockedByStatus,
     BlackContractPushVariantMissing,
     BlackContractPushHpCostUnavailable,
     BlackContractPushGuardCostUnavailable,
@@ -53,6 +55,7 @@ internal static class BattleSkillCastBlockReasonKinds
             BattleSkillCastBlockReasonKind.InsufficientMp => "insufficient_mp",
             BattleSkillCastBlockReasonKind.InsufficientStamina => "insufficient_stamina",
             BattleSkillCastBlockReasonKind.Petrified => "petrified",
+            BattleSkillCastBlockReasonKind.Paralyzed => "paralyzed",
             BattleSkillCastBlockReasonKind.InsufficientAura => "insufficient_aura",
             BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
                 "racial_skill_per_battle_charge_depleted",
@@ -72,6 +75,7 @@ internal static class BattleSkillCastBlockReasonKinds
                 "misfortune_sidecar_missing",
             BattleSkillCastBlockReasonKind.MisfortuneBlocked => "misfortune_blocked",
             BattleSkillCastBlockReasonKind.BlackStarGuardLock => "black_star_guard_lock",
+            BattleSkillCastBlockReasonKind.GuardLockedByStatus => "guard_locked_by_status",
             BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
                 "black_contract_push_variant_missing",
             BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>

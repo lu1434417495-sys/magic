@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_profession_rule_service_regression : SceneTree
+public partial class run_profession_rule_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,10 +14,11 @@ public partial class run_profession_rule_service_regression : SceneTree
     private void Run()
     {
         TestServiceNoLongerRequiresGodotRegistration();
+        TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility();
         TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments();
         TestRefreshAllProfessionStatesUsesTypedDefIndex();
 
-        Quit(_test.Finish("Profession rule service regression"));
+        RequestTestExit(_test.Finish("Profession rule service regression"));
     }
 
     private void TestServiceNoLongerRequiresGodotRegistration()
@@ -25,13 +26,75 @@ public partial class run_profession_rule_service_regression : SceneTree
         Type serviceType = typeof(ProfessionRuleService);
     }
 
+    private void TestEmptyGateCheckModeProjectsAndInheritsDependencyVisibility()
+    {
+        UnitProgress progress = MakeProgress("hero");
+        progress.SetProfessionProgress(
+            new UnitProfessionProgress
+            {
+                profession_id = "hidden_dependency",
+                rank = 1,
+                is_active = false,
+                is_hidden = true,
+            }
+        );
+
+        ProfessionDef hiddenDependency = MakeProfession("hidden_dependency");
+        hiddenDependency.dependency_visibility_mode = "ignore_when_hidden";
+        ProfessionDef targetProfession = MakeProfession("target_profession");
+        targetProfession.unlock_requirement = TestResourceOwnership.Own(
+            new ProfessionPromotionRequirement(),
+            "profession-rule-empty-gate-requirement"
+        );
+        ProfessionRankGate authoredGate = TestResourceOwnership.Own(
+            new ProfessionRankGate
+            {
+                profession_id = "hidden_dependency",
+                min_rank = 1,
+                check_mode = "",
+            },
+            "profession-rule-empty-gate"
+        );
+        targetProfession.unlock_requirement.required_profession_ranks.Add(authoredGate);
+
+        ProfessionDefinition projectedTarget =
+            TestProgressionDefinitionProjection.Profession(targetProfession);
+        ProfessionRankGateDefinition projectedGate =
+            projectedTarget.UnlockRequirement.RequiredProfessionRanks[0];
+        _test.Eq(
+            projectedGate.CheckMode,
+            new StringName(""),
+            "空 check_mode 投影后必须保留为空，交给职业可见性策略继承。"
+        );
+
+        ProfessionRuleService service = MakeService(
+            progress,
+            Array.Empty<SkillDefinition>(),
+            new[] { hiddenDependency, targetProfession }
+        );
+        _test.False(
+            service.CanSatisfyProfessionGates(
+                projectedTarget.UnlockRequirement.RequiredProfessionRanks
+            ),
+            "空 check_mode 应继承依赖职业 ignore_when_hidden，并按 active_only 拒绝隐藏职业。"
+        );
+
+        authoredGate.check_mode = "unsupported_mode";
+        _test.True(
+            Throws<System.IO.InvalidDataException>(
+                () => TestProgressionDefinitionProjection.Profession(targetProfession)
+            ),
+            "非空且未知的 check_mode 仍必须在投影边界被拒绝。"
+        );
+    }
+
     private void TestEligibleSkillIdsUseTypedSetupAndPreviewAssignments()
     {
         UnitProgress progress = MakeProgress("hero");
-        SkillDef heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
-        SkillDef lowLevelStrike = MakeSkill("low_level_strike", "martial", maxLevel: 2);
-        SkillDef arcaneBolt = MakeSkill("arcane_bolt", "arcane", maxLevel: 2);
-        SkillDef claimedStrike = MakeSkill("claimed_strike", "martial", maxLevel: 2);
+        SkillDefinition heavyStrike = MakeSkill("heavy_strike", "martial", maxLevel: 2);
+        SkillDefinition lowLevelStrike = MakeSkill("low_level_strike", "martial", maxLevel: 2);
+        SkillDefinition arcaneBolt = MakeSkill("arcane_bolt", "arcane", maxLevel: 2);
+        SkillDefinition claimedStrike = MakeSkill("claimed_strike", "martial", maxLevel: 2);
 
         progress.SetSkillProgress(MakeSkillProgress("heavy_strike", level: 2));
         progress.SetSkillProgress(MakeSkillProgress("low_level_strike", level: 1));
@@ -47,9 +110,11 @@ public partial class run_profession_rule_service_regression : SceneTree
         );
 
         TagRequirement martialCoreMax = new() { tag = "martial" };
+        TagRequirementDefinition martialCoreMaxDefinition =
+            TestProgressionDefinitionProjection.TagRequirement(martialCoreMax);
         IReadOnlyList<StringName> eligibleSkillIds = service.GetEligibleSkillIds(
             "warrior",
-            new[] { martialCoreMax },
+            new[] { martialCoreMaxDefinition },
             allowUnassigned: true
         );
 
@@ -74,7 +139,7 @@ public partial class run_profession_rule_service_regression : SceneTree
             service.SkillMatchesTagRequirement(
                 "heavy_strike",
                 "warrior",
-                martialCoreMax,
+                martialCoreMaxDefinition,
                 allowUnassigned: false,
                 previewAssignedSkillIds: new[] { new StringName("heavy_strike") }
             ),
@@ -107,7 +172,7 @@ public partial class run_profession_rule_service_regression : SceneTree
 
         ProfessionRuleService service = MakeService(
             progress,
-            Array.Empty<SkillDef>(),
+            Array.Empty<SkillDefinition>(),
             new[] { warrior }
         );
 
@@ -138,20 +203,24 @@ public partial class run_profession_rule_service_regression : SceneTree
 
     private static ProfessionRuleService MakeService(
         UnitProgress progress,
-        IEnumerable<SkillDef> skillDefs,
+        IEnumerable<SkillDefinition> skillDefinitions,
         IEnumerable<ProfessionDef> professionDefs
     )
     {
-        Dictionary<StringName, SkillDef> indexedSkillDefs = new();
-        foreach (SkillDef skillDef in skillDefs)
-            indexedSkillDefs[skillDef.skill_id] = skillDef;
+        Dictionary<StringName, SkillDefinition> indexedSkillDefinitions = new();
+        foreach (SkillDefinition skillDefinition in skillDefinitions)
+            indexedSkillDefinitions[skillDefinition.SkillId] = skillDefinition;
 
         Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
         foreach (ProfessionDef professionDef in professionDefs)
             indexedProfessionDefs[professionDef.profession_id] = professionDef;
 
         ProfessionRuleService service = new();
-        service.Setup(progress, indexedSkillDefs, indexedProfessionDefs);
+        service.Setup(
+            progress,
+            indexedSkillDefinitions,
+            TestProgressionDefinitionProjection.Professions(indexedProfessionDefs)
+        );
         return service;
     }
 
@@ -163,14 +232,13 @@ public partial class run_profession_rule_service_regression : SceneTree
             unit_base_attributes = new UnitBaseAttributes(),
         };
 
-    private static SkillDef MakeSkill(StringName skillId, StringName tag, int maxLevel) =>
-        new()
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            max_level = maxLevel,
-            tags = new Godot.Collections.Array<StringName> { tag },
-        };
+    private static SkillDefinition MakeSkill(StringName skillId, StringName tag, int maxLevel) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            maxLevel: maxLevel,
+            tags: new[] { tag }
+        );
 
     private static UnitSkillProgress MakeSkillProgress(StringName skillId, int level) =>
         new()
@@ -200,5 +268,18 @@ public partial class run_profession_rule_service_regression : SceneTree
         return false;
     }
 
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
 
 }

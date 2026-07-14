@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_sim_typed_report_regression : SceneTree
+public partial class run_battle_sim_typed_report_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
         TestStringNameSkillLevelKeysAreHonored();
         TestMalformedScenarioUnitEntryIsRejectedBeforeSpawnProjection();
         TestTypedMetricsSnapshotFeedsProfileSummary();
-        Quit(_test.Finish("Battle sim typed report regression"));
+        RequestTestExit(_test.Finish("Battle sim typed report regression"));
     }
 
     private void TestStringNameSkillLevelKeysAreHonored()
@@ -27,7 +27,9 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
             skill_level_map = new GDictionary { [skillId] = 4 },
         };
 
-        BattleUnitState unitState = spec.ToBattleUnitState("player", "manual");
+        BattleUnitState unitState = spec
+            .ToDefinition("player", "manual")
+            .CreateRuntimeState();
 
         _test.Eq(
             unitState.GetKnownSkillLevelTyped(skillId),
@@ -47,7 +49,9 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
         bool rejected = false;
         try
         {
-            scenario.BuildStartContext();
+            BattleSimScenarioDefinition definition = scenario.ToDefinition();
+            using GodotProjectionLease<GDictionary> contextLease =
+                definition.BuildStartContextLease();
         }
         catch (InvalidOperationException error)
         {
@@ -63,27 +67,17 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
     private void TestTypedMetricsSnapshotFeedsProfileSummary()
     {
         StringName skillId = "typed_fire";
-        BattleSimMetricsSnapshot metrics = BattleSimMetricsSnapshot.FromDictionary(
-            new GDictionary
-            {
-                ["units"] = new GDictionary
-                {
-                    ["caster"] = new GDictionary
-                    {
-                        ["skill_attempt_counts"] = new GDictionary { [skillId] = 3 },
-                        ["skill_success_counts"] = new GDictionary { [skillId] = 2 },
-                    },
-                },
-                ["factions"] = new GDictionary
-                {
-                    ["player"] = new GDictionary
-                    {
-                        ["unit_count"] = 1,
-                        ["successful_skill_count"] = 2,
-                    },
-                },
-            }
-        );
+        var metricsState = new BattleMetricsState();
+        var casterMetrics = new BattleMetricEntry();
+        casterMetrics.SkillAttemptCounts[skillId.ToString()] = 3;
+        casterMetrics.SkillSuccessCounts[skillId.ToString()] = 2;
+        metricsState.Units["caster"] = casterMetrics;
+        metricsState.Factions["player"] = new BattleMetricEntry
+        {
+            UnitCount = 1,
+            SuccessfulSkillCount = 2,
+        };
+        BattleSimMetricsSnapshot metrics = BattleSimMetricsSnapshot.Capture(metricsState);
         var report = new BattleSimRunReport
         {
             WinnerFactionId = "player",
@@ -92,7 +86,13 @@ public partial class run_battle_sim_typed_report_regression : SceneTree
         };
 
         BattleSimProfileSummary summary = new BattleSimReportBuilder().BuildProfileSummary(
-            new BattleSimProfileDef { profile_id = "baseline" },
+            new BattleSimProfileDefinition(
+                "baseline",
+                "Baseline",
+                "",
+                BattleAiScoreProfileDefinition.Default,
+                Array.Empty<BattleSimOverridePatchDefinition>()
+            ),
             new List<BattleSimRunReport> { report }
         );
 

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class TraitInstanceState : RefCounted
+public class TraitInstanceState
 {
     private const string SavePayloadLabel = "trait instance payload";
 
@@ -23,32 +23,7 @@ public partial class TraitInstanceState : RefCounted
     public StringName source_id = "";
     public int rank = 1;
     public int stacks = 1;
-    public Godot.Collections.Array<TraitRollValueState> roll_values = new();
-    private bool _disposed;
-
-    public new void Dispose()
-    {
-        if (_disposed)
-            return;
-        GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            DisposeManagedState();
-        base.Dispose(disposing);
-    }
-
-    private void DisposeManagedState()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GodotRefCountedDisposer.DisposeAll(roll_values);
-        roll_values.Clear();
-    }
+    public List<TraitRollValueState> roll_values = new();
 
     internal TraitSourceKind SourceKind => TraitContentRules.ToSourceKind(source_type);
 
@@ -59,7 +34,7 @@ public partial class TraitInstanceState : RefCounted
         StringName sourceId,
         int rank = 1,
         int stacks = 1,
-        Godot.Collections.Array<TraitRollValueState> rollValues = null)
+        IEnumerable<TraitRollValueState> rollValues = null)
     {
         return new TraitInstanceState
         {
@@ -73,10 +48,10 @@ public partial class TraitInstanceState : RefCounted
         };
     }
 
-    public static Godot.Collections.Array<TraitRollValueState> NormalizeRollValues(
-        Godot.Collections.Array<TraitRollValueState> source)
+    public static List<TraitRollValueState> NormalizeRollValues(
+        IEnumerable<TraitRollValueState> source)
     {
-        var normalized = new Godot.Collections.Array<TraitRollValueState>();
+        List<TraitRollValueState> normalized = new();
         if (source == null)
             return normalized;
 
@@ -90,10 +65,10 @@ public partial class TraitInstanceState : RefCounted
         return normalized;
     }
 
-    internal static Godot.Collections.Array<TraitRollValueState> RollValuesFromDictionary(
+    internal static List<TraitRollValueState> RollValuesFromDictionary(
         Godot.Collections.Dictionary source)
     {
-        var normalized = new Godot.Collections.Array<TraitRollValueState>();
+        List<TraitRollValueState> normalized = new();
         if (source == null)
             return normalized;
 
@@ -109,20 +84,11 @@ public partial class TraitInstanceState : RefCounted
     }
 
     internal static Godot.Collections.Dictionary RollValuesToDictionary(
-        Godot.Collections.Array<TraitRollValueState> values)
+        IEnumerable<TraitRollValueState> values)
     {
         Godot.Collections.Dictionary payload = new();
-        Godot.Collections.Array<TraitRollValueState> normalized = NormalizeRollValues(values);
-        try
-        {
-            foreach (TraitRollValueState entry in normalized)
-                payload[entry.key] = entry.ToVariant();
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeAll(normalized);
-            normalized.Clear();
-        }
+        foreach (TraitRollValueState entry in NormalizeRollValues(values))
+            payload[entry.key] = entry.ToVariant();
         return payload;
     }
 
@@ -211,7 +177,7 @@ public partial class TraitInstanceState : RefCounted
             return null;
         }
 
-        Godot.Collections.Array<TraitRollValueState> parsedRollValues =
+        List<TraitRollValueState> parsedRollValues =
             RollValuesFromDictionary(data["roll_values"].AsGodotDictionary());
         if (parsedRollValues == null)
         {
@@ -235,51 +201,48 @@ public partial class TraitInstanceState : RefCounted
         };
     }
 
-    public string ValidateAgainstDef(TraitDef def)
+    public string ValidateAgainstDef(TraitDefinition definition)
     {
-        if (def == null)
-            return $"Trait instance {trait_instance_id}: missing TraitDef for {trait_id}.";
+        if (definition == null)
+            return $"Trait instance {trait_instance_id}: missing trait definition for {trait_id}.";
 
         var normalized = NormalizeRollValues(roll_values);
         var expectedKeys = new List<StringName>();
-        foreach (TraitRollValueSchemaEntry schema in def.roll_value_schema)
+        foreach (TraitRollValueSchemaEntryDefinition schema in definition.RollValueSchema)
         {
-            if (schema == null || schema.key == "")
+            if (schema == null || schema.Key == "")
                 continue;
 
-            expectedKeys.Add(schema.key);
-            if (!TryFindRoll(normalized, schema.key, out TraitRollValueState value))
-                return $"Trait instance {trait_instance_id}: missing roll key {schema.key}.";
+            expectedKeys.Add(schema.Key);
+            if (!TryFindRoll(normalized, schema.Key, out TraitRollValueState value))
+                return $"Trait instance {trait_instance_id}: missing roll key {schema.Key}.";
 
             switch (schema.ValueTypeKind)
             {
                 case TraitRollValueType.Int:
                     if (value.ValueTypeKind != TraitRollValueType.Int)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} must be int.";
-                    if (value.int_value < schema.min_value || value.int_value > schema.max_value)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} out of range.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} must be int.";
+                    if (value.int_value < schema.MinValue || value.int_value > schema.MaxValue)
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} out of range.";
                     break;
                 case TraitRollValueType.StringName:
                     bool allowed = false;
-                    foreach (StringName allowedValue in schema.allowed_values)
+                    foreach (StringName allowedValue in schema.AllowedValues)
                     {
-                        if (
-                            ProgressionDataUtils.to_string_name(allowedValue)
-                            != value.string_name_value
-                        )
+                        if (allowedValue != value.string_name_value)
                             continue;
                         allowed = true;
                         break;
                     }
                     if (value.ValueTypeKind != TraitRollValueType.StringName || !allowed)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} value {value.string_name_value} is not allowed.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} value {value.string_name_value} is not allowed.";
                     break;
                 case TraitRollValueType.Bool:
                     if (value.ValueTypeKind != TraitRollValueType.Bool)
-                        return $"Trait instance {trait_instance_id}: roll {schema.key} must be bool.";
+                        return $"Trait instance {trait_instance_id}: roll {schema.Key} must be bool.";
                     break;
                 default:
-                    return $"Trait instance {trait_instance_id}: unsupported schema type for {schema.key}.";
+                    return $"Trait instance {trait_instance_id}: unsupported schema type for {schema.Key}.";
             }
         }
 
@@ -352,7 +315,7 @@ public partial class TraitInstanceState : RefCounted
         TryFindRoll(roll_values, key, out value);
 
     private static bool TryFindRoll(
-        Godot.Collections.Array<TraitRollValueState> values,
+        IEnumerable<TraitRollValueState> values,
         StringName key,
         out TraitRollValueState value
     )
@@ -396,7 +359,7 @@ public partial class TraitInstanceState : RefCounted
     }
 
     private static void UpsertRoll(
-        Godot.Collections.Array<TraitRollValueState> values,
+        List<TraitRollValueState> values,
         TraitRollValueState entry
     )
     {

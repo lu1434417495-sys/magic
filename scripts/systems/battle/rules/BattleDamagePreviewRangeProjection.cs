@@ -1,65 +1,105 @@
+using System;
 using System.Collections.Generic;
+using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 internal static class BattleDamagePreviewRangeProjection
 {
-    internal static Godot.Collections.Dictionary Project(
+    internal static GodotProjectionLease<GDictionary> BuildLease(
         BattleDamagePreviewRangeService.SkillDamagePreview? preview
     )
     {
-        return preview.HasValue
-            ? Project(preview.Value)
-            : new Godot.Collections.Dictionary();
+        GDictionary root = new();
+        GodotProjectionLease<GDictionary> lease =
+            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
+                root,
+                "battle-damage-preview-range",
+                LifetimeDomain.Request,
+                "BattleDamagePreviewRangeProjection.root"
+            );
+        try
+        {
+            if (preview.HasValue)
+                WriteInto(lease, root, preview.Value);
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
-    internal static Godot.Collections.Dictionary Project(
+    internal static GDictionary WriteOwned<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleDamagePreviewRangeService.SkillDamagePreview? preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview.HasValue)
+            WriteInto(lease, result, preview.Value);
+        return result;
+    }
+
+    private static void WriteInto<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        GDictionary target,
         BattleDamagePreviewRangeService.SkillDamagePreview preview
     )
+        where TLeaseRoot : class, IDisposable
     {
-        return new Godot.Collections.Dictionary
-        {
-            ["has_damage"] = preview.HasDamage,
-            ["min_damage"] = preview.MinDamage,
-            ["max_damage"] = preview.MaxDamage,
-            ["summary_text"] = preview.SummaryText,
-            ["damage_ranges"] = DamageRangesToArray(preview.DamageRanges),
-        };
+        target["has_damage"] = preview.HasDamage;
+        target["min_damage"] = preview.MinDamage;
+        target["max_damage"] = preview.MaxDamage;
+        target["summary_text"] = preview.SummaryText;
+        target["damage_ranges"] = WriteDamageRanges(
+            lease,
+            preview.DamageRanges,
+            "BattleDamagePreviewRangeProjection.damage_ranges"
+        );
     }
 
-    internal static Godot.Collections.Dictionary Project(
-        BattleDamagePreviewRangeService.DamageEffectRange range
+    private static GArray WriteDamageRanges<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleDamagePreviewRangeService.DamageEffectRange> ranges,
+        string reason
     )
+        where TLeaseRoot : class, IDisposable
     {
-        return new Godot.Collections.Dictionary
-        {
-            ["effect_index"] = range.EffectIndex,
-            ["power"] = range.Power,
-            ["add_weapon_dice"] = range.AddWeaponDice,
-            ["min_damage"] = range.MinDamage,
-            ["max_damage"] = range.MaxDamage,
-            ["damage_dice_count"] = range.SkillDiceRange.DiceCount,
-            ["damage_dice_sides"] = range.SkillDiceRange.DiceSides,
-            ["damage_dice_bonus"] = range.SkillDiceRange.DiceBonus,
-            ["damage_dice_min"] = range.SkillDiceRange.MinDamage,
-            ["damage_dice_max"] = range.SkillDiceRange.MaxDamage,
-            ["weapon_damage_dice_count"] = range.WeaponDiceRange.DiceCount,
-            ["weapon_damage_dice_sides"] = range.WeaponDiceRange.DiceSides,
-            ["weapon_damage_dice_bonus"] = range.WeaponDiceRange.DiceBonus,
-            ["weapon_damage_dice_min"] = range.WeaponDiceRange.MinDamage,
-            ["weapon_damage_dice_max"] = range.WeaponDiceRange.MaxDamage,
-        };
-    }
-
-    private static Godot.Collections.Array DamageRangesToArray(
-        IReadOnlyList<BattleDamagePreviewRangeService.DamageEffectRange> damageRanges
-    )
-    {
-        var result = new Godot.Collections.Array();
-        if (damageRanges == null)
+        GArray result = lease.Own(new GArray(), reason);
+        if (ranges == null)
             return result;
-        foreach (BattleDamagePreviewRangeService.DamageEffectRange damageRange in damageRanges)
-        {
-            result.Add(Project(damageRange));
-        }
+        for (int index = 0; index < ranges.Count; index++)
+            result.Add(WriteRange(lease, ranges[index], $"{reason}[{index}]"));
+        return result;
+    }
+
+    private static GDictionary WriteRange<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleDamagePreviewRangeService.DamageEffectRange range,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        result["effect_index"] = range.EffectIndex;
+        result["power"] = range.Power;
+        result["add_weapon_dice"] = range.AddWeaponDice;
+        result["min_damage"] = range.MinDamage;
+        result["max_damage"] = range.MaxDamage;
+        result["damage_dice_count"] = range.SkillDiceRange.DiceCount;
+        result["damage_dice_sides"] = range.SkillDiceRange.DiceSides;
+        result["damage_dice_bonus"] = range.SkillDiceRange.DiceBonus;
+        result["damage_dice_min"] = range.SkillDiceRange.MinDamage;
+        result["damage_dice_max"] = range.SkillDiceRange.MaxDamage;
+        result["weapon_damage_dice_count"] = range.WeaponDiceRange.DiceCount;
+        result["weapon_damage_dice_sides"] = range.WeaponDiceRange.DiceSides;
+        result["weapon_damage_dice_bonus"] = range.WeaponDiceRange.DiceBonus;
+        result["weapon_damage_dice_min"] = range.WeaponDiceRange.MinDamage;
+        result["weapon_damage_dice_max"] = range.WeaponDiceRange.MaxDamage;
         return result;
     }
 }

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.bow.thunderbow.stored_thunder_shot"
+display_name = "蓄雷矢"
+description = "装备者获得蓄雷矢：1AP、60体力、冷却 300TU；对 4 格内敌人进行武器攻击，命中造成武器伤害+3D6 lightning。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_battleaxe_dragon_scale"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "龙鳞之斧"
+description = "一柄覆有五色龙鳞、以龙牙磨刃的战斧。装备者获得火焰、闪电、毒素、酸液与寒冷伤害减半；命中时每回合一次追加斩击伤害，可在造成实际伤害后撕开目标鳞甲，并对 dragon 目标造成有限额外伤害。"
+is_stackable = false
+base_price = 75000
+buy_price = 75000
+sell_price = 37500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"dragon_scale", &"dragon_tooth"])
+trait_ids = Array[StringName]([&"weapon.battleaxe.dragon_scale.fivefold_scales", &"weapon.battleaxe.dragon_scale.dragon_tooth_edge", &"weapon.battleaxe.dragon_scale.scale_guard", &"weapon.battleaxe.dragon_scale.scale_rift", &"weapon.battleaxe.dragon_scale.dragon_balance"])
+weapon_profile = SubResource("Resource_weapon_profile")

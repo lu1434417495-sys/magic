@@ -4,113 +4,67 @@ using Godot;
 
 public class EquipmentTraitRollService : IDisposable
 {
-    private readonly List<TraitDef> _traitDefs;
-    private RandomNumberGenerator _rng;
-    private bool _ownsRng;
-    private bool _disposed;
+    private readonly List<TraitDefinition> _traitDefs;
+    private RuntimeRandom _runtimeRng;
     private Func<int, int, int> _rollRange;
     private Func<float> _rollUnit;
 
-    internal bool IsDisposedForTests => _disposed;
-    internal bool OwnsRngForTests => _ownsRng;
-    internal RandomNumberGenerator RngForTests => _rng;
-    internal bool HasLiveOwnedRngForTests =>
-        _ownsRng && _rng != null && GodotObject.IsInstanceValid(_rng);
-
-    public EquipmentTraitRollService(
-        IEnumerable<TraitDef> traitDefs,
-        RandomNumberGenerator rng = null
-    )
-        : this(traitDefs, rng, false) { }
-
-    public EquipmentTraitRollService(
-        IEnumerable<TraitDef> traitDefs,
-        RandomNumberGenerator rng,
-        bool ownsRng
-    )
+    public EquipmentTraitRollService(IEnumerable<TraitDefinition> traitDefs)
     {
-        _traitDefs = new List<TraitDef>();
+        _traitDefs = new List<TraitDefinition>();
         if (traitDefs != null)
         {
-            foreach (TraitDef traitDef in traitDefs)
+            foreach (TraitDefinition traitDef in traitDefs)
                 if (traitDef != null)
                     _traitDefs.Add(traitDef);
         }
-        ConfigureRng(rng, ownsRng);
+        ConfigureRng();
     }
 
-    public void ConfigureRng(RandomNumberGenerator rng = null)
+    public void ConfigureRng()
     {
-        ConfigureRng(rng, false);
-    }
-
-    public void SetOwnedRng(RandomNumberGenerator rng)
-    {
-        ConfigureRng(rng, true);
-    }
-
-    private void ConfigureRng(RandomNumberGenerator rng, bool ownsRng)
-    {
-        ThrowIfDisposed();
-        if (rng != null && ReferenceEquals(_rng, rng))
-        {
-            _ownsRng = _ownsRng || ownsRng;
-            _rollRange = _rng.RandiRange;
-            _rollUnit = _rng.Randf;
-            return;
-        }
-
-        DisposeOwnedRng();
-        _rng = rng ?? new RandomNumberGenerator();
-        _ownsRng = rng == null || ownsRng;
-        if (rng == null)
-            _rng.Randomize();
-        _rollRange = _rng.RandiRange;
-        _rollUnit = _rng.Randf;
+        _runtimeRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+        _rollRange = _runtimeRng.RandiRange;
+        _rollUnit = _runtimeRng.Randf;
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GC.SuppressFinalize(this);
-        DisposeOwnedRng();
+        _runtimeRng = null;
         _rollRange = null;
         _rollUnit = null;
     }
 
     public void SetRollHooksForTesting(Func<int, int, int> rollRange, Func<float> rollUnit)
     {
-        ThrowIfDisposed();
         if (rollRange != null)
             _rollRange = rollRange;
         if (rollUnit != null)
             _rollUnit = rollUnit;
     }
 
-    public void MintWithRolls(EquipmentInstanceState instance, ItemDef itemDef)
+    public void MintWithRolls(EquipmentInstanceState instance, ItemDefinition itemDefinition)
     {
-        ThrowIfDisposed();
-        if (instance == null || itemDef == null || instance.instance_id == "")
+        if (instance == null || itemDefinition == null || instance.instance_id == "")
             return;
 
-        List<TraitRollGroupDef> rollGroups = itemDef.GetTraitRollGroupsTyped();
+        IReadOnlyList<TraitRollGroupDefinition> rollGroups =
+            itemDefinition.GetTraitRollGroupsTyped();
         if (rollGroups.Count == 0)
             return;
 
-        Godot.Collections.Array<TraitInstanceState> nextTraits = new();
-        foreach (TraitRollGroupDef group in rollGroups)
+        List<TraitInstanceState> nextTraits = new();
+        foreach (TraitRollGroupDefinition group in rollGroups)
         {
-            foreach (TraitRollGroupEntryDef entry in RollGroup(group))
+            foreach (TraitRollGroupEntryDefinition entry in RollGroup(group))
             {
-                TraitDef traitDef = FindTraitDef(entry.trait_id);
+                TraitDefinition traitDef = FindTraitDef(entry.TraitId);
                 if (traitDef == null)
                     continue;
                 nextTraits.Add(
                     TraitInstanceState.Create(
                         BuildTraitInstanceId(instance.instance_id, nextTraits.Count + 1),
-                        entry.trait_id,
+                        entry.TraitId,
                         TraitSourceKind.EquipmentRoll,
                         instance.instance_id,
                         rollValues: RollValuesFor(traitDef)
@@ -124,14 +78,13 @@ public class EquipmentTraitRollService : IDisposable
 
     public bool ValidateRehydrated(EquipmentInstanceState instance)
     {
-        ThrowIfDisposed();
         if (instance == null)
             return false;
         foreach (TraitInstanceState trait in instance.trait_instances)
         {
             if (trait == null || trait.SourceKind != TraitSourceKind.EquipmentRoll)
                 return false;
-            TraitDef traitDef = FindTraitDef(trait.trait_id);
+            TraitDefinition traitDef = FindTraitDef(trait.trait_id);
             if (traitDef == null)
                 return false;
             if (trait.ValidateAgainstDef(traitDef).Length > 0)
@@ -140,27 +93,27 @@ public class EquipmentTraitRollService : IDisposable
         return true;
     }
 
-    private List<TraitRollGroupEntryDef> RollGroup(TraitRollGroupDef group)
+    private List<TraitRollGroupEntryDefinition> RollGroup(TraitRollGroupDefinition group)
     {
-        List<TraitRollGroupEntryDef> hits = new();
-        if (group == null || group.roll_count < 1)
+        List<TraitRollGroupEntryDefinition> hits = new();
+        if (group == null || group.RollCount < 1)
             return hits;
 
         int maxSatisfiableHits = CountMaxSatisfiableHits(group);
-        if (group.roll_count > maxSatisfiableHits)
+        if (group.RollCount > maxSatisfiableHits)
         {
             GameLog.Warning(
-                $"Equipment trait roll group {group.group_id} is unsatisfiable: roll_count {group.roll_count} exceeds max satisfiable hits {maxSatisfiableHits}.",
+                $"Equipment trait roll group {group.GroupId} is unsatisfiable: roll_count {group.RollCount} exceeds max satisfiable hits {maxSatisfiableHits}.",
                 "equipment_traits.unsatisfiable_roll_group",
                 "equipment"
             );
             return hits;
         }
 
-        List<TraitRollGroupEntryDef> candidates = BuildValidCandidates(group);
-        for (int rollIndex = 0; rollIndex < group.roll_count && candidates.Count > 0; rollIndex++)
+        List<TraitRollGroupEntryDefinition> candidates = BuildValidCandidates(group);
+        for (int rollIndex = 0; rollIndex < group.RollCount && candidates.Count > 0; rollIndex++)
         {
-            TraitRollGroupEntryDef picked = WeightedPick(candidates);
+            TraitRollGroupEntryDefinition picked = WeightedPick(candidates);
             if (picked == null)
                 break;
             hits.Add(picked);
@@ -169,14 +122,16 @@ public class EquipmentTraitRollService : IDisposable
         return hits;
     }
 
-    private List<TraitRollGroupEntryDef> BuildValidCandidates(TraitRollGroupDef group)
+    private List<TraitRollGroupEntryDefinition> BuildValidCandidates(
+        TraitRollGroupDefinition group
+    )
     {
-        List<TraitRollGroupEntryDef> candidates = new();
-        foreach (TraitRollGroupEntryDef entry in group.entries)
+        List<TraitRollGroupEntryDefinition> candidates = new();
+        foreach (TraitRollGroupEntryDefinition entry in group.Entries)
         {
-            if (entry == null || entry.trait_id == "" || entry.weight <= 0)
+            if (entry == null || entry.TraitId == "" || entry.Weight <= 0)
                 continue;
-            TraitDef traitDef = FindTraitDef(entry.trait_id);
+            TraitDefinition traitDef = FindTraitDef(entry.TraitId);
             if (traitDef == null)
                 continue;
             if (!TraitContentRules.IsSourceKindAllowed(traitDef, TraitSourceKind.EquipmentRoll))
@@ -186,22 +141,24 @@ public class EquipmentTraitRollService : IDisposable
         return candidates;
     }
 
-    private TraitRollGroupEntryDef WeightedPick(List<TraitRollGroupEntryDef> candidates)
+    private TraitRollGroupEntryDefinition WeightedPick(
+        List<TraitRollGroupEntryDefinition> candidates
+    )
     {
         if (candidates == null || candidates.Count == 0)
             return null;
 
         int totalWeight = 0;
-        foreach (TraitRollGroupEntryDef entry in candidates)
-            totalWeight += Mathf.Max(entry.weight, 0);
+        foreach (TraitRollGroupEntryDefinition entry in candidates)
+            totalWeight += Mathf.Max(entry.Weight, 0);
         if (totalWeight <= 0)
             return null;
 
         float roll = Mathf.Clamp(_rollUnit(), 0.0f, 0.999999f) * totalWeight;
         int cumulative = 0;
-        foreach (TraitRollGroupEntryDef entry in candidates)
+        foreach (TraitRollGroupEntryDefinition entry in candidates)
         {
-            cumulative += Mathf.Max(entry.weight, 0);
+            cumulative += Mathf.Max(entry.Weight, 0);
             if (roll < cumulative)
                 return entry;
         }
@@ -209,49 +166,49 @@ public class EquipmentTraitRollService : IDisposable
     }
 
     private static void RemovePickedAndExclusivePeers(
-        List<TraitRollGroupEntryDef> candidates,
-        TraitRollGroupEntryDef picked
+        List<TraitRollGroupEntryDefinition> candidates,
+        TraitRollGroupEntryDefinition picked
     )
     {
-        if (picked.exclusive_group == "")
+        if (picked.ExclusiveGroup == "")
         {
             candidates.Remove(picked);
             return;
         }
-        candidates.RemoveAll(entry => entry.exclusive_group == picked.exclusive_group);
+        candidates.RemoveAll(entry => entry.ExclusiveGroup == picked.ExclusiveGroup);
     }
 
-    private Godot.Collections.Array<TraitRollValueState> RollValuesFor(TraitDef traitDef)
+    private List<TraitRollValueState> RollValuesFor(TraitDefinition traitDef)
     {
-        Godot.Collections.Array<TraitRollValueState> values = new();
-        foreach (TraitRollValueSchemaEntry schemaEntry in traitDef.roll_value_schema)
+        List<TraitRollValueState> values = new();
+        foreach (TraitRollValueSchemaEntryDefinition schemaEntry in traitDef.RollValueSchema)
         {
-            if (schemaEntry == null || schemaEntry.key == "")
+            if (schemaEntry == null || schemaEntry.Key == "")
                 continue;
             switch (schemaEntry.ValueTypeKind)
             {
                 case TraitRollValueType.Int:
                     values.Add(
                         TraitRollValueState.CreateInt(
-                            schemaEntry.key,
-                            _rollRange(schemaEntry.min_value, schemaEntry.max_value)
+                            schemaEntry.Key,
+                            _rollRange(schemaEntry.MinValue, schemaEntry.MaxValue)
                         )
                     );
                     break;
                 case TraitRollValueType.StringName:
-                    if (schemaEntry.allowed_values.Count == 0)
+                    if (schemaEntry.AllowedValues.Count == 0)
                         break;
-                    int index = _rollRange(0, schemaEntry.allowed_values.Count - 1);
+                    int index = _rollRange(0, schemaEntry.AllowedValues.Count - 1);
                     values.Add(
                         TraitRollValueState.CreateStringName(
-                            schemaEntry.key,
-                            schemaEntry.allowed_values[index]
+                            schemaEntry.Key,
+                            schemaEntry.AllowedValues[index]
                         )
                     );
                     break;
                 case TraitRollValueType.Bool:
                     values.Add(
-                        TraitRollValueState.CreateBool(schemaEntry.key, _rollRange(0, 1) != 0)
+                        TraitRollValueState.CreateBool(schemaEntry.Key, _rollRange(0, 1) != 0)
                     );
                     break;
             }
@@ -259,20 +216,20 @@ public class EquipmentTraitRollService : IDisposable
         return values;
     }
 
-    private static int CountMaxSatisfiableHits(TraitRollGroupDef group)
+    private static int CountMaxSatisfiableHits(TraitRollGroupDefinition group)
     {
         int count = 0;
         HashSet<StringName> exclusiveGroups = new();
-        foreach (TraitRollGroupEntryDef entry in group.entries)
+        foreach (TraitRollGroupEntryDefinition entry in group.Entries)
         {
             if (entry == null)
                 continue;
-            if (entry.exclusive_group == "")
+            if (entry.ExclusiveGroup == "")
             {
                 count++;
                 continue;
             }
-            if (exclusiveGroups.Add(entry.exclusive_group))
+            if (exclusiveGroups.Add(entry.ExclusiveGroup))
                 count++;
         }
         return count;
@@ -281,31 +238,12 @@ public class EquipmentTraitRollService : IDisposable
     private static StringName BuildTraitInstanceId(StringName equipmentInstanceId, int ordinal) =>
         $"{equipmentInstanceId}_t{Mathf.Max(ordinal, 1):D2}";
 
-    private TraitDef FindTraitDef(StringName traitId)
+    private TraitDefinition FindTraitDef(StringName traitId)
     {
         StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-        foreach (TraitDef traitDef in _traitDefs)
-            if (traitDef != null && traitDef.trait_id == normalizedTraitId)
+        foreach (TraitDefinition traitDef in _traitDefs)
+            if (traitDef != null && traitDef.TraitId == normalizedTraitId)
                 return traitDef;
         return null;
-    }
-
-    private void DisposeOwnedRng()
-    {
-        RandomNumberGenerator rng = _rng;
-        bool shouldDispose = _ownsRng;
-        _rng = null;
-        _ownsRng = false;
-        if (shouldDispose && rng != null && GodotObject.IsInstanceValid(rng))
-        {
-            GC.SuppressFinalize(rng);
-            rng.Dispose();
-        }
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(EquipmentTraitRollService));
     }
 }

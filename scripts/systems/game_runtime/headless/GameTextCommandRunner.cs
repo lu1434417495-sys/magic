@@ -115,7 +115,7 @@ public sealed class GameTextCommandRunner : IDisposable
         result.ok = commandResult.Ok;
         result.message = commandResult.Message;
         result.code = commandResult.Code;
-        result.SetSnapshot(_session.BuildSnapshotTyped());
+        result.SetSnapshot(_session.BuildSnapshotPlain());
         result.human_log = $"{(result.ok ? "OK" : "ERR")} {result.command_text}";
         result.snapshot_text = _session.BuildTextSnapshot();
         return result;
@@ -123,7 +123,7 @@ public sealed class GameTextCommandRunner : IDisposable
 
     private void FinalizeExpectResult(GameTextCommandResult result, List<string> tokens)
     {
-        IReadOnlyDictionary<string, object> snapshot = _session.BuildSnapshotTyped();
+        IReadOnlyDictionary<string, object> snapshot = _session.BuildSnapshotPlain();
         result.SetSnapshot(snapshot);
         ExpectationResult assertionResult = ExecuteExpect(tokens, snapshot);
         result.ok = assertionResult.Ok;
@@ -171,14 +171,14 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: preset list");
-        return Result(true, $"Listed {_session.ListPresets().Count} presets.");
+        return Result(true, $"Listed {_session.ListPresetsTyped().Count} presets.");
     }
 
     private CommandOutcome ExecuteSaveCommand(List<string> tokens)
     {
         if (tokens.Count < 2 || tokens[1] != "list")
             return Result(false, "用法: save list");
-        return Result(true, $"Listed {_session.ListSaveSlots().Count} saves.");
+        return Result(true, $"Listed {_session.ListSaveSlotsPlain().Count} saves.");
     }
 
     private CommandOutcome ExecuteGameCommand(List<string> tokens)
@@ -312,6 +312,8 @@ public sealed class GameTextCommandRunner : IDisposable
 
         switch (tokens[1])
         {
+            case "contingency":
+                return ExecutePartyContingencyCommand(tokens, runtime);
             case "open":
                 return ResultFromRuntimeOutcome(runtime.CommandOpenPartyTyped());
             case "select":
@@ -383,6 +385,51 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             default:
                 return Result(false, $"未知 party 子命令 {tokens[1]}。");
+        }
+    }
+
+    private CommandOutcome ExecutePartyContingencyCommand(
+        List<string> tokens,
+        GameRuntimeFacade runtime
+    )
+    {
+        if (tokens.Count < 4)
+            return Result(
+                false,
+                "用法: party contingency status <member_id> | save/edit <member_id> <setup_payload_name> | charge/clear <member_id> <setup_id>"
+            );
+
+        StringName memberId = new(tokens[3]);
+        switch (tokens[2])
+        {
+            case "status":
+                return ResultFromContingencyResult(runtime.CommandContingencyStatusTyped(memberId));
+            case "save":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency save <member_id> <setup_payload_name>");
+                return ResultFromContingencyResult(
+                    runtime.SaveContingencySetupTemplateRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "edit":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency edit <member_id> <setup_payload_name>");
+                return ResultFromContingencyResult(
+                    runtime.EditContingencySetupTemplateRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "charge":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency charge <member_id> <setup_id>");
+                return ResultFromContingencyResult(
+                    runtime.ChargeContingencySetupRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            case "clear":
+                if (tokens.Count < 5)
+                    return Result(false, "用法: party contingency clear <member_id> <setup_id>");
+                return ResultFromContingencyResult(
+                    runtime.ClearContingencyChargeRuntimeTyped(memberId, new StringName(tokens[4]))
+                );
+            default:
+                return Result(false, $"未知 party contingency 子命令 {tokens[2]}。");
         }
     }
 
@@ -479,13 +526,21 @@ public sealed class GameTextCommandRunner : IDisposable
             || source == SettlementSubmissionSource.Forge
         )
         {
-            GDictionary modalPayload = BuildSanitizedSettlementModalActionPayload(
+            IReadOnlyDictionary<string, object> modalPayload =
+                BuildSanitizedSettlementModalActionPayload(
                 namedArgs,
                 source,
                 quantity
             );
+            using GodotProjectionLease<GDictionary> modalPayloadLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    modalPayload,
+                    "game-text-settlement-modal-payload",
+                    LifetimeDomain.Request,
+                    "GameTextCommandRunner.ExecuteSettlementCommand.modalPayload"
+                );
             return ResultFromRuntimeOutcome(
-                runtime.CommandExecuteSettlementActionTyped(actionId, modalPayload)
+                runtime.CommandExecuteSettlementActionTyped(actionId, modalPayloadLease.Value)
             );
         }
         string settlementId = namedArgs.TryGetValue("settlement_id", out string explicitSettlementId)
@@ -579,7 +634,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (tokens.Count < 3)
             return Result(
                 false,
-                "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one|discard-all <item_id> [instance_id=<instance_id>] | warehouse capacity <value>"
+                "用法: warehouse add <item_id> <quantity> | warehouse use <item_id> [member_id] | warehouse discard-one <item_id> [instance_id=<instance_id>] | warehouse discard-all <item_id> | warehouse capacity <value>"
             );
 
         switch (tokens[1])
@@ -636,15 +691,14 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             case "discard-all":
             {
-                if (!TryParseNamedStringArgs(tokens, 3, out var namedArgs, out string namedArgError))
-                    return Result(false, namedArgError);
+                if (tokens.Count != 3)
+                    return Result(
+                        false,
+                        "用法: warehouse discard-all <item_id>",
+                        GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                    );
                 return ResultFromRuntimeOutcome(
-                    runtime.CommandWarehouseDiscardAllTyped(
-                        new StringName(tokens[2]),
-                        namedArgs.TryGetValue("instance_id", out string instanceId)
-                            ? new StringName(instanceId)
-                            : new StringName()
-                    )
+                    runtime.CommandWarehouseDiscardAllTyped(new StringName(tokens[2]))
                 );
             }
             default:
@@ -1002,6 +1056,21 @@ public sealed class GameTextCommandRunner : IDisposable
         );
     }
 
+    private static CommandOutcome ResultFromContingencyResult(
+        ContingencySetupMutationResult outcome
+    )
+    {
+        bool ok = outcome?.Ok ?? false;
+        string reasonId = ok ? "ok" : outcome?.ErrorCode ?? "mutation_failed";
+        return Result(
+            ok,
+            reasonId,
+            ok
+                ? GameRuntimeFacade.RuntimeCommandCode.Ok
+                : GameRuntimeFacade.RuntimeCommandCode.InvalidState
+        );
+    }
+
     private static List<string> Tokenize(string line)
     {
         var tokens = new List<string>();
@@ -1089,13 +1158,13 @@ public sealed class GameTextCommandRunner : IDisposable
         return result;
     }
 
-    private static GDictionary BuildSanitizedSettlementModalActionPayload(
+    private static IReadOnlyDictionary<string, object> BuildSanitizedSettlementModalActionPayload(
         IReadOnlyDictionary<string, string> namedArgs,
         SettlementSubmissionSource source,
         int quantity
     )
     {
-        var payload = new GDictionary
+        var payload = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(source),
         };
@@ -1247,8 +1316,8 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         return value switch
         {
-            IReadOnlyDictionary<string, object> dictionary => Json.Stringify(ProjectTypedDictionary(dictionary)),
-            IReadOnlyList<object> array => Json.Stringify(ProjectTypedArray(array)),
+            IReadOnlyDictionary<string, object> dictionary => StringifyDictionary(dictionary),
+            IReadOnlyList<object> array => StringifyArray(array),
             bool boolValue => boolValue ? "true" : "false",
             float floatValue => floatValue.ToString(CultureInfo.GetCultureInfo("")),
             double doubleValue => doubleValue.ToString(CultureInfo.GetCultureInfo("")),
@@ -1256,6 +1325,29 @@ public sealed class GameTextCommandRunner : IDisposable
             long longValue => longValue.ToString(CultureInfo.GetCultureInfo("")),
             _ => value?.ToString() ?? "",
         };
+    }
+
+    private static string StringifyDictionary(IReadOnlyDictionary<string, object> value)
+    {
+        using GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                value,
+                "game-text-stringify-dictionary",
+                LifetimeDomain.Request,
+                "GameTextCommandRunner.StringifyValue.dictionary"
+            );
+        return Json.Stringify(lease.Value);
+    }
+
+    private static string StringifyArray(IReadOnlyList<object> value)
+    {
+        using GodotProjectionLease<GArray> lease = RuntimePlainPayload.ProjectArrayLease(
+            value,
+            "game-text-stringify-array",
+            LifetimeDomain.Request,
+            "GameTextCommandRunner.StringifyValue.array"
+        );
+        return Json.Stringify(lease.Value);
     }
 
     private static string StringifyForSummary(object value)
@@ -1387,46 +1479,6 @@ public sealed class GameTextCommandRunner : IDisposable
                 result = 0;
                 return false;
         }
-    }
-
-    private static GDictionary ProjectTypedDictionary(IReadOnlyDictionary<string, object> source)
-    {
-        var projection = new GDictionary();
-        foreach ((string key, object value) in source)
-            projection[key] = ProjectTypedValue(value);
-        return projection;
-    }
-
-    private static GArray ProjectTypedArray(IReadOnlyList<object> source)
-    {
-        var projection = new GArray();
-        foreach (object value in source)
-            projection.Add(ProjectTypedValue(value));
-        return projection;
-    }
-
-    private static Variant ProjectTypedValue(object value)
-    {
-        if (value == null)
-            return default;
-        if (value is IReadOnlyDictionary<string, object> dictionaryValue)
-            return ProjectTypedDictionary(dictionaryValue);
-        if (value is IReadOnlyList<object> listValue)
-            return ProjectTypedArray(listValue);
-        return value switch
-        {
-            Variant variantValue => variantValue,
-            bool boolValue => boolValue,
-            int intValue => intValue,
-            long longValue => longValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            string stringValue => stringValue,
-            StringName stringNameValue => stringNameValue,
-            Vector2I vectorValue => vectorValue,
-            GodotObject godotObject => godotObject,
-            _ => value.ToString() ?? "",
-        };
     }
 
     private static ExpectationResult ExpectOk(string summary, string actual, string expected)

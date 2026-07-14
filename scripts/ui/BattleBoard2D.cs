@@ -1,7 +1,5 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GTileLayerArray = Godot.Collections.Array<Godot.TileMapLayer>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 [GlobalClass]
 public partial class BattleBoard2D : Node2D
@@ -28,13 +26,13 @@ public partial class BattleBoard2D : Node2D
     private const int MOUSE_BUTTON_MASK_MIDDLE_VALUE = 4;
 
     public TileMapLayer input_layer;
-    public GTileLayerArray top_layers = new();
-    public GTileLayerArray edge_drop_east_layers = new();
-    public GTileLayerArray edge_drop_south_layers = new();
-    public GTileLayerArray wall_east_layers = new();
-    public GTileLayerArray wall_south_layers = new();
-    public GTileLayerArray overlay_layers = new();
-    public GTileLayerArray marker_layers = new();
+    public List<TileMapLayer> top_layers = new();
+    public List<TileMapLayer> edge_drop_east_layers = new();
+    public List<TileMapLayer> edge_drop_south_layers = new();
+    public List<TileMapLayer> wall_east_layers = new();
+    public List<TileMapLayer> wall_south_layers = new();
+    public List<TileMapLayer> overlay_layers = new();
+    public List<TileMapLayer> marker_layers = new();
     public Node2D prop_layer;
     public Node2D unit_layer;
     public Node2D target_highlight_layer;
@@ -47,12 +45,12 @@ public partial class BattleBoard2D : Node2D
     public bool _is_bound;
     public BattleState _pending_battle_state;
     public Vector2I _pending_selected_coord = new(-1, -1);
-    public GVector2IArray _pending_preview_target_coords = new();
-    public GVector2IArray _pending_valid_target_coords = new();
+    public List<Vector2I> _pending_preview_target_coords = new();
+    public List<Vector2I> _pending_valid_target_coords = new();
     public StringName _pending_target_selection_mode = "single_unit";
     public int _pending_target_min_count = 1;
     public int _pending_target_max_count = 1;
-    public GDictionary _pending_target_hit_badges = new();
+    public Dictionary<Vector2I, string> _pending_target_hit_badges = new();
     public Vector2 _viewport_size = Vector2.Zero;
     public float _camera_zoom = DEFAULT_CAMERA_ZOOM;
     public Rect2 _content_bounds = new();
@@ -83,48 +81,84 @@ public partial class BattleBoard2D : Node2D
         _apply_pending_configuration();
     }
 
+    public override void _ExitTree()
+    {
+        _controller?.Dispose();
+        _controller = null;
+        _pending_battle_state = null;
+        _pending_preview_target_coords.Clear();
+        _pending_valid_target_coords.Clear();
+        _pending_target_hit_badges.Clear();
+        input_layer = null;
+        top_layers.Clear();
+        edge_drop_east_layers.Clear();
+        edge_drop_south_layers.Clear();
+        wall_east_layers.Clear();
+        wall_south_layers.Clear();
+        overlay_layers.Clear();
+        marker_layers.Clear();
+        prop_layer = null;
+        unit_layer = null;
+        target_highlight_layer = null;
+        _render_profile = null;
+        _is_bound = false;
+    }
+
     public void Configure(
         BattleState battle_state,
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords = null,
-        GVector2IArray valid_target_coords = null,
+        IEnumerable<Vector2I> preview_target_coords = null,
+        IEnumerable<Vector2I> valid_target_coords = null,
         StringName target_selection_mode = default,
         int min_target_count = 1,
         int max_target_count = 1,
-        GDictionary target_hit_badges = null
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges = null
     )
     {
         _pending_battle_state = battle_state;
         _set_render_profile_for_state(battle_state);
         _pending_selected_coord = selected_coord;
-        _pending_preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _pending_valid_target_coords = CloneVector2IArray(valid_target_coords);
+        _pending_preview_target_coords = CloneCoords(preview_target_coords);
+        _pending_valid_target_coords = CloneCoords(valid_target_coords);
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        _pending_target_hit_badges = CloneHitBadges(target_hit_badges);
         _apply_pending_configuration();
         _fit_to_viewport(true);
     }
 
     public void UpdateSelection(
         Vector2I selected_coord,
-        GVector2IArray preview_target_coords = null,
-        GVector2IArray valid_target_coords = null,
+        IEnumerable<Vector2I> preview_target_coords = null,
+        IEnumerable<Vector2I> valid_target_coords = null,
         StringName target_selection_mode = default,
         int min_target_count = 1,
         int max_target_count = 1,
-        GDictionary target_hit_badges = null
+        IReadOnlyDictionary<Vector2I, string> target_hit_badges = null
     )
     {
         _pending_selected_coord = selected_coord;
-        _pending_preview_target_coords = CloneVector2IArray(preview_target_coords);
-        _pending_valid_target_coords = CloneVector2IArray(valid_target_coords);
+        _pending_preview_target_coords = CloneCoords(preview_target_coords);
+        _pending_valid_target_coords = CloneCoords(valid_target_coords);
         _pending_target_selection_mode = NormalizeTargetSelectionMode(target_selection_mode);
         _pending_target_min_count = Mathf.Max(min_target_count, 1);
         _pending_target_max_count = Mathf.Max(max_target_count, _pending_target_min_count);
-        _pending_target_hit_badges = CloneDictionary(target_hit_badges);
+        _pending_target_hit_badges = CloneHitBadges(target_hit_badges);
         _apply_pending_marker_update();
+    }
+
+    public void RefreshUnits(
+        BattleState battle_state,
+        IEnumerable<StringName> changed_unit_ids
+    )
+    {
+        _pending_battle_state = battle_state;
+        if (!_is_bound)
+            _bind_controller();
+        if (!_is_bound)
+            return;
+        _controller.RefreshUnits(battle_state, changed_unit_ids);
     }
 
     public void SetViewportSize(Vector2 viewport_size)
@@ -243,7 +277,14 @@ public partial class BattleBoard2D : Node2D
         _camera_zoom = DEFAULT_CAMERA_ZOOM;
         _last_focus_coord = new Vector2I(-9999, -9999);
         _set_hovered_coord(new Vector2I(-1, -1));
-        _controller?.Clear();
+        try
+        {
+            _controller?.Clear();
+        }
+        finally
+        {
+            _is_bound = false;
+        }
         _fit_to_viewport();
     }
 
@@ -286,7 +327,7 @@ public partial class BattleBoard2D : Node2D
 
     private void _bind_controller()
     {
-        if (_is_bound)
+        if (_is_bound || _controller == null)
             return;
 
         _controller.BindLayers(
@@ -307,6 +348,8 @@ public partial class BattleBoard2D : Node2D
 
     private void _apply_pending_configuration()
     {
+        if (!_is_bound)
+            _bind_controller();
         if (!_is_bound)
             return;
 
@@ -633,9 +676,9 @@ public partial class BattleBoard2D : Node2D
         return Mathf.Clamp(current_position, minPosition, maxPosition);
     }
 
-    private GTileLayerArray _collect_tile_layers(string prefix, int start_height, int end_height)
+    private List<TileMapLayer> _collect_tile_layers(string prefix, int start_height, int end_height)
     {
-        var layers = new GTileLayerArray();
+        var layers = new List<TileMapLayer>();
         for (int height = start_height; height <= end_height; height++)
         {
             TileMapLayer layer = GetNodeOrNull<TileMapLayer>($"{prefix}{height}");
@@ -645,19 +688,22 @@ public partial class BattleBoard2D : Node2D
         return layers;
     }
 
-    private static GVector2IArray CloneVector2IArray(GVector2IArray values)
+    private static List<Vector2I> CloneCoords(IEnumerable<Vector2I> values)
+        => values != null ? new List<Vector2I>(values) : new List<Vector2I>();
+
+    private static Dictionary<Vector2I, string> CloneHitBadges(
+        IReadOnlyDictionary<Vector2I, string> values
+    )
     {
-        var result = new GVector2IArray();
+        var result = new Dictionary<Vector2I, string>();
         if (values == null)
             return result;
-        foreach (Vector2I value in values)
-            result.Add(value);
+        foreach ((Vector2I coord, string badgeText) in values)
+        {
+            if (!string.IsNullOrEmpty(badgeText))
+                result[coord] = badgeText;
+        }
         return result;
-    }
-
-    private static GDictionary CloneDictionary(GDictionary values)
-    {
-        return values != null ? (GDictionary)values.Duplicate(true) : new GDictionary();
     }
 
     private static StringName NormalizeTargetSelectionMode(StringName value)

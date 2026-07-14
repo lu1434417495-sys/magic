@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_equipment_requirement_rules_regression : SceneTree
+public partial class run_battle_equipment_requirement_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,13 +12,13 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
         TestShieldRequirementRejectsMissingOrNonShieldItems();
         TestItemTagRuleRejectsInvalidSlot();
 
-        Quit(_test.Finish("Battle equipment requirement rules regression"));
+        RequestTestExit(_test.Finish("Battle equipment requirement rules regression"));
     }
 
     private void TestShieldRequirementReadsTypedItemIndex()
     {
         BattleUnitState unit = BuildUnitWithEquippedItem("training_shield");
-        var itemDefs = new Dictionary<StringName, ItemDef>
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
         {
             ["training_shield"] = BuildItemDef("training_shield", "shield", "off_hand"),
         };
@@ -34,7 +32,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
     private void TestShieldRequirementRejectsMissingOrNonShieldItems()
     {
         BattleUnitState unit = BuildUnitWithEquippedItem("training_focus");
-        var nonShieldItemDefs = new Dictionary<StringName, ItemDef>
+        var nonShieldItemDefs = new Dictionary<StringName, ItemDefinition>
         {
             ["training_focus"] = BuildItemDef("training_focus", "focus", "off_hand"),
         };
@@ -46,7 +44,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
         _test.False(
             BattleEquipmentRequirementRules.UnitHasEquippedShield(
                 unit,
-                new Dictionary<StringName, ItemDef>()
+                new Dictionary<StringName, ItemDefinition>()
             ),
             "缺少 typed item index 时不应通过盾牌需求。"
         );
@@ -55,7 +53,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
     private void TestItemTagRuleRejectsInvalidSlot()
     {
         BattleUnitState unit = BuildUnitWithEquippedItem("training_shield");
-        var itemDefs = new Dictionary<StringName, ItemDef>
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
         {
             ["training_shield"] = BuildItemDef("training_shield", "shield", "off_hand"),
         };
@@ -91,13 +89,34 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
         return unit;
     }
 
-    private static ItemDef BuildItemDef(StringName itemId, params StringName[] tags)
+    private static ItemDefinition BuildItemDef(StringName itemId, params StringName[] tags)
     {
-        return new ItemDef
-        {
-            item_id = itemId,
-            tags = new GStringNameArray(tags),
-        };
+        return new ItemDefinition(
+            itemId,
+            "",
+            itemId.ToString(),
+            "",
+            "",
+            false,
+            0,
+            0,
+            0,
+            true,
+            1,
+            ItemDefinition.ToStringName(ItemCategoryKind.Misc),
+            tags,
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitRollGroupDefinition>(),
+            Array.Empty<string>(),
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            Array.Empty<string>(),
+            null,
+            "",
+            null,
+            -1
+        );
     }
-
 }

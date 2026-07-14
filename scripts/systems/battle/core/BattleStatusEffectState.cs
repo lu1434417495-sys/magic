@@ -7,7 +7,7 @@ using Variant = Godot.Variant;
 // 战斗状态效果数据 bag。
 // 翻译自 battle_status_effect_state.gd（2026-05-24，数据层 C# 迁移）。
 // 契约：docs/design/battle_csharp_migration.md
-public partial class BattleStatusEffectState : RefCounted
+public class BattleStatusEffectState
 {
     private static readonly string[] RequiredSchemaFields =
     {
@@ -21,12 +21,17 @@ public partial class BattleStatusEffectState : RefCounted
     private static readonly string[] OptionalSchemaFields =
     {
         "duration",
+        "display_label",
         "tick_interval_tu",
         "next_tick_at_tu",
+        "timeline_damage_dice_count",
+        "timeline_damage_dice_sides",
+        "timeline_damage_flat_bonus",
         "skip_next_turn_end_decay",
         "counts_as_debuff_override",
         "counts_as_debuff",
         "lock_counterattack",
+        "lock_guard",
         "lock_dodge_bonus",
         "lock_crit",
         "main_skill_lock_other_debuff_count",
@@ -45,6 +50,18 @@ public partial class BattleStatusEffectState : RefCounted
         "heal_multiplier_percent",
         "shield_gain_multiplier_percent",
         "attack_roll_penalty",
+        "source_bound_attack_roll_penalty",
+        "source_bound_attack_roll_penalty_min_stacks",
+        "source_bound_incoming_attack_roll_bonus_per_stack",
+        "source_bound_incoming_attack_roll_bonus_min_stacks",
+        "source_bound_weapon_bonus_damage_dice_count",
+        "source_bound_weapon_bonus_damage_dice_sides",
+        "source_bound_weapon_bonus_damage_dice_bonus",
+        "attack_roll_bonus",
+        "attack_roll_advantage",
+        "consume_on_next_attack_check",
+        "consume_on_next_save",
+        "move_point_capacity_delta",
         "undispellable",
         "dispellable_magic",
         "dispellable_harmful_magic",
@@ -83,12 +100,31 @@ public partial class BattleStatusEffectState : RefCounted
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
-    internal GDictionary @params { get; set; } = new();
+    private readonly Dictionary<string, object> _params = new(System.StringComparer.Ordinal);
+    internal GDictionary @params
+    {
+        set => ReplaceParams(value);
+    }
+
+    internal IReadOnlyDictionary<string, object> ParamsSnapshotPlain =>
+        RuntimePlainPayload.CloneDictionary(_params);
     public double? incoming_damage_multiplier { get; set; }
     public double? outgoing_damage_multiplier { get; set; }
     public int? heal_multiplier_percent { get; set; }
     public int? shield_gain_multiplier_percent { get; set; }
     public int attack_roll_penalty { get; set; } = -1;
+    public int source_bound_attack_roll_penalty { get; set; }
+    public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
+    public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
+    public int source_bound_incoming_attack_roll_bonus_min_stacks { get; set; } = 1;
+    public int source_bound_weapon_bonus_damage_dice_count { get; set; }
+    public int source_bound_weapon_bonus_damage_dice_sides { get; set; }
+    public int source_bound_weapon_bonus_damage_dice_bonus { get; set; }
+    public int attack_roll_bonus { get; set; }
+    public bool attack_roll_advantage { get; set; }
+    public bool consume_on_next_attack_check { get; set; }
+    public bool consume_on_next_save { get; set; }
+    public int move_point_capacity_delta { get; set; }
     public bool undispellable { get; set; }
     public bool dispellable_magic { get; set; }
     public bool dispellable_harmful_magic { get; set; }
@@ -108,13 +144,18 @@ public partial class BattleStatusEffectState : RefCounted
     public int death_prevention_priority { get; set; }
     public int stacks { get; set; }
     public int duration { get; set; } = -1;
+    public string display_label { get; set; } = "";
     public int tick_interval_tu { get; set; }
     public int next_tick_at_tu { get; set; }
+    public int timeline_damage_dice_count { get; set; }
+    public int timeline_damage_dice_sides { get; set; }
+    public int timeline_damage_flat_bonus { get; set; }
     public bool skip_next_turn_end_decay { get; set; }
     public bool forced_move_immune { get; set; }
     public bool counts_as_debuff_override { get; set; }
     public bool counts_as_debuff { get; set; }
     public bool lock_counterattack { get; set; }
+    public bool lock_guard { get; set; }
     public bool lock_dodge_bonus { get; set; }
     public bool lock_crit { get; set; }
     public int save_bonus { get; set; }
@@ -176,7 +217,7 @@ public partial class BattleStatusEffectState : RefCounted
 
     internal Dictionary<string, object> GetParamsTyped()
     {
-        return NormalizeDictionary(BuildParamsProjection());
+        return BuildParamsPlainProjection();
     }
 
     internal static BattleStatusEffectState CreateOrDuplicate(BattleStatusEffectState existingEntry)
@@ -186,7 +227,7 @@ public partial class BattleStatusEffectState : RefCounted
 
     public BattleStatusEffectState DuplicateState()
     {
-        return new BattleStatusEffectState
+        var duplicate = new BattleStatusEffectState
         {
             status_id = status_id,
             source_unit_id = source_unit_id,
@@ -196,12 +237,29 @@ public partial class BattleStatusEffectState : RefCounted
             stack_behavior = stack_behavior,
             stack_limit = stack_limit,
             power = power,
-            @params = CopyResidualParams(@params),
             incoming_damage_multiplier = incoming_damage_multiplier,
             outgoing_damage_multiplier = outgoing_damage_multiplier,
             heal_multiplier_percent = heal_multiplier_percent,
             shield_gain_multiplier_percent = shield_gain_multiplier_percent,
             attack_roll_penalty = attack_roll_penalty,
+            source_bound_attack_roll_penalty = source_bound_attack_roll_penalty,
+            source_bound_attack_roll_penalty_min_stacks =
+                source_bound_attack_roll_penalty_min_stacks,
+            source_bound_incoming_attack_roll_bonus_per_stack =
+                source_bound_incoming_attack_roll_bonus_per_stack,
+            source_bound_incoming_attack_roll_bonus_min_stacks =
+                source_bound_incoming_attack_roll_bonus_min_stacks,
+            source_bound_weapon_bonus_damage_dice_count =
+                source_bound_weapon_bonus_damage_dice_count,
+            source_bound_weapon_bonus_damage_dice_sides =
+                source_bound_weapon_bonus_damage_dice_sides,
+            source_bound_weapon_bonus_damage_dice_bonus =
+                source_bound_weapon_bonus_damage_dice_bonus,
+            attack_roll_bonus = attack_roll_bonus,
+            attack_roll_advantage = attack_roll_advantage,
+            consume_on_next_attack_check = consume_on_next_attack_check,
+            consume_on_next_save = consume_on_next_save,
+            move_point_capacity_delta = move_point_capacity_delta,
             undispellable = undispellable,
             dispellable_magic = dispellable_magic,
             dispellable_harmful_magic = dispellable_harmful_magic,
@@ -221,13 +279,18 @@ public partial class BattleStatusEffectState : RefCounted
             death_prevention_priority = death_prevention_priority,
             stacks = stacks,
             duration = duration,
+            display_label = display_label,
             tick_interval_tu = tick_interval_tu,
             next_tick_at_tu = next_tick_at_tu,
+            timeline_damage_dice_count = timeline_damage_dice_count,
+            timeline_damage_dice_sides = timeline_damage_dice_sides,
+            timeline_damage_flat_bonus = timeline_damage_flat_bonus,
             skip_next_turn_end_decay = skip_next_turn_end_decay,
             forced_move_immune = forced_move_immune,
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             lock_counterattack = lock_counterattack,
+            lock_guard = lock_guard,
             lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
             save_bonus = save_bonus,
@@ -244,22 +307,27 @@ public partial class BattleStatusEffectState : RefCounted
             status_tags = BuildStringNameList(status_tags),
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
         };
+        duplicate.SetParamsTyped(_params);
+        return duplicate;
     }
 
-    internal GDictionary ToDictionary()
+    internal Dictionary<string, object> BuildSnapshotPlain()
     {
-        GDictionary projectedParams = BuildParamsProjection();
-        GDictionary payload = new()
+        Dictionary<string, object> payload = new(System.StringComparer.Ordinal)
         {
             ["status_id"] = status_id.ToString(),
             ["source_unit_id"] = source_unit_id.ToString(),
             ["power"] = power,
-            ["params"] = projectedParams,
+            ["params"] = BuildParamsPlainProjection(),
             ["stacks"] = stacks,
         };
         if (HasDuration())
         {
             payload["duration"] = duration;
+        }
+        if (!string.IsNullOrWhiteSpace(display_label))
+        {
+            payload["display_label"] = display_label;
         }
         if (tick_interval_tu > 0)
         {
@@ -268,6 +336,15 @@ public partial class BattleStatusEffectState : RefCounted
         if (next_tick_at_tu > 0)
         {
             payload["next_tick_at_tu"] = next_tick_at_tu;
+        }
+        if (timeline_damage_dice_count > 0 || timeline_damage_dice_sides > 0)
+        {
+            payload["timeline_damage_dice_count"] = timeline_damage_dice_count;
+            payload["timeline_damage_dice_sides"] = timeline_damage_dice_sides;
+        }
+        if (timeline_damage_flat_bonus > 0)
+        {
+            payload["timeline_damage_flat_bonus"] = timeline_damage_flat_bonus;
         }
         if (skip_next_turn_end_decay)
         {
@@ -281,6 +358,10 @@ public partial class BattleStatusEffectState : RefCounted
         if (lock_counterattack)
         {
             payload["lock_counterattack"] = true;
+        }
+        if (lock_guard)
+        {
+            payload["lock_guard"] = true;
         }
         if (lock_dodge_bonus)
         {
@@ -296,6 +377,14 @@ public partial class BattleStatusEffectState : RefCounted
         }
         return payload;
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease() =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "BattleStatusEffectState.ToDictionary",
+            LifetimeDomain.Request,
+            "BattleStatusEffectState.ToDictionary"
+        );
 
     internal static BattleStatusEffectState FromDictionary(GDictionary effectDict)
     {
@@ -337,6 +426,18 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        string displayLabelValue = "";
+        if (effectDict.ContainsKey("display_label"))
+        {
+            if (
+                !TryGetStringLike(effectDict, "display_label", out displayLabelValue)
+                || string.IsNullOrWhiteSpace(displayLabelValue)
+            )
+            {
+                return null;
+            }
+        }
+
         int tickIntervalValue = 0;
         if (effectDict.ContainsKey("tick_interval_tu"))
         {
@@ -355,6 +456,52 @@ public partial class BattleStatusEffectState : RefCounted
             if (
                 !TryGetStrictInt(effectDict, "next_tick_at_tu", out nextTickAtValue)
                 || nextTickAtValue <= 0
+            )
+            {
+                return null;
+            }
+        }
+
+        int timelineDamageDiceCountValue = 0;
+        int timelineDamageDiceSidesValue = 0;
+        int timelineDamageFlatBonusValue = 0;
+        bool hasTimelineDamageDiceCount = effectDict.ContainsKey("timeline_damage_dice_count");
+        bool hasTimelineDamageDiceSides = effectDict.ContainsKey("timeline_damage_dice_sides");
+        bool hasTimelineDamageFlatBonus = effectDict.ContainsKey("timeline_damage_flat_bonus");
+        if (hasTimelineDamageDiceCount != hasTimelineDamageDiceSides)
+        {
+            return null;
+        }
+        if (hasTimelineDamageDiceCount)
+        {
+            if (
+                !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_dice_count",
+                    out timelineDamageDiceCountValue
+                )
+                || timelineDamageDiceCountValue <= 0
+                || !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_dice_sides",
+                    out timelineDamageDiceSidesValue
+                )
+                || timelineDamageDiceSidesValue <= 0
+            )
+            {
+                return null;
+            }
+        }
+        if (hasTimelineDamageFlatBonus)
+        {
+            if (
+                !TryGetStrictInt(
+                    effectDict,
+                    "timeline_damage_flat_bonus",
+                    out timelineDamageFlatBonusValue
+                )
+                || timelineDamageFlatBonusValue <= 0
+                || !hasTimelineDamageDiceCount
             )
             {
                 return null;
@@ -415,6 +562,15 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        bool lockGuardValue = false;
+        if (effectDict.ContainsKey("lock_guard"))
+        {
+            if (!TryReadBoolField(effectDict, "lock_guard", out lockGuardValue) || !lockGuardValue)
+            {
+                return null;
+            }
+        }
+
         bool lockCritValue = false;
         if (effectDict.ContainsKey("lock_crit"))
         {
@@ -455,12 +611,11 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
-        return new BattleStatusEffectState
+        var state = new BattleStatusEffectState
         {
             status_id = new StringName(statusId),
             source_unit_id = new StringName(sourceUnitId),
             power = power,
-            @params = CopyResidualParams(parameters),
             incoming_damage_multiplier = ReadOptionalDoubleParam(parameters, "incoming_damage_multiplier"),
             outgoing_damage_multiplier = ReadOptionalDoubleParam(parameters, "outgoing_damage_multiplier"),
             source_profile_id = ReadOptionalStringNameParam(parameters, "source"),
@@ -474,6 +629,29 @@ public partial class BattleStatusEffectState : RefCounted
                 "shield_gain_multiplier_percent"
             ),
             attack_roll_penalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            source_bound_attack_roll_penalty =
+                ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty") ?? 0,
+            source_bound_attack_roll_penalty_min_stacks =
+                ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty_min_stacks") ?? 1,
+            source_bound_incoming_attack_roll_bonus_per_stack =
+                ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_per_stack") ?? 0,
+            source_bound_incoming_attack_roll_bonus_min_stacks =
+                ReadOptionalIntParam(parameters, "source_bound_incoming_attack_roll_bonus_min_stacks") ?? 1,
+            source_bound_weapon_bonus_damage_dice_count =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_count") ?? 0,
+            source_bound_weapon_bonus_damage_dice_sides =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_sides") ?? 0,
+            source_bound_weapon_bonus_damage_dice_bonus =
+                ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_bonus") ?? 0,
+            attack_roll_bonus = ReadOptionalIntParam(parameters, "attack_roll_bonus") ?? 0,
+            attack_roll_advantage = ReadOptionalBoolParam(parameters, "attack_roll_advantage"),
+            consume_on_next_attack_check = ReadOptionalBoolParam(
+                parameters,
+                "consume_on_next_attack_check"
+            ),
+            consume_on_next_save = ReadOptionalBoolParam(parameters, "consume_on_next_save"),
+            move_point_capacity_delta =
+                ReadOptionalIntParam(parameters, "move_point_capacity_delta") ?? 0,
             undispellable = ReadOptionalBoolParam(parameters, "undispellable"),
             dispellable_magic = ReadOptionalBoolParam(parameters, "dispellable_magic"),
             dispellable_harmful_magic = ReadOptionalBoolParam(parameters, "dispellable_harmful_magic"),
@@ -511,21 +689,28 @@ public partial class BattleStatusEffectState : RefCounted
             save_bonus_by_tag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
             stacks = stacks,
             duration = durationValue,
+            display_label = displayLabelValue,
             tick_interval_tu = tickIntervalValue,
             next_tick_at_tu = nextTickAtValue,
+            timeline_damage_dice_count = timelineDamageDiceCountValue,
+            timeline_damage_dice_sides = timelineDamageDiceSidesValue,
+            timeline_damage_flat_bonus = timelineDamageFlatBonusValue,
             skip_next_turn_end_decay = skipDecayValue,
             counts_as_debuff_override = countsAsDebuffOverrideValue,
             counts_as_debuff = countsAsDebuffValue,
             lock_counterattack = lockCounterattackValue,
+            lock_guard = lockGuardValue,
             lock_dodge_bonus = lockDodgeBonusValue,
             lock_crit = lockCritValue,
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
+        state.SetParamsTyped(CopyResidualParamsPlain(parameters));
+        return state;
     }
 
-    private GDictionary BuildParamsProjection()
+    private Dictionary<string, object> BuildParamsProjection()
     {
-        GDictionary projected = @params?.Duplicate(true) ?? new GDictionary();
+        Dictionary<string, object> projected = RuntimePlainPayload.CloneDictionary(_params);
         if (incoming_damage_multiplier.HasValue)
         {
             projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
@@ -565,6 +750,51 @@ public partial class BattleStatusEffectState : RefCounted
         if (attack_roll_penalty >= 0)
         {
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        }
+        if (source_bound_attack_roll_penalty > 0)
+        {
+            projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
+            projected["source_bound_attack_roll_penalty_min_stacks"] =
+                Mathf.Max(source_bound_attack_roll_penalty_min_stacks, 1);
+        }
+        if (source_bound_incoming_attack_roll_bonus_per_stack > 0)
+        {
+            projected["source_bound_incoming_attack_roll_bonus_per_stack"] =
+                source_bound_incoming_attack_roll_bonus_per_stack;
+            projected["source_bound_incoming_attack_roll_bonus_min_stacks"] =
+                Mathf.Max(source_bound_incoming_attack_roll_bonus_min_stacks, 1);
+        }
+        if (source_bound_weapon_bonus_damage_dice_count > 0)
+        {
+            projected["source_bound_weapon_bonus_damage_dice_count"] =
+                source_bound_weapon_bonus_damage_dice_count;
+            projected["source_bound_weapon_bonus_damage_dice_sides"] =
+                source_bound_weapon_bonus_damage_dice_sides;
+            if (source_bound_weapon_bonus_damage_dice_bonus != 0)
+            {
+                projected["source_bound_weapon_bonus_damage_dice_bonus"] =
+                    source_bound_weapon_bonus_damage_dice_bonus;
+            }
+        }
+        if (attack_roll_bonus != 0)
+        {
+            projected["attack_roll_bonus"] = attack_roll_bonus;
+        }
+        if (attack_roll_advantage)
+        {
+            projected["attack_roll_advantage"] = true;
+        }
+        if (consume_on_next_attack_check)
+        {
+            projected["consume_on_next_attack_check"] = true;
+        }
+        if (consume_on_next_save)
+        {
+            projected["consume_on_next_save"] = true;
+        }
+        if (move_point_capacity_delta != 0)
+        {
+            projected["move_point_capacity_delta"] = move_point_capacity_delta;
         }
         if (undispellable)
         {
@@ -696,28 +926,186 @@ public partial class BattleStatusEffectState : RefCounted
         return projected;
     }
 
-    internal static GDictionary CopyResidualParams(GDictionary parameters)
+    private Dictionary<string, object> BuildParamsPlainProjection()
     {
-        if (parameters == null || parameters.Count == 0)
+        Dictionary<string, object> projected = RuntimePlainPayload.CloneDictionary(_params);
+        if (incoming_damage_multiplier.HasValue)
+            projected["incoming_damage_multiplier"] = incoming_damage_multiplier.Value;
+        if (outgoing_damage_multiplier.HasValue)
+            projected["outgoing_damage_multiplier"] = outgoing_damage_multiplier.Value;
+        if (source_profile_id != "")
+            projected["source"] = source_profile_id;
+        if (source_layer_id != "")
+            projected["layer_id"] = source_layer_id;
+        if (source_skill_id != "")
+            projected["source_skill_id"] = source_skill_id;
+        if (stack_behavior != "")
+            projected["stack_behavior"] = stack_behavior;
+        if (stack_limit > 0)
+            projected["stack_limit"] = stack_limit;
+        if (heal_multiplier_percent.HasValue)
+            projected["heal_multiplier_percent"] = heal_multiplier_percent.Value;
+        if (shield_gain_multiplier_percent.HasValue)
+            projected["shield_gain_multiplier_percent"] = shield_gain_multiplier_percent.Value;
+        if (attack_roll_penalty >= 0)
+            projected["attack_roll_penalty"] = attack_roll_penalty;
+        if (source_bound_attack_roll_penalty > 0)
         {
-            return new GDictionary();
+            projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
+            projected["source_bound_attack_roll_penalty_min_stacks"] =
+                Mathf.Max(source_bound_attack_roll_penalty_min_stacks, 1);
         }
-
-        GDictionary residual = parameters.Duplicate(true);
-        var keysToRemove = new List<Variant>();
-        foreach (Variant key in parameters.Keys)
+        if (source_bound_incoming_attack_roll_bonus_per_stack > 0)
         {
-            if (HasString(FormalParamKeys, key.ToString()))
+            projected["source_bound_incoming_attack_roll_bonus_per_stack"] =
+                source_bound_incoming_attack_roll_bonus_per_stack;
+            projected["source_bound_incoming_attack_roll_bonus_min_stacks"] =
+                Mathf.Max(source_bound_incoming_attack_roll_bonus_min_stacks, 1);
+        }
+        if (source_bound_weapon_bonus_damage_dice_count > 0)
+        {
+            projected["source_bound_weapon_bonus_damage_dice_count"] =
+                source_bound_weapon_bonus_damage_dice_count;
+            projected["source_bound_weapon_bonus_damage_dice_sides"] =
+                source_bound_weapon_bonus_damage_dice_sides;
+            if (source_bound_weapon_bonus_damage_dice_bonus != 0)
             {
-                keysToRemove.Add(key);
+                projected["source_bound_weapon_bonus_damage_dice_bonus"] =
+                    source_bound_weapon_bonus_damage_dice_bonus;
             }
         }
+        if (attack_roll_bonus != 0)
+            projected["attack_roll_bonus"] = attack_roll_bonus;
+        if (attack_roll_advantage)
+            projected["attack_roll_advantage"] = true;
+        if (consume_on_next_attack_check)
+            projected["consume_on_next_attack_check"] = true;
+        if (consume_on_next_save)
+            projected["consume_on_next_save"] = true;
+        if (move_point_capacity_delta != 0)
+            projected["move_point_capacity_delta"] = move_point_capacity_delta;
+        if (undispellable)
+            projected["undispellable"] = true;
+        if (dispellable_magic)
+            projected["dispellable_magic"] = true;
+        if (dispellable_harmful_magic)
+            projected["dispellable_harmful_magic"] = true;
+        if (dispellable_beneficial_magic)
+            projected["dispellable_beneficial_magic"] = true;
+        if (damage_tag != "")
+            projected["damage_tag"] = damage_tag;
+        if (damage_tags.Count > 0)
+            projected["damage_tags"] = BuildPlainStringList(damage_tags);
+        if (damage_category != "")
+            projected["damage_category"] = damage_category;
+        if (body_size_category_override != "")
+            projected["body_size_category_override"] = body_size_category_override;
+        if (previous_body_size_category != "")
+            projected["previous_body_size_category"] = previous_body_size_category;
+        if (self_save_dc > 0)
+            projected["self_save_dc"] = self_save_dc;
+        if (self_save_ability != "")
+            projected["self_save_ability"] = self_save_ability;
+        if (self_save_tag != "")
+            projected["self_save_tag"] = self_save_tag;
+        if (self_save_roll_override.HasValue)
+            projected["self_save_roll_override"] = self_save_roll_override.Value;
+        if (source_skill_level.HasValue)
+            projected["skill_level"] = source_skill_level.Value;
+        if (death_prevention_priority > 0)
+            projected["death_prevention_priority"] = death_prevention_priority;
+        if (mitigation_tier != "")
+            projected["mitigation_tier"] = mitigation_tier;
+        if (dr_bypass_tag != "")
+            projected["dr_bypass_tag"] = dr_bypass_tag;
+        if (save_bonus != 0)
+            projected["save_bonus"] = save_bonus;
+        if (control_save_bonus != 0)
+            projected["control_save_bonus"] = control_save_bonus;
+        if (passive_reduction != 0)
+            projected["passive_reduction"] = passive_reduction;
+        if (content_dr != 0)
+            projected["content_dr"] = content_dr;
+        if (guard_block != 0)
+            projected["guard_block"] = guard_block;
+        if (range_bonus != 0)
+            projected["range_bonus"] = range_bonus;
+        if (save_advantage_tags.Count > 0)
+            projected["save_advantage_tags"] = BuildPlainStringList(save_advantage_tags);
+        if (save_disadvantage_tags.Count > 0)
+            projected["save_disadvantage_tags"] = BuildPlainStringList(save_disadvantage_tags);
+        if (save_immunity_tags.Count > 0)
+            projected["save_immunity_tags"] = BuildPlainStringList(save_immunity_tags);
+        if (save_tags.Count > 0)
+            projected["save_tags"] = BuildPlainStringList(save_tags);
+        if (status_tags.Count > 0)
+            projected["status_tags"] = BuildPlainStringList(status_tags);
+        if (save_bonus_by_tag.Count > 0)
+        {
+            var projectedBonusByTag = new Dictionary<StringName, int>();
+            foreach ((StringName key, int value) in save_bonus_by_tag)
+                projectedBonusByTag[key] = value;
+            projected["save_bonus_by_tag"] = projectedBonusByTag;
+        }
+        return projected;
+    }
 
-        foreach (Variant key in keysToRemove)
+    private static List<object> BuildPlainStringList(IEnumerable<StringName> values)
+    {
+        var result = new List<object>();
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
+            result.Add(value.ToString());
+        return result;
+    }
+
+    private void ReplaceParams(GDictionary values)
+    {
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.NormalizeDictionary(
+                values ?? new GDictionary(),
+                "BattleStatusEffectState.@params"
+            )
+        )
+        {
+            if (!string.IsNullOrEmpty(entry.Key))
+                _params[entry.Key] = entry.Value;
+        }
+    }
+
+    internal void SetParamsTyped(IReadOnlyDictionary<string, object> values)
+    {
+        _params.Clear();
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(values)
+        )
+        {
+            _params[entry.Key] = entry.Value;
+        }
+    }
+
+    internal static Dictionary<string, object> CopyResidualParamsPlain(GDictionary parameters)
+    {
+        Dictionary<string, object> residual = RuntimePlainPayload.NormalizeDictionary(
+            parameters ?? new GDictionary(),
+            "BattleStatusEffectState.CopyResidualParams"
+        );
+        foreach (string key in FormalParamKeys)
         {
             residual.Remove(key);
         }
+        return residual;
+    }
 
+    internal static Dictionary<string, object> CopyResidualParamsPlain(
+        IReadOnlyDictionary<string, object> parameters
+    )
+    {
+        Dictionary<string, object> residual = RuntimePlainPayload.CloneDictionary(parameters);
+        foreach (string key in FormalParamKeys)
+        {
+            residual.Remove(key);
+        }
         return residual;
     }
 
@@ -908,81 +1296,6 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
         return false;
-    }
-
-    private static Dictionary<string, object> NormalizeDictionary(GDictionary source)
-    {
-        var result = new Dictionary<string, object>(System.StringComparer.Ordinal);
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in source.Keys)
-        {
-            string key = rawKey.VariantType switch
-            {
-                Variant.Type.String => rawKey.AsString(),
-                Variant.Type.StringName => rawKey.AsStringName().ToString(),
-                _ => "",
-            };
-            if (string.IsNullOrEmpty(key))
-            {
-                continue;
-            }
-            result[key] = NormalizeValue(source[rawKey]);
-        }
-        return result;
-    }
-
-    private static List<object> NormalizeArray(Godot.Collections.Array source)
-    {
-        var result = new List<object>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (object rawValue in source)
-        {
-            result.Add(NormalizeValue(rawValue));
-        }
-        return result;
-    }
-
-    private static object NormalizeValue(object rawValue)
-    {
-        if (rawValue is Variant variantValue)
-        {
-            return NormalizeVariant(variantValue);
-        }
-        if (rawValue is GDictionary dictionaryValue)
-        {
-            return NormalizeDictionary(dictionaryValue);
-        }
-        if (rawValue is Godot.Collections.Array arrayValue)
-        {
-            return NormalizeArray(arrayValue);
-        }
-        return rawValue;
-    }
-
-    private static object NormalizeVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => null,
-            Variant.Type.Bool => value.AsBool(),
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.Vector2I => value.AsVector2I(),
-            Variant.Type.Vector2 => value.AsVector2(),
-            Variant.Type.Vector3I => value.AsVector3I(),
-            Variant.Type.Vector3 => value.AsVector3(),
-            Variant.Type.Dictionary => NormalizeDictionary(value.AsGodotDictionary()),
-            Variant.Type.Array => NormalizeArray(value.AsGodotArray()),
-            _ => value.Obj,
-        };
     }
 
     private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)

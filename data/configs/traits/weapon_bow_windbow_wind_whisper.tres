@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+
+[sub_resource type="Resource" id="Modifier_perception_modifier"]
+script = ExtResource("2_modifier")
+attribute_id = &"perception_modifier"
+mode = &"flat"
+value = 3
+source_type = &"trait_equipment"
+source_id = &"weapon.bow.windbow.wind_whisper"
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.bow.windbow.wind_whisper"
+display_name = "风之低语"
+description = "装备时获得 +3 perception_modifier；这不会提高基础感知，也不会影响成长体系。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"attribute_modifier"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([SubResource("Modifier_perception_modifier")])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+passive_status_effects = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public readonly struct BattleRepeatAttackStageSpec
 {
@@ -59,7 +59,7 @@ public readonly struct BattleRepeatAttackStageSpec
     }
 
     public static BattleRepeatAttackStageSpec FromRepeatAttackEffect(
-        CombatEffectDef repeat_attack_effect,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index_value,
         int stage_count_value,
         int skill_level_value,
@@ -67,7 +67,7 @@ public readonly struct BattleRepeatAttackStageSpec
     )
     {
         int stageIndex = Mathf.Max(stage_index_value, 0);
-        GDictionary parameters = repeat_attack_effect?.@params ?? new GDictionary();
+        IReadOnlyDictionary<string, object> parameters = repeat_attack_effect?.Parameters;
         if (repeat_attack_effect == null || parameters == null || parameters.Count == 0)
         {
             return new BattleRepeatAttackStageSpec(
@@ -197,9 +197,15 @@ public readonly struct BattleRepeatAttackStageSpec
         );
     }
 
-    private static int ResolvePenaltyFreeStages(GDictionary parameters, int skillLevel)
+    private static int ResolvePenaltyFreeStages(
+        IReadOnlyDictionary<string, object> parameters,
+        int skillLevel
+    )
     {
-        GDictionary levelStagesMap = ReadDictionary(parameters, "penalty_free_stages_by_level");
+        IReadOnlyDictionary<string, object> levelStagesMap = ReadDictionary(
+            parameters,
+            "penalty_free_stages_by_level"
+        );
         if (levelStagesMap.Count == 0)
         {
             return 0;
@@ -207,71 +213,117 @@ public readonly struct BattleRepeatAttackStageSpec
 
         int resolvedStages = 0;
         int bestLevel = -1;
-        foreach (var levelKey in levelStagesMap.Keys)
+        foreach (KeyValuePair<string, object> entry in levelStagesMap)
         {
-            int levelValue = levelKey.AsInt32();
+            int levelValue = int.TryParse(entry.Key, out int parsedLevel) ? parsedLevel : -1;
             if (levelValue <= skillLevel && levelValue > bestLevel)
             {
                 bestLevel = levelValue;
-                resolvedStages = ReadInt(levelStagesMap, levelKey.AsInt32());
+                resolvedStages = ReadInt(entry.Value);
             }
         }
         return Mathf.Max(resolvedStages, 0);
     }
 
-    private static GDictionary ReadDictionary(GDictionary data, string key)
+    private static IReadOnlyDictionary<string, object> ReadDictionary(
+        IReadOnlyDictionary<string, object> data,
+        string key
+    )
     {
-        if (data == null)
-            return new GDictionary();
-        if (data.ContainsKey(key))
-            return data[key].AsGodotDictionary();
-        return new GDictionary();
+        if (
+            data == null
+            || !data.TryGetValue(key, out object value)
+            || value is not IReadOnlyDictionary<string, object> dictionary
+        )
+        {
+            return EmptyParameters;
+        }
+        return dictionary;
     }
 
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    private static int ReadInt(object value, int fallback = 0)
     {
-        if (data == null)
-            return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsInt32();
-        return fallback;
+        return value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
+                (int)longValue,
+            float floatValue => Mathf.RoundToInt(floatValue),
+            double doubleValue => Mathf.RoundToInt((float)doubleValue),
+            string text => int.TryParse(text, out int parsed)
+                ? parsed
+                : fallback,
+            StringName stringName => int.TryParse(stringName.ToString(), out int parsed)
+                ? parsed
+                : fallback,
+            _ => fallback,
+        };
     }
 
-    private static int ReadInt(GDictionary data, int key, int fallback = 0)
+    private static int ReadInt(
+        IReadOnlyDictionary<string, object> data,
+        string key,
+        int fallback = 0
+    )
     {
-        if (data == null || !data.ContainsKey(key))
+        if (data == null || !data.TryGetValue(key, out object value))
             return fallback;
-        return data[key].AsInt32();
+        return ReadInt(value, fallback);
     }
 
-    private static double ReadFloat(GDictionary data, string key, double fallback = 0.0)
+    private static double ReadFloat(
+        IReadOnlyDictionary<string, object> data,
+        string key,
+        double fallback = 0.0
+    )
     {
-        if (data == null)
+        if (data == null || !data.TryGetValue(key, out object value))
             return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsDouble();
-        return fallback;
+        return value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            _ => fallback,
+        };
     }
 
-    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    private static bool ReadBool(
+        IReadOnlyDictionary<string, object> data,
+        string key,
+        bool fallback = false
+    )
     {
-        if (data == null)
+        if (data == null || !data.TryGetValue(key, out object value))
             return fallback;
-        if (data.ContainsKey(key))
-            return data[key].AsBool();
-        return fallback;
+        return value is bool boolValue ? boolValue : fallback;
     }
 
     private static StringName ReadStringName(
-        GDictionary data,
+        IReadOnlyDictionary<string, object> data,
         string key,
         StringName fallback = default
     )
     {
         if (data == null)
             return fallback ?? new StringName("");
-        if (data.ContainsKey(key))
-            return ProgressionDataUtils.to_string_name(data[key]);
+        if (data.TryGetValue(key, out object value))
+        {
+            return value switch
+            {
+                StringName stringName => stringName,
+                string text => new StringName(text),
+                _ => fallback ?? new StringName(""),
+            };
+        }
         return fallback ?? new StringName("");
     }
+
+    private static readonly IReadOnlyDictionary<string, object> EmptyParameters =
+        new Dictionary<string, object>(StringComparer.Ordinal);
 }

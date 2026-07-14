@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_pending_battle_request_regression : SceneTree
+public partial class run_game_runtime_pending_battle_request_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,7 +16,7 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
     {
         TestPendingBattleGenerationRequestUsesTypedState();
 
-        Quit(_test.Finish("Game runtime pending battle request regression"));
+        RequestTestExit(_test.Finish("Game runtime pending battle request regression"));
     }
 
     private void TestPendingBattleGenerationRequestUsesTypedState()
@@ -30,13 +30,25 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
                 display_name = "Pending Anchor",
                 world_coord = new Vector2I(2, 3),
             };
-            GDictionary context = new()
+            BattleUnitState ally = BuildUnit("pending_ally", "player", new Vector2I(0, 0));
+            BattleUnitState enemy = BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0));
+            using GodotProjectionLease<GDictionary> allyLease = ally.ToDictionaryLease(
+                LifetimeDomain.Request,
+                "pending-battle-request-ally"
+            );
+            using GodotProjectionLease<GDictionary> enemyLease = enemy.ToDictionaryLease(
+                LifetimeDomain.Request,
+                "pending-battle-request-enemy"
+            );
+            using GArray battleParty = new() { allyLease.Value };
+            using GArray enemyUnits = new() { enemyLease.Value };
+            using GDictionary context = new()
             {
                 ["world_coord"] = anchor.world_coord,
                 ["custom_flag"] = "original",
                 ["battle_terrain_profile"] = "missing_profile",
-                ["battle_party"] = new GArray { BuildUnit("pending_ally", "player", new Vector2I(0, 0)) },
-                ["enemy_units"] = new GArray { BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0)) },
+                ["battle_party"] = battleParty,
+                ["enemy_units"] = enemyUnits,
             };
 
             StringName startResult = runtime.BeginBattleStart(anchor, 777, context);
@@ -50,11 +62,19 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
             _test.Eq(request.Seed, 777, "Pending request should retain the seed.");
 
             context["custom_flag"] = "mutated";
-            GDictionary storedContext = request.CloneContext();
-            _test.Eq(storedContext["custom_flag"].AsString(), "original", "Pending request should duplicate the input context.");
+            Dictionary<string, object> storedContext = request.CloneContextPlain();
+            _test.Eq(
+                PlainString(storedContext, "custom_flag"),
+                "original",
+                "Pending request should duplicate the input context."
+            );
 
             storedContext["custom_flag"] = "clone_mutated";
-            _test.Eq(request.CloneContext()["custom_flag"].AsString(), "original", "Pending request should return cloned contexts.");
+            _test.Eq(
+                PlainString(request.CloneContextPlain(), "custom_flag"),
+                "original",
+                "Pending request should return cloned contexts."
+            );
 
             runtime.ClearPendingBattleGenerationRequest();
             _test.False(runtime.HasPendingBattleGenerationRequest(), "Clearing typed request should clear pending state.");
@@ -79,5 +99,18 @@ public partial class run_game_runtime_pending_battle_request_regression : SceneT
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
         unit.RefreshFootprint();
         return unit;
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
     }
 }

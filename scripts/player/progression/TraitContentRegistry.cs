@@ -1,14 +1,17 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
 
-[GlobalClass]
-public partial class TraitContentRegistry : IdentityContentRegistryBase
+public class TraitContentRegistry : IdentityContentRegistryBase
 {
     private const string TraitConfigDirectoryPath = "res://data/configs/traits";
 
-    private readonly List<TraitDef> _traitDefs = new();
+    private readonly Dictionary<StringName, TraitDefinition> _traitDefinitions = new();
 
-    public TraitContentRegistry()
+    internal TraitContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "TraitContentRegistry";
         Rebuild();
@@ -23,7 +26,7 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        ClearRegistryData();
+        _traitDefinitions.Clear();
         _validation_errors.Clear();
         foreach (string directoryPath in directoryPaths)
         {
@@ -35,18 +38,18 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
         }
     }
 
-    public IReadOnlyList<TraitDef> GetTraitDefsTyped()
-    {
-        return new List<TraitDef>(_traitDefs);
-    }
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped() =>
+        _snapshot_definitions(_traitDefinitions);
 
-    public TraitDef GetTraitDef(StringName traitId)
+    public TraitDefinition GetTraitDef(StringName traitId)
     {
         StringName normalizedTraitId = ProgressionDataUtils.to_string_name(traitId);
-        foreach (TraitDef traitDef in _traitDefs)
-            if (traitDef != null && traitDef.trait_id == normalizedTraitId)
-                return traitDef;
-        return null;
+        return _traitDefinitions.TryGetValue(
+            normalizedTraitId,
+            out TraitDefinition traitDefinition
+        )
+            ? traitDefinition
+            : null;
     }
 
     public bool HasTrait(StringName traitId)
@@ -56,13 +59,12 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
 
     protected override void ClearRegistryData()
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_traitDefs);
-        _traitDefs.Clear();
+        _traitDefinitions.Clear();
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        Resource resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load trait config {resourcePath}.");
@@ -70,10 +72,10 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
         }
         if (resource is not TraitDef traitDef)
         {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add($"Trait config {resourcePath} is not a TraitDef.");
             return;
         }
+
         StringName traitId = traitDef.trait_id;
         if (traitId == "")
         {
@@ -86,108 +88,263 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
             return;
         }
 
-        _traitDefs.Add(traitDef);
-    }
-
-    private Godot.Collections.Array<string> CollectValidationErrors()
-    {
-        Godot.Collections.Array<string> errors = new();
-        foreach (string traitKey in _sorted_registry_keys(GetTraitIds()))
+        try
         {
-            StringName traitId = new(traitKey);
-            AppendTraitValidationErrors(errors, traitId, GetTraitDef(traitId));
+            TraitDefinition traitDefinition = TraitDefinition.FromResource(traitDef);
+            _traitDefinitions.Add(traitDefinition.TraitId, traitDefinition);
         }
-        return errors;
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Trait config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private List<StringName> GetTraitIds()
+    private IReadOnlyList<string> CollectValidationErrors() =>
+        ValidateDefinitions(_traitDefinitions);
+
+    internal static IReadOnlyList<string> ValidateDefinitions(
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions
+    )
     {
-        List<StringName> ids = new();
-        foreach (TraitDef traitDef in _traitDefs)
-            if (traitDef != null && traitDef.trait_id != "")
-                ids.Add(traitDef.trait_id);
-        return ids;
+        ArgumentNullException.ThrowIfNull(traitDefinitions);
+
+        var errors = new List<string>();
+        foreach (StringName traitId in SortedTraitIds(traitDefinitions))
+        {
+            AppendTraitValidationErrors(errors, traitId, traitDefinitions[traitId]);
+        }
+        return new ReadOnlyCollection<string>(errors);
     }
 
-    private void AppendTraitValidationErrors(
-        Godot.Collections.Array<string> errors,
+    private static void AppendTraitValidationErrors(
+        ICollection<string> errors,
         StringName traitId,
-        TraitDef traitDef
+        TraitDefinition traitDef
     )
     {
         string ownerLabel = $"Trait {traitId}";
-        _append_string_name_field_error(errors, ownerLabel, "trait_id", traitDef.trait_id);
-        AppendStringFieldError(errors, ownerLabel, "display_name", traitDef.display_name);
-        AppendStringFieldError(errors, ownerLabel, "description", traitDef.description);
+        _append_string_name_field_error(errors, ownerLabel, "trait_id", traitDef.TraitId);
+        AppendStringFieldError(errors, ownerLabel, "display_name", traitDef.DisplayName);
+        AppendStringFieldError(errors, ownerLabel, "description", traitDef.Description);
 
-        _append_string_name_field_error(errors, ownerLabel, "effect_type", traitDef.effect_type);
-        if (!TraitContentRules.IsValidEffectType(traitDef.effect_type))
-            errors.Add($"{ownerLabel}.effect_type uses unsupported value {traitDef.effect_type}.");
+        _append_string_name_field_error(errors, ownerLabel, "effect_type", traitDef.EffectType);
+        if (traitDef.EffectKind == TraitEffectKind.Unknown)
+            errors.Add($"{ownerLabel}.effect_type uses unsupported value {traitDef.EffectType}.");
 
-        _append_string_name_field_error(errors, ownerLabel, "trigger_type", traitDef.trigger_type);
-        TraitTriggerKind triggerKind = TraitTriggerContentRules.ToTriggerKind(
-            traitDef.trigger_type
-        );
+        _append_string_name_field_error(errors, ownerLabel, "trigger_type", traitDef.TriggerType);
+        TraitTriggerKind triggerKind = traitDef.TriggerKind;
         if (triggerKind == TraitTriggerKind.Unknown)
-            errors.Add($"{ownerLabel}.trigger_type uses unsupported value {traitDef.trigger_type}.");
+            errors.Add($"{ownerLabel}.trigger_type uses unsupported value {traitDef.TriggerType}.");
         else if (
             triggerKind != TraitTriggerKind.Passive
             && !TraitTriggerContentRules.HasDispatchForEffectTrigger(
-                traitDef.effect_type,
-                traitDef.trigger_type
+                traitDef.EffectType,
+                traitDef.TriggerType
             )
         )
         {
             errors.Add(
-                $"{ownerLabel}.trigger_type {traitDef.trigger_type} has no dispatch coverage for effect_type {traitDef.effect_type}."
+                $"{ownerLabel}.trigger_type {traitDef.TriggerType} has no dispatch coverage for effect_type {traitDef.EffectType}."
             );
         }
 
-        _append_string_name_field_error(errors, ownerLabel, "stack_policy", traitDef.stack_policy);
-        if (!TraitContentRules.IsValidStackPolicy(traitDef.stack_policy))
-            errors.Add($"{ownerLabel}.stack_policy uses unsupported value {traitDef.stack_policy}.");
+        _append_string_name_field_error(errors, ownerLabel, "stack_policy", traitDef.StackPolicy);
+        if (traitDef.StackPolicyKind == TraitStackPolicyKind.Unknown)
+            errors.Add($"{ownerLabel}.stack_policy uses unsupported value {traitDef.StackPolicy}.");
 
-        _append_string_name_field_error(errors, ownerLabel, "charge_scope", traitDef.charge_scope);
-        if (!TraitContentRules.IsValidChargeScope(traitDef.charge_scope))
-            errors.Add($"{ownerLabel}.charge_scope uses unsupported value {traitDef.charge_scope}.");
+        _append_string_name_field_error(errors, ownerLabel, "charge_scope", traitDef.ChargeScope);
+        if (traitDef.ChargeScopeKind == TraitChargeScopeKind.Unknown)
+            errors.Add($"{ownerLabel}.charge_scope uses unsupported value {traitDef.ChargeScope}.");
 
         _append_string_name_field_error(
             errors,
             ownerLabel,
             "charge_reset_timing",
-            traitDef.charge_reset_timing
+            traitDef.ChargeResetTiming
         );
-        if (!TraitContentRules.IsValidChargeResetTiming(traitDef.charge_reset_timing))
+        if (traitDef.ChargeResetTimingKind == TraitChargeResetTimingKind.Unknown)
             errors.Add(
-                $"{ownerLabel}.charge_reset_timing uses unsupported value {traitDef.charge_reset_timing}."
+                $"{ownerLabel}.charge_reset_timing uses unsupported value {traitDef.ChargeResetTiming}."
             );
 
         AppendSourceValidationErrors(errors, ownerLabel, traitDef);
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,
-            V(traitDef.attribute_modifiers),
+            traitDef.AttributeModifiers,
             "attribute_modifiers"
         );
+        AppendPassiveProjectionValidationErrors(errors, ownerLabel, traitDef);
         AppendRollSchemaValidationErrors(errors, ownerLabel, traitDef);
         AppendHighestRollValidationErrors(errors, ownerLabel, traitDef);
     }
 
-    private static void AppendSourceValidationErrors(
-        Godot.Collections.Array<string> errors,
+    private static void AppendPassiveProjectionValidationErrors(
+        ICollection<string> errors,
         string ownerLabel,
-        TraitDef traitDef
+        TraitDefinition traitDef
     )
     {
-        if (traitDef.allowed_source_kinds.Count == 0)
+        HashSet<StringName> seenSaveTags = new();
+        for (int index = 0; index < traitDef.SaveAdvantageTags.Count; index++)
+        {
+            StringName tag = traitDef.SaveAdvantageTags[index];
+            if (tag == "")
+            {
+                errors.Add($"{ownerLabel}.save_advantage_tags[{index}] must be a non-empty StringName.");
+                continue;
+            }
+            if (!seenSaveTags.Add(tag))
+            {
+                errors.Add($"{ownerLabel}.save_advantage_tags[{index}] duplicates save tag {tag}.");
+            }
+        }
+
+        HashSet<StringName> seenDamageTags = new();
+        for (int index = 0; index < traitDef.DamageResistanceEntries.Count; index++)
+        {
+            TraitDamageResistanceEntryDefinition entry = traitDef.DamageResistanceEntries[index];
+            string entryLabel = $"{ownerLabel}.damage_resistance_entries[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitDamageResistanceEntryDef.");
+                continue;
+            }
+
+            StringName damageTag = entry.DamageTag;
+            if (damageTag == "")
+            {
+                errors.Add($"{entryLabel}.damage_tag must be a non-empty StringName.");
+            }
+            else
+            {
+                if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
+                {
+                    errors.Add(
+                        $"{entryLabel}.damage_tag references unsupported damage tag {damageTag}; expected one of {DamageTagContentRules.ValidDamageTagLabel()}."
+                    );
+                }
+                if (!seenDamageTags.Add(damageTag))
+                {
+                    errors.Add($"{entryLabel}.damage_tag duplicates damage tag {damageTag}.");
+                }
+            }
+
+            StringName mitigationTier = entry.MitigationTier;
+            if (mitigationTier == "")
+            {
+                errors.Add($"{entryLabel}.mitigation_tier must be a non-empty StringName.");
+            }
+            else if (
+                DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                == DamageMitigationTierKind.Unknown
+            )
+            {
+                errors.Add(
+                    $"{entryLabel}.mitigation_tier uses unsupported mitigation tier {mitigationTier}; expected one of {DamageTagContentRules.ValidMitigationTierLabel()}."
+                );
+            }
+        }
+
+        HashSet<StringName> seenSaveBonusAbilities = new();
+        for (int index = 0; index < traitDef.SaveBonusEntries.Count; index++)
+        {
+            TraitSaveBonusEntryDefinition entry = traitDef.SaveBonusEntries[index];
+            string entryLabel = $"{ownerLabel}.save_bonus_entries[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitSaveBonusEntryDef.");
+                continue;
+            }
+
+            StringName saveAbility = entry.SaveAbility;
+            if (saveAbility == "" || !UnitBaseAttributes.IsBaseAttributeId(saveAbility))
+            {
+                errors.Add(
+                    $"{entryLabel}.save_ability must reference a base attribute id, got {saveAbility}."
+                );
+            }
+            else if (!seenSaveBonusAbilities.Add(saveAbility))
+            {
+                errors.Add($"{entryLabel}.save_ability duplicates save ability {saveAbility}.");
+            }
+            if (entry.Bonus == 0)
+            {
+                errors.Add($"{entryLabel}.bonus must be non-zero.");
+            }
+        }
+
+        HashSet<StringName> seenPassiveStatuses = new();
+        for (int index = 0; index < traitDef.PassiveStatusEffects.Count; index++)
+        {
+            TraitPassiveStatusEffectDefinition entry = traitDef.PassiveStatusEffects[index];
+            string entryLabel = $"{ownerLabel}.passive_status_effects[{index}]";
+            if (entry == null)
+            {
+                errors.Add($"{entryLabel} must be a TraitPassiveStatusEffectDef.");
+                continue;
+            }
+
+            StringName statusId = entry.StatusId;
+            if (statusId == "")
+            {
+                errors.Add($"{entryLabel}.status_id must be a non-empty StringName.");
+            }
+            else if (!seenPassiveStatuses.Add(statusId))
+            {
+                errors.Add($"{entryLabel}.status_id duplicates passive status {statusId}.");
+            }
+
+            if (entry.Power <= 0)
+                errors.Add($"{entryLabel}.power must be positive.");
+            if (entry.Stacks <= 0)
+                errors.Add($"{entryLabel}.stacks must be positive.");
+            if (entry.CountsAsDebuff && !entry.CountsAsDebuffOverride)
+                errors.Add($"{entryLabel}.counts_as_debuff requires counts_as_debuff_override.");
+
+            HashSet<StringName> seenImmunityTags = new();
+            for (int tagIndex = 0; tagIndex < entry.SaveImmunityTags.Count; tagIndex++)
+            {
+                StringName saveTag = entry.SaveImmunityTags[tagIndex];
+                if (saveTag == "")
+                {
+                    errors.Add($"{entryLabel}.save_immunity_tags[{tagIndex}] must be non-empty.");
+                    continue;
+                }
+                if (!BattleSaveContentRules.IsValidSaveTag(saveTag))
+                {
+                    errors.Add(
+                        $"{entryLabel}.save_immunity_tags[{tagIndex}] references unsupported save tag {saveTag}."
+                    );
+                }
+                if (!seenImmunityTags.Add(saveTag))
+                {
+                    errors.Add(
+                        $"{entryLabel}.save_immunity_tags[{tagIndex}] duplicates save tag {saveTag}."
+                    );
+                }
+            }
+        }
+    }
+
+    private static void AppendSourceValidationErrors(
+        ICollection<string> errors,
+        string ownerLabel,
+        TraitDefinition traitDef
+    )
+    {
+        if (traitDef.AllowedSourceKinds.Count == 0)
             errors.Add($"{ownerLabel}.allowed_source_kinds must include at least one allowed_source_kind.");
 
         HashSet<StringName> seenSources = new();
         bool allowsIdentity = false;
-        for (int index = 0; index < traitDef.allowed_source_kinds.Count; index++)
+        for (int index = 0; index < traitDef.AllowedSourceKinds.Count; index++)
         {
-            StringName sourceKind = traitDef.allowed_source_kinds[index];
-            if (!TraitContentRules.IsValidSourceType(sourceKind))
+            StringName sourceKind = traitDef.AllowedSourceKinds[index];
+            TraitSourceKind typedSourceKind = TraitContentRules.ToSourceKind(sourceKind);
+            if (typedSourceKind == TraitSourceKind.Unknown)
             {
                 errors.Add(
                     $"{ownerLabel}.allowed_source_kinds[{index}] uses unsupported allowed_source_kind {sourceKind}."
@@ -198,16 +355,16 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
                 errors.Add(
                     $"{ownerLabel}.allowed_source_kinds[{index}] duplicates allowed_source_kind {sourceKind}."
                 );
-            if (sourceKind == TraitContentRules.ToStringName(TraitSourceKind.Identity))
+            if (typedSourceKind == TraitSourceKind.Identity)
                 allowsIdentity = true;
         }
 
-        if (allowsIdentity && traitDef.attribute_modifiers.Count > 0)
+        if (allowsIdentity && traitDef.AttributeModifiers.Count > 0)
             errors.Add($"{ownerLabel}.attribute_modifiers must be empty for identity traits.");
     }
 
     private static void AppendStringFieldError(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         string value
@@ -218,17 +375,17 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
     }
 
     private static void AppendRollSchemaValidationErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         string ownerLabel,
-        TraitDef traitDef
+        TraitDefinition traitDef
     )
     {
         AppendRollSchemaSourceValidationErrors(errors, ownerLabel, traitDef);
 
         HashSet<StringName> seenKeys = new();
-        for (int index = 0; index < traitDef.roll_value_schema.Count; index++)
+        for (int index = 0; index < traitDef.RollValueSchema.Count; index++)
         {
-            TraitRollValueSchemaEntry entry = traitDef.roll_value_schema[index];
+            TraitRollValueSchemaEntryDefinition entry = traitDef.RollValueSchema[index];
             string entryLabel = $"{ownerLabel}.roll_value_schema[{index}]";
             if (entry == null)
             {
@@ -236,8 +393,8 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
                 continue;
             }
 
-            if (entry.key != "" && !seenKeys.Add(entry.key))
-                errors.Add($"{entryLabel}.key duplicates roll key {entry.key}.");
+            if (entry.Key != "" && !seenKeys.Add(entry.Key))
+                errors.Add($"{entryLabel}.key duplicates roll key {entry.Key}.");
 
             List<string> schemaErrors = new();
             entry.AppendSchemaErrors(schemaErrors, entryLabel);
@@ -249,17 +406,17 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
     }
 
     private static void AppendRollSchemaSourceValidationErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         string ownerLabel,
-        TraitDef traitDef
+        TraitDefinition traitDef
     )
     {
-        if (traitDef.roll_value_schema.Count == 0)
+        if (traitDef.RollValueSchema.Count == 0)
             return;
 
         bool allowsInstanceSource = false;
         bool allowsFixedSource = false;
-        foreach (StringName sourceKindValue in traitDef.allowed_source_kinds)
+        foreach (StringName sourceKindValue in traitDef.AllowedSourceKinds)
         {
             switch (TraitContentRules.ToSourceKind(sourceKindValue))
             {
@@ -285,9 +442,9 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
     }
 
     private static void AppendHighestRollValidationErrors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         string ownerLabel,
-        TraitDef traitDef
+        TraitDefinition traitDef
     )
     {
         if (traitDef.StackPolicyKind != TraitStackPolicyKind.HighestRoll)
@@ -302,11 +459,11 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
             return;
         }
 
-        foreach (TraitRollValueSchemaEntry entry in traitDef.roll_value_schema)
+        foreach (TraitRollValueSchemaEntryDefinition entry in traitDef.RollValueSchema)
         {
             if (
                 entry != null
-                && entry.key == compareKey
+                && entry.Key == compareKey
                 && entry.ValueTypeKind == TraitRollValueType.Int
             )
                 return;
@@ -317,20 +474,23 @@ public partial class TraitContentRegistry : IdentityContentRegistryBase
         );
     }
 
-    private static StringName GetHighestRollCompareKey(TraitDef traitDef)
+    private static StringName GetHighestRollCompareKey(TraitDefinition traitDef)
     {
-        return traitDef?.GetHighestRollCompareKey() ?? "";
+        return traitDef?.HighestRollCompareKey ?? "";
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(
-        Godot.Collections.Array<T> values
+    private static IReadOnlyList<StringName> SortedTraitIds(
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions
     )
     {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
+        var sortedKeys = new List<string>();
+        foreach (StringName traitId in traitDefinitions.Keys)
+            sortedKeys.Add(traitId.ToString());
+        sortedKeys.Sort(StringComparer.Ordinal);
+
+        var sortedIds = new List<StringName>(sortedKeys.Count);
+        foreach (string traitKey in sortedKeys)
+            sortedIds.Add(new StringName(traitKey));
+        return sortedIds;
     }
 }

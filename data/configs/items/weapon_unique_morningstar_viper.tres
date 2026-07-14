@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_morningstar_viper_206"
+base_item_id = &"weapon_type_morningstar_base"
+display_name = "毒蛇晨星"
+description = "带有毒囊机关的独特晨星，击中时注入麻痹毒素。"
+is_stackable = false
+base_price = 92000
+buy_price = 92000
+sell_price = 46000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"viper_morningstar", &"morningstar", &"mace", &"poison"])
+trait_ids = Array[StringName]([&"weapon.morningstar.viper.venom_strike", &"weapon.morningstar.viper.venom_injection", &"weapon.morningstar.viper.poison_immunity"])
+weapon_profile = SubResource("Resource_weapon_profile")

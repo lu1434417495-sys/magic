@@ -48,12 +48,8 @@ internal static class BattleMovePathResultProjection
     )
     {
         var result = new Godot.Collections.Array<Vector2I>();
-        if (source == null)
-            return result;
-        foreach (Vector2I coord in source)
-        {
+        foreach (Vector2I coord in source ?? System.Array.Empty<Vector2I>())
             result.Add(coord);
-        }
         return result;
     }
 

@@ -2,39 +2,27 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_spawn_reachability_regression : SceneTree
+public partial class run_battle_spawn_reachability_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
-    private readonly List<BattleState> _ownedStates = new();
-    private readonly List<BattleUnitState> _ownedUnits = new();
-    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
-        try
-        {
-            TestRuntimeSetupIndexesSkillDefsForReachability();
-            TestDeepWaterSplitMarksEnemySpawnInvalid();
-            TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid();
-            TestFlatFieldMarksEnemySpawnValid();
-            TestBidirectionalFlatFieldMarksBothSidesValid();
-            TestWeaponRequiredSkillWithoutWeaponIsNotReachable();
-            TestResultProjectionBoundary();
-            TestStartFailureSnapshotProjectionBoundary();
-        }
-        finally
-        {
-            DisposeOwnedFixtures();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        Quit(_test.Finish("Battle spawn reachability regression"));
+        TestRuntimeSetupAcceptsSkillDefinitionsForReachability();
+        TestDeepWaterSplitMarksEnemySpawnInvalid();
+        TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid();
+        TestFlatFieldMarksEnemySpawnValid();
+        TestBidirectionalFlatFieldMarksBothSidesValid();
+        TestWeaponRequiredSkillWithoutWeaponIsNotReachable();
+        TestResultProjectionBoundary();
+        TestStartFailureSnapshotProjectionBoundary();
+        RequestTestExit(_test.Finish("Battle spawn reachability regression"));
     }
 
     private void TestDeepWaterSplitMarksEnemySpawnInvalid()
     {
         ServiceFixture fixture = BuildServiceFixture();
-        int skillRange = GetSkillRange(fixture.SkillDef);
+        int skillRange = GetSkillRange(fixture.SkillDefinition);
         int barrierStart = 3;
         int barrierWidth = skillRange + 2;
         Vector2I mapSize = new(barrierStart + barrierWidth + 4, 5);
@@ -60,7 +48,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         BattleSpawnReachabilityResult result = fixture.Service.ValidateStateTyped(
             state,
             fixture.GridService,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
         _test.False(result.Valid, "深水完全隔断敌人与玩家时，出生可达性应判定为 invalid。");
         _test.True(
@@ -73,29 +61,30 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         );
     }
 
-    private void TestRuntimeSetupIndexesSkillDefsForReachability()
+    private void TestRuntimeSetupAcceptsSkillDefinitionsForReachability()
     {
         StringName skillId = "spawn_reachability_runtime_index_skill";
-        SkillDef skillDef = BuildUnitSkill(skillId, range: 3);
+        SkillDefinition skillDefinition = BuildUnitSkill(skillId, range: 3);
         var runtime = new BattleRuntimeModule();
-        _ownedRuntimes.Add(runtime);
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skillId] = skillDef }
+            new Dictionary<StringName, SkillDefinition> { [skillId] = skillDefinition }
         );
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefIndex = runtime.GetSkillDefIndexTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex =
+            runtime.GetSkillDefinitionIndexTyped();
         _test.True(
-            skillDefIndex.TryGetValue(skillId, out SkillDef indexedSkillDef)
-                && ReferenceEquals(indexedSkillDef, skillDef),
-            "BattleRuntimeModule.setup 应直接消费 typed skill-def index。"
+            skillDefinitionIndex.TryGetValue(skillId, out SkillDefinition indexedSkillDefinition)
+                && indexedSkillDefinition?.SkillId == skillId
+                && indexedSkillDefinition?.CombatProfile?.RangeValue == 3,
+            "BattleRuntimeModule.setup 应接收 runtime SkillDefinition 索引供出生可达性使用。"
         );
     }
 
     private void TestFlatFieldMarksEnemySpawnValid()
     {
         ServiceFixture fixture = BuildServiceFixture();
-        int skillRange = GetSkillRange(fixture.SkillDef);
+        int skillRange = GetSkillRange(fixture.SkillDefinition);
         BattleState state = BuildFlatState(new Vector2I(skillRange + 6, 3));
         BattleUnitState enemy = BuildUnit("flat_enemy", "enemy", new Vector2I(1, 1), fixture.SkillId);
         BattleUnitState player = BuildUnit(
@@ -110,7 +99,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         BattleSpawnReachabilityResult result = fixture.Service.ValidateStateTyped(
             state,
             fixture.GridService,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
         _test.True(result.Valid, "平地直连时，敌方出生点应能抵达可攻击玩家的位置。");
         _test.False(
@@ -122,7 +111,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
     private void TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid()
     {
         ServiceFixture fixture = BuildServiceFixture();
-        int skillRange = GetSkillRange(fixture.SkillDef);
+        int skillRange = GetSkillRange(fixture.SkillDefinition);
         int barrierStart = 3;
         int barrierWidth = skillRange + 2;
         Vector2I mapSize = new(barrierStart + barrierWidth + 4, 5);
@@ -148,7 +137,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         BattleSpawnReachabilityResult result = fixture.Service.ValidateStateTyped(
             state,
             fixture.GridService,
-            fixture.SkillDefs,
+            fixture.SkillDefinitions,
             new BattleSpawnReachabilityOptions(validatePlayerToEnemy: true)
         );
         _test.False(
@@ -164,7 +153,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
     private void TestBidirectionalFlatFieldMarksBothSidesValid()
     {
         ServiceFixture fixture = BuildServiceFixture();
-        int skillRange = GetSkillRange(fixture.SkillDef);
+        int skillRange = GetSkillRange(fixture.SkillDefinition);
         BattleState state = BuildFlatState(new Vector2I(skillRange + 6, 3));
         BattleUnitState enemy = BuildUnit("flat_enemy", "enemy", new Vector2I(1, 1), fixture.SkillId);
         BattleUnitState player = BuildUnit(
@@ -179,7 +168,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         BattleSpawnReachabilityResult result = fixture.Service.ValidateStateTyped(
             state,
             fixture.GridService,
-            fixture.SkillDefs,
+            fixture.SkillDefinitions,
             new BattleSpawnReachabilityOptions(validatePlayerToEnemy: true)
         );
         _test.True(result.Valid, "双向验证开启时，平地直连应允许双方抵达可攻击位置。");
@@ -194,8 +183,8 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         var service = new BattleSpawnReachabilityService();
         var gridService = new BattleGridService();
         StringName skillId = "spawn_reachability_requires_sword";
-        SkillDef skillDef = BuildUnitSkill(skillId, range: 3, requiredWeaponFamily: "sword");
-        var skillDefs = new Dictionary<StringName, SkillDef> { [skillId] = skillDef };
+        SkillDefinition skillDefinition = BuildUnitSkill(skillId, range: 3, requiredWeaponFamily: "sword");
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition> { [skillId] = skillDefinition };
         BattleState state = BuildFlatState(new Vector2I(5, 3));
         BattleUnitState enemy = BuildUnit("weaponless_enemy", "enemy", new Vector2I(1, 1), skillId);
         BattleUnitState player = BuildUnit("weaponless_player", "player", new Vector2I(3, 1), "");
@@ -205,7 +194,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         BattleSpawnReachabilityResult result = service.ValidateStateTyped(
             state,
             gridService,
-            skillDefs
+            skillDefinitions
         );
         _test.False(
             result.Valid,
@@ -264,45 +253,39 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         );
     }
 
-    private ServiceFixture BuildServiceFixture()
+    private static ServiceFixture BuildServiceFixture()
     {
         StringName skillId = "spawn_reachability_test_bolt";
-        SkillDef skillDef = BuildUnitSkill(skillId, range: 3);
+        SkillDefinition skillDefinition = BuildUnitSkill(skillId, range: 3);
         return new ServiceFixture
         {
             Service = new BattleSpawnReachabilityService(),
             GridService = new BattleGridService(),
-            SkillDefs = new Dictionary<StringName, SkillDef> { [skillId] = skillDef },
+            SkillDefinitions = new Dictionary<StringName, SkillDefinition> { [skillId] = skillDefinition },
             SkillId = skillId,
-            SkillDef = skillDef,
+            SkillDefinition = skillDefinition,
         };
     }
 
-    private SkillDef BuildUnitSkill(
+    private static SkillDefinition BuildUnitSkill(
         StringName skillId,
         int range,
         StringName requiredWeaponFamily = default
-    )
-    {
-        var skillDef = new SkillDef
-        {
-            skill_id = skillId,
-            skill_type = "active",
-        };
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_value = range,
-        };
-        if (!IsEmpty(requiredWeaponFamily))
-            combatProfile.required_weapon_families.Add(requiredWeaponFamily);
-        skillDef.combat_profile = combatProfile;
-        return TrackOwned(skillDef);
-    }
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: range,
+                requiredWeaponFamilies: IsEmpty(requiredWeaponFamily)
+                    ? Array.Empty<StringName>()
+                    : new[] { requiredWeaponFamily }
+            )
+        );
 
-    private BattleState BuildFlatState(Vector2I mapSize)
+    private static BattleState BuildFlatState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -327,7 +310,6 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
-        _ownedStates.Add(state);
         return state;
     }
 
@@ -337,7 +319,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             return;
         cell.base_terrain = terrain;
         cell.RecalculateRuntimeValues();
-        state.PutCellColumnPayload(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
+        state.PutCellColumn(coord, BattleCellState.BuildStackedCellsFromSurfaceCell(cell));
     }
 
     private BattleUnitState BuildUnit(
@@ -375,46 +357,7 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
             unit.known_active_skill_ids.Add(skillId);
             unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { [skillId] = 1 });
         }
-        _ownedUnits.Add(unit);
         return unit;
-    }
-
-    private T TrackOwned<T>(T ownedObject)
-        where T : GodotObject
-    {
-        if (ownedObject != null)
-        {
-            _ownedObjects.Add(ownedObject);
-        }
-        return ownedObject;
-    }
-
-    private void DisposeOwnedFixtures()
-    {
-        var disposedStates = new HashSet<BattleState>();
-        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
-        {
-            BattleState state = runtime?._state;
-            if (state != null)
-                disposedStates.Add(state);
-            BattleTestFixture.DisposeBattleFixture(runtime, state);
-        }
-        _ownedRuntimes.Clear();
-
-        foreach (BattleState state in _ownedStates)
-        {
-            if (!disposedStates.Contains(state))
-                BattleTestFixture.DisposeBattleState(state);
-        }
-        _ownedStates.Clear();
-
-        foreach (BattleUnitState unit in _ownedUnits)
-            BattleTestFixture.DisposeFixtureObject(unit);
-        _ownedUnits.Clear();
-
-        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
-            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
-        _ownedObjects.Clear();
     }
 
     private void AddUnitToState(
@@ -433,11 +376,11 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
         _test.True(placed, $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 
-    private static int GetSkillRange(SkillDef skillDef)
+    private static int GetSkillRange(SkillDefinition skillDefinition)
     {
-        if (skillDef == null || skillDef.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
             return 1;
-        return Math.Max(skillDef.combat_profile.range_value, 1);
+        return Math.Max(skillDefinition.CombatProfile.RangeValue, 1);
     }
 
     private static bool StringNameListHas(IReadOnlyList<StringName> values, StringName expected)
@@ -470,8 +413,8 @@ public partial class run_battle_spawn_reachability_regression : SceneTree
     {
         internal BattleSpawnReachabilityService Service { get; init; }
         internal BattleGridService GridService { get; init; }
-        internal Dictionary<StringName, SkillDef> SkillDefs { get; init; }
+        internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; init; }
         internal StringName SkillId { get; init; }
-        internal SkillDef SkillDef { get; init; }
+        internal SkillDefinition SkillDefinition { get; init; }
     }
 }

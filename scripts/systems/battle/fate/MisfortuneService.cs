@@ -461,12 +461,29 @@ internal sealed class MisfortuneService : IDisposable
     )
     {
         var typedStatusIds = new List<StringName>();
-        foreach (StringName statusId in statusEffectIds ?? new GStringNameArray())
+        if (statusEffectIds != null)
+        {
+            foreach (StringName statusId in statusEffectIds)
+            {
+                if (statusId != "")
+                {
+                    typedStatusIds.Add(statusId);
+                }
+            }
+        }
+        return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
+    }
+
+    internal GDictionary HandleAppliedStatuses(
+        BattleUnitState targetUnit,
+        IReadOnlyList<StringName> statusEffectIds
+    )
+    {
+        var typedStatusIds = new List<StringName>();
+        foreach (StringName statusId in statusEffectIds ?? Array.Empty<StringName>())
         {
             if (statusId != "")
-            {
                 typedStatusIds.Add(statusId);
-            }
         }
         return HandleTrigger(MisfortuneTriggerRequest.StrongDebuff(targetUnit, typedStatusIds));
     }
@@ -614,8 +631,7 @@ internal sealed class MisfortuneService : IDisposable
             ["bonus_calamity"] = bonusCalamity,
             ["cap"] = calamityCap,
             ["reverse_fortune_granted"] = reverseFortuneGranted,
-            ["metadata"] =
-                metadata != null ? (GDictionary)metadata.Duplicate(true) : new GDictionary(),
+            ["metadata"] = metadata ?? new GDictionary(),
         };
     }
 
@@ -667,11 +683,11 @@ internal sealed class MisfortuneService : IDisposable
         return BaseCalamityCap + calamityCapacityBonus + (hiddenLuckAtBirth <= -5 ? 1 : 0);
     }
 
-    private Godot.Collections.Array<StringName> _ExtractStrongAttackDebuffIds(
+    private StringNameList _ExtractStrongAttackDebuffIds(
         IEnumerable<StringName> statusEffectIds
     )
     {
-        var strongStatusIds = new Godot.Collections.Array<StringName>();
+        var strongStatusIds = new StringNameList();
         if (statusEffectIds == null)
             return strongStatusIds;
         foreach (StringName statusIdValue in statusEffectIds)

@@ -1,14 +1,16 @@
+using System.Collections.Generic;
+using System.IO;
 using Godot;
 
-[GlobalClass]
-public partial class BloodlineContentRegistry : IdentityContentRegistryBase
+public class BloodlineContentRegistry : IdentityContentRegistryBase
 {
     private const string BloodlineConfigDirectoryPath = "res://data/configs/bloodlines";
 
-    private System.Collections.Generic.Dictionary<StringName, BloodlineDef> _bloodline_defs = new();
-    private System.Collections.Generic.Dictionary<StringName, BloodlineStageDef> _bloodline_stage_defs = new();
+    private readonly Dictionary<StringName, BloodlineDefinition> _bloodline_defs = new();
+    private readonly Dictionary<StringName, BloodlineStageDefinition> _bloodline_stage_defs = new();
 
-    public BloodlineContentRegistry()
+    internal BloodlineContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "BloodlineContentRegistry";
         Rebuild();
@@ -23,7 +25,8 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        ClearRegistryData();
+        _bloodline_defs.Clear();
+        _bloodline_stage_defs.Clear();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -31,29 +34,21 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, BloodlineDef> GetBloodlineDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, BloodlineDef>(_bloodline_defs);
-    }
+    public IReadOnlyDictionary<StringName, BloodlineDefinition> GetBloodlineDefsTyped() =>
+        _snapshot_definitions(_bloodline_defs);
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, BloodlineStageDef> GetBloodlineStageDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, BloodlineStageDef>(
-            _bloodline_stage_defs
-        );
-    }
+    public IReadOnlyDictionary<StringName, BloodlineStageDefinition> GetBloodlineStageDefsTyped() =>
+        _snapshot_definitions(_bloodline_stage_defs);
 
     protected override void ClearRegistryData()
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodline_defs.Values);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_bloodline_stage_defs.Values);
         _bloodline_defs.Clear();
         _bloodline_stage_defs.Clear();
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load bloodline config {resourcePath}.");
@@ -69,7 +64,6 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _register_bloodline_stage(resourcePath, stageDef);
             return;
         }
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
         _validation_errors.Add(
             $"Bloodline config {resourcePath} is not a BloodlineDef or BloodlineStageDef."
         );
@@ -96,7 +90,20 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             );
             return;
         }
-        _bloodline_defs[bloodlineDef.bloodline_id] = bloodlineDef;
+        try
+        {
+            BloodlineDefinition definition = BloodlineDefinition.FromResource(
+                bloodlineDef,
+                $"bloodline.{bloodlineDef.bloodline_id}"
+            );
+            _bloodline_defs.Add(definition.BloodlineId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Bloodline config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
     private void _register_bloodline_stage(string resourcePath, BloodlineStageDef stageDef)
@@ -118,12 +125,25 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add($"Duplicate bloodline stage_id registered: {stageDef.stage_id}");
             return;
         }
-        _bloodline_stage_defs[stageDef.stage_id] = stageDef;
+        try
+        {
+            BloodlineStageDefinition definition = BloodlineStageDefinition.FromResource(
+                stageDef,
+                $"bloodline_stage.{stageDef.stage_id}"
+            );
+            _bloodline_stage_defs.Add(definition.StageId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Bloodline stage config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private Godot.Collections.Array<string> _collect_validation_errors()
+    private List<string> _collect_validation_errors()
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
         foreach (var bloodlineKey in _sorted_registry_keys(_bloodline_defs.Keys))
         {
             var bloodlineId = new StringName(bloodlineKey);
@@ -138,9 +158,9 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
     }
 
     private void _append_bloodline_validation_errors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         StringName bloodlineId,
-        BloodlineDef bloodlineDef
+        BloodlineDefinition bloodlineDef
     )
     {
         var ownerLabel = $"Bloodline {bloodlineId}";
@@ -148,76 +168,67 @@ public partial class BloodlineContentRegistry : IdentityContentRegistryBase
             errors,
             ownerLabel,
             "bloodline_id",
-            bloodlineDef.bloodline_id
+            bloodlineDef.BloodlineId
         );
-        _append_string_field_error(errors, ownerLabel, "display_name", bloodlineDef.display_name);
-        _append_string_field_error(errors, ownerLabel, "description", bloodlineDef.description);
+        _append_string_field_error(errors, ownerLabel, "display_name", bloodlineDef.DisplayName);
+        _append_string_field_error(errors, ownerLabel, "description", bloodlineDef.Description);
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(bloodlineDef.stage_ids),
+            bloodlineDef.StageIds,
             "stage_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(bloodlineDef.trait_ids),
+            bloodlineDef.TraitIds,
             "trait_ids"
         );
         _append_racial_granted_skill_array_errors(
             errors,
             ownerLabel,
-            V(bloodlineDef.racial_granted_skills),
+            bloodlineDef.RacialGrantedSkills,
             "racial_granted_skills"
         );
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,
-            V(bloodlineDef.attribute_modifiers),
+            bloodlineDef.AttributeModifiers,
             "attribute_modifiers"
         );
         _append_string_array_errors(
             errors,
             ownerLabel,
-            V(bloodlineDef.trait_summary),
+            bloodlineDef.TraitSummary,
             "trait_summary"
         );
     }
 
     private void _append_bloodline_stage_validation_errors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         StringName stageId,
-        BloodlineStageDef stageDef
+        BloodlineStageDefinition stageDef
     )
     {
         var ownerLabel = $"BloodlineStage {stageId}";
-        _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.stage_id);
-        _append_string_name_field_error(errors, ownerLabel, "bloodline_id", stageDef.bloodline_id);
-        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.display_name);
-        _append_string_field_error(errors, ownerLabel, "description", stageDef.description);
+        _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.StageId);
+        _append_string_name_field_error(errors, ownerLabel, "bloodline_id", stageDef.BloodlineId);
+        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.DisplayName);
+        _append_string_field_error(errors, ownerLabel, "description", stageDef.Description);
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,
-            V(stageDef.attribute_modifiers),
+            stageDef.AttributeModifiers,
             "attribute_modifiers"
         );
-        _append_string_name_array_errors(errors, ownerLabel, V(stageDef.trait_ids), "trait_ids");
+        _append_string_name_array_errors(errors, ownerLabel, stageDef.TraitIds, "trait_ids");
         _append_racial_granted_skill_array_errors(
             errors,
             ownerLabel,
-            V(stageDef.racial_granted_skills),
+            stageDef.RacialGrantedSkills,
             "racial_granted_skills"
         );
-        _append_string_array_errors(errors, ownerLabel, V(stageDef.trait_summary), "trait_summary");
+        _append_string_array_errors(errors, ownerLabel, stageDef.TraitSummary, "trait_summary");
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
-    }
 }

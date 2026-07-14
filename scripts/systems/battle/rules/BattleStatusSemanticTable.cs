@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
 
@@ -12,6 +14,7 @@ public readonly record struct BattleStatusSemantic(
     int AttackRollPenalty,
     StringName ApPenaltyGroup,
     bool ConsumeAfterApPenalty,
+    bool SetApToZeroAtTurnStart,
     string DisplayLabel,
     string TurnStartLogReasonId
 );
@@ -44,15 +47,21 @@ public static class BattleStatusSemanticTable
         STATUS_MARKED = "marked",
         STATUS_METEOR_CONCUSSED = "meteor_concussed",
         STATUS_PINNED = "pinned",
+        STATUS_PARALYZED = "paralyzed",
         STATUS_PRISMATIC_BARRIER = "prismatic_barrier",
         STATUS_PETRIFIED = "petrified",
         STATUS_MADNESS = "madness",
         STATUS_ROOTED = "rooted",
+        STATUS_POISONED = "poisoned",
         STATUS_SHOCKED = "shocked",
         STATUS_SLOW = "slow",
         STATUS_SPELLWARD = "spellward",
         STATUS_SOUL_FRACTURE = "soul_fracture",
         STATUS_STAGGERED = "staggered",
+        STATUS_AFTERSHOCK = "aftershock",
+        STATUS_REACTION_LOCK = "reaction_lock",
+        STATUS_FRIGHTENED = "frightened",
+        STATUS_STUNNED = "stunned",
         STATUS_TAUNTED = "taunted",
         STATUS_TENDON_CUT = "tendon_cut",
         STATUS_CROWN_BREAK_BROKEN_FANG = "crown_break_broken_fang",
@@ -63,94 +72,191 @@ public static class BattleStatusSemanticTable
         STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up",
         STATUS_TIME_STASIS = "time_stasis",
         STATUS_TIME_SLOW = "time_slow",
-        STATUS_TIME_REVERBERATION = "time_reverberation";
+        STATUS_TIME_REVERBERATION = "time_reverberation",
+        STATUS_TEMPORAL_AP_STOLEN = "temporal_ap_stolen",
+        STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal",
+        STATUS_BLACK_STAR_BRAND_ELITE = "black_star_brand_elite";
+
+    private const int DEFAULT_DISPEL_PRIORITY = 50;
+
+    // One row owns everything the table knows about a status: semantic, harm
+    // classification, cast blocking, dispel/cleanse eligibility, dispel priority.
+    // Adding a status means adding exactly one row here.
+    private sealed record BattleStatusDescriptor
+    {
+        internal BattleStatusSemantic Semantic { get; init; }
+        internal bool Harmful { get; init; }
+
+        // Harmful but immune to普通净化（temporal-only release / dispel 专用路径）。
+        internal bool CleanseProtected { get; init; }
+        internal bool BlocksPendingCast { get; init; }
+        internal bool DispellableHarmful { get; init; }
+        internal bool DispellableBeneficial { get; init; }
+        internal int DispelPriority { get; init; } = DEFAULT_DISPEL_PRIORITY;
+    }
+
+    private static readonly Dictionary<StringName, BattleStatusDescriptor> StatusTable = new()
+    {
+        // —— 增益（可驱散增益）——
+        [STATUS_ATTACK_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_ATTACK_ROLL_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DAMAGE_REDUCTION_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DODGE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_WILLPOWER_SAVE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_DEATH_WARD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_MAGIC_SHIELD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_PRISMATIC_BARRIER] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+        [STATUS_SPELLWARD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
+
+        // —— 中性/自持（只有语义）——
+        [STATUS_ARCHER_PRE_AIM] = new() { Semantic = RefreshSemantic() },
+        [STATUS_ARCHER_RANGE_UP] = new() { Semantic = RefreshSemantic() },
+        [STATUS_ARCHER_SHOOTING_SPECIALIZATION] = new() { Semantic = RefreshSemantic() },
+        [STATUS_GUARDING] = new() { Semantic = RefreshSemantic() },
+        [STATUS_LAST_STAND_ACTIVE] = new() { Semantic = RefreshSemantic() },
+        [STATUS_TIME_REVERBERATION] = new() { Semantic = RefreshSemantic() },
+
+        // —— 减益 ——
+        [STATUS_ARMOR_BREAK] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_TENDON_CUT] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BROKEN_FANG] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
+        [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_FROZEN] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_MARKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
+        [STATUS_PARALYZED] = new() { Semantic = RefreshSemantic(displayLabel: "麻痹"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_PINNED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_ROOTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_POISONED] = new() { Semantic = RefreshSemantic(attackRollPenalty: 2, displayLabel: "中毒"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_SHOCKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_TAUNTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_HEX_OF_FRAILTY] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_DOOM_SENTENCE_VERDICT] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
+        [STATUS_BURNING] = new() { Semantic = BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_SLOW] = new() { Semantic = RefreshSemantic(moveCostDelta: 1), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_SOUL_FRACTURE] = new() { Semantic = RefreshSemantic(displayLabel: "灵魂裂解"), Harmful = true, DispellableHarmful = true },
+        [STATUS_AFTERSHOCK] = new() { Semantic = RefreshSemantic(displayLabel: "余悸"), Harmful = true, DispellableHarmful = true },
+        [STATUS_REACTION_LOCK] = new() { Semantic = RefreshSemantic(displayLabel: "反应封锁"), Harmful = true, DispellableHarmful = true },
+        [STATUS_FRIGHTENED] = new() { Semantic = RefreshSemantic(displayLabel: "恐惧"), Harmful = true, DispellableHarmful = true },
+        [STATUS_STUNNED] = new() { Semantic = RefreshSemantic(displayLabel: "震慑"), Harmful = true, DispellableHarmful = true },
+        [STATUS_MADNESS] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
+        [STATUS_PETRIFIED] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, BlocksPendingCast = true },
+        [STATUS_TIME_STASIS] = new() { Semantic = RefreshSemantic(), Harmful = true, CleanseProtected = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_TIME_SLOW] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_TEMPORAL_AP_STOLEN] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                apPenaltyGroup: STATUS_TEMPORAL_AP_STOLEN,
+                consumeAfterApPenalty: true,
+                setApToZeroAtTurnStart: true,
+                displayLabel: "时间剥夺",
+                turnStartLogReasonId: "temporal_ap_stolen_consumed"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            DispelPriority = 70,
+        },
+        [STATUS_STAGGERED] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                apPenaltyGroup: STATUS_STAGGERED,
+                displayLabel: "踉跄"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            BlocksPendingCast = true,
+            DispelPriority = 70,
+        },
+        [STATUS_METEOR_CONCUSSED] = new()
+        {
+            Semantic = RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                attackRollPenalty: 2,
+                apPenaltyGroup: STATUS_STAGGERED,
+                consumeAfterApPenalty: true,
+                displayLabel: "震眩",
+                turnStartLogReasonId: "meteor_concussed_ap_consumed"
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            BlocksPendingCast = true,
+            DispelPriority = 70,
+        },
+
+        // —— 命运烙印：只参与减益判定，语义留空走 effect 自配置路径 ——
+        [STATUS_BLACK_STAR_BRAND_NORMAL] = new() { Harmful = true },
+        [STATUS_BLACK_STAR_BRAND_ELITE] = new() { Harmful = true },
+    };
+
+    private static BattleStatusDescriptor GetDescriptor(StringName statusId)
+    {
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId != ""
+            && StatusTable.TryGetValue(normalizedStatusId, out BattleStatusDescriptor descriptor)
+            ? descriptor
+            : null;
+    }
 
     public static bool HasSemantic(StringName statusId) => GetSemantic(statusId).Defined;
 
-    public static bool IsHarmfulStatus(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_ARMOR_BREAK
-            || normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TENDON_CUT
-            || normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_SOUL_FRACTURE
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
-            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW
-            || normalizedStatusId == "black_star_brand_normal"
-            || normalizedStatusId == "black_star_brand_elite";
-    }
+    public static bool IsHarmfulStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.Harmful ?? false;
 
     public static bool IsCleansableHarmfulStatus(StringName statusId)
     {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        // time_stasis 解除属于 temporal-only release / dispel 路径，普通净化不移除。
-        if (normalizedStatusId == STATUS_PETRIFIED || normalizedStatusId == STATUS_TIME_STASIS)
+        BattleStatusDescriptor descriptor = GetDescriptor(statusId);
+        // CleanseProtected（petrified / time_stasis）解除属于 temporal-only release /
+        // dispel 路径，普通净化不移除。
+        return descriptor != null && descriptor.Harmful && !descriptor.CleanseProtected;
+    }
+
+    public static bool IsHarmfulStatusEntry(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
             return false;
-        return IsHarmfulStatus(normalizedStatusId);
+        if (statusEntry.counts_as_debuff_override)
+            return statusEntry.counts_as_debuff;
+        return IsHarmfulStatus(statusEntry.status_id);
     }
 
-    public static bool BlocksPendingCast(StringName statusId)
+    public static bool IsCleansableHarmfulStatusEntry(BattleStatusEffectState statusEntry)
     {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED;
+        if (statusEntry == null || statusEntry.undispellable)
+            return false;
+        if (GetDescriptor(statusEntry.status_id)?.CleanseProtected == true)
+            return false;
+        return IsHarmfulStatusEntry(statusEntry);
     }
 
-    public static bool IsDispellableHarmfulStatus(StringName statusId)
+    public static bool BlocksPendingCast(StringName statusId) =>
+        GetDescriptor(statusId)?.BlocksPendingCast ?? false;
+
+    public static string GetDisplayLabel(StringName statusId)
     {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_SOUL_FRACTURE
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW;
+        BattleStatusSemantic semantic = GetSemantic(statusId);
+        return string.IsNullOrWhiteSpace(semantic.DisplayLabel)
+            ? ProgressionDataUtils.to_string_name(statusId).ToString()
+            : semantic.DisplayLabel;
     }
 
-    public static bool IsDispellableBeneficialStatus(StringName statusId)
+    public static string GetDisplayLabel(BattleStatusEffectState statusEntry)
     {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        return normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP;
+        if (statusEntry == null)
+            return "";
+        string configuredLabel = statusEntry.display_label ?? "";
+        return string.IsNullOrWhiteSpace(configuredLabel)
+            ? GetDisplayLabel(statusEntry.status_id)
+            : configuredLabel;
     }
+
+    public static bool IsDispellableHarmfulStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.DispellableHarmful ?? false;
+
+    public static bool IsDispellableBeneficialStatus(StringName statusId) =>
+        GetDescriptor(statusId)?.DispellableBeneficial ?? false;
 
     public static bool IsDispellableHarmfulStatusEntry(BattleStatusEffectState statusEntry)
     {
@@ -161,7 +267,7 @@ public static class BattleStatusSemanticTable
         if (statusEntry.dispellable_harmful_magic)
             return true;
         if (statusEntry.dispellable_magic)
-            return IsHarmfulStatus(statusEntry.status_id);
+            return IsHarmfulStatusEntry(statusEntry);
         return IsDispellableHarmfulStatus(statusEntry.status_id);
     }
 
@@ -174,145 +280,64 @@ public static class BattleStatusSemanticTable
         if (statusEntry.dispellable_beneficial_magic)
             return true;
         if (statusEntry.dispellable_magic)
-            return !IsHarmfulStatus(statusEntry.status_id);
+            return !IsHarmfulStatusEntry(statusEntry);
         return IsDispellableBeneficialStatus(statusEntry.status_id);
     }
 
-    public static int GetDispelPriority(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        if (
-            normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-        )
-            return 100;
-        if (
-            normalizedStatusId == STATUS_BLIND
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_TIME_STASIS
-        )
-            return 90;
-        if (
-            normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
-        )
-            return 80;
-        if (
-            normalizedStatusId == STATUS_BURNING
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_METEOR_CONCUSSED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_SLOW
-            || normalizedStatusId == STATUS_STAGGERED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TIME_SLOW
-        )
-            return 70;
-        return 50;
-    }
+    public static int GetDispelPriority(StringName statusId) =>
+        GetDescriptor(statusId)?.DispelPriority ?? DEFAULT_DISPEL_PRIORITY;
 
-    public static BattleStatusSemantic GetSemantic(StringName statusId)
-    {
-        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
-        if (
-            normalizedStatusId == STATUS_ARCHER_PRE_AIM
-            || normalizedStatusId == STATUS_ARCHER_RANGE_UP
-            || normalizedStatusId == STATUS_ARCHER_SHOOTING_SPECIALIZATION
-            || normalizedStatusId == STATUS_ATTACK_UP
-            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
-            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
-            || normalizedStatusId == STATUS_DEATH_WARD
-            || normalizedStatusId == STATUS_DODGE_BONUS_UP
-            || normalizedStatusId == STATUS_GUARDING
-            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
-            || normalizedStatusId == STATUS_MAGIC_SHIELD
-            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
-            || normalizedStatusId == STATUS_SPELLWARD
-            || normalizedStatusId == STATUS_LAST_STAND_ACTIVE
-            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
-        )
-            return RefreshSemantic();
-        if (normalizedStatusId == STATUS_BLIND)
-            return RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY);
-        if (
-            normalizedStatusId == STATUS_ARMOR_BREAK
-            || normalizedStatusId == STATUS_FROZEN
-            || normalizedStatusId == STATUS_MARKED
-            || normalizedStatusId == STATUS_PINNED
-            || normalizedStatusId == STATUS_ROOTED
-            || normalizedStatusId == STATUS_SHOCKED
-            || normalizedStatusId == STATUS_TAUNTED
-            || normalizedStatusId == STATUS_TENDON_CUT
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
-            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
-            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
-            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
-            || normalizedStatusId == STATUS_PETRIFIED
-            || normalizedStatusId == STATUS_MADNESS
-            || normalizedStatusId == STATUS_TIME_STASIS
-            || normalizedStatusId == STATUS_TIME_SLOW
-            || normalizedStatusId == STATUS_TIME_REVERBERATION
-        )
-            return RefreshSemantic();
-        if (normalizedStatusId == STATUS_BURNING)
-            return BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE);
-        if (normalizedStatusId == STATUS_SLOW)
-            return RefreshSemantic(moveCostDelta: 1);
-        if (normalizedStatusId == STATUS_SOUL_FRACTURE)
-            return RefreshSemantic(displayLabel: "灵魂裂解");
-        if (normalizedStatusId == STATUS_METEOR_CONCUSSED)
-        {
-            return RefreshSemantic(
-                tickMode: TICK_TURN_START_AP_PENALTY,
-                attackRollPenalty: 2,
-                apPenaltyGroup: STATUS_STAGGERED,
-                consumeAfterApPenalty: true,
-                displayLabel: "震眩",
-                turnStartLogReasonId: "meteor_concussed_ap_consumed"
-            );
-        }
-        if (normalizedStatusId == STATUS_STAGGERED)
-        {
-            return RefreshSemantic(
-                tickMode: TICK_TURN_START_AP_PENALTY,
-                apPenaltyGroup: STATUS_STAGGERED,
-                displayLabel: "踉跄"
-            );
-        }
-        return default;
-    }
+    public static BattleStatusSemantic GetSemantic(StringName statusId) =>
+        GetDescriptor(statusId)?.Semantic ?? default;
 
     public static BattleStatusEffectState MergeStatus(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
-        BattleStatusEffectState existingEntry = null
+        BattleStatusEffectState existingEntry = null,
+        StringName statusIdOverride = default
     )
     {
-        if (effectDef == null || ProgressionDataUtils.to_string_name(effectDef.status_id) == "")
+        if (effectDefinition == null)
             return null;
-        BattleStatusSemantic semantic = GetSemantic(effectDef.status_id);
-        var statusEntry = BuildMergedStatusEffectState(effectDef, sourceUnitId, existingEntry);
-        int incomingPower = Mathf.Max(effectDef.power, 1);
+        StringName resolvedStatusId = ProgressionDataUtils.to_string_name(
+            statusIdOverride == default || statusIdOverride == ""
+                ? effectDefinition.StatusId
+                : statusIdOverride
+        );
+        if (resolvedStatusId == "")
+            return null;
+        BattleStatusSemantic semantic = GetSemantic(resolvedStatusId);
+        var statusEntry = BuildMergedStatusEffectState(
+            effectDefinition,
+            sourceUnitId,
+            existingEntry,
+            resolvedStatusId
+        );
+        int incomingPower = Mathf.Max(effectDefinition.Power, 1);
         int previousPower = Mathf.Max(statusEntry.power, 0);
         int previousStacks = Mathf.Max(statusEntry.stacks, 0);
         if (!semantic.Defined)
         {
-            statusEntry.stack_behavior =
-                ProgressionDataUtils.to_string_name(effectDef.stack_behavior) == ""
+            StringName configuredStackMode =
+                ProgressionDataUtils.to_string_name(effectDefinition.StackBehavior) == ""
                     ? STACK_REFRESH
-                    : effectDef.stack_behavior;
-            statusEntry.stack_limit = Mathf.Max(effectDef.stack_limit, 0);
-            statusEntry.power = effectDef.power;
-            statusEntry.stacks = Mathf.Max(previousStacks + 1, 1);
-            int durationTu = ResolveDurationTu(effectDef);
+                    : effectDefinition.StackBehavior;
+            int configuredStackLimit = Mathf.Max(effectDefinition.StackLimit, 0);
+            statusEntry.stack_behavior = configuredStackMode;
+            statusEntry.stack_limit = configuredStackLimit;
+            statusEntry.power = Mathf.Max(previousPower, incomingPower);
+            statusEntry.stacks =
+                configuredStackMode == STACK_ADD
+                    ? (
+                        configuredStackLimit > 0
+                            ? Mathf.Min(
+                                Mathf.Max(previousStacks + incomingPower, 1),
+                                configuredStackLimit
+                            )
+                            : Mathf.Max(previousStacks + incomingPower, 1)
+                    )
+                    : 1;
+            int durationTu = ResolveDurationTu(effectDefinition);
             if (durationTu >= 0)
                 statusEntry.duration = durationTu;
             return statusEntry;
@@ -334,13 +359,13 @@ public static class BattleStatusSemanticTable
                         : Mathf.Max(previousStacks + 1, 1)
                 )
                 : 1;
-        int semanticDurationTu = ResolveDurationTu(effectDef);
+        int semanticDurationTu = ResolveDurationTu(effectDefinition);
         if (semanticDurationTu >= 0)
         {
             int previousDuration = statusEntry.duration;
             statusEntry.duration = Mathf.Max(semanticDurationTu, previousDuration);
         }
-        int tickIntervalTu = ResolveTickIntervalTu(effectDef);
+        int tickIntervalTu = ResolveTickIntervalTu(effectDefinition);
         if (tickIntervalTu > 0)
         {
             statusEntry.tick_interval_tu = tickIntervalTu;
@@ -351,49 +376,89 @@ public static class BattleStatusSemanticTable
     }
 
     private static BattleStatusEffectState BuildMergedStatusEffectState(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
-        BattleStatusEffectState existingEntry
+        BattleStatusEffectState existingEntry,
+        StringName resolvedStatusId
     )
     {
         var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
-        statusEntry.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
-        statusEntry.@params = BattleStatusEffectState.CopyResidualParams(effectDef.@params);
-        statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
-        statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
-        statusEntry.lock_counterattack = effectDef.lock_counterattack;
-        statusEntry.lock_dodge_bonus = effectDef.lock_dodge_bonus;
-        statusEntry.lock_crit = effectDef.lock_crit;
-        statusEntry.save_bonus = effectDef.save_bonus;
-        statusEntry.control_save_bonus = effectDef.control_save_bonus;
-        statusEntry.heal_multiplier_percent = effectDef.heal_multiplier_percent;
-        statusEntry.shield_gain_multiplier_percent = effectDef.shield_gain_multiplier_percent;
-        statusEntry.passive_reduction = effectDef.passive_reduction;
-        statusEntry.content_dr = effectDef.content_dr;
-        statusEntry.guard_block = effectDef.guard_block;
-        statusEntry.range_bonus = effectDef.range_bonus;
-        statusEntry.death_prevention_priority = Mathf.Max(effectDef.death_prevention_priority, 0);
-        statusEntry.save_advantage_tags = BuildStringNameList(effectDef.save_advantage_tags);
-        statusEntry.save_disadvantage_tags = BuildStringNameList(effectDef.save_disadvantage_tags);
-        statusEntry.save_immunity_tags = BuildStringNameList(effectDef.save_immunity_tags);
-        statusEntry.save_tags = BuildStringNameList(effectDef.save_tags);
-        statusEntry.status_tags = BuildStringNameList(effectDef.effect_tags);
-        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
-            effectDef.GetStringNameIntMapParamTyped("save_bonus_by_tag")
+        AssignResidualParams(statusEntry, effectDefinition.Parameters);
+        statusEntry.display_label = effectDefinition.DisplayName ?? "";
+        statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
+        statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
+        statusEntry.lock_counterattack = effectDefinition.LockCounterattack;
+        statusEntry.lock_guard = effectDefinition.LockGuard;
+        statusEntry.lock_dodge_bonus = effectDefinition.LockDodgeBonus;
+        statusEntry.lock_crit = effectDefinition.LockCrit;
+        statusEntry.save_bonus = effectDefinition.SaveBonus;
+        statusEntry.control_save_bonus = effectDefinition.ControlSaveBonus;
+        statusEntry.heal_multiplier_percent = effectDefinition.HealMultiplierPercent;
+        statusEntry.shield_gain_multiplier_percent = effectDefinition.ShieldGainMultiplierPercent;
+        statusEntry.passive_reduction = effectDefinition.PassiveReduction;
+        statusEntry.content_dr = effectDefinition.ContentDr;
+        statusEntry.guard_block = effectDefinition.GuardBlock;
+        statusEntry.range_bonus = effectDefinition.RangeBonus;
+        statusEntry.death_prevention_priority = Mathf.Max(
+            effectDefinition.DeathPreventionPriority,
+            0
         );
-        statusEntry.attack_roll_penalty = effectDef.attack_roll_penalty;
-        statusEntry.undispellable = effectDef.undispellable;
-        statusEntry.dispellable_magic = effectDef.dispellable_magic;
-        statusEntry.dispellable_harmful_magic = effectDef.dispellable_harmful_magic;
-        statusEntry.dispellable_beneficial_magic = effectDef.dispellable_beneficial_magic;
-        statusEntry.damage_tag = effectDef.damage_tag;
-        statusEntry.damage_tags = BuildStringNameList(effectDef.damage_tags);
-        statusEntry.damage_category = effectDef.damage_category;
-        statusEntry.mitigation_tier = effectDef.mitigation_tier;
-        statusEntry.dr_bypass_tag = effectDef.dr_bypass_tag;
+        statusEntry.save_advantage_tags = BuildStringNameList(effectDefinition.SaveAdvantageTags);
+        statusEntry.save_disadvantage_tags = BuildStringNameList(
+            effectDefinition.SaveDisadvantageTags
+        );
+        statusEntry.save_immunity_tags = BuildStringNameList(effectDefinition.SaveImmunityTags);
+        statusEntry.save_tags = BuildStringNameList(effectDefinition.SaveTags);
+        statusEntry.status_tags = BuildStringNameList(effectDefinition.EffectTags);
+        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
+            effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
+        );
+        statusEntry.attack_roll_penalty = effectDefinition.AttackRollPenalty;
+        statusEntry.attack_roll_bonus = effectDefinition.AttackRollBonus;
+        statusEntry.attack_roll_advantage = effectDefinition.AttackRollAdvantage;
+        statusEntry.consume_on_next_attack_check = effectDefinition.ConsumeOnNextAttackCheck;
+        statusEntry.consume_on_next_save = effectDefinition.ConsumeOnNextSave;
+        statusEntry.source_bound_attack_roll_penalty =
+            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
+        statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
+            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty_min_stacks", 1),
+            1
+        );
+        statusEntry.source_bound_incoming_attack_roll_bonus_per_stack =
+            effectDefinition.GetIntParamTyped(
+                "source_bound_incoming_attack_roll_bonus_per_stack",
+                0
+            );
+        statusEntry.source_bound_incoming_attack_roll_bonus_min_stacks = Math.Max(
+            effectDefinition.GetIntParamTyped(
+                "source_bound_incoming_attack_roll_bonus_min_stacks",
+                1
+            ),
+            1
+        );
+        statusEntry.source_bound_weapon_bonus_damage_dice_count = Math.Max(
+            effectDefinition.SourceBoundWeaponBonusDamageDiceCount,
+            0
+        );
+        statusEntry.source_bound_weapon_bonus_damage_dice_sides = Math.Max(
+            effectDefinition.SourceBoundWeaponBonusDamageDiceSides,
+            0
+        );
+        statusEntry.source_bound_weapon_bonus_damage_dice_bonus =
+            effectDefinition.SourceBoundWeaponBonusDamageDiceBonus;
+        statusEntry.undispellable = effectDefinition.Undispellable;
+        statusEntry.dispellable_magic = effectDefinition.DispellableMagic;
+        statusEntry.dispellable_harmful_magic = effectDefinition.DispellableHarmfulMagic;
+        statusEntry.dispellable_beneficial_magic = effectDefinition.DispellableBeneficialMagic;
+        statusEntry.damage_tag = effectDefinition.DamageTag;
+        statusEntry.damage_tags = BuildStringNameList(effectDefinition.DamageTags);
+        statusEntry.damage_category = effectDefinition.DamageCategory;
+        statusEntry.mitigation_tier = effectDefinition.MitigationTier;
+        statusEntry.dr_bypass_tag = effectDefinition.DrBypassTag;
         statusEntry.main_skill_lock_other_debuff_count = Mathf.Max(
-            effectDef.main_skill_lock_other_debuff_count,
+            effectDefinition.MainSkillLockOtherDebuffCount,
             0
         );
         return statusEntry;
@@ -432,6 +497,15 @@ public static class BattleStatusSemanticTable
             && semantic.ConsumeAfterApPenalty;
     }
 
+    public static bool ShouldSetApToZeroAtTurnStart(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+            return false;
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode == TICK_TURN_START_AP_PENALTY
+            && semantic.SetApToZeroAtTurnStart;
+    }
+
     public static string GetTurnStartApPenaltyDisplayLabel(BattleStatusEffectState statusEntry)
     {
         if (statusEntry == null)
@@ -456,8 +530,40 @@ public static class BattleStatusSemanticTable
         if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
             return 0;
         BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
-        return semantic.TickMode != TICK_TIMELINE_DAMAGE ? 0 : GetEffectIntensity(statusEntry);
+        return semantic.TickMode == TICK_TIMELINE_DAMAGE || HasTimelineDamagePayload(statusEntry)
+            ? GetEffectIntensity(statusEntry)
+            : 0;
     }
+
+    public static int RollTimelineTickDamage(
+        BattleStatusEffectState statusEntry,
+        Func<int, int> rollDamageDie = null
+    )
+    {
+        if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+            return 0;
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        if (semantic.TickMode != TICK_TIMELINE_DAMAGE && !HasTimelineDamagePayload(statusEntry))
+            return 0;
+        if (statusEntry.timeline_damage_dice_count <= 0 || statusEntry.timeline_damage_dice_sides <= 0)
+            return GetEffectIntensity(statusEntry);
+
+        int total = Math.Max(statusEntry.timeline_damage_flat_bonus, 0);
+        int diceCount = Math.Max(statusEntry.timeline_damage_dice_count, 0);
+        int diceSides = Math.Max(statusEntry.timeline_damage_dice_sides, 1);
+        Func<int, int> roller = rollDamageDie ?? DefaultRollDamageDie;
+        for (int index = 0; index < diceCount; index++)
+            total += Math.Clamp(roller(diceSides), 1, diceSides);
+        return Math.Max(total, 0);
+    }
+
+    private static bool HasTimelineDamagePayload(BattleStatusEffectState statusEntry) =>
+        statusEntry != null
+        && (
+            statusEntry.timeline_damage_dice_count > 0
+            || statusEntry.timeline_damage_dice_sides > 0
+            || statusEntry.timeline_damage_flat_bonus > 0
+        );
 
     public static int GetMoveCostDelta(BattleStatusEffectState statusEntry)
     {
@@ -500,6 +606,7 @@ public static class BattleStatusSemanticTable
         int attackRollPenalty = 0,
         StringName apPenaltyGroup = default,
         bool consumeAfterApPenalty = false,
+        bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
         string turnStartLogReasonId = ""
     ) =>
@@ -511,6 +618,7 @@ public static class BattleStatusSemanticTable
             attackRollPenalty,
             apPenaltyGroup,
             consumeAfterApPenalty,
+            setApToZeroAtTurnStart,
             displayLabel,
             turnStartLogReasonId
         );
@@ -523,6 +631,7 @@ public static class BattleStatusSemanticTable
         int attackRollPenalty = 0,
         StringName apPenaltyGroup = default,
         bool consumeAfterApPenalty = false,
+        bool setApToZeroAtTurnStart = false,
         string displayLabel = "",
         string turnStartLogReasonId = ""
     ) =>
@@ -535,30 +644,37 @@ public static class BattleStatusSemanticTable
             Mathf.Max(attackRollPenalty, 0),
             ProgressionDataUtils.to_string_name(apPenaltyGroup),
             consumeAfterApPenalty,
+            setApToZeroAtTurnStart,
             displayLabel ?? "",
             turnStartLogReasonId ?? ""
         );
 
-    private static int ResolveDurationTu(CombatEffectDef effectDef)
+    private static int ResolveDurationTu(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return -1;
-        if (effectDef.duration_tu > 0)
-            return NormalizePositiveTu(effectDef.duration_tu, "status duration_tu");
+        if (effectDefinition.DurationTu > 0)
+            return NormalizePositiveTu(effectDefinition.DurationTu, "status duration_tu");
         return -1;
     }
 
-    private static int ResolveTickIntervalTu(CombatEffectDef effectDef)
+    private static int ResolveTickIntervalTu(CombatEffectDefinition effectDefinition)
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return 0;
-        if (effectDef.tick_interval_tu > 0)
-            return NormalizePositiveTu(effectDef.tick_interval_tu, "status tick_interval_tu");
+        if (effectDefinition.TickIntervalTu > 0)
+            return NormalizePositiveTu(
+                effectDefinition.TickIntervalTu,
+                "status tick_interval_tu"
+            );
         return 0;
     }
 
     private static int GetEffectIntensity(BattleStatusEffectState statusEntry) =>
         statusEntry == null ? 0 : Mathf.Max(Mathf.Max(statusEntry.power, statusEntry.stacks), 1);
+
+    private static int DefaultRollDamageDie(int diceSides) =>
+        TrueRandomSeedService.RandiRange(1, Math.Max(diceSides, 1));
 
     private static List<StringName> BuildStringNameList(IEnumerable<StringName> values)
     {
@@ -594,6 +710,18 @@ public static class BattleStatusSemanticTable
             }
         }
         return result;
+    }
+
+    private static void AssignResidualParams(
+        BattleStatusEffectState statusEntry,
+        IReadOnlyDictionary<string, object> parameters
+    )
+    {
+        if (statusEntry == null)
+            return;
+        statusEntry.SetParamsTyped(
+            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
+        );
     }
 
     private static int NormalizePositiveTu(int value, string fieldLabel)

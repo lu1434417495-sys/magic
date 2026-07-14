@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class BattleRepeatAttackResolver
 {
@@ -22,13 +20,17 @@ internal sealed class BattleRepeatAttackResolver
         double FollowUpDamageMultiplier
     )
     {
-        public static RepeatAttackRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        public static RepeatAttackRuntimeParameters FromEffect(
+            CombatEffectDefinition effectDefinition
+        )
         {
-            GDictionary parameters = effectDef?.@params ?? new GDictionary();
             return new RepeatAttackRuntimeParameters(
-                effectDef?.stop_on_miss ?? true,
-                effectDef?.stop_on_target_down ?? true,
-                Math.Max(GetFloat(parameters, "follow_up_damage_multiplier", 1.0), 1.0)
+                effectDefinition?.StopOnMiss ?? true,
+                effectDefinition?.StopOnTargetDown ?? true,
+                Math.Max(
+                    GetFloat(effectDefinition?.Parameters, "follow_up_damage_multiplier", 1.0),
+                    1.0
+                )
             );
         }
 
@@ -71,22 +73,35 @@ internal sealed class BattleRepeatAttackResolver
     internal bool ApplyRepeatAttackSkillResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
+        CombatEffectDefinition repeat_attack_effect,
         BattleEventBatch batch
     )
     {
-        GCombatEffectArray stagedEffects = CollectRepeatAttackBaseEffects(effect_defs);
+        List<CombatEffectDefinition> stagedEffects = CollectRepeatAttackBaseEffects(effect_definitions);
         if (
             active_unit == null
             || target_unit == null
-            || skill_def == null
+            || skill_definition == null
             || repeat_attack_effect == null
             || stagedEffects.Count == 0
         )
         {
             return false;
+        }
+
+        BattleBarrierInteractionResult barrierResult =
+            _runtime?._layered_barrier_service?.ResolveSkillBarrierInteractionResult(
+                active_unit,
+                target_unit,
+                skill_definition,
+                stagedEffects,
+                batch
+            ) ?? new BattleBarrierInteractionResult(false, false);
+        if (barrierResult.Blocked)
+        {
+            return barrierResult.Applied;
         }
 
         int totalDamage = 0;
@@ -111,7 +126,7 @@ internal sealed class BattleRepeatAttackResolver
 
             BattleRepeatAttackStageSpec stageSpec = BuildRuntimeStageSpec(
                 active_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect,
                 stageIndex,
                 0,
@@ -126,7 +141,7 @@ internal sealed class BattleRepeatAttackResolver
                 {
                     AppendLog(
                         batch,
-                        $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 在第 {stageIndex + 1} 段前{costResourceLabel}不足，连斩中止。"
+                        $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 在第 {stageIndex + 1} 段前{costResourceLabel}不足，连斩中止。"
                     );
                     break;
                 }
@@ -138,7 +153,7 @@ internal sealed class BattleRepeatAttackResolver
                 repeat_attack_effect,
                 stageIndex
             );
-            GCombatEffectArray stageEffects = _build_repeat_attack_stage_effects(
+            List<CombatEffectDefinition> stageEffects = _build_repeat_attack_stage_effects(
                 stagedEffects,
                 repeat_attack_effect,
                 stageDamageMultiplier
@@ -146,11 +161,12 @@ internal sealed class BattleRepeatAttackResolver
             AttackEffectResolutionResult stageResult = ResolveRepeatAttackStageResult(
                 active_unit,
                 target_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect,
                 stageSpec,
                 stageIndex,
-                stageEffects
+                stageEffects,
+                batch
             );
 
             int stageSuccessRate = stageResult.SuccessRatePercent;
@@ -161,7 +177,7 @@ internal sealed class BattleRepeatAttackResolver
             {
                 AppendLog(
                     batch,
-                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}，{costResourceAbbr} 消耗 {stageResourceCost}。"
+                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}，{costResourceAbbr} 消耗 {stageResourceCost}。"
                 );
                 _runtime?.AppendResultReportEntry(batch, stageResult);
                 if (repeatParameters.StopOnMiss)
@@ -178,14 +194,24 @@ internal sealed class BattleRepeatAttackResolver
                 _masteryRecorder.RecordTargetResult(
                     active_unit,
                     target_unit,
-                    skill_def,
+                    skill_definition,
+                    stageResult
+                );
+                _runtime?._apply_source_bound_weapon_bonus_mastery_grants(
+                    active_unit,
+                    target_unit,
                     stageResult,
-                    stageEffects
+                    batch
                 );
                 if (stageIndex >= 4)
                 {
                     int bonusBase = (int)Mathf.Pow(2, stageIndex - 4);
-                    _masteryRecorder.RecordBonus(active_unit, target_unit, skill_def, bonusBase);
+                    _masteryRecorder.RecordBonus(
+                        active_unit,
+                        target_unit,
+                        skill_definition,
+                        bonusBase
+                    );
                 }
             }
 
@@ -207,7 +233,7 @@ internal sealed class BattleRepeatAttackResolver
             totalHealing += healing;
             _runtime?.AppendDamageResultLogLines(
                 batch,
-                $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamageMultiplier)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
+                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamageMultiplier)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
                 DisplayName(target_unit),
                 stageResult
             );
@@ -217,13 +243,16 @@ internal sealed class BattleRepeatAttackResolver
             {
                 AppendLog(
                     batch,
-                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段为 {DisplayName(target_unit)} 恢复 {healing} 点生命。"
+                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段为 {DisplayName(target_unit)} 恢复 {healing} 点生命。"
                 );
             }
 
-            foreach (var statusId in stageResult.StatusEffectIds ?? new Godot.Collections.Array<StringName>())
+            if (stageResult.StatusEffectIds != null)
             {
-                AppendLog(batch, $"{DisplayName(target_unit)} 获得状态 {statusId}。");
+                foreach (StringName statusId in stageResult.StatusEffectIds)
+                {
+                    AppendLog(batch, $"{DisplayName(target_unit)} 获得状态 {statusId}。");
+                }
             }
 
             if (!target_unit.is_alive)
@@ -234,7 +263,14 @@ internal sealed class BattleRepeatAttackResolver
                     active_unit,
                     batch,
                     $"{DisplayName(target_unit)} 被击倒。",
-                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: true,
+                        killProvenance: BattleKillProvenance.FromWeaponAttackResult(
+                            active_unit,
+                            stageResult,
+                            skill_definition.SkillId
+                        )
+                    )
                 );
                 if (repeatParameters.StopOnTargetDown)
                 {
@@ -251,7 +287,7 @@ internal sealed class BattleRepeatAttackResolver
                     healing,
                     !target_unit.is_alive,
                     new StringName("repeat"),
-                    skill_def.skill_id
+                    skill_definition.SkillId
                 );
             }
 
@@ -262,39 +298,49 @@ internal sealed class BattleRepeatAttackResolver
         {
             AppendLog(
                 batch,
-                $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 达到内部连斩保护上限后被强制中止。"
+                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 达到内部连斩保护上限后被强制中止。"
             );
         }
 
         return anyAttackSucceeded;
     }
 
-    internal CombatEffectDef get_repeat_attack_effect_def(IEnumerable<CombatEffectDef> effect_defs)
+    internal CombatEffectDefinition get_repeat_attack_effect_def(
+        IEnumerable<CombatEffectDefinition> effect_definitions
+    )
     {
-        foreach (CombatEffectDef effectDef in effect_defs ?? Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                effect_definitions ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef != null && effectDef.EffectKind == BattleEffectKind.RepeatAttackUntilFail)
+            if (
+                effectDefinition != null
+                && effectDefinition.EffectKind == BattleEffectKind.RepeatAttackUntilFail
+            )
             {
-                return effectDef;
+                return effectDefinition;
             }
         }
         return null;
     }
 
-    private GCombatEffectArray CollectRepeatAttackBaseEffects(GCombatEffectArray effect_defs)
+    private List<CombatEffectDefinition> CollectRepeatAttackBaseEffects(
+        IEnumerable<CombatEffectDefinition> effect_definitions
+    )
     {
-        var stagedEffects = new GCombatEffectArray();
-        BattleSkillResolutionRules resolutionRules =
-            (_runtime as BattleRuntimeModule)?._skill_resolution_rules;
-        foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
+        var stagedEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                effect_definitions ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
             if (
-                effectDef != null
-                && resolutionRules != null
-                && resolutionRules.IsUnitEffect(effectDef)
+                effectDefinition != null
+                && BattleTypedNames.IsUnitPayloadEffect(effectDefinition.EffectKind)
             )
             {
-                stagedEffects.Add(effectDef);
+                stagedEffects.Add(effectDefinition);
             }
         }
         return stagedEffects;
@@ -302,8 +348,8 @@ internal sealed class BattleRepeatAttackResolver
 
     private BattleRepeatAttackStageSpec BuildRuntimeStageSpec(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index,
         int stage_count,
         bool fate_aware
@@ -313,9 +359,9 @@ internal sealed class BattleRepeatAttackResolver
             _runtime != null
                 ? _runtime._get_unit_skill_level(
                     active_unit,
-                    skill_def?.skill_id ?? new StringName("")
+                    skill_definition?.SkillId ?? new StringName("")
                 )
-                : _resolve_static_skill_level(active_unit, skill_def);
+                : _resolve_static_skill_level(active_unit, skill_definition);
         BattleRepeatAttackStageSpec spec =
             BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
                 repeat_attack_effect,
@@ -325,21 +371,25 @@ internal sealed class BattleRepeatAttackResolver
                 fate_aware
             );
         spec = spec.WithBaseResourceCost(
-            _get_repeat_attack_base_resource_cost(active_unit, skill_def, spec.cost_resource_kind)
+            _get_repeat_attack_base_resource_cost(
+                active_unit,
+                skill_definition,
+                spec.cost_resource_kind
+            )
         );
         return spec;
     }
 
     public static BattleRepeatAttackStageSpec BuildStageSpecFromRepeatAttackEffect(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index,
         int stage_count,
         bool fate_aware
     )
     {
-        int skillLevel = _resolve_static_skill_level(active_unit, skill_def);
+        int skillLevel = _resolve_static_skill_level(active_unit, skill_definition);
         BattleRepeatAttackStageSpec spec = BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
             repeat_attack_effect,
             stage_index,
@@ -347,27 +397,31 @@ internal sealed class BattleRepeatAttackResolver
             skillLevel,
             fate_aware
         );
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         CombatSkillResourceCosts effectiveCosts = GetEffectiveResourceCosts(
             combatProfile,
             skillLevel
         );
         spec = spec.WithBaseResourceCost(
-            _get_repeat_attack_preview_base_cost(skill_def, spec.cost_resource_kind, effectiveCosts)
+            _get_repeat_attack_preview_base_cost(
+                skill_definition,
+                spec.cost_resource_kind,
+                effectiveCosts
+            )
         );
         return spec;
     }
 
     internal static BattleRepeatAttackStageSpec BuildStageSpecFromRepeatAttackEffect(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index,
         int stage_count,
         bool fate_aware
     )
     {
-        int skillLevel = _resolve_static_skill_level(active_unit, skill_def);
+        int skillLevel = _resolve_static_skill_level(active_unit, skill_definition);
         BattleRepeatAttackStageSpec spec = BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
             repeat_attack_effect,
             stage_index,
@@ -375,27 +429,31 @@ internal sealed class BattleRepeatAttackResolver
             skillLevel,
             fate_aware
         );
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         CombatSkillResourceCosts effectiveCosts = GetEffectiveResourceCosts(
             combatProfile,
             skillLevel
         );
         spec = spec.WithBaseResourceCost(
-            _get_repeat_attack_preview_base_cost(skill_def, spec.cost_resource_kind, effectiveCosts)
+            _get_repeat_attack_preview_base_cost(
+                skill_definition,
+                spec.cost_resource_kind,
+                effectiveCosts
+            )
         );
         return spec;
     }
 
     public static List<BattleRepeatAttackStageSpec> BuildStageSpecsFromRepeatAttackEffect(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int preview_stage_count,
         bool fate_aware
     )
     {
         var specs = new List<BattleRepeatAttackStageSpec>();
-        if (active_unit == null || skill_def == null || repeat_attack_effect == null)
+        if (active_unit == null || skill_definition == null || repeat_attack_effect == null)
         {
             return specs;
         }
@@ -404,7 +462,7 @@ internal sealed class BattleRepeatAttackResolver
         {
             resolvedStageCount = resolve_repeat_attack_preview_stage_count(
                 active_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect
             );
         }
@@ -417,7 +475,7 @@ internal sealed class BattleRepeatAttackResolver
             specs.Add(
                 BuildStageSpecFromRepeatAttackEffect(
                     active_unit,
-                    skill_def,
+                    skill_definition,
                     repeat_attack_effect,
                     stageIndex,
                     normalizedStageCount,
@@ -430,14 +488,14 @@ internal sealed class BattleRepeatAttackResolver
 
     internal static List<BattleRepeatAttackStageSpec> BuildStageSpecsFromRepeatAttackEffect(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         int preview_stage_count,
         bool fate_aware
     )
     {
         var specs = new List<BattleRepeatAttackStageSpec>();
-        if (!active_unit.IsValid || skill_def == null || repeat_attack_effect == null)
+        if (!active_unit.IsValid || skill_definition == null || repeat_attack_effect == null)
         {
             return specs;
         }
@@ -446,7 +504,7 @@ internal sealed class BattleRepeatAttackResolver
         {
             resolvedStageCount = resolve_repeat_attack_preview_stage_count(
                 active_unit,
-                skill_def,
+                skill_definition,
                 repeat_attack_effect
             );
         }
@@ -459,7 +517,7 @@ internal sealed class BattleRepeatAttackResolver
             specs.Add(
                 BuildStageSpecFromRepeatAttackEffect(
                     active_unit,
-                    skill_def,
+                    skill_definition,
                     repeat_attack_effect,
                     stageIndex,
                     normalizedStageCount,
@@ -472,14 +530,14 @@ internal sealed class BattleRepeatAttackResolver
 
     internal static int resolve_repeat_attack_preview_stage_count(
         BattleUnitState active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         if (
             active_unit == null
-            || skill_def == null
+            || skill_definition == null
             || combatProfile == null
             || repeat_attack_effect == null
         )
@@ -493,7 +551,7 @@ internal sealed class BattleRepeatAttackResolver
 
         BattleRepeatAttackStageSpec firstStageSpec = BuildStageSpecFromRepeatAttackEffect(
             active_unit,
-            skill_def,
+            skill_definition,
             repeat_attack_effect,
             0,
             0,
@@ -530,14 +588,14 @@ internal sealed class BattleRepeatAttackResolver
 
     internal static int resolve_repeat_attack_preview_stage_count(
         BattleUnitReadView active_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
         if (
             !active_unit.IsValid
-            || skill_def == null
+            || skill_definition == null
             || combatProfile == null
             || repeat_attack_effect == null
         )
@@ -551,7 +609,7 @@ internal sealed class BattleRepeatAttackResolver
 
         BattleRepeatAttackStageSpec firstStageSpec = BuildStageSpecFromRepeatAttackEffect(
             active_unit,
-            skill_def,
+            skill_definition,
             repeat_attack_effect,
             0,
             0,
@@ -586,32 +644,38 @@ internal sealed class BattleRepeatAttackResolver
         return stages;
     }
 
-    internal static int _resolve_static_skill_level(BattleUnitState active_unit, SkillDef skill_def)
+    internal static int _resolve_static_skill_level(
+        BattleUnitState active_unit,
+        SkillDefinition skill_definition
+    )
     {
-        if (active_unit == null || skill_def == null)
+        if (active_unit == null || skill_definition == null)
         {
             return 0;
         }
-        return active_unit.GetKnownSkillLevelTyped(skill_def.skill_id);
+        return active_unit.GetKnownSkillLevelTyped(skill_definition.SkillId);
     }
 
-    internal static int _resolve_static_skill_level(BattleUnitReadView active_unit, SkillDef skill_def)
+    internal static int _resolve_static_skill_level(
+        BattleUnitReadView active_unit,
+        SkillDefinition skill_definition
+    )
     {
-        if (!active_unit.IsValid || skill_def == null)
+        if (!active_unit.IsValid || skill_definition == null)
         {
             return 0;
         }
-        return active_unit.GetKnownSkillLevel(skill_def.skill_id);
+        return active_unit.GetKnownSkillLevel(skill_definition.SkillId);
     }
 
     internal static int _get_repeat_attack_preview_base_cost(
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         CombatResourceKind cost_resource_kind,
         CombatSkillResourceCosts effective_costs
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
+        if (skill_definition == null || combatProfile == null)
         {
             return 0;
         }
@@ -655,11 +719,12 @@ internal sealed class BattleRepeatAttackResolver
     private AttackEffectResolutionResult ResolveRepeatAttackStageResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        SkillDef skill_def,
-        CombatEffectDef repeat_attack_effect,
+        SkillDefinition skill_definition,
+        CombatEffectDefinition repeat_attack_effect,
         BattleRepeatAttackStageSpec stage_spec,
         int stage_index,
-        GCombatEffectArray stage_effects
+        IEnumerable<CombatEffectDefinition> stage_effects,
+        BattleEventBatch batch
     )
     {
         BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
@@ -671,10 +736,10 @@ internal sealed class BattleRepeatAttackResolver
             {
                 Applied = false,
                 BlockedReason = "attack_policy_unavailable",
-                StatusEffectIds = new Godot.Collections.Array<StringName>(),
-                RemovedStatusEffectIds = new Godot.Collections.Array<StringName>(),
-                SourceStatusEffectIds = new Godot.Collections.Array<StringName>(),
-                TerrainEffectIds = new Godot.Collections.Array<StringName>(),
+                StatusEffectIds = new StringNameList(),
+                RemovedStatusEffectIds = new StringNameList(),
+                SourceStatusEffectIds = new StringNameList(),
+                TerrainEffectIds = new StringNameList(),
             };
         }
 
@@ -683,7 +748,7 @@ internal sealed class BattleRepeatAttackResolver
             battleState,
             active_unit,
             target_unit,
-            skill_def,
+            skill_definition,
             stageSpec,
             new StringName("repeat_attack_stage_check"),
             new StringName("execute")
@@ -698,9 +763,10 @@ internal sealed class BattleRepeatAttackResolver
             var attackResolutionContext = new AttackContext
             {
                 BattleState = battleState,
-                SkillId = skill_def != null ? skill_def.skill_id : new StringName(""),
+                SkillId = skill_definition != null ? skill_definition.SkillId : new StringName(""),
+                EventBatch = batch,
             };
-            result = damageResolver.ResolveAttackEffectsTyped(
+            result = damageResolver.ResolveAttackEffects(
                 active_unit,
                 target_unit,
                 stage_effects,
@@ -717,10 +783,10 @@ internal sealed class BattleRepeatAttackResolver
                 HitRatePercent = attackSuccessRatePercent,
                 SuccessRatePercent = attackSuccessRatePercent,
                 AttackCheck = attackCheck,
-                StatusEffectIds = new Godot.Collections.Array<StringName>(),
-                RemovedStatusEffectIds = new Godot.Collections.Array<StringName>(),
-                SourceStatusEffectIds = new Godot.Collections.Array<StringName>(),
-                TerrainEffectIds = new Godot.Collections.Array<StringName>(),
+                StatusEffectIds = new StringNameList(),
+                RemovedStatusEffectIds = new StringNameList(),
+                SourceStatusEffectIds = new StringNameList(),
+                TerrainEffectIds = new StringNameList(),
             };
         }
         result.HitRatePercent = attackSuccessRatePercent;
@@ -776,11 +842,11 @@ internal sealed class BattleRepeatAttackResolver
 
     internal CombatSkillResourceCosts _resolve_effective_skill_costs(
         BattleUnitState active_unit,
-        SkillDef skill_def
+        SkillDefinition skill_definition
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (active_unit == null || skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
+        if (active_unit == null || skill_definition == null || combatProfile == null)
         {
             return CombatSkillResourceCosts.Zero;
         }
@@ -789,12 +855,12 @@ internal sealed class BattleRepeatAttackResolver
         {
             skillLevel = _runtime._get_unit_skill_level(
                 active_unit,
-                skill_def.skill_id
+                skill_definition.SkillId
             );
         }
         else
         {
-            skillLevel = _resolve_static_skill_level(active_unit, skill_def);
+            skillLevel = _resolve_static_skill_level(active_unit, skill_definition);
         }
         return GetEffectiveResourceCosts(combatProfile, skillLevel);
     }
@@ -811,18 +877,18 @@ internal sealed class BattleRepeatAttackResolver
 
     internal int _get_repeat_attack_base_resource_cost(
         BattleUnitState active_unit,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         CombatResourceKind cost_resource_kind
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skill_definition?.CombatProfile;
+        if (skill_definition == null || combatProfile == null)
         {
             return 0;
         }
         CombatSkillResourceCosts effectiveCosts = _resolve_effective_skill_costs(
             active_unit,
-            skill_def
+            skill_definition
         );
         return GetEffectiveCostValue(effectiveCosts, cost_resource_kind);
     }
@@ -871,14 +937,18 @@ internal sealed class BattleRepeatAttackResolver
         );
     }
 
-    internal bool _should_stop_repeat_attack_on_miss(CombatEffectDef repeat_attack_effect)
+    internal bool _should_stop_repeat_attack_on_miss(
+        CombatEffectDefinition repeat_attack_effect
+    )
     {
         return RepeatAttackRuntimeParameters
             .FromEffect(repeat_attack_effect)
             .StopOnMiss;
     }
 
-    internal bool _should_stop_repeat_attack_on_target_down(CombatEffectDef repeat_attack_effect)
+    internal bool _should_stop_repeat_attack_on_target_down(
+        CombatEffectDefinition repeat_attack_effect
+    )
     {
         return RepeatAttackRuntimeParameters
             .FromEffect(repeat_attack_effect)
@@ -886,7 +956,7 @@ internal sealed class BattleRepeatAttackResolver
     }
 
     internal double _get_repeat_attack_stage_damage_multiplier(
-        CombatEffectDef repeat_attack_effect,
+        CombatEffectDefinition repeat_attack_effect,
         int stage_index
     )
     {
@@ -895,36 +965,35 @@ internal sealed class BattleRepeatAttackResolver
             .GetStageDamageMultiplier(stage_index);
     }
 
-    internal GCombatEffectArray _build_repeat_attack_stage_effects(
-        GCombatEffectArray base_effects,
-        CombatEffectDef repeat_attack_effect,
+    internal List<CombatEffectDefinition> _build_repeat_attack_stage_effects(
+        IEnumerable<CombatEffectDefinition> base_effects,
+        CombatEffectDefinition repeat_attack_effect,
         double damage_multiplier
     )
     {
-        var stagedEffects = new GCombatEffectArray();
+        var stagedEffects = new List<CombatEffectDefinition>();
         string damageMultiplierStage = GetString(
-            repeat_attack_effect?.@params,
+            repeat_attack_effect?.Parameters,
             "damage_multiplier_stage",
             PreResistanceStage
         );
-        foreach (CombatEffectDef effectDef in base_effects ?? new GCombatEffectArray())
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                base_effects ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef == null)
+            if (effectDefinition == null)
             {
                 continue;
             }
-            CombatEffectDef stageEffect = effectDef.DuplicateForRuntime();
-            if (stageEffect == null)
-            {
-                continue;
-            }
+            CombatEffectDefinition stageEffect = effectDefinition;
             if (
                 stageEffect.EffectKind == BattleEffectKind.Damage
                 && damageMultiplierStage == PreResistanceStage
                 && damage_multiplier > 1.0
             )
             {
-                stageEffect.pre_resistance_damage_multiplier = damage_multiplier;
+                stageEffect = stageEffect.WithPreResistanceDamageMultiplier(damage_multiplier);
             }
             stagedEffects.Add(stageEffect);
         }
@@ -948,7 +1017,7 @@ internal sealed class BattleRepeatAttackResolver
     }
 
     private static CombatSkillResourceCosts GetEffectiveResourceCosts(
-        CombatSkillDef combatProfile,
+        CombatSkillDefinition combatProfile,
         int skillLevel
     )
     {
@@ -1018,41 +1087,55 @@ internal sealed class BattleRepeatAttackResolver
         }
     }
 
-    private static int GetInt(GDictionary source, string key, int fallback = 0)
+    private static double GetFloat(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        double fallback = 0.0
+    )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
             return fallback;
-        return value.AsInt32();
+        return value switch
+        {
+            byte byteValue => byteValue,
+            short shortValue => shortValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            _ => fallback,
+        };
     }
 
-    private static double GetFloat(GDictionary source, string key, double fallback = 0.0)
+    private static string GetString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
+        if (!TryResolveStringKey(source, key, out object value))
             return fallback;
-        return value.AsDouble();
+        string result = value switch
+        {
+            string text => text,
+            StringName stringName => stringName.ToString(),
+            _ => "",
+        };
+        return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
-    private static string GetString(GDictionary source, string key, string fallback = "")
+    private static bool TryResolveStringKey(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        out object value
+    )
     {
-        if (!TryResolveStringKey(source, key, out Variant value))
-            return fallback;
-        string result = value.ToString();
-        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
-    }
-
-    private static bool TryResolveStringKey(GDictionary source, string key, out Variant value)
-    {
-        value = default;
+        value = null;
         if (source == null || string.IsNullOrEmpty(key))
         {
             return false;
         }
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return true;
-        }
-        return false;
+        return source.TryGetValue(key, out value);
     }
 
     private static void AppendLog(BattleEventBatch batch, string line)
@@ -1065,7 +1148,7 @@ internal sealed class BattleRepeatAttackResolver
         return value switch
         {
             BattleUnitState unitState => unitState.display_name,
-            SkillDef skillDef => skillDef.display_name,
+            SkillDefinition skillDefinition => skillDefinition.DisplayName,
             _ => "",
         };
     }

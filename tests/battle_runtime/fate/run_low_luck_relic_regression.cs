@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_low_luck_relic_regression : SceneTree
+public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName AllyId = "ally";
@@ -24,13 +24,13 @@ public partial class run_low_luck_relic_regression : SceneTree
         TestBloodDebtShawlLowHpReductionAllyDownApAndRecoveryPenalty();
         TestDeadRoadLanternRevealsHiddenPaths();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Low luck relic regression"));
+        RequestTestExit(_test.Finish("Low luck relic regression"));
     }
 
     private void TestItemResourcesSurfaceEquipmentFlags()
     {
-        GDictionary itemDefs = LoadLowLuckItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            LoadLowLuckItemDefinitions();
         var cases = new[]
         {
             (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.ReverseFateAmulet)),
@@ -41,22 +41,21 @@ public partial class run_low_luck_relic_regression : SceneTree
 
         foreach ((StringName itemId, StringName attributeId) in cases)
         {
-            _test.True(HasItemDef(itemDefs, itemId), $"ItemContentRegistry 应加载 {itemId}。");
-            if (!HasItemDef(itemDefs, itemId))
+            _test.True(
+                HasItemDefinition(itemDefinitions, itemId),
+                $"ItemContentRegistry 应加载 {itemId}。"
+            );
+            if (!HasItemDefinition(itemDefinitions, itemId))
                 continue;
 
-            AttributeSnapshot snapshot = BuildEquippedMemberSnapshot(itemDefs, itemId);
-            try
-            {
-                _test.True(
-                    snapshot != null && snapshot.GetValue(attributeId) > 0,
-                    $"{itemId} 装备后应把 {attributeId} 写入属性快照。"
-                );
-            }
-            finally
-            {
-                GodotRefCountedDisposer.DisposeIfValid(snapshot);
-            }
+            AttributeSnapshot snapshot = BuildEquippedMemberSnapshot(
+                itemDefinitions,
+                itemId
+            );
+            _test.True(
+                snapshot != null && snapshot.GetValue(attributeId) > 0,
+                $"{itemId} 装备后应把 {attributeId} 写入属性快照。"
+            );
         }
     }
 
@@ -122,149 +121,123 @@ public partial class run_low_luck_relic_regression : SceneTree
     private void TestBlackStarWedgeFirstHitIgnoresGuardAndAppliesExposed()
     {
         FixedHitMaxDamageResolver resolver = new();
-        BattleUnitState baselineSource = null;
-        BattleUnitState baselineTarget = null;
-        BattleUnitState wedgeSource = null;
-        BattleUnitState wedgeTarget = null;
-        BattleUnitState enemyAttacker = null;
-        BattleUnitState normalTarget = null;
-        try
-        {
-            baselineSource = BuildBattleUnit("基准楔钉者", "player");
-            baselineTarget = BuildGuardedTarget("守住的敌人");
-            GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
-                baselineSource,
-                baselineTarget,
-                new GArray { BuildDamageEffect(18) },
-                new GDictionary()
-            ));
-            int baselineDamage = DictInt(baselineDamageResult, "damage");
+        BattleUnitState baselineSource = BuildBattleUnit("基准楔钉者", "player");
+        BattleUnitState baselineTarget = BuildGuardedTarget("守住的敌人");
+        using GodotProjectionLease<GDictionary> baselineDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
+            baselineSource,
+            baselineTarget,
+            new[] { BuildDamageEffect(18) },
+            DamageResolutionContext.Empty()
+        ));
+        GDictionary baselineDamageResult = baselineDamageResultLease.Value;
+        int baselineDamage = DictInt(baselineDamageResult, "damage");
 
-            wedgeSource = BuildBattleUnit("楔钉者", "player");
-            wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
-            wedgeTarget = BuildGuardedTarget("守住的敌人");
-            GDictionary wedgeResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
-                wedgeSource,
-                wedgeTarget,
-                new GArray { BuildDamageEffect(18) },
-                new GDictionary()
-            ));
-            GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
+        BattleUnitState wedgeSource = BuildBattleUnit("楔钉者", "player");
+        wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
+        BattleUnitState wedgeTarget = BuildGuardedTarget("守住的敌人");
+        using GodotProjectionLease<GDictionary> wedgeResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
+            wedgeSource,
+            wedgeTarget,
+            new[] { BuildDamageEffect(18) },
+            DamageResolutionContext.Empty()
+        ));
+        GDictionary wedgeResult = wedgeResultLease.Value;
+        GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
-            _test.True(
-                DictInt(wedgeEvent, "guard_ignore_applied") > 0,
-                $"黑星楔钉的首击应记录 guard_ignore_applied。 event={wedgeEvent}"
-            );
-            _test.True(
-                DictInt(wedgeResult, "damage") > baselineDamage,
-                $"黑星楔钉首击应比未装备时打出更高伤害。 baseline={baselineDamage} actual={DictInt(wedgeResult, "damage")}"
-            );
-            _test.True(
-                wedgeSource.HasStatusEffect(LowLuckRelicRules.ToStringName(LowLuckRelicStatusKind.BlackStarWedgeExposed)),
-                "黑星楔钉未击杀目标时应给佩戴者挂上 1 回合破绽。"
-            );
+        _test.True(
+            DictInt(wedgeEvent, "guard_ignore_applied") > 0,
+            $"黑星楔钉的首击应记录 guard_ignore_applied。 event={wedgeEvent}"
+        );
+        _test.True(
+            DictInt(wedgeResult, "damage") > baselineDamage,
+            $"黑星楔钉首击应比未装备时打出更高伤害。 baseline={baselineDamage} actual={DictInt(wedgeResult, "damage")}"
+        );
+        _test.True(
+            wedgeSource.HasStatusEffect(LowLuckRelicRules.ToStringName(LowLuckRelicStatusKind.BlackStarWedgeExposed)),
+            "黑星楔钉未击杀目标时应给佩戴者挂上 1 回合破绽。"
+        );
 
-            enemyAttacker = BuildBattleUnit("报复者", "enemy");
-            normalTarget = BuildBattleUnit("普通持有者", "player");
-            BattleUnitState exposedTarget = wedgeSource;
-            int normalIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
-                resolver.ResolveEffects(
-                    enemyAttacker,
-                    normalTarget,
-                    new GArray { BuildDamageEffect(16) },
-                    new GDictionary()
-                )),
-                "damage"
-            );
-            int exposedIncoming = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
-                resolver.ResolveEffects(
-                    enemyAttacker,
-                    exposedTarget,
-                    new GArray { BuildDamageEffect(16) },
-                    new GDictionary()
-                )),
-                "damage"
-            );
-            _test.True(
-                exposedIncoming > normalIncoming,
-                $"黑星楔钉代价应让佩戴者承受更高的后续伤害。 normal={normalIncoming} exposed={exposedIncoming}"
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleUnit(baselineSource);
-            BattleTestFixture.DisposeBattleUnit(baselineTarget);
-            BattleTestFixture.DisposeBattleUnit(wedgeSource);
-            BattleTestFixture.DisposeBattleUnit(wedgeTarget);
-            BattleTestFixture.DisposeBattleUnit(enemyAttacker);
-            BattleTestFixture.DisposeBattleUnit(normalTarget);
-        }
+        BattleUnitState enemyAttacker = BuildBattleUnit("报复者", "enemy");
+        BattleUnitState normalTarget = BuildBattleUnit("普通持有者", "player");
+        BattleUnitState exposedTarget = wedgeSource;
+        using GodotProjectionLease<GDictionary> normalIncomingLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+            resolver.ResolveEffects(
+                enemyAttacker,
+                normalTarget,
+                new[] { BuildDamageEffect(16) },
+                DamageResolutionContext.Empty()
+            )
+        );
+        int normalIncoming = DictInt(normalIncomingLease.Value, "damage");
+        using GodotProjectionLease<GDictionary> exposedIncomingLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+            resolver.ResolveEffects(
+                enemyAttacker,
+                exposedTarget,
+                new[] { BuildDamageEffect(16) },
+                DamageResolutionContext.Empty()
+            )
+        );
+        int exposedIncoming = DictInt(exposedIncomingLease.Value, "damage");
+        _test.True(
+            exposedIncoming > normalIncoming,
+            $"黑星楔钉代价应让佩戴者承受更高的后续伤害。 normal={normalIncoming} exposed={exposedIncoming}"
+        );
     }
 
     private void TestBloodDebtShawlLowHpReductionAllyDownApAndRecoveryPenalty()
     {
         FixedHitMaxDamageResolver resolver = new();
-        BattleUnitState enemyAttacker = null;
-        BattleUnitState baselineTarget = null;
-        BattleUnitState shawlTarget = null;
-        BattleRuntimeModule runtime = null;
-        BattleState state = null;
-        BattleEventBatch clearBatch = null;
-        try
-        {
-            enemyAttacker = BuildBattleUnit("压迫者", "enemy");
-            baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
-            shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
-            shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-            int normalDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
-                resolver.ResolveEffects(
-                    enemyAttacker,
-                    baselineTarget,
-                    new GArray { BuildDamageEffect(20) },
-                    new GDictionary()
-                )),
-                "damage"
-            );
-            int reducedDamage = DictInt(AttackEffectResolutionResultReader.BuildGodotPayload(
-                resolver.ResolveEffects(
-                    enemyAttacker,
-                    shawlTarget,
-                    new GArray { BuildDamageEffect(20) },
-                    new GDictionary()
-                )),
-                "damage"
-            );
-            _test.True(
-                reducedDamage < normalDamage,
-                $"血债披肩在低血时应降低承伤。 normal={normalDamage} reduced={reducedDamage}"
-            );
+        BattleUnitState enemyAttacker = BuildBattleUnit("压迫者", "enemy");
+        BattleUnitState baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
+        BattleUnitState shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
+        shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
+        using GodotProjectionLease<GDictionary> normalDamageLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+            resolver.ResolveEffects(
+                enemyAttacker,
+                baselineTarget,
+                new[] { BuildDamageEffect(20) },
+                DamageResolutionContext.Empty()
+            )
+        );
+        int normalDamage = DictInt(normalDamageLease.Value, "damage");
+        using GodotProjectionLease<GDictionary> reducedDamageLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+            resolver.ResolveEffects(
+                enemyAttacker,
+                shawlTarget,
+                new[] { BuildDamageEffect(20) },
+                DamageResolutionContext.Empty()
+            )
+        );
+        int reducedDamage = DictInt(reducedDamageLease.Value, "damage");
+        _test.True(
+            reducedDamage < normalDamage,
+            $"血债披肩在低血时应降低承伤。 normal={normalDamage} reduced={reducedDamage}"
+        );
 
-            runtime = new BattleRuntimeModule();
-            runtime.setup();
-            state = BuildRuntimeState("blood_debt_runtime");
-            BattleUnitState wearer = BuildBattleUnit("披肩佩戴者", "player", hpMax: 100, currentHp: 80, sourceMemberId: HeroId);
-            wearer.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-            wearer.current_ap = 1;
-            BattleUnitState fallenAlly = BuildBattleUnit("倒地队友", "player", hpMax: 100, currentHp: 0, sourceMemberId: AllyId);
-            fallenAlly.is_alive = false;
-            BattleUnitState enemy = BuildBattleUnit("敌人", "enemy", hpMax: 100, currentHp: 0, sourceMemberId: "enemy");
-            AddUnitToState(state, wearer);
-            AddUnitToState(state, fallenAlly);
-            AddUnitToState(state, enemy);
-            state.ally_unit_ids = new GStringNameArray { wearer.unit_id, fallenAlly.unit_id };
-            state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
-            runtime.SetupStateForTests(state);
-            clearBatch = new BattleEventBatch();
-            runtime.ClearDefeatedUnit(fallenAlly, clearBatch);
-            _test.Eq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleUnit(enemyAttacker);
-            BattleTestFixture.DisposeBattleUnit(baselineTarget);
-            BattleTestFixture.DisposeBattleUnit(shawlTarget);
-            BattleTestFixture.DisposeBattleFixture(runtime, state, clearBatch);
-        }
+        BattleRuntimeModule runtime = new();
+        runtime.setup();
+        BattleState state = BuildRuntimeState("blood_debt_runtime");
+        BattleUnitState wearer = BuildBattleUnit("披肩佩戴者", "player", hpMax: 100, currentHp: 80, sourceMemberId: HeroId);
+        wearer.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
+        wearer.current_ap = 1;
+        BattleUnitState fallenAlly = BuildBattleUnit("倒地队友", "player", hpMax: 100, currentHp: 0, sourceMemberId: AllyId);
+        fallenAlly.is_alive = false;
+        BattleUnitState enemy = BuildBattleUnit("敌人", "enemy", hpMax: 100, currentHp: 0, sourceMemberId: "enemy");
+        AddUnitToState(state, wearer);
+        AddUnitToState(state, fallenAlly);
+        AddUnitToState(state, enemy);
+        state.ally_unit_ids = new GStringNameArray { wearer.unit_id, fallenAlly.unit_id };
+        state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
+        runtime.SetupStateForTests(state);
+        runtime.ClearDefeatedUnit(fallenAlly, new BattleEventBatch());
+        _test.Eq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
+        runtime.Dispose();
 
         AssertBloodDebtRecoveryPenalty();
     }
@@ -272,29 +245,29 @@ public partial class run_low_luck_relic_regression : SceneTree
     private void TestDeadRoadLanternRevealsHiddenPaths()
     {
         AttributeSnapshot lanternSnapshot = new();
-        try
-        {
-            lanternSnapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.DeadRoadLantern), 1);
-            _test.True(
-                LowLuckRelicRules.ShouldRevealHiddenPath(
-                    lanternSnapshot,
-                    new[] { LowLuckRelicRules.ToStringName(LowLuckPathTagKind.HiddenTrap), LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen) }
-                ),
-                "亡途灯笼应把隐藏陷阱和黑兆路径都标记为可见。"
-            );
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(lanternSnapshot);
-        }
+        lanternSnapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.DeadRoadLantern), 1);
+        _test.True(
+            LowLuckRelicRules.ShouldRevealHiddenPath(
+                lanternSnapshot,
+                new[] { LowLuckRelicRules.ToStringName(LowLuckPathTagKind.HiddenTrap), LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen) }
+            ),
+            "亡途灯笼应把隐藏陷阱和黑兆路径都标记为可见。"
+        );
     }
 
     private void AssertBloodDebtRecoveryPenalty()
     {
-        GDictionary itemDefs = LoadLowLuckItemDefs();
-        PartyState plainParty = BuildRestoreParty(equipBloodDebt: false, itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            LoadLowLuckItemDefinitions();
+        PartyState plainParty = BuildRestoreParty(
+            equipBloodDebt: false,
+            itemDefinitions
+        );
         PartyMemberState plainMember = plainParty.GetMemberState(HeroId);
-        GameRuntimeFacade plainRuntime = BuildRestoreRuntime(plainParty, itemDefs);
+        GameRuntimeFacade plainRuntime = BuildRestoreRuntime(
+            plainParty,
+            itemDefinitions
+        );
         AttributeSnapshot plainSnapshot = plainRuntime.GetMemberAttributeSnapshot(HeroId);
         int plainHpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), plainMember.current_hp);
         int plainMpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), plainMember.current_mp);
@@ -302,9 +275,15 @@ public partial class run_low_luck_relic_regression : SceneTree
         plainHandler.SetupRuntime(plainRuntime);
         plainHandler.RestorePartyResources(1.0f, true);
 
-        PartyState shawlParty = BuildRestoreParty(equipBloodDebt: true, itemDefs);
+        PartyState shawlParty = BuildRestoreParty(
+            equipBloodDebt: true,
+            itemDefinitions
+        );
         PartyMemberState shawlMember = shawlParty.GetMemberState(HeroId);
-        GameRuntimeFacade shawlRuntime = BuildRestoreRuntime(shawlParty, itemDefs);
+        GameRuntimeFacade shawlRuntime = BuildRestoreRuntime(
+            shawlParty,
+            itemDefinitions
+        );
         AttributeSnapshot shawlSnapshot = shawlRuntime.GetMemberAttributeSnapshot(HeroId);
         int shawlHpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), shawlMember.current_hp);
         int shawlMpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), shawlMember.current_mp);
@@ -337,46 +316,40 @@ public partial class run_low_luck_relic_regression : SceneTree
 
         plainRuntime.Dispose();
         shawlRuntime.Dispose();
-        GodotRefCountedDisposer.DisposeIfValid(plainParty);
-        GodotRefCountedDisposer.DisposeIfValid(shawlParty);
     }
 
-    private static GDictionary LoadLowLuckItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> LoadLowLuckItemDefinitions()
     {
-        ItemContentRegistry registry = new();
-        GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
-        registry.Dispose();
-        return itemDefs;
+        using ItemContentRegistry registry = new(new TestContentResourceLoader());
+        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
     }
 
-    private static bool HasItemDef(GDictionary itemDefs, StringName itemId)
+    private static bool HasItemDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName itemId
+    )
     {
-        return itemDefs != null && (itemDefs.ContainsKey(itemId) || itemDefs.ContainsKey(itemId.ToString()));
+        return itemDefinitions != null && itemDefinitions.ContainsKey(itemId);
     }
 
-    private static AttributeSnapshot BuildEquippedMemberSnapshot(GDictionary itemDefs, StringName itemId)
+    private static AttributeSnapshot BuildEquippedMemberSnapshot(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName itemId
+    )
     {
         PartyState partyState = BuildPartyShell();
-        CharacterManagementModule manager = new();
-        try
-        {
-            PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
-            memberState.equipment_state.SetEquippedEntry(
-                SlotForItem(itemId),
-                itemId,
-                BuildSlotArray(SlotForItem(itemId)),
-                EquipmentInstanceState.CreateInstance(itemId, $"eq_snapshot_{itemId}")
-            );
-            partyState.SetMemberState(memberState);
+        PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
+        memberState.equipment_state.SetEquippedEntry(
+            SlotForItem(itemId),
+            itemId,
+            BuildSlotArray(SlotForItem(itemId)),
+            EquipmentInstanceState.CreateInstance(itemId, $"eq_snapshot_{itemId}")
+        );
+        partyState.SetMemberState(memberState);
 
-            manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary(), itemDefs);
-            return manager.GetMemberAttributeSnapshot(HeroId);
-        }
-        finally
-        {
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+        CharacterManagementModule manager = new();
+        manager.setup(partyState, item_defs: itemDefinitions);
+        return manager.GetMemberAttributeSnapshot(HeroId);
     }
 
     private static LowLuckContext BuildLowLuckContext(int hiddenLuckAtBirth, bool includeAlly)
@@ -389,7 +362,7 @@ public partial class run_low_luck_relic_regression : SceneTree
             partyState.SetMemberState(BuildMemberState(AllyId, 0));
 
         CharacterManagementModule manager = new();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         LowLuckEventService service = new();
         service.Setup(manager);
         return new LowLuckContext(partyState, manager, service);
@@ -522,15 +495,12 @@ public partial class run_low_luck_relic_regression : SceneTree
         return target;
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power)
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = power,
-        };
-    }
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: power
+        );
 
     private static BattleState BuildRuntimeState(StringName battleId)
     {
@@ -566,7 +536,10 @@ public partial class run_low_luck_relic_regression : SceneTree
         state.SetUnit(unit);
     }
 
-    private static PartyState BuildRestoreParty(bool equipBloodDebt, GDictionary itemDefs)
+    private static PartyState BuildRestoreParty(
+        bool equipBloodDebt,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
         PartyState partyState = BuildPartyShell();
         PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
@@ -588,16 +561,16 @@ public partial class run_low_luck_relic_regression : SceneTree
         return partyState;
     }
 
-    private static GameRuntimeFacade BuildRestoreRuntime(PartyState partyState, GDictionary itemDefs)
+    private static GameRuntimeFacade BuildRestoreRuntime(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
         GameRuntimeFacade runtime = new();
         runtime.SetPartyState(partyState);
         runtime._character_management.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs
+            item_defs: itemDefinitions
         );
         return runtime;
     }
@@ -616,17 +589,6 @@ public partial class run_low_luck_relic_regression : SceneTree
     }
 
     private static GStringNameArray BuildSlotArray(StringName slotId) => new() { slotId };
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary projected = new();
-        if (itemDefs == null)
-            return projected;
-
-        foreach (KeyValuePair<StringName, ItemDef> pair in itemDefs)
-            projected[pair.Key] = pair.Value;
-        return projected;
-    }
 
     private static GDictionary ExtractFirstDamageEvent(GDictionary result)
     {
@@ -724,7 +686,6 @@ public partial class run_low_luck_relic_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

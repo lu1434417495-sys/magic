@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_dragon_soul_extension_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+requires_weapon = true
+add_weapon_dice = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+
+[sub_resource type="Resource" id="Combat_dragon_soul_extension"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_wyrmbreak_dragon_soul_extension"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 2
+weapon_range_policy = &"configured"
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"weapon", &"melee"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_dragon_soul_extension_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_wyrmbreak_dragon_soul_extension"
+display_name = "龙魂延伸"
+icon_id = &"weapon_sword_wyrmbreak_dragon_soul_extension"
+description = "装备技能。消耗3层龙魂怒气，以2格距离进行一次龙骨断剑武器攻击。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"wyrmbreak", &"weapon", &"melee"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_dragon_soul_extension")

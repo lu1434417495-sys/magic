@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="TraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.bow.windbow.gale_push"
+display_name = "风压推射"
+description = "授予装备技能：1AP、12体力，冷却60TU；对 6 格内敌人施加强风推动，目标 strength DC14 成功则不被推动。"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([])
+damage_resistance_entries = Array[Resource]([])
+save_bonus_entries = Array[Resource]([])
+passive_status_effects = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

@@ -17,8 +17,7 @@ internal enum UnitBaseAttributeKind
     FaithLuckBonus,
 }
 
-[GlobalClass]
-public partial class UnitBaseAttributes : RefCounted
+public class UnitBaseAttributes
 {
     private static readonly StringName StrengthId = "strength";
     private static readonly StringName AgilityId = "agility";
@@ -204,7 +203,7 @@ public partial class UnitBaseAttributes : RefCounted
         if (
             !HasExactFields(
                 data,
-                new Godot.Collections.Array<string>
+                new[]
                 {
                     "strength",
                     "agility",
@@ -260,7 +259,7 @@ public partial class UnitBaseAttributes : RefCounted
 
     private static bool HasExactFields(
         GDictionary data,
-        Godot.Collections.Array<string> expectedFields
+        IReadOnlyCollection<string> expectedFields
     )
     {
         if (data.Count != expectedFields.Count)

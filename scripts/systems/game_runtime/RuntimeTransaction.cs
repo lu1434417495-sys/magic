@@ -1,17 +1,15 @@
 using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class RuntimeStateSource
 {
     private readonly Func<PartyState> _partyStateProvider;
-    private readonly Func<GDictionary> _worldDataProvider;
+    private readonly Func<WorldRuntimeData> _worldDataProvider;
     private readonly Func<Vector2I> _playerCoordProvider;
 
     internal RuntimeStateSource(
         Func<PartyState> partyStateProvider,
-        Func<GDictionary> worldDataProvider,
+        Func<WorldRuntimeData> worldDataProvider,
         Func<Vector2I> playerCoordProvider
     )
     {
@@ -22,8 +20,8 @@ internal sealed class RuntimeStateSource
 
     internal PartyState GetPartyStateForCommit() => _partyStateProvider?.Invoke();
 
-    internal GDictionary GetWorldDataForCommit() =>
-        _worldDataProvider?.Invoke() ?? new GDictionary();
+    internal WorldRuntimeData GetWorldDataForCommit() =>
+        _worldDataProvider?.Invoke() ?? WorldRuntimeData.Empty();
 
     internal Vector2I GetPlayerCoordForCommit() =>
         _playerCoordProvider?.Invoke() ?? Vector2I.Zero;
@@ -62,24 +60,22 @@ internal sealed class RuntimeTransactionRollbackState
         private readonly bool _battleSaveLockEnabled;
         private readonly bool _battleSaveDirty;
         private readonly bool _runtimeSaveDirty;
-        private readonly GStringNameArray _runtimeSaveDirtyScopes;
+        private readonly StringNameList _runtimeSaveDirtyScopes;
         private readonly int _lastSaveError;
         private readonly StringName _lastSaveErrorReason;
         private readonly bool _postDecodeSavePending;
-        private readonly GStringNameArray _postDecodeSaveReasons;
+        private readonly StringNameList _postDecodeSaveReasons;
 
         internal SessionRollbackSnapshot(GameSession session)
         {
             _battleSaveLockEnabled = session?._battle_save_lock_enabled ?? false;
             _battleSaveDirty = session?._battle_save_dirty ?? false;
             _runtimeSaveDirty = session?._runtime_save_dirty ?? false;
-            _runtimeSaveDirtyScopes = session?._runtime_save_dirty_scopes?.Duplicate()
-                ?? new GStringNameArray();
+            _runtimeSaveDirtyScopes = new StringNameList(session?._runtime_save_dirty_scopes);
             _lastSaveError = session?._last_save_error ?? (int)Error.Ok;
             _lastSaveErrorReason = session?._last_save_error_reason ?? "";
             _postDecodeSavePending = session?._post_decode_save_pending ?? false;
-            _postDecodeSaveReasons = session?._post_decode_save_reasons?.Duplicate()
-                ?? new GStringNameArray();
+            _postDecodeSaveReasons = new StringNameList(session?._post_decode_save_reasons);
         }
 
         internal void Restore(GameSession session)
@@ -102,34 +98,63 @@ internal sealed class RuntimeTransactionRollbackState
     private readonly WorldRuntimeData _worldData;
     private readonly Vector2I _playerCoord;
     private readonly SessionRollbackSnapshot _sessionSnapshot;
+    private readonly bool _capturedPartyState;
+    private readonly bool _capturedWorldData;
+
+    internal bool CapturedPartyState => _capturedPartyState;
+    internal bool CapturedWorldData => _capturedWorldData;
 
     private RuntimeTransactionRollbackState(
         PartyState partyState,
         WorldRuntimeData worldData,
         Vector2I playerCoord,
-        GameSession session
+        GameSession session,
+        bool capturedPartyState,
+        bool capturedWorldData
     )
     {
         _partyState = partyState?.DuplicateState();
         _worldData = worldData ?? WorldRuntimeData.Empty();
         _playerCoord = playerCoord;
         _sessionSnapshot = session != null ? new SessionRollbackSnapshot(session) : null;
+        _capturedPartyState = capturedPartyState;
+        _capturedWorldData = capturedWorldData;
     }
 
-    internal static RuntimeTransactionRollbackState Capture(GameRuntimeFacade runtime)
+    // scopes == null captures everything. Passing the transaction skips the
+    // whole-world dictionary round-trip for party-only mutations, which is a
+    // multi-hundred-ms cost on large maps (see world-move perf history).
+    internal static RuntimeTransactionRollbackState Capture(
+        GameRuntimeFacade runtime,
+        RuntimeTransaction scopes
+    )
     {
         if (runtime == null)
             return new RuntimeTransactionRollbackState(
                 null,
                 WorldRuntimeData.Empty(),
                 Vector2I.Zero,
-                null
+                null,
+                capturedPartyState: false,
+                capturedWorldData: false
             );
+        bool captureParty = scopes == null || scopes.PersistPartyState;
+        bool captureWorld = scopes == null || scopes.PersistWorldData;
+        WorldRuntimeData worldSnapshot = WorldRuntimeData.Empty();
+        if (captureWorld)
+        {
+            runtime.MaterializeActiveWorldStateToRoot();
+            worldSnapshot =
+                runtime._world_map_data_context?.RootRuntimeData?.DuplicateState()
+                ?? WorldRuntimeData.Empty();
+        }
         return new RuntimeTransactionRollbackState(
-            runtime.GetPartyState(),
-            WorldRuntimeData.FromDictionary(runtime.GetWorldData()) ?? WorldRuntimeData.Empty(),
+            captureParty ? runtime.GetPartyState() : null,
+            worldSnapshot,
             runtime.GetPlayerCoord(),
-            runtime._game_session
+            runtime._game_session,
+            captureParty,
+            captureWorld
         );
     }
 
@@ -138,19 +163,40 @@ internal sealed class RuntimeTransactionRollbackState
         if (runtime == null || transaction == null)
             return;
 
+        bool restoreParty = transaction.PersistPartyState;
+        bool restoreWorld = transaction.PersistWorldData;
+        if (restoreParty && !_capturedPartyState)
+        {
+            GameLog.Error(
+                "runtime transaction rollback requested party restore but party state was not captured; party scope skipped.",
+                "runtime_transaction.rollback_scope_missing",
+                "game_runtime"
+            );
+            restoreParty = false;
+        }
+        if (restoreWorld && !_capturedWorldData)
+        {
+            GameLog.Error(
+                "runtime transaction rollback requested world restore but world data was not captured; world scope skipped.",
+                "runtime_transaction.rollback_scope_missing",
+                "game_runtime"
+            );
+            restoreWorld = false;
+        }
+
         GameSession session = runtime._game_session;
         if (session != null)
         {
-            if (transaction.PersistPartyState)
+            if (restoreParty)
                 session._party_state = _partyState?.DuplicateState() ?? new PartyState();
-            if (transaction.PersistWorldData)
-                session._world_data = WorldMapDataProjection.Project(_worldData);
+            if (restoreWorld)
+                session.SetWorldData(_worldData);
             if (transaction.PersistPlayerCoord)
                 session._player_coord = _playerCoord;
             _sessionSnapshot?.Restore(session);
         }
 
-        if (transaction.PersistPartyState && _partyState != null)
+        if (restoreParty && _partyState != null)
         {
             PartyState restoredPartyState = session != null
                 ? session.GetPartyState()
@@ -159,13 +205,9 @@ internal sealed class RuntimeTransactionRollbackState
         }
 
         bool worldOrCoordRestored = false;
-        if (transaction.PersistWorldData)
+        if (restoreWorld)
         {
-            GDictionary restoredWorldData = session != null
-                ? session.GetWorldData()
-                : WorldMapDataProjection.Project(_worldData);
-            runtime._world_map_data_context.BindRootWorldData(restoredWorldData);
-            runtime._world_map_data_context.active_world_data = restoredWorldData;
+            runtime._world_map_data_context.BindRootWorldData(_worldData);
             worldOrCoordRestored = true;
         }
 
@@ -177,15 +219,7 @@ internal sealed class RuntimeTransactionRollbackState
         }
 
         if (worldOrCoordRestored)
-        {
-            runtime._world_map_data_context.SyncActiveWorldContext(
-                runtime.GetGenerationConfig(),
-                runtime.GetGridSystem(),
-                runtime.GetPlayerCoord(),
-                runtime.GetSelectedCoord()
-            );
-            runtime.RefreshWorldVisibility();
-        }
+            runtime.RestoreWorldContextAfterRollback();
     }
 }
 
@@ -229,24 +263,20 @@ internal sealed class RuntimeTransaction
             int unavailable = (int)Error.Unavailable;
             return new RuntimeCommitResult
             {
-                PartyError = PersistPartyState ? unavailable : (int)Error.Ok,
-                WorldError = PersistWorldData ? unavailable : (int)Error.Ok,
-                PlayerError = PersistPlayerCoord ? unavailable : (int)Error.Ok,
+                PartyError = unavailable,
+                WorldError = unavailable,
+                PlayerError = unavailable,
                 CommitError = unavailable,
                 Message = "runtime transaction requires an active session and state source.",
             };
         }
 
-        int partyError = (int)Error.Ok;
-        int worldError = (int)Error.Ok;
-        int playerError = (int)Error.Ok;
-
-        if (PersistPartyState)
-            partyError = session.SetPartyState(source.GetPartyStateForCommit());
-        if (PersistWorldData)
-            worldError = session.SetWorldData(source.GetWorldDataForCommit());
-        if (PersistPlayerCoord)
-            playerError = session.SetPlayerCoord(source.GetPlayerCoordForCommit());
+        // SaveSerializer writes a total snapshot. Even a party-only mutation must stage
+        // every canonical owner first, otherwise a delayed world/fog update in the runtime
+        // would be overwritten by the session's older total-save payload.
+        int partyError = session.SetPartyState(source.GetPartyStateForCommit());
+        int worldError = session.SetWorldData(source.GetWorldDataForCommit());
+        int playerError = session.SetPlayerCoord(source.GetPlayerCoordForCommit());
 
         bool staged =
             partyError == (int)Error.Ok

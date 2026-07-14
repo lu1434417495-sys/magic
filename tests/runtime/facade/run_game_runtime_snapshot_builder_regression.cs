@@ -4,8 +4,10 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+using PlainArray = System.Collections.Generic.IReadOnlyList<object>;
+using PlainDictionary = System.Collections.Generic.IReadOnlyDictionary<string, object>;
 
-public partial class run_game_runtime_snapshot_builder_regression : SceneTree
+public partial class run_game_runtime_snapshot_builder_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -13,14 +15,20 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        CallDeferred(nameof(RunDeferred));
     }
 
-    private int Run()
+    private void RunDeferred()
+    {
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
+    }
+
+    private TestResult Run()
     {
         TestSnapshotBuilderMatchesFacadeOutputs();
+        TestHeadlessSnapshotLeaseLifecycle();
+        TestGameTextCommandResultLifecycle();
         TestTextSnapshotRedactsHostLogPaths();
         TestSnapshotBuilderExposesPartyQuestSnapshot();
         TestSnapshotBuilderExposesMemberProgressionSnapshot();
@@ -29,6 +37,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         TestTextSnapshotRejectsLegacyWindowAndReportFields();
         TestSnapshotBuilderCrossReferencesQuestItemsInTextSnapshot();
         TestSnapshotBuilderExposesContractBoardModalSnapshot();
+        TestSnapshotBuilderExposesNpcQuestOfferModalSnapshot();
         TestSnapshotBuilderExposesForgeModalSnapshot();
         TestSnapshotBuilderExposesGenericForgeModalSnapshot();
         TestSnapshotBuilderRequiresPanelKindForForgeModal();
@@ -52,24 +61,83 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             var builder = new GameRuntimeSnapshotBuilder();
             builder.Setup(facade);
 
-            GDictionary facadeSnapshot = facade.BuildHeadlessSnapshot();
-            GDictionary builderSnapshot = builder.BuildHeadlessSnapshot();
+            LifecycleAuditSnapshot plainBaseline =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            PlainDictionary facadeSnapshot = facade.BuildHeadlessSnapshotPlain();
+            PlainDictionary builderSnapshot = builder.BuildHeadlessSnapshotPlain();
             string facadeText = facade.BuildTextSnapshot();
             string builderText = builder.BuildTextSnapshot();
+            PlainDictionary repeatedFacadeSnapshot = facade.BuildHeadlessSnapshotPlain();
+            string repeatedFacadeText = facade.BuildTextSnapshot();
 
-            _test.Eq(
-                Json.Stringify(builderSnapshot),
-                Json.Stringify(facadeSnapshot),
-                "Snapshot builder 输出应与 facade.BuildHeadlessSnapshot() 保持一致。"
+            AssertSafetyCounters(
+                plainBaseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                "real facade repeated plain snapshot"
             );
+
+            PlainArray services = ArrayValue(Dict(facadeSnapshot, "settlement"), "services");
+            PlainArray repeatedServices = ArrayValue(
+                Dict(repeatedFacadeSnapshot, "settlement"),
+                "services"
+            );
+            _test.True(services.Count > 0, "真实 facade headless snapshot 应暴露起始据点服务。");
+            _test.Eq(
+                SnapshotServiceOrder(repeatedServices),
+                SnapshotServiceOrder(services),
+                "真实 facade 重复 snapshot 的 settlement service order golden 应稳定。"
+            );
+            foreach (object serviceValue in services)
+            {
+                _test.True(
+                    serviceValue is PlainDictionary service
+                    && string.Join(",", service.Keys)
+                        == "action_id,facility_name,npc_name,service_type,interaction_script_id",
+                    "headless settlement service facts 应保持严格五字段顺序。"
+                );
+            }
+
+            string facadeJson;
+            using (
+                GodotProjectionLease<GDictionary> facadeSnapshotLease =
+                    facade.BuildHeadlessSnapshotLease()
+            )
+            using (
+                GodotProjectionLease<GDictionary> builderSnapshotLease =
+                    builder.BuildHeadlessSnapshotLease()
+            )
+            {
+                facadeJson = Json.Stringify(facadeSnapshotLease.Value);
+                _test.Eq(
+                    Json.Stringify(builderSnapshotLease.Value),
+                    facadeJson,
+                    "Snapshot builder 输出应与 facade.BuildHeadlessSnapshotPlain() 保持一致。"
+                );
+            }
+            using (
+                GodotProjectionLease<GDictionary> repeatedFacadeLease =
+                    facade.BuildHeadlessSnapshotLease()
+            )
+            {
+                _test.Eq(
+                    Json.Stringify(repeatedFacadeLease.Value),
+                    facadeJson,
+                    "真实 facade 重复 headless JSON golden 应稳定。"
+                );
+            }
             _test.Eq(
                 builderText,
                 facadeText,
                 "Snapshot builder 文本快照应与 facade.BuildTextSnapshot() 保持一致。"
             );
+            _test.Eq(
+                repeatedFacadeText,
+                facadeText,
+                "真实 facade 重复 headless text golden 应稳定。"
+            );
             _test.True(!string.IsNullOrEmpty(builderText), "Snapshot builder 文本快照不应为空。");
             _test.True(builderSnapshot.ContainsKey("logs"), "运行时快照应包含日志段。");
-            GDictionary logs = Dict(builderSnapshot, "logs");
+            PlainDictionary logs = Dict(builderSnapshot, "logs");
             _test.Eq(StringValue(logs, "file_path"), "", "运行时快照默认不应暴露日志文件路径。");
             _test.False(BoolValue(logs, "file_output_enabled", true), "运行时日志文件输出默认应关闭。");
             _test.True(ArrayValue(logs, "entries").Count > 0, "运行时快照应包含最近日志条目。");
@@ -83,9 +151,343 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         }
     }
 
+    private static string SnapshotServiceOrder(PlainArray services)
+    {
+        var actionIds = new List<string>();
+        foreach (object serviceValue in services ?? System.Array.Empty<object>())
+        {
+            if (serviceValue is PlainDictionary service)
+                actionIds.Add(StringValue(service, "action_id"));
+        }
+        return string.Join(",", actionIds);
+    }
+
+    private void TestHeadlessSnapshotLeaseLifecycle()
+    {
+        var runtime = new SnapshotTestRuntime();
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        int expectedContainerCount = -1;
+        string expectedProjectionFingerprint = null;
+        string expectedTextFingerprint = null;
+
+        PlainDictionary canonical = builder.BuildHeadlessSnapshotPlain();
+        LifecycleAuditSnapshot afterCanonicalPlain =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        AssertAuditBaseline(baseline, afterCanonicalPlain, "canonical plain snapshot");
+        AssertSafetyCounters(baseline, afterCanonicalPlain, "canonical plain snapshot");
+        _test.Eq(
+            string.Join(",", canonical.Keys),
+            "status,modal,logs,world,submap,game_over,party,settlement,contract_board,npc_quest_offer,shop,forge,stagecoach,character_info,warehouse,battle,loot,reward,promotion",
+            "headless snapshot canonical root key order 不应漂移。"
+        );
+        _test.True(
+            IsStrictPlainGraph(canonical),
+            "headless snapshot canonical graph 不应包含 Variant、Godot collection/Object 或 HUD DTO。"
+        );
+
+        for (int iteration = 0; iteration < 3; iteration++)
+        {
+            GodotProjectionLease<GDictionary> lease = builder.BuildHeadlessSnapshotLease();
+            LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            int containerCount = CountContainers(lease.Value);
+            if (expectedContainerCount < 0)
+                expectedContainerCount = containerCount;
+            string projectionFingerprint = Json.Stringify(lease.Value);
+            string textFingerprint = builder.BuildTextSnapshot();
+            expectedProjectionFingerprint ??= projectionFingerprint;
+            expectedTextFingerprint ??= textFingerprint;
+            _test.Eq(
+                containerCount,
+                expectedContainerCount,
+                "重复 headless snapshot projection 的递归容器数应保持稳定。"
+            );
+            _test.Eq(
+                projectionFingerprint,
+                expectedProjectionFingerprint,
+                "重复 headless snapshot projection 的 JSON/key-order fingerprint 应保持稳定。"
+            );
+            _test.Eq(
+                textFingerprint,
+                expectedTextFingerprint,
+                "重复 headless text snapshot fingerprint 应保持稳定。"
+            );
+            _test.Eq(
+                active.ActiveOwnerCount - baseline.ActiveOwnerCount,
+                containerCount,
+                "headless snapshot lease 应精确拥有 root 与每个 nested container。"
+            );
+            _test.Eq(
+                active.ActiveLeaseCount,
+                baseline.ActiveLeaseCount + 1,
+                "headless snapshot projection 应只登记一个 root lease。"
+            );
+            _test.Eq(
+                active.ActiveScopeCount,
+                baseline.ActiveScopeCount,
+                "headless snapshot projection 不应额外登记 native scope。"
+            );
+            _test.Eq(
+                active.ActiveContentBorrowerCount,
+                baseline.ActiveContentBorrowerCount,
+                "headless snapshot projection 不应登记 content borrower。"
+            );
+
+            lease.Dispose();
+            _test.True(
+                Throws<ObjectDisposedException>(() => _ = lease.Value),
+                "关闭后的 headless snapshot lease.Value 应抛 ObjectDisposedException。"
+            );
+            AssertAuditBaseline(
+                baseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"headless snapshot iteration {iteration}"
+            );
+            AssertSafetyCounters(
+                baseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"headless snapshot iteration {iteration}"
+            );
+        }
+
+        Dictionary<string, object> unsupported = RuntimePlainPayload.CloneDictionary(
+            builder.BuildHeadlessSnapshotPlain()
+        );
+        unsupported["unsupported"] = new object();
+        _test.True(
+            Throws<InvalidOperationException>(
+                () =>
+                {
+                    using GodotProjectionLease<GDictionary> rejected =
+                        RuntimePlainPayload.ProjectDictionaryLease(
+                            unsupported,
+                            "headless-snapshot-unsupported-value",
+                            LifetimeDomain.Request,
+                            "run_game_runtime_snapshot_builder_regression.unsupported"
+                        );
+                }
+            ),
+            "headless root projection 遇到未知类型应抛错而不是字符串化。"
+        );
+        AssertAuditBaseline(
+            baseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "headless snapshot unknown value"
+        );
+        AssertSafetyCounters(
+            baseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "headless snapshot unknown value"
+        );
+        builder.Dispose();
+    }
+
+    private void TestGameTextCommandResultLifecycle()
+    {
+        var result = new GameTextCommandResult();
+        result.SetSnapshot(
+            new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["root"] = new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["items"] = new List<object>
+                    {
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["id"] = "entry_a",
+                            ["count"] = 2,
+                        },
+                    },
+                },
+            }
+        );
+        result.AddAssertion(true, "ok", "summary", "actual", "expected");
+
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        PlainDictionary firstSnapshot = result.SnapshotTyped;
+        PlainDictionary secondSnapshot = result.SnapshotTyped;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> firstAssertions =
+            result.AssertionFactsTyped;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> secondAssertions =
+            result.AssertionFactsTyped;
+        _test.False(
+            ReferenceEquals(firstSnapshot, secondSnapshot),
+            "GameTextCommandResult 每次 SnapshotTyped 读取都应返回 fresh managed deep copy。"
+        );
+        _test.False(
+            ReferenceEquals(firstAssertions, secondAssertions),
+            "GameTextCommandResult 每次 AssertionFactsTyped 读取都应返回 fresh managed copy。"
+        );
+        result.AddAssertion(false, "later", "later summary", "later actual", "later expected");
+        _test.Eq(
+            firstAssertions.Count,
+            1,
+            "后续 AddAssertion 不应改变 caller 已取得的 assertion facts。"
+        );
+        _test.Eq(
+            result.AssertionFactsTyped.Count,
+            2,
+            "后续 AddAssertion 应只出现在新的 assertion facts snapshot。"
+        );
+        var mutatedRoot = (Dictionary<string, object>)firstSnapshot["root"];
+        var mutatedItems = (List<object>)mutatedRoot["items"];
+        var mutatedEntry = (Dictionary<string, object>)mutatedItems[0];
+        mutatedEntry["count"] = 99;
+        mutatedItems.Add(
+            new Dictionary<string, object>(StringComparer.Ordinal) { ["id"] = "caller_only" }
+        );
+        PlainDictionary isolatedSnapshot = result.SnapshotTyped;
+        PlainDictionary isolatedRoot = Dict(isolatedSnapshot, "root");
+        PlainArray isolatedItems = ArrayValue(isolatedRoot, "items");
+        _test.Eq(
+            isolatedItems.Count,
+            1,
+            "caller 修改 first SnapshotTyped nested list 不应污染 result canonical snapshot。"
+        );
+        _test.Eq(
+            IntValue((PlainDictionary)isolatedItems[0], "count", -1),
+            2,
+            "caller 修改 first SnapshotTyped nested dictionary 不应污染后续读取。"
+        );
+        for (int iteration = 0; iteration < 3; iteration++)
+        {
+            _test.False(
+                ReferenceEquals(secondSnapshot, result.SnapshotTyped),
+                "GameTextCommandResult 重复读取 SnapshotTyped 应持续返回 fresh managed root。"
+            );
+            _test.False(
+                ReferenceEquals(secondAssertions, result.AssertionFactsTyped),
+                "GameTextCommandResult 重复读取 AssertionFactsTyped 应持续返回 fresh managed root。"
+            );
+            _test.True(
+                IsStrictPlainGraph(result.SnapshotTyped),
+                "GameTextCommandResult SnapshotTyped 应保持 strict plain graph。"
+            );
+            _test.True(
+                IsStrictPlainGraph(result.AssertionFactsTyped),
+                "GameTextCommandResult assertion facts 应保持 strict plain graph。"
+            );
+        }
+        AssertAuditBaseline(
+            baseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "game text command result repeated managed access"
+        );
+        AssertSafetyCounters(
+            baseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "game text command result repeated managed access"
+        );
+
+        string expectedSnapshotFingerprint = null;
+        string expectedAssertionFingerprint = null;
+        for (int iteration = 0; iteration < 3; iteration++)
+        {
+            GodotProjectionLease<GDictionary> snapshotLease = result.BuildSnapshotLease();
+            int snapshotContainerCount = CountContainers(snapshotLease.Value);
+            LifecycleAuditSnapshot activeSnapshot =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            string snapshotFingerprint = Json.Stringify(snapshotLease.Value);
+            expectedSnapshotFingerprint ??= snapshotFingerprint;
+            _test.Eq(
+                snapshotFingerprint,
+                expectedSnapshotFingerprint,
+                "GameTextCommandResult snapshot lease 重复投影 fingerprint 应稳定。"
+            );
+            _test.Eq(
+                activeSnapshot.ActiveOwnerCount - baseline.ActiveOwnerCount,
+                snapshotContainerCount,
+                "GameTextCommandResult snapshot lease 应递归拥有全部容器。"
+            );
+            _test.Eq(
+                activeSnapshot.ActiveLeaseCount,
+                baseline.ActiveLeaseCount + 1,
+                "GameTextCommandResult snapshot projection 应登记一个 root lease。"
+            );
+            snapshotLease.Dispose();
+            _test.True(
+                Throws<ObjectDisposedException>(() => _ = snapshotLease.Value),
+                "关闭后的 GameTextCommandResult snapshot lease.Value 应抛错。"
+            );
+            AssertAuditBaseline(
+                baseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"game text command result snapshot lease {iteration}"
+            );
+
+            GodotProjectionLease<GArray> assertionLease = result.BuildAssertionFactsLease();
+            int assertionContainerCount = CountContainers(assertionLease.Value);
+            LifecycleAuditSnapshot activeAssertions =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            string assertionFingerprint = Json.Stringify(assertionLease.Value);
+            expectedAssertionFingerprint ??= assertionFingerprint;
+            _test.Eq(
+                assertionFingerprint,
+                expectedAssertionFingerprint,
+                "GameTextCommandResult assertion lease 重复投影 fingerprint 应稳定。"
+            );
+            _test.Eq(
+                activeAssertions.ActiveOwnerCount - baseline.ActiveOwnerCount,
+                assertionContainerCount,
+                "GameTextCommandResult assertion lease 应递归拥有全部容器。"
+            );
+            _test.Eq(
+                activeAssertions.ActiveLeaseCount,
+                baseline.ActiveLeaseCount + 1,
+                "GameTextCommandResult assertion projection 应登记一个 root lease。"
+            );
+            assertionLease.Dispose();
+            _test.True(
+                Throws<ObjectDisposedException>(() => _ = assertionLease.Value),
+                "关闭后的 GameTextCommandResult assertion lease.Value 应抛错。"
+            );
+            AssertAuditBaseline(
+                baseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"game text command result assertion lease {iteration}"
+            );
+            AssertSafetyCounters(
+                baseline,
+                LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+                $"game text command result lease iteration {iteration}"
+            );
+        }
+
+        PlainDictionary snapshotCapturedBeforeDispose = result.SnapshotTyped;
+        IReadOnlyList<IReadOnlyDictionary<string, object>> assertionsCapturedBeforeDispose =
+            result.AssertionFactsTyped;
+        result.Dispose();
+        _test.Eq(
+            ArrayValue(Dict(snapshotCapturedBeforeDispose, "root"), "items").Count,
+            1,
+            "GameTextCommandResult.Dispose 不应清空 caller 已取得的 managed snapshot。"
+        );
+        _test.Eq(
+            result.SnapshotTyped.Count,
+            0,
+            "GameTextCommandResult.Dispose 后新 snapshot 读取应为空。"
+        );
+        _test.Eq(
+            assertionsCapturedBeforeDispose.Count,
+            2,
+            "GameTextCommandResult.Dispose 不应清空 caller 已取得的 assertion facts。"
+        );
+        _test.Eq(
+            result.AssertionFactsTyped.Count,
+            0,
+            "GameTextCommandResult.Dispose 后新 assertion facts 读取应为空。"
+        );
+        AssertAuditBaseline(
+            baseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "game text command result dispose isolation"
+        );
+    }
+
     private void TestTextSnapshotRedactsHostLogPaths()
     {
-        string memoryTextSnapshot = GameTextSnapshotRenderer.RenderFullSnapshot(
+        string memoryTextSnapshot = RenderRawSnapshot(
             new GDictionary
             {
                 ["logs"] = new GDictionary
@@ -116,7 +518,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
         const string filePath = "C:/tmp/magic/session_redaction.jsonl";
         const string virtualPath = "user://logs/session_redaction.jsonl";
-        string fileTextSnapshot = GameTextSnapshotRenderer.RenderFullSnapshot(
+        string fileTextSnapshot = RenderRawSnapshot(
             new GDictionary
             {
                 ["logs"] = new GDictionary
@@ -173,25 +575,17 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var claimableQuest = new QuestState { quest_id = "contract_settlement_warehouse" };
         claimableQuest.MarkAccepted(9);
         claimableQuest.MarkCompleted(15);
-        partyState.active_quests = new Godot.Collections.Array<QuestState> { questState };
-        partyState.claimable_quests = new Godot.Collections.Array<QuestState> { claimableQuest };
+        partyState.active_quests = new List<QuestState> { questState };
+        partyState.claimable_quests = new List<QuestState> { claimableQuest };
         partyState.completed_quest_ids = new GStringNameArray { "contract_intro" };
         runtime.PartyState = partyState;
 
         var builder = new GameRuntimeSnapshotBuilder();
-        GDictionary snapshot;
-        try
-        {
-            builder.Setup(runtime);
-            snapshot = builder.BuildHeadlessSnapshot();
-        }
-        finally
-        {
-            builder.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+        builder.Setup(runtime);
+        PlainDictionary snapshot = builder.BuildHeadlessSnapshotPlain();
+        builder.Dispose();
 
-        GDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
+        PlainDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
         _test.False(
             BoolValue(Dict(snapshot, "world"), "player_visible_on_map", true),
             "快照应暴露世界地图人物显隐状态。"
@@ -213,13 +607,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             "completed_quest_ids 应稳定暴露已完成任务 ID。"
         );
 
-        GArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
-        GArray claimableQuests = ArrayValue(questsSnapshot, "claimable_quests");
+        PlainArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
+        PlainArray claimableQuests = ArrayValue(questsSnapshot, "claimable_quests");
         _test.Eq(activeQuests.Count, 1, "active_quests 应保留当前任务详情。");
         _test.Eq(claimableQuests.Count, 1, "claimable_quests 应保留待领奖励任务详情。");
         if (activeQuests.Count > 0)
         {
-            GDictionary questEntry = activeQuests[0].AsGodotDictionary();
+            PlainDictionary questEntry = activeQuests[0] as PlainDictionary;
             _test.Eq(StringValue(questEntry, "quest_id"), "contract_wolf_pack", "任务快照应保留 quest_id。");
             _test.Eq(StringValue(questEntry, "stage_id"), "active", "激活任务快照应标记 active stage。");
             _test.Eq(IntValue(questEntry, "accepted_at_world_step", -1), 12, "任务快照应保留接取时间。");
@@ -236,7 +630,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         }
         if (claimableQuests.Count > 0)
         {
-            GDictionary claimableEntry = claimableQuests[0].AsGodotDictionary();
+            PlainDictionary claimableEntry = claimableQuests[0] as PlainDictionary;
             _test.Eq(
                 StringValue(claimableEntry, "quest_id"),
                 "contract_settlement_warehouse",
@@ -307,19 +701,11 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
         var runtime = new SnapshotTestRuntime { PartyState = partyState };
         var builder = new GameRuntimeSnapshotBuilder();
-        GDictionary snapshot;
-        try
-        {
-            builder.Setup(runtime);
-            snapshot = builder.BuildHeadlessSnapshot();
-        }
-        finally
-        {
-            builder.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+        builder.Setup(runtime);
+        PlainDictionary snapshot = builder.BuildHeadlessSnapshotPlain();
+        builder.Dispose();
 
-        GDictionary memberSnapshot = FindMemberSnapshot(snapshot, "player_sword_01");
+        PlainDictionary memberSnapshot = FindMemberSnapshot(snapshot, "player_sword_01");
         _test.True(memberSnapshot.Count > 0, "member progression 回归前置：应能找到主角成员快照。");
         if (memberSnapshot.Count == 0)
             return;
@@ -382,7 +768,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 },
             },
         };
-        List<string> lines = TextSnapshotLines(GameTextSnapshotRenderer.RenderFullSnapshot(snapshot));
+        List<string> lines = TextSnapshotLines(RenderRawSnapshot(snapshot));
 
         _test.True(
             HasTextLine(lines, "active_quest_ids=contract_missing_stage contract_numeric_stage contract_empty_stage"),
@@ -443,7 +829,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             },
         };
 
-        List<string> lines = TextSnapshotLines(GameTextSnapshotRenderer.RenderFullSnapshot(snapshot));
+        List<string> lines = TextSnapshotLines(RenderRawSnapshot(snapshot));
 
         _test.True(
             HasTextLine(lines, "active_quest_ids=contract_stringname_fields"),
@@ -591,11 +977,19 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 },
             },
         };
-        List<string> lines = TextSnapshotLines(GameTextSnapshotRenderer.RenderFullSnapshot(snapshot));
+        List<string> lines = TextSnapshotLines(RenderRawSnapshot(snapshot));
 
         _test.True(HasTextLine(lines, "provider_interaction_id="), "缺 provider_interaction_id 时文本快照只应渲染空正式字段。");
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=价格：旧字段"), "shop 条目缺 display_name 时应渲染空正式 label 字段。");
-        _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=奖励：旧字段"), "contract board 条目缺 display_name 时应渲染空正式 label 字段。");
+        _test.True(HasTextLine(lines, "entry=old_contract_entry_id"), "contract board 条目应渲染 entry_id。");
+        _test.True(HasTextLine(lines, "  display_name="), "contract board 条目缺 display_name 时应渲染空正式 label 字段。");
+        _test.True(HasTextLine(lines, "  provider_kind="), "contract board 条目缺 provider_kind 时应渲染空正式字段。");
+        _test.True(HasTextLine(lines, "  listing_channels="), "contract board 条目缺 listing_channels 时应渲染空正式字段。");
+        _test.True(HasTextLine(lines, "  state_label=状态：旧字段"), "contract board 条目应渲染 state_label。");
+        _test.True(HasTextLine(lines, "  cost_label=奖励：旧字段"), "contract board 条目应渲染 cost_label。");
+        _test.True(HasTextLine(lines, "  is_enabled=false"), "contract board 条目缺 is_enabled 时应渲染 false 默认值。");
+        _test.True(HasTextLine(lines, "  disabled_reason="), "contract board 条目缺 disabled_reason 时应渲染空正式字段。");
+        _test.True(HasTextLine(lines, "  accept_dialogue_text="), "contract board 条目缺 accept_dialogue_text 时应渲染空正式字段。");
         _test.True(HasTextLine(lines, "route= | state=状态：旧字段 | cost=车费：旧字段"), "stagecoach 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(HasTextLine(lines, "entry= | state=状态：旧字段 | cost=材料：旧字段"), "forge 条目缺 display_name 时应渲染空正式 label 字段。");
         _test.True(
@@ -630,13 +1024,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 new GDictionary { ["item_id"] = "sealed_dispatch", ["submitted_quantity"] = 1 }
             )
         );
-        partyState.active_quests = new Godot.Collections.Array<QuestState> { questState };
+        partyState.active_quests = new List<QuestState> { questState };
         runtime.PartyState = partyState;
         runtime.ActiveModalKind = RuntimeModalKind.Warehouse;
-        runtime.WarehouseWindowData = new GDictionary
+        runtime.WarehouseWindowData = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["title"] = "共享仓库",
-            ["entries"] = new GArray
+            ["entries"] = new List<object>
             {
                 BuildWarehouseEntry("sealed_dispatch", 1),
                 BuildWarehouseEntry("bandit_insignia", 3),
@@ -645,21 +1039,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         };
 
         var builder = new GameRuntimeSnapshotBuilder();
-        GDictionary snapshot;
-        try
-        {
-            builder.Setup(runtime);
-            snapshot = builder.BuildHeadlessSnapshot();
-        }
-        finally
-        {
-            builder.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+        builder.Setup(runtime);
+        PlainDictionary snapshot = builder.BuildHeadlessSnapshotPlain();
+        builder.Dispose();
 
-        GDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
-        GArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
-        GDictionary warehouseSnapshot = Dict(snapshot, "warehouse");
+        PlainDictionary questsSnapshot = Dict(Dict(snapshot, "party"), "quests");
+        PlainArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
+        PlainDictionary warehouseSnapshot = Dict(snapshot, "warehouse");
         List<string> warehouseEntryIds = ExtractWindowEntryValueStrings(
             ArrayValue(Dict(warehouseSnapshot, "window_data"), "entries"),
             "item_id"
@@ -668,8 +1054,8 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         _test.Eq(activeQuests.Count, 1, "任务物品交叉引用回归中任务快照应保留 active quest。");
         if (activeQuests.Count > 0)
         {
-            GDictionary questEntry = activeQuests[0].AsGodotDictionary();
-            GDictionary context = Dict(questEntry, "last_progress_context");
+            PlainDictionary questEntry = activeQuests[0] as PlainDictionary;
+            PlainDictionary context = Dict(questEntry, "last_progress_context");
             _test.Eq(StringValue(context, "item_id"), "sealed_dispatch", "任务快照应保留任务物品上下文 item_id。");
             _test.Eq(IntValue(context, "submitted_quantity"), 1, "任务快照应保留任务物品提交数量。");
         }
@@ -686,25 +1072,49 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var runtime = new SnapshotTestRuntime
         {
             ActiveModalKind = RuntimeModalKind.ContractBoard,
-            ContractBoardWindowData = new GDictionary
+            ContractBoardWindowData = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["title"] = "春泉村 · 任务板",
                 ["settlement_id"] = "spring_village_01",
                 ["provider_interaction_id"] = "service_contract_board",
-                ["entries"] = new GArray
+                ["state_summary_text"] = "当前有 2 则契约可查看。",
+                ["entries"] = new List<object>
                 {
-                    BuildWindowEntry("contract_first_hunt", "contract_first_hunt", "首轮狩猎", "状态：可查看", "奖励：80 金"),
-                    BuildWindowEntry("contract_manual_drill", "contract_manual_drill", "训练记录", "状态：可查看", "奖励：30 金"),
+                    BuildWindowEntry(
+                        "contract_first_hunt",
+                        "contract_first_hunt",
+                        "首轮狩猎",
+                        "状态：可查看",
+                        "奖励：80 金",
+                        providerKind: "guild",
+                        listingChannels: new[] { "board", "rumor" },
+                        isEnabled: true,
+                        disabledReason: "",
+                        acceptDialogueText: "接受这份狩猎契约？"
+                    ),
+                    BuildWindowEntry(
+                        "contract_manual_drill",
+                        "contract_manual_drill",
+                        "训练记录",
+                        "状态：已锁定",
+                        "奖励：30 金",
+                        providerKind: "military",
+                        listingChannels: new[] { "board" },
+                        isEnabled: false,
+                        disabledReason: "需要先完成前置契约。",
+                        acceptDialogueText: ""
+                    ),
                 },
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
-        GDictionary contractBoardSnapshot = Dict(snapshot, "contract_board");
+        PlainDictionary snapshot = BuildSnapshot(runtime, out string textSnapshot);
+        PlainDictionary contractBoardSnapshot = Dict(snapshot, "contract_board");
         List<string> entryIds = ExtractWindowEntryValueStrings(
             ArrayValue(Dict(contractBoardSnapshot, "window_data"), "entries"),
             "quest_id"
         );
+        List<string> lines = TextSnapshotLines(textSnapshot);
 
         _test.True(BoolValue(contractBoardSnapshot, "visible"), "contract board modal 激活时快照应暴露 contract_board.visible。");
         _test.Eq(
@@ -717,6 +1127,133 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             new[] { "contract_first_hunt", "contract_manual_drill" },
             "contract board 快照应稳定暴露当前任务板条目列表。"
         );
+        _test.True(
+            HasTextLine(lines, "state_summary_text=当前有 2 则契约可查看。"),
+            "contract board 文本快照应渲染 state_summary_text。"
+        );
+        _test.True(
+            HasTextLine(lines, "  provider_kind=guild"),
+            "contract board 文本快照应渲染条目的 provider_kind。"
+        );
+        _test.True(
+            HasTextLine(lines, "  listing_channels=board rumor"),
+            "contract board 文本快照应渲染条目的 listing_channels。"
+        );
+        _test.True(
+            HasTextLine(lines, "  is_enabled=true"),
+            "contract board 文本快照应渲染条目的 is_enabled。"
+        );
+        _test.True(
+            HasTextLine(lines, "  disabled_reason="),
+            "contract board 文本快照应渲染条目的 disabled_reason（可为空）。"
+        );
+        _test.True(
+            HasTextLine(lines, "  accept_dialogue_text=接受这份狩猎契约？"),
+            "contract board 文本快照应渲染条目的 accept_dialogue_text。"
+        );
+        _test.True(
+            HasTextLine(lines, "  provider_kind=military"),
+            "contract board 文本快照应渲染第二个条目的 provider_kind。"
+        );
+        _test.True(
+            HasTextLine(lines, "  listing_channels=board"),
+            "contract board 文本快照应渲染第二个条目的 listing_channels。"
+        );
+        _test.True(
+            HasTextLine(lines, "  is_enabled=false"),
+            "contract board 文本快照应渲染第二个条目的 is_enabled。"
+        );
+        _test.True(
+            HasTextLine(lines, "  disabled_reason=需要先完成前置契约。"),
+            "contract board 文本快照应渲染第二个条目的 disabled_reason。"
+        );
+    }
+
+    private void TestSnapshotBuilderExposesNpcQuestOfferModalSnapshot()
+    {
+        var runtime = new SnapshotTestRuntime
+        {
+            ActiveModalKind = RuntimeModalKind.NpcQuestOffer,
+            NpcQuestOfferWindowData = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["npc_name"] = "blacksmith hrothgar",
+                ["npc_interaction_id"] = "npc_blacksmith_hrothgar",
+                ["selected_quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                ["feedback_text"] = "",
+                ["entries"] = new List<object>
+                {
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                        ["display_name"] = "洞穴野兽",
+                        ["is_enabled"] = true,
+                        ["disabled_reason"] = "",
+                        ["accept_dialogue_text"] = "峡谷北面的野兽又在骚扰商队，帮我清理一下。",
+                    },
+                },
+            },
+        };
+
+        _test.Eq(
+            runtime.GetActiveModalId(),
+            "npc_quest_offer",
+            "RuntimeModalKind.NpcQuestOffer 应映射为 npc_quest_offer。"
+        );
+        _test.False(
+            RuntimeModalKinds.IsSettlementServiceModal(RuntimeModalKind.NpcQuestOffer),
+            "NpcQuestOffer 不应被归类为据点服务面板。"
+        );
+
+        PlainDictionary windowData = RuntimePlainPayload.CloneDictionary(
+            runtime.GetNpcQuestOfferWindowDataSnapshotPlain()
+        );
+        _test.Eq(
+            StringValue(windowData, "npc_name"),
+            "blacksmith hrothgar",
+            "GetNpcQuestOfferWindowData() 应暴露 NPC 名称。"
+        );
+        _test.Eq(
+            StringValue(windowData, "selected_quest_id"),
+            "npc_blacksmith_hrothgar_cave_beasts",
+            "GetActiveNpcQuestOfferContext() 应暴露当前选中的 quest_id。"
+        );
+
+        PlainDictionary snapshot = BuildSnapshot(runtime, out string textSnapshot);
+        List<string> lines = TextSnapshotLines(textSnapshot);
+        _test.Eq(
+            StringValue(Dict(snapshot, "modal"), "id"),
+            "npc_quest_offer",
+            "快照应暴露当前 modal id 为 npc_quest_offer。"
+        );
+        _test.True(
+            BoolValue(Dict(snapshot, "npc_quest_offer"), "visible", false),
+            "NpcQuestOffer 激活时快照应暴露 npc_quest_offer.visible=true。"
+        );
+        _test.Eq(
+            StringValue(Dict(Dict(snapshot, "npc_quest_offer"), "window_data"), "npc_name"),
+            "blacksmith hrothgar",
+            "npc_quest_offer 快照应包含 window_data.npc_name。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "contract_board"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 contract_board.visible。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "shop"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 shop.visible。"
+        );
+        _test.False(
+            BoolValue(Dict(snapshot, "forge"), "visible", true),
+            "NpcQuestOffer 激活时不应暴露 forge.visible。"
+        );
+        _test.True(
+            HasTextLine(lines, "[NPC_QUEST_OFFER]"),
+            "文本快照应渲染 [NPC_QUEST_OFFER] 区块。"
+        );
+        _test.True(
+            HasTextLine(lines, "  display_name=洞穴野兽"),
+            "文本快照应渲染 NPC offer 条目 display_name。"
+        );
     }
 
     private void TestSnapshotBuilderExposesForgeModalSnapshot()
@@ -724,13 +1261,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var runtime = new SnapshotTestRuntime
         {
             ActiveModalKind = RuntimeModalKind.Forge,
-            ForgeWindowData = new GDictionary
+            ForgeWindowData = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["title"] = "灰烬镇 · 大师重铸",
                 ["settlement_id"] = "forge_town",
-                ["entries"] = new GArray
+                ["entries"] = new List<object>
                 {
-                    new GDictionary
+                    new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["display_name"] = "大师重铸：铁制大剑",
                         ["state_label"] = "状态：可重铸",
@@ -740,7 +1277,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
         _test.True(BoolValue(Dict(snapshot, "forge"), "visible"), "forge modal 激活时快照应暴露 forge.visible。");
         _test.Eq(
             StringValue(Dict(Dict(snapshot, "forge"), "window_data"), "title"),
@@ -759,15 +1296,15 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var runtime = new SnapshotTestRuntime
         {
             ActiveModalKind = RuntimeModalKind.Forge,
-            ActiveShopContext = new GDictionary
+            ActiveShopContext = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["title"] = "灰烬镇 · 熔炉整备",
                 ["settlement_id"] = "forge_town",
                 ["panel_kind"] = "forge",
                 ["submission_source"] = "forge",
-                ["entries"] = new GArray
+                ["entries"] = new List<object>
                 {
-                    new GDictionary
+                    new Dictionary<string, object>(StringComparer.Ordinal)
                     {
                         ["entry_id"] = "forge:temper_edge",
                         ["display_name"] = "刃口淬火",
@@ -778,7 +1315,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
         _test.Eq(
             StringValue(Dict(Dict(snapshot, "forge"), "window_data"), "title"),
             "灰烬镇 · 熔炉整备",
@@ -797,16 +1334,16 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var runtime = new SnapshotTestRuntime
         {
             ActiveModalKind = RuntimeModalKind.Forge,
-            ActiveShopContext = new GDictionary
+            ActiveShopContext = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["title"] = "旧 forge 来源",
                 ["settlement_id"] = "forge_town",
                 ["submission_source"] = "forge",
-                ["entries"] = new GArray(),
+                ["entries"] = new List<object>(),
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
         _test.Eq(
             Dict(Dict(snapshot, "forge"), "window_data").Count,
             0,
@@ -819,7 +1356,7 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         var runtime = new SnapshotTestRuntime
         {
             ActiveModalKind = RuntimeModalKind.GameOver,
-            GameOverContext = new GDictionary
+            GameOverContext = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["title"] = "Game Over",
                 ["description"] = "主角已阵亡，本次旅程结束。",
@@ -830,8 +1367,8 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
-        GDictionary gameOverSnapshot = Dict(snapshot, "game_over");
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary gameOverSnapshot = Dict(snapshot, "game_over");
         _test.Eq(StringValue(gameOverSnapshot, "title"), "Game Over", "game_over 快照应暴露标题。");
         _test.Eq(StringValue(gameOverSnapshot, "main_character_member_id"), "player_sword_01", "game_over 快照应暴露主角成员 ID。");
         _test.True(BoolValue(gameOverSnapshot, "main_character_dead"), "game_over 快照应标记主角死亡。");
@@ -841,21 +1378,35 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
     {
         var runtime = new SnapshotTestRuntime
         {
-            LastBattleLootSnapshot = new GDictionary
+            LastBattleLootSnapshot = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["battle_name"] = "荒狼巢穴",
                 ["winner_faction_id"] = "player",
-                ["loot_entries"] = new GArray { new GDictionary { ["item_id"] = "beast_hide", ["quantity"] = 2 } },
+                ["loot_entries"] = new List<object>
+                {
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["item_id"] = "beast_hide",
+                        ["quantity"] = 2,
+                    },
+                },
                 ["loot_entry_count"] = 1,
                 ["loot_summary_text"] = "兽皮 x2",
-                ["overflow_entries"] = new GArray { new GDictionary { ["item_id"] = "beast_hide", ["quantity"] = 1 } },
+                ["overflow_entries"] = new List<object>
+                {
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["item_id"] = "beast_hide",
+                        ["quantity"] = 1,
+                    },
+                },
                 ["overflow_entry_count"] = 1,
                 ["overflow_summary_text"] = "兽皮 x1",
             },
         };
 
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
-        GDictionary lootSnapshot = Dict(snapshot, "loot");
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary lootSnapshot = Dict(snapshot, "loot");
         _test.Eq(StringValue(lootSnapshot, "battle_name"), "荒狼巢穴", "loot 快照应保留最近一次战斗名称。");
         _test.Eq(IntValue(lootSnapshot, "loot_entry_count"), 1, "loot 快照应暴露 loot 条目数。");
         _test.Eq(IntValue(lootSnapshot, "overflow_entry_count"), 1, "loot 快照应暴露 overflow 条目数。");
@@ -871,13 +1422,13 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
 
     private void TestSnapshotBuilderOmitsLootSectionWhenEmpty()
     {
-        GDictionary snapshot = BuildSnapshot(new SnapshotTestRuntime(), out _);
+        PlainDictionary snapshot = BuildSnapshot(new SnapshotTestRuntime(), out _);
         _test.Eq(Dict(snapshot, "loot").Count, 0, "没有最近掉落时 headless snapshot 不应强行生成 loot 段。");
     }
 
     private GameSession CreateTestSession()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "GameSession 应能基于测试世界配置创建新存档。");
         if (createError != (int)Error.Ok)
@@ -893,40 +1444,39 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         if (gameSession == null)
             return;
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 
-    private static GDictionary BuildSnapshot(
+    private static PlainDictionary BuildSnapshot(
         IGameRuntimeSnapshotSource runtime,
         out string textSnapshot
     )
     {
         var builder = new GameRuntimeSnapshotBuilder();
         builder.Setup(runtime);
-        GDictionary snapshot = builder.BuildHeadlessSnapshot();
+        PlainDictionary snapshot = builder.BuildHeadlessSnapshotPlain();
         textSnapshot = builder.BuildTextSnapshot();
         builder.Dispose();
         return snapshot;
     }
 
-    private static GDictionary BuildPartyQuestSnapshot(PartyState partyState)
+    private static PlainDictionary BuildPartyQuestSnapshot(PartyState partyState)
     {
         var runtime = new SnapshotTestRuntime { PartyState = partyState };
-        GDictionary snapshot = BuildSnapshot(runtime, out _);
+        PlainDictionary snapshot = BuildSnapshot(runtime, out _);
         return Dict(Dict(snapshot, "party"), "quests");
     }
 
-    private static GDictionary FindMemberSnapshot(GDictionary snapshot, string memberId)
+    private static PlainDictionary FindMemberSnapshot(PlainDictionary snapshot, string memberId)
     {
-        foreach (Variant memberValue in ArrayValue(Dict(snapshot, "party"), "members"))
+        foreach (object memberValue in ArrayValue(Dict(snapshot, "party"), "members"))
         {
-            if (memberValue.VariantType != Variant.Type.Dictionary)
+            if (memberValue is not PlainDictionary member)
                 continue;
-            GDictionary member = memberValue.AsGodotDictionary();
             if (StringValue(member, "member_id") == memberId)
                 return member;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
     private static GDictionary BuildQuestSnapshotPayload(
@@ -955,9 +1505,9 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         return payload;
     }
 
-    private static GDictionary BuildWarehouseEntry(string itemId, int quantity)
+    private static Dictionary<string, object> BuildWarehouseEntry(string itemId, int quantity)
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["item_id"] = itemId,
             ["quantity"] = quantity,
@@ -968,21 +1518,39 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         };
     }
 
-    private static GDictionary BuildWindowEntry(
+    private static Dictionary<string, object> BuildWindowEntry(
         string entryId,
         string questId,
         string displayName,
         string stateLabel,
-        string costLabel
+        string costLabel,
+        string providerKind = "",
+        string[] listingChannels = null,
+        bool isEnabled = true,
+        string disabledReason = "",
+        string acceptDialogueText = ""
     )
     {
-        return new GDictionary
+        var channels = new List<object>();
+        if (listingChannels != null)
+        {
+            foreach (string channel in listingChannels)
+            {
+                channels.Add(channel);
+            }
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["entry_id"] = entryId,
             ["quest_id"] = questId,
             ["display_name"] = displayName,
             ["state_label"] = stateLabel,
             ["cost_label"] = costLabel,
+            ["provider_kind"] = providerKind,
+            ["listing_channels"] = channels,
+            ["is_enabled"] = isEnabled,
+            ["disabled_reason"] = disabledReason,
+            ["accept_dialogue_text"] = acceptDialogueText,
         };
     }
 
@@ -998,6 +1566,22 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         return result;
     }
 
+    private static List<string> ExtractWindowEntryValueStrings(
+        PlainArray entries,
+        string key
+    )
+    {
+        var result = new List<string>();
+        if (entries == null)
+            return result;
+        foreach (object entryValue in entries)
+        {
+            if (entryValue is PlainDictionary entry)
+                result.Add(StringValue(entry, key));
+        }
+        return result;
+    }
+
     private static bool HasItemQuantity(GArray entries, string itemId, int quantity)
     {
         foreach (Variant entryValue in entries)
@@ -1006,6 +1590,22 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
                 continue;
             GDictionary entry = entryValue.AsGodotDictionary();
             if (StringValue(entry, "item_id") == itemId && IntValue(entry, "quantity") == quantity)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool HasItemQuantity(PlainArray entries, string itemId, int quantity)
+    {
+        if (entries == null)
+            return false;
+        foreach (object entryValue in entries)
+        {
+            if (
+                entryValue is PlainDictionary entry
+                && StringValue(entry, "item_id") == itemId
+                && IntValue(entry, "quantity") == quantity
+            )
                 return true;
         }
         return false;
@@ -1051,6 +1651,90 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
         return result;
     }
 
+    private static List<string> StringList(PlainArray values)
+    {
+        var result = new List<string>();
+        if (values == null)
+            return result;
+        foreach (object value in values)
+        {
+            if (value is string text)
+                result.Add(text);
+            else if (value is StringName name)
+                result.Add(name.ToString());
+        }
+        return result;
+    }
+
+    private static PlainDictionary Dict(PlainDictionary source, string key)
+    {
+        return source != null
+            && source.TryGetValue(key, out object rawValue)
+            && rawValue is PlainDictionary dictionary
+            ? dictionary
+            : new Dictionary<string, object>(StringComparer.Ordinal);
+    }
+
+    private static PlainArray ArrayValue(PlainDictionary source, string key)
+    {
+        return source != null
+            && source.TryGetValue(key, out object rawValue)
+            && rawValue is PlainArray array
+            ? array
+            : new List<object>();
+    }
+
+    private static string StringValue(
+        PlainDictionary source,
+        string key,
+        string fallback = ""
+    )
+    {
+        if (source == null || !source.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            string text => text,
+            StringName name => name.ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static int IntValue(PlainDictionary source, string key, int fallback = 0)
+    {
+        if (source == null || !source.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int value => value,
+            long value when value is >= int.MinValue and <= int.MaxValue => (int)value,
+            _ => fallback,
+        };
+    }
+
+    private static bool BoolValue(
+        PlainDictionary source,
+        string key,
+        bool fallback = false
+    )
+    {
+        return source != null
+            && source.TryGetValue(key, out object rawValue)
+            && rawValue is bool value
+            ? value
+            : fallback;
+    }
+
+    private static string RenderRawSnapshot(GDictionary snapshot)
+    {
+        return GameTextSnapshotRenderer.RenderFullSnapshot(
+            RuntimePlainPayload.NormalizeDictionaryStrict(
+                snapshot,
+                "run_game_runtime_snapshot_builder_regression.renderer_input"
+            )
+        );
+    }
+
     private static GDictionary Dict(GDictionary source, string key)
     {
         if (
@@ -1093,6 +1777,136 @@ public partial class run_game_runtime_snapshot_builder_regression : SceneTree
             return fallback;
         Variant value = source[key];
         return value.VariantType == Variant.Type.Nil ? fallback : value.AsBool();
+    }
+
+    private void AssertAuditBaseline(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.ActiveOwnerCount, expected.ActiveOwnerCount, $"{label}: owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: lease baseline");
+        _test.Eq(actual.ActiveScopeCount, expected.ActiveScopeCount, $"{label}: scope baseline");
+        _test.Eq(
+            actual.ActiveContentBorrowerCount,
+            expected.ActiveContentBorrowerCount,
+            $"{label}: borrower baseline"
+        );
+    }
+
+    private void AssertSafetyCounters(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.EscapedCount, expected.EscapedCount, $"{label}: escaped baseline");
+        _test.Eq(actual.UnknownCount, expected.UnknownCount, $"{label}: unknown baseline");
+        _test.Eq(actual.ViolationCount, expected.ViolationCount, $"{label}: violation baseline");
+        _test.Eq(
+            actual.NormalPhaseSuppressCount,
+            expected.NormalPhaseSuppressCount,
+            $"{label}: suppress baseline"
+        );
+        _test.Eq(
+            actual.QuarantineCount,
+            expected.QuarantineCount,
+            $"{label}: quarantine baseline"
+        );
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
+
+    private static int CountContainers(GDictionary dictionary)
+    {
+        int count = 1;
+        foreach (Variant key in dictionary.Keys)
+        {
+            Variant value = dictionary[key];
+            if (value.VariantType == Variant.Type.Dictionary)
+            {
+                using GDictionary nested = value.AsGodotDictionary();
+                count += CountContainers(nested);
+            }
+            else if (value.VariantType == Variant.Type.Array)
+            {
+                using GArray nested = value.AsGodotArray();
+                count += CountContainers(nested);
+            }
+        }
+        return count;
+    }
+
+    private static int CountContainers(GArray array)
+    {
+        int count = 1;
+        for (int index = 0; index < array.Count; index++)
+        {
+            Variant value = array[index];
+            if (value.VariantType == Variant.Type.Dictionary)
+            {
+                using GDictionary nested = value.AsGodotDictionary();
+                count += CountContainers(nested);
+            }
+            else if (value.VariantType == Variant.Type.Array)
+            {
+                using GArray nested = value.AsGodotArray();
+                count += CountContainers(nested);
+            }
+        }
+        return count;
+    }
+
+    private static bool IsStrictPlainGraph(object value)
+    {
+        if (value == null)
+            return true;
+        if (value is PlainDictionary dictionary)
+        {
+            foreach ((string key, object child) in dictionary)
+            {
+                if (string.IsNullOrEmpty(key) || !IsStrictPlainGraph(child))
+                    return false;
+            }
+            return true;
+        }
+        if (value is PlainArray array)
+        {
+            foreach (object child in array)
+            {
+                if (!IsStrictPlainGraph(child))
+                    return false;
+            }
+            return true;
+        }
+        return value
+            is string
+                or StringName
+                or bool
+                or byte
+                or short
+                or int
+                or long
+                or float
+                or double
+                or Vector2I
+                or Vector2
+                or Vector3I
+                or Vector3
+                or Color;
     }
 
     private void AssertStringListEq(

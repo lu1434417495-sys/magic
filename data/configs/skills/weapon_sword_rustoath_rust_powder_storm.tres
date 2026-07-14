@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_rust_powder_storm_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+damage_tag = &"acid"
+dice_count = 3
+dice_sides = 6
+required_target_status_id = &"rustoath_rust_corrosion"
+required_target_status_min_stacks = 5
+
+[sub_resource type="Resource" id="Effect_rust_powder_storm_consume_rust"]
+script = ExtResource("1_effect")
+effect_type = &"erase_status"
+effect_target_team_filter = &"enemy"
+status_id = &"rustoath_rust_corrosion"
+required_target_status_id = &"rustoath_rust_corrosion"
+required_target_status_min_stacks = 5
+
+[sub_resource type="Resource" id="Combat_rust_powder_storm"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_rustoath_rust_powder_storm"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 1
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+cooldown_tu = 0
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"weapon", &"acid"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_rust_powder_storm_damage"), SubResource("Effect_rust_powder_storm_consume_rust")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_rustoath_rust_powder_storm"
+display_name = "锈粉风暴"
+icon_id = &"weapon_sword_rustoath_rust_powder_storm"
+description = "装备技能。只能对拥有至少5层锈蚀的敌人使用，消耗1AP，造成3D6 acid伤害，并消耗目标锈蚀。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"rustoath", &"acid", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_rust_powder_storm")

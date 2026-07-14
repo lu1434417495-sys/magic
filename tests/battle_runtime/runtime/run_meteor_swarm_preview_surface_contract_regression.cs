@@ -8,7 +8,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_meteor_swarm_preview_surface_contract_regression : SceneTree
+public partial class run_meteor_swarm_preview_surface_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private GDictionary _skillDefsProviderPayload = new();
@@ -17,7 +17,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
     {
         TestMeteorNumericSummaryRoundTripsFormalSaveSourcePayload();
         TestPreviewHudAndAiShareTypedFacts();
-        Quit(_test.Finish("Meteor swarm preview surface contract regression"));
+        RequestTestExit(_test.Finish("Meteor swarm preview surface contract regression"));
     }
 
     private void TestMeteorNumericSummaryRoundTripsFormalSaveSourcePayload()
@@ -62,9 +62,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
             }
         };
 
-        MeteorSwarmNumericSummary roundTripped = MeteorSwarmNumericSummary.FromDictionary(
-            MeteorSwarmProjection.Project(summary)
-        );
+        using GodotProjectionLease<GDictionary> summaryLease =
+            MeteorSwarmProjection.BuildLease(summary);
+        MeteorSwarmNumericSummary roundTripped =
+            MeteorSwarmNumericSummary.FromDictionary(summaryLease.Value);
 
         _test.Eq(roundTripped.ComponentBreakdown.Count, 1, "formal meteor summary roundtrip 应保留 component。");
         BattleDamagePreviewSaveEstimate restoredEstimate = roundTripped.ComponentBreakdown[0].SaveEstimate;
@@ -78,124 +79,120 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
     {
         BattleUnitState enemyCenter = BuildUnit("meteor_surface_enemy_center", "中心敌人", "enemy", new Vector2I(4, 4), 160);
         BattleUnitState allyInner = BuildUnit("meteor_surface_ally_inner", "内圈友军", "player", new Vector2I(5, 4), 160);
-        Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, allyInner });
-        BattleAiScoreInput scoreInput = null;
-        try
-        {
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
-            BattleCommand command = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
-            BattlePreview preview = setup.Track(setup.Runtime.PreviewCommand(command));
-            _test.True(preview != null && preview.allowed, "陨星雨 preview surface 合同前置应可用。");
-            _test.True(preview.special_profile_preview_facts != null, "preview 必须暴露 special_profile_preview_facts。");
-            if (preview == null || preview.special_profile_preview_facts == null)
-                return;
-            GDictionary factsPayload = MeteorSwarmProjection.Project(
-                preview.special_profile_preview_facts
-            );
-            string previewFactId = factsPayload.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "";
-            _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
-            _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
-            _test.Eq(preview.hit_preview?.Source ?? "", preview.hit_preview?.Source ?? "", "preview source 应稳定。");
-            _test.Eq(preview.target_coords.Count, 49, "preview surface 必须暴露同一份 7x7 target coords。");
-            _test.True(
-                factsPayload.GetValueOrDefault("target_numeric_summary", new GArray()).AsGodotArray().Count >= 2,
-                "preview facts 应携带全目标数值摘要。"
-            );
-            _test.True(
-                preview.special_profile_preview_facts.GetFriendlyFireNumericSummary().Count == 1,
-                "preview facts 应携带全量友伤数值摘要。"
-            );
+        using Fixture setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, allyInner });
+        SkillDefinition skillDefinition = GetSkillDefinition(
+            setup.SkillDefinitionIndex,
+            "mage_meteor_swarm"
+        );
+        BattleCommand command = BuildCommand(setup.Caster, new Vector2I(4, 4));
+        BattlePreview preview = setup.Runtime.PreviewCommand(command);
+        _test.True(
+            preview != null && preview.allowed,
+            $"陨星雨 preview surface 合同前置应可用。{DescribePreview(preview)}"
+        );
+        _test.True(
+            preview?.special_profile_preview_facts != null,
+            $"preview 必须暴露 special_profile_preview_facts。{DescribePreview(preview)}"
+        );
+        if (preview == null || preview.special_profile_preview_facts == null)
+            return;
+        using GodotProjectionLease<GDictionary> factsLease =
+            MeteorSwarmProjection.BuildLease(preview.special_profile_preview_facts);
+        GDictionary factsPayload = factsLease.Value;
+        string previewFactId = factsPayload.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "";
+        _test.True(!string.IsNullOrEmpty(previewFactId), "preview facts 必须带稳定 preview_fact_id。");
+        _test.Eq(preview.hit_preview?.Source ?? "", "special_profile_preview_facts", "preview.hit_preview 应标记 special facts 来源。");
+        _test.Eq(preview.hit_preview?.Source ?? "", preview.hit_preview?.Source ?? "", "preview source 应稳定。");
+        _test.Eq(preview.TargetCoordsTyped.Count, 49, "preview surface 必须暴露同一份 7x7 target coords。");
+        _test.True(
+            factsPayload.GetValueOrDefault("target_numeric_summary", new GArray()).AsGodotArray().Count >= 2,
+            "preview facts 应携带全目标数值摘要。"
+        );
+        _test.True(
+            preview.special_profile_preview_facts.GetFriendlyFireNumericSummary().Count == 1,
+            "preview facts 应携带全量友伤数值摘要。"
+        );
 
-            var hud = new BattleHudAdapter();
-            GDictionary snapshot = hud.BuildSnapshot(
-                setup.Runtime.GetState(),
-                new Vector2I(4, 4),
-                "mage_meteor_swarm",
-                "陨星雨",
-                "",
-                new GVector2IArray { new Vector2I(4, 4) },
-                1,
-                new GStringNameArray(),
-                "",
-                "",
-                preview
-            );
-            var hitPreviewPayload = snapshot.GetValueOrDefault("selected_skill_hit_preview_payload", new Variant()).As<AttackPreviewData>();
-            _test.Eq(hitPreviewPayload?.Source ?? "", "special_profile_preview_facts", "HUD hit payload 应消费 special facts。");
-            GDictionary hudFacts = MeteorSwarmProjection.Project(
-                preview.special_profile_preview_facts
-            );
-            _test.Eq(
-                hudFacts.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "",
-                previewFactId,
-                "HUD 必须和 runtime preview 共用同一 preview_fact_id。"
-            );
-            _test.Eq(
-                snapshot.GetValueOrDefault("selected_skill_hit_preview_text", "").As<string>() ?? "",
-                preview.hit_preview?.SummaryText ?? "",
-                "HUD 应显示 runtime 提供的 summary text。"
-            );
+        var hud = new BattleHudAdapter();
+        BattleHudSnapshot snapshot = hud.BuildSnapshot(
+            setup.Runtime.GetState(),
+            new Vector2I(4, 4),
+            "mage_meteor_swarm",
+            "陨星雨",
+            "",
+            new GVector2IArray { new Vector2I(4, 4) },
+            1,
+            new GStringNameArray(),
+            "",
+            "",
+            preview
+        );
+        _test.Eq(
+            snapshot.HitPreviewPayload.Source,
+            "special_profile_preview_facts",
+            "HUD hit payload 应消费 special facts。"
+        );
+        GDictionary hudFacts = factsPayload;
+        _test.Eq(
+            hudFacts.GetValueOrDefault("preview_fact_id", "").As<string>() ?? "",
+            previewFactId,
+            "HUD 必须和 runtime preview 共用同一 preview_fact_id。"
+        );
+        _test.Eq(
+            snapshot.SelectedSkillHitPreviewText,
+            preview.hit_preview?.SummaryText ?? "",
+            "HUD 应显示 runtime 提供的 summary text。"
+        );
 
-            var aiContext = new BattleAiContext();
-            aiContext.state = setup.Runtime.GetState();
-            aiContext.unit_state = setup.Caster;
-            aiContext.grid_service = setup.Runtime.GetGridService();
-            aiContext.SetSkillDefs(setup.SkillDefIndex);
-            var scoreService = new BattleAiScoreService();
-            scoreInput = scoreService.BuildSkillScoreInput(
-                aiContext,
-                skillDef,
-                command,
-                preview,
-                Array.Empty<CombatEffectDef>(),
-                new Dictionary<string, object>(StringComparer.Ordinal)
-                {
-                    ["action_kind"] = "ground_skill",
-                    ["action_label"] = "陨星雨",
-                }
-            );
-            _test.True(scoreInput != null, "AI score input 应能消费 special preview facts。");
-            if (scoreInput == null)
-                return;
-            _test.Eq(
-                scoreInput.special_profile_preview_facts?.preview_fact_id.ToString() ?? "",
-                previewFactId,
-                "AI 必须和 runtime preview 共用同一 preview_fact_id。"
-            );
-            _test.Eq(scoreInput.target_coords.Count, 49, "AI target coords 必须来自同一份 7x7 preview plan。");
-            _test.True(scoreInput.enemy_target_count >= 1, "AI 应识别陨星雨敌方目标。");
-            _test.True(scoreInput.estimated_enemy_damage > 0, "AI 应从 typed numeric summary 估算敌方伤害。");
-            _test.True(scoreInput.estimated_friendly_fire_target_count == 1, "AI 应从 friendly_fire_numeric_summary 识别友伤目标。");
-            _test.True(!string.IsNullOrEmpty(scoreInput.friendly_fire_reject_reason), "AI 应把 hard friendly fire 写入 reject reason。");
-            _test.True(scoreInput.attack_roll_modifier_breakdown.Count >= 1, "AI trace payload 应暴露未来尘土命中修正 breakdown。");
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleAiScoreInput(scoreInput);
-            setup.Dispose();
-        }
+        var aiContext = new BattleAiContext();
+        aiContext.state = setup.Runtime.GetState();
+        aiContext.unit_state = setup.Caster;
+        aiContext.grid_service = setup.Runtime.GetGridService();
+        aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
+        using var scoreService = new BattleAiScoreService();
+        var scoreInput = scoreService.BuildSkillScoreInput(
+            aiContext,
+            skillDefinition,
+            command,
+            preview,
+            Array.Empty<CombatEffectDefinition>(),
+            new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["action_kind"] = "ground_skill",
+                ["action_label"] = "陨星雨",
+            }
+        );
+        _test.True(scoreInput != null, "AI score input 应能消费 special preview facts。");
+        if (scoreInput == null)
+            return;
+        _test.Eq(
+            scoreInput.special_profile_preview_facts?.preview_fact_id.ToString() ?? "",
+            previewFactId,
+            "AI 必须和 runtime preview 共用同一 preview_fact_id。"
+        );
+        _test.Eq(scoreInput.target_coords.Count, 49, "AI target coords 必须来自同一份 7x7 preview plan。");
+        _test.True(scoreInput.enemy_target_count >= 1, "AI 应识别陨星雨敌方目标。");
+        _test.True(scoreInput.estimated_enemy_damage > 0, "AI 应从 typed numeric summary 估算敌方伤害。");
+        _test.True(scoreInput.estimated_friendly_fire_target_count == 1, "AI 应从 friendly_fire_numeric_summary 识别友伤目标。");
+        _test.True(!string.IsNullOrEmpty(scoreInput.friendly_fire_reject_reason), "AI 应把 hard friendly fire 写入 reject reason。");
+        _test.True(scoreInput.attack_roll_modifier_breakdown.Count >= 1, "AI trace payload 应暴露未来尘土命中修正 breakdown。");
     }
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        using var progressionRegistry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
-        using var specialRegistry = new BattleSpecialProfileRegistry();
-        specialRegistry.Rebuild(typedSkillDefs);
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
+        var specialRegistry = new BattleSpecialProfileRegistry(new TestContentResourceLoader());
+        specialRegistry.Rebuild(typedSkillDefinitions);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 preview surface fixture。");
         var runtime = new BattleRuntimeModule();
         runtime.setup(
-            null,
-            typedSkillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null,
-            null,
-            new Dictionary<StringName, ItemDef>(),
-            null,
-            default,
-            specialRegistry.GetSnapshot()
+            skill_definitions: typedSkillDefinitions,
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
+            item_defs: new Dictionary<StringName, ItemDefinition>(),
+            battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
@@ -220,9 +217,8 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
                 state.enemy_unit_ids.Add(unit.unit_id);
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.Units())
+        foreach (BattleUnitState unitState in state.Units())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             _test.True(
                 runtime._grid_service.PlaceUnit(state, unitState, unitState.coord, true),
                 $"单位应能放入 preview surface 棋盘：{unitState?.unit_id}"
@@ -234,25 +230,10 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
             Runtime = runtime,
             State = state,
             Caster = caster,
-            SkillDefIndex = typedSkillDefs,
-            SkillDefs = ProjectSkillDefs(typedSkillDefs),
+            ProgressionRegistry = progressionRegistry,
+            SpecialRegistry = specialRegistry,
+            SkillDefinitionIndex = typedSkillDefinitions,
         };
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -338,6 +319,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = caster.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_meteor_swarm"),
             skill_id = "mage_meteor_swarm",
             target_coord = anchorCoord,
         };
@@ -345,37 +327,58 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         return command;
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (
+            skillDefinitions == null
+            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
             return null;
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefinition;
     }
 
-    private sealed class Fixture
+    private static string DictString(GDictionary dictionary, string key, string fallback)
     {
-        private readonly List<GodotObject> _ownedObjects = new();
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.String ? value.AsString() : fallback;
+    }
 
+    private static string DescribePreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return " preview=null";
+        return
+            $" allowed={preview.allowed}"
+            + $" logs=[{string.Join(" | ", preview.LogLinesTyped)}]"
+            + $" target_coords=[{string.Join(", ", preview.TargetCoordsTyped)}]"
+            + $" target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}]";
+    }
+
+    private sealed class Fixture : IDisposable
+    {
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
-        public GDictionary SkillDefs;
-
-        public T Track<T>(T ownedObject)
-            where T : GodotObject
-        {
-            if (ownedObject != null)
-                _ownedObjects.Add(ownedObject);
-            return ownedObject;
-        }
+        public ProgressionContentRegistry ProgressionRegistry;
+        public BattleSpecialProfileRegistry SpecialRegistry;
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public void Dispose()
         {
-            for (int index = _ownedObjects.Count - 1; index >= 0; index--)
-                BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
-            _ownedObjects.Clear();
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
+            SpecialRegistry?.Dispose();
+            ProgressionRegistry?.Dispose();
+            Runtime = null;
+            State = null;
+            Caster = null;
+            ProgressionRegistry = null;
+            SpecialRegistry = null;
+            SkillDefinitionIndex = null;
         }
     }
 }

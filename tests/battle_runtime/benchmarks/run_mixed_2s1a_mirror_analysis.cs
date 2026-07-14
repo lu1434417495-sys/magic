@@ -3,17 +3,23 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_mixed_2s1a_mirror_analysis : SceneTree
+public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const string ScenarioPath =
         "res://data/configs/battle_sim/scenarios/mixed_2sword_1arch_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Mixed 2s1a mirror analysis", exitCode));
     }
 
     private int Run()
@@ -26,40 +32,41 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
 
-        BattleSimScenarioDef scenarioDef = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioDef == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
+        if (scenarioResource == null)
         {
             GD.PushError("[ERROR] Failed to load scenario");
             return 1;
         }
+        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentLoader = new TestContentResourceLoader();
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry();
-        var itemRegistry = new ItemContentRegistry();
-        var baseline = new BattleSimProfileDef
-        {
-            profile_id = "baseline",
-            display_name = "Baseline",
-        };
-        RandomNumberGenerator rng = null;
+        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
+        var itemRegistry = new ItemContentRegistry(contentLoader);
 
         try
         {
-            IReadOnlyDictionary<StringName, SkillDef> skillDefs = contentProvider.GetSkillDefsTyped();
-            IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                contentProvider.GetSkillDefinitionsTyped();
+            IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
                 contentProvider.GetEnemyTemplatesTyped();
-            IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+            IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
                 contentProvider.GetEnemyAiBrainsTyped();
 
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-                skillDefs,
+                skillDefinitions,
                 enemyAiBrains,
-                baseline
+                contentProvider.GetBattleSimProfilesTyped()["baseline"]
             );
             BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
-            rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1L) };
+            var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
 
             int totalChargeAttempts = 0;
             int totalChargeSuccesses = 0;
@@ -89,7 +96,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
             {
                 long seed = rng.Randi();
                 var fixture = BuildFormalFixture(
-                    scenarioDef,
+                    scenarioDefinition,
                     overrides,
                     progressionRegistry,
                     itemRegistry,
@@ -98,7 +105,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
                 try
                 {
                     GDictionary result = RunSingleSimulation(
-                        scenarioDef,
+                        scenarioDefinition,
                         overrides,
                         enemyTemplates,
                         terrainGenerator,
@@ -227,12 +234,9 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         finally
         {
             DisposeObjects(
-                rng,
-                baseline,
                 itemRegistry,
                 progressionRegistry,
                 terrainGenerator,
-                overrideApplier,
                 contentProvider
             );
         }
@@ -256,7 +260,7 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
     }
 
     private static BattleSimFormalCombatFixture BuildFormalFixture(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         ProgressionContentRegistry progressionRegistry,
         ItemContentRegistry itemRegistry,
@@ -264,18 +268,18 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
     )
     {
         var fixture = new BattleSimFormalCombatFixture();
-        fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefs);
+        fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefinitions);
         if (
-            !fixture.BuildRoster(scenarioDef.scenario_id, rosterOptions)
+            !fixture.BuildRoster(scenarioDefinition.ScenarioId, rosterOptions)
         )
-            GD.PushError($"Unsupported formal battle sim roster: {scenarioDef.scenario_id}");
+            GD.PushError($"Unsupported formal battle sim roster: {scenarioDefinition.ScenarioId}");
         return fixture;
     }
 
     private static GDictionary RunSingleSimulation(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed
@@ -286,10 +290,10 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         EncounterAnchorData encounterAnchor = null;
         try
         {
-            bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
+            bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
             runtime.setup(
                 fixture,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 enemyTemplates,
                 overrides.EnemyAiBrains,
                 null,
@@ -302,25 +306,29 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenarioDef != null && scenarioDef.scenario_id != ""
-                    ? scenarioDef.scenario_id
+                entity_id = scenarioDefinition.ScenarioId != ""
+                    ? scenarioDefinition.ScenarioId
                     : "battle_sim",
-                display_name = scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
-                    ? scenarioDef.display_name
-                    : scenarioDef?.scenario_id.ToString() ?? "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenarioDefinition.DisplayName)
+                    ? scenarioDefinition.DisplayName
+                    : scenarioDefinition.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
             };
 
-            GDictionary context = fixture.BuildRuntimeContext(runtime, scenarioDef.BuildStartContext());
+            using GodotProjectionLease<GDictionary> baseContextLease =
+                scenarioDefinition.BuildStartContextLease();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
+            GDictionary context = contextLease.Value;
             state = runtime.StartBattle(encounterAnchor, seed, context);
             fixture.ApplyStartedBattleMetadata(state);
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,
                 state,
-                scenarioDef,
+                scenarioDefinition,
                 MaxIdleLoops
             );
             return new GDictionary
@@ -336,7 +344,6 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
         {
             runtime.dispose();
             BattleTestFixture.DisposeBattleState(state);
-            GodotRefCountedDisposer.DisposeIfValid(encounterAnchor);
         }
     }
 
@@ -508,20 +515,8 @@ public partial class run_mixed_2s1a_mirror_analysis : SceneTree
     {
         foreach (object obj in objects)
         {
-            switch (obj)
-            {
-                case null:
-                    continue;
-                case BattleTerrainGenerator terrainGenerator:
-                    terrainGenerator.Dispose();
-                    continue;
-                case GodotObject godotObject:
-                    GodotSharpCleanup.DisposeGodotObject(godotObject);
-                    continue;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    continue;
-            }
+            if (obj is IDisposable disposable)
+                disposable.Dispose();
         }
     }
 }

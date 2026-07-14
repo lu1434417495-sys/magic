@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_shared_content_injection_regression : SceneTree
+public partial class run_world_map_shared_content_injection_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SmallWorldConfig = "res://data/configs/world_map/small_world_map_config.tres";
@@ -24,6 +24,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -40,6 +41,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         TestSharedCapitalNamePoolExposes100UniqueNames();
         TestSharedMetropolisNamePoolExposes50UniqueNames();
         TestNewWorldGenerationRecordsRuntimeMapSeed();
+        TestFailedWorldSwitchRestoresGenerationBinding();
         TestWorldGenerationInjectsSharedMainWorldContent();
         TestWorldStrongholdInstancesKeepStrongholdSemantics();
         TestDemoWorldGenerationIncludesMetropolisInstances();
@@ -47,8 +49,22 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         TestProceduralWildSpawnRegionTagsIgnoreRuleOrder();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("World map shared content injection regression"));
+        DisposeWorldDataLeases();
+        RequestTestExit(_test.Finish("World map shared content injection regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestGenericMainWorldPresetsKeepTemplateShape()
@@ -63,32 +79,30 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             }
         )
         {
-            WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
-                configPath
-            );
-            _test.True(config != null, $"主世界预设 {configPath} 应能正常加载。");
-            if (config == null)
+            WorldGenerationDefinition definition = GetProcessWorldDefinition(configPath);
+            _test.True(definition != null, $"主世界预设 {configPath} 应能正常投影。");
+            if (definition == null)
             {
                 continue;
             }
 
             _test.True(
-                config.inject_default_main_world_content,
+                definition.InjectDefaultMainWorldContent,
                 $"{configPath} 应开启共享主世界内容注入。"
             );
             _test.Eq(
-                config.procedural_wild_spawn_chunk_chance_denominator,
+                definition.ProceduralWildSpawnChunkChanceDenominator,
                 2,
                 $"{configPath} 应使用更密集的主世界野怪 chunk 抽签配置。"
             );
             _test.True(
-                config.guarantee_starting_wild_encounter,
+                definition.GuaranteeStartingWildEncounter,
                 $"{configPath} 应保底在起始区域附近生成野外遭遇。"
             );
-            _test.Eq(config.settlement_library.Count, 0, $"{configPath} 不应再内嵌通用据点模板。");
-            _test.Eq(config.facility_library.Count, 0, $"{configPath} 不应再内嵌通用设施模板。");
+            _test.Eq(definition.SettlementLibrary.Count, 0, $"{configPath} 不应再内嵌通用据点模板。");
+            _test.Eq(definition.FacilityLibrary.Count, 0, $"{configPath} 不应再内嵌通用设施模板。");
             _test.Eq(
-                config.wild_monster_distribution.Count,
+                definition.WildMonsterDistribution.Count,
                 0,
                 $"{configPath} 不应再内嵌通用野怪规则。"
             );
@@ -110,7 +124,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
         try
         {
-            GDictionary worldData = gameSession.GetWorldData();
+            GDictionary worldData = ProjectWorldData(gameSession);
             bool foundWorldStronghold = false;
             bool foundMasterReforgeService = false;
             foreach (Variant settlementValue in ArrayValue(worldData, "settlements"))
@@ -140,9 +154,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             bool foundSouthMistHollow = false;
             foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
             {
-                EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(
-                    encounterValue
-                );
+                EncounterAnchorData encounterAnchor = ReadEncounterAnchor(encounterValue);
                 if (encounterAnchor == null)
                 {
                     continue;
@@ -177,11 +189,9 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
     private void TestNewWorldGenerationRecordsRuntimeMapSeed()
     {
-        WorldMapGenerationConfig config = ResourceLoader.Load<WorldMapGenerationConfig>(
-            TestWorldConfig
-        );
-        _test.True(config != null, "runtime map seed 回归需要可加载的测试世界配置。");
-        if (config == null)
+        WorldGenerationDefinition definition = GetProcessWorldDefinition(TestWorldConfig);
+        _test.True(definition != null, "runtime map seed 回归需要可投影的测试世界配置。");
+        if (definition == null)
         {
             return;
         }
@@ -199,9 +209,61 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
         try
         {
-            long mapSeed = DictInt64(gameSession.GetWorldData(), "map_seed", 0L);
+            long mapSeed = DictInt64(ProjectWorldData(gameSession), "map_seed", 0L);
             _test.True(mapSeed > 0, "新世界 world_data 应记录由真随机接口分配的 map_seed。");
-            _test.True(mapSeed != config.seed, "运行时 map_seed 不应直接沿用 world config 的固定 seed。");
+            _test.True(mapSeed != definition.Seed, "运行时 map_seed 不应直接沿用 world config 的固定 seed。");
+        }
+        finally
+        {
+            CleanupGameSession(gameSession);
+        }
+    }
+
+    private void TestFailedWorldSwitchRestoresGenerationBinding()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            int createError = gameSession.CreateNewSave(
+                TestWorldConfig,
+                "generation_rollback_original",
+                "生成定义回滚原世界"
+            );
+            _test.Eq(createError, (int)Error.Ok, "generation definition 回滚测试应先创建原世界。");
+            if (createError != (int)Error.Ok)
+                return;
+
+            WorldGenerationDefinition originalDefinition =
+                gameSession.GetGenerationDefinition();
+            string originalSaveId = gameSession.GetActiveSaveId();
+            string originalPath = gameSession.GetGenerationConfigPath();
+
+            int failedCreateError = gameSession.CreateNewSave(
+                SmallWorldConfig,
+                "generation_rollback_candidate",
+                "生成定义回滚候选世界",
+                new GDictionary { ["bloodline_id"] = "invalid_unpaired_bloodline" }
+            );
+
+            _test.Eq(
+                failedCreateError,
+                (int)Error.InvalidData,
+                "非法的单边 bloodline payload 应让候选世界创建失败。"
+            );
+            _test.Eq(
+                gameSession.GetGenerationConfigPath(),
+                originalPath,
+                "候选世界失败后应恢复原 active generation path。"
+            );
+            _test.True(
+                ReferenceEquals(gameSession.GetGenerationDefinition(), originalDefinition),
+                "候选世界失败后应恢复原 borrowed generation definition。"
+            );
+            _test.Eq(
+                gameSession.GetActiveSaveId(),
+                originalSaveId,
+                "候选世界失败后应恢复原 active save id。"
+            );
         }
         finally
         {
@@ -225,7 +287,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundWorldStronghold = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -270,7 +332,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         try
         {
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -297,33 +359,42 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
     private void TestProceduralWildSpawnRegionTagsIgnoreRuleOrder()
     {
-        WorldMapGenerationConfig config = BuildWildSpawnDensityConfig(out bool ok);
-        if (!ok || config == null)
-        {
+        WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
+            "res://tests/world_map/runtime/wild_spawn_region_order.tres",
+            new[]
+            {
+                BuildWildSpawnRuleDefinition(
+                    "south_wilds",
+                    "南境雾兽",
+                    "mist_beast",
+                    "mist_hollow"
+                ),
+                BuildWildSpawnRuleDefinition(
+                    "north_wilds",
+                    "北境狼群",
+                    "wolf_pack",
+                    ""
+                ),
+            }
+        );
+        if (definition == null)
             return;
-        }
-
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
-        {
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-        };
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(config, gridSystem)
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            definition,
+            gridSystem
         );
 
-        int midpointChunkY = config.world_size_in_chunks.Y / 2;
+        int midpointChunkY = definition.WorldSizeInChunks.Y / 2;
         bool foundNorthInNorth = false;
         bool foundSouthInSouth = false;
         bool misplacedNorth = false;
         bool misplacedSouth = false;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
         {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
             if (encounterAnchor == null)
             {
                 continue;
@@ -366,29 +437,38 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
     private void TestProceduralWildSpawnDensityCanBeConfigured()
     {
-        WorldMapGenerationConfig config = BuildWildSpawnDensityConfig(out bool ok);
-        if (!ok || config == null)
-        {
+        WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
+            "res://tests/world_map/runtime/wild_spawn_density.tres",
+            new[]
+            {
+                BuildWildSpawnRuleDefinition(
+                    "north_wilds",
+                    "北境狼群",
+                    "wolf_pack",
+                    ""
+                ),
+                BuildWildSpawnRuleDefinition(
+                    "south_wilds",
+                    "南境雾兽",
+                    "mist_beast",
+                    "mist_hollow"
+                ),
+            }
+        );
+        if (definition == null)
             return;
-        }
-
-        config.wild_monster_distribution = new Godot.Collections.Array<Resource>
-        {
-            BuildWildSpawnRule("north_wilds", "北境狼群", "wolf_pack", ""),
-            BuildWildSpawnRule("south_wilds", "南境雾兽", "mist_beast", "mist_hollow"),
-        };
 
         WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(config.world_size_in_chunks, config.chunk_size);
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem spawnSystem = new();
-        GDictionary worldData = WorldMapSpawnProjection.Project(
-            spawnSystem.BuildWorldTyped(config, gridSystem)
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            definition,
+            gridSystem
         );
 
         int singleEncounterCount = 0;
-        foreach (Variant encounterValue in ArrayValue(worldData, "encounter_anchors"))
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
         {
-            EncounterAnchorData encounterAnchor = AsObject<EncounterAnchorData>(encounterValue);
             if (
                 encounterAnchor != null
                 && encounterAnchor.encounter_kind == EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
@@ -398,7 +478,8 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             }
         }
 
-        int expectedMinimum = config.world_size_in_chunks.X * config.world_size_in_chunks.Y;
+        int expectedMinimum =
+            definition.WorldSizeInChunks.X * definition.WorldSizeInChunks.Y;
         _test.True(
             singleEncounterCount >= expectedMinimum,
             "chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。"
@@ -430,7 +511,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
             bool foundCityInstance = false;
             bool foundCapitalInstance = false;
             bool foundMetropolisInstance = false;
-            foreach (Variant settlementValue in ArrayValue(gameSession.GetWorldData(), "settlements"))
+            foreach (Variant settlementValue in ArrayValue(ProjectWorldData(gameSession), "settlements"))
             {
                 if (!TryAsDictionary(settlementValue, out GDictionary settlement))
                 {
@@ -511,24 +592,19 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
 
     private void TestSharedSettlementBundleUsesGenericTemplateNames()
     {
-        WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
-            SharedSettlementBundlePath
-        );
-        _test.True(settlementBundle != null, "共享据点 bundle 应能正常加载。");
+        WorldMapSettlementBundleDefinition settlementBundle =
+            GetProcessWorldDefinition(TestWorldConfig).DefaultSettlementBundle;
+        _test.True(settlementBundle != null, "共享据点 bundle 应能在 host build 时完成投影。");
         if (settlementBundle == null)
         {
             return;
         }
 
         bool seenTemplateTown = false;
-        foreach (Resource settlementResource in settlementBundle.settlement_library)
+        foreach (SettlementDefinition settlement in settlementBundle.SettlementLibrary)
         {
-            if (settlementResource is not SettlementConfig settlement)
-            {
-                continue;
-            }
-            string settlementId = settlement.settlement_id ?? "";
-            string displayName = settlement.display_name ?? "";
+            string settlementId = settlement.TemplateId ?? "";
+            string displayName = settlement.DisplayName ?? "";
             _test.True(
                 settlementId.StartsWith("template_", StringComparison.Ordinal),
                 "共享据点模板 ID 应使用 template_* 前缀。"
@@ -577,14 +653,18 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         string label
     )
     {
-        WorldMapSettlementNamePool namePool = ResourceLoader.Load<WorldMapSettlementNamePool>(path);
-        _test.True(namePool != null, $"{label}应能正常加载。");
+        WorldGenerationDefinition definition = GetProcessWorldDefinition(TestWorldConfig);
+        definition.SettlementNamePools.TryGetValue(
+            ContentPathCanonicalizer.Canonicalize(path),
+            out WorldMapSettlementNamePoolDefinition namePool
+        );
+        _test.True(namePool != null, $"{label}应能在 host build 时完成投影。");
         if (namePool == null)
         {
             return;
         }
 
-        Godot.Collections.Array<string> displayNames = namePool.BuildUniqueDisplayNames();
+        IReadOnlyList<string> displayNames = namePool.BuildUniqueDisplayNames();
         _test.Eq(displayNames.Count, expectedCount, $"{label}应提供 {expectedCount} 个唯一名称。");
         if (displayNames.Count == 0)
         {
@@ -609,59 +689,73 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         }
     }
 
-    private WorldMapGenerationConfig BuildWildSpawnDensityConfig(out bool ok)
+    private WorldGenerationDefinition BuildWildSpawnDensityDefinition(
+        string canonicalPath,
+        IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules
+    )
     {
-        ok = false;
-        WorldMapGenerationConfig baseConfig = ResourceLoader.Load<WorldMapGenerationConfig>(
-            TestWorldConfig
+        WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
+        _test.True(source != null, "wild spawn 回归需要 process snapshot 中的测试世界 definition。");
+        if (source == null)
+        {
+            return null;
+        }
+        return new WorldGenerationDefinition(
+            ContentPathCanonicalizer.Canonicalize(canonicalPath),
+            source.Seed,
+            source.WorldSizeInChunks,
+            source.ChunkSize,
+            source.PlayerStartCoord,
+            source.PlayerVisionRange,
+            source.ProceduralGenerationEnabled,
+            proceduralWildSpawnChunkChanceDenominator: 1,
+            injectDefaultMainWorldContent: false,
+            source.ProceduralVillageCount,
+            source.ProceduralTownCount,
+            source.ProceduralCityCount,
+            source.ProceduralCapitalCount,
+            source.ProceduralWorldStrongholdCount,
+            source.ProceduralMetropolisCount,
+            source.VillageSpacingCells,
+            source.TownSpacingCells,
+            source.CitySpacingCells,
+            source.CapitalSpacingCells,
+            source.WorldStrongholdSpacingCells,
+            source.MetropolisSpacingCells,
+            guaranteeStartingWildEncounter: false,
+            source.StartingWildSpawnMinDistance,
+            source.StartingWildSpawnMaxDistance,
+            source.EffectiveSettlementLibrary,
+            source.EffectiveFacilityLibrary,
+            source.SettlementDistribution,
+            wildSpawnRules,
+            source.MountedSubmaps,
+            source.WorldEvents,
+            defaultSettlementBundle: null,
+            defaultWildSpawnBundle: null,
+            new Dictionary<string, WorldMapSettlementNamePoolDefinition>(
+                StringComparer.Ordinal
+            )
         );
-        _test.True(baseConfig != null, "wild spawn 回归需要可加载的测试世界配置。");
-        if (baseConfig == null)
-        {
-            return null;
-        }
-        WorldMapSettlementBundle settlementBundle = ResourceLoader.Load<WorldMapSettlementBundle>(
-            SharedSettlementBundlePath
-        );
-        _test.True(settlementBundle != null, "wild spawn 回归需要可加载的共享据点 bundle。");
-        if (settlementBundle == null)
-        {
-            return null;
-        }
-
-        WorldMapGenerationConfig config = baseConfig.Duplicate(true) as WorldMapGenerationConfig;
-        _test.True(config != null, "测试世界配置应支持 duplicate(true)。");
-        if (config == null)
-        {
-            return null;
-        }
-
-        config.inject_default_main_world_content = false;
-        config.settlement_library = settlementBundle.settlement_library.Duplicate(true);
-        config.facility_library = settlementBundle.facility_library.Duplicate(true);
-        config.guarantee_starting_wild_encounter = false;
-        config.procedural_wild_spawn_chunk_chance_denominator = 1;
-        ok = true;
-        return config;
     }
 
-    private static WildSpawnRule BuildWildSpawnRule(
+    private static WildSpawnRuleDefinition BuildWildSpawnRuleDefinition(
         string regionTag,
         string monsterName,
         string enemyRosterTemplateId,
         string encounterProfileId
     )
     {
-        return new WildSpawnRule
-        {
-            region_tag = regionTag,
-            monster_name = monsterName,
-            enemy_roster_template_id = enemyRosterTemplateId,
-            encounter_profile_id = encounterProfileId,
-            density_per_chunk = 1,
-            min_distance_to_settlement = 3,
-            vision_range = 1,
-        };
+        return new WildSpawnRuleDefinition(
+            regionTag,
+            monsterName,
+            enemyRosterTemplateId,
+            encounterProfileId,
+            densityPerChunk: 1,
+            minDistanceToSettlement: 3,
+            visionRange: 1,
+            System.Array.Empty<Vector2I>()
+        );
     }
 
     private GameSession CreateWorld(
@@ -671,7 +765,7 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         string errorMessage
     )
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(configPath, saveId, displayName);
         _test.Eq(createError, (int)Error.Ok, errorMessage);
         if (createError != (int)Error.Ok)
@@ -688,10 +782,21 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         {
             return;
         }
-        GodotSharpCleanup.CollectPendingFinalizers();
         gameSession.ClearPersistedGame();
         gameSession.Dispose();
-        GodotSharpCleanup.CollectPendingFinalizers();
+    }
+
+    private static WorldGenerationDefinition GetProcessWorldDefinition(string resourcePath)
+    {
+        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        return GameSessionTestFactory
+            .GetProcessSnapshot()
+            .WorldGenerations.TryGetValue(
+                canonicalPath,
+                out WorldGenerationDefinition definition
+            )
+            ? definition
+            : null;
     }
 
     private static GArray ArrayValue(GDictionary dictionary, string key)
@@ -719,6 +824,13 @@ public partial class run_world_map_shared_content_injection_regression : SceneTr
         where T : GodotObject
     {
         return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as T : null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 
     private static string DictString(GDictionary dictionary, string key, string fallback)

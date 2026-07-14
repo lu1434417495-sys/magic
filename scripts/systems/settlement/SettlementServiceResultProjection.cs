@@ -9,36 +9,23 @@ internal static class SettlementServiceResultProjection
         if (result == null)
             return new GDictionary();
 
-        IReadOnlyList<PendingCharacterReward> pendingRewards = result.PendingCharacterRewards;
-        try
+        return new GDictionary
         {
-            return new GDictionary
-            {
-                ["success"] = result.Success,
-                ["message"] = result.Message,
-                ["persist_party_state"] = result.PersistPartyState,
-                ["persist_world_data"] = result.PersistWorldData,
-                ["persist_player_coord"] = result.PersistPlayerCoord,
-                ["inventory_delta"] = ProjectInventoryDelta(result),
-                ["gold_delta"] = result.GoldDelta,
-                ["pending_character_rewards"] = PendingRewardDictionaryArray(
-                    pendingRewards
-                ),
-                ["quest_progress_events"] = QuestProgressEventDictionaryArray(
-                    result.QuestProgressEvents
-                ),
-                ["service_side_effects"] = ProjectServiceSideEffects(result),
-            };
-        }
-        finally
-        {
-            DisposePendingRewards(pendingRewards);
-        }
-    }
-
-    internal static void DisposePendingRewards(IEnumerable<PendingCharacterReward> values)
-    {
-        GodotRefCountedDisposer.DisposeAll(values);
+            ["success"] = result.Success,
+            ["message"] = result.Message,
+            ["persist_party_state"] = result.PersistPartyState,
+            ["persist_world_data"] = result.PersistWorldData,
+            ["persist_player_coord"] = result.PersistPlayerCoord,
+            ["inventory_delta"] = ProjectInventoryDelta(result),
+            ["gold_delta"] = result.GoldDelta,
+            ["pending_character_rewards"] = PendingRewardDictionaryArray(
+                result.PendingCharacterRewards
+            ),
+            ["quest_progress_events"] = QuestProgressEventDictionaryArray(
+                result.QuestProgressEvents
+            ),
+            ["service_side_effects"] = ProjectServiceSideEffects(result),
+        };
     }
 
     internal static GDictionary ProjectInventoryDelta(SettlementServiceResult result) =>
@@ -55,8 +42,9 @@ internal static class SettlementServiceResultProjection
 
         foreach (PendingCharacterReward reward in values)
         {
-            if (reward != null && !reward.IsEmpty())
-                result.Add(PendingCharacterRewardPayload.Project(reward));
+            PendingCharacterReward copy = reward?.DuplicateState();
+            if (copy != null && !copy.IsEmpty())
+                result.Add(PendingCharacterRewardPayload.Project(copy));
         }
         return result;
     }
@@ -81,11 +69,19 @@ internal static class SettlementServiceResultProjection
         IEnumerable<SettlementServiceResultPayloadEntry> entries
     )
     {
-        var result = new GDictionary();
+        var plain = new Dictionary<string, object>(System.StringComparer.Ordinal);
         if (entries == null)
-            return result;
+            return new GDictionary();
         foreach (SettlementServiceResultPayloadEntry entry in entries)
-            result[entry.Key] = entry.Value;
-        return result;
+            plain[entry.Key] = entry.Value;
+
+        using GodotProjectionLease<GDictionary> lease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                plain,
+                "settlement-service-result",
+                LifetimeDomain.Request,
+                "SettlementServiceResultProjection payload"
+            );
+        return lease.Value.Duplicate(true);
     }
 }

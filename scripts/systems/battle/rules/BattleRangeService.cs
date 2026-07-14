@@ -93,110 +93,120 @@ public static class BattleRangeService
         return !hasRequiredFamily;
     }
 
-    public static int GetEffectiveSkillRange(BattleUnitState unitState, SkillDef skillDef)
-    {
-        return GetEffectiveSkillRange(unitState, skillDef, null);
-    }
-
-    internal static int GetEffectiveSkillRange(BattleUnitReadView unitView, SkillDef skillDef)
-    {
-        return GetEffectiveSkillRange(unitView, skillDef, null);
-    }
-
     public static int GetEffectiveSkillRange(
         BattleUnitState unitState,
-        SkillDef skillDef,
-        ISkillCatalog skillCatalog
+        SkillDefinition skillDefinition
     )
     {
-        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
-        return GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
+        return GetEffectiveSkillRange(unitState, skillDefinition, null);
     }
 
     internal static int GetEffectiveSkillRange(
         BattleUnitReadView unitView,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition
+    )
+    {
+        return GetEffectiveSkillRange(unitView, skillDefinition, null);
+    }
+
+    public static int GetEffectiveSkillRange(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition,
+        ISkillCatalog skillCatalog
+    )
+    {
+        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
+        return GetEffectiveSkillRange(unitInfo, skillDefinition, skillCatalog);
+    }
+
+    internal static int GetEffectiveSkillRange(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitView);
-        return GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
+        return GetEffectiveSkillRange(unitInfo, skillDefinition, skillCatalog);
     }
 
     private static int GetEffectiveSkillRange(
         UnitRangeInfo unitInfo,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return 0;
         }
-        int skillRange = ResolveBaseSkillRange(unitInfo, skillDef, skillCatalog);
-        skillRange += GetRangeModifierBonus(unitInfo, skillDef);
+        int skillRange = ResolveBaseSkillRange(unitInfo, skillDefinition, skillCatalog);
+        skillRange += GetRangeModifierBonus(unitInfo, skillDefinition);
         return Math.Max(skillRange, 0);
     }
 
     public static int GetEffectiveSkillThreatRange(
         BattleUnitState unitState,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        return GetEffectiveSkillThreatRange(unitState, skillDef, null);
+        return GetEffectiveSkillThreatRange(unitState, skillDefinition, null);
     }
 
     public static int GetEffectiveSkillThreatRange(
         BattleUnitState unitState,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
-        int skillRange = GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
-        skillRange += GetGroundEffectReachBonus(unitInfo, skillDef, skillCatalog);
+        int skillRange = GetEffectiveSkillRange(unitInfo, skillDefinition, skillCatalog);
+        skillRange += GetGroundEffectReachBonus(unitInfo, skillDefinition, skillCatalog);
         return Math.Max(skillRange, 0);
     }
 
     public static int GetEffectiveSkillDistanceContractRange(
         BattleUnitState unitState,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        return GetEffectiveSkillDistanceContractRange(unitState, skillDef, null);
+        return GetEffectiveSkillDistanceContractRange(unitState, skillDefinition, null);
     }
 
     public static int GetEffectiveSkillDistanceContractRange(
         BattleUnitState unitState,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
-        int skillRange = GetEffectiveSkillRange(unitInfo, skillDef, skillCatalog);
-        skillRange += GetGroundEffectDistanceContractBonus(unitInfo, skillDef, skillCatalog);
+        int skillRange = GetEffectiveSkillRange(unitInfo, skillDefinition, skillCatalog);
+        skillRange += GetGroundEffectDistanceContractBonus(
+            unitInfo,
+            skillDefinition,
+            skillCatalog
+        );
         return Math.Max(skillRange, 0);
     }
 
-    public static bool RequiresCurrentMeleeWeapon(SkillDef skillDef)
+    public static bool RequiresCurrentMeleeWeapon(SkillDefinition skillDefinition)
     {
-        CombatSkillDef typedCombatProfile = skillDef?.combat_profile;
-        if (skillDef == null || typedCombatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return false;
         }
-        if (typedCombatProfile.required_weapon_families.Count > 0)
+        if (combatProfile.RequiredWeaponFamilies.Count > 0)
         {
             return true;
         }
-        if (EffectListRequiresWeapon(typedCombatProfile.effect_defs))
+        if (EffectListRequiresWeapon(combatProfile.EffectDefinitions))
         {
             return true;
         }
-        foreach (CombatCastVariantDef castVariant in typedCombatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (castVariant != null && EffectListRequiresWeapon(castVariant.effect_defs))
+            if (castVariant != null && EffectListRequiresWeapon(castVariant.EffectDefinitions))
             {
                 return true;
             }
@@ -204,58 +214,72 @@ public static class BattleRangeService
         return false;
     }
 
-    public static bool IsWeaponRangeSkill(SkillDef skillDef)
+    public static bool IsWeaponRangeSkill(SkillDefinition skillDefinition)
     {
-        return SkillHasTag(skillDef, "melee")
-            || SkillHasTag(skillDef, "bow")
-            || SkillHasTag(skillDef, "weapon");
-    }
-
-    public static int ResolveBaseSkillRange(BattleUnitState unitState, SkillDef skillDef)
-    {
-        return ResolveBaseSkillRange(unitState, skillDef, null);
+        return SkillHasTag(skillDefinition, "melee")
+            || SkillHasTag(skillDefinition, "bow")
+            || SkillHasTag(skillDefinition, "weapon");
     }
 
     public static int ResolveBaseSkillRange(
         BattleUnitState unitState,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition
+    )
+    {
+        return ResolveBaseSkillRange(unitState, skillDefinition, null);
+    }
+
+    public static int ResolveBaseSkillRange(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        return ResolveBaseSkillRange(BuildUnitRangeInfo(unitState), skillDef, skillCatalog);
+        return ResolveBaseSkillRange(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition,
+            skillCatalog
+        );
     }
 
     private static int ResolveBaseSkillRange(
         UnitRangeInfo unitInfo,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
-        int configuredRange = Math.Max(effectiveProfile.RangeValue, 0);
-        if (IsGroundRelocationSkill(skillDef))
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDefinition.SkillId);
+        SkillEffectiveCombatDefinition effectiveDefinition = ResolveEffectiveDefinition(
+            skillCatalog,
+            skillDefinition,
+            skillLevel
+        );
+        int configuredRange = Math.Max(effectiveDefinition.RangeValue, 0);
+        if (IsGroundRelocationSkill(skillDefinition))
         {
             return configuredRange;
         }
-        if (RequiresCurrentMeleeWeapon(skillDef))
+        if (UsesConfiguredWeaponRange(skillDefinition))
+        {
+            return configuredRange;
+        }
+        if (RequiresCurrentMeleeWeapon(skillDefinition))
         {
             return unitInfo.WeaponAttackRange;
         }
-        if (IsWeaponRangeSkill(skillDef))
+        if (IsWeaponRangeSkill(skillDefinition))
         {
             int weaponRange = unitInfo.WeaponAttackRange;
             if (weaponRange > 0)
             {
                 return weaponRange;
             }
-            if (SkillHasTag(skillDef, "melee"))
+            if (SkillHasTag(skillDefinition, "melee"))
             {
                 return 1;
             }
@@ -263,32 +287,36 @@ public static class BattleRangeService
         return configuredRange;
     }
 
-    public static bool IsGroundJumpSkill(SkillDef skillDef)
+    private static bool UsesConfiguredWeaponRange(SkillDefinition skillDefinition)
     {
-        return IsGroundRelocationSkill(skillDef);
+        return ProgressionDataUtils.to_string_name(
+            skillDefinition?.CombatProfile?.WeaponRangePolicy ?? new StringName("")
+        ) == "configured";
     }
 
-    public static bool IsGroundRelocationSkill(SkillDef skillDef)
+    public static bool IsGroundJumpSkill(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        return IsGroundRelocationSkill(skillDefinition);
+    }
+
+    public static bool IsGroundRelocationSkill(SkillDefinition skillDefinition)
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
-            skillDef == null
+            skillDefinition == null
             || combatProfile == null
             || combatProfile.TargetModeKind != BattleTargetMode.Ground
         )
         {
             return false;
         }
-        if (EffectListHasGroundRelocation(combatProfile.effect_defs))
+        if (EffectListHasGroundRelocation(combatProfile.EffectDefinitions))
         {
             return true;
         }
-        foreach (var castVariant in combatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (
-                castVariant != null
-                && EffectListHasGroundRelocation(castVariant.effect_defs)
-            )
+            if (castVariant != null && EffectListHasGroundRelocation(castVariant.EffectDefinitions))
             {
                 return true;
             }
@@ -296,17 +324,10 @@ public static class BattleRangeService
         return false;
     }
 
-    public static bool EffectUsesWeaponPhysicalDamageTag(CombatEffectDef effectDef)
-    {
-        return effectDef?.use_weapon_physical_damage_tag ?? false;
-    }
-
-    public static bool EffectRequiresWeapon(CombatEffectDef effectDef)
-    {
-        return EffectRequiresWeaponInternal(effectDef);
-    }
-
-    private static int GetRangeModifierBonus(UnitRangeInfo unitInfo, SkillDef skillDef)
+    private static int GetRangeModifierBonus(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
     {
         int bonus = HasStatusEffect(unitInfo, StatusArcherRangeUp) ? 1 : 0;
         if (
@@ -319,7 +340,7 @@ public static class BattleRangeService
                 unitInfo,
                 new[] { WeaponFamilyBow }
             )
-            && (RequiresCurrentMeleeWeapon(skillDef) || IsWeaponRangeSkill(skillDef))
+            && (RequiresCurrentMeleeWeapon(skillDefinition) || IsWeaponRangeSkill(skillDefinition))
         )
         {
             bonus += Math.Max(shootingStatus.RangeBonus, 0);
@@ -329,57 +350,63 @@ public static class BattleRangeService
 
     private static int GetGroundEffectReachBonus(
         UnitRangeInfo unitInfo,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return 0;
         }
         if (
             combatProfile.TargetModeKind != BattleTargetMode.Ground
-            || IsGroundRelocationSkill(skillDef)
+            || IsGroundRelocationSkill(skillDefinition)
         )
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
-        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
-            effectiveProfile.AreaPattern
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDefinition.SkillId);
+        SkillEffectiveCombatDefinition effectiveDefinition = ResolveEffectiveDefinition(
+            skillCatalog,
+            skillDefinition,
+            skillLevel
         );
-        int areaValue = effectiveProfile.AreaValue;
+        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
+            effectiveDefinition.AreaPattern
+        );
+        int areaValue = effectiveDefinition.AreaValue;
         return BattleTypedNames.GetAreaPatternThreatReachBonus(areaPattern, areaValue);
     }
 
     private static int GetGroundEffectDistanceContractBonus(
         UnitRangeInfo unitInfo,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         ISkillCatalog skillCatalog
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (skillDefinition == null || combatProfile == null)
         {
             return 0;
         }
         if (
             combatProfile.TargetModeKind != BattleTargetMode.Ground
-            || IsGroundRelocationSkill(skillDef)
+            || IsGroundRelocationSkill(skillDefinition)
         )
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(skillCatalog, skillDef, skillLevel);
-        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
-            effectiveProfile.AreaPattern
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDefinition.SkillId);
+        SkillEffectiveCombatDefinition effectiveDefinition = ResolveEffectiveDefinition(
+            skillCatalog,
+            skillDefinition,
+            skillLevel
         );
-        int areaValue = effectiveProfile.AreaValue;
+        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
+            effectiveDefinition.AreaPattern
+        );
+        int areaValue = effectiveDefinition.AreaValue;
         return BattleTypedNames.GetAreaPatternDistanceContractBonus(areaPattern, areaValue);
     }
 
@@ -411,18 +438,16 @@ public static class BattleRangeService
         return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
-    private static bool EffectRequiresWeaponInternal(CombatEffectDef effectDef)
-    {
-        return effectDef?.requires_weapon ?? false;
-    }
-
     private static bool EffectListRequiresWeapon(
-        IEnumerable<CombatEffectDef> effectDefs
+        IEnumerable<CombatEffectDefinition> effectDefs
     )
     {
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition effectDef in effectDefs
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (EffectRequiresWeaponInternal(effectDef))
+            if (effectDef?.RequiresWeapon ?? false)
             {
                 return true;
             }
@@ -431,10 +456,13 @@ public static class BattleRangeService
     }
 
     private static bool EffectListHasGroundRelocation(
-        IEnumerable<CombatEffectDef> effectDefs
+        IEnumerable<CombatEffectDefinition> effectDefs
     )
     {
-        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
+        foreach (
+            CombatEffectDefinition effectDef in effectDefs
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
         {
             if (IsGroundRelocationEffect(effectDef))
             {
@@ -444,7 +472,7 @@ public static class BattleRangeService
         return false;
     }
 
-    private static bool IsGroundRelocationEffect(CombatEffectDef effectDef)
+    private static bool IsGroundRelocationEffect(CombatEffectDefinition effectDef)
     {
         if (
             effectDef == null
@@ -457,13 +485,13 @@ public static class BattleRangeService
         return mode is BattleForcedMoveMode.Jump or BattleForcedMoveMode.Blink;
     }
 
-    private static bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
+    private static bool SkillHasTag(SkillDefinition skillDefinition, StringName expectedTag)
     {
-        if (skillDef == null || IsEmpty(expectedTag))
+        if (skillDefinition == null || IsEmpty(expectedTag))
         {
             return false;
         }
-        foreach (StringName tag in skillDef.TagsTyped)
+        foreach (StringName tag in skillDefinition.Tags)
         {
             if (tag == expectedTag)
             {
@@ -471,6 +499,23 @@ public static class BattleRangeService
             }
         }
         return false;
+    }
+
+    private static SkillEffectiveCombatDefinition ResolveEffectiveDefinition(
+        ISkillCatalog skillCatalog,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        if (
+            skillCatalog != null
+            && skillDefinition != null
+            && !IsEmpty(skillDefinition.SkillId)
+        )
+        {
+            return skillCatalog.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel);
+        }
+        return SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
     }
 
     private static bool HasStatusEffect(UnitRangeInfo unitInfo, StringName statusId)

@@ -167,6 +167,46 @@ public sealed class LowLuckEventResult
     }
 }
 
+internal sealed class LowLuckEventRollbackState
+{
+    private readonly Dictionary<StringName, HashSet<StringName>> _hardshipSurvivalByBattleId;
+    private readonly Dictionary<StringName, HashSet<StringName>> _criticalFailByBattleId;
+
+    internal LowLuckEventRollbackState(
+        Dictionary<StringName, HashSet<StringName>> hardshipSurvivalByBattleId,
+        Dictionary<StringName, HashSet<StringName>> criticalFailByBattleId
+    )
+    {
+        _hardshipSurvivalByBattleId = CloneBattleMemberStore(hardshipSurvivalByBattleId);
+        _criticalFailByBattleId = CloneBattleMemberStore(criticalFailByBattleId);
+    }
+
+    internal Dictionary<StringName, HashSet<StringName>> CloneHardshipSurvivalStore() =>
+        CloneBattleMemberStore(_hardshipSurvivalByBattleId);
+
+    internal Dictionary<StringName, HashSet<StringName>> CloneCriticalFailStore() =>
+        CloneBattleMemberStore(_criticalFailByBattleId);
+
+    private static Dictionary<StringName, HashSet<StringName>> CloneBattleMemberStore(
+        Dictionary<StringName, HashSet<StringName>> source
+    )
+    {
+        Dictionary<StringName, HashSet<StringName>> result = new();
+        if (source == null)
+            return result;
+        foreach ((StringName battleId, HashSet<StringName> memberIds) in source)
+        {
+            StringName normalizedBattleId = ProgressionDataUtils.to_string_name(battleId);
+            if (normalizedBattleId == "")
+                continue;
+            result[normalizedBattleId] = memberIds != null
+                ? new HashSet<StringName>(memberIds)
+                : new HashSet<StringName>();
+        }
+        return result;
+    }
+}
+
 internal enum LowLuckEventKind
 {
     Unknown = 0,
@@ -450,6 +490,23 @@ public sealed class LowLuckEventService
         _criticalFailByBattleId.Clear();
     }
 
+    internal LowLuckEventRollbackState CaptureRollbackState() =>
+        new(_hardshipSurvivalByBattleId, _criticalFailByBattleId);
+
+    internal void RestoreRollbackState(LowLuckEventRollbackState snapshot)
+    {
+        if (snapshot == null)
+            return;
+        ReplaceBattleMemberStore(
+            _hardshipSurvivalByBattleId,
+            snapshot.CloneHardshipSurvivalStore()
+        );
+        ReplaceBattleMemberStore(
+            _criticalFailByBattleId,
+            snapshot.CloneCriticalFailStore()
+        );
+    }
+
     private void TrackHardshipSurvival(LowLuckFateEventPayload eventPayload)
     {
         StringName battleId = eventPayload.BattleId;
@@ -637,6 +694,25 @@ public sealed class LowLuckEventService
             return;
         _hardshipSurvivalByBattleId.Remove(battleId);
         _criticalFailByBattleId.Remove(battleId);
+    }
+
+    private static void ReplaceBattleMemberStore(
+        Dictionary<StringName, HashSet<StringName>> target,
+        Dictionary<StringName, HashSet<StringName>> source
+    )
+    {
+        target.Clear();
+        if (source == null)
+            return;
+        foreach ((StringName battleId, HashSet<StringName> memberIds) in source)
+        {
+            StringName normalizedBattleId = ProgressionDataUtils.to_string_name(battleId);
+            if (normalizedBattleId == "")
+                continue;
+            target[normalizedBattleId] = memberIds != null
+                ? new HashSet<StringName>(memberIds)
+                : new HashSet<StringName>();
+        }
     }
 
     private StringName FindFirstLowLuckMemberId(PartyState partyState)

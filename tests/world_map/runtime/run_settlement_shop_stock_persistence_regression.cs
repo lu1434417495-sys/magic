@@ -1,87 +1,109 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GArray = Godot.Collections.Array;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_shop_stock_persistence_regression : SceneTree
+public partial class run_settlement_shop_stock_persistence_regression : LifecycleTestSceneTree
 {
+    private readonly TestHarness _test = new();
+    private readonly GodotTransientResourceScope _runtimeScope =
+        new("settlement_shop_stock_persistence");
+
     public override void _Initialize()
     {
-        int exitCode = 1;
-        ItemDef potionDef = new()
-        {
-            item_id = "potion",
-            display_name = "Potion",
-            base_price = 10,
-            max_stack = 99,
-            sellable = true,
-        };
-        var itemDefs = new GDictionary
-        {
-            [new StringName("potion")] = potionDef
-        };
-
-        PartyState party = new()
-        {
-            gold = 100,
-            active_member_ids = new GStringNameArray { new StringName("hero") },
-            leader_member_id = "hero",
-            main_character_member_id = "hero",
-        };
-        var hero = new PartyMemberState
-        {
-            member_id = "hero",
-            display_name = "Hero",
-            progression = new UnitProgress
-            {
-                unit_id = "hero",
-                display_name = "Hero",
-                unit_base_attributes = new UnitBaseAttributes(),
-            },
-        };
-        hero.progression.unit_base_attributes.custom_stats["storage_space"] = 10;
-        party.SetMemberState(hero);
-
-        var warehouse = new PartyWarehouseService();
+        PartyWarehouseService warehouse = null;
+        SettlementShopService service = null;
         try
         {
-            warehouse.Setup(party, new System.Collections.Generic.Dictionary<StringName, ItemDef>
-            {
-                [new StringName("potion")] = (ItemDef)itemDefs[new StringName("potion")],
-            });
-
-            var settlementState = new GDictionary
-            {
-                ["shop_states"] = new GDictionary
+            var itemDefs = _runtimeScope.OwnWrapper(
+                new GDictionary
                 {
-                    ["village_basic_supply"] = new GDictionary
-                    {
-                        ["shop_id"] = "village_basic_supply",
-                        ["current_inventory"] = new GArray
+                    [new StringName("potion")] = _runtimeScope.OwnWrapper(
+                        new ItemDef
                         {
-                            new GDictionary
-                            {
-                                ["item_id"] = "potion",
-                                ["quantity"] = 1,
-                                ["unit_price"] = 10,
-                                ["sold_out"] = false,
-                            }
+                            item_id = "potion",
+                            display_name = "Potion",
+                            base_price = 10,
+                            max_stack = 99,
+                            sellable = true,
                         },
-                        ["seed"] = 1,
-                        ["last_refresh_step"] = 0,
+                        "potion-item"
+                    ),
+                },
+                "item-defs"
+            );
+            ItemDefinition potionDefinition = ((ItemDef)
+                itemDefs[new StringName("potion")]).ToDefinition();
+
+            var party = _runtimeScope.OwnWrapper(
+                new PartyState
+                {
+                    gold = 100,
+                    active_member_ids = new StringNameList { new StringName("hero") },
+                    leader_member_id = "hero",
+                    main_character_member_id = "hero",
+                },
+                "party"
+            );
+            var hero = _runtimeScope.OwnWrapper(
+                new PartyMemberState
+                {
+                    member_id = "hero",
+                    display_name = "Hero",
+                    progression = new UnitProgress
+                    {
+                        unit_id = "hero",
+                        display_name = "Hero",
+                        unit_base_attributes = new UnitBaseAttributes(),
                     },
                 },
-                ["world_step"] = 0,
-            };
+                "hero"
+            );
+            hero.progression.unit_base_attributes.custom_stats["storage_space"] = 10;
+            party.SetMemberState(hero);
+            warehouse = new PartyWarehouseService();
+            warehouse.Setup(party, new System.Collections.Generic.Dictionary<StringName, ItemDefinition>
+            {
+                [new StringName("potion")] = potionDefinition,
+            });
 
-            using var service = new SettlementShopService();
+            var settlementState = _runtimeScope.OwnWrapper(
+                new GDictionary
+                {
+                    ["shop_states"] = new GDictionary
+                    {
+                        ["village_basic_supply"] = new GDictionary
+                        {
+                            ["shop_id"] = "village_basic_supply",
+                            ["current_inventory"] = new GArray
+                            {
+                                new GDictionary
+                                {
+                                    ["item_id"] = "potion",
+                                    ["quantity"] = 1,
+                                    ["unit_price"] = 10,
+                                    ["sold_out"] = false,
+                                }
+                            },
+                            ["seed"] = 1,
+                            ["last_refresh_step"] = 0,
+                        },
+                    },
+                    ["world_step"] = 0,
+                },
+                "settlement-state"
+            );
+
+            service = new SettlementShopService();
             SettlementShopTradeResult result = service.BuyTyped(
                 "service_basic_supply",
-                new GDictionary { ["settlement_id"] = "test_settlement" },
+                _runtimeScope.OwnWrapper(
+                    new GDictionary { ["settlement_id"] = "test_settlement" },
+                    "settlement-context"
+                ),
                 settlementState,
-                new System.Collections.Generic.Dictionary<StringName, ItemDef>
+                new System.Collections.Generic.Dictionary<StringName, ItemDefinition>
                 {
-                    [new StringName("potion")] = (ItemDef)itemDefs[new StringName("potion")],
+                    [new StringName("potion")] = potionDefinition,
                 },
                 warehouse,
                 party,
@@ -89,29 +111,28 @@ public partial class run_settlement_shop_stock_persistence_regression : SceneTre
                 1,
                 ""
             );
-            if (!result.Success)
-                throw new System.Exception($"buy should succeed: {result.Message}");
+            _test.True(result.Success, $"buy should succeed: {result.Message}");
 
             GDictionary storedShopStates = settlementState["shop_states"].AsGodotDictionary();
             GDictionary storedShopState = storedShopStates["village_basic_supply"].AsGodotDictionary();
             GArray inventory = storedShopState["current_inventory"].AsGodotArray();
-            if (inventory.Count != 0)
-                throw new System.Exception($"expected authoritative stock inventory to be empty, got {inventory.Count} entries");
-
-            GD.Print("PASS shop stock mutation persists in settlement state");
-            exitCode = 0;
+            _test.Eq(
+                inventory.Count,
+                0,
+                $"expected authoritative stock inventory to be empty, got {inventory.Count} entries"
+            );
         }
-        catch (System.Exception ex)
+        catch (System.Exception exception)
         {
-            GD.PushError($"Settlement shop stock persistence regression failed: {ex}");
+            _test.Fail(exception.ToString());
         }
         finally
         {
-            warehouse.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-            GodotRefCountedDisposer.DisposeIfValid(potionDef);
-            GodotSharpCleanup.CollectPendingFinalizers();
-            Quit(exitCode);
+            service?.Dispose();
+            warehouse?.Dispose();
+            _runtimeScope.Close();
         }
+
+        RequestTestExit(_test.Finish("shop stock mutation persists in settlement state"));
     }
 }

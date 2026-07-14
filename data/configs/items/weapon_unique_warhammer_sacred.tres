@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"warhammer"
+training_group = &"martial"
+range_type = &"melee"
+family = &"hammer"
+damage_tag = &"physical_blunt"
+attack_range = 1
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 1
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_warhammer_sacred_408"
+base_item_id = &"weapon_type_warhammer_base"
+display_name = "神圣之锤"
+description = "铭刻祈祷文的独特战锤，命中时迸发圣光，并可触碰盟友恢复伤势。"
+is_stackable = false
+base_price = 65000
+buy_price = 65000
+sell_price = 32500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"sacred_hammer", &"warhammer", &"hammer", &"radiant", &"holy"])
+trait_ids = Array[StringName]([&"weapon.warhammer.sacred.radiant_strike", &"weapon.warhammer.sacred.undead_judgment", &"weapon.warhammer.sacred.heal"])
+weapon_profile = SubResource("Resource_weapon_profile")

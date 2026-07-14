@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"main_border_patrol"
+display_name = "边境巡逻"
+description = "边境巡逻队报告称，狼骑兵的活动频率异常升高。它们似乎在躲避什么东西——或者，被什么东西驱赶。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"main_story", &"contract"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"tutorial_wolf_alpha"}])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_raiders", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_raider", &"target_value": 5}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 200}, {&"reward_type": &"item", &"item_id": &"iron_ore", &"quantity": 3}])
+is_repeatable = false

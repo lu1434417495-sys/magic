@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_text_command_warehouse_use_regression : SceneTree
+public partial class run_text_command_warehouse_use_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -22,7 +22,7 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
         TestWarehouseUseCommandSupportsTypedOptionsPath();
         TestNewGameRandomBookSkillGrantUsesTypedSkillLookup();
 
-        Quit(_test.Finish("Text command warehouse use regression"));
+        RequestTestExit(_test.Finish("Text command warehouse use regression"));
     }
 
     private void TestWarehouseUseCommandSupportsTypedOptionsPath()
@@ -157,6 +157,55 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
                 0,
                 "warehouse discard-all 成功后共享仓库应清空该库存。"
             );
+
+            int equipmentCountBefore =
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1;
+            GameTextCommandResult addEquipmentResult = runner.ExecuteLine(
+                "warehouse add bronze_sword 2"
+            );
+            _test.True(
+                addEquipmentResult.ok,
+                $"warehouse add bronze_sword 2 应创建两个独立装备实例。message={addEquipmentResult.message}"
+            );
+            int equipmentCountAfterAdd = equipmentCountBefore + 2;
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "warehouse add 装备后应保留两个独立实例。"
+            );
+
+            GameTextCommandResult discardAllEquipmentResult = runner.ExecuteLine(
+                "warehouse discard-all bronze_sword"
+            );
+            _test.False(discardAllEquipmentResult.ok, "warehouse discard-all 不应接受装备 item_id。");
+            _test.Eq(
+                discardAllEquipmentResult.code,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                "装备 discard-all 应返回 InvalidArgument。"
+            );
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "拒绝装备 discard-all 后不应删除任何装备实例。"
+            );
+
+            GameTextCommandResult discardAllWithInstanceResult = runner.ExecuteLine(
+                "warehouse discard-all bronze_sword instance_id=eq_unused"
+            );
+            _test.False(
+                discardAllWithInstanceResult.ok,
+                "warehouse discard-all 语法不应继续接受 instance_id 参数。"
+            );
+            _test.Eq(
+                discardAllWithInstanceResult.code,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                "带 instance_id 的旧 discard-all 形态应返回 InvalidArgument。"
+            );
+            _test.Eq(
+                runtime.GetPartyWarehouseService()?.CountItem("bronze_sword") ?? -1,
+                equipmentCountAfterAdd,
+                "非法 discard-all 命令不应改变装备库存。"
+            );
         }
         finally
         {
@@ -185,9 +234,10 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
             if (memberState?.progression == null)
                 return;
 
-            IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
             List<StringName> extraLearnedBookSkillIds = GetLearnedBookSkillIds(
-                skillDefs,
+                skillDefinitions,
                 memberState.progression,
                 "warrior_heavy_strike"
             );
@@ -201,9 +251,9 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
 
             StringName grantedSkillId = extraLearnedBookSkillIds[0];
             _test.True(
-                skillDefs.TryGetValue(grantedSkillId, out SkillDef grantedSkillDef)
-                    && grantedSkillDef != null,
-                $"随机技能 {grantedSkillId} 应能解析回 SkillDef。"
+                skillDefinitions.TryGetValue(grantedSkillId, out SkillDefinition grantedSkillDefinition)
+                    && grantedSkillDefinition != null,
+                $"随机技能 {grantedSkillId} 应能解析回 SkillDefinition。"
             );
             UnitSkillProgress grantedSkillProgress = memberState.progression.GetSkillProgress(
                 grantedSkillId
@@ -212,7 +262,7 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
                 grantedSkillProgress != null && grantedSkillProgress.is_learned,
                 "随机技能应真正写入主角成长数据。"
             );
-            if (grantedSkillDef == null || grantedSkillProgress == null)
+            if (grantedSkillDefinition == null || grantedSkillProgress == null)
                 return;
 
             _test.Eq(
@@ -227,7 +277,7 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
             );
             _test.Eq(
                 grantedSkillProgress.skill_level,
-                gameSession.ResolveRandomStartSkillInitialLevel(grantedSkillDef),
+                gameSession.ResolveRandomStartSkillInitialLevel(grantedSkillDefinition),
                 "随机技能等级应按技能层级规则初始化。"
             );
         }
@@ -247,21 +297,26 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
         if (memberState?.progression == null)
             return new BookSkillPickData();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
+            gameSession.GetItemDefsTyped();
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)
                 continue;
             StringName itemId = BuildSkillBookItemId(skillId);
-            if (!itemDefs.ContainsKey(itemId))
+            if (!itemDefinitions.ContainsKey(itemId))
                 continue;
             return new BookSkillPickData { SkillId = skillId, ItemId = itemId };
         }
@@ -269,19 +324,22 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
     }
 
     private static List<StringName> GetLearnedBookSkillIds(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         UnitProgress progression,
         StringName excludedSkillId
     )
     {
         var result = new List<StringName>();
-        foreach (StringName skillId in GetSortedSkillIds(skillDefs))
+        foreach (StringName skillId in GetSortedSkillIds(skillDefinitions))
         {
             if (skillId == excludedSkillId)
                 continue;
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = progression.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
@@ -292,10 +350,10 @@ public partial class run_text_command_warehouse_use_regression : SceneTree
     }
 
     private static List<StringName> GetSortedSkillIds(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         return sortedSkillIds;
     }

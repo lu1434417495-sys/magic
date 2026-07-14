@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_spawn_side_regression : SceneTree
+public partial class run_battle_spawn_side_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,8 +11,7 @@ public partial class run_battle_spawn_side_regression : SceneTree
         TestTallMapUsesLeftAndRightLongEdges();
         TestSpawnPlacementDoesNotClearExistingOccupantsFromStaleCoords();
         TestFailedSpawnPlacementRollsBackPartialUnits();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle spawn side regression"));
+        RequestTestExit(_test.Finish("Battle spawn side regression"));
     }
 
     private void TestWideMapUsesTopAndBottomLongEdges()
@@ -226,7 +225,7 @@ public partial class run_battle_spawn_side_regression : SceneTree
     {
         var stateOwnedUnits = new List<BattleUnitState>();
         BattleState state = fixture?.State;
-        if (state != null && GodotObject.IsInstanceValid(state))
+        if (state != null)
         {
             foreach (BattleUnitState unit in state.GetUnitsTyped())
             {
@@ -250,7 +249,6 @@ public partial class run_battle_spawn_side_regression : SceneTree
         }
 
         stateOwnedUnits.Clear();
-        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private static bool ContainsReference(List<BattleUnitState> units, BattleUnitState candidate)

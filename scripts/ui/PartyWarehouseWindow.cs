@@ -13,10 +13,7 @@ public partial class PartyWarehouseWindow : Control
     );
 
     [Signal]
-    public delegate void discard_all_requestedEventHandler(
-        StringName item_id,
-        StringName instance_id
-    );
+    public delegate void discard_all_requestedEventHandler(StringName item_id);
 
     [Signal]
     public delegate void use_requestedEventHandler(StringName item_id, StringName member_id);
@@ -168,7 +165,6 @@ public partial class PartyWarehouseWindow : Control
             else
                 label += "  |  按实例占格";
             stack_list.AddItem(label);
-            stack_list.SetItemMetadata(stack_list.ItemCount - 1, entry.Metadata);
         }
     }
 
@@ -270,7 +266,7 @@ public partial class PartyWarehouseWindow : Control
         string storageRuleText = entry.IsStackable
             ? $"每堆上限 {entry.StackLimit}"
             : "不可堆叠，按实例独立占格";
-        string storageModeText = entry.StorageMode == "stack" ? "堆叠条目" : "实例聚合条目";
+        string storageModeText = entry.StorageMode == "stack" ? "堆叠条目" : "装备实例条目";
         var lines = new List<string>
         {
             $"物品：{entry.DisplayName}",
@@ -300,11 +296,16 @@ public partial class PartyWarehouseWindow : Control
 
     private void _refresh_controls()
     {
-        bool hasSelection = _get_selected_entry_data().HasValue;
+        WarehouseEntry selectedEntry = _get_selected_entry_data();
+        bool hasSelection = selectedEntry.HasValue;
+        bool isStackEntry = hasSelection && selectedEntry.StorageMode == "stack";
+        bool isEquipmentEntry = hasSelection && selectedEntry.StorageMode == "instance";
         bool isSkillBook = _selected_entry_is_skill_book();
         bool canUseSelectedItem = _can_use_selected_item();
+        discard_one_button.Text = isEquipmentEntry ? "丢弃此装备" : "丢弃 1 件";
         discard_one_button.Disabled = !hasSelection;
-        discard_all_button.Disabled = !hasSelection;
+        discard_all_button.Visible = isStackEntry;
+        discard_all_button.Disabled = !isStackEntry;
         target_member_label.Visible = isSkillBook;
         target_member_selector.Visible = isSkillBook;
         target_member_selector.Disabled = !isSkillBook || _windowData.TargetMembers.Count == 0;
@@ -363,11 +364,14 @@ public partial class PartyWarehouseWindow : Control
             && _has_target_member(_selectedTargetMemberId);
     }
 
-    private static Texture2D _load_icon_texture(string icon_path)
+    private Texture2D _load_icon_texture(string icon_path)
     {
-        if (string.IsNullOrEmpty(icon_path))
+        if (
+            string.IsNullOrEmpty(icon_path)
+            || !ResourceLoader.Exists(icon_path, "Texture2D")
+        )
             return null;
-        return GD.Load<Texture2D>(icon_path);
+        return EngineAssetAccess.ResolveBorrowed<Texture2D>(this, icon_path);
     }
 
     private void _on_stack_selected(int index)
@@ -403,9 +407,14 @@ public partial class PartyWarehouseWindow : Control
 
     private void _on_discard_all_button_pressed()
     {
-        if (_selectedItemId == (StringName)"")
+        WarehouseEntry selectedEntry = _get_selected_entry_data();
+        if (
+            _selectedItemId == (StringName)""
+            || !selectedEntry.HasValue
+            || selectedEntry.StorageMode != "stack"
+        )
             return;
-        EmitSignal(SignalName.discard_all_requested, _selectedItemId, _selectedInstanceId);
+        EmitSignal(SignalName.discard_all_requested, _selectedItemId);
     }
 
     private void _on_use_button_pressed()
@@ -533,7 +542,6 @@ public partial class PartyWarehouseWindow : Control
         public int CurrentDurability { get; private init; }
         public bool IsSkillBook { get; private init; }
         public string GrantedSkillName { get; private init; } = "";
-        public GDictionary Metadata { get; private init; } = new();
 
         public static WarehouseEntry Empty() => new();
 
@@ -592,7 +600,6 @@ public partial class PartyWarehouseWindow : Control
                 CurrentDurability = ReadInt(data, "current_durability", 0),
                 IsSkillBook = ReadBool(data, "is_skill_book", false),
                 GrantedSkillName = ReadString(data, "granted_skill_name", ""),
-                Metadata = data.Duplicate(true),
             };
         }
 

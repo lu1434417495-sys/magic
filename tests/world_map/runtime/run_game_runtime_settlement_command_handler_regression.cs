@@ -3,9 +3,8 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_game_runtime_settlement_command_handler_regression : SceneTree
+public partial class run_game_runtime_settlement_command_handler_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -21,13 +20,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         await TestFacadeUsesSettlementHandlerSurface();
         await TestSettlementHandlerRoutesResearchService();
         await TestSettlementHandlerRoutesActionsAndModalState();
+        await TestContractBoardEvaluatorAndFeedback();
         await TestSettlementHandlerRejectsStringNameSubmissionFields();
         TestSettlementShopServiceRejectsBadEntrySchema();
         await TestSettlementHandlerRejectsInvalidOrSpoofedActions();
         await TestWorldGenerationExposesResearchService();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Game runtime settlement command handler regression"));
+        RequestTestExit(_test.Finish("Game runtime settlement command handler regression"));
     }
 
     private async Task TestFacadeUsesSettlementHandlerSurface()
@@ -36,7 +35,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             "facade",
             BuildPartyState(12, 100),
             new[] { BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildBasicSettlementServices(false)) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -71,7 +70,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             "research",
             BuildPartyState(12, 250),
             new[] { BuildSettlementRecord("graystone_town_01", "灰石镇", Vector2I.Zero, BuildResearchServices()) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -160,7 +159,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private async Task TestSettlementHandlerRoutesActionsAndModalState()
     {
-        GDictionary questDefs = BuildQuestDefs();
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildQuestDefs();
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "actions",
             BuildPartyState(20, 200),
@@ -210,23 +209,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     "service:contract_board",
                     new GDictionary()
                 );
-            GDictionary contractBoardWindowData = handler.GetContractBoardWindowData();
-            List<string> contractBoardEntryIds = ExtractContractBoardEntryIds(DictArray(contractBoardWindowData, "entries"));
-            _test.True(contractBoardResult.Ok, "任务板服务应能切换到 contract_board modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "任务板服务后应切换到 contract_board modal。");
-            _test.Eq(DictString(contractBoardWindowData, "action_id", ""), "service:contract_board", "任务板 modal 应保留原始 action_id。");
-            _test.Eq(DictString(contractBoardWindowData, "provider_interaction_id", ""), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。");
-            AssertSequence(contractBoardEntryIds, new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_display_name").Count == 0, "缺少 display_name 的契约不应回退成 quest_id 出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_description").Count == 0, "缺少 description 的契约不应回退成暂无说明出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objectives").Count == 0, "缺少 objective_defs 的契约不应回退成暂无目标说明出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objective_target").Count == 0, "缺少 target_id 的据点事务目标不应回退成未命名出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_unknown_objective_type").Count == 0, "未知 objective_type 不应回退成 objective_id 出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_rewards").Count == 0, "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_invalid_reward_amount").Count == 0, "非法 reward amount 的契约不应回退成奖励待定。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "typed QuestDef 中缺少 target_id 的据点事务目标不应出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "typed QuestDef 中非法 reward amount 的契约不应出现在任务板。");
-            _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_string_key_only").Count == 0, "String key-only 契约不应被任务板恢复。");
+            using (GodotProjectionLease<GDictionary> contractBoardWindowLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary contractBoardWindowData = contractBoardWindowLease.Value;
+                List<string> contractBoardEntryIds = ExtractContractBoardEntryIds(DictArray(contractBoardWindowData, "entries"));
+                _test.True(contractBoardResult.Ok, "任务板服务应能切换到 contract_board modal。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "任务板服务后应切换到 contract_board modal。");
+                _test.Eq(DictString(contractBoardWindowData, "action_id", ""), "service:contract_board", "任务板 modal 应保留原始 action_id。");
+                _test.Eq(DictString(contractBoardWindowData, "provider_interaction_id", ""), "service_contract_board", "任务板 modal 应记录当前 provider_interaction_id。");
+                AssertSequence(contractBoardEntryIds, new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "任务板 modal 只应按 provider_interaction_id 暴露当前服务的契约条目。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_display_name").Count == 0, "缺少 display_name 的契约不应回退成 quest_id 出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_description").Count == 0, "缺少 description 的契约不应回退成暂无说明出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objectives").Count == 0, "缺少 objective_defs 的契约不应回退成暂无目标说明出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_objective_target").Count == 0, "缺少 target_id 的据点事务目标不应回退成未命名出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_unknown_objective_type").Count == 0, "未知 objective_type 不应回退成 objective_id 出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_missing_rewards").Count == 0, "缺少 reward_entries 的契约不应回退成奖励待定出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_invalid_reward_amount").Count == 0, "非法 reward amount 的契约不应回退成奖励待定。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_missing_objective_target").Count == 0, "QuestDefinition 中缺少 target_id 的据点事务目标不应出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_typed_invalid_reward_amount").Count == 0, "QuestDefinition 中非法 reward amount 的契约不应出现在任务板。");
+                _test.True(FindContractBoardEntry(DictArray(contractBoardWindowData, "entries"), "contract_string_key_only").Count == 0, "String key-only 契约不应被任务板恢复。");
+            }
 
             _test.False(
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -252,7 +254,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                         }
                     )
                     .Ok,
-                "typed QuestDef 中缺少 target_id 的坏契约即使被构造提交也应拒绝。"
+                "QuestDefinition 中缺少 target_id 的坏契约即使被构造提交也应拒绝。"
             );
             _test.False(
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -336,16 +338,20 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                         ["provider_interaction_id"] = "service_contract_board",
                     }
                 );
-            GDictionary acceptedContractEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_manual_drill");
-            _test.True(
-                acceptContractResult.Ok,
-                $"任务板提交应保持据点动作链路可执行。message={acceptContractResult.Message}"
-            );
-            _test.True(runtime._party_state.HasActiveQuest("contract_manual_drill"), "任务板接取后应把任务写入 PartyState.active_quests。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "接取契约后应继续停留在 contract_board modal。");
-            _test.Eq(runtime._current_status_message, "已接取任务《训练记录》。", "任务板接取后应更新成功反馈。");
-            _test.Eq(DictString(acceptedContractEntry, "state_id", ""), "active", "接取后的契约条目应刷新为 active。");
-            _test.Eq(DictString(handler.GetContractBoardWindowData(), "summary_text", ""), "已接取任务《训练记录》。", "任务板 summary_text 应刷新为最新反馈。");
+            using (GodotProjectionLease<GDictionary> acceptedContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary acceptedContractData = acceptedContractLease.Value;
+                GDictionary acceptedContractEntry = FindContractBoardEntry(DictArray(acceptedContractData, "entries"), "contract_manual_drill");
+                _test.True(
+                    acceptContractResult.Ok,
+                    $"任务板提交应保持据点动作链路可执行。message={acceptContractResult.Message}"
+                );
+                _test.True(runtime._party_state.HasActiveQuest("contract_manual_drill"), "任务板接取后应把任务写入 PartyState.active_quests。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "接取契约后应继续停留在 contract_board modal。");
+                _test.Eq(runtime._current_status_message, "已接取任务《训练记录》。", "任务板接取后应更新成功反馈。");
+                _test.Eq(DictString(acceptedContractEntry, "state_id", ""), "active", "接取后的契约条目应刷新为 active。");
+                _test.Eq(DictString(acceptedContractData, "summary_text", ""), "已接取任务《训练记录》。", "任务板 summary_text 应刷新为最新反馈。");
+            }
 
             handler.CommandExecuteSettlementActionRuntimeTyped(
                 "service:contract_board",
@@ -370,13 +376,16 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary claimedContractEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_manual_drill");
-            _test.Eq(runtime._current_status_message, "已领取任务《训练记录》奖励，获得 30 金。", "claimable 契约提交时应返回领奖反馈。");
-            _test.Eq(runtime._party_state.GetGold(), manualClaimGoldBefore + 30, "claimable 契约提交后应把金币奖励写入 PartyState。");
-            _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。");
-            _test.False(runtime._party_state.HasClaimableQuest("contract_manual_drill"), "领奖后的非 repeatable 契约不应继续停留在 claimable_quests。");
-            _test.True(runtime._party_state.HasCompletedQuest("contract_manual_drill"), "领奖后的非 repeatable 契约应进入 completed_quest_ids。");
-            _test.Eq(DictString(claimedContractEntry, "state_id", ""), "completed", "领奖后的普通契约条目应刷新为 completed。");
+            using (GodotProjectionLease<GDictionary> claimedContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary claimedContractEntry = FindContractBoardEntry(DictArray(claimedContractLease.Value, "entries"), "contract_manual_drill");
+                _test.Eq(runtime._current_status_message, "已领取任务《训练记录》奖励，获得 30 金。", "claimable 契约提交时应返回领奖反馈。");
+                _test.Eq(runtime._party_state.GetGold(), manualClaimGoldBefore + 30, "claimable 契约提交后应把金币奖励写入 PartyState。");
+                _test.False(runtime._party_state.HasActiveQuest("contract_manual_drill"), "已完成非 repeatable 契约不应重新回到 active_quests。");
+                _test.False(runtime._party_state.HasClaimableQuest("contract_manual_drill"), "领奖后的非 repeatable 契约不应继续停留在 claimable_quests。");
+                _test.True(runtime._party_state.HasCompletedQuest("contract_manual_drill"), "领奖后的非 repeatable 契约应进入 completed_quest_ids。");
+                _test.Eq(DictString(claimedContractEntry, "state_id", ""), "completed", "领奖后的普通契约条目应刷新为 completed。");
+            }
 
             var repeatableQuest = new QuestState { quest_id = "contract_repeatable_patrol" };
             repeatableQuest.MarkAccepted(runtime.GetWorldStep());
@@ -393,11 +402,14 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary repeatableEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_repeatable_patrol");
-            _test.Eq(runtime._current_status_message, "已领取任务《巡路值守》奖励，获得 15 金。", "repeatable 契约领奖时应返回明确反馈。");
-            _test.Eq(runtime._party_state.GetGold(), repeatableClaimGoldBefore + 15, "repeatable 契约领奖后应增加金币。");
-            _test.True(runtime._party_state.HasCompletedQuest("contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。");
-            _test.Eq(DictString(repeatableEntry, "state_id", ""), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。");
+            using (GodotProjectionLease<GDictionary> repeatableContractLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary repeatableEntry = FindContractBoardEntry(DictArray(repeatableContractLease.Value, "entries"), "contract_repeatable_patrol");
+                _test.Eq(runtime._current_status_message, "已领取任务《巡路值守》奖励，获得 15 金。", "repeatable 契约领奖时应返回明确反馈。");
+                _test.Eq(runtime._party_state.GetGold(), repeatableClaimGoldBefore + 15, "repeatable 契约领奖后应增加金币。");
+                _test.True(runtime._party_state.HasCompletedQuest("contract_repeatable_patrol"), "repeatable 契约领奖后应进入 completed_quest_ids。");
+                _test.Eq(DictString(repeatableEntry, "state_id", ""), "repeatable", "repeatable 契约领奖后条目应刷新为 repeatable。");
+            }
 
             fixture.WarehouseService.AddItemTyped("iron_ore", 2);
             var submitItemQuest = new QuestState { quest_id = "contract_supply_drop" };
@@ -413,11 +425,14 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     ["provider_interaction_id"] = "service_contract_board",
                 }
             );
-            GDictionary submitItemEntry = FindContractBoardEntry(DictArray(handler.GetContractBoardWindowData(), "entries"), "contract_supply_drop");
-            _test.Eq(runtime._current_status_message, "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后应刷新正式反馈。");
-            _test.False(runtime._party_state.HasActiveQuest("contract_supply_drop"), "submit_item 提交完成后任务应离开 active_quests。");
-            _test.True(runtime._party_state.HasClaimableQuest("contract_supply_drop"), "submit_item 提交完成后任务应进入 claimable_quests。");
-            _test.Eq(DictString(submitItemEntry, "state_id", ""), "claimable", "submit_item 提交后条目应刷新为 claimable。");
+            using (GodotProjectionLease<GDictionary> submitItemLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary submitItemEntry = FindContractBoardEntry(DictArray(submitItemLease.Value, "entries"), "contract_supply_drop");
+                _test.Eq(runtime._current_status_message, "已为任务《物资缴纳》提交 铁矿石 x2，奖励待领取。", "submit_item 提交后应刷新正式反馈。");
+                _test.False(runtime._party_state.HasActiveQuest("contract_supply_drop"), "submit_item 提交完成后任务应离开 active_quests。");
+                _test.True(runtime._party_state.HasClaimableQuest("contract_supply_drop"), "submit_item 提交完成后任务应进入 claimable_quests。");
+                _test.Eq(DictString(submitItemEntry, "state_id", ""), "claimable", "submit_item 提交后条目应刷新为 claimable。");
+            }
 
             handler.OnContractBoardWindowClosed();
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭任务板后应返回 settlement modal。");
@@ -428,19 +443,25 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                     "service:bounty_registry",
                     new GDictionary()
                 );
-            GDictionary bountyBoardWindowData = handler.GetContractBoardWindowData();
-            _test.True(bountyBoardResult.Ok, "悬赏署服务应复用 contract_board modal。");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "悬赏署服务后仍应落到 contract_board modal。");
-            _test.Eq(DictString(bountyBoardWindowData, "action_id", ""), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。");
-            _test.Eq(DictString(bountyBoardWindowData, "provider_interaction_id", ""), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。");
-            AssertSequence(ExtractContractBoardEntryIds(DictArray(bountyBoardWindowData, "entries")), new[] { "contract_regional_bounty" }, "悬赏署 modal 只应暴露自己的 bounty quest。");
+            using (GodotProjectionLease<GDictionary> bountyBoardWindowLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary bountyBoardWindowData = bountyBoardWindowLease.Value;
+                _test.True(bountyBoardResult.Ok, "悬赏署服务应复用 contract_board modal。");
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "悬赏署服务后仍应落到 contract_board modal。");
+                _test.Eq(DictString(bountyBoardWindowData, "action_id", ""), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。");
+                _test.Eq(DictString(bountyBoardWindowData, "provider_interaction_id", ""), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。");
+                AssertSequence(ExtractContractBoardEntryIds(DictArray(bountyBoardWindowData, "entries")), new[] { "contract_regional_bounty" }, "悬赏署 modal 只应暴露自己的 bounty quest。");
+            }
 
             handler.OnContractBoardWindowClosed();
             handler.CommandExecuteSettlementActionRuntimeTyped(
                 "service:contract_board",
                 new GDictionary()
             );
-            AssertSequence(ExtractContractBoardEntryIds(DictArray(handler.GetContractBoardWindowData(), "entries")), new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "悬赏署 provider 不应污染正式 contract board 列表。");
+            using (GodotProjectionLease<GDictionary> restoredContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                AssertSequence(ExtractContractBoardEntryIds(DictArray(restoredContractBoardLease.Value, "entries")), new[] { "contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop" }, "悬赏署 provider 不应污染正式 contract board 列表。");
+            }
             handler.OnContractBoardWindowClosed();
 
             GameRuntimeFacade.RuntimeCommandResult trainingResult =
@@ -496,7 +517,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             {
                 _test.Eq(trainingQuest.GetObjectiveProgress("train_once"), 1, "据点动作应推进任务目标进度。");
             }
-            _test.True(runtime._party_state.HasClaimableQuest("contract_training"), "目标完成后据点动作应把 QuestDef 任务推进到 claimable_quests。");
+            _test.True(runtime._party_state.HasClaimableQuest("contract_training"), "目标完成后据点动作应把 QuestDefinition 任务推进到 claimable_quests。");
             _test.Eq(questTrainingResult.QuestProgressEvents.Count, 3, "typed service result 应直接暴露 canonical quest_progress_events。");
 
             SettlementServiceResult canonicalTrainingResult = handler.ExecuteSettlementActionTyped("spring_village_01", "service:training", new GDictionary
@@ -612,36 +633,186 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
     }
 
+    private async Task TestContractBoardEvaluatorAndFeedback()
+    {
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildEvaluatorQuestDefs();
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "evaluator",
+            BuildPartyState(20, 200),
+            new[]
+            {
+                BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildBasicSettlementServices(false)),
+            },
+            questDefs
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+            GameRuntimeFacade runtime = fixture.Runtime;
+
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "测试前置：任务板应能打开。");
+            using (GodotProjectionLease<GDictionary> initialContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary windowData = initialContractBoardLease.Value;
+                GDictionary lockedEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_locked_hunt");
+                _test.False(DictBool(lockedEntry, "is_enabled", true), "未满足前置任务时，契约条目应被禁用。");
+                _test.Eq(DictString(lockedEntry, "lock_reason_id", ""), "quest_not_completed", "禁用条目的 lock_reason_id 应来自 evaluator。");
+                _test.True(!string.IsNullOrEmpty(DictString(lockedEntry, "disabled_reason", "")), "禁用条目应包含 disabled_reason。");
+
+                GDictionary dialogueEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_dialogue_quest");
+                string detailsText = DictString(dialogueEntry, "details_text", "");
+                _test.True(detailsText.Contains("这是接取对话文案。"), "details_text 应展示 accept_dialogue_text。");
+                _test.Eq(DictString(dialogueEntry, "accept_dialogue_text", ""), "这是接取对话文案。", "accept_dialogue_text 字段应原样暴露。");
+
+                GDictionary confirmationEntry = FindContractBoardEntry(DictArray(windowData, "entries"), "contract_confirmation_quest");
+                _test.Eq(DictString(confirmationEntry, "accept_feedback_success", ""), "已确认接取确认契约。", "accept_feedback_success 字段应原样暴露。");
+                _test.Eq(DictString(confirmationEntry, "accept_confirmation_text", ""), "确认要接取这个契约吗？", "accept_confirmation_text 字段应原样暴露。");
+            }
+
+            GameRuntimeFacade.RuntimeCommandResult confirmationBypassResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                        ["confirm_accept"] = true,
+                    }
+                );
+            _test.False(
+                confirmationBypassResult.Ok,
+                "未进入确认态时提交 confirm_accept=true 应被拒绝。"
+            );
+            _test.False(
+                runtime._party_state.HasActiveQuest("contract_confirmation_quest"),
+                "确认态绕过不应接取任务。"
+            );
+
+            GameRuntimeFacade.RuntimeCommandResult lockedSubmitResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_locked_hunt",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.False(lockedSubmitResult.Ok, "未满足前置任务时提交接取应失败。");
+            _test.Eq(runtime._active_settlement_feedback_text, "当前无法接取该前置契约。", "提交失败时应使用 accept_feedback_failure 更新据点反馈。");
+
+            using (GodotProjectionLease<GDictionary> refreshedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary refreshedData = refreshedContractBoardLease.Value;
+                _test.Eq(DictString(refreshedData, "state_summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 state_summary_text 中。");
+                _test.Eq(DictString(refreshedData, "summary_text", ""), "当前无法接取该前置契约。", "feedback_text 应保留在 summary_text 中。");
+            }
+
+            GameRuntimeFacade.RuntimeCommandResult confirmationResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.True(confirmationResult.Ok, "首次提交带确认文案的契约应返回确认状态而不是错误。");
+            _test.False(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认弹窗期间不应接取任务。");
+            using (GodotProjectionLease<GDictionary> confirmationContextLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary confirmationContext = confirmationContextLease.Value;
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_quest_id", ""), "contract_confirmation_quest", "应写入 pending_confirmation_quest_id。");
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_text", ""), "确认要接取这个契约吗？", "应写入 pending_confirmation_text。");
+                _test.Eq(DictString(confirmationContext, "pending_confirmation_source", ""), "contract_board", "应写入 pending_confirmation_source。");
+            }
+
+            GameRuntimeFacade.RuntimeCommandResult confirmedAcceptResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_confirmation_quest",
+                        ["provider_interaction_id"] = "service_contract_board",
+                        ["confirm_accept"] = true,
+                    }
+                );
+            _test.True(confirmedAcceptResult.Ok, "带 confirm_accept=true 的提交应成功接取。");
+            _test.True(runtime._party_state.HasActiveQuest("contract_confirmation_quest"), "确认后应把任务写入 active_quests。");
+            _test.Eq(runtime._active_settlement_feedback_text, "已确认接取确认契约。", "确认接取后应使用 accept_feedback_success 更新据点反馈。");
+            using (GodotProjectionLease<GDictionary> confirmedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary confirmedContractBoardData = confirmedContractBoardLease.Value;
+                _test.Eq(DictString(confirmedContractBoardData, "summary_text", ""), "已确认接取确认契约。", "确认接取后 summary_text 应使用 accept_feedback_success。");
+                _test.Eq(DictString(confirmedContractBoardData, "state_summary_text", ""), "已确认接取确认契约。", "确认接取后 state_summary_text 应使用 accept_feedback_success。");
+                _test.Eq(DictString(confirmedContractBoardData, "pending_confirmation_quest_id", ""), "", "确认后应清空 pending_confirmation_quest_id。");
+            }
+
+            runtime._party_state.AddCompletedQuestId("contract_prerequisite_hunt");
+            runtime._character_management.SetPartyState(runtime._party_state);
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            GameRuntimeFacade.RuntimeCommandResult reopenResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary()
+                );
+            _test.True(reopenResult.Ok, $"前置任务完成后重新打开任务板应成功。message={reopenResult.Message}");
+            using (GodotProjectionLease<GDictionary> unlockedContractBoardLease = handler.GetContractBoardWindowDataLease())
+            {
+                GDictionary unlockedEntry = FindContractBoardEntry(DictArray(unlockedContractBoardLease.Value, "entries"), "contract_locked_hunt");
+                _test.True(DictBool(unlockedEntry, "is_enabled", false), "前置任务完成后，被锁定的契约应变为可用。");
+                _test.Eq(DictString(unlockedEntry, "lock_reason_id", ""), "", "可用条目的 lock_reason_id 应为空。");
+                _test.Eq(DictString(unlockedEntry, "disabled_reason", ""), "", "可用条目的 disabled_reason 应为空。");
+            }
+
+            GameRuntimeFacade.RuntimeCommandResult unlockedAcceptResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:contract_board",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "contract_board",
+                        ["quest_id"] = "contract_locked_hunt",
+                        ["provider_interaction_id"] = "service_contract_board",
+                    }
+                );
+            _test.True(unlockedAcceptResult.Ok, "解锁后应能正常接取。");
+            _test.True(runtime._party_state.HasActiveQuest("contract_locked_hunt"), "解锁接取后应把任务写入 active_quests。");
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
     private void TestSettlementShopServiceRejectsBadEntrySchema()
     {
-        using var shopService = new SettlementShopService();
-        using var registry = new ItemContentRegistry();
-        GDictionary itemDefs = ProjectItemDefs(
-            new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped())
+        var shopService = new SettlementShopService();
+        Dictionary<StringName, ItemDefinition> itemDefs = new(
+            new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped()
         );
         GDictionary settlementRecord = MinimalSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, new GArray());
         PartyState validParty = BuildPartyState(10, 100);
         var validWarehouse = new PartyWarehouseService();
-        try
-        {
-            validWarehouse.Setup(validParty, BuildItemDefIndex(itemDefs));
-            validWarehouse.AddItemTyped("travel_ration", 3);
-            GDictionary validWindowData = shopService.BuildWindowDataTyped(
-                "service_basic_supply",
-                settlementRecord,
-                BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
-                BuildItemDefIndex(itemDefs),
-                validWarehouse,
-                100
-            );
-            _test.Eq(DictArray(validWindowData, "buy_entries").Count, 1, "正式 shop stock entry 应生成可购买条目。");
-            _test.Eq(DictArray(validWindowData, "sell_entries").Count, 1, "正式 sell inventory entry 应生成可出售条目。");
-        }
-        finally
-        {
-            validWarehouse.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(validParty);
-        }
+        validWarehouse.Setup(validParty, itemDefs);
+        validWarehouse.AddItemTyped("travel_ration", 3);
+        GDictionary validWindowData = shopService.BuildWindowDataTyped(
+            "service_basic_supply",
+            settlementRecord,
+            BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
+            itemDefs,
+            validWarehouse,
+            100
+        );
+        _test.Eq(DictArray(validWindowData, "buy_entries").Count, 1, "正式 shop stock entry 应生成可购买条目。");
+        _test.Eq(DictArray(validWindowData, "sell_entries").Count, 1, "正式 sell inventory entry 应生成可出售条目。");
 
         var invalidStockCases = new (string Label, GDictionary Entry)[]
         {
@@ -658,84 +829,74 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         {
             PartyState partyState = BuildPartyState(10, 100);
             var warehouse = new PartyWarehouseService();
-            try
-            {
-                warehouse.Setup(partyState, BuildItemDefIndex(itemDefs));
-                GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
-                GDictionary windowData = shopService.BuildWindowDataTyped(
+            warehouse.Setup(partyState, itemDefs);
+            GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
+            GDictionary windowData = shopService.BuildWindowDataTyped(
+                "service_basic_supply",
+                settlementRecord,
+                settlementState,
+                itemDefs,
+                warehouse,
+                partyState.gold
+            );
+            _test.Eq(DictArray(windowData, "buy_entries").Count, 0, $"{label} 的坏 shop stock 不应生成购买窗口条目。");
+            int goldBefore = partyState.gold;
+            GDictionary buyResult = ProjectShopTradeResult(shopService
+                .BuyTyped(
                     "service_basic_supply",
                     settlementRecord,
                     settlementState,
-                    BuildItemDefIndex(itemDefs),
+                    itemDefs,
                     warehouse,
-                    partyState.gold
-                );
-                _test.Eq(DictArray(windowData, "buy_entries").Count, 0, $"{label} 的坏 shop stock 不应生成购买窗口条目。");
-                int goldBefore = partyState.gold;
-                GDictionary buyResult = ProjectShopTradeResult(shopService
-                    .BuyTyped(
-                        "service_basic_supply",
-                        settlementRecord,
-                        settlementState,
-                        BuildItemDefIndex(itemDefs),
-                        warehouse,
-                        partyState,
-                        "healing_herb",
-                        1,
-                        ""
-                    ));
-                _test.False(DictBool(buyResult, "success", true), $"{label} 的坏 shop stock 不应允许购买交易。");
-                _test.Eq(partyState.gold, goldBefore, $"{label} 的坏 shop stock 不应扣除金币。");
-                _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
-            }
-            finally
-            {
-                warehouse.Dispose();
-                GodotRefCountedDisposer.DisposeIfValid(partyState);
-            }
-        }
-
-        GDictionary noPriceItemDefs = itemDefs.Duplicate();
-        ItemDef noPriceItem = MakeShopItemDef("无价样品", "没有正式回收价。", 10, 0, true);
-        noPriceItem.item_id = "no_price_sample";
-        noPriceItemDefs[new StringName("no_price_sample")] = noPriceItem;
-        PartyState noPriceParty = BuildPartyState(10, 0);
-        var noPriceWarehouse = new PartyWarehouseService();
-        try
-        {
-            noPriceWarehouse.Setup(noPriceParty, BuildItemDefIndex(noPriceItemDefs));
-            noPriceWarehouse.AddItemTyped("no_price_sample", 1);
-            GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
-                "service_basic_supply",
-                settlementRecord,
-                BuildShopState(new GArray()),
-                BuildItemDefIndex(noPriceItemDefs),
-                noPriceWarehouse,
-                100
-            );
-            _test.Eq(DictArray(noPriceWindowData, "sell_entries").Count, 0, "缺少正式 sell_price 的物品不应补默认回收价。");
-            GDictionary noPriceSellResult = ProjectShopTradeResult(shopService
-                .SellTyped(
-                    "service_basic_supply",
-                    settlementRecord,
-                    BuildShopState(new GArray()),
-                    BuildItemDefIndex(noPriceItemDefs),
-                    noPriceWarehouse,
-                    noPriceParty,
-                    "no_price_sample",
+                    partyState,
+                    "healing_herb",
                     1,
                     ""
                 ));
-            _test.False(DictBool(noPriceSellResult, "success", true), "缺少正式 sell_price 的物品不应允许出售交易。");
-            _test.Eq(noPriceParty.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。");
-            _test.Eq(noPriceWarehouse.CountItem("no_price_sample"), 1, "缺少正式 sell_price 的出售失败不应移除仓库物品。");
+            _test.False(DictBool(buyResult, "success", true), $"{label} 的坏 shop stock 不应允许购买交易。");
+            _test.Eq(partyState.gold, goldBefore, $"{label} 的坏 shop stock 不应扣除金币。");
+            _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
         }
-        finally
+
+        Dictionary<StringName, ItemDefinition> noPriceItemDefs = new(itemDefs)
         {
-            noPriceWarehouse.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(noPriceParty);
-            GodotRefCountedDisposer.DisposeIfValid(noPriceItem);
-        }
+            ["no_price_sample"] = MakeShopItemDefinition(
+                "no_price_sample",
+                "无价样品",
+                "没有正式回收价。",
+                10,
+                0,
+                true
+            ),
+        };
+        PartyState noPriceParty = BuildPartyState(10, 0);
+        var noPriceWarehouse = new PartyWarehouseService();
+        noPriceWarehouse.Setup(noPriceParty, noPriceItemDefs);
+        noPriceWarehouse.AddItemTyped("no_price_sample", 1);
+        GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
+            "service_basic_supply",
+            settlementRecord,
+            BuildShopState(new GArray()),
+            noPriceItemDefs,
+            noPriceWarehouse,
+            100
+        );
+        _test.Eq(DictArray(noPriceWindowData, "sell_entries").Count, 0, "缺少正式 sell_price 的物品不应补默认回收价。");
+        GDictionary noPriceSellResult = ProjectShopTradeResult(shopService
+            .SellTyped(
+                "service_basic_supply",
+                settlementRecord,
+                BuildShopState(new GArray()),
+                noPriceItemDefs,
+                noPriceWarehouse,
+                noPriceParty,
+                "no_price_sample",
+                1,
+                ""
+            ));
+        _test.False(DictBool(noPriceSellResult, "success", true), "缺少正式 sell_price 的物品不应允许出售交易。");
+        _test.Eq(noPriceParty.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。");
+        _test.Eq(noPriceWarehouse.CountItem("no_price_sample"), 1, "缺少正式 sell_price 的出售失败不应移除仓库物品。");
     }
 
     private async Task TestSettlementHandlerRejectsStringNameSubmissionFields()
@@ -815,20 +976,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
     }
 
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
-    }
-
     private static GDictionary ProjectShopTradeResult(SettlementShopTradeResult result)
     {
         var payload = new GDictionary
@@ -848,31 +995,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         return payload;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
-    }
-
     private async Task TestSettlementHandlerRejectsInvalidOrSpoofedActions()
     {
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "invalid",
             BuildPartyState(12, 100),
             new[] { BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildShopAndStagecoachServices()) },
-            new GDictionary()
+            new Dictionary<StringName, QuestDefinition>()
         );
         try
         {
@@ -939,10 +1068,13 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 ["npc_name"] = "伪造导师",
                 ["service_type"] = "研究",
             });
-            GDictionary signalShopWindowData = handler.GetShopWindowData();
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
-            _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
-            _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
+            using (GodotProjectionLease<GDictionary> signalShopWindowLease = handler.GetShopWindowDataLease())
+            {
+                GDictionary signalShopWindowData = signalShopWindowLease.Value;
+                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "UI 信号入口收到伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
+                _test.Eq(DictString(signalShopWindowData, "interaction_script_id", ""), "service_basic_supply", "UI 信号入口应使用真实服务 interaction_script_id。");
+                _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
+            }
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
 
             GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
@@ -958,7 +1090,10 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 );
             _test.True(spoofedShopResult.Ok, "合法 action_id 仍应按真实服务入口执行。");
             _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Shop, "伪造 interaction_script_id 时仍应按真实商店入口打开 shop modal。");
-            _test.True(handler.GetShopWindowData().Count > 0, "按真实商店入口执行后应能读取 shop window data。");
+            using (GodotProjectionLease<GDictionary> spoofedShopWindowLease = handler.GetShopWindowDataLease())
+            {
+                _test.True(spoofedShopWindowLease.Value.Count > 0, "按真实商店入口执行后应能读取 shop window data。");
+            }
         }
         finally
         {
@@ -977,7 +1112,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             {
                 GDictionary foundResearchService = new();
                 bool foundLegacyUnlockArchive = false;
-                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.GetWorldData(), "settlements")))
+                using GodotProjectionLease<GDictionary> worldDataLease =
+                    gameSession.GetWorldDataLease();
+                foreach (GDictionary settlement in Dictionaries(DictArray(worldDataLease.Value, "settlements")))
                 {
                     foreach (GDictionary serviceData in Dictionaries(DictArray(settlement, "available_services")))
                     {
@@ -1007,12 +1144,22 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         string suffix,
         PartyState partyState,
         IReadOnlyList<GDictionary> settlements,
-        GDictionary questDefs)
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs)
     {
-        GameSession gameSession = await InstallGameSession($"SettlementHandlerGameSession_{suffix}");
+        IReadOnlyDictionary<StringName, QuestDefinition> contentQuestDefs =
+            questDefs ?? new Dictionary<StringName, QuestDefinition>();
+        GameSession gameSession = await InstallGameSession(
+            $"SettlementHandlerGameSession_{suffix}",
+            contentQuestDefs
+        );
         GDictionary worldData = BuildWorldData(settlements);
-        ConfigureSessionForRuntimeTest(gameSession, $"settlement_handler_{suffix}", worldData, partyState, questDefs ?? new GDictionary());
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        ConfigureSessionForRuntimeTest(
+            gameSession,
+            $"settlement_handler_{suffix}",
+            worldData,
+            partyState
+        );
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {
@@ -1027,7 +1174,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -1036,7 +1183,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         MakeVisible(runtime, Vector2I.Zero);
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -1048,7 +1195,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         runtime._party_item_use_service.Setup(
             partyState,
             itemDefs,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -1061,21 +1208,29 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         return new RuntimeFixture(runtime, gameSession, runtime._settlement_command_handler, runtime._party_warehouse_service);
     }
 
-    private static void ConfigureSessionForRuntimeTest(GameSession gameSession, string saveId, GDictionary worldData, PartyState partyState, GDictionary questDefs)
+    private static void ConfigureSessionForRuntimeTest(
+        GameSession gameSession,
+        string saveId,
+        GDictionary worldData,
+        PartyState partyState
+    )
     {
         gameSession.ConfigureRuntimeWorldForTests(
             saveId,
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new GDictionary(),
             "settlement_handler_test",
             "Settlement Handler Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -1085,7 +1240,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = questDefs == null
+            ? GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName)
+            : GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+                seed => seed.Quests = questDefs
+            );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
@@ -1093,6 +1253,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
+        fixture.GameSession?.DiscardPendingSave();
         fixture.Runtime?.Dispose();
         await DisposeGameSession(fixture.GameSession, "清理 settlement handler 验证存档应成功。");
     }
@@ -1105,7 +1266,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         }
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, clearMessage);
-        gameSession.Dispose();
+        gameSession.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
@@ -1126,6 +1287,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             ["settlements"] = settlementArray,
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,
@@ -1216,87 +1378,98 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         };
     }
 
-    private static GDictionary BuildQuestDefs()
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildQuestDefs()
     {
-        var questDefs = new GDictionary();
-        AddQuestDef(questDefs, BuildQuestDef("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(80) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new GArray { BuildGoldReward(30) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(15) }, true));
-        AddQuestDef(questDefs, BuildQuestDef("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new GArray { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new GArray { BuildGoldReward(120) }));
-        AddQuest(questDefs, "contract_missing_display_name", new GDictionary { ["quest_id"] = "contract_missing_display_name", ["description"] = "缺少 display_name 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_description", new GDictionary { ["quest_id"] = "contract_missing_description", ["display_name"] = "缺说明契约", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_objectives", new GDictionary { ["quest_id"] = "contract_missing_objectives", ["display_name"] = "缺目标契约", ["description"] = "缺少 objective_defs 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["reward_entries"] = new GArray { BuildGoldReward(1) } });
-        AddQuest(questDefs, "contract_missing_objective_target", BuildQuest("contract_missing_objective_target", "缺目标对象契约", "据点事务目标缺少 target_id 时不应回退成未命名。", "service_contract_board", new GArray { BuildObjective("bad_missing_target", "settlement_action", "", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuest(questDefs, "contract_unknown_objective_type", BuildQuest("contract_unknown_objective_type", "未知目标契约", "未知 objective_type 不应直接显示 objective_id。", "service_contract_board", new GArray { BuildObjective("bad_unknown_objective", "legacy_custom", "legacy_target", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuest(questDefs, "contract_missing_rewards", new GDictionary { ["quest_id"] = "contract_missing_rewards", ["display_name"] = "缺奖励契约", ["description"] = "缺少 reward_entries 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_rewards", "defeat_enemy", "", 1) } });
-        AddQuest(questDefs, "contract_invalid_reward_amount", BuildQuest("contract_invalid_reward_amount", "坏奖励契约", "非法奖励数值不应回退成奖励待定。", "service_contract_board", new GArray { BuildObjective("bad_reward_amount", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(0) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_typed_missing_objective_target", "typed 缺目标对象契约", "typed 据点事务目标缺少 target_id 时不应显示。", "service_contract_board", new GArray { BuildObjective("typed_bad_missing_target", "settlement_action", "", 1) }, new GArray { BuildGoldReward(1) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_typed_invalid_reward_amount", "typed 坏奖励契约", "typed 非法奖励数值不应回退成奖励待定。", "service_contract_board", new GArray { BuildObjective("typed_bad_reward_amount", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(0) }));
-        questDefs["contract_string_key_only"] = BuildQuest("contract_string_key_only", "旧 String key 契约", "用于验证任务板不再按 String key 恢复契约。", "service_contract_board", new GArray { BuildObjective("string_key_objective", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) });
-        AddQuestDef(questDefs, BuildQuestDef("contract_supply_drop", "物资缴纳", "向任务板提交两份铁矿石。", "service_contract_board", new GArray { BuildObjective("deliver_ore", "submit_item", "iron_ore", 2) }, new GArray { BuildGoldReward(18) }));
-        AddQuestDef(questDefs, BuildQuestDef("contract_training", "训练追踪", "据点训练进度测试。", "service_training_hidden", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 1) }, new GArray { BuildGoldReward(1) }));
-        return questDefs;
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(80) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new QuestRewardDefinition[] { BuildGoldReward(30) }, false, "", "已接取任务《训练记录》。"));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(15) }, true));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new QuestObjectiveDefinition[] { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new QuestRewardDefinition[] { BuildGoldReward(120) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_display_name", "", "缺少 display_name 的坏契约不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_description", "缺说明契约", "", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_objectives", "缺目标契约", "缺少 objective_defs 的坏契约不应显示。", "service_contract_board", System.Array.Empty<QuestObjectiveDefinition>(), new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_objective_target", "缺目标对象契约", "据点事务目标缺少 target_id 时不应回退成未命名。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_target", "settlement_action", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_unknown_objective_type", "未知目标契约", "未知 objective_type 不应直接显示 objective_id。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_unknown_objective", "legacy_custom", "legacy_target", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_rewards", "缺奖励契约", "缺少 reward_entries 的坏契约不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_rewards", "defeat_enemy", "", 1) }, System.Array.Empty<QuestRewardDefinition>()));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_invalid_reward_amount", "坏奖励契约", "非法奖励数值不应回退成奖励待定。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_reward_amount", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(0) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_typed_missing_objective_target", "typed 缺目标对象契约", "typed 据点事务目标缺少 target_id 时不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("typed_bad_missing_target", "settlement_action", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_typed_invalid_reward_amount", "typed 坏奖励契约", "typed 非法奖励数值不应回退成奖励待定。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("typed_bad_reward_amount", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(0) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_supply_drop", "物资缴纳", "向任务板提交两份铁矿石。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("deliver_ore", "submit_item", "iron_ore", 2) }, new QuestRewardDefinition[] { BuildGoldReward(18) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_training", "训练追踪", "据点训练进度测试。", "service_training_hidden", new QuestObjectiveDefinition[] { BuildObjective("train_once", "settlement_action", "service:training", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
+        return questDefinitions;
     }
 
-    private static void AddQuest(GDictionary questDefs, string questId, GDictionary questData)
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildEvaluatorQuestDefs()
     {
-        questDefs[new StringName(questId)] = questData;
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_prerequisite_hunt", "前置狩猎", "完成前置狩猎任务。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(10) }));
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
+                "contract_locked_hunt",
+                "锁定狩猎",
+                "需要前置任务完成后才能接取。",
+                "service_contract_board",
+                new QuestObjectiveDefinition[] { BuildObjective("defeat_enemy_locked", "defeat_enemy", "", 1) },
+                new QuestRewardDefinition[] { BuildGoldReward(20) },
+                acceptFeedbackFailure: "当前无法接取该前置契约。",
+                acceptRequirements: new QuestAcceptRequirementDefinition[]
+                {
+                    new("quest_completed", "contract_prerequisite_hunt"),
+                }
+            )
+        );
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_dialogue_quest", "对话契约", "展示接取对话文案。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("dialogue_objective", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(5) }, false, "这是接取对话文案。"));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_confirmation_quest", "确认契约", "需要确认才能接取。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("confirmation_objective", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(7) }, false, "", "已确认接取确认契约。", "", "确认要接取这个契约吗？"));
+        return questDefinitions;
     }
 
-    private static void AddQuestDef(GDictionary questDefs, QuestDef questDef)
+    private static void AddQuestDefinition(
+        Dictionary<StringName, QuestDefinition> questDefinitions,
+        QuestDefinition questDefinition
+    )
     {
-        questDefs[questDef.quest_id] = questDef;
+        questDefinitions[questDefinition.QuestId] = questDefinition;
     }
 
-    private static GDictionary BuildQuest(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false)
+    private static QuestDefinition BuildQuestDefinition(string questId, string displayName, string description, string providerInteractionId, IReadOnlyList<QuestObjectiveDefinition> objectives, IReadOnlyList<QuestRewardDefinition> rewards, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "", IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null)
     {
-        var quest = new GDictionary
+        StringName providerKind = providerInteractionId;
+        IReadOnlyList<StringName> listingChannels = System.Array.Empty<StringName>();
+        if (providerInteractionId == "service_contract_board")
         {
-            ["quest_id"] = questId,
-            ["display_name"] = displayName,
-            ["description"] = description,
-            ["provider_interaction_id"] = providerInteractionId,
-            ["objective_defs"] = objectiveDefs,
-            ["reward_entries"] = rewardEntries,
-        };
-        if (isRepeatable)
-        {
-            quest["is_repeatable"] = true;
+            listingChannels = new StringName[] { "contract_board" };
         }
-        return quest;
-    }
-
-    private static QuestDef BuildQuestDef(string questId, string displayName, string description, string providerInteractionId, GArray objectiveDefs, GArray rewardEntries, bool isRepeatable = false)
-    {
-        var quest = new QuestDef
+        else if (providerInteractionId == "service_bounty_registry")
         {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_interaction_id = providerInteractionId,
-            is_repeatable = isRepeatable,
-        };
-        foreach (GDictionary objective in Dictionaries(objectiveDefs))
-        {
-            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
+            listingChannels = new StringName[] { "bounty_registry" };
         }
-        foreach (GDictionary reward in Dictionaries(rewardEntries))
-        {
-            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
-        }
-        return quest;
+
+        return new QuestDefinition(
+            questId,
+            displayName,
+            description,
+            providerInteractionId,
+            System.Array.Empty<StringName>(),
+            acceptRequirements ?? System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            objectives,
+            rewards,
+            isRepeatable,
+            providerKind,
+            listingChannels,
+            acceptDialogueText,
+            acceptFeedbackSuccess,
+            acceptFeedbackFailure,
+            acceptConfirmationText
+        );
     }
 
-    private static GDictionary BuildObjective(string objectiveId, string objectiveType, string targetId, int targetValue)
-    {
-        return new GDictionary { ["objective_id"] = objectiveId, ["objective_type"] = objectiveType, ["target_id"] = targetId, ["target_value"] = targetValue };
-    }
+    private static QuestObjectiveDefinition BuildObjective(string objectiveId, string objectiveType, string targetId, int targetValue) =>
+        new(objectiveId, objectiveType, targetId, targetValue);
 
-    private static GDictionary BuildGoldReward(int amount)
-    {
-        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
-    }
+    private static QuestRewardDefinition BuildGoldReward(int amount) =>
+        new("gold", amount, "", 0, "", System.Array.Empty<QuestPendingRewardEntryDefinition>());
 
     private static GDictionary BuildTrainingRewardPayload()
     {
@@ -1319,7 +1492,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = gold,
         };
         var hero = new PartyMemberState
@@ -1367,17 +1540,42 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         };
     }
 
-    private static ItemDef MakeShopItemDef(string displayName, string description, int buyPrice, int sellPrice, bool sellable)
+    private static ItemDefinition MakeShopItemDefinition(
+        StringName itemId,
+        string displayName,
+        string description,
+        int buyPrice,
+        int sellPrice,
+        bool sellable
+    )
     {
-        return new ItemDef
-        {
-            display_name = displayName,
-            description = description,
-            icon = "",
-            buy_price = buyPrice,
-            sell_price = sellPrice,
-            sellable = sellable,
-        };
+        return new ItemDefinition(
+            itemId,
+            "",
+            displayName,
+            description,
+            "",
+            false,
+            0,
+            buyPrice,
+            sellPrice,
+            sellable,
+            1,
+            ItemDefinition.ToStringName(ItemCategoryKind.Misc),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<TraitRollGroupDefinition>(),
+            System.Array.Empty<string>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            System.Array.Empty<string>(),
+            null,
+            "",
+            null,
+            -1
+        );
     }
 
     private static void MakeVisible(GameRuntimeFacade runtime, Vector2I center)

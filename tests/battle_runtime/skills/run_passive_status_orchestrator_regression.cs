@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_passive_status_orchestrator_regression : SceneTree
+public partial class run_passive_status_orchestrator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -16,21 +14,13 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestPassiveContextAndResolversNoLongerRequireGodotRegistration();
-            TestFactoryProjectsIdentityPassivesFromCharacterGateway();
-            TestOrchestratorProjectsRaceAndSubracePassives();
-            TestOrchestratorSuppressesOriginalRacePassivesForAscension();
-            TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestPassiveContextAndResolversNoLongerRequireGodotRegistration();
+        TestFactoryProjectsIdentityPassivesFromCharacterGateway();
+        TestOrchestratorProjectsRaceAndSubracePassives();
+        TestOrchestratorSuppressesOriginalRacePassivesForAscension();
+        TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus();
 
-        Quit(_test.Finish("Passive status orchestrator regression"));
+        RequestTestExit(_test.Finish("Passive status orchestrator regression"));
     }
 
     private void TestPassiveContextAndResolversNoLongerRequireGodotRegistration()
@@ -44,28 +34,27 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
     private void TestFactoryProjectsIdentityPassivesFromCharacterGateway()
     {
-        ProgressionContentRegistry registry = TrackOwned(new ProgressionContentRegistry());
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         PartyState partyState = MakePartyState(new[] { new StringName("hero") });
-        CharacterManagementModule gateway = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule gateway = new();
         gateway.setup(
             partyState,
-            registry.GetSkillDefsTyped(),
+            registry.GetSkillDefinitionsTyped(),
             registry.GetProfessionDefsTyped(),
-            new Dictionary<StringName, AchievementDef>(),
-            new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            registry.GetTraitDefsTyped(),
             null,
             registry.GetIdentityCatalogTyped()
         );
 
-        BattleRuntimeModule runtime = TrackDisposable(new BattleRuntimeModule());
-        runtime.setup(gateway, registry.GetSkillDefsTyped(), null, null);
+        BattleRuntimeModule runtime = new();
+        runtime.setup(gateway, registry.GetSkillDefinitionsTyped(), null, null);
         var units = runtime._unit_factory.BuildAllyUnits(
             partyState,
             new GDictionary()
         );
-        foreach (BattleUnitState builtUnit in units)
-            TrackOwned(builtUnit);
 
         _test.Eq(units.Count, 1, "factory should build one ally for passive projection.");
         if (units.Count == 0)
@@ -73,17 +62,20 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         var unit = units[0];
         _test.True(
             unit.vision_tags.Contains("normal_vision"),
-            "vision tags should include normal_vision from RaceDef."
+            "vision tags should include normal_vision from the race definition."
         );
         _test.True(
             unit.proficiency_tags.Contains("civilian"),
-            "proficiency tags should include civilian from RaceDef."
+            "proficiency tags should include civilian from the race definition."
         );
         _test.True(
             unit.proficiency_tags.Contains("weapon_type_spear"),
             "civil_militia should project spear proficiency tag."
         );
 
+        runtime.dispose();
+        gateway.Dispose();
+        registry.Dispose();
     }
 
     private void TestOrchestratorProjectsRaceAndSubracePassives()
@@ -95,7 +87,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             subrace_def = MakeSubraceDef(),
         };
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
         _test.True(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
         _test.True(
@@ -129,7 +125,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             ascension_def = MakeAscensionDef(true),
         };
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
         _test.False(
             unit.per_battle_charges.ContainsKey("racial_skill_dragon_breath_test"),
@@ -148,11 +148,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
     private void TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus()
     {
-        ProgressionContentRegistry registry = new();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleUnitState unit = MakeBattleUnit("shooting_specialization_unit");
         PassiveSourceContext context = new()
         {
-            unit_progress = TrackOwned(new UnitProgress()),
+            unit_progress = new UnitProgress(),
         };
         UnitSkillProgress skillProgress = new()
         {
@@ -174,7 +174,11 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         };
         context.unit_progress.SetProfessionProgress(professionProgress);
 
-        PassiveStatusOrchestrator.ApplyToUnit(unit, context, registry.GetSkillDefsTyped());
+        PassiveStatusOrchestrator.ApplyToUnit(
+            unit,
+            context,
+            registry.GetSkillDefinitionsTyped()
+        );
 
         BattleStatusEffectState status = unit.GetStatusEffect("archer_shooting_specialization");
         _test.True(status != null, "shooting specialization should project a battle status.");
@@ -197,7 +201,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             );
         }
 
-        SkillDef weaponSkill = MakeWeaponRangeSkill();
+        SkillDefinition weaponSkill = MakeWeaponRangeSkill();
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
             {
@@ -251,100 +255,111 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         registry.Dispose();
     }
 
-    private BattleUnitState MakeBattleUnit(StringName unitId)
+    private static BattleUnitState MakeBattleUnit(StringName unitId)
     {
-        return TrackOwned(new BattleUnitState
+        return new BattleUnitState
         {
             unit_id = unitId,
             source_member_id = unitId,
             faction_id = "player",
             control_mode = "manual",
-        });
-    }
-
-    private SkillDef MakeWeaponRangeSkill()
-    {
-        SkillDef skill = TrackOwned(new SkillDef
-        {
-            skill_id = "test_weapon_range_skill",
-            skill_type = "active",
-            tags = new Godot.Collections.Array<StringName> { "archer", "ranged", "bow" },
-        });
-        CombatSkillDef combatProfile = new()
-        {
-            skill_id = skill.skill_id,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            target_selection_mode = "single_unit",
-            selection_order_mode = "stable",
-            range_value = 1,
         };
-        skill.combat_profile = combatProfile;
-        return skill;
     }
 
-    private RaceDef MakeRaceDef()
+    private static SkillDefinition MakeWeaponRangeSkill()
     {
-        RaceDef race = TrackOwned(new RaceDef
-        {
-            race_id = "test_race",
-            display_name = "Test Race",
-            damage_resistances = new GDictionary
+        return TestSkillDefinitionProjection.BuildSkill(
+            "test_weapon_range_skill",
+            tags: new[]
             {
-                [new StringName("fire")] = new StringName("half"),
+                new StringName("archer"),
+                new StringName("ranged"),
+                new StringName("bow"),
             },
-        });
-        race.trait_ids.Add("test_race_trait");
-        race.vision_tags.Add("darkvision");
-        race.racial_granted_skills.Add(MakeRacialGrant("dragon_breath_test", "per_battle", 2));
-        return race;
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_weapon_range_skill",
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: "single_unit",
+                rangeValue: 1
+            )
+        );
     }
 
-    private SubraceDef MakeSubraceDef()
+    private static RaceDefinition MakeRaceDef()
     {
-        SubraceDef subrace = TrackOwned(new SubraceDef
-        {
-            subrace_id = "test_subrace",
-            parent_race_id = "test_race",
-            display_name = "Test Subrace",
-        });
-        subrace.trait_ids.Add("test_subrace_trait");
-        subrace.save_advantage_tags.Add("poison");
-        subrace.racial_granted_skills.Add(MakeRacialGrant("nimble_escape_test", "per_turn", 1));
-        return subrace;
+        return new RaceDefinition(
+            "test_race",
+            "Test Race",
+            "",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            "medium",
+            6,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            [new StringName("test_race_trait")],
+            [MakeRacialGrant("dragon_breath_test", "per_battle", 2)],
+            System.Array.Empty<StringName>(),
+            [new StringName("darkvision")],
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName> { ["fire"] = "half" },
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
     }
 
-    private AscensionDef MakeAscensionDef(bool suppressesOriginalRaceTraits)
+    private static SubraceDefinition MakeSubraceDef()
     {
-        AscensionDef ascension = TrackOwned(new AscensionDef
-        {
-            ascension_id = "test_ascension",
-            display_name = "Test Ascension",
-            suppresses_original_race_traits = suppressesOriginalRaceTraits,
-        });
-        ascension.trait_ids.Add("ascended_trait");
-        ascension.racial_granted_skills.Add(MakeRacialGrant("ascension_ray_test", "per_battle", 3));
-        return ascension;
+        return new SubraceDefinition(
+            "test_subrace",
+            "test_race",
+            "Test Subrace",
+            "",
+            "",
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            [new StringName("test_subrace_trait")],
+            [MakeRacialGrant("nimble_escape_test", "per_turn", 1)],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            [new StringName("poison")],
+            new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
     }
 
-    private RacialGrantedSkill MakeRacialGrant(
+    private static AscensionDefinition MakeAscensionDef(bool suppressesOriginalRaceTraits)
+    {
+        return new AscensionDefinition(
+            "test_ascension",
+            "Test Ascension",
+            "",
+            System.Array.Empty<StringName>(),
+            [new StringName("ascended_trait")],
+            [MakeRacialGrant("ascension_ray_test", "per_battle", 3)],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>(),
+            false,
+            suppressesOriginalRaceTraits
+        );
+    }
+
+    private static RacialGrantedSkillDefinition MakeRacialGrant(
         StringName skillId,
         StringName chargeKind,
         int charges
     )
     {
-        return TrackOwned(new RacialGrantedSkill
-        {
-            skill_id = skillId,
-            minimum_skill_level = 1,
-            charge_kind = chargeKind,
-            charges = charges,
-        });
+        return new RacialGrantedSkillDefinition(skillId, 1, chargeKind, charges);
     }
 
-    private PartyState MakePartyState(IEnumerable<StringName> memberIds)
+    private static PartyState MakePartyState(IEnumerable<StringName> memberIds)
     {
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         foreach (StringName memberId in memberIds)
         {
             PartyMemberState memberState = new()
@@ -383,54 +398,6 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
     private void AssertPlainType(Type type, string typeName)
     {
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            case UnitProgress progress:
-                GodotRefCountedDisposer.DisposeIfValid(progress);
-                return;
-            case ProgressionContentRegistry registry:
-                GodotRefCountedDisposer.DisposeIfValid(registry);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 
 }

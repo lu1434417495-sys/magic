@@ -30,7 +30,6 @@ public sealed class MeteorSwarmHostileTerrainConsequence
 
     internal static MeteorSwarmHostileTerrainConsequence FromDictionary(GDictionary source)
     {
-        source ??= new GDictionary();
         return new MeteorSwarmHostileTerrainConsequence
         {
             MoveCostDelta = ReadInt(source, "move_cost_delta"),
@@ -207,7 +206,6 @@ public sealed class MeteorSwarmNumericSummary
 
     internal static MeteorSwarmNumericSummary FromDictionary(GDictionary source)
     {
-        source ??= new GDictionary();
         List<MeteorSwarmComponentBreakdownEntry> componentBreakdown = ReadComponents(
             ReadDictArray(source, "component_breakdown")
         );

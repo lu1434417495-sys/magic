@@ -20,7 +20,7 @@ public sealed class CharacterCreationService
         INITIAL_HP_BASE = 14,
         MAXIMUM_REROLL_TIER_MINIMUM = 10_000_000;
     internal static readonly StringName DefaultSourceId = "birth_roll";
-    private static readonly Godot.Collections.Array<string> IDENTITY_BODY_SIZE_SOURCE_FIELDS = new()
+    private static readonly string[] IDENTITY_BODY_SIZE_SOURCE_FIELDS =
     {
         "race_id",
         "subrace_id",

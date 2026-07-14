@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -6,13 +5,12 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // M2 time_stasis 技能链回归：elite/boss 降级、temporal release / dispel 余波、
 // 静滞目标过滤、读条冻结与 temporal-only 内容校验。
-public partial class run_time_stasis_regression : SceneTree
+public partial class run_time_stasis_regression : LifecycleTestSceneTree
 {
     private static readonly StringName TemporalTag =
         BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
 
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -21,36 +19,28 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestStasisApplicationDowngradesForEliteBoss();
-            TestReverberationSaveBonusGuardsAgainstChainStasis();
-            TestTemporalReleaseRemovesStasisAndAddsReverberation();
-            TestDispelRemovesStasisWithReverberationAndCleanseDoesNot();
-            TestStasisTargetGateBlocksNonReleaseSkills();
-            TestPendingCastFreezesUnderStasisAndResumes();
-            TestTimeSlowHalvesPendingCastProgress();
-            TestTemporalContentValidationRules();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestStasisApplicationDowngradesForEliteBoss();
+        TestReverberationSaveBonusGuardsAgainstChainStasis();
+        TestTemporalReleaseRemovesStasisAndAddsReverberation();
+        TestDispelRemovesStasisWithReverberationAndCleanseDoesNot();
+        TestStasisTargetGateBlocksNonReleaseSkills();
+        TestPendingCastFreezesUnderStasisAndResumes();
+        TestTimeSlowHalvesPendingCastProgress();
+        TestTemporalContentValidationRules();
 
-        Quit(_test.Finish("Time stasis regression"));
+        RequestTestExit(_test.Finish("Time stasis regression"));
     }
 
     private void TestStasisApplicationDowngradesForEliteBoss()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("stasis_source", "player");
         BattleUnitState normalTarget = MakeUnit("normal_target", "enemy");
         resolver.ResolveEffects(
             source,
             normalTarget,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 5 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 5 })
         );
         _test.True(
             normalTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -62,8 +52,8 @@ public partial class run_time_stasis_regression : SceneTree
         resolver.ResolveEffects(
             source,
             bossTarget,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 5 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 5 })
         );
         _test.False(
             bossTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -79,8 +69,8 @@ public partial class run_time_stasis_regression : SceneTree
         resolver.ResolveEffects(
             source,
             eliteTarget,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 5 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 5 })
         );
         _test.False(
             eliteTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -96,8 +86,8 @@ public partial class run_time_stasis_regression : SceneTree
         resolver.ResolveEffects(
             source,
             criticalSaveTarget,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 20 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 20 })
         );
         _test.False(
             criticalSaveTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_SLOW)
@@ -110,7 +100,7 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestReverberationSaveBonusGuardsAgainstChainStasis()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("chain_source", "player");
         BattleUnitState target = MakeUnit("chain_target", "enemy");
         BattleTemporalStatusService.ApplyTimeReverberation(target, source.unit_id);
@@ -119,8 +109,8 @@ public partial class run_time_stasis_regression : SceneTree
         resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 9 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 9 })
         );
         _test.False(
             target.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -131,8 +121,8 @@ public partial class run_time_stasis_regression : SceneTree
         resolver.ResolveEffects(
             source,
             bareTarget,
-            new GArray { MakeStasisEffect() },
-            new GDictionary { ["save_roll_override"] = 9 }
+            new[] { MakeStasisRuntimeEffect() },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 9 })
         );
         _test.True(
             bareTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -142,16 +132,18 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestTemporalReleaseRemovesStasisAndAddsReverberation()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("release_source", "player");
         BattleUnitState target = MakeUnit("release_target", "player");
         ApplyTimeStasis(target, 60);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { MakeTemporalReleaseEffect() }
+            new[] { MakeTemporalReleaseRuntimeEffect() }
         ));
+        GDictionary result = resultLease.Value;
 
         _test.False(
             target.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
@@ -164,11 +156,13 @@ public partial class run_time_stasis_regression : SceneTree
         _test.True(DictBool(result, "applied"), "temporal release 应记为 applied。");
 
         BattleUnitState cleanTarget = MakeUnit("clean_target", "player");
-        GDictionary noopResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> noopResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             cleanTarget,
-            new GArray { MakeTemporalReleaseEffect() }
+            new[] { MakeTemporalReleaseRuntimeEffect() }
         ));
+        GDictionary noopResult = noopResultLease.Value;
         _test.False(
             DictBool(noopResult, "applied", true),
             "无 temporal 状态时 temporal release 不应记为 applied。"
@@ -181,18 +175,17 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestDispelRemovesStasisWithReverberationAndCleanseDoesNot()
     {
-        using var resolver = new BattleDamageResolver();
+        var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("dispel_source", "player");
         BattleUnitState dispelTarget = MakeUnit("dispel_target", "player");
         ApplyTimeStasis(dispelTarget, 60);
 
-        CombatEffectDef dispelEffect = TrackOwned(new CombatEffectDef
-        {
-            effect_type = "dispel_magic",
-            power = 3,
-            remove_harmful = true,
-        });
-        resolver.ResolveEffects(source, dispelTarget, new GArray { dispelEffect });
+        CombatEffectDefinition dispelEffect = TestSkillDefinitionProjection.BuildEffect(
+            "dispel_magic",
+            power: 3,
+            removeHarmful: true
+        );
+        resolver.ResolveEffects(source, dispelTarget, new[] { dispelEffect });
         _test.False(
             dispelTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
             "dispel_magic 应能解除 time_stasis。"
@@ -204,12 +197,11 @@ public partial class run_time_stasis_regression : SceneTree
 
         BattleUnitState cleanseTarget = MakeUnit("cleanse_target", "player");
         ApplyTimeStasis(cleanseTarget, 60);
-        CombatEffectDef cleanseEffect = TrackOwned(new CombatEffectDef
-        {
-            effect_type = "cleanse_harmful",
-            power = 3,
-        });
-        resolver.ResolveEffects(source, cleanseTarget, new GArray { cleanseEffect });
+        CombatEffectDefinition cleanseEffect = TestSkillDefinitionProjection.BuildEffect(
+            "cleanse_harmful",
+            power: 3
+        );
+        resolver.ResolveEffects(source, cleanseTarget, new[] { cleanseEffect });
         _test.True(
             cleanseTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
             "普通 cleanse_harmful 不应解除 time_stasis。"
@@ -222,51 +214,63 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestStasisTargetGateBlocksNonReleaseSkills()
     {
-        using Fixture fixture = BuildFixture();
+        Fixture fixture = BuildFixture();
         BattleUnitState attacker = fixture.AddUnit("gate_attacker", "player", new Vector2I(1, 1));
         BattleUnitState stasisTarget = fixture.AddUnit("gate_target", "enemy", new Vector2I(1, 2));
         ApplyTimeStasis(stasisTarget, 60);
 
-        SkillDef damageSkill = MakeSkillDef(
+        SkillDefinition damageSkillDefinition = MakeSkillDefinition(
             "gate_damage_skill",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "fire",
-                power = 5,
-            })
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                damageTag: "fire",
+                power: 5
+            )
         );
         string blockedMessage = fixture.Runtime._get_unit_skill_target_validation_message(
             attacker,
             stasisTarget,
-            damageSkill
+            damageSkillDefinition
         );
         _test.True(
             !string.IsNullOrEmpty(blockedMessage),
             "非 temporal release 技能不应能以静滞单位为目标。"
         );
 
-        SkillDef releaseSkill = MakeSkillDef("gate_release_skill", MakeTemporalReleaseEffect());
+        SkillDefinition releaseSkillDefinition = MakeSkillDefinition(
+            "gate_release_skill",
+            TestSkillDefinitionProjection.BuildEffect(
+                "erase_status",
+                statusId: BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                effectTags: new[] { TemporalTag }
+            )
+        );
         string allowedMessage = fixture.Runtime._get_unit_skill_target_validation_message(
             attacker,
             stasisTarget,
-            releaseSkill
+            releaseSkillDefinition
         );
         _test.Eq(allowedMessage, "", "temporal release 技能应能以静滞单位为目标。");
 
         _test.False(
-            BattleTemporalStatusService.CanTargetTimeStasis(stasisTarget, damageSkill),
+            BattleTemporalStatusService.CanTargetTimeStasis(
+                stasisTarget,
+                damageSkillDefinition
+            ),
             "CanTargetTimeStasis 应拒绝普通技能。"
         );
         _test.True(
-            BattleTemporalStatusService.CanTargetTimeStasis(stasisTarget, releaseSkill),
+            BattleTemporalStatusService.CanTargetTimeStasis(
+                stasisTarget,
+                releaseSkillDefinition
+            ),
             "CanTargetTimeStasis 应放行 temporal release 技能。"
         );
     }
 
     private void TestPendingCastFreezesUnderStasisAndResumes()
     {
-        using Fixture fixture = BuildFixture();
+        Fixture fixture = BuildFixture();
         BattleUnitState caster = fixture.AddUnit("frozen_caster", "player", new Vector2I(1, 1));
         BeginPendingCast(fixture, caster, remainingCastProgress: 500);
         ApplyTimeStasis(caster, 10);
@@ -296,7 +300,7 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestTimeSlowHalvesPendingCastProgress()
     {
-        using Fixture fixture = BuildFixture();
+        Fixture fixture = BuildFixture();
         BattleUnitState slowCaster = fixture.AddUnit("slow_caster", "player", new Vector2I(1, 1));
         BeginPendingCast(fixture, slowCaster, remainingCastProgress: 1000);
         slowCaster.SetStatusEffect(
@@ -327,19 +331,22 @@ public partial class run_time_stasis_regression : SceneTree
 
     private void TestTemporalContentValidationRules()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
 
         // 1) 施加 time_stasis 必须带 temporal tag / temporal save_tag / save。
         var missingErrors = new Godot.Collections.Array<string>();
         registry.AppendEffectValidationErrors(
             missingErrors,
             "stasis_missing_meta",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
-                duration_tu = 15,
-            }),
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "status",
+                    status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                    duration_tu = 15,
+                },
+                "TimeStasis.stasis-missing-meta"
+            ),
             "test_effect"
         );
         _test.True(
@@ -361,23 +368,26 @@ public partial class run_time_stasis_regression : SceneTree
         registry.AppendEffectValidationErrors(
             bonusErrors,
             "bad_save_bonus_by_tag",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = "attack_up",
-                duration_tu = 30,
-                @params = new GDictionary
+            TestResourceOwnership.Own(
+                new CombatEffectDef
                 {
-                    // string key "temporal" 与 StringName TemporalTag 在 Godot Dictionary 中
-                    // 是同一个 key，非 int 值用例必须用独立的合法 tag key。
-                    [new StringName("save_bonus_by_tag")] = new GDictionary
+                    effect_type = "status",
+                    status_id = "attack_up",
+                    duration_tu = 30,
+                    @params = new GDictionary
                     {
-                        ["temporal"] = 5,
-                        [new StringName("not_a_save_tag")] = 5,
-                        [BattleSaveContentRules.ToStringName(BattleSaveTagKind.Sleep)] = 1.5,
+                        // string key "temporal" 与 StringName TemporalTag 在 Godot Dictionary 中
+                        // 是同一个 key，非 int 值用例必须用独立的合法 tag key。
+                        [new StringName("save_bonus_by_tag")] = new GDictionary
+                        {
+                            ["temporal"] = 5,
+                            [new StringName("not_a_save_tag")] = 5,
+                            [BattleSaveContentRules.ToStringName(BattleSaveTagKind.Sleep)] = 1.5,
+                        },
                     },
                 },
-            }),
+                "TimeStasis.bad-save-bonus-by-tag"
+            ),
             "test_effect"
         );
         _test.True(
@@ -390,12 +400,15 @@ public partial class run_time_stasis_regression : SceneTree
         registry.AppendEffectValidationErrors(
             reverbErrors,
             "direct_reverberation",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "status",
-                status_id = BattleStatusSemanticTable.STATUS_TIME_REVERBERATION,
-                duration_tu = 60,
-            }),
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "status",
+                    status_id = BattleStatusSemanticTable.STATUS_TIME_REVERBERATION,
+                    duration_tu = 60,
+                },
+                "TimeStasis.direct-reverberation"
+            ),
             "test_effect"
         );
         _test.True(
@@ -409,12 +422,15 @@ public partial class run_time_stasis_regression : SceneTree
         registry.AppendEffectValidationErrors(
             mismatchedEraseErrors,
             "temporal_erase_wrong_status",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "erase_status",
-                status_id = "burning",
-                effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
-            }),
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "erase_status",
+                    status_id = "burning",
+                    effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
+                },
+                "TimeStasis.temporal-erase-wrong-status"
+            ),
             "test_effect"
         );
         _test.True(
@@ -426,11 +442,14 @@ public partial class run_time_stasis_regression : SceneTree
         registry.AppendEffectValidationErrors(
             untaggedEraseErrors,
             "untagged_temporal_erase",
-            TrackOwned(new CombatEffectDef
-            {
-                effect_type = "erase_status",
-                status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
-            }),
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "erase_status",
+                    status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                },
+                "TimeStasis.untagged-temporal-erase"
+            ),
             "test_effect"
         );
         _test.True(
@@ -442,24 +461,36 @@ public partial class run_time_stasis_regression : SceneTree
         foreach (
             CombatEffectDef forbiddenEffect in new[]
             {
-                TrackOwned(new CombatEffectDef { effect_type = "damage", damage_tag = "fire", power = 5 }),
-                TrackOwned(new CombatEffectDef { effect_type = "heal", power = 5 }),
-                TrackOwned(new CombatEffectDef
-                {
-                    effect_type = "forced_move",
-                    forced_move_mode = "knockback",
-                    forced_move_distance = 1,
-                }),
-                TrackOwned(new CombatEffectDef
-                {
-                    effect_type = "status",
-                    status_id = "attack_up",
-                    duration_tu = 30,
-                }),
+                TestResourceOwnership.Own(
+                    new CombatEffectDef { effect_type = "damage", damage_tag = "fire", power = 5 },
+                    "TimeStasis.forbidden-damage"
+                ),
+                TestResourceOwnership.Own(
+                    new CombatEffectDef { effect_type = "heal", power = 5 },
+                    "TimeStasis.forbidden-heal"
+                ),
+                TestResourceOwnership.Own(
+                    new CombatEffectDef
+                    {
+                        effect_type = "forced_move",
+                        forced_move_mode = "knockback",
+                        forced_move_distance = 1,
+                    },
+                    "TimeStasis.forbidden-forced-move"
+                ),
+                TestResourceOwnership.Own(
+                    new CombatEffectDef
+                    {
+                        effect_type = "status",
+                        status_id = "attack_up",
+                        duration_tu = 30,
+                    },
+                    "TimeStasis.forbidden-status"
+                ),
             }
         )
         {
-            CombatSkillDef mixedProfile = TrackOwned(new CombatSkillDef
+            CombatSkillDef mixedProfile = new()
             {
                 skill_id = "mixed_temporal_release",
                 effect_defs = new Godot.Collections.Array<CombatEffectDef>
@@ -467,7 +498,7 @@ public partial class run_time_stasis_regression : SceneTree
                     MakeTemporalReleaseEffect(),
                     forbiddenEffect,
                 },
-            });
+            };
             var mixedErrors = new Godot.Collections.Array<string>();
             registry.AppendTemporalReleaseSkillValidationErrors(
                 mixedErrors,
@@ -480,14 +511,14 @@ public partial class run_time_stasis_regression : SceneTree
             );
         }
 
-        CombatSkillDef pureProfile = TrackOwned(new CombatSkillDef
+        CombatSkillDef pureProfile = new()
         {
             skill_id = "pure_temporal_release",
             effect_defs = new Godot.Collections.Array<CombatEffectDef>
             {
                 MakeTemporalReleaseEffect(),
             },
-        });
+        };
         var pureErrors = new Godot.Collections.Array<string>();
         registry.AppendTemporalReleaseSkillValidationErrors(
             pureErrors,
@@ -539,47 +570,72 @@ public partial class run_time_stasis_regression : SceneTree
         );
     }
 
-    private CombatEffectDef MakeStasisEffect()
-    {
-        return TrackOwned(new CombatEffectDef
-        {
-            effect_type = "status",
-            status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
-            duration_tu = 30,
-            save_dc = 14,
-            save_ability = "willpower",
-            save_tag = TemporalTag,
-            effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
-        });
-    }
+    private static CombatEffectDefinition MakeStasisRuntimeEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: BattleStatusSemanticTable.STATUS_TIME_STASIS,
+            durationTu: 30,
+            saveDc: 14,
+            saveAbility: "willpower",
+            saveTag: TemporalTag,
+            effectTags: new[] { TemporalTag }
+        );
 
-    private CombatEffectDef MakeTemporalReleaseEffect()
-    {
-        return TrackOwned(new CombatEffectDef
-        {
-            effect_type = "erase_status",
-            status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
-            effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
-        });
-    }
+    private static CombatEffectDefinition MakeTemporalReleaseRuntimeEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "erase_status",
+            statusId: BattleStatusSemanticTable.STATUS_TIME_STASIS,
+            effectTags: new[] { TemporalTag }
+        );
 
-    private SkillDef MakeSkillDef(StringName skillId, CombatEffectDef effectDef)
+    private static CombatEffectDef MakeStasisEffect()
     {
-        return TrackOwned(new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
             {
-                skill_id = skillId,
-                effect_defs = new Godot.Collections.Array<CombatEffectDef> { effectDef },
+                effect_type = "status",
+                status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                duration_tu = 30,
+                save_dc = 14,
+                save_ability = "willpower",
+                save_tag = TemporalTag,
+                effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
             },
-        });
+            "TimeStasis.MakeStasisEffect"
+        );
     }
 
-    private BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    private static CombatEffectDef MakeTemporalReleaseEffect()
     {
-        BattleUnitState unit = TrackOwned(new BattleUnitState
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "erase_status",
+                status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
+                effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
+            },
+            "TimeStasis.MakeTemporalReleaseEffect"
+        );
+    }
+
+    private static SkillDefinition MakeSkillDefinition(
+        StringName skillId,
+        CombatEffectDefinition effectDefinition
+    )
+    {
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effectDefinition }
+            )
+        );
+    }
+
+    private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
+    {
+        BattleUnitState unit = new()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -590,7 +646,7 @@ public partial class run_time_stasis_regression : SceneTree
             current_stamina = 20,
             current_ap = 2,
             is_alive = true,
-        });
+        };
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.attribute_snapshot.SetValue("willpower_modifier", 0);
@@ -646,17 +702,8 @@ public partial class run_time_stasis_regression : SceneTree
         return string.Join(" || ", errors ?? System.Array.Empty<string>());
     }
 
-    private sealed class Fixture : IDisposable
+    private readonly record struct Fixture(BattleRuntimeModule Runtime, BattleState State)
     {
-        public Fixture(BattleRuntimeModule runtime, BattleState state)
-        {
-            Runtime = runtime;
-            State = state;
-        }
-
-        public BattleRuntimeModule Runtime { get; }
-        public BattleState State { get; }
-
         internal BattleUnitState AddUnit(StringName unitId, StringName factionId, Vector2I coord)
         {
             BattleUnitState unit = new()
@@ -695,36 +742,7 @@ public partial class run_time_stasis_regression : SceneTree
 
         internal void Step(int tuDelta)
         {
-            var batch = new BattleEventBatch();
-            try
-            {
-                Runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta);
-            }
-            finally
-            {
-                BattleTestFixture.DisposeFixtureObject(batch);
-            }
+            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
         }
-
-        public void Dispose()
-        {
-            Runtime?.Dispose();
-            BattleTestFixture.DisposeBattleState(State);
-        }
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            BattleTestFixture.DisposeFixtureObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
     }
 }

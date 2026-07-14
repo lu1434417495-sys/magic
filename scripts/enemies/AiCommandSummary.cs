@@ -90,11 +90,6 @@ public sealed class AiCommandSummary
         };
     }
 
-    internal Godot.Collections.Dictionary ToDictionary()
-    {
-        return TraceDictionaryProjection.ToDictionary(ToTraceDictionary());
-    }
-
     private static void AddStringNames(List<StringName> target, IEnumerable<StringName> values)
     {
         if (values == null)

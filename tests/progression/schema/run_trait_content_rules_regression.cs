@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_trait_content_rules_regression : SceneTree
+public partial class run_trait_content_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -50,6 +50,7 @@ public partial class run_trait_content_rules_regression : SceneTree
         "zariel_legacy",
         "drow_magic",
         "draconic_ancestry",
+        "equipment_ability",
     };
 
     public override void _Initialize()
@@ -64,8 +65,7 @@ public partial class run_trait_content_rules_regression : SceneTree
         TestSourceKindAllowedUsesTraitDefDeclaration();
         TestRollSchemaValidation();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Trait content rules regression"));
+        RequestTestExit(_test.Finish("Trait content rules regression"));
     }
 
     private void TestEffectMappingCoversCurrentRaceTraitEffects()
@@ -209,9 +209,16 @@ public partial class run_trait_content_rules_regression : SceneTree
 
     private void TestSourceKindAllowedUsesTraitDefDeclaration()
     {
-        TraitDef def = new();
-        def.allowed_source_kinds.Add("identity");
-        def.allowed_source_kinds.Add("equipment_roll");
+        TraitDef authoredDef = new()
+        {
+            trait_id = "source_policy_fixture",
+            display_name = "Source Policy Fixture",
+            description = "Source-kind rule fixture.",
+            effect_type = "attribute_modifier",
+        };
+        authoredDef.allowed_source_kinds.Add("identity");
+        authoredDef.allowed_source_kinds.Add("equipment_roll");
+        TraitDefinition def = TestProgressionDefinitionProjection.Trait(authoredDef);
 
         _test.True(
             TraitContentRules.IsSourceKindAllowed(def, TraitSourceKind.Identity),

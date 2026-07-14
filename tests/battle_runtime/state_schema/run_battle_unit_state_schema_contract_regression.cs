@@ -5,24 +5,28 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_unit_state_schema_contract_regression : SceneTree
+public partial class run_battle_unit_state_schema_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _payloadLeases = new();
 
     public override void _Initialize()
     {
         TestValidRoundtripPreservesCurrentPayload();
         TestClonePreservesEphemeralChargeState();
         TestEffectiveTraitPayloadRoundtripAndClone();
+        TestEquipmentAbilitySourcePayloadRoundtripAndClone();
         TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
         TestTypedChargeAndFumbleHelpers();
         TestExtendedBodySizeCategoriesRoundtrip();
+        TestRefreshFootprintIsIdempotent();
         TestRejectsEmptyMissingAndExtraFields();
         TestRejectsWrongTopLevelTypes();
         TestRejectsStringNumericValues();
         TestRejectsBadStringNameArrays();
         TestRejectsBadIdentityProjectionFields();
         TestRejectsBadEffectiveTraitPayloads();
+        TestRejectsBadEquipmentAbilitySourcePayloads();
         TestRejectsBadCombatResourceUnlocks();
         TestRejectsBadStatusEffectEntries();
         TestOwnerInternalStatusMapIgnoresMalformedRawKeys();
@@ -30,14 +34,42 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestRejectsBadWeaponDicePayloads();
         TestBodySizeRulesWrapperIsRemoved();
 
-        Quit(_test.Finish("Battle unit state schema regression"));
+        DisposePayloadLeases();
+        RequestTestExit(_test.Finish("Battle unit state schema regression"));
+    }
+
+    private void TestRefreshFootprintIsIdempotent()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.SetAnchorCoord(new Vector2I(3, 4));
+        Vector2IList first = unit.occupied_coords;
+
+        unit.RefreshFootprint();
+        _test.True(
+            ReferenceEquals(first, unit.occupied_coords),
+            "footprint 输入未变化时应复用同一 occupied_coords 快照。"
+        );
+
+        unit.SetAnchorCoord(new Vector2I(4, 4));
+        _test.False(
+            ReferenceEquals(first, unit.occupied_coords),
+            "anchor coord 变化时应替换 occupied_coords 快照。"
+        );
+        _test.True(unit.occupied_coords.Contains(new Vector2I(4, 4)), "新 footprint 应包含新 anchor。");
+
+        Vector2IList moved = unit.occupied_coords;
+        _test.True(unit.SetBodySizeProjection(BattleUnitState.BodySizeLarge), "large body size 应合法。");
+        _test.False(
+            ReferenceEquals(moved, unit.occupied_coords),
+            "body size 变化时应替换 occupied_coords 快照。"
+        );
     }
 
     private void TestValidRoundtripPreservesCurrentPayload()
     {
         BattleUnitState unit = BuildUnit();
         _test.True(unit != null, "BuildUnit 应返回单位。");
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
         BattleUnitState restored = BattleUnitState.FromDictionary(payload);
         _test.True(restored != null, "当前 to_dict payload 应可由 from_dict 恢复。");
         _test.Eq(restored?.current_move_points ?? -1, 5, "current_move_points 应保留大于默认值的 int。");
@@ -56,8 +88,13 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             "half",
             "damage_resistances 应 round-trip。"
         );
+        using GDictionary cooldownPayload = payload["cooldowns"].AsGodotDictionary();
+        _test.True(
+            HasKeyWithType(cooldownPayload, "slash", Variant.Type.StringName),
+            "cooldowns projection 应保持正式 StringName key shape。"
+        );
         AssertVariantEq(
-            restored?.ToDictionary(),
+            Project(restored),
             payload,
             "BattleUnitState 应保持 to_dict/from_dict round-trip。"
         );
@@ -76,7 +113,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         if (cloned == null)
             return;
 
-        AssertVariantEq(cloned.ToDictionary(), unit.ToDictionary(), "clone 应保留序列化字段。");
+        AssertVariantEq(Project(cloned), Project(unit), "clone 应保留序列化字段。");
         _test.Eq(cloned.per_battle_charges.Get("dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
         _test.Eq(cloned.per_turn_charges.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
         _test.Eq(cloned.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
@@ -117,7 +154,15 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         );
         unit.effective_trait_ids = new GStringNameArray { "halfling_luck", "savage_attacks" };
 
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
+        using GArray traitPayloads = payload["effective_trait_instances"].AsGodotArray();
+        using GDictionary savageAttacksPayload = traitPayloads[1].AsGodotDictionary();
+        using GDictionary rollValuesPayload = savageAttacksPayload["roll_values"]
+            .AsGodotDictionary();
+        _test.True(
+            HasKeyWithType(rollValuesPayload, "amount", Variant.Type.StringName),
+            "effective trait roll_values projection 应保持正式 StringName key shape。"
+        );
         BattleUnitState restored = BattleUnitState.FromDictionary(payload);
         _test.True(restored != null, "effective trait payload 应可 round-trip。");
         _test.Eq(restored?.effective_trait_instances.Count ?? -1, 2, "effective trait payload 数量应保留。");
@@ -130,6 +175,77 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             unit.effective_trait_instances[0].trait_id,
             new StringName("halfling_luck"),
             "clone 不应共享 effective trait state。"
+        );
+    }
+
+    private void TestEquipmentAbilitySourcePayloadRoundtripAndClone()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.creature_type_tags = new GStringNameArray { "undead", "construct" };
+        unit.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
+        {
+            new()
+            {
+                EffectiveInstanceKey = "equipment_fixed::eq_000001::trait.weapon.flame",
+                EquipmentDefId = "test_blade",
+                SourceEquipmentInstanceId = "eq_000001",
+                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                AbilityIds = new List<StringName> { "binding.weapon.flame" },
+            },
+        };
+
+        GDictionary payload = Project(unit);
+        BattleUnitState restored = BattleUnitState.FromDictionary(payload);
+        _test.True(restored != null, "equipment ability source payload 应可 round-trip。");
+        _test.Eq(
+            restored?.equipment_ability_sources.Count ?? -1,
+            1,
+            "equipment ability source 数量应保留。"
+        );
+        BattleEquipmentAbilitySourceState restoredSource =
+            restored?.equipment_ability_sources.Count > 0
+                ? restored.equipment_ability_sources[0]
+                : null;
+        _test.Eq(
+            restoredSource?.EffectiveInstanceKey ?? "",
+            "equipment_fixed::eq_000001::trait.weapon.flame",
+            "equipment ability source 应保留 effective instance key。"
+        );
+        _test.Eq(
+            restoredSource?.SourceEquipmentInstanceId ?? "",
+            "eq_000001",
+            "player equipment ability source 应保留持久装备 instance id。"
+        );
+        _test.Eq(
+            restoredSource?.SourceKind ?? EquipmentAbilitySourceKind.Unknown,
+            EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+            "player equipment ability source 应保留 source kind。"
+        );
+        _test.True(
+            restoredSource != null && restoredSource.AbilityIds.Contains("binding.weapon.flame"),
+            "equipment ability source 应保留 ability/binding id。"
+        );
+        _test.True(
+            restored != null && restored.creature_type_tags.Contains("undead"),
+            "creature_type_tags 应随 unit payload round-trip。"
+        );
+
+        BattleUnitState cloned = unit.clone();
+        _test.Eq(
+            cloned.equipment_ability_sources.Count,
+            1,
+            "clone 应保留 equipment ability source payload。"
+        );
+        cloned.equipment_ability_sources[0].AbilityIds[0] = "mutated.binding";
+        cloned.creature_type_tags.Add("mutated_creature");
+        _test.Eq(
+            unit.equipment_ability_sources[0].AbilityIds[0],
+            new StringName("binding.weapon.flame"),
+            "clone 不应共享 equipment ability source ability id list。"
+        );
+        _test.True(
+            !unit.creature_type_tags.Contains("mutated_creature"),
+            "clone 不应共享 creature_type_tags。"
         );
     }
 
@@ -165,7 +281,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         unit.SetPendingCast(pendingCast);
         unit.turn_casting_exhausted = true;
 
-        GDictionary payload = unit.ToDictionary();
+        GDictionary payload = Project(unit);
         _test.True(!payload.ContainsKey("pending_cast"), "pending_cast 是 runtime-only 字段，不应进入 unit payload。");
         _test.True(!payload.ContainsKey("turn_casting_exhausted"), "turn_casting_exhausted 是 runtime-only 字段，不应进入 unit payload。");
         _test.True(
@@ -211,7 +327,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         BattleUnitState tiny = BuildMinimalUnit();
         _test.True(tiny != null, "body size fixture 应可构建。");
         _test.True(tiny.SetBodySizeCategory("tiny"), "tiny category 应可设置。");
-        GDictionary tinyPayload = tiny.ToDictionary();
+        GDictionary tinyPayload = Project(tiny);
         _test.Eq(DictString(tinyPayload, "body_size_category"), "tiny", "to_dict 应保留 tiny category。");
         _test.Eq(DictInt(tinyPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Tiny), "tiny 应映射到 typed body-size int。");
         _test.Eq(DictVector2I(tinyPayload, "footprint_size"), Vector2I.One, "tiny footprint 应为 1x1。");
@@ -222,7 +338,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             gargantuan.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Gargantuan)),
             "gargantuan category 应可设置。"
         );
-        GDictionary gargantuanPayload = gargantuan.ToDictionary();
+        GDictionary gargantuanPayload = Project(gargantuan);
         _test.Eq(
             DictInt(gargantuanPayload, "body_size"),
             BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Gargantuan),
@@ -242,7 +358,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
 
         BattleUnitState boss = BuildMinimalUnit();
         _test.True(boss.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Boss)), "boss category 应可设置。");
-        GDictionary bossPayload = boss.ToDictionary();
+        GDictionary bossPayload = Project(boss);
         _test.Eq(DictInt(bossPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Boss), "boss 应映射到 typed body-size int。");
         _test.Eq(DictVector2I(bossPayload, "footprint_size"), new Vector2I(5, 5), "boss footprint 应为 5x5。");
         _test.True(BattleUnitState.FromDictionary(bossPayload) != null, "boss payload 应可 round-trip。");
@@ -430,6 +546,65 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         AssertRejected(extraField, "effective trait payload entry 额外字段应拒绝。");
     }
 
+    private void TestRejectsBadEquipmentAbilitySourcePayloads()
+    {
+        GDictionary badSourceKind = Payload();
+        badSourceKind["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "legacy_source",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(badSourceKind, "equipment ability source 非法 source_kind 应拒绝。");
+
+        GDictionary missingPlayerInstance = Payload();
+        missingPlayerInstance["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "",
+                "player_persistent_equipment",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(missingPlayerInstance, "player equipment ability source 缺 instance id 应拒绝。");
+
+        GDictionary enemyWithPersistentInstance = Payload();
+        enemyWithPersistentInstance["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "enemy_battle_only_equipment::enemy_01::test_blade::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "enemy_battle_only_equipment",
+                new GArray { "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(enemyWithPersistentInstance, "enemy battle-only equipment source 不应携带持久 instance id。");
+
+        GDictionary duplicateAbilityIds = Payload();
+        duplicateAbilityIds["equipment_ability_sources"] = new GArray
+        {
+            EquipmentAbilitySourcePayload(
+                "equipment_fixed::eq_000001::trait.weapon.flame",
+                "test_blade",
+                "eq_000001",
+                "player_persistent_equipment",
+                new GArray { "binding.weapon.flame", "binding.weapon.flame" }
+            ),
+        };
+        AssertRejected(duplicateAbilityIds, "equipment ability source ability_ids 重复应拒绝。");
+
+        GDictionary badCreatureTag = Payload();
+        badCreatureTag["creature_type_tags"] = new GArray { "undead", "" };
+        AssertRejected(badCreatureTag, "creature_type_tags 空元素应拒绝。");
+    }
+
     private void TestRejectsBadCombatResourceUnlocks()
     {
         GDictionary missingHp = Payload();
@@ -469,15 +644,17 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     private void TestOwnerInternalStatusMapIgnoresMalformedRawKeys()
     {
         BattleUnitState unit = BuildMinimalUnit();
-        GDictionary projectedStatusEffects =
-            unit.ToDictionary()["status_effects"].AsGodotDictionary();
-        projectedStatusEffects[3] = new BattleStatusEffectState
-        {
-            status_id = "burning",
-            source_unit_id = "malformed",
-            power = 1,
-            stacks = 1,
-        };
+        using GDictionary projectedStatusEffects =
+            Project(unit)["status_effects"].AsGodotDictionary();
+        projectedStatusEffects[3] = Project(
+            new BattleStatusEffectState
+            {
+                status_id = "burning",
+                source_unit_id = "malformed",
+                power = 1,
+                stacks = 1,
+            }
+        );
 
         _test.True(
             unit.GetStatusEffect("burning") == null,
@@ -612,7 +789,33 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         return unit;
     }
 
-    private static GDictionary Payload() => BuildUnit().ToDictionary();
+    private GDictionary Payload() => Project(BuildUnit());
+
+    private GDictionary Project(BattleUnitState unit)
+    {
+        if (unit == null)
+            return null;
+        GodotProjectionLease<GDictionary> lease = unit.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "battle-unit-state-schema-regression"
+        );
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private GDictionary Project(BattleStatusEffectState effect)
+    {
+        GodotProjectionLease<GDictionary> lease = effect.ToDictionaryLease();
+        _payloadLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposePayloadLeases()
+    {
+        for (int index = _payloadLeases.Count - 1; index >= 0; index--)
+            _payloadLeases[index].Dispose();
+        _payloadLeases.Clear();
+    }
 
     private static GDictionary EffectiveTraitPayload(
         StringName traitId,
@@ -640,6 +843,22 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             ["roll_values"] = rollValues ?? new GDictionary(),
         };
 
+    private static GDictionary EquipmentAbilitySourcePayload(
+        StringName effectiveInstanceKey,
+        StringName equipmentDefId,
+        StringName sourceEquipmentInstanceId,
+        StringName sourceKind,
+        GArray abilityIds
+    ) =>
+        new()
+        {
+            ["effective_instance_key"] = effectiveInstanceKey.ToString(),
+            ["equipment_def_id"] = equipmentDefId.ToString(),
+            ["source_equipment_instance_id"] = sourceEquipmentInstanceId.ToString(),
+            ["source_kind"] = sourceKind.ToString(),
+            ["ability_ids"] = abilityIds ?? new GArray(),
+        };
+
     private static BattleUnitState BuildMinimalUnit() =>
         new()
         {
@@ -657,6 +876,22 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     private static GDictionary DictDictionary(GDictionary data, string key)
     {
         return data[key].AsGodotDictionary();
+    }
+
+    private static bool HasKeyWithType(
+        GDictionary dictionary,
+        string expectedText,
+        Variant.Type expectedType
+    )
+    {
+        if (dictionary == null)
+            return false;
+        foreach (Variant key in dictionary.Keys)
+        {
+            if (key.VariantType == expectedType && key.AsString() == expectedText)
+                return true;
+        }
+        return false;
     }
 
     private static GArray DictArray(GDictionary data, string key)
@@ -704,6 +939,8 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             return StableArrayText(array);
         if (value is GStringNameArray stringNameArray)
             return StableStringNameArrayText(stringNameArray);
+        if (value is IEnumerable<StringName> stringNameValues)
+            return StableStringNameEnumerableText(stringNameValues);
         if (value is StringName stringName)
             return stringName.ToString();
         if (value is Vector2I vector)
@@ -749,6 +986,14 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
     {
         var parts = new List<string>();
         foreach (StringName value in array)
+            parts.Add(value.ToString());
+        return "[" + string.Join(",", parts) + "]";
+    }
+
+    private static string StableStringNameEnumerableText(IEnumerable<StringName> values)
+    {
+        var parts = new List<string>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
             parts.Add(value.ToString());
         return "[" + string.Join(",", parts) + "]";
     }

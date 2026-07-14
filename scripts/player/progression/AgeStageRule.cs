@@ -26,4 +26,8 @@ public partial class AgeStageRule : Resource
 
     [Export]
     public bool reachable_by_aging = true;
+
+    internal Godot.Collections.Array<Resource> AttributeModifiersBorrowed => attribute_modifiers;
+    internal Godot.Collections.Array<StringName> TraitIdsBorrowed => trait_ids;
+    internal Godot.Collections.Array<string> TraitSummaryBorrowed => trait_summary;
 }

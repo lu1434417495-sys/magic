@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_timeline_state_schema_regression : SceneTree
+public partial class run_battle_timeline_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,7 +24,7 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
         TestNonArrayReadyUnitIdsReturnsNull();
         TestNumericBoundariesReturnNull();
 
-        Quit(_test.Finish("Battle timeline state schema regression"));
+        RequestTestExit(_test.Finish("Battle timeline state schema regression"));
     }
 
     private void TestValidToDictRoundtrip()
@@ -132,7 +132,11 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
         return payload;
     }
 
-    private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
+    private void AssertStringNameArrayEq(
+        IReadOnlyList<StringName> actual,
+        IReadOnlyList<string> expected,
+        string message
+    )
     {
         if (actual == null || actual.Count != expected.Count)
         {
@@ -149,7 +153,7 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
         }
     }
 
-    private static string FormatStringNameArray(GStringNameArray values)
+    private static string FormatStringNameArray(IReadOnlyList<StringName> values)
     {
         if (values == null)
         {

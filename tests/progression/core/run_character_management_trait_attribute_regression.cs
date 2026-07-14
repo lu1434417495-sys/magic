@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_character_management_trait_attribute_regression : SceneTree
+public partial class run_character_management_trait_attribute_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -15,17 +14,9 @@ public partial class run_character_management_trait_attribute_regression : Scene
 
     private void Run()
     {
-        try
-        {
-            TestCharacterManagementUsesClrLifecycle();
-            TestCharacterManagementInjectsTraitAttributeModifiers();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        Quit(_test.Finish("Character management trait attribute regression"));
+        TestCharacterManagementUsesClrLifecycle();
+        TestCharacterManagementInjectsTraitAttributeModifiers();
+        RequestTestExit(_test.Finish("Character management trait attribute regression"));
     }
 
     private void TestCharacterManagementUsesClrLifecycle()
@@ -46,7 +37,7 @@ public partial class run_character_management_trait_attribute_regression : Scene
 
     private void TestCharacterManagementInjectsTraitAttributeModifiers()
     {
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         UnitProgress progress = MakeProgress("hero");
         PartyMemberState member = new()
         {
@@ -70,14 +61,15 @@ public partial class run_character_management_trait_attribute_regression : Scene
         CharacterManagementModule manager = new();
         try
         {
-            Dictionary<StringName, TraitDef> traitDefs = BuildTraitDefs();
+            Dictionary<StringName, TraitDefinition> traitDefs =
+                TestProgressionDefinitionProjection.Traits(BuildTraitDefs());
             manager.setup(
                 partyState,
-                new Dictionary<StringName, SkillDef>(),
-                new Dictionary<StringName, ProfessionDef>(),
-                new Dictionary<StringName, AchievementDef>(),
-                new Dictionary<StringName, ItemDef>(),
-                new Dictionary<StringName, QuestDef>(),
+                new Dictionary<StringName, SkillDefinition>(),
+                new Dictionary<StringName, ProfessionDefinition>(),
+                new Dictionary<StringName, AchievementDefinition>(),
+                new Dictionary<StringName, ItemDefinition>(),
+                new Dictionary<StringName, QuestDefinition>(),
                 traitDefs,
                 null,
                 new ProgressionIdentityCatalogData()
@@ -90,12 +82,12 @@ public partial class run_character_management_trait_attribute_regression : Scene
                 "CharacterManagementModule should inject trait-derived attribute modifiers into context."
             );
             _test.Eq(
-                context.trait_attribute_modifiers[0].source_type,
+                context.trait_attribute_modifiers[0].SourceType,
                 new StringName("trait_character"),
                 "CharacterManagementModule should preserve trait modifier source type."
             );
             _test.Eq(
-                context.trait_attribute_modifiers[0].source_id,
+                context.trait_attribute_modifiers[0].SourceId,
                 new StringName("character_boost"),
                 "Collapsed character trait modifier source id should use effective trait key."
             );
@@ -109,12 +101,12 @@ public partial class run_character_management_trait_attribute_regression : Scene
         }
     }
 
-    private Dictionary<StringName, TraitDef> BuildTraitDefs() =>
+    private static Dictionary<StringName, TraitDef> BuildTraitDefs() =>
         new()
         {
             [
                 "character_boost"
-            ] = TrackOwned(new TraitDef
+            ] = new TraitDef
             {
                 trait_id = "character_boost",
                 display_name = "Character Boost",
@@ -134,7 +126,7 @@ public partial class run_character_management_trait_attribute_regression : Scene
                         value = 3,
                     },
                 },
-            }),
+            },
         };
 
     private static UnitProgress MakeProgress(StringName unitId)
@@ -146,36 +138,6 @@ public partial class run_character_management_trait_attribute_regression : Scene
         };
         progress.unit_base_attributes.SetAttributeValue("strength", 10);
         return progress;
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 
 }

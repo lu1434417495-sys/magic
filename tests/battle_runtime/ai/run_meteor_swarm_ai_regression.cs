@@ -6,20 +6,17 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_meteor_swarm_ai_regression : SceneTree
+public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestMeteorSwarmAiUsesSpecialScoreFields();
-        GodotSharpCleanup.CollectPendingFinalizers();
         TestMeteorSwarmUseCasesAndHighPriorityTrace();
-        GodotSharpCleanup.CollectPendingFinalizers();
         TestMeteorSwarmFriendlyFireSoftAndProtectedPaths();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Meteor swarm AI regression"));
+        RequestTestExit(_test.Finish("Meteor swarm AI regression"));
     }
 
     private void TestMeteorSwarmAiUsesSpecialScoreFields()
@@ -52,11 +49,14 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         try
         {
             setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { enemyCenter, enemyOuter, allyInner });
-            SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
+            SkillDefinition skillDefinition = GetSkillDefinition(
+                setup.SkillDefinitionIndex,
+                "mage_meteor_swarm"
+            );
 
             var assembler = new BattleAiActionAssembler();
             _test.True(
-                assembler.IsOffensiveOrEnemySkill(skillDef),
+                assembler.IsOffensiveOrEnemySkill(skillDefinition),
                 "AI action assembler 应把 effectless meteor special profile 识别为进攻技能。"
             );
 
@@ -69,14 +69,14 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
                 unit_state = setup.Caster,
                 grid_service = setup.Runtime.GetGridService(),
             };
-            aiContext.SetSkillDefs(setup.SkillDefIndex);
-            var scoreService = new BattleAiScoreService();
+            aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
+            using var scoreService = new BattleAiScoreService();
             scoreInput = scoreService.BuildSkillScoreInput(
                 aiContext,
-                skillDef,
+                skillDefinition,
                 command,
                 preview,
-                Array.Empty<CombatEffectDef>(),
+                Array.Empty<CombatEffectDefinition>(),
                 new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["action_kind"] = "ground_skill",
@@ -97,13 +97,19 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             _test.True(!string.IsNullOrEmpty(scoreInput.friendly_fire_reject_reason), "AI 应标记友伤 hard reject reason。");
             _test.Eq(scoreInput.meteor_use_case, new StringName("unsafe_friendly_fire"), "友伤 hard reject 时 meteor_use_case 应进入 unsafe。");
 
-            var action = new UseGroundSkillAction
+            var action = TestResourceOwnership.Own(
+                new UseGroundSkillAction
             {
                 maximum_friendly_fire_target_count = 99,
                 allow_friendly_lethal = true,
-            };
+                },
+                "meteor_swarm_ai.friendly_fire_action"
+            );
             _test.True(
-                !action.PassesFriendlyFireLimits(scoreInput),
+                !new BattleAiGroundSkillActionEvaluator().PassesFriendlyFireLimits(
+                    (UseGroundSkillActionDefinition)action.ToDefinition(),
+                    scoreInput
+                ),
                 "UseGroundSkillAction 应优先遵守 meteor hard reject，而不是粗略友伤数量。"
             );
         }
@@ -111,7 +117,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleAiScoreInput(scoreInput);
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.DisposeGodotObject(command);
+            BattleTestFixture.DisposeBattleCommand(command);
             setup?.Dispose();
         }
     }
@@ -154,7 +160,9 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
                     reasons.Contains("elite_or_boss"),
                     "high priority trace 应记录 elite/boss reason。"
                 );
-                GDictionary trace = BattleAiScoreProjection.Project(decapScore);
+                using GodotProjectionLease<GDictionary> traceLease =
+                    BattleAiScoreProjection.BuildLease(decapScore);
+                GDictionary trace = traceLease.Value;
                 _test.True(
                     trace.GetValueOrDefault("high_priority_target_ids", new GArray()).AsGodotArray().Contains(eliteCenter.unit_id),
                     "to_dict trace 应序列化 high_priority_target_ids。"
@@ -200,9 +208,15 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             {
                 _test.Eq(softScore.estimated_friendly_fire_target_count, 1, "soft 友伤前置：应识别一个友军波及目标。");
                 _test.Eq(softScore.friendly_fire_reject_reason, "", "低比例友伤应进入 soft penalty 而非 hard reject。");
-                var defaultAction = new UseGroundSkillAction();
+                var defaultAction = TestResourceOwnership.Own(
+                    new UseGroundSkillAction(),
+                    "meteor_swarm_ai.default_ground_action"
+                );
                 _test.True(
-                    defaultAction.PassesFriendlyFireLimits(softScore),
+                    new BattleAiGroundSkillActionEvaluator().PassesFriendlyFireLimits(
+                        (UseGroundSkillActionDefinition)defaultAction.ToDefinition(),
+                        softScore
+                    ),
                     "Meteor soft 友伤不应被默认 friendly_fire_target_count=0 的通用上限挡掉。"
                 );
             }
@@ -232,25 +246,20 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        using var progressionRegistry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-            new Dictionary<StringName, SkillDef>(progressionRegistry.GetSkillDefsTyped());
-        using var specialRegistry = new BattleSpecialProfileRegistry();
-        specialRegistry.Rebuild(typedSkillDefs);
+        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
+        var specialRegistry = new BattleSpecialProfileRegistry(new TestContentResourceLoader());
+        specialRegistry.Rebuild(typedSkillDefinitions);
         _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 meteor AI fixture。");
 
         var runtime = new BattleRuntimeModule();
         runtime.setup(
-            null,
-            typedSkillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null,
-            null,
-            new Dictionary<StringName, ItemDef>(),
-            null,
-            default,
-            specialRegistry.GetSnapshot()
+            skill_definitions: typedSkillDefinitions,
+            enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
+            enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
+            item_defs: new Dictionary<StringName, ItemDefinition>(),
+            battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
 
@@ -300,37 +309,25 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             Runtime = runtime,
             State = state,
             Caster = caster,
-            SkillDefIndex = typedSkillDefs,
-            SkillDefs = ProjectSkillDefs(typedSkillDefs),
+            ProgressionRegistry = progressionRegistry,
+            SpecialRegistry = specialRegistry,
+            SkillDefinitionIndex = typedSkillDefinitions,
         };
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private BattleAiScoreInput BuildMeteorScoreInput(Fixture setup, Vector2I anchorCoord)
     {
-        SkillDef skillDef = GetSkill(setup.SkillDefs, "mage_meteor_swarm");
+        SkillDefinition skillDefinition = GetSkillDefinition(
+            setup.SkillDefinitionIndex,
+            "mage_meteor_swarm"
+        );
         BattleCommand command = BuildCommand(setup.Caster, anchorCoord);
         BattlePreview preview = setup.Runtime.PreviewCommand(command);
         _test.True(preview != null && preview.allowed, "meteor score input helper 前置：preview 应可用。");
         if (preview == null || !preview.allowed)
         {
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.DisposeGodotObject(command);
+            BattleTestFixture.DisposeBattleCommand(command);
             return null;
         }
         var aiContext = new BattleAiContext
@@ -339,14 +336,14 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             unit_state = setup.Caster,
             grid_service = setup.Runtime.GetGridService(),
         };
-        aiContext.SetSkillDefs(setup.SkillDefIndex);
-        var scoreService = new BattleAiScoreService();
+        aiContext.SetSkillDefinitions(setup.SkillDefinitionIndex);
+        using var scoreService = new BattleAiScoreService();
         BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
             aiContext,
-            skillDef,
+            skillDefinition,
             command,
             preview,
-            Array.Empty<CombatEffectDef>(),
+            Array.Empty<CombatEffectDefinition>(),
             new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["action_kind"] = "ground_skill",
@@ -356,7 +353,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         if (scoreInput == null)
         {
             BattleTestFixture.DisposeBattlePreview(preview);
-            GodotSharpCleanup.DisposeGodotObject(command);
+            BattleTestFixture.DisposeBattleCommand(command);
         }
         return scoreInput;
     }
@@ -447,19 +444,26 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = caster.unit_id,
             skill_id = "mage_meteor_swarm",
+            skill_entry_id = BattleSkillEntryIds.KnownSkill("mage_meteor_swarm"),
             target_coord = anchorCoord,
         };
         command.AddTargetCoord(anchorCoord);
         return command;
     }
 
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (
+            skillDefinitions == null
+            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+        )
         {
             return null;
         }
-        return skillDefs[skillId].As<SkillDef>();
+        return skillDefinition;
     }
 
     private static GArray DictArray(GDictionary dictionary, string key)
@@ -498,18 +502,21 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public IReadOnlyDictionary<StringName, SkillDef> SkillDefIndex;
-        public GDictionary SkillDefs;
+        public ProgressionContentRegistry ProgressionRegistry;
+        public BattleSpecialProfileRegistry SpecialRegistry;
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
-            SkillDefs?.Clear();
+            SpecialRegistry?.Dispose();
+            ProgressionRegistry?.Dispose();
             Runtime = null;
             State = null;
             Caster = null;
-            SkillDefIndex = null;
-            SkillDefs = null;
+            ProgressionRegistry = null;
+            SpecialRegistry = null;
+            SkillDefinitionIndex = null;
         }
     }
 }

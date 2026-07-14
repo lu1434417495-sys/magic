@@ -8,8 +8,8 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return CollectCreationRaceIds(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>()
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>()
         );
     }
 
@@ -18,19 +18,19 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return CollectCreationRaceIds(
-            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
-            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>()
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDefinition>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDefinition>()
         );
     }
 
     internal static IReadOnlyList<StringName> CollectCreationRaceIds(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs
     )
     {
         var ids = new List<StringName>();
-        raceDefs ??= new Dictionary<StringName, RaceDef>();
-        subraceDefs ??= new Dictionary<StringName, SubraceDef>();
+        raceDefs ??= new Dictionary<StringName, RaceDefinition>();
+        subraceDefs ??= new Dictionary<StringName, SubraceDefinition>();
         foreach (StringName raceId in SortedBucketIds(raceDefs))
         {
             if (CollectSubraceIdsForRace(raceDefs, subraceDefs, raceId).Count > 0)
@@ -61,15 +61,15 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return CollectSubraceIdsForRace(
-            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
-            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDefinition>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDefinition>(),
             raceId
         );
     }
 
     internal static IReadOnlyList<StringName> CollectSubraceIdsForRace(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs,
         StringName raceId
     )
     {
@@ -77,22 +77,22 @@ public static class CharacterCreationIdentityOptionService
         if (raceId == "")
             return ids;
 
-        raceDefs ??= new Dictionary<StringName, RaceDef>();
-        subraceDefs ??= new Dictionary<StringName, SubraceDef>();
-        if (!raceDefs.TryGetValue(raceId, out RaceDef raceDef) || raceDef == null)
+        raceDefs ??= new Dictionary<StringName, RaceDefinition>();
+        subraceDefs ??= new Dictionary<StringName, SubraceDefinition>();
+        if (!raceDefs.TryGetValue(raceId, out RaceDefinition raceDef) || raceDef == null)
             return ids;
 
         var seen = new HashSet<StringName>();
-        foreach (StringName subraceId in raceDef.subrace_ids)
+        foreach (StringName subraceId in raceDef.SubraceIds)
         {
             if (subraceId == "" || !seen.Add(subraceId))
                 continue;
             if (
-                !subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef)
+                !subraceDefs.TryGetValue(subraceId, out SubraceDefinition subraceDef)
                 || subraceDef == null
             )
                 continue;
-            if (subraceDef.parent_race_id != raceId)
+            if (subraceDef.ParentRaceId != raceId)
                 continue;
             if (!IsValidCreationRaceSubracePair(raceDefs, subraceDefs, raceId, subraceId))
                 continue;
@@ -109,8 +109,8 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return ChooseRaceId(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>(),
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>(),
             currentId,
             defaultId
         );
@@ -123,16 +123,16 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return ChooseRaceId(
-            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
-            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDefinition>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDefinition>(),
             currentId,
             defaultId
         );
     }
 
     internal static StringName ChooseRaceId(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs,
         StringName currentId,
         StringName defaultId
     )
@@ -152,8 +152,8 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return ChooseSubraceId(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>(),
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>(),
             raceId,
             currentId
         );
@@ -166,16 +166,16 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return ChooseSubraceId(
-            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
-            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDefinition>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDefinition>(),
             raceId,
             currentId
         );
     }
 
     internal static StringName ChooseSubraceId(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs,
         StringName raceId,
         StringName currentId
     )
@@ -188,9 +188,9 @@ public static class CharacterCreationIdentityOptionService
         if (currentId != "" && ContainsId(candidates, currentId))
             return currentId;
 
-        raceDefs ??= new Dictionary<StringName, RaceDef>();
-        raceDefs.TryGetValue(raceId, out RaceDef raceDef);
-        StringName defaultSubraceId = raceDef?.default_subrace_id ?? new StringName("");
+        raceDefs ??= new Dictionary<StringName, RaceDefinition>();
+        raceDefs.TryGetValue(raceId, out RaceDefinition raceDef);
+        StringName defaultSubraceId = raceDef?.DefaultSubraceId ?? new StringName("");
         if (defaultSubraceId != "" && ContainsId(candidates, defaultSubraceId))
             return defaultSubraceId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
@@ -220,27 +220,27 @@ public static class CharacterCreationIdentityOptionService
     )
     {
         return IsValidCreationRaceSubracePair(
-            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
-            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDefinition>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDefinition>(),
             raceId,
             subraceId
         );
     }
 
     private static bool IsValidCreationRaceSubracePair(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs,
         StringName raceId,
         StringName subraceId
     )
     {
         if (raceId == "" || subraceId == "")
             return false;
-        if (!raceDefs.TryGetValue(raceId, out RaceDef raceDef) || raceDef == null)
+        if (!raceDefs.TryGetValue(raceId, out RaceDefinition raceDef) || raceDef == null)
             return false;
-        if (!subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) || subraceDef == null)
+        if (!subraceDefs.TryGetValue(subraceId, out SubraceDefinition subraceDef) || subraceDef == null)
             return false;
-        return subraceDef.parent_race_id == raceId && ContainsId(raceDef.subrace_ids, subraceId);
+        return subraceDef.ParentRaceId == raceId && ContainsId(raceDef.SubraceIds, subraceId);
     }
 
     private static IReadOnlyList<StringName> SortedBucketIds<T>(

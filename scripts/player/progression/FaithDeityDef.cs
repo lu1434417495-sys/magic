@@ -19,11 +19,16 @@ public partial class FaithDeityDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> power_domain_tags { get; set; } = new();
 
+    internal Godot.Collections.Array<StringName> PowerDomainTagsProjectionBorrowed =>
+        power_domain_tags;
+
     [Export]
     public StringName rank_progress_stat_id { get; set; } = "";
 
     [Export]
     public Godot.Collections.Array<FaithRankDef> rank_defs { get; set; } = new();
+
+    internal Godot.Collections.Array<FaithRankDef> RankDefsProjectionBorrowed => rank_defs;
 
     public FaithRankDef GetRankDef(int rankIndex)
     {

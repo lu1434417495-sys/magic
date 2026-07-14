@@ -1,23 +1,28 @@
+using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class WorldMapSpawnProjection
 {
-    internal static GDictionary Project(WorldMapSpawnSystem.WorldBuildData worldBuild)
+    internal static Dictionary<string, object> BuildSnapshotPlain(
+        WorldMapSpawnSystem.WorldBuildData worldBuild
+    )
     {
         worldBuild ??= new WorldMapSpawnSystem.WorldBuildData();
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["map_seed"] = worldBuild.MapSeed,
-            ["settlements"] = ProjectSettlements(worldBuild.Settlements),
-            ["world_npcs"] = ProjectWorldNpcs(worldBuild.WorldNpcs),
-            ["encounter_anchors"] = ProjectEncounterAnchors(worldBuild.EncounterAnchors),
-            ["world_events"] = ProjectWorldEvents(worldBuild.WorldEvents),
-            ["mounted_submaps"] = ProjectMountedSubmaps(worldBuild.MountedSubmaps),
+            ["settlements"] = BuildSettlementsPlain(worldBuild.Settlements),
+            ["world_npcs"] = BuildWorldNpcsPlain(worldBuild.WorldNpcs),
+            ["encounter_anchors"] = BuildEncounterAnchorsPlain(
+                worldBuild.EncounterAnchors
+            ),
+            ["resource_nodes"] = BuildResourceNodesPlain(worldBuild.ResourceNodes),
+            ["world_events"] = BuildWorldEventsPlain(worldBuild.WorldEvents),
+            ["mounted_submaps"] = BuildMountedSubmapsPlain(worldBuild.MountedSubmaps),
             ["active_submap_id"] = "",
-            ["submap_return_stack"] = new GArray(),
+            ["submap_return_stack"] = new List<object>(),
             ["world_step"] = 0,
             ["next_equipment_instance_serial"] = 1,
             ["player_start_coord"] = worldBuild.PlayerStartCoord,
@@ -26,79 +31,105 @@ internal static class WorldMapSpawnProjection
         };
     }
 
-    private static GArray ProjectSettlements(
+    internal static GodotProjectionLease<GDictionary> ProjectLease(
+        WorldMapSpawnSystem.WorldBuildData worldBuild,
+        string ownerId
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(worldBuild),
+            ownerId,
+            LifetimeDomain.Request,
+            ownerId
+        );
+
+    private static List<object> BuildSettlementsPlain(
         IEnumerable<WorldMapSpawnSystem.SettlementInstanceData> settlements
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (settlements == null)
             return result;
         foreach (WorldMapSpawnSystem.SettlementInstanceData settlement in settlements)
             if (settlement != null)
-                result.Add(Project(settlement));
+                result.Add(BuildPlain(settlement));
         return result;
     }
 
-    private static GArray ProjectWorldNpcs(
+    private static List<object> BuildWorldNpcsPlain(
         IEnumerable<WorldMapSpawnSystem.WorldNpcInstanceData> worldNpcs
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (worldNpcs == null)
             return result;
         foreach (WorldMapSpawnSystem.WorldNpcInstanceData worldNpc in worldNpcs)
             if (worldNpc != null)
-                result.Add(Project(worldNpc));
+                result.Add(BuildPlain(worldNpc));
         return result;
     }
 
-    private static GArray ProjectEncounterAnchors(
+    private static List<object> BuildEncounterAnchorsPlain(
         IEnumerable<EncounterAnchorData> encounterAnchors
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (encounterAnchors == null)
             return result;
         foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
             if (encounterAnchor != null)
-                result.Add(encounterAnchor);
+                result.Add(encounterAnchor.BuildSaveSnapshotPlain());
         return result;
     }
 
-    private static GArray ProjectWorldEvents(
+    private static List<object> BuildResourceNodesPlain(
+        IEnumerable<WorldMapResourceNodeData> resourceNodes
+    )
+    {
+        var result = new List<object>();
+        if (resourceNodes == null)
+            return result;
+        foreach (WorldMapResourceNodeData resourceNode in resourceNodes)
+            if (resourceNode != null && resourceNode.Exists)
+                result.Add(resourceNode.BuildSaveSnapshotPlain());
+        return result;
+    }
+
+    private static List<object> BuildWorldEventsPlain(
         IEnumerable<WorldMapSpawnSystem.WorldEventInstanceData> worldEvents
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (worldEvents == null)
             return result;
         foreach (WorldMapSpawnSystem.WorldEventInstanceData worldEvent in worldEvents)
             if (worldEvent != null)
-                result.Add(Project(worldEvent));
+                result.Add(BuildPlain(worldEvent));
         return result;
     }
 
-    private static GDictionary ProjectMountedSubmaps(
+    private static Dictionary<string, object> BuildMountedSubmapsPlain(
         IEnumerable<WorldMapSpawnSystem.MountedSubmapInstanceData> mountedSubmaps
     )
     {
-        var result = new GDictionary();
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
         if (mountedSubmaps == null)
             return result;
         foreach (WorldMapSpawnSystem.MountedSubmapInstanceData mountedSubmap in mountedSubmaps)
         {
             if (mountedSubmap == null || string.IsNullOrEmpty(mountedSubmap.SubmapId))
                 continue;
-            result[mountedSubmap.SubmapId] = Project(mountedSubmap);
+            result[mountedSubmap.SubmapId] = BuildPlain(mountedSubmap);
         }
         return result;
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.SettlementInstanceData settlement)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.SettlementInstanceData settlement
+    )
     {
         if (settlement == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["entity_id"] = settlement.EntityId,
             ["template_id"] = settlement.TemplateId,
@@ -109,32 +140,34 @@ internal static class WorldMapSpawnProjection
             ["faction_id"] = settlement.FactionId,
             ["origin"] = settlement.Origin,
             ["footprint_size"] = settlement.FootprintSize,
-            ["facilities"] = ProjectFacilities(settlement.Facilities),
+            ["facilities"] = BuildFacilitiesPlain(settlement.Facilities),
             ["is_player_start"] = settlement.IsPlayerStart,
-            ["settlement_state"] = Project(settlement.SettlementState),
-            ["available_services"] = ProjectServices(settlement.AvailableServices),
-            ["service_npcs"] = ProjectServiceNpcs(settlement.ServiceNpcs),
+            ["settlement_state"] = BuildPlain(settlement.SettlementState),
+            ["available_services"] = BuildServicesPlain(settlement.AvailableServices),
+            ["service_npcs"] = BuildServiceNpcsPlain(settlement.ServiceNpcs),
         };
     }
 
-    private static GArray ProjectFacilities(
+    private static List<object> BuildFacilitiesPlain(
         IEnumerable<WorldMapSpawnSystem.FacilityInstanceData> facilities
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (facilities == null)
             return result;
         foreach (WorldMapSpawnSystem.FacilityInstanceData facility in facilities)
             if (facility != null)
-                result.Add(Project(facility));
+                result.Add(BuildPlain(facility));
         return result;
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.FacilityInstanceData facility)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.FacilityInstanceData facility
+    )
     {
         if (facility == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["template_id"] = facility.TemplateId,
             ["facility_id"] = facility.FacilityId,
@@ -146,28 +179,30 @@ internal static class WorldMapSpawnProjection
             ["local_coord"] = facility.LocalCoord,
             ["world_coord"] = facility.WorldCoord,
             ["settlement_id"] = facility.SettlementId,
-            ["service_npcs"] = ProjectServiceNpcs(facility.ServiceNpcs),
+            ["service_npcs"] = BuildServiceNpcsPlain(facility.ServiceNpcs),
         };
     }
 
-    private static GArray ProjectServices(
+    private static List<object> BuildServicesPlain(
         IEnumerable<WorldMapSpawnSystem.ServiceEntryData> services
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (services == null)
             return result;
         foreach (WorldMapSpawnSystem.ServiceEntryData service in services)
             if (service != null)
-                result.Add(Project(service));
+                result.Add(BuildPlain(service));
         return result;
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.ServiceEntryData service)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.ServiceEntryData service
+    )
     {
         if (service == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["settlement_id"] = service.SettlementId,
             ["facility_id"] = service.FacilityId,
@@ -182,24 +217,26 @@ internal static class WorldMapSpawnProjection
         };
     }
 
-    private static GArray ProjectServiceNpcs(
+    private static List<object> BuildServiceNpcsPlain(
         IEnumerable<WorldMapSpawnSystem.ServiceNpcInstanceData> serviceNpcs
     )
     {
-        var result = new GArray();
+        var result = new List<object>();
         if (serviceNpcs == null)
             return result;
         foreach (WorldMapSpawnSystem.ServiceNpcInstanceData serviceNpc in serviceNpcs)
             if (serviceNpc != null)
-                result.Add(Project(serviceNpc));
+                result.Add(BuildPlain(serviceNpc));
         return result;
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.ServiceNpcInstanceData serviceNpc)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.ServiceNpcInstanceData serviceNpc
+    )
     {
         if (serviceNpc == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["template_id"] = serviceNpc.TemplateId,
             ["npc_id"] = serviceNpc.NpcId,
@@ -214,27 +251,31 @@ internal static class WorldMapSpawnProjection
         };
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.SettlementStateData settlementState)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.SettlementStateData settlementState
+    )
     {
         if (settlementState == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["visited"] = settlementState.Visited,
             ["reputation"] = settlementState.Reputation,
-            ["active_conditions"] = new GArray(),
-            ["cooldowns"] = new GDictionary(),
+            ["active_conditions"] = new List<object>(),
+            ["cooldowns"] = EmptyDictionary(),
             ["shop_inventory_seed"] = settlementState.ShopInventorySeed,
             ["shop_last_refresh_step"] = settlementState.ShopLastRefreshStep,
-            ["shop_states"] = new GDictionary(),
+            ["shop_states"] = EmptyDictionary(),
         };
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.WorldNpcInstanceData worldNpc)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.WorldNpcInstanceData worldNpc
+    )
     {
         if (worldNpc == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["entity_id"] = worldNpc.EntityId,
             ["display_name"] = worldNpc.DisplayName,
@@ -245,11 +286,13 @@ internal static class WorldMapSpawnProjection
         };
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.WorldEventInstanceData worldEvent)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.WorldEventInstanceData worldEvent
+    )
     {
         if (worldEvent == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["event_id"] = worldEvent.EventId,
             ["display_name"] = worldEvent.DisplayName,
@@ -263,11 +306,13 @@ internal static class WorldMapSpawnProjection
         };
     }
 
-    private static GDictionary Project(WorldMapSpawnSystem.MountedSubmapInstanceData mountedSubmap)
+    private static Dictionary<string, object> BuildPlain(
+        WorldMapSpawnSystem.MountedSubmapInstanceData mountedSubmap
+    )
     {
         if (mountedSubmap == null)
-            return new GDictionary();
-        return new GDictionary
+            return EmptyDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["submap_id"] = mountedSubmap.SubmapId,
             ["display_name"] = mountedSubmap.DisplayName,
@@ -275,7 +320,10 @@ internal static class WorldMapSpawnProjection
             ["return_hint_text"] = mountedSubmap.ReturnHintText,
             ["is_generated"] = mountedSubmap.IsGenerated,
             ["player_coord"] = mountedSubmap.PlayerCoord,
-            ["world_data"] = new GDictionary(),
+            ["world_data"] = EmptyDictionary(),
         };
     }
+
+    private static Dictionary<string, object> EmptyDictionary() =>
+        new(StringComparer.Ordinal);
 }

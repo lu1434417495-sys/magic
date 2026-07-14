@@ -1,0 +1,264 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=59 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/MarkTargetActionPayloadDef.cs" id="12_mark_target"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="13_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityStateSchemaDef.cs" id="14_state_schema"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="15_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DealDamageActionPayloadDef.cs" id="16_deal_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ClearStatusActionPayloadDef.cs" id="17_clear_status"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="State_oath_target"]
+script = ExtResource("14_state_schema")
+state_key = &"oath_target"
+owner_scope = &"target_mark"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"battle"
+
+[sub_resource type="Resource" id="Grant_oath_bind_skill"]
+script = ExtResource("13_grant")
+granted_action_id = &"grant.oathscar.oath_bind.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_oathscar_bind_oath"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Action_mark_oath_target_payload"]
+script = ExtResource("12_mark_target")
+target_selector = &"skill_target"
+state_key = &"oath_target"
+stack_delta = 1
+remove_on_source_missing = true
+remove_on_target_defeated = true
+unique_per_source = true
+mirror_status_id = &"oathscar_oath_target"
+mirror_status_duration_tu = 10000
+mirror_status_stack_behavior = &"refresh"
+mirror_status_stack_limit = 1
+mirror_status_display_label = "誓言目标"
+clear_status_ids_on_replace = Array[StringName]([&"oathscar_oath_target", &"oathscar_oath_mark"])
+
+[sub_resource type="Resource" id="Action_mark_oath_target"]
+script = ExtResource("11_action")
+action_id = &"action.oathscar.oath_bind.mark_target"
+kind = &"mark_target"
+payload = SubResource("Action_mark_oath_target_payload")
+
+[sub_resource type="Resource" id="Reaction_oath_bind_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.oathscar.oath_bind.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_mark_oath_target")])
+
+[sub_resource type="Resource" id="Binding_oath_bind"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.oathscar.oath_bind"
+trait_id = &"weapon.sword.oathscar.oath_bind"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"oathscar"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+state_schemas = Array[Resource]([SubResource("State_oath_target")])
+reactions = Array[Resource]([SubResource("Reaction_oath_bind_used")])
+granted_actions = Array[Resource]([SubResource("Grant_oath_bind_skill")])
+
+[sub_resource type="Resource" id="Fact_oath_target_matches_attack_target"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_target_mark_matches"
+subject = &"target"
+binding_id = &"binding.weapon.sword.oathscar.oath_bind"
+state_key = &"oath_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_oath_target_matches_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_oath_target_matches_attack_target")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_oath_target_matches"]
+script = ExtResource("6_condition")
+condition_id = &"condition.oathscar.oath_target_matches"
+kind = &"compare_fact"
+payload = SubResource("Compare_oath_target_matches_payload")
+
+[sub_resource type="Resource" id="Condition_group_oath_target_matches"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_oath_target_matches")])
+
+[sub_resource type="Resource" id="Action_apply_oath_mark_payload"]
+script = ExtResource("15_apply_status")
+target_selector = &"attack_target"
+status_id = &"oathscar_oath_mark"
+duration_tu = 10000
+stack_delta = 1
+stack_behavior = &"add"
+stack_limit = 4
+display_label = "誓约之印"
+source_bound_incoming_attack_roll_bonus_per_stack = 1
+source_bound_incoming_attack_roll_bonus_min_stacks = 1
+counts_as_debuff_override = true
+counts_as_debuff = true
+
+[sub_resource type="Resource" id="Action_apply_oath_mark"]
+script = ExtResource("11_action")
+action_id = &"action.oathscar.oath_mark.apply_status"
+kind = &"apply_status"
+payload = SubResource("Action_apply_oath_mark_payload")
+
+[sub_resource type="Resource" id="Reaction_oath_mark_after_hit"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.oathscar.oath_mark.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_oath_target_matches")
+actions = Array[Resource]([SubResource("Action_apply_oath_mark")])
+
+[sub_resource type="Resource" id="Binding_oath_mark"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.oathscar.oath_mark"
+trait_id = &"weapon.sword.oathscar.oath_mark"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"oathscar"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_oath_mark_after_hit")])
+
+[sub_resource type="Resource" id="Grant_oath_judgment_skill"]
+script = ExtResource("13_grant")
+granted_action_id = &"grant.oathscar.oath_judgment.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_oathscar_oath_judgment"
+skill_level = 1
+usage_period_kind = &"per_battle"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 101
+
+[sub_resource type="Resource" id="Binding_oath_judgment"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.oathscar.oath_judgment"
+trait_id = &"weapon.sword.oathscar.oath_judgment"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"oathscar"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_oath_judgment_skill")])
+
+[sub_resource type="Resource" id="Fact_oath_target_stacks"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_target_mark_stacks"
+binding_id = &"binding.weapon.sword.oathscar.oath_bind"
+state_key = &"oath_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_oath_target_exists_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_oath_target_stacks")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_oath_target_exists"]
+script = ExtResource("6_condition")
+condition_id = &"condition.oathscar.oath_target_exists"
+kind = &"compare_fact"
+payload = SubResource("Compare_oath_target_exists_payload")
+
+[sub_resource type="Resource" id="Condition_group_oath_target_not_matches"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+negate = true
+conditions = Array[Resource]([SubResource("Condition_oath_target_matches")])
+
+[sub_resource type="Resource" id="Condition_group_oath_backlash"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_oath_target_exists")])
+groups = Array[Resource]([SubResource("Condition_group_oath_target_not_matches")])
+
+[sub_resource type="Resource" id="Action_clear_oath_mark_payload"]
+script = ExtResource("17_clear_status")
+target_selector = &"marked_target"
+status_id = &"oathscar_oath_mark"
+mark_binding_id = &"binding.weapon.sword.oathscar.oath_bind"
+mark_state_key = &"oath_target"
+require_source_unit_match = true
+
+[sub_resource type="Resource" id="Action_clear_oath_mark"]
+script = ExtResource("11_action")
+action_id = &"action.oathscar.oath_backlash.clear_oath_mark"
+kind = &"clear_status"
+payload = SubResource("Action_clear_oath_mark_payload")
+
+[sub_resource type="Resource" id="Dice_term_2d6_psychic"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6_psychic"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6_psychic")])
+
+[sub_resource type="Resource" id="Action_oath_backlash_damage_payload"]
+script = ExtResource("16_deal_damage")
+target_selector = &"source"
+dice = SubResource("Dice_2d6_psychic")
+damage_type = &"psychic"
+damage_tags = Array[StringName]([&"psychic"])
+
+[sub_resource type="Resource" id="Action_oath_backlash_damage"]
+script = ExtResource("11_action")
+action_id = &"action.oathscar.oath_backlash.deal_psychic_damage"
+kind = &"deal_damage"
+payload = SubResource("Action_oath_backlash_damage_payload")
+
+[sub_resource type="Resource" id="Reaction_oath_backlash_after_hit"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.oathscar.oath_backlash.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_oath_backlash")
+actions = Array[Resource]([SubResource("Action_clear_oath_mark"), SubResource("Action_oath_backlash_damage")])
+
+[sub_resource type="Resource" id="Binding_oath_backlash"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.oathscar.oath_backlash"
+trait_id = &"weapon.sword.oathscar.oath_backlash"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"oathscar"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_oath_backlash_after_hit")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.oathscar"
+schema_version = 1
+load_order = 155
+bindings = Array[Resource]([SubResource("Binding_oath_bind"), SubResource("Binding_oath_mark"), SubResource("Binding_oath_judgment"), SubResource("Binding_oath_backlash")])

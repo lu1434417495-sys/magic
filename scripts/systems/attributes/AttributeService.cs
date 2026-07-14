@@ -26,6 +26,7 @@ internal enum AttributeIdKind
     ShieldAcBonus,
     DodgeBonus,
     DeflectionBonus,
+    NaturalArmorAcBonus,
     ArmorMaxDexBonus,
     BaseAttackBonus,
     SpellProficiencyBonus,
@@ -37,6 +38,8 @@ public sealed class AttributeService
     internal static readonly StringName CHARACTER_HP_MAX_PERCENT_BONUS =
         "character_hp_max_percent_bonus";
     internal static readonly StringName MP_MAX = "mp_max";
+    internal static readonly StringName MP_MAX_UNRESERVED = "mp_max_unreserved";
+    internal static readonly StringName RESERVED_MP_MAX = "reserved_mp_max";
     internal static readonly StringName STAMINA_MAX = "stamina_max";
     internal static readonly StringName STAMINA_RECOVERY_PERCENT_BONUS =
         "stamina_recovery_percent_bonus";
@@ -63,6 +66,7 @@ public sealed class AttributeService
     internal static readonly StringName SHIELD_AC_BONUS = "shield_ac_bonus";
     internal static readonly StringName DODGE_BONUS = "dodge_bonus";
     internal static readonly StringName DEFLECTION_BONUS = "deflection_bonus";
+    internal static readonly StringName NATURAL_ARMOR_AC_BONUS = "natural_armor_ac_bonus";
     internal static readonly StringName ARMOR_MAX_DEX_BONUS = "armor_max_dex_bonus";
     internal static readonly StringName BASE_ATTACK_BONUS =
         AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.BaseAttackBonus);
@@ -92,6 +96,7 @@ public sealed class AttributeService
         SHIELD_AC_BONUS,
         DODGE_BONUS,
         DEFLECTION_BONUS,
+        NATURAL_ARMOR_AC_BONUS,
         ARMOR_MAX_DEX_BONUS,
     };
 
@@ -101,6 +106,7 @@ public sealed class AttributeService
         SHIELD_AC_BONUS,
         DODGE_BONUS,
         DEFLECTION_BONUS,
+        NATURAL_ARMOR_AC_BONUS,
     };
 
     internal static readonly StringName[] PROTECTED_CUSTOM_STAT_KEYS =
@@ -133,6 +139,7 @@ public sealed class AttributeService
             AttributeIdKind.ShieldAcBonus => SHIELD_AC_BONUS,
             AttributeIdKind.DodgeBonus => DODGE_BONUS,
             AttributeIdKind.DeflectionBonus => DEFLECTION_BONUS,
+            AttributeIdKind.NaturalArmorAcBonus => NATURAL_ARMOR_AC_BONUS,
             AttributeIdKind.ArmorMaxDexBonus => ARMOR_MAX_DEX_BONUS,
             AttributeIdKind.BaseAttackBonus => BASE_ATTACK_BONUS,
             AttributeIdKind.SpellProficiencyBonus => SPELL_PROFICIENCY_BONUS,
@@ -141,12 +148,17 @@ public sealed class AttributeService
     }
 
     private UnitProgress _unit_progress;
-    private Dictionary<StringName, SkillDef> _skill_defs = new();
-    private Dictionary<StringName, ProfessionDef> _profession_defs = new();
-    private List<AttributeModifier> _trait_attribute_modifiers = new();
-    private List<AttributeModifier> _equipment_state = new();
-    private List<AttributeModifier> _passive_state = new();
-    private List<AttributeModifier> _temporary_effects = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
+    private Dictionary<StringName, ProfessionDefinition> _profession_defs = new();
+    private IReadOnlyList<AttributeModifierDefinition> _trait_attribute_modifiers =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _equipment_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _passive_state =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private IReadOnlyList<AttributeModifierDefinition> _temporary_effects =
+        System.Array.Empty<AttributeModifierDefinition>();
+    private int _reserved_mp_max;
     private Dictionary<StringName, DerivedAttributeRule> _derived_rules = new();
     private AttributeSourceContext _context;
     private AttributeSnapshot _cached_snapshot;
@@ -174,19 +186,22 @@ public sealed class AttributeService
     {
         _context = context ?? new AttributeSourceContext();
         _unit_progress = _context.unit_progress;
-        _skill_defs =
-            _context.skill_defs != null
-                ? new Dictionary<StringName, SkillDef>(_context.skill_defs)
-                : new Dictionary<StringName, SkillDef>();
+        _skill_definitions =
+            _context.skill_definitions != null
+                ? new Dictionary<StringName, SkillDefinition>(_context.skill_definitions)
+                : new Dictionary<StringName, SkillDefinition>();
         _profession_defs =
             _context.profession_defs != null
-                ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
-                : new Dictionary<StringName, ProfessionDef>();
-        _trait_attribute_modifiers = CopyAttributeModifierList(_context.trait_attribute_modifiers);
-        _equipment_state = CopyAttributeModifierList(_context.equipment_state);
-        _passive_state = CopyAttributeModifierList(_context.passive_state);
-        _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
-        _context.skill_defs = _skill_defs;
+                ? new Dictionary<StringName, ProfessionDefinition>(_context.profession_defs)
+                : new Dictionary<StringName, ProfessionDefinition>();
+        _trait_attribute_modifiers = CopyAttributeModifierDefinitionList(
+            _context.trait_attribute_modifiers
+        );
+        _equipment_state = CopyAttributeModifierDefinitionList(_context.equipment_state);
+        _passive_state = CopyAttributeModifierDefinitionList(_context.passive_state);
+        _temporary_effects = CopyAttributeModifierDefinitionList(_context.temporary_effects);
+        _reserved_mp_max = Mathf.Max(_context.reserved_mp_max, 0);
+        _context.skill_definitions = _skill_definitions;
         _context.profession_defs = _profession_defs;
         _context.trait_attribute_modifiers = _trait_attribute_modifiers;
         _context.equipment_state = _equipment_state;
@@ -238,6 +253,7 @@ public sealed class AttributeService
 
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             snapshot.SetValue(attributeId, GetDictInt(resolvedBaseValues, attributeId, 0));
+        ApplyBaseAttributeModifierOverlays(snapshot, modifierEntries);
 
         foreach (StringName attributeId in GetKnownNonBaseAttributeIds())
         {
@@ -269,10 +285,17 @@ public sealed class AttributeService
                     derivedValue += rule.evaluate(resolvedBaseValues);
             }
 
-            snapshot.SetValue(
-                attributeId,
-                ApplyModifierPipeline(attributeId, derivedValue, modifierEntries)
-            );
+            int resolvedValue = ApplyModifierPipeline(attributeId, derivedValue, modifierEntries);
+            if (attributeId == MP_MAX)
+            {
+                int unreservedMpMax = Mathf.Max(resolvedValue, 0);
+                int reservedMpMax = Mathf.Max(_reserved_mp_max, 0);
+                snapshot.SetValue(MP_MAX_UNRESERVED, unreservedMpMax);
+                snapshot.SetValue(RESERVED_MP_MAX, reservedMpMax);
+                resolvedValue = Mathf.Max(unreservedMpMax - reservedMpMax, 0);
+            }
+
+            snapshot.SetValue(attributeId, resolvedValue);
         }
 
         foreach (StringName attributeId in GetAdditionalAttributeIds(modifierEntries))
@@ -391,6 +414,34 @@ public sealed class AttributeService
         return resolvedValues;
     }
 
+    private void ApplyBaseAttributeModifierOverlays(
+        AttributeSnapshot snapshot,
+        List<AttributeModifierEntry> modifierEntries
+    )
+    {
+        if (snapshot == null || modifierEntries == null || modifierEntries.Count == 0)
+            return;
+
+        foreach (StringName baseAttributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
+        {
+            StringName modifierAttributeId =
+                AttributeSnapshot.GetBaseAttributeModifierId(baseAttributeId);
+            if (
+                modifierAttributeId == ""
+                || !HasModifierEntryForAttribute(modifierAttributeId, modifierEntries)
+            )
+                continue;
+            snapshot.SetValue(
+                modifierAttributeId,
+                ApplyModifierPipeline(
+                    modifierAttributeId,
+                    snapshot.GetValue(modifierAttributeId),
+                    modifierEntries
+                )
+            );
+        }
+    }
+
     private List<AttributeModifierEntry> CollectAllModifierEntries()
     {
         var entries = new List<AttributeModifierEntry>();
@@ -416,9 +467,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.race_def.attribute_modifiers,
+            _context.race_def.AttributeModifiers,
             "race",
-            _context.race_def.race_id,
+            _context.race_def.RaceId,
             1
         );
     }
@@ -429,9 +480,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.subrace_def.attribute_modifiers,
+            _context.subrace_def.AttributeModifiers,
             "subrace",
-            _context.subrace_def.subrace_id,
+            _context.subrace_def.SubraceId,
             1
         );
     }
@@ -445,10 +496,10 @@ public sealed class AttributeService
         StringName sourceId =
             _context.age_stage_source_id != ""
                 ? _context.age_stage_source_id
-                : _context.age_stage_rule.stage_id;
+                : _context.age_stage_rule.StageId;
         AppendModifierEntries(
             entries,
-            _context.age_stage_rule.attribute_modifiers,
+            _context.age_stage_rule.AttributeModifiers,
             sourceType,
             sourceId,
             1
@@ -462,17 +513,17 @@ public sealed class AttributeService
         if (_context.bloodline_def != null)
             AppendModifierEntries(
                 entries,
-                _context.bloodline_def.attribute_modifiers,
+                _context.bloodline_def.AttributeModifiers,
                 "bloodline",
-                _context.bloodline_def.bloodline_id,
+                _context.bloodline_def.BloodlineId,
                 1
             );
         if (_context.bloodline_stage_def != null)
             AppendModifierEntries(
                 entries,
-                _context.bloodline_stage_def.attribute_modifiers,
+                _context.bloodline_stage_def.AttributeModifiers,
                 "bloodline",
-                _context.bloodline_stage_def.stage_id,
+                _context.bloodline_stage_def.StageId,
                 1
             );
     }
@@ -483,9 +534,9 @@ public sealed class AttributeService
             return;
         AppendModifierEntries(
             entries,
-            _context.ascension_stage_def.attribute_modifiers,
+            _context.ascension_stage_def.AttributeModifiers,
             "ascension",
-            _context.ascension_stage_def.stage_id,
+            _context.ascension_stage_def.StageId,
             1
         );
     }
@@ -501,14 +552,16 @@ public sealed class AttributeService
         if (!UnitBaseAttributes.IsBaseAttributeId(_context.versatility_pick))
             return;
 
-        var modifier = new AttributeModifier
-        {
-            attribute_id = _context.versatility_pick,
-            mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-            value = 1,
-        };
-        StringName sourceId = _context.race_def != null ? _context.race_def.race_id : "versatility";
-        var modifiers = new List<AttributeModifier> { modifier };
+        var modifier = new AttributeModifierDefinition(
+            _context.versatility_pick,
+            AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            1,
+            0,
+            "",
+            ""
+        );
+        StringName sourceId = _context.race_def != null ? _context.race_def.RaceId : "versatility";
+        var modifiers = new[] { modifier };
         AppendModifierEntries(entries, modifiers, "versatility", sourceId, 1);
     }
 
@@ -528,7 +581,7 @@ public sealed class AttributeService
                 continue;
             AppendModifierEntries(
                 entries,
-                professionDef.attribute_modifiers,
+                professionDef.AttributeModifiers,
                 "profession",
                 professionId,
                 professionProgress.rank
@@ -548,13 +601,13 @@ public sealed class AttributeService
             if (!IsSkillModifierActive(skillProgress))
                 continue;
 
-            if (!_skill_defs.TryGetValue(skillId, out var skillDef))
+            if (!_skill_definitions.TryGetValue(skillId, out var skillDefinition))
                 continue;
 
             int effectiveRank = Mathf.Max(skillProgress.skill_level, 1);
             AppendModifierEntries(
                 entries,
-                skillDef.AttributeModifiersTyped,
+                skillDefinition.AttributeModifiers,
                 "skill",
                 skillId,
                 effectiveRank
@@ -580,7 +633,7 @@ public sealed class AttributeService
 
     private void AppendExternalModifierEntries(
         List<AttributeModifierEntry> entries,
-        List<AttributeModifier> state,
+        IReadOnlyList<AttributeModifierDefinition> state,
         StringName defaultSourceType
     )
     {
@@ -591,7 +644,7 @@ public sealed class AttributeService
 
     private static void AppendTraitModifierEntries(
         List<AttributeModifierEntry> entries,
-        List<AttributeModifier> state
+        IReadOnlyList<AttributeModifierDefinition> state
     )
     {
         if (state == null || state.Count == 0)
@@ -599,9 +652,9 @@ public sealed class AttributeService
         AppendModifierEntries(entries, state, "", "", 1);
     }
 
-    private static void AppendModifierEntries<T>(
+    private static void AppendModifierEntries(
         List<AttributeModifierEntry> entries,
-        IEnumerable<T> modifiers,
+        IEnumerable<AttributeModifierDefinition> modifiers,
         StringName sourceType,
         StringName sourceId,
         int rank
@@ -610,31 +663,31 @@ public sealed class AttributeService
         if (modifiers == null)
             return;
 
-        foreach (T modifierValue in modifiers)
+        foreach (AttributeModifierDefinition definition in modifiers)
         {
-            if (modifierValue is AttributeModifier modifier)
-                AppendModifierEntry(entries, modifier, sourceType, sourceId, rank);
+            if (definition != null)
+                AppendModifierEntry(entries, definition, sourceType, sourceId, rank);
         }
     }
 
     private static void AppendModifierEntry(
         List<AttributeModifierEntry> entries,
-        AttributeModifier modifier,
+        AttributeModifierDefinition modifier,
         StringName sourceType,
         StringName sourceId,
         int rank
     )
     {
-        if (modifier == null || modifier.attribute_id == "")
+        if (modifier == null || modifier.AttributeId == "")
             return;
 
         entries.Add(
             new AttributeModifierEntry(
-                modifier.attribute_id,
-                modifier.ModeKind,
+                modifier.AttributeId,
+                AttributeModifier.ToMode(modifier.Mode),
                 modifier.GetValueForRank(rank),
-                sourceType != "" ? sourceType : modifier.source_type,
-                sourceId != "" ? sourceId : modifier.source_id
+                sourceType != "" ? sourceType : modifier.SourceType,
+                sourceId != "" ? sourceId : modifier.SourceId
             )
         );
     }
@@ -790,6 +843,17 @@ public sealed class AttributeService
             && ContainsAttributeId(AC_COMPONENT_ATTRIBUTE_IDS, modifierAttributeId);
     }
 
+    private static bool HasModifierEntryForAttribute(
+        StringName attributeId,
+        List<AttributeModifierEntry> modifierEntries
+    )
+    {
+        foreach (var entry in modifierEntries)
+            if (ModifierEntryAppliesToAttribute(attributeId, entry.AttributeId))
+                return true;
+        return false;
+    }
+
     private static int ClampAttributeValue(StringName attributeId, int value)
     {
         if (attributeId == HP_MAX)
@@ -811,6 +875,7 @@ public sealed class AttributeService
             || attributeId == SHIELD_AC_BONUS
             || attributeId == DODGE_BONUS
             || attributeId == DEFLECTION_BONUS
+            || attributeId == NATURAL_ARMOR_AC_BONUS
         )
             return Mathf.Max(value, 0);
         if (attributeId == ARMOR_MAX_DEX_BONUS)
@@ -885,7 +950,7 @@ public sealed class AttributeService
         rules[STAMINA_MAX] = new DerivedAttributeRule(
             STAMINA_MAX,
             24,
-            new GDictionary
+            new Dictionary<StringName, int>
             {
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution)] = 5,
                 [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength)] = 1,
@@ -899,7 +964,10 @@ public sealed class AttributeService
         rules[ACTION_POINTS] = new DerivedAttributeRule(
             ACTION_POINTS,
             1,
-            new GDictionary { [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1 },
+            new Dictionary<StringName, int>
+            {
+                [UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)] = 1,
+            },
             10,
             1,
             0,
@@ -922,11 +990,13 @@ public sealed class AttributeService
         return _unit_progress.GetSkillProgress(skillId);
     }
 
-    private static List<AttributeModifier> CopyAttributeModifierList(
-        List<AttributeModifier> values
+    private static IReadOnlyList<AttributeModifierDefinition> CopyAttributeModifierDefinitionList(
+        IReadOnlyList<AttributeModifierDefinition> values
     )
     {
-        return values != null ? new List<AttributeModifier>(values) : new List<AttributeModifier>();
+        return values != null && values.Count > 0
+            ? new List<AttributeModifierDefinition>(values).AsReadOnly()
+            : System.Array.Empty<AttributeModifierDefinition>();
     }
 
     private static bool ContainsAttributeId(StringName[] values, StringName attributeId)

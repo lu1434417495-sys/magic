@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -28,18 +29,6 @@ internal enum CombatEffectLifetimePolicy
 [GlobalClass]
 public partial class CombatEffectDef : Resource
 {
-    private static readonly StringName TriggerEventCriticalHit = "critical_hit";
-    private static readonly StringName TriggerEventOrdinaryHit = "ordinary_hit";
-    private static readonly StringName TriggerEventSecondaryHit = "secondary_hit";
-    private static readonly StringName TriggerConditionBattleStart = "battle_start";
-    private static readonly StringName TriggerConditionOnFatalDamage = "on_fatal_damage";
-    private static readonly StringName LifetimePolicyTimed = "timed";
-    private static readonly StringName LifetimePolicyBattle = "battle";
-
-    private const double MinJumpArcRatio = 0.15;
-
-    public static double MIN_JUMP_ARC_RATIO() => MinJumpArcRatio;
-
     [Export]
     public StringName effect_type { get; set; } = "";
     internal BattleEffectKind EffectKind
@@ -66,8 +55,8 @@ public partial class CombatEffectDef : Resource
     public StringName lifetime_policy { get; set; } = "timed";
     internal CombatEffectLifetimePolicy LifetimePolicyKind
     {
-        get => ToLifetimePolicy(lifetime_policy);
-        set => lifetime_policy = ToStringName(value);
+        get => CombatEffectContentRules.ToLifetimePolicy(lifetime_policy);
+        set => lifetime_policy = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
@@ -113,6 +102,14 @@ public partial class CombatEffectDef : Resource
     public Godot.Collections.Array<StringName> damage_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> mitigation_bypass_damage_tags { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> mitigation_bypass_tiers { get; set; } =
+        new();
+
+    [Export]
     public StringName damage_category { get; set; } = "";
 
     [Export]
@@ -147,6 +144,15 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int bonus_damage_dice_bonus { get; set; }
+
+    [Export]
+    public int source_bound_weapon_bonus_damage_dice_count { get; set; }
+
+    [Export]
+    public int source_bound_weapon_bonus_damage_dice_sides { get; set; }
+
+    [Export]
+    public int source_bound_weapon_bonus_damage_dice_bonus { get; set; }
 
     [Export]
     public bool add_weapon_dice { get; set; }
@@ -222,6 +228,18 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int attack_roll_penalty { get; set; } = -1;
+
+    [Export]
+    public int attack_roll_bonus { get; set; }
+
+    [Export]
+    public bool attack_roll_advantage { get; set; }
+
+    [Export]
+    public bool consume_on_next_attack_check { get; set; }
+
+    [Export]
+    public bool consume_on_next_save { get; set; }
 
     [Export]
     public bool undispellable { get; set; }
@@ -321,19 +339,22 @@ public partial class CombatEffectDef : Resource
     public StringName bonus_condition { get; set; } = "";
 
     [Export]
+    public StringName bonus_condition_creature_type_tag { get; set; } = "";
+
+    [Export]
     public StringName trigger_event { get; set; } = "";
     internal CombatEffectTriggerEvent TriggerEventKind
     {
-        get => ToTriggerEvent(trigger_event);
-        set => trigger_event = ToStringName(value);
+        get => CombatEffectContentRules.ToTriggerEvent(trigger_event);
+        set => trigger_event = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
     public StringName trigger_condition { get; set; } = "";
     internal CombatEffectTriggerCondition TriggerConditionKind
     {
-        get => ToTriggerCondition(trigger_condition);
-        set => trigger_condition = ToStringName(value);
+        get => CombatEffectContentRules.ToTriggerCondition(trigger_condition);
+        set => trigger_condition = CombatEffectContentRules.ToStringName(value);
     }
 
     [Export]
@@ -349,72 +370,6 @@ public partial class CombatEffectDef : Resource
     {
         get => BattleSaveContentRules.ToSaveDcMode(save_dc_mode);
         set => save_dc_mode = BattleSaveContentRules.ToStringName(value);
-    }
-
-    internal static CombatEffectTriggerEvent ToTriggerEvent(StringName value)
-    {
-        if (value == "")
-            return CombatEffectTriggerEvent.None;
-        if (value == TriggerEventCriticalHit)
-            return CombatEffectTriggerEvent.CriticalHit;
-        if (value == TriggerEventOrdinaryHit)
-            return CombatEffectTriggerEvent.OrdinaryHit;
-        if (value == TriggerEventSecondaryHit)
-            return CombatEffectTriggerEvent.SecondaryHit;
-        return CombatEffectTriggerEvent.Unknown;
-    }
-
-    internal static CombatEffectTriggerCondition ToTriggerCondition(StringName value)
-    {
-        if (value == "")
-            return CombatEffectTriggerCondition.None;
-        if (value == TriggerConditionBattleStart)
-            return CombatEffectTriggerCondition.BattleStart;
-        if (value == TriggerConditionOnFatalDamage)
-            return CombatEffectTriggerCondition.OnFatalDamage;
-        return CombatEffectTriggerCondition.Unknown;
-    }
-
-    internal static CombatEffectLifetimePolicy ToLifetimePolicy(StringName value)
-    {
-        if (value == LifetimePolicyTimed)
-            return CombatEffectLifetimePolicy.Timed;
-        if (value == LifetimePolicyBattle)
-            return CombatEffectLifetimePolicy.Battle;
-        return CombatEffectLifetimePolicy.Unknown;
-    }
-
-    internal static StringName ToStringName(CombatEffectTriggerEvent triggerEvent)
-    {
-        return triggerEvent switch
-        {
-            CombatEffectTriggerEvent.None => "",
-            CombatEffectTriggerEvent.CriticalHit => TriggerEventCriticalHit,
-            CombatEffectTriggerEvent.OrdinaryHit => TriggerEventOrdinaryHit,
-            CombatEffectTriggerEvent.SecondaryHit => TriggerEventSecondaryHit,
-            _ => "",
-        };
-    }
-
-    internal static StringName ToStringName(CombatEffectTriggerCondition triggerCondition)
-    {
-        return triggerCondition switch
-        {
-            CombatEffectTriggerCondition.None => "",
-            CombatEffectTriggerCondition.BattleStart => TriggerConditionBattleStart,
-            CombatEffectTriggerCondition.OnFatalDamage => TriggerConditionOnFatalDamage,
-            _ => "",
-        };
-    }
-
-    internal static StringName ToStringName(CombatEffectLifetimePolicy lifetimePolicy)
-    {
-        return lifetimePolicy switch
-        {
-            CombatEffectLifetimePolicy.Timed => LifetimePolicyTimed,
-            CombatEffectLifetimePolicy.Battle => LifetimePolicyBattle,
-            _ => "",
-        };
     }
 
     [Export]
@@ -436,6 +391,15 @@ public partial class CombatEffectDef : Resource
     public StringName consumed_status_id { get; set; } = "";
 
     [Export]
+    public StringName required_target_status_id { get; set; } = "";
+
+    [Export]
+    public int required_target_status_min_stacks { get; set; }
+
+    [Export]
+    public StringName required_target_status_source_selector { get; set; } = "";
+
+    [Export]
     public int dice_per_consumed_stack { get; set; }
 
     [Export]
@@ -455,6 +419,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public bool lock_counterattack { get; set; }
+
+    [Export]
+    public bool lock_guard { get; set; }
 
     [Export]
     public bool lock_dodge_bonus { get; set; }
@@ -499,70 +466,19 @@ public partial class CombatEffectDef : Resource
     public Godot.Collections.Array<StringName> effect_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<CombatEffectSlotWeightDef> equipment_durability_slot_weights { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<CombatDamageSegmentDef> extra_damage_segments { get; set; } =
+        new();
+
+    [Export]
+    public Godot.Collections.Array<CombatTargetDamageMultiplierRuleDef> target_damage_multiplier_rules { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();
-
-    public CombatEffectDef DuplicateForRuntime()
-    {
-        var copy = (CombatEffectDef)Duplicate(true);
-
-        if (copy == null)
-            return null;
-
-        copy.@params =
-            copy.@params != null
-                ? copy.@params.Duplicate(true)
-                : new Godot.Collections.Dictionary();
-        copy.accuracy_modifier_spec = accuracy_modifier_spec?.Clone();
-
-        return copy;
-    }
-
-    internal int GetIntParamTyped(string key, int fallback = 0)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-        }
-        return fallback;
-    }
-
-    internal StringName GetStringNameParamTyped(string key, StringName fallback = default)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(@params[key]);
-            return normalized != "" ? normalized : fallback;
-        }
-        return fallback;
-    }
-
-    internal double GetFloatParamTyped(string key, double fallback = 0.0)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return fallback;
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            return value.VariantType switch
-            {
-                Variant.Type.Int => value.AsInt64(),
-                Variant.Type.Float => value.AsDouble(),
-                _ => fallback,
-            };
-        }
-        return fallback;
-    }
 
     internal bool HasEffectTagTyped(StringName tag)
     {
@@ -580,53 +496,4 @@ public partial class CombatEffectDef : Resource
         return false;
     }
 
-    internal IReadOnlyList<StringName> GetStringNameListParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return System.Array.Empty<StringName>();
-        }
-        if (@params.ContainsKey(key))
-        {
-            return ProgressionDataUtils.to_string_name_array(@params[key]);
-        }
-        return System.Array.Empty<StringName>();
-    }
-
-    internal IReadOnlyDictionary<StringName, int> GetStringNameIntMapParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || @params == null)
-        {
-            return new Dictionary<StringName, int>();
-        }
-        if (@params.ContainsKey(key))
-        {
-            Variant value = @params[key];
-            if (value.VariantType != Variant.Type.Dictionary)
-            {
-                return new Dictionary<StringName, int>();
-            }
-            var result = new Dictionary<StringName, int>();
-            foreach (Variant rawKey in value.AsGodotDictionary().Keys)
-            {
-                if (rawKey.VariantType != Variant.Type.StringName)
-                {
-                    continue;
-                }
-                Variant rawValue = value.AsGodotDictionary()[rawKey];
-                if (rawValue.VariantType != Variant.Type.Int)
-                {
-                    continue;
-                }
-                StringName id = rawKey.AsStringName();
-                if (id == "")
-                {
-                    continue;
-                }
-                result[id] = rawValue.AsInt32();
-            }
-            return result;
-        }
-        return new Dictionary<StringName, int>();
-    }
 }

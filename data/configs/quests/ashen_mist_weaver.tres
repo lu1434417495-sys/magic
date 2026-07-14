@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_mist_weaver"
+display_name = "编织者之影"
+description = "迷雾编织者在祭所外围布置了某种仪式。它们的法术和主世界的法师不同——更像是在编辑现实。阻止它们。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"ashen_intersection", &"main_story"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"ashen_awakening"}])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_weavers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_weaver", &"target_value": 2}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 400}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"mage_black_flame", &"amount": 1}])}])
+is_repeatable = false

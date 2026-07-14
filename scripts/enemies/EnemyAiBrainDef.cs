@@ -44,11 +44,31 @@ public partial class EnemyAiBrainDef : Resource
 
     internal bool HasState(StringName stateId) => GetState(stateId) != null;
 
+    internal EnemyAiBrainDefinition ToDefinition()
+    {
+        var stateDefinitions = new List<EnemyAiStateDefinition>();
+        foreach (EnemyAiStateDef state in GetResolvedStates())
+            stateDefinitions.Add(state.ToDefinition());
+        var transitionDefinitions = new List<EnemyAiTransitionRuleDefinition>();
+        foreach (EnemyAiTransitionRuleDef rule in transition_rules)
+        {
+            if (rule != null)
+                transitionDefinitions.Add(rule.ToDefinition());
+        }
+        return new EnemyAiBrainDefinition(
+            brain_id,
+            default_state_id,
+            BattleAiScoreProfileDefinition.FromResource(score_profile),
+            stateDefinitions,
+            transitionDefinitions
+        );
+    }
+
     public Godot.Collections.Array<string> ValidateSchema(
-        Godot.Collections.Dictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
-        skillDefs ??= new Godot.Collections.Dictionary();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
 
         var errors = new Godot.Collections.Array<string>();
 
@@ -83,7 +103,7 @@ public partial class EnemyAiBrainDef : Resource
             if (state.state_id == default_state_id)
                 defaultStateFound = true;
 
-            foreach (var e in state.ValidateSchema(brain_id, skillDefs))
+            foreach (var e in state.ValidateSchema(brain_id, skillDefinitions))
                 errors.Add(e);
         }
 

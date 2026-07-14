@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_fortuna_guidance_regression : SceneTree
+public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName FortunaDeityId = "fortuna";
@@ -21,17 +21,15 @@ public partial class run_fortuna_guidance_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestFortunaGuidanceUnlockChainFeedsRank2To5();
         TestRuntimeChapterAdapterUsesFormalPermanentDeathField();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Fortuna guidance regression");
     }
 
@@ -106,12 +104,10 @@ public partial class run_fortuna_guidance_regression : SceneTree
         );
 
         guidance.HandleFateEvent(BuildDevoutInput("battle_devout"));
-        BattleState devoutBattleState = BuildBattleState("battle_devout", true);
         List<StringName> devoutUnlocks = guidance.HandleBattleResolution(
-            devoutBattleState,
+            BuildBattleState("battle_devout", true),
             BuildBattleResolutionResult("battle_devout")
         );
-        BattleTestFixture.DisposeBattleState(devoutBattleState);
         _test.True(
             devoutUnlocks.Contains(GuidanceDevoutId),
             "低血+强 debuff 活下来并赢战后应解锁 guidance_devout。"
@@ -192,44 +188,39 @@ public partial class run_fortuna_guidance_regression : SceneTree
 
         BattleFateEventBus bus = new();
         FateRuntimeModule fateRuntime = new();
-        try
-        {
-            fateRuntime.Setup(context.Manager, bus);
+        fateRuntime.Setup(context.Manager, bus);
 
-            bus.Dispatch(BuildExaltedPayload("adapter_blocked"));
-            GStringNameArray blockedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
-                new GDictionary
-                {
-                    ["chapter_id"] = "chapter_blocked",
-                    ["member_ids"] = new GStringNameArray { HeroId },
-                    ["had_permanent_death"] = true,
-                }
-            );
-            _test.True(blockedUnlocks.Count == 0, "正式 had_permanent_death=true 时 runtime adapter 不应解锁 blessed。");
-            _test.True(
-                !IsAchievementUnlocked(context.PartyState, GuidanceBlessedId),
-                "正式永久死亡字段为 true 时不应写入 blessed achievement。"
-            );
+        bus.Dispatch(BuildExaltedPayload("adapter_blocked"));
+        List<StringName> blockedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
+            new GDictionary
+            {
+                ["chapter_id"] = "chapter_blocked",
+                ["member_ids"] = new GStringNameArray { HeroId },
+                ["had_permanent_death"] = true,
+            }
+        );
+        _test.True(blockedUnlocks.Count == 0, "正式 had_permanent_death=true 时 runtime adapter 不应解锁 blessed。");
+        _test.True(
+            !IsAchievementUnlocked(context.PartyState, GuidanceBlessedId),
+            "正式永久死亡字段为 true 时不应写入 blessed achievement。"
+        );
 
-            bus.Dispatch(BuildExaltedPayload("adapter_allowed"));
-            GStringNameArray allowedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
-                new GDictionary
-                {
-                    ["chapter_id"] = "chapter_allowed",
-                    ["member_ids"] = new GStringNameArray { HeroId },
-                    ["had_permanent_death"] = false,
-                }
-            );
-            _test.True(
-                allowedUnlocks.Contains(GuidanceBlessedId),
-                "正式 had_permanent_death=false 时 runtime adapter 应投影并解锁 blessed。"
-            );
-        }
-        finally
-        {
-            fateRuntime.DisposeRuntime();
-            bus.Dispose();
-        }
+        bus.Dispatch(BuildExaltedPayload("adapter_allowed"));
+        List<StringName> allowedUnlocks = fateRuntime.HandleFortunaChapterCompleted(
+            new GDictionary
+            {
+                ["chapter_id"] = "chapter_allowed",
+                ["member_ids"] = new GStringNameArray { HeroId },
+                ["had_permanent_death"] = false,
+            }
+        );
+        _test.True(
+            allowedUnlocks.Contains(GuidanceBlessedId),
+            "正式 had_permanent_death=false 时 runtime adapter 应投影并解锁 blessed。"
+        );
+
+        fateRuntime.DisposeRuntime();
+        bus.Dispose();
     }
 
     private static TestContext BuildContext()
@@ -244,14 +235,14 @@ public partial class run_fortuna_guidance_regression : SceneTree
         partyState.SetMemberState(BuildMemberState());
 
         CharacterManagementModule manager = new();
-        using ProgressionContentRegistry progressionRegistry = new();
+        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         manager.setup(
             partyState,
-            new Dictionary<StringName, SkillDef>(),
-            new Dictionary<StringName, ProfessionDef>(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
             progressionRegistry.GetAchievementDefsTyped(),
-            new Dictionary<StringName, ItemDef>(),
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             new ProgressionIdentityCatalogData()
         );
@@ -259,7 +250,9 @@ public partial class run_fortuna_guidance_regression : SceneTree
         FortunaGuidanceService guidance = new();
         guidance.Setup(manager);
 
-        FaithService faith = new();
+        FaithContentRegistry faithRegistry = new(new TestContentResourceLoader());
+        faithRegistry.Rebuild();
+        FaithService faith = new(faithRegistry.GetFaithDeityDefsTyped());
         return new TestContext(partyState, manager, guidance, faith);
     }
 
@@ -367,7 +360,6 @@ public partial class run_fortuna_guidance_regression : SceneTree
         if (pendingReward == null)
             return;
         manager.ApplyPendingCharacterReward(pendingReward);
-        GodotRefCountedDisposer.DisposeIfValid(pendingReward);
         _test.True(
             partyState.GetNextPendingCharacterReward() == null,
             $"Fortuna rank {expectedRank} 结算后应清空 pending reward。"
@@ -423,7 +415,6 @@ public partial class run_fortuna_guidance_regression : SceneTree
             Guidance?.Dispose();
             Faith?.Dispose();
             Manager?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

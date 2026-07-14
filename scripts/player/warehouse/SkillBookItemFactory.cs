@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 public static class SkillBookItemFactory
@@ -9,56 +11,73 @@ public static class SkillBookItemFactory
     public static StringName BuildItemIdForSkill(StringName skillId) =>
         ProgressionDataUtils.to_string_name($"skill_book_{skillId}");
 
-    public static Dictionary<StringName, ItemDef> BuildGeneratedItemDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ItemDef> existingItemDefs = null
+    internal static IReadOnlyDictionary<StringName, ItemDefinition> BuildGeneratedItemDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> existingItemDefs = null
     )
     {
-        var generatedDefs = new Dictionary<StringName, ItemDef>();
+        var generatedDefs = new Dictionary<StringName, ItemDefinition>();
         if (skillDefs == null)
-            return generatedDefs;
+            return new ReadOnlyDictionary<StringName, ItemDefinition>(generatedDefs);
 
-        foreach (SkillDef skillDef in skillDefs.Values)
+        foreach (SkillDefinition skillDef in skillDefs.Values)
         {
             if (skillDef == null)
                 continue;
             if (
-                skillDef.skill_id == ""
-                || skillDef.LearnSourceKind != SkillLearnSourceKind.Book
+                skillDef.SkillId == ""
+                || skillDef.LearnSource != "book"
             )
                 continue;
-            if (skillDef.display_name.StripEdges().Length == 0)
+            if (skillDef.DisplayName.StripEdges().Length == 0)
                 continue;
 
-            var itemId = BuildItemIdForSkill(skillDef.skill_id);
+            var itemId = BuildItemIdForSkill(skillDef.SkillId);
             if (existingItemDefs != null && existingItemDefs.ContainsKey(itemId))
                 continue;
 
-            generatedDefs[itemId] = new ItemDef
-            {
-                item_id = itemId,
-                display_name = _build_display_name(skillDef),
-                description = _build_description(skillDef),
-                icon = DEFAULT_ICON_PATH,
-                is_stackable = true,
-                max_stack = DEFAULT_MAX_STACK,
-                CategoryKind = ItemCategoryKind.SkillBook,
-                granted_skill_id = skillDef.skill_id,
-            };
+            var itemDef = new ItemDefinition(
+                itemId,
+                "",
+                _build_display_name(skillDef),
+                _build_description(skillDef),
+                DEFAULT_ICON_PATH,
+                true,
+                0,
+                0,
+                0,
+                true,
+                DEFAULT_MAX_STACK,
+                ItemDefinition.ToStringName(ItemCategoryKind.SkillBook),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<StringName>(),
+                Array.Empty<TraitRollGroupDefinition>(),
+                Array.Empty<string>(),
+                Array.Empty<AttributeModifierDefinition>(),
+                skillDef.SkillId,
+                Array.Empty<string>(),
+                null,
+                "",
+                null,
+                -1
+            );
+            generatedDefs[itemId] = itemDef;
         }
 
-        return generatedDefs;
+        return new ReadOnlyDictionary<StringName, ItemDefinition>(generatedDefs);
     }
 
-    private static string _build_display_name(SkillDef skillDef) =>
-        $"{skillDef.display_name.StripEdges()} 技能书";
+    private static string _build_display_name(SkillDefinition skillDef) =>
+        $"{skillDef.DisplayName.StripEdges()} 技能书";
 
-    private static string _build_description(SkillDef skillDef)
+    private static string _build_description(SkillDefinition skillDef)
     {
-        var skillName = skillDef.display_name.StripEdges();
+        var skillName = skillDef.DisplayName.StripEdges();
         var result = $"阅读后使一名队员学会技能：{skillName}。";
-        if (skillDef.description.Length > 0)
-            result += $"\n{skillDef.description}";
+        if (skillDef.Description.Length > 0)
+            result += $"\n{skillDef.Description}";
         return result;
     }
 }

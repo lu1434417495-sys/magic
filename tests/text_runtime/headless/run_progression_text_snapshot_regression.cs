@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_progression_text_snapshot_regression : SceneTree
+public partial class run_progression_text_snapshot_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,14 +16,13 @@ public partial class run_progression_text_snapshot_regression : SceneTree
     {
         TestPartyTextSnapshotRendersProgressionState();
 
-        Quit(_test.Finish("Progression text snapshot regression"));
+        RequestTestExit(_test.Finish("Progression text snapshot regression"));
     }
 
     private void TestPartyTextSnapshotRendersProgressionState()
     {
-        List<string> lines = TextSnapshotLines(
-            GameTextSnapshotRenderer.RenderFullSnapshot(
-                new GDictionary
+        GDictionary rawSnapshot =
+            new GDictionary
                 {
                     ["party"] = new GDictionary
                     {
@@ -94,7 +93,13 @@ public partial class run_progression_text_snapshot_regression : SceneTree
                             },
                         },
                     },
-                }
+                };
+        List<string> lines = TextSnapshotLines(
+            GameTextSnapshotRenderer.RenderFullSnapshot(
+                RuntimePlainPayload.NormalizeDictionaryStrict(
+                    rawSnapshot,
+                    "run_progression_text_snapshot_regression"
+                )
             )
         );
 

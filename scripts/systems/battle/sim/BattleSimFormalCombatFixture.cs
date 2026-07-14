@@ -26,7 +26,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private const int USE_DEFAULT_ACTION_THRESHOLD = -1;
     private static readonly StringName WARRIOR_BODY_ARMOR_ITEM_ID = "iron_scale_mail";
     private static readonly StringName ARCHER_BODY_ARMOR_ITEM_ID = "leather_jerkin";
-    private static readonly Godot.Collections.Array<StringName> ATTRIBUTE_ROLL_IDS = new()
+    private static readonly StringName[] ATTRIBUTE_ROLL_IDS =
     {
         UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
         UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
@@ -38,8 +38,8 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public PartyState party_state;
     public CharacterManagementModule character_management;
-    public Godot.Collections.Array<StringName> ally_member_ids = new();
-    public Godot.Collections.Array<StringName> hostile_member_ids = new();
+    public List<StringName> ally_member_ids = new();
+    public List<StringName> hostile_member_ids = new();
 
     public int charge_mastery;
     public int heavy_mastery;
@@ -47,118 +47,72 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     public int multishot_mastery;
     public int basic_mastery;
 
-    private Godot.Collections.Dictionary _skill_defs = new();
-    private Godot.Collections.Dictionary _profession_defs = new();
-    private Godot.Collections.Dictionary _achievement_defs = new();
-    private Godot.Collections.Dictionary _item_defs = new();
-    private Dictionary<StringName, SkillDef> _skill_def_index = new();
-    private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
-    private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
-    private Dictionary<StringName, ItemDef> _item_def_index = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definition_index = new();
+    private Dictionary<StringName, ProfessionDefinition> _profession_def_index = new();
+    private Dictionary<StringName, AchievementDefinition> _achievement_def_index = new();
+    private Dictionary<StringName, ItemDefinition> _item_def_index = new();
+    private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private ProgressionIdentityCatalogData _progression_identity_catalog = new();
     private readonly Dictionary<StringName, StringName> _ai_brain_by_member_id = new();
     private readonly Dictionary<StringName, StringName> _ai_state_by_member_id = new();
     private BattleSimFormalRosterOptionsData _roster_options = new();
-    private RandomNumberGenerator _attribute_roll_rng = new();
-    private RandomNumberGenerator _hp_roll_rng = new();
-    private bool _ownsPartyState;
+    private RuntimeRandom _attribute_roll_rng = new(DEFAULT_ATTRIBUTE_ROLL_SEED);
+    private RuntimeRandom _hp_roll_rng = new(DEFAULT_ATTRIBUTE_ROLL_SEED + HP_ROLL_SEED_OFFSET);
 
     public void Dispose()
     {
         System.GC.SuppressFinalize(this);
         _dispose_roster_state();
-        _skill_defs.Clear();
-        _profession_defs.Clear();
-        _achievement_defs.Clear();
-        _item_defs.Clear();
-        _skill_def_index.Clear();
+        _skill_definition_index.Clear();
         _profession_def_index.Clear();
         _achievement_def_index.Clear();
         _item_def_index.Clear();
+        _trait_def_index.Clear();
         _progression_identity_catalog = new ProgressionIdentityCatalogData();
         _roster_options = new BattleSimFormalRosterOptionsData();
-        DisposeIfValid(_attribute_roll_rng);
-        DisposeIfValid(_hp_roll_rng);
         _attribute_roll_rng = null;
         _hp_roll_rng = null;
     }
 
     public void SetupContent(
         ProgressionContentRegistry progression_registry,
-        ItemContentRegistry item_registry,
-        Godot.Collections.Dictionary skill_defs_override = null
+        ItemContentRegistry item_registry
     )
     {
-        bool ownsProgressionRegistry = progression_registry == null;
-        bool ownsItemRegistry = item_registry == null;
-        progression_registry ??= new ProgressionContentRegistry();
-        item_registry ??= new ItemContentRegistry();
-        try
-        {
-            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-                skill_defs_override != null && skill_defs_override.Count > 0
-                    ? _index_defs<SkillDef>(skill_defs_override, def => def.skill_id)
-                    : progression_registry.GetSkillDefsTyped();
-            Godot.Collections.Dictionary skill_defs =
-                skill_defs_override != null && skill_defs_override.Count > 0
-                    ? skill_defs_override
-                    : ProjectDefs(typedSkillDefs);
-            _apply_content_catalogs(
-                skill_defs,
-                ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-                ProjectDefs(progression_registry.GetAchievementDefsTyped()),
-                ProjectDefs(item_registry.GetItemDefsTyped()),
-                typedSkillDefs,
-                progression_registry.GetProfessionDefsTyped(),
-                progression_registry.GetAchievementDefsTyped(),
-                item_registry.GetItemDefsTyped(),
-                progression_registry.GetIdentityCatalogTyped()
-            );
-        }
-        finally
-        {
-            if (ownsProgressionRegistry)
-                DisposeIfValid(progression_registry);
-            if (ownsItemRegistry)
-                DisposeIfValid(item_registry);
-        }
+        ArgumentNullException.ThrowIfNull(progression_registry);
+        ArgumentNullException.ThrowIfNull(item_registry);
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            progression_registry.GetSkillDefinitionsTyped();
+        _apply_content_catalogs(
+            typedSkillDefinitions,
+            progression_registry.GetProfessionDefsTyped(),
+            progression_registry.GetAchievementDefsTyped(),
+            item_registry.GetItemDefsTyped(),
+            progression_registry.GetTraitDefsTyped(),
+            progression_registry.GetIdentityCatalogTyped()
+        );
     }
 
     public void SetupContent(
         ProgressionContentRegistry progression_registry,
         ItemContentRegistry item_registry,
-        IReadOnlyDictionary<StringName, SkillDef> skill_defs_override
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions_override
     )
     {
-        bool ownsProgressionRegistry = progression_registry == null;
-        bool ownsItemRegistry = item_registry == null;
-        progression_registry ??= new ProgressionContentRegistry();
-        item_registry ??= new ItemContentRegistry();
-        try
-        {
-            _apply_content_catalogs(
-                skill_defs_override != null && skill_defs_override.Count > 0
-                    ? ProjectDefs(skill_defs_override)
-                    : ProjectDefs(progression_registry.GetSkillDefsTyped()),
-                ProjectDefs(progression_registry.GetProfessionDefsTyped()),
-                ProjectDefs(progression_registry.GetAchievementDefsTyped()),
-                ProjectDefs(item_registry.GetItemDefsTyped()),
-                skill_defs_override != null && skill_defs_override.Count > 0
-                    ? new Dictionary<StringName, SkillDef>(skill_defs_override)
-                    : progression_registry.GetSkillDefsTyped(),
-                progression_registry.GetProfessionDefsTyped(),
-                progression_registry.GetAchievementDefsTyped(),
-                item_registry.GetItemDefsTyped(),
-                progression_registry.GetIdentityCatalogTyped()
-            );
-        }
-        finally
-        {
-            if (ownsProgressionRegistry)
-                DisposeIfValid(progression_registry);
-            if (ownsItemRegistry)
-                DisposeIfValid(item_registry);
-        }
+        ArgumentNullException.ThrowIfNull(progression_registry);
+        ArgumentNullException.ThrowIfNull(item_registry);
+        IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
+            skill_definitions_override != null && skill_definitions_override.Count > 0
+                ? new Dictionary<StringName, SkillDefinition>(skill_definitions_override)
+                : progression_registry.GetSkillDefinitionsTyped();
+        _apply_content_catalogs(
+            typedSkillDefinitions,
+            progression_registry.GetProfessionDefsTyped(),
+            progression_registry.GetAchievementDefsTyped(),
+            item_registry.GetItemDefsTyped(),
+            progression_registry.GetTraitDefsTyped(),
+            progression_registry.GetIdentityCatalogTyped()
+        );
     }
 
     public bool BuildRoster(StringName roster_id, BattleSimFormalRosterOptionsData options)
@@ -182,73 +136,132 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     }
 
     private void _apply_content_catalogs(
-        Godot.Collections.Dictionary skill_defs,
-        Godot.Collections.Dictionary profession_defs,
-        Godot.Collections.Dictionary achievement_defs,
-        Godot.Collections.Dictionary item_defs,
-        IReadOnlyDictionary<StringName, SkillDef> typed_skill_defs,
-        IReadOnlyDictionary<StringName, ProfessionDef> typed_profession_defs,
-        IReadOnlyDictionary<StringName, AchievementDef> typed_achievement_defs,
-        IReadOnlyDictionary<StringName, ItemDef> typed_item_defs,
+        IReadOnlyDictionary<StringName, SkillDefinition> typed_skill_definitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> typed_profession_defs,
+        IReadOnlyDictionary<StringName, AchievementDefinition> typed_achievement_defs,
+        IReadOnlyDictionary<StringName, ItemDefinition> typed_item_defs,
+        IReadOnlyDictionary<StringName, TraitDefinition> typed_trait_defs,
         ProgressionIdentityCatalogData progression_identity_catalog
     )
     {
-        _skill_defs = skill_defs ?? new Godot.Collections.Dictionary();
-        _profession_defs = profession_defs ?? new Godot.Collections.Dictionary();
-        _achievement_defs = achievement_defs ?? new Godot.Collections.Dictionary();
-        _item_defs = item_defs ?? new Godot.Collections.Dictionary();
-        _skill_def_index = typed_skill_defs != null
-            ? new Dictionary<StringName, SkillDef>(typed_skill_defs)
-            : _index_defs<SkillDef>(_skill_defs, def => def.skill_id);
+        _skill_definition_index = typed_skill_definitions != null
+            ? new Dictionary<StringName, SkillDefinition>(typed_skill_definitions)
+            : new Dictionary<StringName, SkillDefinition>();
         _profession_def_index = typed_profession_defs != null
-            ? new Dictionary<StringName, ProfessionDef>(typed_profession_defs)
-            : _index_defs<ProfessionDef>(_profession_defs, def => def.profession_id);
+            ? new Dictionary<StringName, ProfessionDefinition>(typed_profession_defs)
+            : new Dictionary<StringName, ProfessionDefinition>();
         _achievement_def_index = typed_achievement_defs != null
-            ? new Dictionary<StringName, AchievementDef>(typed_achievement_defs)
-            : _index_defs<AchievementDef>(_achievement_defs, def => def.achievement_id);
+            ? new Dictionary<StringName, AchievementDefinition>(typed_achievement_defs)
+            : new Dictionary<StringName, AchievementDefinition>();
         _item_def_index = typed_item_defs != null
-            ? new Dictionary<StringName, ItemDef>(typed_item_defs)
-            : _index_defs<ItemDef>(_item_defs, def => def.item_id);
+            ? new Dictionary<StringName, ItemDefinition>(typed_item_defs)
+            : new Dictionary<StringName, ItemDefinition>();
+        _trait_def_index = typed_trait_defs != null
+            ? new Dictionary<StringName, TraitDefinition>(typed_trait_defs)
+            : new Dictionary<StringName, TraitDefinition>();
         _progression_identity_catalog =
             progression_identity_catalog ?? new ProgressionIdentityCatalogData();
         _setup_character_management();
     }
 
-    internal Godot.Collections.Dictionary BuildRuntimeContext(
+    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildRuntimeContextLease(
         BattleRuntimeModule runtime,
         Godot.Collections.Dictionary base_context
     )
     {
         _restore_all_members_to_full_hp();
-        var context = (Godot.Collections.Dictionary)base_context.Duplicate(true);
-        context["battle_party"] = new Godot.Collections.Array();
-        context["ally_member_ids"] = new Godot.Collections.Array<StringName>(ally_member_ids);
+        GodotProjectionLease<Godot.Collections.Dictionary> contextLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(
+                    base_context,
+                    "BattleSimFormalCombatFixture.BuildRuntimeContextLease.base"
+                ),
+                "battle-sim-formal-context",
+                LifetimeDomain.Request,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.context"
+            );
+        Godot.Collections.Dictionary context = contextLease.Value;
+        context["battle_party"] = contextLease.Own(
+            new Godot.Collections.Array(),
+            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.battle_party"
+        );
+        context["ally_member_ids"] = ProjectStringNames(
+            contextLease,
+            ally_member_ids,
+            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.ally_member_ids"
+        );
         context["validate_spawn_reachability"] = true;
         context["validate_bidirectional_spawn_reachability"] = true;
         context["enforce_opposing_spawn_sides"] = true;
-        var saved_active_ids = new Godot.Collections.Array<StringName>(
-            party_state.active_member_ids
-        );
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(hostile_member_ids);
-        var hostile_context = (Godot.Collections.Dictionary)context.Duplicate(true);
-        hostile_context["battle_party"] = new Godot.Collections.Array();
-        hostile_context["ally_member_ids"] = new Godot.Collections.Array<StringName>(
-            hostile_member_ids
-        );
-        var hostile_units =
-            runtime?._unit_factory?.BuildAllyUnits(party_state, hostile_context)
-            ?? System.Array.Empty<BattleUnitState>();
-        var hostile_unit_payloads = new Godot.Collections.Array();
-        foreach (BattleUnitState unit in hostile_units)
+        StringNameList savedActiveIds = party_state.active_member_ids?.Duplicate() ?? new();
+        bool completed = false;
+        try
         {
-            _apply_unit_runtime_metadata(unit, "hostile");
-            hostile_unit_payloads.Add(unit);
+            party_state.active_member_ids = new StringNameList(hostile_member_ids);
+            Godot.Collections.Dictionary hostileContext = RuntimePayloadCopy.DictionaryInto(
+                contextLease,
+                context,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_context"
+            );
+            hostileContext["battle_party"] = contextLease.Own(
+                new Godot.Collections.Array(),
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_battle_party"
+            );
+            hostileContext["ally_member_ids"] = ProjectStringNames(
+                contextLease,
+                hostile_member_ids,
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_member_ids"
+            );
+            var hostileUnits =
+                runtime?._unit_factory?.BuildAllyUnits(party_state, hostileContext)
+                ?? System.Array.Empty<BattleUnitState>();
+            Godot.Collections.Array hostileUnitPayloads = contextLease.Own(
+                new Godot.Collections.Array(),
+                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_units"
+            );
+            foreach (BattleUnitState unit in hostileUnits)
+            {
+                _apply_unit_runtime_metadata(unit, "hostile");
+                hostileUnitPayloads.Add(
+                    RuntimePlainPayload.ProjectDictionaryInto(
+                        contextLease,
+                        unit.BuildSnapshotPlain(),
+                        $"BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_unit.{unit.unit_id}"
+                    )
+                );
+            }
+            context["enemy_units"] = hostileUnitPayloads;
+            party_state.active_member_ids = new StringNameList(ally_member_ids);
+            if (party_state.active_member_ids.Count == 0)
+                party_state.active_member_ids = savedActiveIds.Duplicate();
+            completed = true;
+            return contextLease;
         }
-        context["enemy_units"] = hostile_unit_payloads;
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(ally_member_ids);
-        if (party_state.active_member_ids.Count == 0)
-            party_state.active_member_ids = saved_active_ids;
-        return context;
+        catch
+        {
+            contextLease.Dispose();
+            throw;
+        }
+        finally
+        {
+            if (!completed && party_state != null)
+                party_state.active_member_ids = savedActiveIds;
+        }
+    }
+
+    private static Godot.Collections.Array ProjectStringNames(
+        GodotProjectionLease<Godot.Collections.Dictionary> lease,
+        IEnumerable<StringName> values,
+        string reason
+    )
+    {
+        Godot.Collections.Array result = lease.Own(
+            new Godot.Collections.Array(),
+            reason
+        );
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
+            result.Add(value);
+        return result;
     }
 
     public void ApplyStartedBattleMetadata(BattleState state)
@@ -269,37 +282,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public PartyState GetPartyState() => party_state;
 
-    public void BindBorrowedPartyStateForTests(PartyState state)
-    {
-        _dispose_roster_state();
-        party_state = state;
-        _ownsPartyState = false;
-    }
-
     public PartyMemberState GetMemberState(StringName member_id) =>
         party_state?.GetMemberState(member_id);
 
-    public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+        _item_def_index;
 
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
-    public ItemDef GetItemDef(StringName item_id) =>
+    public ItemDefinition GetItemDef(StringName item_id) =>
         character_management?.GetItemDef(item_id) ?? GetIndexedItemDef(item_id);
-
-    private static Godot.Collections.Dictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> values)
-        where T : RefCounted
-    {
-        var projected = new Godot.Collections.Dictionary();
-        if (values == null)
-            return projected;
-        foreach ((StringName id, T value) in values)
-        {
-            if (id == "" || value == null)
-                continue;
-            projected[id] = value;
-        }
-        return projected;
-    }
 
     public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
         StringName member_id,
@@ -344,7 +336,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     ) => character_management?.PromoteProfession(member_id, profession_id, selection)
         ?? new CharacterProgressionDelta { member_id = member_id };
 
-    public void CommitBattleResources(
+    public BattleResourceCommitResult CommitBattleResources(
         StringName member_id,
         int current_hp,
         int current_mp,
@@ -353,8 +345,29 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         PartyMemberState memberState = GetMemberState(member_id);
         if (memberState == null)
-            return;
+            return BattleResourceCommitResult.Failure("member_not_found", member_id);
         memberState.SetVitals(current_hp, current_mp, current_aura);
+        return BattleResourceCommitResult.Success(member_id);
+    }
+
+    public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    )
+    {
+        var writebackService = new CharacterBattleWritebackService();
+        writebackService.Setup(party_state, null, null);
+        return writebackService.ValidateContingencyConsumedSetups(member_id, consumed_setup_ids);
+    }
+
+    public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+        StringName member_id,
+        IReadOnlyCollection<StringName> consumed_setup_ids
+    )
+    {
+        var writebackService = new CharacterBattleWritebackService();
+        writebackService.Setup(party_state, null, null);
+        return writebackService.CommitContingencyConsumedSetups(member_id, consumed_setup_ids);
     }
 
     public void CommitBattleDeath(StringName member_id)
@@ -451,9 +464,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private void _reset_roster()
     {
         _dispose_roster_state();
-        DisposeIfValid(_attribute_roll_rng);
         party_state = new PartyState();
-        _ownsPartyState = true;
         party_state.version = 3;
         party_state.gold = 0;
         ally_member_ids.Clear();
@@ -466,36 +477,28 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         aimed_mastery = 0;
         multishot_mastery = 0;
         basic_mastery = 0;
-        _attribute_roll_rng = new RandomNumberGenerator();
-        _hp_roll_rng ??= new RandomNumberGenerator();
+        _attribute_roll_rng = new RuntimeRandom(DEFAULT_ATTRIBUTE_ROLL_SEED);
+        _hp_roll_rng ??= new RuntimeRandom(DEFAULT_ATTRIBUTE_ROLL_SEED + HP_ROLL_SEED_OFFSET);
     }
 
     private void _dispose_roster_state()
     {
         character_management?.Dispose();
         character_management = null;
-        if (_ownsPartyState)
-            DisposeFixtureOwnedPartyState(party_state);
+        DisposePartyState(party_state);
         party_state = null;
-        _ownsPartyState = false;
         ally_member_ids.Clear();
         hostile_member_ids.Clear();
         _ai_brain_by_member_id.Clear();
         _ai_state_by_member_id.Clear();
     }
 
-    private static void DisposeFixtureOwnedPartyState(PartyState state)
+    private static void DisposePartyState(PartyState state)
     {
         if (state == null)
             return;
         foreach (PartyMemberState memberState in state.GetMemberStates())
             DisposePartyMemberState(memberState);
-        foreach (PendingCharacterReward reward in state.pending_character_rewards)
-            DisposeIfValid(reward);
-        foreach (QuestState quest in state.active_quests)
-            DisposeIfValid(quest);
-        foreach (QuestState quest in state.claimable_quests)
-            DisposeIfValid(quest);
         DisposeWarehouseState(state.warehouse_state);
         state.member_states.Clear();
         state.active_member_ids.Clear();
@@ -504,7 +507,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         state.active_quests.Clear();
         state.claimable_quests.Clear();
         state.completed_quest_ids.Clear();
-        DisposeIfValid(state);
     }
 
     private static void DisposePartyMemberState(PartyMemberState memberState)
@@ -514,28 +516,15 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         DisposeUnitProgress(memberState.progression);
         DisposeEquipmentState(memberState.equipment_state);
         memberState.active_stage_advancement_modifier_ids.Clear();
-        DisposeIfValid(memberState);
     }
 
     private static void DisposeUnitProgress(UnitProgress progress)
     {
         if (progress == null)
             return;
-        foreach (UnitSkillProgress skillProgress in progress.SkillsTyped.Values)
-            DisposeIfValid(skillProgress);
-        foreach (AchievementProgressState achievementProgress in progress.AchievementProgressTyped.Values)
-            DisposeIfValid(achievementProgress);
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
-        {
-            foreach (ProfessionPromotionRecord record in professionProgress.promotion_history)
-                DisposeIfValid(record);
-            DisposeIfValid(professionProgress);
-        }
-        foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
-            DisposeIfValid(choice);
-        DisposeIfValid(progress.unit_base_attributes);
-        DisposeIfValid(progress.reputation_state);
-        DisposeIfValid(progress);
+            professionProgress.promotion_history.Clear();
+        progress.SetPendingProfessionChoices(null);
     }
 
     private static void DisposeEquipmentState(EquipmentState equipmentState)
@@ -543,33 +532,15 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (equipmentState == null)
             return;
         foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
-        {
-            EquipmentInstanceState instance = equipmentState.GetEntry(entrySlotId)?.GetEquipmentInstance();
-            DisposeIfValid(instance);
-        }
-        DisposeIfValid(equipmentState);
+            equipmentState.ClearEntrySlot(entrySlotId);
     }
 
     private static void DisposeWarehouseState(WarehouseState warehouseState)
     {
         if (warehouseState == null)
             return;
-        foreach (WarehouseStackState stack in warehouseState.GetStacksTyped())
-            DisposeIfValid(stack);
-        foreach (EquipmentInstanceState instance in warehouseState.GetEquipmentInstancesTyped())
-            DisposeIfValid(instance);
         warehouseState.stacks.Clear();
         warehouseState.equipment_instances.Clear();
-        DisposeIfValid(warehouseState);
-    }
-
-    private static void DisposeIfValid<T>(T value)
-        where T : RefCounted
-    {
-        if (value == null || !GodotObject.IsInstanceValid(value))
-            return;
-        GC.SuppressFinalize(value);
-        value.Dispose();
     }
 
     private void _build_mixed_2s1a_roster()
@@ -930,7 +901,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         if (party_state == null)
             return;
-        party_state.active_member_ids = new Godot.Collections.Array<StringName>(ally_member_ids);
+        party_state.active_member_ids = new StringNameList(ally_member_ids);
         var fallback_main_id = _first_ally_member_id();
         if ((string)fallback_main_id == "")
             return;
@@ -984,11 +955,12 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     private void _setup_attribute_roll_rng()
     {
-        _attribute_roll_rng.Seed = (ulong)System.Math.Max(
+        long attributeSeed = System.Math.Max(
             _roster_options.AttributeRollSeed,
             DEFAULT_ATTRIBUTE_ROLL_SEED
         );
-        _hp_roll_rng.Seed = _attribute_roll_rng.Seed + (ulong)HP_ROLL_SEED_OFFSET;
+        _attribute_roll_rng.Reseed(attributeSeed);
+        _hp_roll_rng.Reseed(attributeSeed + HP_ROLL_SEED_OFFSET);
     }
 
     private Godot.Collections.Dictionary _roll_creation_attributes()
@@ -1035,9 +1007,9 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (unit_progress == null)
             return;
         var progression_service = new ProgressionService();
-        progression_service.Setup(
+        progression_service.SetupDefinitions(
             member_state.progression,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index
         );
         foreach (var skill_config in skill_configs)
@@ -1054,7 +1026,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             var skill_progress = unit_progress.GetSkillProgress(skill_id);
             if (skill_progress == null || !skill_progress.is_learned)
                 progression_service.LearnSkill(skill_id);
-            var skill_def = _get_skill_def(skill_id);
+            var skill_definition = _get_skill_definition(skill_id);
             if (is_core)
             {
                 progression_service.SetSkillCore(skill_id, true);
@@ -1062,11 +1034,11 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
                 _unlock_fixture_core_skill_level_cap(
                     unit_progress,
                     skill_progress,
-                    skill_def,
+                    skill_definition,
                     target_level
                 );
             }
-            int mastery_amount = _calculate_mastery_for_level(skill_def, target_level);
+            int mastery_amount = _calculate_mastery_for_level(skill_definition, target_level);
             if (mastery_amount > 0)
                 progression_service.GrantSkillMastery(skill_id, mastery_amount, "training");
             if (is_core)
@@ -1081,13 +1053,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private void _unlock_fixture_core_skill_level_cap(
         UnitProgress unit_progress,
         UnitSkillProgress skill_progress,
-        SkillDef skill_def,
+        SkillDefinition skill_definition,
         int target_level
     )
     {
-        if (unit_progress == null || skill_progress == null || skill_def == null)
+        if (unit_progress == null || skill_progress == null || skill_definition == null)
             return;
-        int non_core_max_level = Mathf.Max(skill_def.non_core_max_level, 0);
+        int non_core_max_level = Mathf.Max(skill_definition.NonCoreMaxLevel, 0);
         if (non_core_max_level <= 0 || target_level <= non_core_max_level)
             return;
         skill_progress.is_level_trigger_active = false;
@@ -1105,16 +1077,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         int target_level
     )
     {
-        var skill_def = _get_skill_def(skill_id);
+        var skill_definition = _get_skill_definition(skill_id);
         var unit_progress = _unit_progress(member_state);
         var skill_progress = unit_progress?.GetSkillProgress(skill_id);
-        if (skill_def == null || skill_progress == null)
+        if (skill_definition == null || skill_progress == null)
             return;
         if (skill_progress.core_max_growth_claimed)
             return;
-        if (target_level < skill_def.max_level)
+        if (target_level < skill_definition.MaxLevel)
             return;
-        IReadOnlyDictionary<StringName, int> growth = skill_def.AttributeGrowthProgressTyped;
+        IReadOnlyDictionary<StringName, int> growth = skill_definition.AttributeGrowthProgress;
         if (growth.Count == 0)
         {
             skill_progress.core_max_growth_claimed = true;
@@ -1170,7 +1142,11 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         );
         member_state.SetCurrentHp(attributes.GetAttributeValue(AttributeService.HP_MAX));
         var ps = new ProgressionService();
-        ps.Setup(member_state.progression, _skill_def_index, _profession_def_index);
+        ps.SetupDefinitions(
+            member_state.progression,
+            _skill_definition_index,
+            _profession_def_index
+        );
         ps.RefreshRuntimeState();
     }
 
@@ -1192,16 +1168,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             var granted_skills = profession_def.GetGrantedSkillsForRank(target_rank);
             if (granted_skills == null)
                 continue;
-            foreach (ProfessionGrantedSkill granted_skill in granted_skills)
+            foreach (ProfessionGrantedSkillDefinition granted_skill in granted_skills)
             {
-                if (granted_skill == null || (string)granted_skill.skill_id == "")
+                if (granted_skill == null || (string)granted_skill.SkillId == "")
                     continue;
-                profession_progress.AddGrantedSkill(granted_skill.skill_id);
-                var sp = unit_progress.GetSkillProgress(granted_skill.skill_id);
+                profession_progress.AddGrantedSkill(granted_skill.SkillId);
+                var sp = unit_progress.GetSkillProgress(granted_skill.SkillId);
                 if (sp == null)
                 {
                     sp = new UnitSkillProgress();
-                    sp.skill_id = granted_skill.skill_id;
+                    sp.skill_id = granted_skill.SkillId;
                 }
                 sp.is_learned = true;
                 if ((string)sp.profession_granted_by == "")
@@ -1228,7 +1204,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         if (profession_def == null)
             return 0;
         int constitution = attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution));
-        int hit_die_sides = Mathf.Max(profession_def.hit_die_sides, 1);
+        int hit_die_sides = Mathf.Max(profession_def.HitDieSides, 1);
         int total = 0;
         for (int ri = 0; ri < Mathf.Max(rank, 0); ri++)
         {
@@ -1311,18 +1287,16 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private void _setup_character_management()
     {
         if (party_state == null)
-        {
             party_state = new PartyState();
-            _ownsPartyState = true;
-        }
         character_management = new CharacterManagementModule();
         character_management.setup(
             party_state,
-            _skill_def_index,
+            _skill_definition_index,
             _profession_def_index,
             _achievement_def_index,
             _item_def_index,
-            new Dictionary<StringName, QuestDef>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            _trait_def_index,
             null,
             _progression_identity_catalog
         );
@@ -1391,13 +1365,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         }
     }
 
-    private int _calculate_mastery_for_level(SkillDef skill_def, int target_level)
+    private int _calculate_mastery_for_level(SkillDefinition skill_definition, int target_level)
     {
-        if (skill_def == null)
+        if (skill_definition == null)
             return 0;
         int total = 0;
         for (int level = 0; level < target_level; level++)
-            total += Mathf.Max(skill_def.GetMasteryRequiredForLevel(level), 0);
+            total += Mathf.Max(skill_definition.GetMasteryRequiredForLevel(level), 0);
         return total;
     }
 
@@ -1486,38 +1460,20 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         return src[key].AsGodotDictionary() ?? new Godot.Collections.Dictionary();
     }
 
-    private SkillDef _get_skill_def(StringName skill_id) =>
-        _skill_def_index.TryGetValue(skill_id, out SkillDef skillDef) ? skillDef : null;
+    private SkillDefinition _get_skill_definition(StringName skill_id) =>
+        _skill_definition_index.TryGetValue(skill_id, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
 
-    private ProfessionDef _get_profession_def(StringName profession_id) =>
-        _profession_def_index.TryGetValue(profession_id, out ProfessionDef professionDef)
+    private ProfessionDefinition _get_profession_def(StringName profession_id) =>
+        _profession_def_index.TryGetValue(profession_id, out ProfessionDefinition professionDef)
             ? professionDef
             : null;
 
-    private ItemDef GetIndexedItemDef(StringName item_id) =>
-        _item_def_index.TryGetValue(item_id, out ItemDef itemDef) ? itemDef : null;
-
-    private static Dictionary<StringName, T> _index_defs<T>(
-        Godot.Collections.Dictionary source,
-        System.Func<T, StringName> id_selector
-    )
-        where T : RefCounted
-    {
-        var result = new Dictionary<StringName, T>();
-        if (source == null)
-            return result;
-        foreach (Variant raw_key in source.Keys)
-        {
-            if (source[raw_key].AsGodotObject() is not T entry)
-                continue;
-            StringName indexed_id = id_selector(entry);
-            if (indexed_id == "")
-                indexed_id = ProgressionDataUtils.to_string_name(raw_key);
-            if (indexed_id != "")
-                result[indexed_id] = entry;
-        }
-        return result;
-    }
+    private ItemDefinition GetIndexedItemDef(StringName item_id) =>
+        _item_def_index.TryGetValue(item_id, out ItemDefinition itemDefinition)
+            ? itemDefinition
+            : null;
 
     private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>
         d != null && d.ContainsKey(key) ? d[key].AsInt32() : fallback;

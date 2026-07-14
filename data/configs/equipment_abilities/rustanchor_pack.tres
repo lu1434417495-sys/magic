@@ -1,0 +1,315 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=55 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="8_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="9_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="10_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="11_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="12_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DamageReductionActionPayloadDef.cs" id="13_damage_reduction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="14_grant"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Fact_hp_damage"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"hp_damage"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_hp_damage_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_hp_damage")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_hp_damage"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.weapon_hp_damage"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_damage_gte_one")
+
+[sub_resource type="Resource" id="Condition_group_hp_damage"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_damage")])
+
+[sub_resource type="Resource" id="Fact_source_sunk_anchor"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"source"
+status_id = &"rustanchor_sunk_anchor"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_source_sunk_anchor_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_source_sunk_anchor")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_source_sunk_anchor"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.source_sunk_anchor"
+kind = &"compare_fact"
+payload = SubResource("Compare_source_sunk_anchor_gte_one")
+
+[sub_resource type="Resource" id="Condition_group_source_sunk_anchor"]
+script = ExtResource("4_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_source_sunk_anchor")])
+
+[sub_resource type="Resource" id="Grant_sunk_anchor_skill"]
+script = ExtResource("14_grant")
+granted_action_id = &"grant.rustanchor.sunk_anchor_stance.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_axe_rustanchor_sunk_anchor_stance"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Action_sunk_anchor_status_payload"]
+script = ExtResource("12_apply_status")
+target_selector = &"source"
+status_id = &"rustanchor_sunk_anchor"
+duration_tu = 120
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "沉锚"
+move_point_capacity_delta = -1
+forced_move_immune = true
+undispellable = true
+
+[sub_resource type="Resource" id="Action_sunk_anchor_status"]
+script = ExtResource("10_action")
+action_id = &"action.rustanchor.sunk_anchor_stance.apply_status"
+kind = &"apply_status"
+payload = SubResource("Action_sunk_anchor_status_payload")
+
+[sub_resource type="Resource" id="Action_sunk_anchor_reduction_payload"]
+script = ExtResource("13_damage_reduction")
+target_selector = &"damage_target"
+amount = 3
+damage_tags = Array[StringName]([&"physical_slash", &"physical_blunt", &"physical_pierce"])
+label = "沉锚守势"
+
+[sub_resource type="Resource" id="Action_sunk_anchor_reduction"]
+script = ExtResource("10_action")
+action_id = &"action.rustanchor.sunk_anchor_stance.physical_reduction"
+kind = &"damage_reduction"
+payload = SubResource("Action_sunk_anchor_reduction_payload")
+
+[sub_resource type="Resource" id="Reaction_sunk_anchor_apply"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.rustanchor.sunk_anchor_stance.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_sunk_anchor_status")])
+
+[sub_resource type="Resource" id="Reaction_sunk_anchor_reduction"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.rustanchor.sunk_anchor_stance.before_damage"
+trigger = &"on_damage_roll"
+timing = &"before_damage"
+condition_group = SubResource("Condition_group_source_sunk_anchor")
+actions = Array[Resource]([SubResource("Action_sunk_anchor_reduction")])
+
+[sub_resource type="Resource" id="Action_rust_chain_payload"]
+script = ExtResource("12_apply_status")
+target_selector = &"attack_target"
+status_id = &"rustanchor_rust_chain"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "锈链"
+move_point_capacity_delta = -1
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+save_dc = 16
+save_ability = &"strength"
+save_tag = &"control"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Action_rust_chain"]
+script = ExtResource("10_action")
+action_id = &"action.rustanchor.rust_chain_bite.apply_chain"
+kind = &"apply_status"
+payload = SubResource("Action_rust_chain_payload")
+
+[sub_resource type="Resource" id="Reaction_rust_chain"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.rustanchor.rust_chain_bite.after_weapon_damage"
+trigger = &"on_hit"
+timing = &"after_hit"
+priority = 10
+condition_group = SubResource("Condition_group_hp_damage")
+actions = Array[Resource]([SubResource("Action_rust_chain")])
+
+[sub_resource type="Resource" id="Fact_target_rust_chain"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"rustanchor_rust_chain"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_rust_chain_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_rust_chain")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_target_rust_chain"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.target_rust_chain"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_rust_chain_gte_one")
+
+[sub_resource type="Resource" id="Fact_target_slow"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"slow"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_slow_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_slow")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_target_slow"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.target_slow"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_slow_gte_one")
+
+[sub_resource type="Resource" id="Fact_target_rooted"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"rooted"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_rooted_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_rooted")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_target_rooted"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.target_rooted"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_rooted_gte_one")
+
+[sub_resource type="Resource" id="Fact_target_prone"]
+script = ExtResource("7_fact_query")
+query_kind = &"fact"
+fact_id = &"status_stacks"
+subject = &"target"
+status_id = &"prone"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_target_prone_gte_one"]
+script = ExtResource("6_compare_payload")
+left = SubResource("Fact_target_prone")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_target_prone"]
+script = ExtResource("5_condition")
+condition_id = &"condition.rustanchor.target_prone"
+kind = &"compare_fact"
+payload = SubResource("Compare_target_prone_gte_one")
+
+[sub_resource type="Resource" id="Condition_group_no_return_any"]
+script = ExtResource("4_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_target_rust_chain"), SubResource("Condition_target_slow"), SubResource("Condition_target_rooted"), SubResource("Condition_target_prone")])
+
+[sub_resource type="Resource" id="Dice_term_1d8_blunt"]
+script = ExtResource("9_dice_term")
+dice_count = 1
+dice_sides = 8
+
+[sub_resource type="Resource" id="Dice_1d8_blunt"]
+script = ExtResource("8_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d8_blunt")])
+
+[sub_resource type="Resource" id="Action_no_return_payload"]
+script = ExtResource("11_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d8_blunt")
+damage_type = &"physical_blunt"
+damage_tags = Array[StringName]([&"physical_blunt"])
+
+[sub_resource type="Resource" id="Action_no_return"]
+script = ExtResource("10_action")
+action_id = &"action.rustanchor.no_return_chop.add_blunt_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_no_return_payload")
+
+[sub_resource type="Resource" id="Reaction_no_return"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.rustanchor.no_return_chop.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_no_return_any")
+actions = Array[Resource]([SubResource("Action_no_return")])
+
+[sub_resource type="Resource" id="Binding_sunk_anchor"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.rustanchor.sunk_anchor_stance"
+trait_id = &"weapon.axe.rustanchor.sunk_anchor_stance"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"rustanchor"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_sunk_anchor_apply"), SubResource("Reaction_sunk_anchor_reduction")])
+granted_actions = Array[Resource]([SubResource("Grant_sunk_anchor_skill")])
+
+[sub_resource type="Resource" id="Binding_no_return"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.rustanchor.no_return_chop"
+trait_id = &"weapon.axe.rustanchor.no_return_chop"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"rustanchor"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_no_return")])
+
+[sub_resource type="Resource" id="Binding_rust_chain"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.rustanchor.rust_chain_bite"
+trait_id = &"weapon.axe.rustanchor.rust_chain_bite"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"rustanchor"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_rust_chain")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.rustanchor"
+schema_version = 1
+load_order = 92
+bindings = Array[Resource]([SubResource("Binding_sunk_anchor"), SubResource("Binding_no_return"), SubResource("Binding_rust_chain")])

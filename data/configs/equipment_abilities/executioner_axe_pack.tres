@@ -1,0 +1,598 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=86 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="4_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="5_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="6_compare"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="7_fact"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="8_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CriticalHitOverrideActionPayloadDef.cs" id="9_critical"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/TriggerSkillActionPayloadDef.cs" id="10_trigger_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ClearStatusActionPayloadDef.cs" id="11_clear"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/MarkTargetActionPayloadDef.cs" id="12_mark"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="13_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityStateSchemaDef.cs" id="14_state"]
+
+[sub_resource type="Resource" id="Literal_zero"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 0
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_two"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Literal_2500"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2500
+
+[sub_resource type="Resource" id="Literal_5000"]
+script = ExtResource("7_fact")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 5000
+
+[sub_resource type="Resource" id="Fact_mark_matches"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"equipment_target_mark_matches"
+subject = &"target"
+binding_id = &"binding.weapon.axe.executioner.death_sentence"
+state_key = &"death_sentence_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_mark_matches"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_mark_matches")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_mark_matches"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.death_sentence.mark_matches"
+kind = &"compare_fact"
+payload = SubResource("Compare_mark_matches")
+
+[sub_resource type="Resource" id="Fact_critical_hit"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"critical_hit"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_critical_hit"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_critical_hit")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_critical_hit"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.attack_is_critical"
+kind = &"compare_fact"
+payload = SubResource("Compare_critical_hit")
+
+[sub_resource type="Resource" id="Group_mark_matches"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_mark_matches")])
+
+[sub_resource type="Resource" id="Group_marked_critical"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_mark_matches"), SubResource("Condition_critical_hit")])
+
+[sub_resource type="Resource" id="Fact_boss_target"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"attribute_value"
+subject = &"target"
+attribute_id = &"boss_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_fortune_mark_target"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"attribute_value"
+subject = &"target"
+attribute_id = &"fortune_mark_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_target_hp_percent"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"hp_percent_bp"
+subject = &"target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_boss_lte_zero"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_boss_target")
+compare = &"lte"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_boss_gte_one"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_boss_target")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_fortune_lte_zero"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_fortune_mark_target")
+compare = &"lte"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Compare_fortune_eq_one"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_fortune_mark_target")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_fortune_gte_two"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_fortune_mark_target")
+compare = &"gte"
+right = SubResource("Literal_two")
+
+[sub_resource type="Resource" id="Compare_hp_lte_2500"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_hp_percent")
+compare = &"lte"
+right = SubResource("Literal_2500")
+
+[sub_resource type="Resource" id="Compare_hp_gt_2500"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_hp_percent")
+compare = &"gt"
+right = SubResource("Literal_2500")
+
+[sub_resource type="Resource" id="Compare_hp_lte_5000"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_hp_percent")
+compare = &"lte"
+right = SubResource("Literal_5000")
+
+[sub_resource type="Resource" id="Compare_hp_gt_5000"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_hp_percent")
+compare = &"gt"
+right = SubResource("Literal_5000")
+
+[sub_resource type="Resource" id="Compare_hp_gt_zero"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_target_hp_percent")
+compare = &"gt"
+right = SubResource("Literal_zero")
+
+[sub_resource type="Resource" id="Condition_boss_lte_zero"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.rank.boss_lte_zero"
+kind = &"compare_fact"
+payload = SubResource("Compare_boss_lte_zero")
+
+[sub_resource type="Resource" id="Condition_boss_gte_one"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.rank.boss_gte_one"
+kind = &"compare_fact"
+payload = SubResource("Compare_boss_gte_one")
+
+[sub_resource type="Resource" id="Condition_fortune_lte_zero"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.rank.fortune_lte_zero"
+kind = &"compare_fact"
+payload = SubResource("Compare_fortune_lte_zero")
+
+[sub_resource type="Resource" id="Condition_fortune_eq_one"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.rank.fortune_eq_one"
+kind = &"compare_fact"
+payload = SubResource("Compare_fortune_eq_one")
+
+[sub_resource type="Resource" id="Condition_fortune_gte_two"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.rank.fortune_gte_two"
+kind = &"compare_fact"
+payload = SubResource("Compare_fortune_gte_two")
+
+[sub_resource type="Resource" id="Condition_hp_lte_2500"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.hp.lte_2500"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_lte_2500")
+
+[sub_resource type="Resource" id="Condition_hp_gt_2500"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.hp.gt_2500"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_gt_2500")
+
+[sub_resource type="Resource" id="Condition_hp_lte_5000"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.hp.lte_5000"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_lte_5000")
+
+[sub_resource type="Resource" id="Condition_hp_gt_5000"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.hp.gt_5000"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_gt_5000")
+
+[sub_resource type="Resource" id="Condition_hp_gt_zero"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.target_survives"
+kind = &"compare_fact"
+payload = SubResource("Compare_hp_gt_zero")
+
+[sub_resource type="Resource" id="Group_rank_ordinary"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_boss_lte_zero"), SubResource("Condition_fortune_lte_zero")])
+
+[sub_resource type="Resource" id="Group_rank_elite_below"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_boss_lte_zero"), SubResource("Condition_fortune_eq_one"), SubResource("Condition_hp_lte_5000")])
+
+[sub_resource type="Resource" id="Group_rank_elite_above"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_boss_lte_zero"), SubResource("Condition_fortune_eq_one"), SubResource("Condition_hp_gt_5000")])
+
+[sub_resource type="Resource" id="Group_rank_boss"]
+script = ExtResource("4_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_boss_gte_one"), SubResource("Condition_fortune_gte_two")])
+
+[sub_resource type="Resource" id="Group_rank_boss_below"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_lte_2500")])
+groups = Array[Resource]([SubResource("Group_rank_boss")])
+
+[sub_resource type="Resource" id="Group_rank_boss_above"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_gt_2500")])
+groups = Array[Resource]([SubResource("Group_rank_boss")])
+
+[sub_resource type="Resource" id="Group_target_survives"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_hp_gt_zero")])
+
+[sub_resource type="Resource" id="Action_critical_payload"]
+script = ExtResource("9_critical")
+target_selector = &"attack_target"
+require_weapon_damage = true
+label = "处刑"
+
+[sub_resource type="Resource" id="Action_critical"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.execution.force_critical"
+kind = &"critical_hit_override"
+payload = SubResource("Action_critical_payload")
+
+[sub_resource type="Resource" id="Reaction_force_critical"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.executioner.execution.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+priority = 0
+condition_group = SubResource("Group_mark_matches")
+actions = Array[Resource]([SubResource("Action_critical")])
+
+[sub_resource type="Resource" id="Fact_kill_is_attack"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"kill_source_is_attack"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_kill_equipment_matches"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"kill_source_equipment_instance_matches"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Fact_kill_binding_matches"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"kill_source_binding_matches"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_kill_is_attack"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_kill_is_attack")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_kill_equipment_matches"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_kill_equipment_matches")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Compare_kill_binding_matches"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_kill_binding_matches")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_kill_is_attack"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.kill.is_attack"
+kind = &"compare_fact"
+payload = SubResource("Compare_kill_is_attack")
+
+[sub_resource type="Resource" id="Condition_kill_equipment_matches"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.kill.equipment_matches"
+kind = &"compare_fact"
+payload = SubResource("Compare_kill_equipment_matches")
+
+[sub_resource type="Resource" id="Condition_kill_binding_matches"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.kill.binding_matches"
+kind = &"compare_fact"
+payload = SubResource("Compare_kill_binding_matches")
+
+[sub_resource type="Resource" id="Group_judgment_kill"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_kill_is_attack"), SubResource("Condition_kill_equipment_matches"), SubResource("Condition_kill_binding_matches")])
+
+[sub_resource type="Resource" id="Action_fear_payload"]
+script = ExtResource("10_trigger_skill")
+skill_id = &"weapon_axe_executioner_execution_fear"
+skill_level = 1
+target_selector = &"defeated"
+activation_log = "处刑成功，周围敌人进行恐惧检定。"
+save_log_label = "恐惧检定"
+
+[sub_resource type="Resource" id="Action_fear"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.execution.fear_after_kill"
+kind = &"trigger_skill"
+payload = SubResource("Action_fear_payload")
+
+[sub_resource type="Resource" id="Reaction_fear_after_kill"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.executioner.execution.after_kill"
+trigger = &"on_kill"
+timing = &"after_kill"
+priority = 0
+condition_group = SubResource("Group_judgment_kill")
+actions = Array[Resource]([SubResource("Action_fear")])
+
+[sub_resource type="Resource" id="Binding_execution"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.executioner.execution"
+trait_id = &"weapon.axe.executioner.execution"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"executioner_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_force_critical"), SubResource("Reaction_fear_after_kill")])
+
+[sub_resource type="Resource" id="State_death_sentence_target"]
+script = ExtResource("14_state")
+state_key = &"death_sentence_target"
+owner_scope = &"target_mark"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"battle"
+
+[sub_resource type="Resource" id="Grant_death_sentence"]
+script = ExtResource("13_grant")
+granted_action_id = &"grant.executioner_axe.death_sentence.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_axe_executioner_death_sentence"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Action_mark_payload"]
+script = ExtResource("12_mark")
+target_selector = &"skill_target"
+state_key = &"death_sentence_target"
+stack_delta = 1
+remove_on_source_missing = true
+remove_on_target_defeated = true
+unique_per_source = true
+mirror_status_id = &"executioner_death_sentence"
+mirror_status_duration_tu = 60
+mirror_status_stack_behavior = &"refresh"
+mirror_status_stack_limit = 1
+mirror_status_display_label = "死亡判决"
+clear_status_ids_on_replace = Array[StringName]([&"executioner_death_sentence"])
+
+[sub_resource type="Resource" id="Action_mark"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.death_sentence.mark_target"
+kind = &"mark_target"
+payload = SubResource("Action_mark_payload")
+
+[sub_resource type="Resource" id="Reaction_death_sentence_used"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.executioner.death_sentence.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+priority = 0
+actions = Array[Resource]([SubResource("Action_mark")])
+
+[sub_resource type="Resource" id="Binding_death_sentence"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.executioner.death_sentence"
+trait_id = &"weapon.axe.executioner.death_sentence"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"executioner_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+state_schemas = Array[Resource]([SubResource("State_death_sentence_target")])
+reactions = Array[Resource]([SubResource("Reaction_death_sentence_used")])
+granted_actions = Array[Resource]([SubResource("Grant_death_sentence")])
+
+[sub_resource type="Resource" id="Action_judgment_execute_payload"]
+script = ExtResource("10_trigger_skill")
+skill_id = &"weapon_axe_executioner_judgment_resolution"
+skill_level = 1
+target_selector = &"attack_target"
+merge_into_parent_result = true
+save_log_label = "死亡判决体质检定"
+
+[sub_resource type="Resource" id="Action_judgment_fallback_payload"]
+script = ExtResource("10_trigger_skill")
+skill_id = &"weapon_axe_executioner_judgment_fallback"
+skill_level = 1
+target_selector = &"attack_target"
+merge_into_parent_result = true
+save_log_label = "死亡判决体质检定"
+
+[sub_resource type="Resource" id="Action_execute_ordinary"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.judgment.execute_ordinary"
+kind = &"trigger_skill"
+payload = SubResource("Action_judgment_execute_payload")
+condition_group = SubResource("Group_rank_ordinary")
+
+[sub_resource type="Resource" id="Action_execute_elite"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.judgment.execute_elite"
+kind = &"trigger_skill"
+payload = SubResource("Action_judgment_execute_payload")
+condition_group = SubResource("Group_rank_elite_below")
+
+[sub_resource type="Resource" id="Action_fallback_elite"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.judgment.fallback_elite"
+kind = &"trigger_skill"
+payload = SubResource("Action_judgment_fallback_payload")
+condition_group = SubResource("Group_rank_elite_above")
+
+[sub_resource type="Resource" id="Action_execute_boss"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.judgment.execute_boss"
+kind = &"trigger_skill"
+payload = SubResource("Action_judgment_execute_payload")
+condition_group = SubResource("Group_rank_boss_below")
+
+[sub_resource type="Resource" id="Action_fallback_boss"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.judgment.fallback_boss"
+kind = &"trigger_skill"
+payload = SubResource("Action_judgment_fallback_payload")
+condition_group = SubResource("Group_rank_boss_above")
+
+[sub_resource type="Resource" id="Action_self_execution_payload"]
+script = ExtResource("10_trigger_skill")
+skill_id = &"weapon_axe_executioner_self_execution"
+skill_level = 1
+target_selector = &"source"
+handle_target_defeat = true
+save_log_label = "自我处刑意志检定"
+
+[sub_resource type="Resource" id="Action_self_after_hit"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.self_execution.after_hit"
+kind = &"trigger_skill"
+payload = SubResource("Action_self_execution_payload")
+condition_group = SubResource("Group_target_survives")
+
+[sub_resource type="Resource" id="Action_clear_mark_payload"]
+script = ExtResource("11_clear")
+target_selector = &"attack_target"
+status_id = &"executioner_death_sentence"
+mark_binding_id = &"binding.weapon.axe.executioner.death_sentence"
+mark_state_key = &"death_sentence_target"
+require_source_unit_match = true
+clear_target_mark = true
+
+[sub_resource type="Resource" id="Action_clear_mark"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.death_sentence.consume_mark"
+kind = &"clear_status"
+payload = SubResource("Action_clear_mark_payload")
+
+[sub_resource type="Resource" id="Reaction_judgment_after_hit"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.executioner.self_execution.judgment_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+priority = 10
+condition_group = SubResource("Group_marked_critical")
+actions = Array[Resource]([SubResource("Action_execute_ordinary"), SubResource("Action_execute_elite"), SubResource("Action_fallback_elite"), SubResource("Action_execute_boss"), SubResource("Action_fallback_boss"), SubResource("Action_self_after_hit"), SubResource("Action_clear_mark")])
+
+[sub_resource type="Resource" id="Fact_expired_mark_matches"]
+script = ExtResource("7_fact")
+query_kind = &"fact"
+fact_id = &"expired_target_mark_matches"
+subject = &"target"
+binding_id = &"binding.weapon.axe.executioner.death_sentence"
+state_key = &"death_sentence_target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_expired_mark_matches"]
+script = ExtResource("6_compare")
+left = SubResource("Fact_expired_mark_matches")
+compare = &"eq"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_expired_mark_matches"]
+script = ExtResource("5_condition")
+condition_id = &"condition.executioner.expired_mark_matches"
+kind = &"compare_fact"
+payload = SubResource("Compare_expired_mark_matches")
+
+[sub_resource type="Resource" id="Group_expired_mark_matches"]
+script = ExtResource("4_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_expired_mark_matches")])
+
+[sub_resource type="Resource" id="Action_self_on_expiry"]
+script = ExtResource("8_action")
+action_id = &"action.executioner.self_execution.on_expiry"
+kind = &"trigger_skill"
+payload = SubResource("Action_self_execution_payload")
+
+[sub_resource type="Resource" id="Reaction_self_on_expiry"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.executioner.self_execution.on_mark_expired"
+trigger = &"on_target_mark_expired"
+timing = &"after_status_expired"
+priority = 20
+condition_group = SubResource("Group_expired_mark_matches")
+actions = Array[Resource]([SubResource("Action_self_on_expiry")])
+
+[sub_resource type="Resource" id="Binding_self_execution"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.axe.executioner.self_execution"
+trait_id = &"weapon.axe.executioner.self_execution"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"executioner_axe"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_judgment_after_hit"), SubResource("Reaction_self_on_expiry")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.axe.executioner"
+schema_version = 1
+load_order = 384
+bindings = Array[Resource]([SubResource("Binding_execution"), SubResource("Binding_death_sentence"), SubResource("Binding_self_execution")])

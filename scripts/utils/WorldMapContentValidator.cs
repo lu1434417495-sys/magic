@@ -1,163 +1,58 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public class WorldMapContentValidator : IDisposable
+public class WorldMapContentValidator
 {
-    private const string DefaultMainWorldSettlementBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres";
-    private const string DefaultMainWorldWildSpawnBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres";
-    private const string DefaultMainWorldSettlementNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
-    private const string DefaultMainWorldTownNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_town_name_pool.tres";
-    private const string DefaultMainWorldCityNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_city_name_pool.tres";
-    private const string DefaultMainWorldCapitalNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_capital_name_pool.tres";
-    private const string DefaultMainWorldMetropolisNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
     private static readonly StringName WorldEventTypeEnterSubmap = new("enter_submap");
-    private static readonly Dictionary<string, Resource> ResourceCache = new();
-
-    public virtual void Dispose()
-    {
-    }
-
-    public virtual Godot.Collections.Array<string> ValidateWorldPresets(
-        GDictionary enemy_templates = null,
-        GDictionary wild_encounter_rosters = null
-    ) => ProjectErrors(
-        ValidateWorldPresetsTyped(
-            BuildStringNameSet(enemy_templates),
-            BuildStringNameSet(wild_encounter_rosters)
-        )
-    );
-
-    internal List<string> ValidateWorldPresetsTyped(
-        IReadOnlyCollection<StringName> enemyTemplateIds = null,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds = null
-    )
-    {
-        var errors = new List<string>();
-        var seenPresetIds = new HashSet<string>(StringComparer.Ordinal);
-        IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> presets = WorldPresetRegistry.ListPresetsTyped();
-        if (presets == null || presets.Count == 0)
-        {
-            errors.Add("World preset registry is empty.");
-            return errors;
-        }
-
-        foreach (WorldPresetRegistry.WorldPresetInfo preset in presets)
-        {
-            string presetId = preset?.PresetId.ToString().Trim() ?? string.Empty;
-            string displayName = preset?.DisplayName?.Trim() ?? string.Empty;
-            string generationConfigPath = preset?.GenerationConfigPath?.Trim() ?? string.Empty;
-            if (string.IsNullOrEmpty(presetId))
-            {
-                errors.Add("World preset entry is missing preset_id.");
-                continue;
-            }
-            if (seenPresetIds.Contains(presetId))
-            {
-                errors.Add($"Duplicate world preset_id registered: {presetId}.");
-            }
-            seenPresetIds.Add(presetId);
-            if (string.IsNullOrEmpty(displayName))
-            {
-                errors.Add($"World preset {presetId} is missing display_name.");
-            }
-            if (string.IsNullOrEmpty(generationConfigPath))
-            {
-                errors.Add($"World preset {presetId} is missing generation_config_path.");
-                continue;
-            }
-
-            var generationConfig = LoadCachedResource(generationConfigPath);
-            if (generationConfig == null)
-            {
-                errors.Add(
-                    $"World preset {presetId} failed to load generation config {generationConfigPath}."
-                );
-                continue;
-            }
-            if (generationConfig is not WorldMapGenerationConfig typedGenerationConfig)
-            {
-                errors.Add(
-                    $"World preset {presetId} failed to load generation config {generationConfigPath}."
-                );
-                continue;
-            }
-            AddRange(
-                errors,
-                ValidateGenerationConfigTyped(
-                    typedGenerationConfig,
-                    generationConfigPath,
-                    enemyTemplateIds,
-                    wildEncounterRosterIds
-                )
-            );
-        }
-        return errors;
-    }
-
-    public virtual Godot.Collections.Array<string> ValidateGenerationConfig(
-        WorldMapGenerationConfig generation_config,
-        string label,
-        GDictionary enemy_templates,
-        GDictionary wild_encounter_rosters
-    )
-    {
-        if (generation_config == null)
-        {
-            return new Godot.Collections.Array<string>
-            {
-                $"World generation config {label} must use WorldMapGenerationConfig.",
-            };
-        }
-        return ProjectErrors(
-            ValidateGenerationConfigTyped(
-                generation_config,
-                label,
-                BuildStringNameSet(enemy_templates),
-                BuildStringNameSet(wild_encounter_rosters)
-            )
-        );
-    }
 
     internal List<string> ValidateGenerationConfigTyped(
-        WorldMapGenerationConfig generation_config,
+        WorldGenerationDefinition generationDefinition,
         string label,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds
+        IEnumerable<StringName> enemyTemplateIds,
+        IEnumerable<StringName> wildEncounterRosterIds
     )
     {
-        return ValidateGenerationConfigInternal(
-            generation_config,
+        if (generationDefinition == null)
+        {
+            return new List<string>
+            {
+                $"World generation definition {label} must not be null.",
+            };
+        }
+        return ValidateGenerationDefinitionInternal(
+            generationDefinition,
             label,
-            enemyTemplateIds,
-            wildEncounterRosterIds,
+            SnapshotIds(enemyTemplateIds),
+            SnapshotIds(wildEncounterRosterIds),
             new HashSet<string>(StringComparer.Ordinal)
         );
     }
 
-    private List<string> ValidateGenerationConfigInternal(
-        WorldMapGenerationConfig config,
+    private static IReadOnlyCollection<StringName> SnapshotIds(
+        IEnumerable<StringName> values
+    ) =>
+        values == null
+            ? null
+            : values is IReadOnlyCollection<StringName> readOnlyCollection
+                ? readOnlyCollection
+                : new HashSet<StringName>(values);
+
+    private static List<string> ValidateGenerationDefinitionInternal(
+        WorldGenerationDefinition definition,
         string label,
         IReadOnlyCollection<StringName> enemyTemplateIds,
         IReadOnlyCollection<StringName> wildEncounterRosterIds,
-        HashSet<string> visitedPaths
+        HashSet<string> validatedPaths
     )
     {
         var errors = new List<string>();
-        var visitedKey = string.IsNullOrEmpty(config.ResourcePath) ? label : config.ResourcePath;
-        visitedPaths.Add(visitedKey);
+        string canonicalPath = definition.CanonicalPath ?? "";
+        if (canonicalPath.Length > 0 && !validatedPaths.Add(canonicalPath))
+            return errors;
 
-        var worldSizeInChunks = config.world_size_in_chunks;
-        var chunkSize = config.chunk_size;
+        Vector2I worldSizeInChunks = definition.WorldSizeInChunks;
+        Vector2I chunkSize = definition.ChunkSize;
         if (worldSizeInChunks.X <= 0 || worldSizeInChunks.Y <= 0)
         {
             errors.Add(
@@ -165,227 +60,109 @@ public class WorldMapContentValidator : IDisposable
             );
         }
         if (chunkSize.X <= 0 || chunkSize.Y <= 0)
-        {
             errors.Add($"World generation config {label} has invalid chunk_size {chunkSize}.");
-        }
-        if (config.starting_wild_spawn_min_distance > config.starting_wild_spawn_max_distance)
+        if (definition.StartingWildSpawnMinDistance > definition.StartingWildSpawnMaxDistance)
         {
             errors.Add(
                 $"World generation config {label} has starting_wild_spawn_min_distance greater than max distance."
             );
         }
 
-        List<SettlementConfig> settlementResources = BuildEffectiveSettlementResources(
-            config,
+        HashSet<string> facilityIds = ValidateFacilityDefinitions(
+            definition.EffectiveFacilityLibrary,
             label,
             errors
         );
-        List<FacilityConfig> facilityResources = BuildEffectiveFacilityResources(
-            config,
-            label,
-            errors
-        );
-        List<WildSpawnRule> wildSpawnRules = BuildEffectiveWildSpawnRules(config, label, errors);
-
-        var facilityIds = ValidateFacilityLibrary(facilityResources, label, errors);
-        var settlementIds = ValidateSettlementLibrary(
-            settlementResources,
+        HashSet<string> settlementIds = ValidateSettlementDefinitions(
+            definition.EffectiveSettlementLibrary,
             facilityIds,
             label,
             errors
         );
-        IReadOnlyList<SettlementDistributionRule> settlementDistribution = CollectTypedResources<
-            SettlementDistributionRule
-        >(
-            config.settlement_distribution,
-            $"World generation config {label} has non-SettlementDistributionRule entry.",
-            errors
-        );
-        IReadOnlyList<MountedSubmapConfig> mountedSubmaps = CollectTypedResources<MountedSubmapConfig>(
-            config.mounted_submaps,
-            $"World generation config {label} has non-MountedSubmapConfig mounted_submaps entry.",
-            errors
-        );
-        IReadOnlyList<WorldEventConfig> worldEvents = CollectTypedResources<WorldEventConfig>(
-            config.world_events,
-            $"World generation config {label} has non-WorldEventConfig world_events entry.",
-            errors
-        );
-        ValidateSettlementDistribution(
-            settlementDistribution,
+        ValidateSettlementDistributionDefinitions(
+            definition.SettlementDistribution,
             settlementIds,
             label,
             errors
         );
-        ValidateWildSpawnRules(
-            wildSpawnRules,
-            config,
+        ValidateWildSpawnRuleDefinitions(
+            definition.EffectiveWildSpawnRules,
+            definition,
             enemyTemplateIds,
             wildEncounterRosterIds,
             label,
             errors
         );
-        var mountedSubmapIds = ValidateMountedSubmaps(
-            mountedSubmaps,
+        HashSet<StringName> mountedSubmapIds = ValidateMountedSubmapDefinitions(
+            definition.MountedSubmaps,
             label,
             enemyTemplateIds,
             wildEncounterRosterIds,
-            visitedPaths,
+            validatedPaths,
             errors
         );
-        var worldSizeCells = new Vector2I(
-            worldSizeInChunks.X * chunkSize.X,
-            worldSizeInChunks.Y * chunkSize.Y
+        ValidateWorldEventDefinitions(
+            definition.WorldEvents,
+            mountedSubmapIds,
+            definition.GetWorldSizeCells(),
+            label,
+            errors
         );
-        ValidateWorldEvents(worldEvents, mountedSubmapIds, worldSizeCells, label, errors);
+        ValidateNamePoolDefinitions(definition, label, errors);
         return errors;
     }
 
-    private static List<SettlementConfig> BuildEffectiveSettlementResources(
-        WorldMapGenerationConfig generationConfig,
-        string label,
-        List<string> errors
-    )
-    {
-        var resources = new List<SettlementConfig>();
-        if (generationConfig.inject_default_main_world_content)
-        {
-            var bundle = LoadResource<WorldMapSettlementBundle>(
-                DefaultMainWorldSettlementBundlePath,
-                label,
-                errors
-            );
-            if (bundle != null)
-            {
-                AppendTypedResources(
-                    resources,
-                    bundle.settlement_library,
-                    $"World generation config {label} has non-SettlementConfig settlement entry.",
-                    errors
-                );
-            }
-            ValidateNamePool(DefaultMainWorldSettlementNamePoolPath, label, errors);
-            ValidateNamePool(DefaultMainWorldTownNamePoolPath, label, errors);
-            ValidateNamePool(DefaultMainWorldCityNamePoolPath, label, errors);
-            ValidateNamePool(DefaultMainWorldCapitalNamePoolPath, label, errors);
-            ValidateNamePool(DefaultMainWorldMetropolisNamePoolPath, label, errors);
-        }
-        AppendTypedResources(
-            resources,
-            generationConfig.settlement_library,
-            $"World generation config {label} has non-SettlementConfig settlement entry.",
-            errors
-        );
-        return resources;
-    }
 
-    private static List<FacilityConfig> BuildEffectiveFacilityResources(
-        WorldMapGenerationConfig generationConfig,
-        string label,
-        List<string> errors
-    )
-    {
-        var resources = new List<FacilityConfig>();
-        if (generationConfig.inject_default_main_world_content)
-        {
-            var bundle = LoadResource<WorldMapSettlementBundle>(
-                DefaultMainWorldSettlementBundlePath,
-                label,
-                errors
-            );
-            if (bundle != null)
-            {
-                AppendTypedResources(
-                    resources,
-                    bundle.facility_library,
-                    $"World generation config {label} has non-FacilityConfig facility entry.",
-                    errors
-                );
-            }
-        }
-        AppendTypedResources(
-            resources,
-            generationConfig.facility_library,
-            $"World generation config {label} has non-FacilityConfig facility entry.",
-            errors
-        );
-        return resources;
-    }
 
-    private static List<WildSpawnRule> BuildEffectiveWildSpawnRules(
-        WorldMapGenerationConfig generationConfig,
-        string label,
-        List<string> errors
-    )
-    {
-        var resources = new List<WildSpawnRule>();
-        if (generationConfig.inject_default_main_world_content)
-        {
-            var bundle = LoadResource<WorldMapWildSpawnBundle>(
-                DefaultMainWorldWildSpawnBundlePath,
-                label,
-                errors
-            );
-            if (bundle != null)
-            {
-                AppendTypedResources(
-                    resources,
-                    bundle.wild_monster_distribution,
-                    $"World generation config {label} has non-WildSpawnRule entry.",
-                    errors
-                );
-            }
-        }
-        AppendTypedResources(
-            resources,
-            generationConfig.wild_monster_distribution,
-            $"World generation config {label} has non-WildSpawnRule entry.",
-            errors
-        );
-        return resources;
-    }
 
-    private static HashSet<string> ValidateFacilityLibrary(
-        IReadOnlyList<FacilityConfig> facilityResources,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private static HashSet<string> ValidateFacilityDefinitions(
+        IReadOnlyList<FacilityDefinition> facilities,
         string label,
         List<string> errors
     )
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (FacilityConfig facility in facilityResources)
+        foreach (FacilityDefinition facility in facilities)
         {
-            var facilityId = (facility.GetTemplateId() ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(facilityId))
+            string facilityId = (facility.TemplateId ?? string.Empty).Trim();
+            if (facilityId.Length == 0)
             {
                 errors.Add($"World generation config {label} has facility missing facility_id.");
                 continue;
             }
-            if (ids.Contains(facilityId))
+            if (!ids.Add(facilityId))
             {
                 errors.Add(
                     $"World generation config {label} has duplicate facility_id {facilityId}."
                 );
             }
-            ids.Add(facilityId);
-            if (string.IsNullOrWhiteSpace(facility.display_name))
-            {
+            if (string.IsNullOrWhiteSpace(facility.DisplayName))
                 errors.Add($"World facility {facilityId} in {label} is missing display_name.");
-            }
             if (
-                string.IsNullOrWhiteSpace(facility.interaction_type)
-                && facility.bound_service_npcs.Count == 0
+                string.IsNullOrWhiteSpace(facility.InteractionType)
+                && facility.BoundServiceNpcs.Count == 0
             )
             {
                 errors.Add(
                     $"World facility {facilityId} in {label} must declare interaction_type or bound service NPCs."
                 );
             }
-            ValidateFacilityNpcs(
-                CollectTypedResources<FacilityNpcConfig>(
-                    facility.bound_service_npcs,
-                    $"World facility {facilityId} in {label} has non-FacilityNpcConfig service NPC.",
-                    errors
-                ),
+            ValidateFacilityNpcDefinitions(
+                facility.BoundServiceNpcs,
                 facilityId,
                 label,
                 errors
@@ -394,34 +171,31 @@ public class WorldMapContentValidator : IDisposable
         return ids;
     }
 
-    private static void ValidateFacilityNpcs(
-        IReadOnlyList<FacilityNpcConfig> npcResources,
+    private static void ValidateFacilityNpcDefinitions(
+        IReadOnlyList<FacilityNpcDefinition> npcs,
         string facilityId,
         string label,
         List<string> errors
     )
     {
         var npcIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (FacilityNpcConfig npc in npcResources)
+        foreach (FacilityNpcDefinition npc in npcs)
         {
-            var npcId = (npc.GetTemplateId() ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(npcId))
+            string npcId = (npc.TemplateId ?? string.Empty).Trim();
+            if (npcId.Length == 0)
             {
                 errors.Add($"World facility {facilityId} in {label} has NPC missing npc_id.");
                 continue;
             }
-            if (npcIds.Contains(npcId))
-            {
+            if (!npcIds.Add(npcId))
                 errors.Add($"World facility {facilityId} in {label} has duplicate npc_id {npcId}.");
-            }
-            npcIds.Add(npcId);
-            if (string.IsNullOrWhiteSpace(npc.service_type))
+            if (string.IsNullOrWhiteSpace(npc.ServiceType))
             {
                 errors.Add(
                     $"World facility {facilityId} NPC {npcId} in {label} is missing service_type."
                 );
             }
-            if (string.IsNullOrWhiteSpace(npc.interaction_script_id))
+            if (string.IsNullOrWhiteSpace(npc.InteractionScriptId))
             {
                 errors.Add(
                     $"World facility {facilityId} NPC {npcId} in {label} is missing interaction_script_id."
@@ -430,49 +204,42 @@ public class WorldMapContentValidator : IDisposable
         }
     }
 
-    private static HashSet<string> ValidateSettlementLibrary(
-        IReadOnlyList<SettlementConfig> settlementResources,
+    private static HashSet<string> ValidateSettlementDefinitions(
+        IReadOnlyList<SettlementDefinition> settlements,
         IReadOnlySet<string> facilityIds,
         string label,
         List<string> errors
     )
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (SettlementConfig settlement in settlementResources)
+        foreach (SettlementDefinition settlement in settlements)
         {
-            var settlementId = (settlement.GetTemplateId() ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(settlementId))
+            string settlementId = (settlement.TemplateId ?? string.Empty).Trim();
+            if (settlementId.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} has settlement missing settlement_id."
                 );
                 continue;
             }
-            if (ids.Contains(settlementId))
+            if (!ids.Add(settlementId))
             {
                 errors.Add(
                     $"World generation config {label} has duplicate settlement_id {settlementId}."
                 );
             }
-            ids.Add(settlementId);
-            if (string.IsNullOrWhiteSpace(settlement.display_name))
-            {
+            if (string.IsNullOrWhiteSpace(settlement.DisplayName))
                 errors.Add($"World settlement {settlementId} in {label} is missing display_name.");
-            }
-            ValidateFacilitySlots(
-                CollectTypedResources<FacilitySlotConfig>(
-                    settlement.facility_slots,
-                    $"World settlement {settlementId} in {label} has non-FacilitySlotConfig slot.",
-                    errors
-                ),
+            ValidateFacilitySlotDefinitions(
+                settlement.FacilitySlots,
                 settlementId,
                 label,
                 errors
             );
-            foreach (string facilityIdValue in settlement.guaranteed_facility_ids)
+            foreach (string rawFacilityId in settlement.GuaranteedFacilityIds)
             {
-                var facilityId = (facilityIdValue ?? string.Empty).Trim();
-                if (string.IsNullOrEmpty(facilityId))
+                string facilityId = (rawFacilityId ?? string.Empty).Trim();
+                if (facilityId.Length == 0)
                 {
                     errors.Add(
                         $"World settlement {settlementId} in {label} has empty guaranteed facility id."
@@ -485,12 +252,8 @@ public class WorldMapContentValidator : IDisposable
                     );
                 }
             }
-            ValidateOptionalFacilityPool(
-                CollectTypedResources<WeightedFacilityEntry>(
-                    settlement.optional_facility_pool,
-                    $"World settlement {settlementId} in {label} has non-WeightedFacilityEntry optional facility.",
-                    errors
-                ),
+            ValidateOptionalFacilityDefinitions(
+                settlement.OptionalFacilityPool,
                 facilityIds,
                 settlementId,
                 label,
@@ -500,30 +263,29 @@ public class WorldMapContentValidator : IDisposable
         return ids;
     }
 
-    private static void ValidateFacilitySlots(
-        IReadOnlyList<FacilitySlotConfig> slots,
+    private static void ValidateFacilitySlotDefinitions(
+        IReadOnlyList<FacilitySlotDefinition> slots,
         string settlementId,
         string label,
         List<string> errors
     )
     {
         var slotIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (FacilitySlotConfig slot in slots)
+        foreach (FacilitySlotDefinition slot in slots)
         {
-            var slotId = (slot.slot_id ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(slotId))
+            string slotId = (slot.SlotId ?? string.Empty).Trim();
+            if (slotId.Length == 0)
             {
                 errors.Add($"World settlement {settlementId} in {label} has slot missing slot_id.");
                 continue;
             }
-            if (slotIds.Contains(slotId))
+            if (!slotIds.Add(slotId))
             {
                 errors.Add(
                     $"World settlement {settlementId} in {label} has duplicate slot_id {slotId}."
                 );
             }
-            slotIds.Add(slotId);
-            if (string.IsNullOrWhiteSpace(slot.slot_tag))
+            if (string.IsNullOrWhiteSpace(slot.SlotTag))
             {
                 errors.Add(
                     $"World settlement {settlementId} slot {slotId} in {label} is missing slot_tag."
@@ -532,18 +294,18 @@ public class WorldMapContentValidator : IDisposable
         }
     }
 
-    private static void ValidateOptionalFacilityPool(
-        IReadOnlyList<WeightedFacilityEntry> pool,
+    private static void ValidateOptionalFacilityDefinitions(
+        IReadOnlyList<WeightedFacilityDefinition> pool,
         IReadOnlySet<string> facilityIds,
         string settlementId,
         string label,
         List<string> errors
     )
     {
-        foreach (WeightedFacilityEntry entry in pool)
+        foreach (WeightedFacilityDefinition entry in pool)
         {
-            var facilityId = (entry.GetFacilityTemplateId() ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(facilityId))
+            string facilityId = (entry.FacilityTemplateId ?? string.Empty).Trim();
+            if (facilityId.Length == 0)
             {
                 errors.Add(
                     $"World settlement {settlementId} in {label} has optional facility missing facility_id."
@@ -555,7 +317,7 @@ public class WorldMapContentValidator : IDisposable
                     $"World settlement {settlementId} in {label} references missing optional facility {facilityId}."
                 );
             }
-            if (entry.weight <= 0)
+            if (entry.Weight <= 0)
             {
                 errors.Add(
                     $"World settlement {settlementId} in {label} has optional facility {facilityId} with non-positive weight."
@@ -564,17 +326,17 @@ public class WorldMapContentValidator : IDisposable
         }
     }
 
-    private static void ValidateSettlementDistribution(
-        IReadOnlyList<SettlementDistributionRule> distribution,
+    private static void ValidateSettlementDistributionDefinitions(
+        IReadOnlyList<SettlementDistributionDefinition> distribution,
         IReadOnlySet<string> settlementIds,
         string label,
         List<string> errors
     )
     {
-        foreach (SettlementDistributionRule rule in distribution)
+        foreach (SettlementDistributionDefinition rule in distribution)
         {
-            var settlementId = (rule.GetSettlementTemplateId() ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(settlementId))
+            string settlementId = (rule.SettlementTemplateId ?? string.Empty).Trim();
+            if (settlementId.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} has distribution rule missing settlement_id."
@@ -586,7 +348,7 @@ public class WorldMapContentValidator : IDisposable
                     $"World generation config {label} settlement distribution references missing settlement {settlementId}."
                 );
             }
-            if (string.IsNullOrWhiteSpace(rule.faction_id))
+            if (string.IsNullOrWhiteSpace(rule.FactionId))
             {
                 errors.Add(
                     $"World generation config {label} settlement distribution for {settlementId} is missing faction_id."
@@ -595,38 +357,35 @@ public class WorldMapContentValidator : IDisposable
         }
     }
 
-    private static void ValidateWildSpawnRules(
-        IReadOnlyList<WildSpawnRule> ruleResources,
-        WorldMapGenerationConfig generationConfig,
+    private static void ValidateWildSpawnRuleDefinitions(
+        IReadOnlyList<WildSpawnRuleDefinition> rules,
+        WorldGenerationDefinition generationDefinition,
         IReadOnlyCollection<StringName> enemyTemplateIds,
         IReadOnlyCollection<StringName> wildEncounterRosterIds,
         string label,
         List<string> errors
     )
     {
-        var worldSizeInChunks = generationConfig.world_size_in_chunks;
-        foreach (WildSpawnRule rule in ruleResources)
+        Vector2I worldSizeInChunks = generationDefinition.WorldSizeInChunks;
+        foreach (WildSpawnRuleDefinition rule in rules)
         {
-            var regionTag = (rule.region_tag ?? string.Empty).Trim();
-            var enemyRosterTemplateId = rule.enemy_roster_template_id.ToString().Trim();
-            var encounterProfileId = rule.encounter_profile_id.ToString().Trim();
-            if (string.IsNullOrEmpty(regionTag))
+            string regionTag = (rule.RegionTag ?? string.Empty).Trim();
+            string enemyRosterTemplateId = rule.EnemyRosterTemplateId.ToString().Trim();
+            string encounterProfileId = rule.EncounterProfileId.ToString().Trim();
+            if (regionTag.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} has wild spawn rule missing region_tag."
                 );
             }
-            if (
-                string.IsNullOrEmpty(enemyRosterTemplateId)
-                && string.IsNullOrEmpty(encounterProfileId)
-            )
+            if (enemyRosterTemplateId.Length == 0 && encounterProfileId.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} wild spawn rule {regionTag} must declare enemy_roster_template_id or encounter_profile_id."
                 );
             }
             if (
-                !string.IsNullOrEmpty(enemyRosterTemplateId)
+                enemyRosterTemplateId.Length > 0
                 && HasEntries(enemyTemplateIds)
                 && !ContainsStringName(enemyTemplateIds, enemyRosterTemplateId)
             )
@@ -636,7 +395,7 @@ public class WorldMapContentValidator : IDisposable
                 );
             }
             if (
-                !string.IsNullOrEmpty(encounterProfileId)
+                encounterProfileId.Length > 0
                 && HasEntries(wildEncounterRosterIds)
                 && !ContainsStringName(wildEncounterRosterIds, encounterProfileId)
             )
@@ -645,64 +404,62 @@ public class WorldMapContentValidator : IDisposable
                     $"World generation config {label} wild spawn rule {regionTag} references missing encounter profile {encounterProfileId}."
                 );
             }
-            if (rule.density_per_chunk <= 0)
+            if (rule.DensityPerChunk <= 0)
             {
                 errors.Add(
                     $"World generation config {label} wild spawn rule {regionTag} has non-positive density_per_chunk."
                 );
             }
-            if (rule.vision_range < 0)
+            if (rule.VisionRange < 0)
             {
                 errors.Add(
                     $"World generation config {label} wild spawn rule {regionTag} has negative vision_range."
                 );
             }
-            if (rule.min_distance_to_settlement < 0)
+            if (rule.MinDistanceToSettlement < 0)
             {
                 errors.Add(
                     $"World generation config {label} wild spawn rule {regionTag} has negative min_distance_to_settlement."
                 );
             }
-            if (rule.chunk_coords.Count == 0)
+            if (rule.ChunkCoords.Count == 0)
             {
                 errors.Add(
                     $"World generation config {label} wild spawn rule {regionTag} has empty chunk_coords."
                 );
+                continue;
             }
-            else
+            foreach (Vector2I coord in rule.ChunkCoords)
             {
-                foreach (Vector2I coord in rule.chunk_coords)
+                if (
+                    coord.X < 0
+                    || coord.Y < 0
+                    || coord.X >= worldSizeInChunks.X
+                    || coord.Y >= worldSizeInChunks.Y
+                )
                 {
-                    if (
-                        coord.X < 0
-                        || coord.Y < 0
-                        || coord.X >= worldSizeInChunks.X
-                        || coord.Y >= worldSizeInChunks.Y
-                    )
-                    {
-                        errors.Add(
-                            $"World generation config {label} wild spawn rule {regionTag} has chunk_coord {coord} outside world chunk range {worldSizeInChunks}."
-                        );
-                    }
+                    errors.Add(
+                        $"World generation config {label} wild spawn rule {regionTag} has chunk_coord {coord} outside world chunk range {worldSizeInChunks}."
+                    );
                 }
             }
         }
     }
 
-    private HashSet<StringName> ValidateMountedSubmaps(
-        IReadOnlyList<MountedSubmapConfig> submaps,
+    private static HashSet<StringName> ValidateMountedSubmapDefinitions(
+        IReadOnlyList<MountedSubmapDefinition> submaps,
         string label,
         IReadOnlyCollection<StringName> enemyTemplateIds,
         IReadOnlyCollection<StringName> wildEncounterRosterIds,
-        HashSet<string> visitedPaths,
+        HashSet<string> validatedPaths,
         List<string> errors
     )
     {
         var ids = new HashSet<StringName>();
-        foreach (MountedSubmapConfig submap in submaps)
+        foreach (MountedSubmapDefinition submap in submaps)
         {
-            var submapId = submap.submap_id.ToString().Trim();
-            if (string.IsNullOrEmpty(submapId))
+            string submapId = submap.SubmapId.ToString().Trim();
+            if (submapId.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} has mounted submap missing submap_id."
@@ -710,59 +467,42 @@ public class WorldMapContentValidator : IDisposable
                 continue;
             }
             StringName submapIdName = new(submapId);
-            if (ids.Contains(submapIdName))
+            if (!ids.Add(submapIdName))
             {
                 errors.Add(
                     $"World generation config {label} has duplicate mounted submap_id {submapId}."
                 );
             }
-            ids.Add(submapIdName);
-            var path = (submap.generation_config_path ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(path))
+            if (string.IsNullOrWhiteSpace(submap.GenerationConfigPath))
             {
                 errors.Add(
                     $"World mounted submap {submapId} in {label} is missing generation_config_path."
                 );
                 continue;
             }
-            if (visitedPaths.Contains(path))
+            if (submap.Generation == null)
             {
                 errors.Add(
-                    $"World mounted submap {submapId} in {label} creates recursive generation_config_path {path}."
-                );
-                continue;
-            }
-            var submapConfig = LoadCachedResource(path);
-            if (submapConfig == null)
-            {
-                errors.Add(
-                    $"World mounted submap {submapId} in {label} failed to load generation_config_path {path}."
-                );
-                continue;
-            }
-            if (submapConfig is not WorldMapGenerationConfig)
-            {
-                errors.Add(
-                    $"World mounted submap {submapId} in {label} expected {path} to use WorldMapGenerationConfig."
+                    $"World mounted submap {submapId} in {label} failed to project generation_config_path {submap.GenerationConfigPath}."
                 );
                 continue;
             }
             AddRange(
                 errors,
-                ValidateGenerationConfigInternal(
-                    (WorldMapGenerationConfig)submapConfig,
-                    path,
+                ValidateGenerationDefinitionInternal(
+                    submap.Generation,
+                    submap.Generation.CanonicalPath,
                     enemyTemplateIds,
                     wildEncounterRosterIds,
-                    new HashSet<string>(visitedPaths, StringComparer.Ordinal)
+                    validatedPaths
                 )
             );
         }
         return ids;
     }
 
-    private static void ValidateWorldEvents(
-        IReadOnlyList<WorldEventConfig> events,
+    private static void ValidateWorldEventDefinitions(
+        IReadOnlyList<WorldEventDefinition> events,
         IReadOnlySet<StringName> mountedSubmapIds,
         Vector2I worldSizeCells,
         string label,
@@ -770,22 +510,21 @@ public class WorldMapContentValidator : IDisposable
     )
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (WorldEventConfig worldEvent in events)
+        foreach (WorldEventDefinition worldEvent in events)
         {
-            var eventId = worldEvent.event_id.ToString().Trim();
-            if (string.IsNullOrEmpty(eventId))
+            string eventId = worldEvent.EventId.ToString().Trim();
+            if (eventId.Length == 0)
             {
                 errors.Add($"World generation config {label} has world event missing event_id.");
                 continue;
             }
-            if (ids.Contains(eventId))
+            if (!ids.Add(eventId))
             {
                 errors.Add(
                     $"World generation config {label} has duplicate world event_id {eventId}."
                 );
             }
-            ids.Add(eventId);
-            var coord = worldEvent.world_coord;
+            Vector2I coord = worldEvent.WorldCoord;
             if (
                 coord.X < 0
                 || coord.Y < 0
@@ -797,149 +536,65 @@ public class WorldMapContentValidator : IDisposable
                     $"World event {eventId} in {label} has world_coord {coord} outside world cell range {worldSizeCells}."
                 );
             }
-            if (worldEvent.event_type == WorldEventTypeEnterSubmap)
-            {
-                var target = worldEvent.target_submap_id.ToString().Trim();
-                if (string.IsNullOrEmpty(target))
-                {
-                    errors.Add(
-                        $"World event {eventId} in {label} with event_type enter_submap is missing target_submap_id."
-                    );
-                }
-                else if (
-                    mountedSubmapIds != null
-                    && !mountedSubmapIds.Contains(new StringName(target))
-                )
-                {
-                    errors.Add(
-                        $"World event {eventId} in {label} references missing target_submap_id {target}."
-                    );
-                }
-            }
-        }
-    }
-
-    private static void ValidateNamePool(
-        string resourcePath,
-        string label,
-        List<string> errors
-    )
-    {
-        var namePool = LoadResource<WorldMapSettlementNamePool>(resourcePath, label, errors);
-        if (namePool == null)
-        {
-            return;
-        }
-        var names = namePool.BuildUniqueDisplayNames();
-        if (names.Count == 0)
-        {
-            errors.Add(
-                $"World generation config {label} has empty settlement name pool {resourcePath}."
-            );
-        }
-    }
-
-    private static T LoadResource<T>(
-        string resourcePath,
-        string label,
-        List<string> errors
-    )
-        where T : Resource
-    {
-        var resource = LoadCachedResource(resourcePath);
-        if (resource == null)
-        {
-            errors.Add($"World generation config {label} failed to load {resourcePath}.");
-            return null;
-        }
-        if (resource is not T typedResource)
-        {
-            errors.Add(
-                $"World generation config {label} expected {resourcePath} to use {typeof(T).Name}."
-            );
-            return null;
-        }
-        return typedResource;
-    }
-
-    private static List<T> CollectTypedResources<T>(
-        Godot.Collections.Array<Resource> source,
-        string invalidEntryError,
-        List<string> errors
-    )
-        where T : Resource
-    {
-        var result = new List<T>();
-        AppendTypedResources(result, source, invalidEntryError, errors);
-        return result;
-    }
-
-    private static void AppendTypedResources<T>(
-        List<T> target,
-        Godot.Collections.Array<Resource> source,
-        string invalidEntryError,
-        List<string> errors
-    )
-        where T : Resource
-    {
-        if (source == null)
-        {
-            return;
-        }
-        foreach (Resource item in source)
-        {
-            if (item is T typedItem)
-            {
-                target.Add(typedItem);
+            if (worldEvent.EventType != WorldEventTypeEnterSubmap)
                 continue;
+            string target = worldEvent.TargetSubmapId.ToString().Trim();
+            if (target.Length == 0)
+            {
+                errors.Add(
+                    $"World event {eventId} in {label} with event_type enter_submap is missing target_submap_id."
+                );
             }
-            errors.Add(invalidEntryError);
+            else if (
+                mountedSubmapIds != null
+                && !mountedSubmapIds.Contains(new StringName(target))
+            )
+            {
+                errors.Add(
+                    $"World event {eventId} in {label} references missing target_submap_id {target}."
+                );
+            }
         }
     }
 
-    private static Godot.Collections.Array<string> ProjectErrors(IEnumerable<string> errors)
+    private static void ValidateNamePoolDefinitions(
+        WorldGenerationDefinition definition,
+        string label,
+        List<string> errors
+    )
     {
-        var result = new Godot.Collections.Array<string>();
-        if (errors == null)
+        if (!definition.InjectDefaultMainWorldContent)
+            return;
+        string[] requiredPaths =
         {
-            return result;
-        }
-        foreach (string error in errors)
+            WorldGenerationDefinition.DefaultMainWorldSettlementNamePoolPath,
+            WorldGenerationDefinition.DefaultMainWorldTownNamePoolPath,
+            WorldGenerationDefinition.DefaultMainWorldCityNamePoolPath,
+            WorldGenerationDefinition.DefaultMainWorldCapitalNamePoolPath,
+            WorldGenerationDefinition.DefaultMainWorldMetropolisNamePoolPath,
+        };
+        foreach (string resourcePath in requiredPaths)
         {
-            result.Add(error ?? string.Empty);
+            string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+            if (
+                !definition.SettlementNamePools.TryGetValue(
+                    canonicalPath,
+                    out WorldMapSettlementNamePoolDefinition namePool
+                )
+                || namePool == null
+                || namePool.DisplayNames.Count == 0
+            )
+            {
+                errors.Add(
+                    $"World generation config {label} has empty settlement name pool {canonicalPath}."
+                );
+            }
         }
-        return result;
     }
 
     private static bool HasEntries<T>(IReadOnlyCollection<T> values)
     {
         return values != null && values.Count > 0;
-    }
-
-    private static Resource LoadCachedResource(string resourcePath)
-    {
-        if (string.IsNullOrEmpty(resourcePath))
-        {
-            return null;
-        }
-        if (
-            ResourceCache.TryGetValue(resourcePath, out var cachedResource)
-            && GodotObject.IsInstanceValid(cachedResource)
-        )
-        {
-            return cachedResource;
-        }
-        if (!ResourceLoader.Exists(resourcePath))
-        {
-            return null;
-        }
-        var resource = ResourceLoader.Load<Resource>(resourcePath);
-        if (resource != null)
-        {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
-            ResourceCache[resourcePath] = resource;
-        }
-        return resource;
     }
 
     private static bool ContainsStringName(
@@ -960,28 +615,6 @@ public class WorldMapContentValidator : IDisposable
             }
         }
         return false;
-    }
-
-    private static HashSet<StringName> BuildStringNameSet(GDictionary dictionary)
-    {
-        var result = new HashSet<StringName>();
-        if (dictionary == null)
-        {
-            return result;
-        }
-        foreach (Variant rawKey in dictionary.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-            {
-                continue;
-            }
-            StringName keyName = rawKey.AsStringName();
-            if (keyName != "")
-            {
-                result.Add(keyName);
-            }
-        }
-        return result;
     }
 
     private static void AddRange(List<string> target, IEnumerable<string> source)

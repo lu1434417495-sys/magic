@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Godot;
 
-public partial class run_direct_field_write_guard_regression : SceneTree
+public partial class run_direct_field_write_guard_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -144,7 +144,7 @@ public partial class run_direct_field_write_guard_regression : SceneTree
         TestScannerAllowsOwnerInternalWrites();
         TestRepositoryScripts();
 
-        Quit(_test.Finish("Direct field write guard regression"));
+        RequestTestExit(_test.Finish("Direct field write guard regression"));
     }
 
     private void TestScannerAllowsNonOwnerProjectionFields()

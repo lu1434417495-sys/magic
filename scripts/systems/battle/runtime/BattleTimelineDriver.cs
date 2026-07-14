@@ -41,12 +41,12 @@ internal sealed class BattleTimelineDriver
         }
     }
 
-    private void _RecordTurnStarted(BattleUnitState unitState)
+    private void _RecordTurnStarted(BattleUnitState unitState, BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._record_turn_started(unitState);
+        runtime._record_turn_started(unitState, batch);
     }
 
     private int _GetUnitStaminaMax(BattleUnitState unitState)
@@ -67,13 +67,14 @@ internal sealed class BattleTimelineDriver
 
     private void _CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null
     )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._collect_defeated_unit_loot(unitState, killerUnit);
+        runtime._collect_defeated_unit_loot(unitState, killerUnit, batch);
     }
 
     private void _ClearDefeatedUnit(BattleUnitState unitState, BattleEventBatch batch = null)
@@ -204,6 +205,8 @@ internal sealed class BattleTimelineDriver
             state.timeline.current_tu += tuDelta;
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
+        state.RemoveExpiredTemporaryEdgeFeatures();
+        runtime?._delayed_area_effect_system?.ProcessDueEffects(batch);
         runtime?._terrain_effect_system?.ProcessTimedTerrainEffects(batch);
         runtime?._layered_barrier_service?.AdvanceBarrierDurations(tuDelta, batch);
         if (tuDelta > 0)
@@ -569,6 +572,19 @@ internal sealed class BattleTimelineDriver
                     MisfortuneTriggerRequest.LowHpTurnEnd(activeUnit)
                 );
         }
+        if (
+            activeUnit != null
+            && runtime?.GetEquipmentAbilityRuntimeService()?.ResolveTurnEnd(
+                new BattleEquipmentAbilityTurnEndContext
+                {
+                    SourceUnit = activeUnit,
+                    BattleState = state,
+                }
+            ) == true
+        )
+        {
+            _AppendChangedUnitId(batch, activeUnit.unit_id);
+        }
         if (activeUnit != null && activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             _CleanupAiTurn(activeUnit);
         else if (activeUnit != null)
@@ -613,14 +629,14 @@ internal sealed class BattleTimelineDriver
             if (traitTurnStartResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
             _AdvanceUnitTurnTimers(unitState, batch);
-            _RecordTurnStarted(unitState);
+            _RecordTurnStarted(unitState, batch);
             var actionPoints = 1;
             if (unitState.attribute_snapshot != null)
             {
                 actionPoints = Mathf.Max(unitState.attribute_snapshot.GetValue("action_points"), 1);
             }
             unitState.SetCurrentAp(actionPoints);
-            unitState.SetCurrentMovePoints(BattleUnitState.DefaultMovePointsPerTurn);
+            unitState.SetCurrentMovePoints(unitState.GetMovePointCapacity());
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
             if (!unitState.is_alive)
             {

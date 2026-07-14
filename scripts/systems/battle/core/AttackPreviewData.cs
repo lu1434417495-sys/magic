@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
@@ -40,7 +41,7 @@ public readonly record struct AttackPreviewStage
 /// 替代原 GDictionary 承载的 build_skill_attack_preview /
 /// build_repeat_attack_preview / build_force_hit_no_crit_attack_preview 结果。
 /// </summary>
-public partial class AttackPreviewData : RefCounted
+public class AttackPreviewData
 {
 	private readonly List<BattleAttackRollModifierSpec> _attackRollModifierBreakdown = new();
 
@@ -53,6 +54,7 @@ public partial class AttackPreviewData : RefCounted
 	public int BaseHitRatePercent { get; set; }
 
 	public bool ForceHitNoCrit { get; set; }
+	public bool ForceCriticalOnHit { get; set; }
 	public bool CritLocked { get; set; }
 	public BattleFatePreviewData FatePreview { get; set; }
 
@@ -73,6 +75,27 @@ public partial class AttackPreviewData : RefCounted
 
 	public bool IsEmpty => Stages.Count == 0 && SuccessRatePercent == 0 && BaseHitRatePercent == 0 && string.IsNullOrEmpty(SummaryText);
 	public int StageCount => Stages.Count;
+
+	public GDictionary ToDictionary()
+	{
+		return new GDictionary
+		{
+			["summary_text"] = SummaryText ?? "",
+			["source"] = Source ?? "",
+			["hit_rate_percent"] = HitRatePercent,
+			["success_rate_percent"] = SuccessRatePercent,
+			["base_hit_rate_percent"] = BaseHitRatePercent,
+			["force_hit_no_crit"] = ForceHitNoCrit,
+			["force_critical_on_hit"] = ForceCriticalOnHit,
+			["crit_locked"] = CritLocked,
+			["stage_hit_rates"] = StageHitRates,
+			["stage_success_rates"] = StageSuccessRates,
+			["stage_base_hit_rates"] = StageBaseHitRates,
+			["stage_required_rolls"] = StageRequiredRolls,
+			["stage_preview_texts"] = StagePreviewTexts,
+			["attack_roll_modifier_breakdown"] = AttackRollModifierBreakdown,
+		};
+	}
 
 	public void SetAttackRollModifierBreakdown(
 		IEnumerable<BattleAttackRollModifierSpec> specs

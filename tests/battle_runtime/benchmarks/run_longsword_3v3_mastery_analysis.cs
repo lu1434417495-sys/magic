@@ -5,17 +5,23 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_longsword_3v3_mastery_analysis : SceneTree
+public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const string ScenarioPath =
         "res://data/configs/battle_sim/scenarios/longsword_3v3_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
+
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Longsword 3v3 mastery analysis", exitCode));
     }
 
     private int Run()
@@ -25,31 +31,30 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         string outputPath = ReadStringEnvironment("OUTPUT_FILE", "");
         bool progressEnabled = ReadBoolEnvironment("PROGRESS", string.IsNullOrEmpty(outputPath));
 
-        BattleSimScenarioDef scenarioDef = ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
-        if (scenarioDef == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
+        if (scenarioResource == null)
         {
             GD.PushError("[ERROR] Failed to load scenario");
             return 1;
         }
+        BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var baseline = new BattleSimProfileDef
-        {
-            profile_id = "baseline",
-            display_name = "Baseline",
-        };
-        RandomNumberGenerator rng = null;
 
         try
         {
             BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-                contentProvider.GetSkillDefsTyped(),
+                contentProvider.GetSkillDefinitionsTyped(),
                 contentProvider.GetEnemyAiBrainsTyped(),
-                baseline
+                contentProvider.GetBattleSimProfilesTyped()["baseline"]
             );
-            rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1) };
+            var rng = new RuntimeRandom(Math.Max(startSeed, 1));
 
             int totalChargeAttempts = 0;
             int totalChargeSuccesses = 0;
@@ -69,7 +74,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
                 long seed = rng.Randi();
                 var gateway = new TestMasteryGateway();
                 GDictionary result = RunSingleSimulation(
-                    scenarioDef,
+                    scenarioDefinition,
                     overrides,
                     contentProvider,
                     terrainGenerator,
@@ -152,12 +157,12 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         }
         finally
         {
-            DisposeObjects(rng, baseline, terrainGenerator, overrideApplier, contentProvider);
+            DisposeObjects(terrainGenerator, contentProvider);
         }
     }
 
     private static GDictionary RunSingleSimulation(
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         BattleSimContentProvider contentProvider,
         BattleTerrainGenerator terrainGenerator,
@@ -170,15 +175,15 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         EncounterAnchorData encounterAnchor = null;
         try
         {
-            bool useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
+            bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
             runtime.setup(
                 gateway,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 contentProvider.GetEnemyTemplatesTyped(),
                 overrides.EnemyAiBrains,
                 null,
                 default,
-                new System.Collections.Generic.Dictionary<StringName, ItemDef>(),
+                new System.Collections.Generic.Dictionary<StringName, ItemDefinition>(),
                 useFormalTerrain ? null : terrainGenerator
             );
             runtime.SetAiTraceEnabled(false);
@@ -186,23 +191,25 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenarioDef != null && scenarioDef.scenario_id != ""
-                    ? scenarioDef.scenario_id
+                entity_id = scenarioDefinition.ScenarioId != ""
+                    ? scenarioDefinition.ScenarioId
                     : "battle_sim",
-                display_name = scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
-                    ? scenarioDef.display_name
-                    : scenarioDef?.scenario_id.ToString() ?? "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenarioDefinition.DisplayName)
+                    ? scenarioDefinition.DisplayName
+                    : scenarioDefinition.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
             };
 
-            state = runtime.StartBattle(encounterAnchor, seed, scenarioDef.BuildStartContext());
+            using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
+                scenarioDefinition.BuildStartContextLease();
+            state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,
                 state,
-                scenarioDef,
+                scenarioDefinition,
                 MaxIdleLoops
             );
             return new GDictionary
@@ -218,7 +225,6 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
         {
             runtime.dispose();
             BattleTestFixture.DisposeBattleState(state);
-            GodotRefCountedDisposer.DisposeIfValid(encounterAnchor);
         }
     }
 
@@ -229,12 +235,12 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
 
         public PartyState GetPartyState() => null;
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) => null;
 
@@ -264,12 +270,30 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
             PromotionSelectionData selection
         ) => new() { member_id = member_id };
 
-        public void CommitBattleResources(
+        public BattleResourceCommitResult CommitBattleResources(
             StringName member_id,
             int current_hp,
             int current_mp,
             int current_aura
-        ) { }
+        ) => BattleResourceCommitResult.Success(member_id);
+
+        public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
+        public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
 
         public void CommitBattleDeath(StringName member_id) { }
 
@@ -320,10 +344,7 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
             string source_label,
             IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
-        )
-        {
-            return null;
-        }
+        ) => null;
 
         private CharacterProgressionDelta RecordGrant(
             StringName memberId,
@@ -462,20 +483,8 @@ public partial class run_longsword_3v3_mastery_analysis : SceneTree
     {
         foreach (object obj in objects)
         {
-            switch (obj)
-            {
-                case null:
-                    continue;
-                case BattleTerrainGenerator terrainGenerator:
-                    terrainGenerator.Dispose();
-                    continue;
-                case GodotObject godotObject:
-                    GodotSharpCleanup.DisposeGodotObject(godotObject);
-                    continue;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    continue;
-            }
+            if (obj is IDisposable disposable)
+                disposable.Dispose();
         }
     }
 }

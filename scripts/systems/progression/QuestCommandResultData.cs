@@ -140,31 +140,31 @@ internal sealed class QuestClaimResultData
     public readonly bool Ok;
     public readonly string ErrorCode;
     public readonly int GoldDelta;
-    private readonly GArray _itemRewards;
-    private readonly GArray _pendingCharacterRewards;
+    private readonly List<Dictionary<string, object>> _itemRewards;
+    private readonly List<Dictionary<string, object>> _pendingCharacterRewards;
     private readonly List<StringName> _unsupportedRewardTypes;
 
     private QuestClaimResultData(
         bool ok,
         string errorCode,
         int goldDelta,
-        GArray itemRewards,
-        GArray pendingCharacterRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> itemRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> pendingCharacterRewards,
         IEnumerable<StringName> unsupportedRewardTypes
     )
     {
         Ok = ok;
         ErrorCode = errorCode ?? "";
         GoldDelta = Mathf.Max(goldDelta, 0);
-        _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
-        _pendingCharacterRewards =
-            pendingCharacterRewards != null ? pendingCharacterRewards.Duplicate(true) : new GArray();
+        _itemRewards = CloneDictionaryList(itemRewards);
+        _pendingCharacterRewards = CloneDictionaryList(pendingCharacterRewards);
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+    internal List<object> CloneItemRewardsPlain() => CloneDictionaryObjectList(_itemRewards);
 
-    internal GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+    internal List<object> ClonePendingCharacterRewardsPlain() =>
+        CloneDictionaryObjectList(_pendingCharacterRewards);
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);
@@ -174,7 +174,7 @@ internal sealed class QuestClaimResultData
         var rewardParts = new List<string>();
         if (GoldDelta > 0)
             rewardParts.Add($"{GoldDelta} 金");
-        foreach (GDictionary rewardData in ReadDictionaryItems(_itemRewards))
+        foreach (Dictionary<string, object> rewardData in _itemRewards)
         {
             int quantity = ReadInt(rewardData, "quantity");
             string label = ReadTrimmedString(rewardData, "display_name");
@@ -182,7 +182,7 @@ internal sealed class QuestClaimResultData
                 continue;
             rewardParts.Add($"{label} x{quantity}");
         }
-        foreach (GDictionary rewardData in ReadDictionaryItems(_pendingCharacterRewards))
+        foreach (Dictionary<string, object> rewardData in _pendingCharacterRewards)
         {
             string memberName = ReadTrimmedString(rewardData, "member_name");
             rewardParts.Add(memberName.Length > 0 ? $"{memberName}的角色奖励" : "角色奖励");
@@ -192,8 +192,8 @@ internal sealed class QuestClaimResultData
 
     public static QuestClaimResultData Success(
         int goldDelta,
-        GArray itemRewards,
-        GArray pendingCharacterRewards
+        IEnumerable<IReadOnlyDictionary<string, object>> itemRewards,
+        IEnumerable<IReadOnlyDictionary<string, object>> pendingCharacterRewards
     ) =>
         new(
             true,
@@ -212,10 +212,34 @@ internal sealed class QuestClaimResultData
             false,
             errorCode,
             0,
-            new GArray(),
-            new GArray(),
+            System.Array.Empty<IReadOnlyDictionary<string, object>>(),
+            System.Array.Empty<IReadOnlyDictionary<string, object>>(),
             unsupportedRewardTypes
         );
+
+    private static List<Dictionary<string, object>> CloneDictionaryList(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
+    {
+        var result = new List<Dictionary<string, object>>();
+        if (values == null)
+            return result;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            result.Add(RuntimePlainPayload.CloneDictionary(value));
+        return result;
+    }
+
+    private static List<object> CloneDictionaryObjectList(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
+    {
+        var result = new List<object>();
+        if (values == null)
+            return result;
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            result.Add(RuntimePlainPayload.CloneDictionary(value));
+        return result;
+    }
 
     private static List<StringName> CloneStringNameList(IEnumerable<StringName> values)
     {
@@ -237,34 +261,30 @@ internal sealed class QuestClaimResultData
         return result;
     }
 
-    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    private static int ReadInt(IReadOnlyDictionary<string, object> data, string key)
     {
-        if (values == null)
-            yield break;
-        foreach (Variant value in values)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
-        }
-    }
-
-    private static int ReadInt(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
+        if (data == null || !data.TryGetValue(key, out object rawValue))
             return 0;
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        return rawValue switch
+        {
+            Variant value when value.VariantType == Variant.Type.Int => value.AsInt32(),
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => 0,
+        };
     }
 
-    private static string ReadTrimmedString(GDictionary data, string key)
+    private static string ReadTrimmedString(IReadOnlyDictionary<string, object> data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (data == null || !data.TryGetValue(key, out object rawValue))
             return "";
-        Variant value = data[key];
-        return value.VariantType switch
+        return rawValue switch
         {
-            Variant.Type.String => value.AsString().Trim(),
-            Variant.Type.StringName => value.AsStringName().ToString().Trim(),
+            Variant value when value.VariantType == Variant.Type.String => value.AsString().Trim(),
+            Variant value when value.VariantType == Variant.Type.StringName =>
+                value.AsStringName().ToString().Trim(),
+            string stringValue => stringValue.Trim(),
+            StringName stringNameValue => stringNameValue.ToString().Trim(),
             _ => "",
         };
     }

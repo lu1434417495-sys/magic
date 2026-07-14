@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_orc_whetstone"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"orc_whetstone"
+drop_type = &"item"
+item_id = &"whetstone"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"orc_grunt"
+display_name = "兽人步卒"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+creature_level = 3
+hit_die_sides = 10
+action_threshold = 35
+tags = Array[StringName]([&"humanoid", &"orc"])
+attack_equipment_item_id = &"raider_greataxe"
+base_attribute_overrides = {
+&"strength": 16,
+&"agility": 10,
+&"constitution": 14,
+&"perception": 9,
+&"intelligence": 7,
+&"willpower": 8,
+}
+skill_ids = Array[StringName]([&"charge"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_orc_whetstone")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

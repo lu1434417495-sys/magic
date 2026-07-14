@@ -1,6 +1,6 @@
 using Godot;
 
-internal partial class BattleAiBlackboard : RefCounted
+internal class BattleAiBlackboard
 {
     public StringName last_brain_id = "";
     public StringName last_state_id = "";
@@ -23,6 +23,10 @@ internal partial class BattleAiBlackboard : RefCounted
     public bool summoned = false;
     public bool temporary_unit = false;
     public StringName summon_source_unit_id = "";
+    public StringName summon_source_equipment_instance_id = "";
+    public StringName summon_binding_id = "";
+    public StringName summon_state_key = "";
+    public int summon_expires_at_tu = -1;
 
     private bool _hasTurnStartedTu;
     private bool _hasTurnDecisionCount;
@@ -116,6 +120,10 @@ internal partial class BattleAiBlackboard : RefCounted
             "summoned" => summoned,
             "temporary_unit" => temporary_unit,
             "summon_source_unit_id" => summon_source_unit_id != "",
+            "summon_source_equipment_instance_id" => summon_source_equipment_instance_id != "",
+            "summon_binding_id" => summon_binding_id != "",
+            "summon_state_key" => summon_state_key != "",
+            "summon_expires_at_tu" => summon_expires_at_tu >= 0,
             _ => false,
         };
 
@@ -141,6 +149,10 @@ internal partial class BattleAiBlackboard : RefCounted
             "summoned" => summoned.ToString(),
             "temporary_unit" => temporary_unit.ToString(),
             "summon_source_unit_id" => summon_source_unit_id.ToString(),
+            "summon_source_equipment_instance_id" => summon_source_equipment_instance_id.ToString(),
+            "summon_binding_id" => summon_binding_id.ToString(),
+            "summon_state_key" => summon_state_key.ToString(),
+            "summon_expires_at_tu" => summon_expires_at_tu.ToString(),
             _ => "",
         };
 
@@ -151,6 +163,7 @@ internal partial class BattleAiBlackboard : RefCounted
         {
             "turn_started_tu" => turn_started_tu,
             "turn_decision_count" => turn_decision_count,
+            "summon_expires_at_tu" => summon_expires_at_tu,
             _ => 0,
         };
 
@@ -199,6 +212,15 @@ internal partial class BattleAiBlackboard : RefCounted
             case "summon_source_unit_id":
                 summon_source_unit_id = value;
                 break;
+            case "summon_source_equipment_instance_id":
+                summon_source_equipment_instance_id = value;
+                break;
+            case "summon_binding_id":
+                summon_binding_id = value;
+                break;
+            case "summon_state_key":
+                summon_state_key = value;
+                break;
         }
     }
 
@@ -213,6 +235,9 @@ internal partial class BattleAiBlackboard : RefCounted
             case "turn_decision_count":
                 turn_decision_count = value;
                 _hasTurnDecisionCount = true;
+                break;
+            case "summon_expires_at_tu":
+                summon_expires_at_tu = value;
                 break;
         }
     }
@@ -285,6 +310,18 @@ internal partial class BattleAiBlackboard : RefCounted
                 break;
             case "summon_source_unit_id":
                 summon_source_unit_id = "";
+                break;
+            case "summon_source_equipment_instance_id":
+                summon_source_equipment_instance_id = "";
+                break;
+            case "summon_binding_id":
+                summon_binding_id = "";
+                break;
+            case "summon_state_key":
+                summon_state_key = "";
+                break;
+            case "summon_expires_at_tu":
+                summon_expires_at_tu = -1;
                 break;
         }
     }

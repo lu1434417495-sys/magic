@@ -2,11 +2,16 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
+public partial class run_battle_ai_random_chain_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
     {
         try
         {
@@ -17,13 +22,12 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle AI random-chain behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI random-chain behavior regression"));
     }
 
     private void TestRandomChainActionUsesCandidatePoolNotTargetIds()
     {
-        SkillDef randomChainSkill = BuildTestRandomChainSkill("ai_random_chain_score_test");
+        SkillDefinition randomChainSkill = BuildTestRandomChainSkill("ai_random_chain_score_test");
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(randomChainSkill);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(6, 3));
@@ -59,155 +63,165 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
 
         BattleAiContext aiContext = BuildAiContext(runtime, chainUser);
         aiContext.trace_enabled = true;
-        var action = new UseRandomChainSkillAction
+        var action = new UseRandomChainSkillActionDefinition(
+            "random_chain_probe",
+            "",
+            "positioning",
+            new[] { randomChainSkill.SkillId },
+            "nearest_enemy",
+            1,
+            3,
+            "candidate_pool",
+            1
+        );
+
+        BattleAiDecision decision = new BattleAiRandomChainSkillEvaluator().Evaluate(
+            action,
+            aiContext
+        );
+        _test.True(decision?.command != null, "Random-chain action should produce a legal command.");
+        if (decision?.command == null)
         {
-            action_id = "random_chain_probe",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 3,
-            distance_reference = "candidate_pool",
-        };
-        action.skill_ids.Add(randomChainSkill.skill_id);
-
-        BattleAiDecision decision = null;
-        BattlePreview preview = null;
-        try
-        {
-            decision = action.Decide(aiContext);
-            _test.True(decision?.command != null, "Random-chain action should produce a legal command.");
-            if (decision?.command == null)
-            {
-                return;
-            }
-
-            _test.Eq(
-                decision.command.target_unit_ids.Count,
-                0,
-                "Random-chain commands should not carry deterministic target_unit_ids."
-            );
-            preview = runtime.PreviewCommand(decision.command);
-            _test.True(preview?.allowed == true, "Random-chain command should pass preview_command.");
-            _test.Eq(
-                preview?.target_unit_ids.Count ?? -1,
-                0,
-                "Random-chain preview should not fabricate deterministic target ids."
-            );
-            AssertArrayContains(
-                preview?.random_chain_candidate_unit_ids,
-                targetA.unit_id,
-                "Random-chain preview should expose candidate A in the candidate pool."
-            );
-            AssertArrayContains(
-                preview?.random_chain_candidate_unit_ids,
-                targetB.unit_id,
-                "Random-chain preview should expose candidate B in the candidate pool."
-            );
-
-            BattleAiScoreInput scoreInput = decision.score_input;
-            _test.True(scoreInput != null, "Random-chain action should attach a score input.");
-            if (scoreInput == null)
-            {
-                return;
-            }
-            _test.Eq(
-                scoreInput.action_kind,
-                (StringName)"random_chain_skill",
-                "Random-chain scoring should use the dedicated action kind."
-            );
-            _test.Eq(
-                scoreInput.target_unit_ids.Count,
-                0,
-                "Random-chain scoring should not treat the candidate pool as target_unit_ids."
-            );
-            _test.Eq(scoreInput.target_count, 0, "Random-chain target_count should stay deterministic.");
-            _test.Eq(
-                scoreInput.random_chain_candidate_pool_count,
-                2,
-                "Random-chain scoring should record the candidate pool size."
-            );
-            AssertArrayContains(
-                scoreInput.random_chain_candidate_unit_ids,
-                targetA.unit_id,
-                "Random-chain scoring should record candidate A."
-            );
-            AssertArrayContains(
-                scoreInput.random_chain_candidate_unit_ids,
-                targetB.unit_id,
-                "Random-chain scoring should record candidate B."
-            );
-            _test.True(
-                scoreInput.effective_target_count > 0,
-                "Random-chain scoring should produce positive expected effective target count."
-            );
-            _test.True(
-                scoreInput.total_score > 0,
-                "Random-chain scoring should produce a positive score."
-            );
-            _test.Eq(
-                scoreInput.random_chain_selection_policy,
-                (StringName)"random_from_living_pool",
-                "Random-chain scoring should identify the runtime random selection policy."
-            );
-            _test.Eq(
-                scoreInput.random_chain_score_estimate_policy,
-                (StringName)"expected_value",
-                "Random-chain scoring should identify the expected-value estimate policy."
-            );
-
-            IReadOnlyList<AiActionTrace> actionTraces = aiContext.GetActionTracesTyped();
-            _test.True(actionTraces.Count > 0, "Random-chain action should write an AI trace.");
-            if (actionTraces.Count == 0)
-            {
-                return;
-            }
-            IReadOnlyDictionary<string, object> metadata = actionTraces[0].Metadata;
-            _test.Eq(
-                ReadString(metadata, "action_kind"),
-                "random_chain_skill",
-                "Random-chain trace should mark the dedicated action kind."
-            );
-            IReadOnlyList<string> candidatePoolUnitIds = ReadStringList(
-                metadata,
-                "candidate_pool_unit_ids"
-            );
-            _test.True(
-                System.Linq.Enumerable.Contains(candidatePoolUnitIds, targetA.unit_id.ToString())
-                    && System.Linq.Enumerable.Contains(candidatePoolUnitIds, targetB.unit_id.ToString()),
-                "Random-chain trace metadata should record candidate pool ids."
-            );
+            return;
         }
-        finally
+
+        _test.Eq(
+            decision.command.target_unit_ids.Count,
+            0,
+            "Random-chain commands should not carry deterministic target_unit_ids."
+        );
+        BattlePreview preview = runtime.PreviewCommand(decision.command);
+        _test.True(preview?.allowed == true, "Random-chain command should pass preview_command.");
+        _test.Eq(
+            preview?.target_unit_ids.Count ?? -1,
+            0,
+            "Random-chain preview should not fabricate deterministic target ids."
+        );
+        AssertArrayContains(
+            preview?.random_chain_candidate_unit_ids,
+            targetA.unit_id,
+            "Random-chain preview should expose candidate A in the candidate pool."
+        );
+        AssertArrayContains(
+            preview?.random_chain_candidate_unit_ids,
+            targetB.unit_id,
+            "Random-chain preview should expose candidate B in the candidate pool."
+        );
+        int targetAHpBefore = targetA.current_hp;
+        int targetBHpBefore = targetB.current_hp;
+        state.active_unit_id = chainUser.unit_id;
+        state.phase = "unit_acting";
+        chainUser.current_ap = 2;
+        BattleEventBatch batch = runtime.IssueCommand(decision.command);
+        _test.True(
+            batch != null && batch.log_lines.Count > 0,
+            "Random-chain command execution should return battle feedback."
+        );
+        _test.True(
+            targetA.current_hp < targetAHpBefore || targetB.current_hp < targetBHpBefore,
+            "Random-chain command execution should damage at least one candidate from the pool."
+        );
+
+        BattleAiScoreInput scoreInput = decision.score_input;
+        _test.True(scoreInput != null, "Random-chain action should attach a score input.");
+        if (scoreInput == null)
         {
-            BattleTestFixture.DisposeBattlePreview(preview);
-            DisposeDecision(decision);
-            GodotSharpCleanup.DisposeGodotObject(action);
+            return;
         }
+        _test.Eq(
+            scoreInput.action_kind,
+            (StringName)"random_chain_skill",
+            "Random-chain scoring should use the dedicated action kind."
+        );
+        _test.Eq(
+            scoreInput.target_unit_ids.Count,
+            0,
+            "Random-chain scoring should not treat the candidate pool as target_unit_ids."
+        );
+        _test.Eq(scoreInput.target_count, 0, "Random-chain target_count should stay deterministic.");
+        _test.Eq(
+            scoreInput.random_chain_candidate_pool_count,
+            2,
+            "Random-chain scoring should record the candidate pool size."
+        );
+        AssertArrayContains(
+            scoreInput.random_chain_candidate_unit_ids,
+            targetA.unit_id,
+            "Random-chain scoring should record candidate A."
+        );
+        AssertArrayContains(
+            scoreInput.random_chain_candidate_unit_ids,
+            targetB.unit_id,
+            "Random-chain scoring should record candidate B."
+        );
+        _test.True(
+            scoreInput.effective_target_count > 0,
+            "Random-chain scoring should produce positive expected effective target count."
+        );
+        _test.True(
+            scoreInput.total_score > 0,
+            "Random-chain scoring should produce a positive score."
+        );
+        _test.Eq(
+            scoreInput.random_chain_selection_policy,
+            (StringName)"random_from_living_pool",
+            "Random-chain scoring should identify the runtime random selection policy."
+        );
+        _test.Eq(
+            scoreInput.random_chain_score_estimate_policy,
+            (StringName)"expected_value",
+            "Random-chain scoring should identify the expected-value estimate policy."
+        );
+
+        IReadOnlyList<AiActionTrace> actionTraces = aiContext.GetActionTracesTyped();
+        _test.True(actionTraces.Count > 0, "Random-chain action should write an AI trace.");
+        if (actionTraces.Count == 0)
+        {
+            return;
+        }
+        IReadOnlyDictionary<string, object> metadata = actionTraces[0].Metadata;
+        _test.Eq(
+            ReadString(metadata, "action_kind"),
+            "random_chain_skill",
+            "Random-chain trace should mark the dedicated action kind."
+        );
+        IReadOnlyList<string> candidatePoolUnitIds = ReadStringList(
+            metadata,
+            "candidate_pool_unit_ids"
+        );
+        _test.True(
+            System.Linq.Enumerable.Contains(candidatePoolUnitIds, targetA.unit_id.ToString())
+                && System.Linq.Enumerable.Contains(candidatePoolUnitIds, targetB.unit_id.ToString()),
+            "Random-chain trace metadata should record candidate pool ids."
+        );
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params SkillDef[] extraSkills)
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params SkillDefinition[] extraSkills)
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
-        var skillDefs = new Dictionary<StringName, SkillDef>(gameSession.GetSkillDefsTyped());
-        foreach (SkillDef skill in extraSkills ?? Array.Empty<SkillDef>())
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>(
+            gameSession.GetSkillDefinitionsTyped()
+        );
+        foreach (SkillDefinition skill in extraSkills ?? Array.Empty<SkillDefinition>())
         {
-            if (skill != null && skill.skill_id != (StringName)"")
+            if (skill != null && skill.SkillId != (StringName)"")
             {
-                skillDefs[skill.skill_id] = skill;
+                skillDefinitions[skill.SkillId] = skill;
             }
         }
         runtime.setup(
             null,
-            skillDefs,
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            skillDefinitions,
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        return new BattleRuntimeScope(runtime, gameSession, extraSkills);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
@@ -254,7 +268,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -371,50 +385,31 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
     }
 
-    private static SkillDef BuildTestRandomChainSkill(StringName skillId)
-    {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "Test random chain",
-            skill_type = "active",
-        };
-        var combat = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            target_selection_mode = "random_chain",
-            range_pattern = "single",
-            range_value = 3,
-            ap_cost = 1,
-            max_hits_per_target = 1,
-        };
-        combat.effect_defs.Add(
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                power = 12,
-                damage_tag = "physical_slash",
-            }
+    private static SkillDefinition BuildTestRandomChainSkill(StringName skillId) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Test random chain",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[]
+                {
+                    TestSkillDefinitionProjection.BuildEffect(
+                        "damage",
+                        power: 12,
+                        damageTag: "physical_slash"
+                    ),
+                },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                targetSelectionMode: BattleTypedNames.ToStringName(
+                    BattleTargetSelectionMode.RandomChain
+                ),
+                rangePattern: "single",
+                rangeValue: 3,
+                apCost: 1,
+                maxHitsPerTarget: 1
+            )
         );
-        skill.combat_profile = combat;
-        return skill;
-    }
-
-    private static void DisposeDecision(BattleAiDecision decision)
-    {
-        if (decision == null)
-        {
-            return;
-        }
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
-        GodotSharpCleanup.DisposeGodotObject(decision.command);
-        decision.command = null;
-        decision.score_input = null;
-        decision.skill_score_input = null;
-    }
 
     private static string ReadString(IReadOnlyDictionary<string, object> source, string key)
     {
@@ -449,17 +444,11 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
-        private readonly SkillDef[] _ownedExtraSkills;
 
-        internal BattleRuntimeScope(
-            BattleRuntimeModule runtime,
-            GameSession gameSession,
-            SkillDef[] ownedExtraSkills
-        )
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
             _gameSession = gameSession;
-            _ownedExtraSkills = ownedExtraSkills ?? Array.Empty<SkillDef>();
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -468,11 +457,6 @@ public partial class run_battle_ai_random_chain_behavior_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
-            foreach (SkillDef skill in _ownedExtraSkills)
-            {
-                BattleTestFixture.DisposeSkill(skill);
-            }
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

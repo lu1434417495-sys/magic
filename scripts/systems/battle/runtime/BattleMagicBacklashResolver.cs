@@ -6,15 +6,15 @@ internal sealed class BattleMagicBacklashResolver
 {
     private static readonly StringName MpMax = "mp_max";
 
-    internal bool ShouldResolveSpellControl(SkillDef skill_def)
+    internal bool ShouldResolveSpellControl(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = GetCombatProfile(skill_def);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         return combatProfile != null && combatProfile.HasSpellFateControl();
     }
 
     internal BattleSpellControlResult ApplySpellControlAfterCostResult(
         BattleUnitState source_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         int skill_level,
         int spent_mp,
         BattleSpellControlMetadata control_metadata,
@@ -23,7 +23,7 @@ internal sealed class BattleMagicBacklashResolver
     {
         BattleSpellControlResult result = BattleSpellControlResult.None(control_metadata);
 
-        CombatSkillDef combatProfile = GetCombatProfile(skill_def);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             source_unit == null
             || combatProfile == null
@@ -43,7 +43,7 @@ internal sealed class BattleMagicBacklashResolver
 
         if (control_metadata.CriticalHit)
         {
-            int refund = ApplySpellCriticalBonus(source_unit, skill_def, spent_mp);
+            int refund = ApplySpellCriticalBonus(source_unit, skillDefinition, spent_mp);
             if (refund > 0)
                 AppendLog(
                     batch,
@@ -56,14 +56,14 @@ internal sealed class BattleMagicBacklashResolver
             return result;
 
         int protectionLimit = combatProfile.GetFumbleProtectionLimit(skill_level);
-        int protectionUsed = GetFumbleProtectionUsed(source_unit, skill_def.skill_id);
+        int protectionUsed = GetFumbleProtectionUsed(source_unit, skillDefinition.SkillId);
         if (protectionUsed < protectionLimit)
         {
-            SetFumbleProtectionUsed(source_unit, skill_def.skill_id, protectionUsed + 1);
-            int drained = ApplyFumbleProtectionMpDrain(source_unit, skill_def, spent_mp);
+            SetFumbleProtectionUsed(source_unit, skillDefinition.SkillId, protectionUsed + 1);
+            int drained = ApplyFumbleProtectionMpDrain(source_unit, skillDefinition, spent_mp);
             AppendLog(
                 batch,
-                $"{UnitLabel(source_unit)} 压制了魔力大失败，本场 {SkillLabel(skill_def)} 保护次数 {protectionUsed + 1}/{protectionLimit}，额外吞噬 {drained} 点法力。"
+                $"{UnitLabel(source_unit)} 压制了魔力大失败，本场 {SkillLabel(skillDefinition)} 保护次数 {protectionUsed + 1}/{protectionLimit}，额外吞噬 {drained} 点法力。"
             );
             return result with
             {
@@ -78,7 +78,7 @@ internal sealed class BattleMagicBacklashResolver
     }
 
     internal BattleGroundBacklashTargetResult BuildGroundBacklashTargetCoordsResult(
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         IReadOnlyList<Vector2I> target_coords,
         BattleState state,
         BattleGridService grid_service,
@@ -98,7 +98,7 @@ internal sealed class BattleMagicBacklashResolver
         if (!result.BacklashTriggered)
             return result;
 
-        CombatSkillDef combatProfile = GetCombatProfile(skill_def);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null || !combatProfile.UsesGroundAnchorDriftBacklash())
             return result;
 
@@ -107,7 +107,7 @@ internal sealed class BattleMagicBacklashResolver
             return result with { BacklashOffsetFallback = true };
         }
 
-        int radius = Mathf.Max(combatProfile.backlash_offset_radius, 0);
+        int radius = Mathf.Max(combatProfile.BacklashOffsetRadius, 0);
         Vector2I originalCoord = safeTargetCoords[0];
         result = result with { OriginalTargetCoord = originalCoord };
         if (radius <= 0)
@@ -146,7 +146,7 @@ internal sealed class BattleMagicBacklashResolver
 
     internal void AppendGroundBacklashLog(
         BattleUnitState source_unit,
-        SkillDef skill_def,
+        SkillDefinition skillDefinition,
         BattleGroundBacklashTargetResult drift_context,
         BattleEventBatch batch
     )
@@ -166,30 +166,30 @@ internal sealed class BattleMagicBacklashResolver
         {
             AppendLog(
                 batch,
-                $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 未找到可偏移落点，失控魔力仍在原地爆发。"
+                $"{UnitLabel(source_unit)} 的 {SkillLabel(skillDefinition)} 未找到可偏移落点，失控魔力仍在原地爆发。"
             );
             return;
         }
 
         AppendLog(
             batch,
-            $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 从 ({originalCoord.X}, {originalCoord.Y}) 偏移到 ({resolvedCoord.X}, {resolvedCoord.Y})。"
+            $"{UnitLabel(source_unit)} 的 {SkillLabel(skillDefinition)} 从 ({originalCoord.X}, {originalCoord.Y}) 偏移到 ({resolvedCoord.X}, {resolvedCoord.Y})。"
         );
     }
 
     private static int ApplySpellCriticalBonus(
         BattleUnitState sourceUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         int spentMp
     )
     {
-        CombatSkillDef combatProfile = GetCombatProfile(skillDef);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (sourceUnit == null || combatProfile == null)
             return 0;
         if (combatProfile.SpellCriticalModeKind != CombatSpellCriticalMode.MpRefund)
             return 0;
 
-        int refundPercent = combatProfile.spell_critical_mp_refund_percent;
+        int refundPercent = combatProfile.SpellCriticalMpRefundPercent;
         if (refundPercent <= 0 || spentMp <= 0)
             return 0;
 
@@ -207,15 +207,15 @@ internal sealed class BattleMagicBacklashResolver
 
     private static int ApplyFumbleProtectionMpDrain(
         BattleUnitState sourceUnit,
-        SkillDef skillDef,
+        SkillDefinition skillDefinition,
         int spentMp
     )
     {
-        CombatSkillDef combatProfile = GetCombatProfile(skillDef);
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (sourceUnit == null || combatProfile == null)
             return 0;
 
-        int drainPercent = combatProfile.fumble_protection_extra_mp_percent;
+        int drainPercent = combatProfile.FumbleProtectionExtraMpPercent;
         if (drainPercent <= 0 || spentMp <= 0)
             return 0;
 
@@ -303,20 +303,15 @@ internal sealed class BattleMagicBacklashResolver
         return sourceUnit.display_name;
     }
 
-    private static string SkillLabel(SkillDef skillDef)
+    private static string SkillLabel(SkillDefinition skillDefinition)
     {
-        if (skillDef == null)
+        if (skillDefinition == null)
             return "法术";
-        if (!string.IsNullOrEmpty(skillDef.display_name.StripEdges()))
-            return skillDef.display_name;
-        if (!IsEmpty(skillDef.skill_id))
-            return skillDef.skill_id.ToString();
+        if (!string.IsNullOrEmpty(skillDefinition.DisplayName?.StripEdges()))
+            return skillDefinition.DisplayName;
+        if (!IsEmpty(skillDefinition.SkillId))
+            return skillDefinition.SkillId.ToString();
         return "法术";
-    }
-
-    private static CombatSkillDef GetCombatProfile(SkillDef skillDef)
-    {
-        return skillDef?.combat_profile as CombatSkillDef;
     }
 
     private static List<Vector2I> DuplicateCoords(

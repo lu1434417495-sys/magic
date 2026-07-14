@@ -48,4 +48,14 @@ public partial class SubraceDef : Resource
 
     [Export]
     public Array<string> racial_trait_summary = new();
+
+    internal Array<AttributeModifier> AttributeModifiersBorrowed => attribute_modifiers;
+    internal Array<StringName> TraitIdsBorrowed => trait_ids;
+    internal Array<RacialGrantedSkill> RacialGrantedSkillsBorrowed => racial_granted_skills;
+    internal Array<StringName> ProficiencyTagsBorrowed => proficiency_tags;
+    internal Array<StringName> VisionTagsBorrowed => vision_tags;
+    internal Array<StringName> SaveAdvantageTagsBorrowed => save_advantage_tags;
+    internal Dictionary DamageResistancesBorrowed => damage_resistances;
+    internal Array<StringName> DialogueTagsBorrowed => dialogue_tags;
+    internal Array<string> RacialTraitSummaryBorrowed => racial_trait_summary;
 }

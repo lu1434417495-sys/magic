@@ -364,6 +364,9 @@ public partial class BattleAiScoreProfile : Resource
         return default_bucket_priority;
     }
 
+    internal BattleAiScoreProfileDefinition ToDefinition() =>
+        BattleAiScoreProfileDefinition.FromResource(this);
+
     internal static BattleAiMeteorFriendlyFireProfile ToMeteorFriendlyFireProfile(
         StringName value
     )

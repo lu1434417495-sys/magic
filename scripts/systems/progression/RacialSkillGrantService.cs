@@ -6,12 +6,12 @@ public static class RacialSkillGrantService
 {
     private sealed class RacialGrantEntry
     {
-        internal readonly RacialGrantedSkill Grant;
+        internal readonly RacialGrantedSkillDefinition Grant;
         internal readonly StringName SourceType;
         internal readonly StringName SourceId;
 
         internal RacialGrantEntry(
-            RacialGrantedSkill grant,
+            RacialGrantedSkillDefinition grant,
             StringName sourceType,
             StringName sourceId
         )
@@ -25,8 +25,8 @@ public static class RacialSkillGrantService
     public static bool BackfillParty(
         PartyState partyState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -38,7 +38,7 @@ public static class RacialSkillGrantService
                 BackfillMember(
                     memberState,
                     identityCatalog,
-                    skillDefs,
+                    skillDefinitions,
                     professionDefs,
                     progressionServiceFactory
                 ) || changed;
@@ -48,8 +48,8 @@ public static class RacialSkillGrantService
     public static bool RevokeOrphanParty(
         PartyState partyState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -61,7 +61,7 @@ public static class RacialSkillGrantService
                 RevokeOrphanMember(
                     memberState,
                     identityCatalog,
-                    skillDefs,
+                    skillDefinitions,
                     professionDefs,
                     progressionServiceFactory
                 ) || changed;
@@ -71,8 +71,8 @@ public static class RacialSkillGrantService
     public static bool BackfillMember(
         PartyMemberState memberState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -86,7 +86,7 @@ public static class RacialSkillGrantService
             return false;
         var ps = _build_progression_service(
             memberState.progression,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             progressionServiceFactory
         );
@@ -108,8 +108,8 @@ public static class RacialSkillGrantService
     public static bool RevokeOrphanMember(
         PartyMemberState memberState,
         ProgressionIdentityCatalogData identityCatalog,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -141,7 +141,7 @@ public static class RacialSkillGrantService
             memberState.progression.RemoveSkillProgress(skId);
         var ps = _build_progression_service(
             memberState.progression,
-            skillDefs,
+            skillDefinitions,
             professionDefs,
             progressionServiceFactory
         );
@@ -158,48 +158,48 @@ public static class RacialSkillGrantService
         if (memberState == null)
             return entries;
         identityCatalog ??= new ProgressionIdentityCatalogData();
-        RaceDef rd = Lookup(identityCatalog.RaceDefs, memberState.race_id);
+        RaceDefinition rd = Lookup(identityCatalog.RaceDefs, memberState.race_id);
         if (rd != null)
-            _append(entries, rd.racial_granted_skills, "race", memberState.race_id);
-        SubraceDef srd = Lookup(identityCatalog.SubraceDefs, memberState.subrace_id);
+            _append(entries, rd.RacialGrantedSkills, "race", memberState.race_id);
+        SubraceDefinition srd = Lookup(identityCatalog.SubraceDefs, memberState.subrace_id);
         if (srd != null)
-            _append(entries, srd.racial_granted_skills, "subrace", memberState.subrace_id);
+            _append(entries, srd.RacialGrantedSkills, "subrace", memberState.subrace_id);
         if (memberState.bloodline_id != "")
         {
-            BloodlineDef bld = Lookup(identityCatalog.BloodlineDefs, memberState.bloodline_id);
+            BloodlineDefinition bld = Lookup(identityCatalog.BloodlineDefs, memberState.bloodline_id);
             if (bld != null)
-                _append(entries, bld.racial_granted_skills, "bloodline", memberState.bloodline_id);
+                _append(entries, bld.RacialGrantedSkills, "bloodline", memberState.bloodline_id);
         }
         if (memberState.bloodline_stage_id != "")
         {
-            BloodlineStageDef blsd = Lookup(
+            BloodlineStageDefinition blsd = Lookup(
                 identityCatalog.BloodlineStageDefs,
                 memberState.bloodline_stage_id
             );
             if (blsd != null)
                 _append(
                     entries,
-                    blsd.racial_granted_skills,
+                    blsd.RacialGrantedSkills,
                     "bloodline",
                     memberState.bloodline_stage_id
                 );
         }
         if (memberState.ascension_id != "")
         {
-            AscensionDef ad = Lookup(identityCatalog.AscensionDefs, memberState.ascension_id);
+            AscensionDefinition ad = Lookup(identityCatalog.AscensionDefs, memberState.ascension_id);
             if (ad != null)
-                _append(entries, ad.racial_granted_skills, "ascension", memberState.ascension_id);
+                _append(entries, ad.RacialGrantedSkills, "ascension", memberState.ascension_id);
         }
         if (memberState.ascension_stage_id != "")
         {
-            AscensionStageDef asd = Lookup(
+            AscensionStageDefinition asd = Lookup(
                 identityCatalog.AscensionStageDefs,
                 memberState.ascension_stage_id
             );
             if (asd != null)
                 _append(
                     entries,
-                    asd.racial_granted_skills,
+                    asd.RacialGrantedSkills,
                     "ascension",
                     memberState.ascension_stage_id
                 );
@@ -209,14 +209,14 @@ public static class RacialSkillGrantService
 
     private static void _append(
         List<RacialGrantEntry> entries,
-        IEnumerable<RacialGrantedSkill> grantedSkills,
+        IEnumerable<RacialGrantedSkillDefinition> grantedSkills,
         StringName sourceType,
         StringName sourceId
     )
     {
         if (sourceId == "" || grantedSkills == null)
             return;
-        foreach (RacialGrantedSkill grant in grantedSkills)
+        foreach (RacialGrantedSkillDefinition grant in grantedSkills)
         {
             if (grant == null)
                 continue;
@@ -234,13 +234,13 @@ public static class RacialSkillGrantService
             return lookup;
         foreach (RacialGrantEntry grantEntry in CollectMemberRacialGrantEntries(memberState, identityCatalog))
         {
-            RacialGrantedSkill grant = grantEntry.Grant;
-            if (grant == null || grant.skill_id == "")
+            RacialGrantedSkillDefinition grant = grantEntry.Grant;
+            if (grant == null || grant.SkillId == "")
                 continue;
             if (grantEntry.SourceType == "" || grantEntry.SourceId == "")
                 continue;
             lookup.Add(
-                IdentityGrantKey(grantEntry.SourceType, grantEntry.SourceId, grant.skill_id)
+                IdentityGrantKey(grantEntry.SourceType, grantEntry.SourceId, grant.SkillId)
             );
         }
         return lookup;
@@ -265,15 +265,15 @@ public static class RacialSkillGrantService
 
     private static ProgressionService _build_progression_service(
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ProfessionDefinition> professionDefs,
         Func<UnitProgress, ProgressionService> factory
     )
     {
         if (factory != null)
             return factory.Invoke(progressionState);
         var ps = new ProgressionService();
-        ps.Setup(progressionState, skillDefs, professionDefs);
+        ps.SetupDefinitions(progressionState, skillDefinitions, professionDefs);
         return ps;
     }
 

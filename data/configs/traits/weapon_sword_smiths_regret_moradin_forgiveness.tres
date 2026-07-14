@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.sword.smiths_regret.moradin_forgiveness"
+display_name = "摩拉丁的谅解"
+description = "缺陷触发后，持有者获得 60 TU 的宽限；下一次以本武器提交的攻击检定获得 +2，随后无论命中与否都会消耗。"
+source_scope = &"equipment_fixed"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

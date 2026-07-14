@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_attack_roll_modifier_bundle_regression : SceneTree
+public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_attack_roll_modifier_bundle_regression : SceneTree
         TestBundleUsesTypedBreakdownList();
         TestExactSchemaRoundTrip();
 
-        Quit(_test.Finish("Attack roll modifier bundle regression"));
+        RequestTestExit(_test.Finish("Attack roll modifier bundle regression"));
     }
 
     private void TestTypesArePlainCSharp()

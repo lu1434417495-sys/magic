@@ -3,14 +3,14 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_forge_service_regression : SceneTree
+public partial class run_settlement_forge_service_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private const string AshenIntersectionConfigPath = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
 
     private readonly TestHarness _test = new();
+    private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
 
     public override void _Initialize()
     {
@@ -26,19 +26,34 @@ public partial class run_settlement_forge_service_regression : SceneTree
         await TestNewWorldGenerationExposesMasterReforgeService();
         await TestAshenIntersectionGenerationExposesGenericForgeService();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Settlement forge service regression"));
+        DisposeWorldDataLeases();
+        RequestTestExit(_test.Finish("Settlement forge service regression"));
+    }
+
+    private GDictionary ProjectWorldData(GameSession session)
+    {
+        GodotProjectionLease<GDictionary> lease = session.GetWorldDataLease();
+        _worldDataLeases.Add(lease);
+        return lease.Value;
+    }
+
+    private void DisposeWorldDataLeases()
+    {
+        for (int index = _worldDataLeases.Count - 1; index >= 0; index--)
+            _worldDataLeases[index].Dispose();
+        _worldDataLeases.Clear();
     }
 
     private void TestMasterReforgeServiceSuccess()
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
         warehouseService.AddItemTyped("bronze_sword", 1);
         warehouseService.AddItemTyped("iron_ore", 2);
-        PartyWarehouseService.WarehouseBatchSwapResult preflight =
+        WarehouseBatchSwapResult preflight =
             warehouseService.PreviewBatchSwapEntriesTyped(
                 new GArray
                 {
@@ -61,7 +76,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            default(IReadOnlyDictionary<StringName, RecipeDef>),
+            recipeDefs,
             warehouseService,
             partyState,
             new[]
@@ -96,7 +111,8 @@ public partial class run_settlement_forge_service_regression : SceneTree
 
     private void TestMasterReforgeServiceMissingMaterials()
     {
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
@@ -107,7 +123,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             BuildSettlementRecord(),
             BuildReforgePayload(),
             itemDefs,
-            default(IReadOnlyDictionary<StringName, RecipeDef>),
+            recipeDefs,
             warehouseService,
             partyState
         );
@@ -140,8 +156,12 @@ public partial class run_settlement_forge_service_regression : SceneTree
                 );
             _test.True(openResult.Ok, "service:master_reforge 首次触发应成功打开 forge modal。");
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击大师重铸服务后应切换到 forge modal。");
-            _test.True(fixture.Handler.GetForgeWindowData().Count > 0, "打开 forge modal 后应能读取 forge window data。");
-            _test.True(DictArray(fixture.Handler.GetForgeWindowData(), "entries").Count > 0, "forge window data 应暴露可选配方。");
+            using (GodotProjectionLease<GDictionary> forgeWindowLease = fixture.Handler.GetForgeWindowDataLease())
+            {
+                GDictionary forgeWindowData = forgeWindowLease.Value;
+                _test.True(forgeWindowData.Count > 0, "打开 forge modal 后应能读取 forge window data。");
+                _test.True(DictArray(forgeWindowData, "entries").Count > 0, "forge window data 应暴露可选配方。");
+            }
             _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
@@ -201,17 +221,22 @@ public partial class run_settlement_forge_service_regression : SceneTree
                 $"service:repair_gear 首次触发应成功打开 forge modal。message={openResult.Message}"
             );
             _test.Eq(fixture.Runtime._active_modal_kind, RuntimeModalKind.Forge, "首次点击通用 forge 服务后应切换到 forge modal。");
-            GDictionary forgeWindowData = fixture.Handler.GetForgeWindowData();
-            _test.Eq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
-            _test.Eq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
-            _test.Eq(DictString(forgeWindowData, "selected_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
-            _test.True(!string.IsNullOrEmpty(DictString(forgeWindowData, "title", "")), "通用 forge modal 应提供标题。");
-            GArray forgeEntries = DictArray(forgeWindowData, "entries");
-            _test.True(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
-            HashSet<string> recipeIds = CollectRecipeIds(forgeEntries);
-            _test.True(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
-            _test.True(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
-            _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
+            string selectedMemberId;
+            using (GodotProjectionLease<GDictionary> forgeWindowLease = fixture.Handler.GetForgeWindowDataLease())
+            {
+                GDictionary forgeWindowData = forgeWindowLease.Value;
+                _test.Eq(DictString(forgeWindowData, "action_id", ""), "service:repair_gear", "通用 forge modal 应保留原始 action_id。");
+                _test.Eq(DictString(forgeWindowData, "default_member_id", ""), "mage", "通用 forge modal 应保留据点窗口选择的默认成员。");
+                selectedMemberId = DictString(forgeWindowData, "selected_member_id", "");
+                _test.Eq(selectedMemberId, "mage", "通用 forge modal 应保留据点窗口选择的当前成员。");
+                _test.True(!string.IsNullOrEmpty(DictString(forgeWindowData, "title", "")), "通用 forge modal 应提供标题。");
+                GArray forgeEntries = DictArray(forgeWindowData, "entries");
+                _test.True(forgeEntries.Count > 0, "通用 forge window data 应暴露可选配方。");
+                HashSet<string> recipeIds = CollectRecipeIds(forgeEntries);
+                _test.True(recipeIds.Contains("forge_smith_iron_greatsword"), "通用 forge modal 应继续暴露铁制大剑配方。");
+                _test.True(recipeIds.Contains("forge_militia_axe"), "通用 forge modal 应暴露民兵手斧配方。");
+                _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
+            }
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -219,7 +244,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
                     new GDictionary
                     {
                         ["submission_source"] = "forge",
-                        ["member_id"] = DictString(forgeWindowData, "selected_member_id", ""),
+                        ["member_id"] = selectedMemberId,
                         ["recipe_id"] = "forge_militia_axe",
                     }
                 );
@@ -256,7 +281,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             if (createError == (int)Error.Ok)
             {
                 bool foundReforgeService = false;
-                foreach (GDictionary settlement in Dictionaries(DictArray(gameSession.GetWorldData(), "settlements")))
+                foreach (GDictionary settlement in Dictionaries(DictArray(ProjectWorldData(gameSession), "settlements")))
                 {
                     foreach (GDictionary service in Dictionaries(DictArray(settlement, "available_services")))
                     {
@@ -289,7 +314,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             _test.Eq(createError, (int)Error.Ok, "创建灰烬交界世界应成功。");
             if (createError == (int)Error.Ok)
             {
-                GDictionary worldData = gameSession.GetWorldData();
+                GDictionary worldData = ProjectWorldData(gameSession);
                 Vector2I playerStartCoord = DictVector2I(worldData, "player_start_coord", Vector2I.Zero);
                 GDictionary startSettlement = FindSettlementCoveringCoord(DictArray(worldData, "settlements"), playerStartCoord);
                 GDictionary genericEntry = FindServiceEntry(DictArray(startSettlement, "available_services"), "service_repair_gear");
@@ -306,7 +331,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
     private async Task<RuntimeFixture> BuildRuntimeFixture(string suffix, PartyState partyState, GDictionary settlementRecord)
     {
         GameSession gameSession = await InstallGameSession($"ForgeHandlerGameSession_{suffix}");
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
         GDictionary worldData = BuildWorldData(settlementRecord);
         ConfigureSessionForRuntimeTest(gameSession, $"forge_handler_{suffix}", worldData, partyState);
 
@@ -323,7 +348,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         runtime._world_map_data_context.BindRootWorldData(worldData);
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
+            gameSession._generation_definition,
             contextGrid,
             Vector2I.Zero,
             Vector2I.Zero
@@ -335,7 +360,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         );
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -356,10 +381,10 @@ public partial class run_settlement_forge_service_regression : SceneTree
             TestConfigPath,
             worldData,
             partyState,
-            null,
             "forge_handler_test",
             "Forge Handler Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
@@ -373,7 +398,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName);
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
@@ -381,6 +406,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
 
     private async Task DisposeFixture(RuntimeFixture fixture)
     {
+        fixture.GameSession?.DiscardPendingSave();
         fixture.Runtime?.Dispose();
         await DisposeGameSession(fixture.GameSession, "清理 forge handler 验证存档应成功。");
     }
@@ -393,7 +419,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         }
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, clearMessage);
-        gameSession.Dispose();
+        gameSession.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
@@ -491,6 +517,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
             ["settlements"] = new GArray { settlementRecord },
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,
@@ -533,7 +560,7 @@ public partial class run_settlement_forge_service_regression : SceneTree
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
         };
         var hero = new PartyMemberState
         {
@@ -571,10 +598,19 @@ public partial class run_settlement_forge_service_regression : SceneTree
         }
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDef> LoadItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> LoadItemDefs()
     {
-        using var registry = new ItemContentRegistry();
-        return new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped());
+        using ItemContentRegistry registry = new(new TestContentResourceLoader());
+        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
+    }
+
+    private static IReadOnlyDictionary<StringName, RecipeDefinition> LoadRecipeDefs(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+    )
+    {
+        using RecipeContentRegistry registry = new(new TestContentResourceLoader());
+        registry.Setup(itemDefs);
+        return new Dictionary<StringName, RecipeDefinition>(registry.GetRecipeDefsTyped());
     }
 
     private static GDictionary FindServiceEntry(GArray services, string interactionScriptId)

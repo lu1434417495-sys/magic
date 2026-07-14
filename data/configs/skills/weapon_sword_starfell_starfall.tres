@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatDamageSegmentDef.cs" id="2_segment"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatTargetDamageMultiplierRuleDef.cs" id="3_multiplier"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_skill"]
+
+[sub_resource type="Resource" id="Segment_fire"]
+script = ExtResource("2_segment")
+damage_tag = &"fire"
+dice_count = 3
+dice_sides = 6
+
+[sub_resource type="Resource" id="Multiplier_building"]
+script = ExtResource("3_multiplier")
+any_creature_type_tags = Array[StringName]([&"building"])
+multiplier_percent = 200
+
+[sub_resource type="Resource" id="Multiplier_nonmagical_construct"]
+script = ExtResource("3_multiplier")
+any_creature_type_tags = Array[StringName]([&"construct"])
+excluded_creature_type_tags = Array[StringName]([&"magical", &"building"])
+multiplier_percent = 200
+
+[sub_resource type="Resource" id="Effect_starfall_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+damage_tag = &"force"
+save_dc = 16
+save_ability = &"agility"
+save_partial_on_success = true
+save_tag = &"magic"
+dice_count = 3
+dice_sides = 6
+extra_damage_segments = Array[ExtResource("2_segment")]([SubResource("Segment_fire")])
+target_damage_multiplier_rules = Array[ExtResource("3_multiplier")]([SubResource("Multiplier_building"), SubResource("Multiplier_nonmagical_construct")])
+
+[sub_resource type="Resource" id="Combat_starfall"]
+script = ExtResource("4_combat")
+skill_id = &"weapon_sword_starfell_starfall"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 4
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 1
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_starfall_damage")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"weapon_sword_starfell_starfall"
+display_name = "星坠"
+icon_id = &"weapon_sword_starfell_starfall"
+description = "装备技能。需要你施加的星尘总数≥5，施放后消耗5层（优先扣除层数最多的目标）。选择地面目标，对半径2格内敌方造成3D6力场与3D6火焰伤害；目标进行agility DC16豁免，成功则伤害减半；建筑和非魔法构造物受到双倍伤害；群星之末来源每场战斗1次。"
+max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"starfell", &"force", &"fire", &"magic"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_starfall")

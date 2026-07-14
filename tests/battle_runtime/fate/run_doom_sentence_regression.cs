@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_doom_sentence_regression : SceneTree
+public partial class run_doom_sentence_regression : LifecycleTestSceneTree
 {
     private static readonly StringName DOOM_SENTENCE_SKILL_ID = "doom_sentence";
     private static readonly StringName STATUS_DOOM_SENTENCE_VERDICT = "doom_sentence_verdict";
@@ -22,8 +22,7 @@ public partial class run_doom_sentence_regression : SceneTree
         TestDoomSentenceIsLimitedToOncePerBattle();
         TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Doom sentence regression"));
+        RequestTestExit(_test.Finish("Doom sentence regression"));
     }
 
     private void TestDoomSentenceAppliesVerdictAndTeamwideDamageAmp()
@@ -52,14 +51,19 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 5;
 
-        GDictionary baselineDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> baselineDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
-            new GArray { BuildDamageEffect() }
+            new[] { BuildDamageEffect() }
         ));
+        GDictionary baselineDamageResult = baselineDamageResultLease.Value;
         BattleCommand command = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, boss);
         BattlePreview preview = runtime.PreviewCommand(command);
-        _test.True(preview != null && preview.allowed, "满足条件时，厄命宣判预览应允许。");
+        _test.True(
+            preview != null && preview.allowed,
+            $"满足条件时，厄命宣判预览应允许。 log={preview?.log_lines}"
+        );
         BattleEventBatch batch = runtime.IssueCommand(command);
         _test.True(boss.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "厄命宣判成功后应写入 doom_sentence_verdict。");
         _test.Eq(runtime.GetMemberCalamity("hero"), 0, "厄命宣判成功施放后应扣除 5 点 calamity。");
@@ -69,16 +73,18 @@ public partial class run_doom_sentence_regression : SceneTree
             $"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports={batch?.report_entries}"
         );
 
-        GDictionary amplifiedDamageResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime.GetDamageResolver().ResolveEffects(
+        using GodotProjectionLease<GDictionary> amplifiedDamageResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime.GetDamageResolver().ResolveEffects(
             allyAttacker,
             boss.clone(),
-            new GArray { BuildDamageEffect() }
+            new[] { BuildDamageEffect() }
         ));
+        GDictionary amplifiedDamageResult = amplifiedDamageResultLease.Value;
         _test.True(
             ReadInt(amplifiedDamageResult, "damage") > ReadInt(baselineDamageResult, "damage"),
             $"厄命宣判应令全队对目标造成更高伤害。 baseline={baselineDamageResult} amplified={amplifiedDamageResult}"
         );
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private void TestDoomSentenceLocksMainSkillOnlyAfterTwoOtherDebuffs()
@@ -135,7 +141,7 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"主技能被封锁时，issue 应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private void TestDoomSentenceIsLimitedToOncePerBattle()
@@ -163,9 +169,11 @@ public partial class run_doom_sentence_regression : SceneTree
         runtime.IssueCommand(BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, firstElite));
         _test.True(firstElite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "首次施放后应成功命中首个精英。");
 
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                runtime.GetSkillCastBlockReason(caster, skillDefinition)
+            ),
             "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
@@ -183,7 +191,7 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"二次施放被拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private void TestDoomSentenceIsBlockedWhenCalamityCapCannotPayCost()
@@ -205,9 +213,11 @@ public partial class run_doom_sentence_regression : SceneTree
         BeginRuntimeBattle(runtime);
         runtime.calamity_by_member_id["hero"] = 3;
 
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                runtime.GetSkillCastBlockReason(caster, skillDefinition)
+            ),
             "当本战 calamity 上限小于 5 时，技能应进入阻断状态并提供反馈。"
         );
 
@@ -230,18 +240,18 @@ public partial class run_doom_sentence_regression : SceneTree
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"issue 拒绝时应回传阻断反馈。 log={blockedBatch?.log_lines}"
         );
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private BattleRuntimeModule BuildRuntime()
     {
-        using var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            registry.GetSkillDefinitionsTyped(),
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
@@ -362,19 +372,18 @@ public partial class run_doom_sentence_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;
     }
 
-    private CombatEffectDef BuildDamageEffect()
-    {
-        var effect = new CombatEffectDef();
-        effect.effect_type = "damage";
-        effect.damage_tag = "physical_slash";
-        effect.power = 12;
-        return effect;
-    }
+    private CombatEffectDefinition BuildDamageEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 12
+        );
 
     private void EnableDoomSentenceCap(BattleUnitState unitState)
     {
@@ -409,19 +418,28 @@ public partial class run_doom_sentence_regression : SceneTree
         runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
-    private static bool HasReportEntryWithTag(GArray entries, StringName reasonId, StringName eventTag)
+    private static bool HasReportEntryWithTag(
+        IEnumerable<IReadOnlyDictionary<string, object>> entries,
+        StringName reasonId,
+        StringName eventTag
+    )
     {
         if (entries == null)
             return false;
-        foreach (Variant entryValue in entries)
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (
+                entry == null
+                || !entry.TryGetValue("reason_id", out object reasonValue)
+                || ProgressionDataUtils.to_string_name(reasonValue) != reasonId
+            )
                 continue;
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (ProgressionDataUtils.to_string_name(entry.GetValueOrDefault("reason_id", "")) != reasonId)
+            if (
+                !entry.TryGetValue("event_tags", out object tagsValue)
+                || tagsValue is not System.Collections.IEnumerable eventTags
+            )
                 continue;
-            GArray eventTags = entry.GetValueOrDefault("event_tags", new GArray()).AsGodotArray();
-            foreach (Variant tagValue in eventTags)
+            foreach (object tagValue in eventTags)
             {
                 if (ProgressionDataUtils.to_string_name(tagValue) == eventTag)
                     return true;
@@ -438,10 +456,4 @@ public partial class run_doom_sentence_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
-    }
 }

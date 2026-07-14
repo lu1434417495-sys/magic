@@ -1,7 +1,8 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_invalid_save_graceful_regression : SceneTree
+public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string InvalidGenerationConfigPath = "user://invalid_generation_config_resource.tres";
@@ -11,13 +12,17 @@ public partial class run_invalid_save_graceful_regression : SceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit();
         TestLoadSaveRejectsBadWorldDataWithoutQuit();
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
         TestSaveIndexVersionRequiresExactInt();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Invalid save graceful regression"));
+        RequestTestExit(_test.Finish("Invalid save graceful regression"));
     }
 
     private void TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit()
@@ -28,7 +33,7 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         if (saveResourceError != Error.Ok)
             return;
 
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(InvalidGenerationConfigPath);
         _test.Eq(createError, Error.CantOpen, "类型错误的 generation config 应通过 create_new_save() 返回错误，不应中止进程。");
         _test.False(gameSession.HasActiveWorld(), "类型错误的 generation config 不应留下 active world。");
@@ -38,7 +43,7 @@ public partial class run_invalid_save_graceful_regression : SceneTree
 
     private void TestLoadSaveRejectsBadWorldDataWithoutQuit()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, Error.Ok, "坏 world_data 回归前置：应能创建测试存档。");
         if (createError != Error.Ok)
@@ -47,14 +52,27 @@ public partial class run_invalid_save_graceful_regression : SceneTree
             return;
         }
 
-        GDictionary payload = BuildPayloadForSession(gameSession);
-        GDictionary worldState = (GDictionary)Dict(payload, "world_state").Duplicate(true);
-        GDictionary worldData = (GDictionary)Dict(worldState, "world_data").Duplicate(true);
+        Dictionary<string, object> payload;
+        using (GodotProjectionLease<GDictionary> payloadLease = BuildPayloadForSession(gameSession))
+        {
+            payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "invalid-save-world-data.payload"
+            );
+        }
+        Dictionary<string, object> worldState = PlainDictionary(payload, "world_state");
+        Dictionary<string, object> worldData = PlainDictionary(worldState, "world_data");
         worldData.Remove("next_equipment_instance_serial");
-        worldState["world_data"] = worldData;
-        payload["world_state"] = worldState;
 
-        Error writeError = OverwriteActiveSavePayload(gameSession, payload);
+        using GodotProjectionLease<GDictionary> corruptPayloadLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                payload,
+                "invalid-save-corrupt-payload",
+                LifetimeDomain.Request,
+                "run_invalid_save_graceful_regression.bad_world_data",
+                minimizeStrings: true
+            );
+        Error writeError = OverwriteActiveSavePayload(gameSession, corruptPayloadLease);
         _test.Eq(writeError, Error.Ok, "坏 world_data 回归前置：应能写入损坏存档 payload。");
         if (writeError == Error.Ok)
         {
@@ -66,7 +84,7 @@ public partial class run_invalid_save_graceful_regression : SceneTree
 
     private void TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error clearError = (Error)gameSession.ClearPersistedGame();
         _test.Eq(clearError, Error.Ok, "坏建卡 identity 建档回归前置：应能清理旧存档。");
 
@@ -78,13 +96,13 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         );
         _test.Eq(createError, Error.InvalidData, "非法 race/subrace 建卡 payload 应让 create_new_save() 返回 ERR_INVALID_DATA。");
         _test.False(gameSession.HasActiveWorld(), "非法建卡 payload 被拒后 fresh session 不应留下 active world。");
-        _test.Eq(gameSession.ListSaveSlots().Count, 0, "非法建卡 payload 被拒后不应创建新存档槽。");
+        _test.Eq(gameSession.ListSaveSlotsPlain().Count, 0, "非法建卡 payload 被拒后不应创建新存档槽。");
         CleanupTestSession(gameSession);
     }
 
     private void TestCreateNewSaveAcceptsValidCreationIdentityPayload()
     {
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(
             TestWorldConfig,
             "",
@@ -118,13 +136,15 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         _test.False(serializer.IsSaveIndexBoolValue(true), "save index version 不应接受 bool。");
     }
 
-    private static GDictionary BuildPayloadForSession(GameSession gameSession)
+    private static GodotProjectionLease<GDictionary> BuildPayloadForSession(
+        GameSession gameSession
+    )
     {
-        return gameSession._save_serializer.BuildSavePayload(
+        return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
             gameSession.GetGenerationConfigPath(),
-            gameSession.GetActiveSaveMeta(),
-            gameSession.GetWorldData(),
+            gameSession.CaptureActiveSaveMetaPlain(),
+            gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),
             gameSession.GetPlayerFactionId(),
             gameSession.GetPartyState(),
@@ -132,20 +152,21 @@ public partial class run_invalid_save_graceful_regression : SceneTree
         );
     }
 
-    private static Error OverwriteActiveSavePayload(GameSession gameSession, GDictionary payload)
+    private static Error OverwriteActiveSavePayload(
+        GameSession gameSession,
+        GodotProjectionLease<GDictionary> payload
+    )
     {
         string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
             return Error.InvalidParameter;
-        using FileAccess saveFile = FileAccess.OpenCompressed(
+        return (Error)FileIOCoordinator.WriteCompressedVariantAtomically(
             savePath,
-            FileAccess.ModeFlags.Write,
-            SaveCompressionMode
+            payload,
+            (int)SaveCompressionMode,
+            "test.invalid_save",
+            "invalid save fixture"
         );
-        if (saveFile == null)
-            return FileAccess.GetOpenError();
-        saveFile.StoreVar(payload, false);
-        return Error.Ok;
     }
 
     private static GDictionary BuildBadCreationIdentityPayload()
@@ -207,10 +228,15 @@ public partial class run_invalid_save_graceful_regression : SceneTree
             DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(path));
     }
 
-    private static GDictionary Dict(GDictionary dictionary, string key)
+    private static Dictionary<string, object> PlainDictionary(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is Dictionary<string, object> dictionary
+            ? dictionary
+            : new Dictionary<string, object>(System.StringComparer.Ordinal);
     }
 }

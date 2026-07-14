@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_cut_fate_thread_execute"]
+script = ExtResource("1_effect")
+effect_type = &"execute"
+effect_target_team_filter = &"enemy"
+damage_tag = &"psychic"
+save_dc_mode = &"static"
+save_dc = 18
+save_ability = &"constitution"
+save_tag = &"execute"
+threshold_max_hp_ratio_percent = 100
+threshold_cap_max_hp_ratio_percent = 100
+soul_fracture_duration_tu = 30
+heal_multiplier_percent = 100
+shield_gain_multiplier_percent = 100
+required_target_status_id = &"threadweaver_fate_frayed"
+required_target_status_min_stacks = 1
+required_target_status_source_selector = &"source"
+
+[sub_resource type="Resource" id="Combat_cut_fate_thread"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_threadweaver_cut_fate_thread"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 1
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+attack_resolution_mode = &"direct_effect"
+cooldown_tu = 0
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"threadweaver", &"weapon", &"psychic", &"execute"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_cut_fate_thread_execute")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_threadweaver_cut_fate_thread"
+display_name = "线断命绝"
+icon_id = &"weapon_sword_threadweaver_cut_fate_thread"
+description = "装备技能。对拥有持有者命运脆弱状态的相邻敌人发动constitution DC18处决；失败即死，成功仍受到4D10 psychic伤害，并清除命运线与命运脆弱；织命来源每场战斗1次。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"threadweaver", &"fate", &"psychic", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_cut_fate_thread")

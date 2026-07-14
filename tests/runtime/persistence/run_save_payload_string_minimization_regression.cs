@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_save_payload_string_minimization_regression : SceneTree
+public partial class run_save_payload_string_minimization_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SaveDirectory = "user://saves";
@@ -20,12 +20,12 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
     {
         TestSavePayloadMinimizesIdentityStrings();
 
-        Quit(_test.Finish("Save payload string minimization regression"));
+        RequestTestExit(_test.Finish("Save payload string minimization regression"));
     }
 
     private void TestSavePayloadMinimizesIdentityStrings()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -42,16 +42,18 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
                 return;
             }
 
-            GDictionary payload = serializer.BuildSavePayload(
+            using GodotProjectionLease<GDictionary> payloadLease =
+                serializer.BuildSavePayloadLease(
                 gameSession.GetActiveSaveId(),
                 gameSession.GetGenerationConfigPath(),
-                gameSession.GetActiveSaveMeta(),
-                gameSession.GetWorldData(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                gameSession.CaptureWorldDataPlain(),
                 gameSession.GetPlayerCoord(),
                 gameSession.GetPlayerFactionId(),
                 gameSession.GetPartyState(),
                 (int)Time.GetUnixTimeFromSystem()
             );
+            GDictionary payload = payloadLease.Value;
             AssertNoStringOptions(Variant.From(payload), "payload", "正式 save payload 不应保留 TYPE_STRING key 或 value。");
             AssertBinaryDictionaryFile(
                 $"{SaveDirectory}/{gameSession.GetActiveSaveId()}.dat",
@@ -145,28 +147,43 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
                 }
             }
 
-            GDictionary decodeResult = serializer.DecodePayload(
+            Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
                 payload,
-                gameSession.GetGenerationConfigPath(),
-                gameSession.GetGenerationConfig(),
-                gameSession.GetActiveSaveMeta()
+                "save-string-minimization.payload"
             );
-            _test.Eq(DictError(decodeResult, "error", Error.InvalidData), Error.Ok, "StringName 化后的 save payload 应继续能被 SaveSerializer 解码。");
-            AssertType(DictGet(decodeResult, "active_save_id"), Variant.Type.String, "解码后 active_save_id 应恢复为运行时 String。");
-            GDictionary decodedMeta = DictDictionary(decodeResult, "active_save_meta");
-            AssertType(DictGet(decodedMeta, "display_name"), Variant.Type.String, "解码后 save meta display_name 应恢复为运行时 String。");
+            bool decoded = serializer.TryDecodePayload(
+                payloadPlain,
+                gameSession.GetGenerationConfigPath(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
+            );
+            _test.True(decoded, "StringName 化后的 save payload 应继续能被 SaveSerializer 解码。");
+            _test.Eq((Error)decodeResult.Error, Error.Ok, "成功解码应返回 Ok。");
+            _test.Eq(
+                decodeResult.ActiveSaveId,
+                gameSession.GetActiveSaveId(),
+                "解码后 active_save_id 应恢复为运行时 String。"
+            );
+            _test.True(
+                decodeResult.ActiveSaveMeta.TryGetValue("display_name", out object displayName)
+                    && displayName is string,
+                "解码后 save meta display_name 应恢复为运行时 String。"
+            );
 
-            GDictionary runtimeWorldData = gameSession.GetWorldData();
+            using GodotProjectionLease<GDictionary> runtimeWorldDataLease =
+                gameSession.GetWorldDataLease();
+            GDictionary runtimeWorldData = runtimeWorldDataLease.Value;
             runtimeWorldData["active_submap_id"] = new StringName("");
             _test.True(
-                serializer.NormalizeWorldData(runtimeWorldData).Count == 0,
+                !serializer.TryNormalizeWorldDataPlain(runtimeWorldData, out _),
                 "Runtime world_data should reject StringName active_submap_id."
             );
 
-            GDictionary runtimeSaveMeta = gameSession.GetActiveSaveMeta();
+            Dictionary<string, object> runtimeSaveMeta =
+                gameSession.CaptureActiveSaveMetaPlain();
             runtimeSaveMeta["display_name"] = new StringName("bad_runtime_meta");
             _test.True(
-                serializer.NormalizeSaveMeta(runtimeSaveMeta).Count == 0,
+                !serializer.TryNormalizeSaveMetaPlain(runtimeSaveMeta, out _),
                 "Runtime save meta should reject StringName display_name."
             );
         }
@@ -357,6 +374,6 @@ public partial class run_save_payload_string_minimization_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 }

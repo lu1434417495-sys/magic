@@ -46,8 +46,37 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<AttributeModifier> attribute_modifiers { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<TraitDamageResistanceEntryDef> damage_resistance_entries { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<TraitSaveBonusEntryDef> save_bonus_entries { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<TraitPassiveStatusEffectDef> passive_status_effects { get; set; } =
+        new();
+
+    [Export]
     public Godot.Collections.Array<TraitRollValueSchemaEntry> roll_value_schema { get; set; } =
         new();
+
+    internal Godot.Collections.Array<StringName> CategoriesProjectionBorrowed => categories;
+    internal Godot.Collections.Array<StringName> AllowedSourceKindsProjectionBorrowed =>
+        allowed_source_kinds;
+    internal Godot.Collections.Array<AttributeModifier> AttributeModifiersProjectionBorrowed =>
+        attribute_modifiers;
+    internal Godot.Collections.Array<StringName> SaveAdvantageTagsProjectionBorrowed =>
+        save_advantage_tags;
+    internal Godot.Collections.Array<TraitDamageResistanceEntryDef> DamageResistanceEntriesProjectionBorrowed =>
+        damage_resistance_entries;
+    internal Godot.Collections.Array<TraitSaveBonusEntryDef> SaveBonusEntriesProjectionBorrowed =>
+        save_bonus_entries;
+    internal Godot.Collections.Array<TraitPassiveStatusEffectDef> PassiveStatusEffectsProjectionBorrowed =>
+        passive_status_effects;
+    internal Godot.Collections.Array<TraitRollValueSchemaEntry> RollValueSchemaProjectionBorrowed =>
+        roll_value_schema;
 
     internal TraitEffectKind EffectKind => TraitContentRules.ToEffectKind(effect_type);
 

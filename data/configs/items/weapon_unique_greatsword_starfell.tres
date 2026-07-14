@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 2
+dice_sides = 6
+flat_bonus = 4
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"heavy", &"two_handed"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_sword_starfell_016"
+base_item_id = &"weapon_type_greatsword_base"
+display_name = "群星之末"
+description = "一柄由陨铁与恒星余烬锻成的巨剑，剑脊像夜空一样吞吐星火。"
+is_stackable = false
+base_price = 160000
+buy_price = 160000
+sell_price = 80000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"heavy", &"two_handed", &"starfell", &"force", &"fire", &"astral"])
+trait_ids = Array[StringName]([&"weapon.sword.starfell.meteor_force", &"weapon.sword.starfell.star_map_guidance", &"weapon.sword.starfell.starfall", &"weapon.sword.starfell.cosmic_dread"])
+weapon_profile = SubResource("Resource_weapon_profile")

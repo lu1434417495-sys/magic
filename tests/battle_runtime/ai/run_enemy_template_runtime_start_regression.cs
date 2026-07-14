@@ -6,26 +6,32 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_enemy_template_runtime_start_regression : SceneTree
+public partial class run_enemy_template_runtime_start_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         try
         {
             TestFormalTemplatesResolveStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
-            TestBattleUnitFactoryDoesNotBuildFallbackEnemy();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
+            TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
+            TestEnemyTemplateDamageResistancesProjectToBattleUnit();
+            TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden();
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Enemy template runtime start regression"));
+        RequestTestExit(_test.Finish("Enemy template runtime start regression"));
     }
 
     private void TestFormalTemplatesResolveStableIds()
@@ -37,7 +43,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedEnemyCount: 2,
             expectedBrainId: "melee_aggressor",
             expectedStateId: "engage",
-            requiredSkillIds: new[] { "charge", "basic_attack" }
+            requiredSkillIds: new[] { "basic_attack" }
         );
         AssertTemplateStart(
             "encounter_vanguard",
@@ -46,7 +52,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedEnemyCount: 1,
             expectedBrainId: "frontline_bulwark",
             expectedStateId: "engage",
-            requiredSkillIds: new[] { "charge", "warrior_guard" }
+            requiredSkillIds: new[] { "warrior_heavy_strike", "basic_attack" }
         );
         AssertTemplateStart(
             "encounter_harrier",
@@ -66,6 +72,15 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             expectedStateId: "pressure",
             requiredSkillIds: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
         );
+        AssertTemplateStart(
+            "encounter_red_dragon",
+            "red_dragon",
+            "红龙",
+            expectedEnemyCount: 1,
+            expectedBrainId: "dragon_tyrant",
+            expectedStateId: "engage",
+            requiredSkillIds: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
+        );
     }
 
     private void TestWolfTemplatesSpawnWithPositiveStaminaPool()
@@ -79,7 +94,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
         foreach (string templateId in templateIds)
         {
-            using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+            using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+            BattleRuntimeModule runtime = runtimeScope.Runtime;
             BattleState state = null;
             try
             {
@@ -131,42 +147,15 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
-    private void TestBattleUnitFactoryDoesNotBuildFallbackEnemy()
-    {
-        using var gameSession = new GameSession();
-        using var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            gameSession.GetSkillDefsTyped(),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
-            null
-        );
-
-        var enemyUnits = runtime._unit_factory.BuildEnemyUnits(
-            BuildEncounterAnchor(
-                "runtime_factory_fallback_affordability",
-                "missing_runtime_factory_template",
-                "工厂 fallback 敌人"
-            ),
-            new GDictionary
-            {
-                ["default_enemy_stamina"] = 0,
-                ["enemy_unit_count"] = 1,
-            }
-        );
-        _test.True(
-            enemyUnits.Count == 0,
-            "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。"
-        );
-    }
-
     private void TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection()
     {
-        using var gameSession = new GameSession();
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
         StringName templateId = "runtime_start_custom_enemy_template";
-        var itemDefs = new Dictionary<StringName, ItemDef>(gameSession.GetItemDefsTyped());
-        ItemDef customWeapon = MakeWeapon(
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
             "runtime_start_custom_enemy_halberd",
             "halberd",
             "physical_pierce",
@@ -175,22 +164,23 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             MakeWeaponDice(1, 12, 1),
             new StringName[] { "reach", "versatile" }
         );
-        itemDefs[customWeapon.item_id] = customWeapon;
+        itemDefs[customWeapon.ItemId] = customWeapon;
 
-        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDef>(
-            gameSession.GetEnemyTemplatesTyped()
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+            gameSession.GetEnemyTemplateDefinitions()
         );
-        enemyTemplates[templateId] = BuildCustomEnemyTemplate(
+        EnemyTemplateDef customTemplate = BuildCustomEnemyTemplate(
             templateId,
-            customWeapon.item_id
+            customWeapon.ItemId
         );
+        enemyTemplates[templateId] = customTemplate.ToDefinition(itemDefs);
 
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
             enemyTemplates,
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null,
             null,
             itemDefs
@@ -227,7 +217,7 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             );
             _test.Eq(
                 enemyUnit.weapon_item_id,
-                customWeapon.item_id,
+                customWeapon.ItemId,
                 "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
             );
             _test.Eq(
@@ -248,6 +238,226 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
+    private void TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId = "runtime_start_illusion_immune_enemy_template";
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
+            "runtime_start_illusion_immune_enemy_blade",
+            "illusion_blade",
+            "physical_slash",
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        itemDefs[customWeapon.ItemId] = customWeapon;
+
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
+        SetSaveAdvantageTags(template, "illusion_immunity");
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
+        {
+            [templateId] = template.ToDefinition(itemDefs),
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_illusion_immune_enemy",
+            templateId,
+            "幻象免疫敌人"
+        );
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "自定义敌方模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "自定义敌方模板生成的单位应可读取。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        _test.True(
+            enemyUnit.save_advantage_tags.Contains(new StringName("illusion_immunity")),
+            "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState.save_advantage_tags。"
+        );
+
+        BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+            null,
+            enemyUnit,
+            MakeIllusionSaveEffect(),
+            BattleSaveContext.WithSaveRollOverride(1)
+        );
+        _test.True(
+            saveResult.Immune,
+            "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
+        );
+    }
+
+    private void TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId = "runtime_start_formula_dragonling_template";
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+
+        EnemyTemplateDef template = TestResourceOwnership.Own(
+            new EnemyTemplateDef
+            {
+                template_id = templateId,
+                display_name = "公式幼龙",
+                brain_id = "melee_aggressor",
+                enemy_count = 1,
+                body_size = BattleUnitState.BodySizeLarge,
+                creature_level = 10,
+                hit_die_sides = 12,
+                action_threshold = BattleUnitState.DefaultActionThreshold,
+                tags = new GStringNameArray { "dragon", "beast" },
+                natural_weapon_damage_tag = "physical_pierce",
+                natural_weapon_attack_range = 2,
+                skill_ids = new GStringNameArray { "basic_attack" },
+                base_attribute_overrides = new GDictionary
+                {
+                    ["strength"] = 18,
+                    ["agility"] = 8,
+                    ["constitution"] = 16,
+                    ["perception"] = 12,
+                    ["intelligence"] = 12,
+                    ["willpower"] = 14,
+                },
+            },
+            "EnemyTemplateRuntimeStart.BuildFormulaDragonling"
+        );
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
+        {
+            [templateId] = template.ToDefinition(itemDefs),
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_formula_dragonling",
+            templateId,
+            "公式幼龙"
+        );
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "公式幼龙模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "公式幼龙生成的单位应可读取。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        _test.Eq(
+            enemyUnit.current_hp,
+            520,
+            "无 hp_max override 时应按 首级满骰 + 后续均值 的公式派生出 520 HP(×4格)。"
+        );
+        var snapshot = enemyUnit.attribute_snapshot as AttributeSnapshot;
+        _test.True(snapshot != null, "公式幼龙单位应携带 attribute snapshot。");
+        if (snapshot != null)
+        {
+            _test.Eq(
+                snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)),
+                520,
+                "快照 hp_max 应等于公式派生值 520。"
+            );
+            _test.Eq(
+                snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
+                4,
+                "无 attack_bonus override 时近战应派生力量修正 +4。"
+            );
+        }
+    }
+
+    private void TestEnemyTemplateDamageResistancesProjectToBattleUnit()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId = "runtime_start_damage_resist_enemy_template";
+        var itemDefs = new Dictionary<StringName, ItemDefinition>(
+            gameSession.GetItemDefsTyped()
+        );
+        ItemDefinition customWeapon = MakeWeapon(
+            "runtime_start_damage_resist_enemy_blade",
+            "damage_resist_blade",
+            "physical_slash",
+            1,
+            MakeWeaponDice(1, 6, 0),
+            null,
+            Array.Empty<StringName>()
+        );
+        itemDefs[customWeapon.ItemId] = customWeapon;
+
+        EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
+        template.damage_resistances = new GDictionary
+        {
+            [new StringName("physical_pierce")] = new StringName("half"),
+            [new StringName("fire")] = new StringName("double"),
+        };
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
+        {
+            [templateId] = template.ToDefinition(itemDefs),
+        };
+        using var builder = new EncounterRosterBuilder();
+        EncounterAnchorData anchor = BuildEncounterAnchor(
+            "encounter_runtime_start_damage_resist_enemy",
+            templateId,
+            "抗性敌人"
+        );
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
+            anchor,
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            enemyTemplates,
+            gameSession.GetEnemyAiBrainDefinitions(),
+            itemDefs
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+        _test.Eq(enemyUnits.Count, 1, "自定义抗性敌方模板应生成一个敌方单位。");
+        BattleUnitState enemyUnit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsedEnemyUnit)
+                ? parsedEnemyUnit
+                : null;
+        _test.True(enemyUnit != null, "自定义抗性敌方模板生成的单位应可读取。");
+        if (enemyUnit == null)
+        {
+            return;
+        }
+
+        _test.Eq(
+            enemyUnit.damage_resistances.Get(new StringName("physical_pierce")),
+            new StringName("half"),
+            "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState.damage_resistances。"
+        );
+        _test.Eq(
+            enemyUnit.damage_resistances.Get(new StringName("fire")),
+            new StringName("double"),
+            "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState.damage_resistances。"
+        );
+    }
+
     private void AssertTemplateStart(
         StringName encounterId,
         StringName templateId,
@@ -258,7 +468,8 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         string[] requiredSkillIds
     )
     {
-        using BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = null;
         try
         {
@@ -314,19 +525,19 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         }
     }
 
-    private static BattleRuntimeModule BuildRuntimeWithEnemyContent()
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
-        using var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        return runtime;
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState StartTemplateBattle(
@@ -338,23 +549,16 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
     )
     {
         EncounterAnchorData anchor = BuildEncounterAnchor(encounterId, templateId, displayName);
-        try
-        {
-            return runtime.StartBattle(
-                anchor,
-                seed,
-                new GDictionary
-                {
-                    ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
-                    ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
-                    ["validate_spawn_reachability"] = false,
-                }
-            );
-        }
-        finally
-        {
-            GodotSharpCleanup.DisposeGodotObject(anchor);
-        }
+        return runtime.StartBattle(
+            anchor,
+            seed,
+            new GDictionary
+            {
+                ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
+                ["default_active_skill_ids"] = new GStringNameArray { "warrior_heavy_strike" },
+                ["validate_spawn_reachability"] = false,
+            }
+        );
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
@@ -377,6 +581,15 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
     }
 
+    private static CombatEffectDefinition MakeIllusionSaveEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            saveDcMode: BattleSaveContentRules.ToStringName(BattleSaveDcMode.Static),
+            saveDc: 12,
+            saveAbility: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Willpower),
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Illusion)
+        );
+
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
         return state != null && state.TryGetUnitTyped(unitId, out BattleUnitState unitState)
@@ -389,30 +602,48 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         StringName attackEquipmentItemId
     )
     {
-        return new EnemyTemplateDef
-        {
-            template_id = templateId,
-            display_name = "自定义敌方长戟兵",
-            brain_id = "melee_aggressor",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
-            attack_equipment_item_id = attackEquipmentItemId,
-            tags = new GStringNameArray(),
-            skill_ids = new GStringNameArray { "basic_attack" },
-            base_attribute_overrides = new GDictionary
+        return TestResourceOwnership.Own(
+            new EnemyTemplateDef
             {
-                ["strength"] = 10,
-                ["agility"] = 10,
-                ["constitution"] = 10,
-                ["perception"] = 10,
-                ["intelligence"] = 10,
-                ["willpower"] = 10,
+                template_id = templateId,
+                display_name = "自定义敌方长戟兵",
+                brain_id = "melee_aggressor",
+                enemy_count = 1,
+                body_size = BattleUnitState.BodySizeMedium,
+                action_threshold = BattleUnitState.DefaultActionThreshold,
+                attack_equipment_item_id = attackEquipmentItemId,
+                tags = new GStringNameArray(),
+                skill_ids = new GStringNameArray { "basic_attack" },
+                base_attribute_overrides = new GDictionary
+                {
+                    ["strength"] = 10,
+                    ["agility"] = 10,
+                    ["constitution"] = 10,
+                    ["perception"] = 10,
+                    ["intelligence"] = 10,
+                    ["willpower"] = 10,
+                },
             },
-        };
+            "EnemyTemplateRuntimeStart.BuildCustomEnemyTemplate"
+        );
     }
 
-    private static ItemDef MakeWeapon(
+    private static void SetSaveAdvantageTags(
+        EnemyTemplateDef template,
+        params StringName[] saveAdvantageTags
+    )
+    {
+        var tags = new GStringNameArray();
+        foreach (StringName tag in saveAdvantageTags ?? Array.Empty<StringName>())
+        {
+            tags.Add(tag);
+        }
+
+        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
+        property?.SetValue(template, tags);
+    }
+
+    private static ItemDefinition MakeWeapon(
         StringName itemId,
         StringName weaponTypeId,
         StringName damageTag,
@@ -451,7 +682,9 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
             }
         }
         itemDef.weapon_profile = profile;
-        return itemDef;
+        return TestResourceOwnership
+            .Own(itemDef, "EnemyTemplateRuntimeStart.MakeWeapon")
+            .ToDefinition();
     }
 
     private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
@@ -464,4 +697,37 @@ public partial class run_enemy_template_runtime_start_regression : SceneTree
         };
     }
 
+    private sealed class BattleRuntimeScope : IDisposable
+    {
+        private readonly GameSession _gameSession;
+
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
+        {
+            Runtime = runtime;
+            _gameSession = gameSession;
+        }
+
+        internal BattleRuntimeModule Runtime { get; }
+
+        public void Dispose()
+        {
+            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            _gameSession?.Dispose();
+        }
+    }
+
+    private sealed class GameSessionScope : IDisposable
+    {
+        internal GameSessionScope()
+        {
+            Session = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        }
+
+        internal GameSession Session { get; }
+
+        public void Dispose()
+        {
+            Session?.Dispose();
+        }
+    }
 }

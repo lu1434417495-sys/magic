@@ -73,6 +73,7 @@ internal class BattleMovementService
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_ROOTED)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TENDON_CUT)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PETRIFIED)
+                || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_PARALYZED)
                 || unitView.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
             );
     }
@@ -494,6 +495,12 @@ internal class BattleMovementService
             AppendLog(
                 batch,
                 $"{active_unit.display_name} 从 ({previousAnchor.X}, {previousAnchor.Y}) 移动到 ({active_unit.coord.X}, {active_unit.coord.Y})，移动距离消耗 {moveCost} 点，剩余移动力 {active_unit.current_move_points} 点并锁定。{terrainName}。");
+            _runtime?.EmitContingencyPositionChanged(
+                active_unit,
+                previousAnchor,
+                active_unit.coord,
+                _runtime.AllocateContingencySourceEventId("position_changed")
+            );
             if (executionResult.StoppedByBarrier)
             {
                 AppendLog(batch, $"{active_unit.display_name} 的移动被屏障拦下，停在当前可达位置。");
@@ -570,6 +577,15 @@ internal class BattleMovementService
             }
             result.Executed = true;
             executedPath.Add(active_unit.coord);
+            TerrainEffectSystem?.ApplyContactEffectsForUnit(
+                active_unit,
+                BattleSaveContext.Empty,
+                batch
+            );
+            if (!active_unit.is_alive)
+            {
+                return result;
+            }
         }
 
         result.ReachedTarget = active_unit.coord == target_coord;

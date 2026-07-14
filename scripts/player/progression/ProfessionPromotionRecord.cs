@@ -1,12 +1,11 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class ProfessionPromotionRecord : RefCounted
+public class ProfessionPromotionRecord
 {
-    private static readonly Godot.Collections.Array<string> ToDictFields = new()
+    private static readonly string[] ToDictFields =
     {
         "new_rank",
         "consumed_skill_ids",
@@ -16,8 +15,8 @@ public partial class ProfessionPromotionRecord : RefCounted
     };
 
     public int new_rank;
-    public GStringNameArray consumed_skill_ids = new();
-    public GStringNameArray qualifier_skill_ids = new();
+    public StringNameList consumed_skill_ids = new();
+    public StringNameList qualifier_skill_ids = new();
     public UnitBaseAttributes snapshot_unit_base_attributes = new();
     public int timestamp;
 
@@ -26,8 +25,8 @@ public partial class ProfessionPromotionRecord : RefCounted
         return new ProfessionPromotionRecord
         {
             new_rank = new_rank,
-            consumed_skill_ids = new GStringNameArray(consumed_skill_ids),
-            qualifier_skill_ids = new GStringNameArray(qualifier_skill_ids),
+            consumed_skill_ids = consumed_skill_ids?.Duplicate() ?? new StringNameList(),
+            qualifier_skill_ids = qualifier_skill_ids?.Duplicate() ?? new StringNameList(),
             snapshot_unit_base_attributes =
                 snapshot_unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes(),
             timestamp = timestamp,
@@ -74,14 +73,14 @@ public partial class ProfessionPromotionRecord : RefCounted
         {
             return null;
         }
-        GStringNameArray consumedSkillIds = _parse_unique_string_name_array(
+        StringNameList consumedSkillIds = _parse_unique_string_name_array(
             data["consumed_skill_ids"].AsGodotArray()
         );
         if (consumedSkillIds == null)
         {
             return null;
         }
-        GStringNameArray qualifierSkillIds = _parse_unique_string_name_array(
+        StringNameList qualifierSkillIds = _parse_unique_string_name_array(
             data["qualifier_skill_ids"].AsGodotArray()
         );
         if (qualifierSkillIds == null)
@@ -113,7 +112,7 @@ public partial class ProfessionPromotionRecord : RefCounted
 
     private static bool _has_exact_fields(
         GDictionary data,
-        Godot.Collections.Array<string> expectedFields
+        IReadOnlyCollection<string> expectedFields
     )
     {
         if (data.Count != expectedFields.Count)
@@ -156,18 +155,17 @@ public partial class ProfessionPromotionRecord : RefCounted
         return parsedValue;
     }
 
-    private static GStringNameArray _parse_unique_string_name_array(GArray values)
+    private static StringNameList _parse_unique_string_name_array(GArray values)
     {
-        var parsedValues = new GStringNameArray();
-        var seenValues = new GDictionary();
+        var parsedValues = new StringNameList();
+        var seenValues = new HashSet<StringName>();
         foreach (var rawValue in values)
         {
             StringName parsedValue = _parse_string_name_field(rawValue, out bool ok);
-            if (!ok || seenValues.ContainsKey(parsedValue))
+            if (!ok || !seenValues.Add(parsedValue))
             {
                 return null;
             }
-            seenValues[parsedValue] = true;
             parsedValues.Add(parsedValue);
         }
         return parsedValues;

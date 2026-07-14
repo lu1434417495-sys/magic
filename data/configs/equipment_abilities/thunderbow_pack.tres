@@ -1,0 +1,108 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="3_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="4_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="5_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="6_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="7_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="8_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="9_grant"]
+
+[sub_resource type="Resource" id="Dice_term_1d6_thunder"]
+script = ExtResource("5_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_1d6_thunder"]
+script = ExtResource("4_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d6_thunder")])
+
+[sub_resource type="Resource" id="Action_thunder_arrow_damage_payload"]
+script = ExtResource("7_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d6_thunder")
+damage_type = &"thunder"
+damage_tags = Array[StringName]([&"thunder"])
+
+[sub_resource type="Resource" id="Action_thunder_arrow_damage"]
+script = ExtResource("6_action")
+action_id = &"action.thunderbow.thunder_arrow.add_thunder_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_thunder_arrow_damage_payload")
+
+[sub_resource type="Resource" id="Action_thunder_arrow_stun_payload"]
+script = ExtResource("8_apply_status")
+target_selector = &"target"
+status_id = &"stunned"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"refresh"
+stack_limit = 1
+display_label = "震慑"
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+save_dc = 14
+save_ability = &"constitution"
+save_tag = &"constitution"
+apply_on_save_failure = true
+
+[sub_resource type="Resource" id="Action_thunder_arrow_stun"]
+script = ExtResource("6_action")
+action_id = &"action.thunderbow.thunder_arrow.apply_stunned"
+kind = &"apply_status"
+payload = SubResource("Action_thunder_arrow_stun_payload")
+
+[sub_resource type="Resource" id="Reaction_thunder_arrow_damage"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.thunderbow.thunder_arrow.damage_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_thunder_arrow_damage")])
+
+[sub_resource type="Resource" id="Reaction_thunder_arrow_stun"]
+script = ExtResource("3_reaction")
+reaction_id = &"reaction.thunderbow.thunder_arrow.stun_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_thunder_arrow_stun")])
+
+[sub_resource type="Resource" id="Grant_stored_thunder_shot_skill"]
+script = ExtResource("9_grant")
+granted_action_id = &"grant.thunderbow.stored_thunder_shot.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_bow_thunderbow_stored_thunder_shot"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_thunder_arrow"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.bow.thunderbow.thunder_arrow"
+trait_id = &"weapon.bow.thunderbow.thunder_arrow"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"thunderbow"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_thunder_arrow_damage"), SubResource("Reaction_thunder_arrow_stun")])
+
+[sub_resource type="Resource" id="Binding_stored_thunder_shot"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.bow.thunderbow.stored_thunder_shot"
+trait_id = &"weapon.bow.thunderbow.stored_thunder_shot"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"thunderbow"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_stored_thunder_shot_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.bow.thunderbow"
+schema_version = 1
+load_order = 156
+bindings = Array[Resource]([SubResource("Binding_thunder_arrow"), SubResource("Binding_stored_thunder_shot")])

@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_battle_loading_overlay_regression : SceneTree
+public partial class run_world_map_battle_loading_overlay_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -27,7 +27,7 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             _test.Fail($"未捕获异常：{ex}");
         }
         await Cleanup();
-        Quit(_test.Finish("World map battle loading overlay regression"));
+        RequestTestExit(_test.Finish("World map battle loading overlay regression"));
     }
 
     private async Task TestWorldMapLoadingOverlayTracksBattlePanelState()
@@ -99,7 +99,12 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             return;
         }
 
-        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(_gameSession.GetWorldData(), "single");
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            _gameSession.GetWorldDataLease();
+        EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
+            worldDataLease.Value,
+            "single"
+        );
         _test.True(encounterAnchor != null, "pending terrain loading 回归需要至少一个单体野怪遭遇。");
         if (encounterAnchor == null)
         {
@@ -151,7 +156,7 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }
@@ -174,7 +179,6 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             return;
         node.QueueFree();
         await ProcessFrames(2);
-        GodotSharpCleanup.CollectPendingFinalizers();
     }
 
     private async Task ProcessFrames(int count)
@@ -189,10 +193,17 @@ public partial class run_world_map_battle_loading_overlay_regression : SceneTree
             return null;
         foreach (Variant value in worldData["encounter_anchors"].AsGodotArray())
         {
-            EncounterAnchorData anchor = value.As<EncounterAnchorData>();
+            EncounterAnchorData anchor = ReadEncounterAnchor(value);
             if (anchor != null && anchor.encounter_kind == kind)
                 return anchor;
         }
         return null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 }

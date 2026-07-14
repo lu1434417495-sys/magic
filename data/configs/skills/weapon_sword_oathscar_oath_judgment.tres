@@ -1,0 +1,75 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_oath_judgment_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"enemy"
+damage_tag = &"radiant"
+dice_count = 4
+dice_sides = 6
+required_target_status_id = &"oathscar_oath_mark"
+required_target_status_min_stacks = 4
+required_target_status_source_selector = &"source"
+
+[sub_resource type="Resource" id="Effect_oath_judgment_stunned"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+status_id = &"stunned"
+duration_tu = 30
+power = 1
+lock_counterattack = true
+lock_guard = true
+lock_dodge_bonus = true
+lock_crit = true
+required_target_status_id = &"oathscar_oath_mark"
+required_target_status_min_stacks = 4
+required_target_status_source_selector = &"source"
+
+[sub_resource type="Resource" id="Effect_oath_judgment_consume_mark"]
+script = ExtResource("1_effect")
+effect_type = &"erase_status"
+effect_target_team_filter = &"enemy"
+status_id = &"oathscar_oath_mark"
+required_target_status_id = &"oathscar_oath_mark"
+required_target_status_min_stacks = 4
+required_target_status_source_selector = &"source"
+
+[sub_resource type="Resource" id="Combat_oath_judgment"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_sword_oathscar_oath_judgment"
+target_mode = &"unit"
+target_team_filter = &"enemy"
+target_selection_mode = &"single_unit"
+range_pattern = &"single"
+range_value = 1
+area_pattern = &"single"
+area_value = 0
+requires_los = true
+ap_cost = 1
+attack_resolution_mode = &"direct_effect"
+cooldown_tu = 0
+min_target_count = 1
+max_target_count = 1
+allow_repeat_target = false
+selection_order_mode = &"stable"
+delivery_categories = Array[StringName]([&"equipment", &"weapon", &"radiant"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_oath_judgment_damage"), SubResource("Effect_oath_judgment_stunned"), SubResource("Effect_oath_judgment_consume_mark")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_sword_oathscar_oath_judgment"
+display_name = "誓约裁决"
+icon_id = &"weapon_sword_oathscar_oath_judgment"
+description = "装备技能。只能对拥有持有者4层誓约之印的敌人完整生效，必中造成4D6 radiant伤害，施加30TU震慑，并消耗目标的誓约之印；誓约之痕来源每场战斗1次。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"oathscar", &"oath", &"radiant", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_oath_judgment")

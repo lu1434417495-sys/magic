@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 
-public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
+public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -10,194 +12,259 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     {
         try
         {
-            TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape();
-            TestServiceRequiresRuntimePlanByDefault();
-            TestServiceUsesExplicitTestFallbackOnlyWhenEnabled();
-            TestServiceReportsEmptyRuntimeState();
+            TestPlanAndEntryOwnNoResourceOrInstanceIdState();
+            TestEntryDefensivelyCopiesMetadata();
+            TestPlanFingerprintTracksSkillsAndImmutableBrainShape();
+            TestClearAndDisposeReleasePlainBorrowers();
+            TestAssemblerExceptionDisposesPartialPlanAndBalancesTrace();
+            TestPlanReportsEmptyRuntimeState();
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI runtime action plan regression"));
+        RequestTestExit(_test.Finish("Battle AI runtime action plan regression"));
     }
 
-    private void TestPlanFingerprintIgnoresResourcesButTracksSkillsAndBrainShape()
+    private void TestPlanAndEntryOwnNoResourceOrInstanceIdState()
     {
-        EnemyAiBrainDef brain = BuildBrain();
-        BattleUnitState unit = BuildUnit("actor", "plan_brain", "engage");
-        try
+        foreach (
+            FieldInfo field in typeof(BattleAiRuntimeActionPlan).GetFields(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            )
+        )
         {
-            unit.known_active_skill_ids.Add("bolt");
-            unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
-            unit.current_ap = 1;
+            _test.True(
+                !typeof(Resource).IsAssignableFrom(field.FieldType)
+                    && field.FieldType != typeof(NativeLeaseScope)
+                    && !field.Name.Contains("instanceId", StringComparison.OrdinalIgnoreCase),
+                $"Runtime action plan field {field.Name} must not own Resource/native scope/instance-id metadata."
+            );
+        }
 
-            var plan = new BattleAiRuntimeActionPlan();
-            plan.SetSource(unit, brain);
-            _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
+        PropertyInfo actionProperty = typeof(BattleAiRuntimeActionEntry).GetProperty(
+            "Action",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.Eq(
+            actionProperty?.PropertyType,
+            typeof(EnemyAiActionDefinition),
+            "Runtime entries should expose one typed immutable action definition."
+        );
+        _test.True(
+            typeof(BattleAiRuntimeActionEntry).GetProperty(
+                "ResourceAction",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            ) == null,
+            "Runtime entries must not expose a ResourceAction fallback."
+        );
+    }
 
-            unit.current_ap = 0;
-            _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
+    private void TestEntryDefensivelyCopiesMetadata()
+    {
+        WaitActionDefinition action = Wait("metadata_wait");
+        var source = new BattleAiRuntimeActionPlan.RuntimeActionMetadata
+        {
+            state_id = "engage",
+            action_id = action.ActionId,
+            score_bucket_id = action.ScoreBucketId,
+            identity_key = "engage/metadata_wait",
+        };
+        var entry = new BattleAiRuntimeActionEntry(action, source);
+        source.identity_key = "mutated";
+        source.action_id = "mutated";
 
-            unit.known_skill_level_map["bolt"] = 2;
-            _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
+        _test.Eq(entry.Action, action, "Entry should borrow the immutable action definition.");
+        _test.Eq(
+            entry.Metadata.identity_key,
+            "engage/metadata_wait",
+            "Entry should retain its own metadata copy."
+        );
+        _test.Eq(
+            entry.ActionId,
+            new StringName("metadata_wait"),
+            "Entry action identity should come from the definition."
+        );
 
-            unit.known_skill_level_map["bolt"] = 1;
-            var extraState = new EnemyAiStateDef
+        using var plan = new BattleAiRuntimeActionPlan();
+        plan.AddAction("engage", action, source);
+        BattleAiRuntimeActionPlan.RuntimeActionMetadata stored = plan.GetActionMetadata(action);
+        _test.Eq(
+            stored.action_id,
+            new StringName("mutated"),
+            "Plan metadata should be keyed by the typed definition entry."
+        );
+        stored.action_id = "external_mutation";
+        _test.Eq(
+            plan.GetActionMetadata(action).action_id,
+            new StringName("mutated"),
+            "Metadata queries should return defensive copies."
+        );
+    }
+
+    private void TestPlanFingerprintTracksSkillsAndImmutableBrainShape()
+    {
+        EnemyAiBrainDefinition brain = BuildBrain();
+        BattleUnitState unit = BuildUnit("actor", "plan_brain", "engage");
+        unit.known_active_skill_ids.Add("bolt");
+        unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
+        unit.current_ap = 1;
+
+        using var plan = new BattleAiRuntimeActionPlan();
+        plan.SetSource(unit, brain);
+        _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
+
+        unit.current_ap = 0;
+        _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
+
+        unit.known_skill_level_map["bolt"] = 2;
+        _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
+
+        unit.known_skill_level_map["bolt"] = 1;
+        EnemyAiStateDefinition supportState = new(
+            "support",
+            new EnemyAiActionDefinition[] { Wait("support_wait") },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        EnemyAiBrainDefinition expandedBrain = new(
+            brain.BrainId,
+            brain.DefaultStateId,
+            brain.ScoreProfile,
+            new[] { brain.GetState("engage"), supportState },
+            brain.TransitionRules
+        );
+        _test.True(
+            plan.IsStaleFor(unit, expandedBrain),
+            "A different immutable brain state/action shape should make the plan stale."
+        );
+
+        using var transitionPlan = new BattleAiRuntimeActionPlan();
+        transitionPlan.SetSource(unit, expandedBrain);
+        EnemyAiBrainDefinition transitionedBrain = new(
+            expandedBrain.BrainId,
+            expandedBrain.DefaultStateId,
+            expandedBrain.ScoreProfile,
+            expandedBrain.StateOrder,
+            new[]
             {
-                state_id = "support",
-                actions = new Godot.Collections.Array<EnemyAiAction> { Wait("support_wait") },
-            };
-            brain.states.Add(extraState);
-            _test.True(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
-
-            var transitionPlan = new BattleAiRuntimeActionPlan();
-            transitionPlan.SetSource(unit, brain);
-            brain.transition_rules = new Godot.Collections.Array<EnemyAiTransitionRuleDef>
-            {
-                Rule(
+                new EnemyAiTransitionRuleDefinition(
                     "support_when_low",
                     10,
+                    Array.Empty<StringName>(),
                     "support",
-                    new[] { Condition("self_hp_at_or_below_basis_points", basisPoints: 5000) }
+                    new[]
+                    {
+                        new EnemyAiTransitionConditionDefinition(
+                            "self_hp_at_or_below_basis_points",
+                            5000,
+                            -1,
+                            Array.Empty<StringName>(),
+                            Array.Empty<StringName>()
+                        ),
+                    },
+                    ""
                 ),
-            };
-            _test.True(
-                transitionPlan.IsStaleFor(unit, brain),
-                "Brain transition rule shape changes should make the plan stale."
+            }
+        );
+        _test.True(
+            transitionPlan.IsStaleFor(unit, transitionedBrain),
+            "A different immutable transition shape should make the plan stale."
+        );
+    }
+
+    private void TestClearAndDisposeReleasePlainBorrowers()
+    {
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        var plan = new BattleAiRuntimeActionPlan();
+        plan.AddStateActions(
+            "engage",
+            new EnemyAiActionDefinition[] { Wait("first_generation") }
+        );
+        _test.True(plan.HasRuntimeBorrowers, "Plan should report active plain borrowers.");
+
+        plan.Clear();
+        _test.True(!plan.HasRuntimeBorrowers, "Clear should release plain plan borrowers.");
+        plan.AddStateActions(
+            "engage",
+            new EnemyAiActionDefinition[] { Wait("second_generation") }
+        );
+        plan.Dispose();
+        _test.True(!plan.HasRuntimeBorrowers, "Dispose should release plain plan borrowers.");
+
+        LifecycleAuditSnapshot actual = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        _test.Eq(actual.ActiveOwnerCount, baseline.ActiveOwnerCount, "action-plan owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, baseline.ActiveLeaseCount, "action-plan lease baseline");
+        _test.Eq(actual.ActiveScopeCount, baseline.ActiveScopeCount, "action-plan scope baseline");
+    }
+
+    private void TestAssemblerExceptionDisposesPartialPlanAndBalancesTrace()
+    {
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        EnemyAiBrainDefinition brain = BuildBrain();
+        BattleUnitState unit = BuildUnit("throwing_actor", brain.BrainId, "engage");
+        unit.known_active_skill_ids.Add("bolt");
+        var recorder = new AiTraceRecorder();
+        AiTraceRecorder.SetInstance(recorder);
+        BattleAiRuntimeActionPlan unexpectedPlan = null;
+        bool threw = false;
+        try
+        {
+            unexpectedPlan = new BattleAiActionAssembler().BuildUnitActionPlan(
+                unit,
+                brain,
+                new ThrowingSkillDictionary()
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            threw = exception.Message.Contains(
+                "action plan classification probe",
+                StringComparison.Ordinal
             );
         }
         finally
         {
-            BattleTestFixture.DisposeBattleUnit(unit);
-            BattleTestFixture.DisposeEnemyAiBrain(brain);
+            AiTraceRecorder.SetInstance(null);
+            unexpectedPlan?.Dispose();
         }
+
+        _test.True(threw, "Assembler should surface the classification failure.");
+        _test.True(recorder.AssertBalanced(), "Assembler failure should close its trace span.");
+        LifecycleAuditSnapshot actual = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        _test.Eq(actual.ActiveOwnerCount, baseline.ActiveOwnerCount, "assembler owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, baseline.ActiveLeaseCount, "assembler lease baseline");
+        _test.Eq(actual.ActiveScopeCount, baseline.ActiveScopeCount, "assembler scope baseline");
     }
 
-    private void TestServiceRequiresRuntimePlanByDefault()
+    private void TestPlanReportsEmptyRuntimeState()
     {
-        using Fixture fixture = BuildServiceFixture(false, null);
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        _test.True(decision != null, "Missing runtime plan should still return a wait decision.");
-        _test.Eq(
-            decision.action_id,
-            new StringName("wait_missing_runtime_plan"),
-            "Default path should not fall back to authored actions."
+        using var plan = new BattleAiRuntimeActionPlan();
+        plan.SetSource(BuildUnit("actor", "plan_brain", "engage"), BuildBrain());
+        plan.AddStateActions("engage", Array.Empty<EnemyAiActionDefinition>());
+        _test.True(plan.HasState("engage"), "Explicit empty states should remain present.");
+        _test.True(plan.IsEmptyState("engage"), "Explicit empty states should report empty.");
+        _test.True(plan.Validate().Count == 0, "A sourced empty state should remain structurally valid.");
+    }
+
+    private static EnemyAiBrainDefinition BuildBrain()
+    {
+        EnemyAiStateDefinition state = new(
+            "engage",
+            new EnemyAiActionDefinition[] { Wait("authored_wait") },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            "plan_brain",
+            "engage",
+            BattleAiScoreProfileDefinition.Default,
+            new[] { state },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
     }
 
-    private void TestServiceUsesExplicitTestFallbackOnlyWhenEnabled()
-    {
-        using Fixture fixture = BuildServiceFixture(true, null);
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        _test.True(decision != null, "Explicit test fallback should return an authored decision.");
-        _test.Eq(
-            decision.action_id,
-            new StringName("authored_wait"),
-            "Authored fallback should require allow_authored_action_fallback_for_tests=true."
-        );
-    }
-
-    private void TestServiceReportsEmptyRuntimeState()
-    {
-        var plan = new BattleAiRuntimeActionPlan();
-        using Fixture fixture = BuildServiceFixture(false, plan);
-        plan.SetSource(fixture.Actor, fixture.Brain);
-        plan.AddStateActions("engage", Array.Empty<EnemyAiAction>());
-
-        BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        _test.True(decision != null, "Empty runtime state should return a wait decision.");
-        _test.Eq(
-            decision.action_id,
-            new StringName("wait_empty_runtime_state"),
-            "Empty runtime state should use the dedicated wait reason."
-        );
-    }
-
-    private static Fixture BuildServiceFixture(
-        bool enableTestFallback,
-        BattleAiRuntimeActionPlan plan
-    )
-    {
-        BattleState state = BuildState();
-        var gridService = new BattleGridService();
-        BattleUnitState actor = BuildUnit("actor", "plan_brain", "engage");
-        BattleUnitState hero = BuildUnit("hero", "", "");
-        hero.control_mode = "manual";
-        actor.faction_id = "hostile";
-        hero.faction_id = "player";
-        actor.SetAnchorCoord(new Vector2I(1, 1));
-        hero.SetAnchorCoord(new Vector2I(3, 1));
-        AddUnit(gridService, state, actor, true);
-        AddUnit(gridService, state, hero, false);
-        state.phase = "unit_acting";
-        state.active_unit_id = actor.unit_id;
-
-        EnemyAiBrainDef brain = BuildBrain();
-        var service = new BattleAiService
-        {
-            EnableMutationGuard = false,
-        };
-        service.Setup(new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain }, null);
-
-        var context = new BattleAiContext
-        {
-            state = state,
-            unit_state = actor,
-            grid_service = gridService,
-            runtime_action_plan = plan,
-            allow_authored_action_fallback_for_tests = enableTestFallback,
-        };
-        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
-
-        return new Fixture
-        {
-            State = state,
-            GridService = gridService,
-            Actor = actor,
-            Brain = brain,
-            Service = service,
-            Context = context,
-        };
-    }
-
-    private static EnemyAiBrainDef BuildBrain()
-    {
-        var state = new EnemyAiStateDef
-        {
-            state_id = "engage",
-            actions = new Godot.Collections.Array<EnemyAiAction> { Wait("authored_wait") },
-        };
-        return new EnemyAiBrainDef
-        {
-            brain_id = "plan_brain",
-            default_state_id = "engage",
-            states = new Godot.Collections.Array<EnemyAiStateDef> { state },
-        };
-    }
-
-    private static BattleState BuildState()
-    {
-        var state = new BattleState
-        {
-            map_size = new Vector2I(6, 4),
-            timeline = new BattleTimelineState(),
-        };
-        for (int y = 0; y < state.map_size.Y; y++)
-        {
-            for (int x = 0; x < state.map_size.X; x++)
-            {
-                var cell = new BattleCellState { coord = new Vector2I(x, y) };
-                state.SetCell(cell.coord, cell);
-            }
-        }
-        return state;
-    }
-
-    private static BattleUnitState BuildUnit(StringName unitId, StringName brainId, StringName stateId)
-    {
-        return new BattleUnitState
+    private static BattleUnitState BuildUnit(StringName unitId, StringName brainId, StringName stateId) =>
+        new()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
@@ -209,102 +276,31 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             current_mp = 2,
             current_stamina = 2,
         };
-    }
 
-    private static void AddUnit(
-        BattleGridService gridService,
-        BattleState state,
-        BattleUnitState unit,
-        bool isEnemy
-    )
+    private static WaitActionDefinition Wait(StringName actionId) =>
+        new(actionId, "", BattleAiActionIntent.Wait, 0, 0);
+
+    private sealed class ThrowingSkillDictionary
+        : IReadOnlyDictionary<StringName, SkillDefinition>
     {
-        gridService.PlaceUnit(state, unit, unit.coord, true);
-        state.SetUnit(unit);
-        if (isEnemy)
-        {
-            state.enemy_unit_ids.Add(unit.unit_id);
-        }
-        else
-        {
-            state.ally_unit_ids.Add(unit.unit_id);
-        }
-    }
+        public int Count => throw BuildException();
+        public IEnumerable<StringName> Keys => throw BuildException();
+        public IEnumerable<SkillDefinition> Values => throw BuildException();
+        public SkillDefinition this[StringName key] => throw BuildException();
+        public bool ContainsKey(StringName key) => throw BuildException();
 
-    private static WaitAction Wait(StringName actionId)
-    {
-        return new WaitAction { action_id = actionId };
-    }
-
-    private static EnemyAiTransitionRuleDef Rule(
-        StringName ruleId,
-        int order,
-        StringName targetStateId,
-        IEnumerable<EnemyAiTransitionConditionDef> conditions
-    )
-    {
-        var rule = new EnemyAiTransitionRuleDef
+        public bool TryGetValue(StringName key, out SkillDefinition value)
         {
-            rule_id = ruleId,
-            order = order,
-            target_state_id = targetStateId,
-        };
-        foreach (EnemyAiTransitionConditionDef condition in conditions)
-        {
-            rule.conditions.Add(condition);
+            value = null;
+            throw BuildException();
         }
-        return rule;
-    }
 
-    private static EnemyAiTransitionConditionDef Condition(
-        StringName predicate,
-        int basisPoints = -1,
-        int maxDistance = -1
-    )
-    {
-        return new EnemyAiTransitionConditionDef
-        {
-            predicate = predicate,
-            basis_points = basisPoints,
-            max_distance = maxDistance,
-        };
-    }
+        public IEnumerator<KeyValuePair<StringName, SkillDefinition>> GetEnumerator() =>
+            throw BuildException();
 
-    private static bool IsGodotDynamicBoundaryType(Type type)
-    {
-        if (type == typeof(Variant) || type == typeof(GodotObject))
-        {
-            return true;
-        }
-        if (typeof(Godot.Collections.Dictionary).IsAssignableFrom(type))
-        {
-            return true;
-        }
-        if (typeof(Godot.Collections.Array).IsAssignableFrom(type))
-        {
-            return true;
-        }
-        return false;
-    }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    private sealed class Fixture : IDisposable
-    {
-        public BattleState State;
-        public BattleGridService GridService;
-        public BattleUnitState Actor;
-        public EnemyAiBrainDef Brain;
-        public BattleAiService Service;
-        public BattleAiContext Context;
-
-        public void Dispose()
-        {
-            Context = null;
-            Service = null;
-            BattleTestFixture.DisposeEnemyAiBrain(Brain);
-            BattleTestFixture.DisposeBattleState(State);
-            Brain = null;
-            State = null;
-            Actor = null;
-            GridService = null;
-        }
+        private static InvalidOperationException BuildException() =>
+            new("action plan classification probe");
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using Godot;
 using Godot.Collections;
+using PlainDictionary = System.Collections.Generic.IReadOnlyDictionary<string, object>;
+using PlainList = System.Collections.Generic.IReadOnlyList<object>;
 
 public sealed class GameRuntimeRewardFlowHandler
 {
@@ -26,19 +28,6 @@ public sealed class GameRuntimeRewardFlowHandler
         _runtime = null;
     }
 
-    internal Dictionary GetCurrentPromotionPrompt()
-    {
-        if (!HasRuntime())
-            return new Dictionary();
-        var pending = GetPendingPromotionPrompt();
-        if (pending.Count > 0)
-            return pending;
-        var worldPending = GetPendingWorldPromotionPrompt();
-        if (worldPending.Count > 0)
-            return worldPending;
-        return new Dictionary();
-    }
-
     internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmPendingRewardTyped()
     {
         if (!HasRuntime())
@@ -57,21 +46,21 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var prompt = GetCurrentPromotionPrompt();
+        PlainDictionary prompt = _runtime.GetCurrentPromotionPromptSnapshotPlain();
         if (prompt.Count == 0)
             return CommandErrorTyped("当前没有待确认的职业晋升选择。");
-        var memberId = DictionaryStringName(prompt, "member_id");
-        var choices = DictionaryArray(prompt, "choices");
-        foreach (var choiceValue in choices)
+        StringName memberId = PlainStringName(prompt, "member_id");
+        PlainList choices = PlainArray(prompt, "choices");
+        foreach (object choiceValue in choices)
         {
-            if (choiceValue.VariantType != Variant.Type.Dictionary)
+            if (choiceValue is not PlainDictionary choiceData)
                 continue;
-            var choiceData = choiceValue.AsGodotDictionary();
-            var candidateProfessionId = DictionaryStringName(choiceData, "profession_id");
+            StringName candidateProfessionId = PlainStringName(choiceData, "profession_id");
             if (candidateProfessionId != professionId)
                 continue;
-            var selection = PromotionSelectionData.FromPayload(
-                DictionaryDictionary(choiceData, "selection")
+            TryPlainDictionary(choiceData, "selection", out PlainDictionary selectionPayload);
+            PromotionSelectionData selection = PromotionSelectionData.FromPlainPayload(
+                selectionPayload
             );
             if (OnPromotionChoiceSubmitted(memberId, candidateProfessionId, selection))
                 return CommandOkTyped();
@@ -120,6 +109,9 @@ public sealed class GameRuntimeRewardFlowHandler
                 return CommandOkTyped();
             case RuntimeModalKind.ContractBoard:
                 CloseContractBoardModal();
+                return CommandOkTyped();
+            case RuntimeModalKind.NpcQuestOffer:
+                CloseNpcQuestOfferModal();
                 return CommandOkTyped();
             case RuntimeModalKind.Shop:
                 CloseShopModal();
@@ -175,7 +167,7 @@ public sealed class GameRuntimeRewardFlowHandler
         {
             if (
                 !PromotionPromptContainsChoice(
-                    GetPendingPromotionPrompt(),
+                    _runtime.GetPendingPromotionPromptSnapshotPlain(),
                     memberId,
                     professionId,
                     selection
@@ -200,7 +192,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return true;
         }
 
-        var prompt = GetPendingWorldPromotionPrompt();
+        PlainDictionary prompt = _runtime.GetPendingWorldPromotionPromptSnapshotPlain();
         if (prompt.Count == 0)
         {
             RejectInvalidPromotionChoice();
@@ -224,7 +216,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (delta.needs_promotion_modal)
         {
             SetPendingWorldPromotionPrompt(
-                _runtime.BuildRuntimePromotionPromptInternal(delta, "确认后将在世界地图立即生效。")
+                _runtime.BuildRuntimePromotionPromptPlain(delta, "确认后将在世界地图立即生效。")
             );
             SetActiveModalKind(RuntimeModalKind.Promotion);
             if (persistError == Error.Ok)
@@ -263,7 +255,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return;
         if (IsBattleActive())
         {
-            if (GetPendingPromotionPrompt().Count == 0)
+            if (!_runtime.HasPendingPromotionPrompt())
             {
                 UpdateStatus("当前晋升选择无法取消。");
                 return;
@@ -273,7 +265,7 @@ public sealed class GameRuntimeRewardFlowHandler
             return;
         }
 
-        if (GetPendingWorldPromotionPrompt().Count == 0)
+        if (!_runtime.HasPendingWorldPromotionPrompt())
         {
             UpdateStatus("当前晋升选择无法取消。");
             return;
@@ -296,7 +288,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (delta != null && delta.needs_promotion_modal)
         {
             SetPendingWorldPromotionPrompt(
-                _runtime.BuildRuntimePromotionPromptInternal(delta, "确认后将在世界地图立即生效。")
+                _runtime.BuildRuntimePromotionPromptPlain(delta, "确认后将在世界地图立即生效。")
             );
             SetActiveModalKind(RuntimeModalKind.Promotion);
             if (persistError == Error.Ok)
@@ -360,7 +352,7 @@ public sealed class GameRuntimeRewardFlowHandler
         var activeModalKind = GetActiveModalKind();
         if (!HasRuntime() || IsBattleActive())
             return false;
-        if (GetPendingWorldPromotionPrompt().Count > 0)
+        if (_runtime.HasPendingWorldPromotionPrompt())
         {
             if (activeModalKind != RuntimeModalKind.Promotion)
             {
@@ -381,6 +373,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (
             activeModalKind == RuntimeModalKind.Settlement
             || activeModalKind == RuntimeModalKind.ContractBoard
+            || activeModalKind == RuntimeModalKind.NpcQuestOffer
             || activeModalKind == RuntimeModalKind.Shop
             || activeModalKind == RuntimeModalKind.Forge
             || activeModalKind == RuntimeModalKind.Stagecoach
@@ -457,29 +450,32 @@ public sealed class GameRuntimeRewardFlowHandler
     }
 
     private bool PromotionPromptContainsChoice(
-        Dictionary prompt,
+        PlainDictionary prompt,
         StringName memberId,
         StringName professionId,
         PromotionSelectionData selection
     )
     {
-        if (prompt.Count == 0)
+        if (prompt == null || prompt.Count == 0)
             return false;
-        if (DictionaryStringName(prompt, "member_id") != memberId)
+        if (PlainStringName(prompt, "member_id") != memberId)
             return false;
-        var choices = DictionaryArray(prompt, "choices");
+        PlainList choices = PlainArray(prompt, "choices");
         if (choices.Count == 0)
             return false;
-        foreach (var choiceValue in choices)
+        foreach (object choiceValue in choices)
         {
-            if (choiceValue.VariantType != Variant.Type.Dictionary)
+            if (choiceValue is not PlainDictionary choiceData)
                 continue;
-            var choiceData = choiceValue.AsGodotDictionary();
-            if (DictionaryStringName(choiceData, "profession_id") != professionId)
+            if (PlainStringName(choiceData, "profession_id") != professionId)
                 continue;
-            if (!TryDictionary(choiceData, "selection", out Dictionary choiceSelection))
+            if (!TryPlainDictionary(choiceData, "selection", out PlainDictionary choiceSelection))
                 continue;
-            if (PromotionSelectionData.FromPayload(choiceSelection).SelectionEquals(selection))
+            if (
+                PromotionSelectionData
+                    .FromPlainPayload(choiceSelection)
+                    .SelectionEquals(selection)
+            )
                 return true;
         }
         return false;
@@ -526,20 +522,6 @@ public sealed class GameRuntimeRewardFlowHandler
         if (delta.needs_promotion_modal)
             return true;
         return delta.HasChangedProfessionId(professionId);
-    }
-
-    private Dictionary GetPendingPromotionPrompt()
-    {
-        if (!HasRuntime())
-            return new Dictionary();
-        return _runtime.GetPendingPromotionPrompt();
-    }
-
-    private Dictionary GetPendingWorldPromotionPrompt()
-    {
-        if (!HasRuntime())
-            return new Dictionary();
-        return _runtime.GetPendingWorldPromotionPromptState();
     }
 
     private PendingCharacterReward GetActiveReward()
@@ -589,6 +571,12 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (HasRuntime())
             _runtime.CloseContractBoardModal();
+    }
+
+    private void CloseNpcQuestOfferModal()
+    {
+        if (HasRuntime())
+            _runtime.CloseNpcQuestOfferModal();
     }
 
     private void CloseShopModal()
@@ -680,10 +668,12 @@ public sealed class GameRuntimeRewardFlowHandler
         return (Error)_runtime.PersistPartyState();
     }
 
-    private void SetPendingWorldPromotionPrompt(Dictionary prompt)
+    private void SetPendingWorldPromotionPrompt(
+        System.Collections.Generic.IReadOnlyDictionary<string, object> prompt
+    )
     {
         if (HasRuntime())
-            _runtime.SetPendingWorldPromotionPromptState(prompt);
+            _runtime.SetPendingWorldPromotionPromptStatePlain(prompt);
     }
 
     private string GetMemberDisplayName(StringName memberId)
@@ -721,54 +711,54 @@ public sealed class GameRuntimeRewardFlowHandler
             _runtime.SetActiveRewardState(reward);
     }
 
-    private static StringName DictionaryStringName(Dictionary dictionary, string key)
+    private static StringName PlainStringName(PlainDictionary dictionary, string key)
     {
-        if (!TryReadString(dictionary, key, out string value))
+        if (!TryReadPlainString(dictionary, key, out string value))
             return "";
         return new StringName(value);
     }
 
-    private static Godot.Collections.Array DictionaryArray(Dictionary dictionary, string key)
+    private static PlainList PlainArray(PlainDictionary dictionary, string key)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return new Godot.Collections.Array();
-        var value = dictionary[key];
-        return value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new Godot.Collections.Array();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object value)
+            && value is PlainList values
+            ? values
+            : System.Array.Empty<object>();
     }
 
-    private static Dictionary DictionaryDictionary(Dictionary dictionary, string key)
+    private static bool TryPlainDictionary(
+        PlainDictionary dictionary,
+        string key,
+        out PlainDictionary value
+    )
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return new Dictionary();
-        var value = dictionary[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new Dictionary();
-    }
-
-    private static bool TryDictionary(Dictionary dictionary, string key, out Dictionary value)
-    {
-        value = new Dictionary();
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        value = null;
+        if (
+            dictionary == null
+            || !dictionary.TryGetValue(key, out object rawValue)
+            || rawValue is not PlainDictionary dictionaryValue
+        )
             return false;
-        var rawValue = dictionary[key];
-        if (rawValue.VariantType != Variant.Type.Dictionary)
-            return false;
-        value = rawValue.AsGodotDictionary();
+        value = dictionaryValue;
         return true;
     }
 
-    private static bool TryReadString(Dictionary dictionary, string key, out string value)
+    private static bool TryReadPlainString(
+        PlainDictionary dictionary,
+        string key,
+        out string value
+    )
     {
         value = "";
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+        if (
+            dictionary == null
+            || string.IsNullOrEmpty(key)
+            || !dictionary.TryGetValue(key, out object rawValue)
+            || rawValue is not string stringValue
+        )
             return false;
-        var rawValue = dictionary[key];
-        if (rawValue.VariantType != Variant.Type.String)
-            return false;
-        value = rawValue.AsString();
+        value = stringValue;
         return true;
     }
 

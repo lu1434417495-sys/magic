@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 
 // 战斗边缘面运行时缓存。
 // 翻译自 battle_edge_face_state.gd（2026-05-24，数据层 C# 迁移）。
-public partial class BattleEdgeFaceState : RefCounted
+public class BattleEdgeFaceState
 {
     public Vector2I origin_coord { get; set; } = Vector2I.Zero;
     public Vector2I neighbor_coord { get; set; } = Vector2I.Zero;
@@ -11,7 +12,7 @@ public partial class BattleEdgeFaceState : RefCounted
     public int to_height { get; set; }
     public int height_difference { get; set; }
     public int drop_layers { get; set; }
-    public Godot.Collections.Array<int> drop_face_layer_heights { get; set; } = new();
+    public List<int> drop_face_layer_heights { get; set; } = new();
     public StringName feature_kind { get; set; } =
         BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None);
     public StringName feature_render_kind { get; set; } =
@@ -56,4 +57,5 @@ public partial class BattleEdgeFaceState : RefCounted
     {
         return feature_blocks_occupancy;
     }
+
 }

@@ -3,14 +3,14 @@ using Godot;
 
 public sealed class AscensionApplyService
 {
-    private Dictionary<StringName, AscensionDef> _ascensionDefs = new();
-    private Dictionary<StringName, AscensionStageDef> _ascensionStageDefs = new();
+    private Dictionary<StringName, AscensionDefinition> _ascensionDefs = new();
+    private Dictionary<StringName, AscensionStageDefinition> _ascensionStageDefs = new();
 
     public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
         identityCatalog ??= new ProgressionIdentityCatalogData();
-        _ascensionDefs = new Dictionary<StringName, AscensionDef>(identityCatalog.AscensionDefs);
-        _ascensionStageDefs = new Dictionary<StringName, AscensionStageDef>(
+        _ascensionDefs = new Dictionary<StringName, AscensionDefinition>(identityCatalog.AscensionDefs);
+        _ascensionStageDefs = new Dictionary<StringName, AscensionStageDefinition>(
             identityCatalog.AscensionStageDefs
         );
     }
@@ -29,8 +29,8 @@ public sealed class AscensionApplyService
             || currentWorldStep < 0
         )
             return false;
-        _ascensionDefs.TryGetValue(ascensionId, out AscensionDef ascensionDef);
-        _ascensionStageDefs.TryGetValue(ascensionStageId, out AscensionStageDef stageDef);
+        _ascensionDefs.TryGetValue(ascensionId, out AscensionDefinition ascensionDef);
+        _ascensionStageDefs.TryGetValue(ascensionStageId, out AscensionStageDefinition stageDef);
         if (!IsValidAscensionStagePair(ascensionDef, stageDef, ascensionId, ascensionStageId))
             return false;
         if (!MemberMatchesAllowedIdentity(memberState, ascensionDef))
@@ -62,45 +62,53 @@ public sealed class AscensionApplyService
     }
 
     private static bool IsValidAscensionStagePair(
-        AscensionDef ascensionDef,
-        AscensionStageDef stageDef,
+        AscensionDefinition ascensionDef,
+        AscensionStageDefinition stageDef,
         StringName ascensionId,
         StringName ascensionStageId
     )
     {
         if (ascensionDef == null || stageDef == null)
             return false;
-        if (ascensionDef.ascension_id != ascensionId)
+        if (ascensionDef.AscensionId != ascensionId)
             return false;
-        if (stageDef.stage_id != ascensionStageId)
+        if (stageDef.StageId != ascensionStageId)
             return false;
-        if (stageDef.ascension_id != ascensionId)
+        if (stageDef.AscensionId != ascensionId)
             return false;
-        return ascensionDef.stage_ids.Contains(ascensionStageId);
+        return ContainsId(ascensionDef.StageIds, ascensionStageId);
     }
 
     private static bool MemberMatchesAllowedIdentity(
         PartyMemberState memberState,
-        AscensionDef ascensionDef
+        AscensionDefinition ascensionDef
     )
     {
         if (ascensionDef == null || memberState == null)
             return false;
         if (
-            ascensionDef.allowed_race_ids.Count > 0
-            && !ascensionDef.allowed_race_ids.Contains(memberState.race_id)
+            ascensionDef.AllowedRaceIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedRaceIds, memberState.race_id)
         )
             return false;
         if (
-            ascensionDef.allowed_subrace_ids.Count > 0
-            && !ascensionDef.allowed_subrace_ids.Contains(memberState.subrace_id)
+            ascensionDef.AllowedSubraceIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedSubraceIds, memberState.subrace_id)
         )
             return false;
         if (
-            ascensionDef.allowed_bloodline_ids.Count > 0
-            && !ascensionDef.allowed_bloodline_ids.Contains(memberState.bloodline_id)
+            ascensionDef.AllowedBloodlineIds.Count > 0
+            && !ContainsId(ascensionDef.AllowedBloodlineIds, memberState.bloodline_id)
         )
             return false;
         return true;
+    }
+
+    private static bool ContainsId(IReadOnlyList<StringName> values, StringName expected)
+    {
+        foreach (StringName value in values)
+            if (value == expected)
+                return true;
+        return false;
     }
 }

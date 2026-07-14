@@ -3,10 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GEffectiveTraitArray = Godot.Collections.Array<BattleEffectiveTraitInstanceState>;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal enum BattleWeaponProfileKind
 {
@@ -25,7 +22,7 @@ internal enum BattleWeaponGripKind
     TwoHanded,
 }
 
-public partial class BattleUnitState : RefCounted
+public partial class BattleUnitState
 {
     private static readonly StringName WeaponProfileKindNone = "none";
     private static readonly StringName WeaponProfileKindUnarmed = "unarmed";
@@ -66,6 +63,7 @@ public partial class BattleUnitState : RefCounted
         "source_member_id",
         "enemy_template_id",
         "display_name",
+        "battle_sprite_texture_path",
         "faction_id",
         "control_mode",
         "ai_brain_id",
@@ -106,12 +104,16 @@ public partial class BattleUnitState : RefCounted
         "proficiency_tags",
         "save_advantage_tags",
         "damage_resistances",
+        "save_bonus_by_ability",
         "effective_trait_instances",
         "effective_trait_ids",
+        "equipment_ability_sources",
+        "creature_type_tags",
         "versatility_pick",
         "weapon_profile_kind",
         "weapon_item_id",
         "weapon_profile_type_id",
+        "weapon_range_type",
         "weapon_family",
         "weapon_current_grip",
         "weapon_attack_range",
@@ -128,7 +130,7 @@ public partial class BattleUnitState : RefCounted
     internal static IReadOnlyList<StringName> DefaultUnlockedCombatResourceIdsTyped =>
         CombatResourceIds.DefaultUnlocked;
 
-    internal static GStringNameArray CreateDefaultUnlockedCombatResourceProjection() =>
+    internal static StringNameList CreateDefaultUnlockedCombatResourceProjection() =>
         new(CombatResourceIds.DefaultUnlocked);
 
     internal static bool IsValidCombatResourceId(StringName resourceId) =>
@@ -185,7 +187,7 @@ public partial class BattleUnitState : RefCounted
     public StringName source_member_id = "";
     public StringName enemy_template_id = "";
     public string display_name = "";
-    public Texture2D battle_sprite_texture;
+    public string battle_sprite_texture_path = "";
     public StringName faction_id = "";
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
@@ -195,7 +197,7 @@ public partial class BattleUnitState : RefCounted
     public int body_size { get; internal set; } = BodySizeMedium;
     public StringName body_size_category { get; internal set; } = BodySizeCategoryMedium;
     public Vector2I footprint_size { get; internal set; } = Vector2I.One;
-    public GVector2IArray occupied_coords { get; internal set; } = new();
+    public Vector2IList occupied_coords { get; internal set; } = new();
     public bool is_alive { get; internal set; } = true;
     public AttributeSnapshot attribute_snapshot = NewAttributeSnapshot();
     public EquipmentState equipment_view = NewEquipmentState();
@@ -206,7 +208,7 @@ public partial class BattleUnitState : RefCounted
     public int current_aura { get; internal set; }
     public int current_ap { get; internal set; }
     public int current_move_points { get; internal set; } = DefaultMovePointsPerTurn;
-    public GStringNameArray unlocked_combat_resource_ids =
+    public StringNameList unlocked_combat_resource_ids =
         CreateDefaultUnlockedCombatResourceProjection();
     public int stamina_recovery_progress;
     public bool is_resting;
@@ -219,18 +221,23 @@ public partial class BattleUnitState : RefCounted
     public StringName shield_family = "";
     public StringName shield_source_unit_id = "";
     public StringName shield_source_skill_id = "";
+    private readonly List<StringName> _consumedContingencySetupIds = new();
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
-    public GStringNameArray known_active_skill_ids { get; internal set; } = new();
+    public StringNameList known_active_skill_ids { get; internal set; } = new();
     public BattleStringNameIntMap known_skill_level_map = new();
     public BattleStringNameIntMap known_skill_lock_hit_bonus_map = new();
-    public GStringNameArray movement_tags = new();
-    public GStringNameArray vision_tags = new();
-    public GStringNameArray proficiency_tags = new();
-    public GStringNameArray save_advantage_tags = new();
+    public StringNameList movement_tags = new();
+    public StringNameList vision_tags = new();
+    public StringNameList proficiency_tags = new();
+    public StringNameList save_advantage_tags = new();
     public BattleStringNameMap damage_resistances = new();
-    public GEffectiveTraitArray effective_trait_instances = new();
-    public GStringNameArray effective_trait_ids = new();
+    public BattleStringNameIntMap save_bonus_by_ability = new();
+    public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
+    public StringNameList effective_trait_ids = new();
+    public List<BattleEquipmentAbilitySourceState> equipment_ability_sources = new();
+    internal List<BattleTemporalProgressModifierState> temporal_progress_modifiers = new();
+    public StringNameList creature_type_tags = new();
     internal BattleUnitControlMode ControlModeKind
     {
         get => BattleTypedNames.ToControlMode(control_mode);
@@ -240,6 +247,7 @@ public partial class BattleUnitState : RefCounted
     public StringName weapon_profile_kind = WeaponProfileKindNone;
     public StringName weapon_item_id = "";
     public StringName weapon_profile_type_id = "";
+    public StringName weapon_range_type = "";
     public StringName weapon_family = "";
     public StringName weapon_current_grip = WeaponGripNone;
     public int weapon_attack_range;
@@ -301,8 +309,16 @@ public partial class BattleUnitState : RefCounted
 
     public void RefreshFootprint()
     {
-        footprint_size = GetFootprintSizeForBodySize(body_size);
-        occupied_coords = BuildOccupiedCoords(coord, footprint_size);
+        Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
+        if (
+            footprint_size == resolvedFootprint
+            && OccupiedCoordsMatch(coord, resolvedFootprint, occupied_coords)
+        )
+        {
+            return;
+        }
+        footprint_size = resolvedFootprint;
+        occupied_coords = BuildOccupiedCoords(coord, resolvedFootprint);
     }
 
     public bool OccupiesCoord(Vector2I target_coord)
@@ -326,6 +342,23 @@ public partial class BattleUnitState : RefCounted
     public int GetCurrentAp() => current_ap;
 
     public int GetCurrentMovePoints() => current_move_points;
+
+    public int GetMovePointCapacity()
+    {
+        int delta = 0;
+        foreach (BattleStatusEffectState status in GetStatusEffectsTyped())
+        {
+            if (status == null || status.stacks <= 0)
+                continue;
+            delta += status.move_point_capacity_delta;
+        }
+        return Math.Max(DefaultMovePointsPerTurn + delta, 0);
+    }
+
+    public void ClampCurrentMovePointsToCapacity()
+    {
+        current_move_points = Math.Min(Math.Max(current_move_points, 0), GetMovePointCapacity());
+    }
 
     public bool IsAlive() => is_alive;
 
@@ -484,7 +517,7 @@ public partial class BattleUnitState : RefCounted
     public IReadOnlyList<Vector2I> GetOccupiedCoordsTyped()
     {
         var results = new List<Vector2I>();
-        foreach (Vector2I occupiedCoord in occupied_coords ?? new GVector2IArray())
+        foreach (Vector2I occupiedCoord in occupied_coords ?? new Vector2IList())
             results.Add(occupiedCoord);
         return results;
     }
@@ -517,7 +550,7 @@ public partial class BattleUnitState : RefCounted
         StringName category,
         int size,
         Vector2I footprint,
-        GVector2IArray occupiedCoords
+        IEnumerable<Vector2I> occupiedCoords
     )
     {
         body_size_category = IsValidBodySizeCategory(category)
@@ -774,7 +807,7 @@ public partial class BattleUnitState : RefCounted
 
     internal void SetKnownActiveSkillIds(IEnumerable<StringName> skillIds)
     {
-        known_active_skill_ids = new GStringNameArray();
+        known_active_skill_ids = new StringNameList();
         if (skillIds == null)
         {
             return;
@@ -799,7 +832,7 @@ public partial class BattleUnitState : RefCounted
         {
             return;
         }
-        known_active_skill_ids ??= new GStringNameArray();
+        known_active_skill_ids ??= new StringNameList();
         if (!known_active_skill_ids.Contains(normalized))
         {
             known_active_skill_ids.Add(normalized);
@@ -949,9 +982,9 @@ public partial class BattleUnitState : RefCounted
         return true;
     }
 
-    public void SetUnlockedCombatResourceIds(GStringNameArray resource_ids)
+    public void SetUnlockedCombatResourceIds(IEnumerable<StringName> resource_ids)
     {
-        unlocked_combat_resource_ids = new GStringNameArray();
+        unlocked_combat_resource_ids = new StringNameList();
         if (resource_ids != null)
         {
             foreach (StringName resourceId in resource_ids)
@@ -971,6 +1004,23 @@ public partial class BattleUnitState : RefCounted
         shield_source_unit_id = "";
         shield_source_skill_id = "";
     }
+
+    internal void MarkContingencySetupConsumed(StringName setupId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
+        if (normalized == "" || _consumedContingencySetupIds.Contains(normalized))
+            return;
+        _consumedContingencySetupIds.Add(normalized);
+    }
+
+    internal bool HasConsumedContingencySetup(StringName setupId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
+        return normalized != "" && _consumedContingencySetupIds.Contains(normalized);
+    }
+
+    internal IReadOnlyList<StringName> GetConsumedContingencySetupIdsTyped() =>
+        new List<StringName>(_consumedContingencySetupIds);
 
     public void NormalizeShieldState()
     {
@@ -999,10 +1049,7 @@ public partial class BattleUnitState : RefCounted
     public void SetEquipmentView(EquipmentState source_equipment_state)
     {
         equipment_view_initialized = true;
-        EquipmentState nextEquipmentView =
-            source_equipment_state?.DuplicateState() ?? NewEquipmentState();
-        GodotRefCountedDisposer.DisposeIfValid(equipment_view);
-        equipment_view = nextEquipmentView;
+        equipment_view = source_equipment_state?.DuplicateState() ?? NewEquipmentState();
     }
 
     public void ClearWeaponProjection()
@@ -1010,6 +1057,7 @@ public partial class BattleUnitState : RefCounted
         weapon_profile_kind = WeaponProfileKindNone;
         weapon_item_id = "";
         weapon_profile_type_id = "";
+        weapon_range_type = "";
         weapon_family = "";
         weapon_current_grip = WeaponGripNone;
         weapon_attack_range = 0;
@@ -1052,6 +1100,7 @@ public partial class BattleUnitState : RefCounted
             {
                 weapon_profile_kind = WeaponProfileKindUnarmed,
                 weapon_profile_type_id = "unarmed",
+                weapon_range_type = "melee",
                 weapon_family = "unarmed",
                 weapon_current_grip = WeaponGripOneHanded,
                 weapon_attack_range = attackRange,
@@ -1092,6 +1141,7 @@ public partial class BattleUnitState : RefCounted
             {
                 weapon_profile_kind = WeaponProfileKindNatural,
                 weapon_profile_type_id = !IsEmpty(profileTypeId) ? profileTypeId : "natural_weapon",
+                weapon_range_type = "melee",
                 weapon_family = family,
                 weapon_current_grip = attackRange > 0 ? WeaponGripOneHanded : WeaponGripNone,
                 weapon_attack_range = attackRange,
@@ -1114,6 +1164,7 @@ public partial class BattleUnitState : RefCounted
         );
         weapon_item_id = ToStringName(projection.weapon_item_id);
         weapon_profile_type_id = ToStringName(projection.weapon_profile_type_id);
+        weapon_range_type = ToStringName(projection.weapon_range_type);
         weapon_family = ToStringName(projection.weapon_family);
         weapon_current_grip = NormalizeWeaponGrip(ToStringName(projection.weapon_current_grip));
         weapon_attack_range = Math.Max(projection.weapon_attack_range, 0);
@@ -1226,6 +1277,7 @@ public partial class BattleUnitState : RefCounted
             source_member_id = source_member_id,
             enemy_template_id = enemy_template_id,
             display_name = display_name,
+            battle_sprite_texture_path = battle_sprite_texture_path,
             faction_id = faction_id,
             control_mode = control_mode,
             ai_brain_id = ai_brain_id,
@@ -1245,9 +1297,8 @@ public partial class BattleUnitState : RefCounted
             current_aura = current_aura,
             current_ap = current_ap,
             current_move_points = current_move_points,
-            unlocked_combat_resource_ids = DuplicateStringNameArray(
-                unlocked_combat_resource_ids
-            ),
+            unlocked_combat_resource_ids =
+                unlocked_combat_resource_ids?.Duplicate() ?? new StringNameList(),
             stamina_recovery_progress = stamina_recovery_progress,
             is_resting = is_resting,
             has_taken_action_this_turn = has_taken_action_this_turn,
@@ -1261,21 +1312,29 @@ public partial class BattleUnitState : RefCounted
             shield_source_skill_id = shield_source_skill_id,
             action_progress = action_progress,
             action_threshold = action_threshold,
-            known_active_skill_ids = DuplicateStringNameArray(known_active_skill_ids),
+            known_active_skill_ids =
+                known_active_skill_ids?.Duplicate() ?? new StringNameList(),
             known_skill_level_map = known_skill_level_map?.Clone() ?? new BattleStringNameIntMap(),
             known_skill_lock_hit_bonus_map =
                 known_skill_lock_hit_bonus_map?.Clone() ?? new BattleStringNameIntMap(),
-            movement_tags = DuplicateStringNameArray(movement_tags),
-            vision_tags = DuplicateStringNameArray(vision_tags),
-            proficiency_tags = DuplicateStringNameArray(proficiency_tags),
-            save_advantage_tags = DuplicateStringNameArray(save_advantage_tags),
+            movement_tags = movement_tags?.Duplicate() ?? new StringNameList(),
+            vision_tags = vision_tags?.Duplicate() ?? new StringNameList(),
+            proficiency_tags = proficiency_tags?.Duplicate() ?? new StringNameList(),
+            save_advantage_tags = save_advantage_tags?.Duplicate() ?? new StringNameList(),
             damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
+            save_bonus_by_ability = save_bonus_by_ability?.Clone() ?? new BattleStringNameIntMap(),
             effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
             effective_trait_ids = DeriveEffectiveTraitIdsFromInstances(effective_trait_instances),
+            equipment_ability_sources = DuplicateEquipmentAbilitySources(equipment_ability_sources),
+            temporal_progress_modifiers = DuplicateTemporalProgressModifiers(
+                temporal_progress_modifiers
+            ),
+            creature_type_tags = creature_type_tags?.Duplicate() ?? new StringNameList(),
             versatility_pick = versatility_pick,
             weapon_profile_kind = weapon_profile_kind,
             weapon_item_id = weapon_item_id,
             weapon_profile_type_id = weapon_profile_type_id,
+            weapon_range_type = weapon_range_type,
             weapon_family = weapon_family,
             weapon_current_grip = weapon_current_grip,
             weapon_attack_range = weapon_attack_range,
@@ -1298,7 +1357,15 @@ public partial class BattleUnitState : RefCounted
             turn_casting_exhausted = turn_casting_exhausted,
             action_progress_rate_remainder = action_progress_rate_remainder,
             cast_progress_rate_remainder = cast_progress_rate_remainder,
-        };
+        }.WithConsumedContingencySetupIds(_consumedContingencySetupIds);
+    }
+
+    private BattleUnitState WithConsumedContingencySetupIds(IEnumerable<StringName> setupIds)
+    {
+        _consumedContingencySetupIds.Clear();
+        foreach (StringName setupId in setupIds ?? Array.Empty<StringName>())
+            MarkContingencySetupConsumed(setupId);
+        return this;
     }
 
     public static Vector2I GetFootprintSizeForBodySize(int size_value)
@@ -1306,21 +1373,20 @@ public partial class BattleUnitState : RefCounted
         return GetFootprintForBodySize(Math.Max(size_value, BodySizeSmall));
     }
 
-    public GDictionary ToDictionary()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         NormalizeBodySizeProjection();
         NormalizeShieldState();
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
 
-        GDictionary statusPayloads = _statusEffects.ToDictionary();
-
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["unit_id"] = unit_id.ToString(),
             ["source_member_id"] = source_member_id.ToString(),
             ["enemy_template_id"] = enemy_template_id.ToString(),
             ["display_name"] = display_name,
+            ["battle_sprite_texture_path"] = battle_sprite_texture_path,
             ["faction_id"] = faction_id.ToString(),
             ["control_mode"] = control_mode.ToString(),
             ["ai_brain_id"] = ai_brain_id.ToString(),
@@ -1330,10 +1396,10 @@ public partial class BattleUnitState : RefCounted
             ["body_size"] = body_size,
             ["body_size_category"] = body_size_category.ToString(),
             ["footprint_size"] = footprint_size,
-            ["occupied_coords"] = DuplicateVector2IArray(occupied_coords),
+            ["occupied_coords"] = ProjectVector2IListPlain(occupied_coords),
             ["is_alive"] = is_alive,
-            ["attribute_snapshot"] = AttributeSnapshotToDict(attribute_snapshot),
-            ["equipment_view"] = EquipmentViewToDict(GetEquipmentView()),
+            ["attribute_snapshot"] = AttributeSnapshotToPlain(attribute_snapshot),
+            ["equipment_view"] = EquipmentViewToPlain(GetEquipmentView()),
             ["current_hp"] = current_hp,
             ["current_mp"] = current_mp,
             ["current_stamina"] = current_stamina,
@@ -1341,7 +1407,7 @@ public partial class BattleUnitState : RefCounted
             ["aura_max"] = GetAuraMax(),
             ["current_ap"] = current_ap,
             ["current_move_points"] = current_move_points,
-            ["unlocked_combat_resource_ids"] = StringNameArrayToStrings(
+            ["unlocked_combat_resource_ids"] = StringNameListToPlain(
                 unlocked_combat_resource_ids
             ),
             ["stamina_recovery_progress"] = stamina_recovery_progress,
@@ -1356,39 +1422,78 @@ public partial class BattleUnitState : RefCounted
             ["shield_source_skill_id"] = shield_source_skill_id.ToString(),
             ["action_progress"] = action_progress,
             ["action_threshold"] = action_threshold,
-            ["known_active_skill_ids"] = StringNameArrayToStrings(known_active_skill_ids),
+            ["known_active_skill_ids"] = StringNameListToPlain(known_active_skill_ids),
             ["known_skill_level_map"] =
-                known_skill_level_map?.ProjectStringKeyPayload() ?? new GDictionary(),
+                StringNameIntMapToPlain(known_skill_level_map),
             ["known_skill_lock_hit_bonus_map"] =
-                known_skill_lock_hit_bonus_map?.ProjectStringKeyPayload() ?? new GDictionary(),
-            ["movement_tags"] = StringNameArrayToStrings(movement_tags),
-            ["vision_tags"] = StringNameArrayToStrings(vision_tags),
-            ["proficiency_tags"] = StringNameArrayToStrings(proficiency_tags),
-            ["save_advantage_tags"] = StringNameArrayToStrings(save_advantage_tags),
+                StringNameIntMapToPlain(known_skill_lock_hit_bonus_map),
+            ["movement_tags"] = StringNameListToPlain(movement_tags),
+            ["vision_tags"] = StringNameListToPlain(vision_tags),
+            ["proficiency_tags"] = StringNameListToPlain(proficiency_tags),
+            ["save_advantage_tags"] = StringNameListToPlain(save_advantage_tags),
             ["damage_resistances"] =
-                damage_resistances?.ProjectStringKeyPayload() ?? new GDictionary(),
-            ["effective_trait_instances"] = EffectiveTraitInstancesToPayloadArray(
+                StringNameMapToPlain(damage_resistances),
+            ["save_bonus_by_ability"] =
+                StringNameIntMapToPlain(save_bonus_by_ability),
+            ["effective_trait_instances"] = EffectiveTraitInstancesToPlain(
                 effective_trait_instances
             ),
-            ["effective_trait_ids"] = StringNameArrayToStrings(
+            ["effective_trait_ids"] = StringNameListToPlain(
                 DeriveEffectiveTraitIdsFromInstances(effective_trait_instances)
             ),
+            ["equipment_ability_sources"] = EquipmentAbilitySourcesToPlain(
+                equipment_ability_sources
+            ),
+            ["creature_type_tags"] = StringNameListToPlain(creature_type_tags),
             ["versatility_pick"] = versatility_pick.ToString(),
             ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
             ["weapon_item_id"] = weapon_item_id.ToString(),
             ["weapon_profile_type_id"] = weapon_profile_type_id.ToString(),
+            ["weapon_range_type"] = weapon_range_type.ToString(),
             ["weapon_family"] = weapon_family.ToString(),
             ["weapon_current_grip"] = weapon_current_grip.ToString(),
             ["weapon_attack_range"] = weapon_attack_range,
-            ["weapon_one_handed_dice"] = WeaponDiceToDictionary(weapon_one_handed_dice),
-            ["weapon_two_handed_dice"] = WeaponDiceToDictionary(weapon_two_handed_dice),
+            ["weapon_one_handed_dice"] = WeaponDiceToPlain(weapon_one_handed_dice),
+            ["weapon_two_handed_dice"] = WeaponDiceToPlain(weapon_two_handed_dice),
             ["weapon_is_versatile"] = weapon_is_versatile,
             ["weapon_uses_two_hands"] = weapon_uses_two_hands,
             ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
-            ["cooldowns"] = cooldowns?.ProjectPayload() ?? new GDictionary(),
+            ["cooldowns"] = StringNameIntMapToStringNameKeyPlain(cooldowns),
             ["last_turn_tu"] = last_turn_tu,
-            ["status_effects"] = statusPayloads,
+            ["status_effects"] = _statusEffects.BuildSnapshotPlain(),
         };
+    }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease(
+        LifetimeDomain domain,
+        string reason
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "battle-unit-state",
+            domain,
+            reason
+        );
+
+    internal static bool TryReadUnitPayload(object rawValue, out BattleUnitState value)
+    {
+        value = null;
+        switch (rawValue)
+        {
+            case null:
+                return false;
+            case BattleUnitState unit:
+                value = unit;
+                return value != null;
+            case Variant variantValue when variantValue.VariantType == Variant.Type.Dictionary:
+                value = FromDictionary(variantValue.AsGodotDictionary());
+                return value != null;
+            case GDictionary payload:
+                value = FromDictionary(payload);
+                return value != null;
+            default:
+                return false;
+        }
     }
 
     public static BattleUnitState FromDictionary(GDictionary payload)
@@ -1439,7 +1544,7 @@ public partial class BattleUnitState : RefCounted
             return null;
         }
         Vector2I expectedFootprint = GetFootprintSizeForBodySize(bodySizeInt);
-        GVector2IArray expectedOccupied = BuildOccupiedCoords(
+        Vector2IList expectedOccupied = BuildOccupiedCoords(
             coordValue.AsVector2I(),
             expectedFootprint
         );
@@ -1451,7 +1556,7 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        GVector2IArray parsedOccupiedCoords = new();
+        Vector2IList parsedOccupiedCoords = new();
         foreach (var occupiedCoordValue in occupiedCoordsValue.AsGodotArray())
         {
             if (occupiedCoordValue.VariantType.ToString() != "Vector2I")
@@ -1489,6 +1594,7 @@ public partial class BattleUnitState : RefCounted
                 "shield_source_skill_id",
                 "weapon_item_id",
                 "weapon_profile_type_id",
+                "weapon_range_type",
                 "weapon_family",
                 "weapon_physical_damage_tag",
                 "versatility_pick",
@@ -1599,56 +1705,56 @@ public partial class BattleUnitState : RefCounted
                 return null;
             }
         }
-        GStringNameArray parsedUnlockedResources = _combat_resource_array_from_payload(
+        StringNameList parsedUnlockedResources = _combat_resource_array_from_payload(
             GetArray(payload, "unlocked_combat_resource_ids")
         );
         if (parsedUnlockedResources.Count == 0)
         {
             return null;
         }
-        GStringNameArray parsedKnownActiveSkillIds = _unique_string_name_array_from_payload(
+        StringNameList parsedKnownActiveSkillIds = _unique_string_name_array_from_payload(
             GetArray(payload, "known_active_skill_ids")
         );
         if (parsedKnownActiveSkillIds == null)
         {
             return null;
         }
-        GStringNameArray parsedMovementTags = _unique_string_name_array_from_payload(
+        StringNameList parsedMovementTags = _unique_string_name_array_from_payload(
             GetArray(payload, "movement_tags")
         );
         if (parsedMovementTags == null)
         {
             return null;
         }
-        GStringNameArray parsedVisionTags = _unique_string_name_array_from_payload(
+        StringNameList parsedVisionTags = _unique_string_name_array_from_payload(
             GetArray(payload, "vision_tags")
         );
         if (parsedVisionTags == null)
         {
             return null;
         }
-        GStringNameArray parsedProficiencyTags = _unique_string_name_array_from_payload(
+        StringNameList parsedProficiencyTags = _unique_string_name_array_from_payload(
             GetArray(payload, "proficiency_tags")
         );
         if (parsedProficiencyTags == null)
         {
             return null;
         }
-        GStringNameArray parsedSaveAdvantageTags = _unique_string_name_array_from_payload(
+        StringNameList parsedSaveAdvantageTags = _unique_string_name_array_from_payload(
             GetArray(payload, "save_advantage_tags")
         );
         if (parsedSaveAdvantageTags == null)
         {
             return null;
         }
-        GEffectiveTraitArray parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
+        List<BattleEffectiveTraitInstanceState> parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
             GetArray(payload, "effective_trait_instances")
         );
         if (parsedEffectiveTraitInstances == null)
         {
             return null;
         }
-        GStringNameArray parsedEffectiveTraitIds = _unique_string_name_array_from_payload(
+        StringNameList parsedEffectiveTraitIds = _unique_string_name_array_from_payload(
             GetArray(payload, "effective_trait_ids")
         );
         if (
@@ -1661,6 +1767,19 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
+        List<BattleEquipmentAbilitySourceState> parsedEquipmentAbilitySources =
+            EquipmentAbilitySourcesFromPayloadArray(GetArray(payload, "equipment_ability_sources"));
+        if (parsedEquipmentAbilitySources == null)
+        {
+            return null;
+        }
+        StringNameList parsedCreatureTypeTags = _unique_string_name_array_from_payload(
+            GetArray(payload, "creature_type_tags")
+        );
+        if (parsedCreatureTypeTags == null)
+        {
+            return null;
+        }
         BattleStringNameMap parsedDamageResistances = _damage_resistance_map_from_dict(
             payload["damage_resistances"].AsGodotDictionary()
         );
@@ -1668,6 +1787,14 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
+        BattleStringNameIntMap parsedSaveBonusByAbility =
+            payload.ContainsKey("save_bonus_by_ability")
+            && payload["save_bonus_by_ability"].VariantType.ToString() == "Dictionary"
+                ? BattleStringNameIntMap.FromPayloadOrNull(
+                    payload["save_bonus_by_ability"].AsGodotDictionary(),
+                    true
+                ) ?? new BattleStringNameIntMap()
+                : new BattleStringNameIntMap();
 
         StringName parsedWeaponProfileKind = ToStringName(payload["weapon_profile_kind"]);
         if (!IsValidWeaponProfileKind(parsedWeaponProfileKind))
@@ -1719,6 +1846,7 @@ public partial class BattleUnitState : RefCounted
             source_member_id = ToStringName(payload["source_member_id"]),
             enemy_template_id = ToStringName(payload["enemy_template_id"]),
             display_name = payload["display_name"].AsString(),
+            battle_sprite_texture_path = payload["battle_sprite_texture_path"].AsString(),
             faction_id = ToStringName(payload["faction_id"]),
             control_mode = ToStringName(payload["control_mode"]),
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
@@ -1763,12 +1891,16 @@ public partial class BattleUnitState : RefCounted
             proficiency_tags = parsedProficiencyTags,
             save_advantage_tags = parsedSaveAdvantageTags,
             damage_resistances = parsedDamageResistances,
+            save_bonus_by_ability = parsedSaveBonusByAbility,
             effective_trait_instances = parsedEffectiveTraitInstances,
             effective_trait_ids = parsedEffectiveTraitIds,
+            equipment_ability_sources = parsedEquipmentAbilitySources,
+            creature_type_tags = parsedCreatureTypeTags,
             versatility_pick = ToStringName(payload["versatility_pick"]),
             weapon_profile_kind = parsedWeaponProfileKind,
             weapon_item_id = ToStringName(payload["weapon_item_id"]),
             weapon_profile_type_id = ToStringName(payload["weapon_profile_type_id"]),
+            weapon_range_type = ToStringName(payload["weapon_range_type"]),
             weapon_family = ToStringName(payload["weapon_family"]),
             weapon_current_grip = parsedWeaponCurrentGrip,
             weapon_attack_range = payload["weapon_attack_range"].AsInt32(),
@@ -1823,44 +1955,9 @@ public partial class BattleUnitState : RefCounted
         return value.VariantType.ToString() == "Bool" && value.AsBool();
     }
 
-    private static GDictionary StatusEffectsFromDictionary(GDictionary values)
+    private static Vector2IList BuildOccupiedCoords(Vector2I anchor_coord, Vector2I footprint)
     {
-        GDictionary results = new();
-        if (values == null)
-            return null;
-        foreach (var statusKey in values.Keys)
-        {
-            if (
-                !IsStringNamePayloadType(statusKey.VariantType.ToString())
-                || IsEmpty(ToStringName(statusKey))
-            )
-            {
-                return null;
-            }
-            var effectValue = values[statusKey];
-            if (effectValue.VariantType.ToString() != "Dictionary")
-            {
-                return null;
-            }
-            BattleStatusEffectState effectState = BattleStatusEffectState.FromDictionary(
-                effectValue.AsGodotDictionary()
-            );
-            if (effectState == null || effectState.IsEmpty())
-            {
-                return null;
-            }
-            if (ToStringName(statusKey) != effectState.status_id)
-            {
-                return null;
-            }
-            results[effectState.status_id] = effectState;
-        }
-        return results;
-    }
-
-    private static GVector2IArray BuildOccupiedCoords(Vector2I anchor_coord, Vector2I footprint)
-    {
-        GVector2IArray results = new();
+        Vector2IList results = new();
         for (int y = 0; y < footprint.Y; y++)
         {
             for (int x = 0; x < footprint.X; x++)
@@ -1869,6 +1966,29 @@ public partial class BattleUnitState : RefCounted
             }
         }
         return results;
+    }
+
+    private static bool OccupiedCoordsMatch(
+        Vector2I anchorCoord,
+        Vector2I footprint,
+        IReadOnlyList<Vector2I> occupiedCoords
+    )
+    {
+        int width = Math.Max(footprint.X, 0);
+        int height = Math.Max(footprint.Y, 0);
+        if (occupiedCoords == null || occupiedCoords.Count != width * height)
+            return false;
+        int index = 0;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (occupiedCoords[index] != anchorCoord + new Vector2I(x, y))
+                    return false;
+                index += 1;
+            }
+        }
+        return true;
     }
 
     private static bool HasExactFields(GDictionary data, string[] expected_fields)
@@ -1966,13 +2086,13 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    private static GStringNameArray _unique_string_name_array_from_payload(GArray values)
+    private static StringNameList _unique_string_name_array_from_payload(GArray values)
     {
         if (values == null)
         {
             return null;
         }
-        GStringNameArray result = new();
+        StringNameList result = new();
         HashSet<StringName> seen = new();
         foreach (var value in values)
         {
@@ -1993,12 +2113,12 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GEffectiveTraitArray EffectiveTraitInstancesFromPayloadArray(GArray values)
+    internal static List<BattleEffectiveTraitInstanceState> EffectiveTraitInstancesFromPayloadArray(GArray values)
     {
         if (values == null)
             return null;
 
-        GEffectiveTraitArray result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         List<StringName> seenKeys = new();
         foreach (Variant entry in values)
         {
@@ -2017,10 +2137,10 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GEffectiveTraitArray DuplicateEffectiveTraitInstances(
-        GEffectiveTraitArray source)
+    internal static List<BattleEffectiveTraitInstanceState> DuplicateEffectiveTraitInstances(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
-        GEffectiveTraitArray result = new();
+        List<BattleEffectiveTraitInstanceState> result = new();
         if (source == null)
             return result;
         foreach (BattleEffectiveTraitInstanceState entry in source)
@@ -2029,19 +2149,85 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    internal static GArray EffectiveTraitInstancesToPayloadArray(GEffectiveTraitArray source)
+    private static List<object> EffectiveTraitInstancesToPlain(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
-        GArray result = new();
+        List<object> result = new();
         if (source == null)
             return result;
         foreach (BattleEffectiveTraitInstanceState entry in source)
             if (entry != null)
-                result.Add(entry.ToDictionary());
+                result.Add(EffectiveTraitInstanceToPlain(entry));
         return result;
     }
 
-    internal static GStringNameArray DeriveEffectiveTraitIdsFromInstances(
-        GEffectiveTraitArray source)
+    internal static List<BattleEquipmentAbilitySourceState> EquipmentAbilitySourcesFromPayloadArray(
+        GArray values
+    )
+    {
+        if (values == null)
+            return null;
+
+        List<BattleEquipmentAbilitySourceState> result = new();
+        List<StringName> seenKeys = new();
+        foreach (Variant entry in values)
+        {
+            if (entry.VariantType != Variant.Type.Dictionary)
+                return null;
+
+            BattleEquipmentAbilitySourceState parsed =
+                BattleEquipmentAbilitySourceState.FromDictionary(entry.AsGodotDictionary());
+            if (parsed == null)
+                return null;
+            if (ContainsStringName(seenKeys, parsed.EffectiveInstanceKey))
+                return null;
+            seenKeys.Add(parsed.EffectiveInstanceKey);
+            result.Add(parsed);
+        }
+        return result;
+    }
+
+    internal static List<BattleEquipmentAbilitySourceState> DuplicateEquipmentAbilitySources(
+        IEnumerable<BattleEquipmentAbilitySourceState> source
+    )
+    {
+        List<BattleEquipmentAbilitySourceState> result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEquipmentAbilitySourceState entry in source)
+            if (entry != null)
+                result.Add(entry.DuplicateState());
+        return result;
+    }
+
+    internal static List<BattleTemporalProgressModifierState> DuplicateTemporalProgressModifiers(
+        IEnumerable<BattleTemporalProgressModifierState> source
+    )
+    {
+        List<BattleTemporalProgressModifierState> result = new();
+        if (source == null)
+            return result;
+        foreach (BattleTemporalProgressModifierState entry in source)
+            if (entry != null)
+                result.Add(entry.DuplicateState());
+        return result;
+    }
+
+    private static List<object> EquipmentAbilitySourcesToPlain(
+        IEnumerable<BattleEquipmentAbilitySourceState> source
+    )
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (BattleEquipmentAbilitySourceState entry in source)
+            if (entry != null)
+                result.Add(EquipmentAbilitySourceToPlain(entry));
+        return result;
+    }
+
+    internal static StringNameList DeriveEffectiveTraitIdsFromInstances(
+        IEnumerable<BattleEffectiveTraitInstanceState> source)
     {
         List<StringName> values = new();
         if (source != null)
@@ -2057,7 +2243,7 @@ public partial class BattleUnitState : RefCounted
         }
         values.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
 
-        GStringNameArray result = new();
+        StringNameList result = new();
         foreach (StringName value in values)
             result.Add(value);
         return result;
@@ -2078,37 +2264,46 @@ public partial class BattleUnitState : RefCounted
             && IsStringNamePayloadType(data[key].VariantType.ToString());
     }
 
-    private static bool StringNameSetEquals(GStringNameArray left, GStringNameArray right)
+    private static bool StringNameSetEquals(IEnumerable<StringName> left, IEnumerable<StringName> right)
     {
-        if (left == null || right == null || left.Count != right.Count)
+        if (left == null || right == null)
             return false;
+        HashSet<StringName> rightSet = new();
+        int rightCount = 0;
+        foreach (StringName value in right)
+        {
+            rightSet.Add(value);
+            rightCount += 1;
+        }
+        int leftCount = 0;
         foreach (StringName value in left)
         {
-            if (!right.Contains(value))
+            leftCount += 1;
+            if (!rightSet.Contains(value))
                 return false;
         }
-        return true;
+        return leftCount == rightCount;
     }
 
-    private static GStringNameArray _combat_resource_array_from_payload(GArray values)
+    private static StringNameList _combat_resource_array_from_payload(GArray values)
     {
-        GStringNameArray parsed = _unique_string_name_array_from_payload(values);
+        StringNameList parsed = _unique_string_name_array_from_payload(values);
         if (parsed == null)
         {
-            return new GStringNameArray();
+            return new StringNameList();
         }
         if (
             !parsed.Contains(CombatResourceIds.ToStringName(CombatResourceIdKind.Hp))
             || !parsed.Contains(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
         )
         {
-            return new GStringNameArray();
+            return new StringNameList();
         }
         foreach (StringName resourceId in parsed)
         {
             if (!IsValidCombatResourceId(resourceId))
             {
-                return new GStringNameArray();
+                return new StringNameList();
             }
         }
         return parsed;
@@ -2174,6 +2369,7 @@ public partial class BattleUnitState : RefCounted
     private void NormalizeWeaponProjection()
     {
         weapon_profile_kind = NormalizeWeaponProfileKind(weapon_profile_kind);
+        weapon_range_type = ToStringName(weapon_range_type);
         weapon_current_grip = NormalizeWeaponGrip(weapon_current_grip);
         weapon_attack_range = Math.Max(weapon_attack_range, 0);
         weapon_one_handed_dice = NormalizeWeaponDice(weapon_one_handed_dice);
@@ -2223,9 +2419,9 @@ public partial class BattleUnitState : RefCounted
         return WeaponGripNone;
     }
 
-    private static GStringArray StringNameArrayToStrings(GStringNameArray values)
+    private static List<object> StringNameListToPlain(IEnumerable<StringName> values)
     {
-        GStringArray results = new();
+        List<object> results = new();
         if (values == null)
         {
             return results;
@@ -2243,7 +2439,7 @@ public partial class BattleUnitState : RefCounted
         return normalizedMax > 0 ? Math.Clamp(value, 0, normalizedMax) : 0;
     }
 
-    private static List<StringName> CopyStringNameListTyped(GStringNameArray values)
+    private static List<StringName> CopyStringNameListTyped(IEnumerable<StringName> values)
     {
         var results = new List<StringName>();
         foreach (StringName value in values ?? new GStringNameArray())
@@ -2420,8 +2616,18 @@ public partial class BattleUnitState : RefCounted
 
     private static bool HasWeaponDice(WeaponDice dice) => dice != null && !dice.IsEmpty();
 
-    private static GDictionary WeaponDiceToDictionary(WeaponDice dice) =>
-        WeaponDiceProjection.Project(dice);
+    private static IReadOnlyDictionary<string, object> WeaponDiceToPlain(WeaponDice dice)
+    {
+        dice ??= new WeaponDice();
+        if (dice.IsEmpty())
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["dice_count"] = dice.dice_count,
+            ["dice_sides"] = dice.dice_sides,
+            ["flat_bonus"] = dice.flat_bonus,
+        };
+    }
 
     private static bool TryReadVariantInt(Variant value, out int parsedValue)
     {
@@ -2434,9 +2640,9 @@ public partial class BattleUnitState : RefCounted
         return int.TryParse(value.ToString(), out parsedValue);
     }
 
-    private static GVector2IArray DuplicateVector2IArray(GVector2IArray source)
+    private static Vector2IList DuplicateVector2IArray(IEnumerable<Vector2I> source)
     {
-        GVector2IArray result = new();
+        Vector2IList result = new();
         if (source == null)
         {
             return result;
@@ -2448,44 +2654,11 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    private static GStringNameArray DuplicateStringNameArray(GStringNameArray source)
+    private static List<object> ProjectVector2IListPlain(IEnumerable<Vector2I> source)
     {
-        GStringNameArray result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (StringName value in source)
-        {
+        List<object> result = new();
+        foreach (Vector2I value in source ?? System.Array.Empty<Vector2I>())
             result.Add(value);
-        }
-        return result;
-    }
-
-    private static GDictionary DuplicateStatusEffects(GDictionary source)
-    {
-        GDictionary result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (StringName normalizedStatusId in SortedStatusEffectIds(source))
-        {
-            Variant value = source[normalizedStatusId];
-            BattleStatusEffectState effectState = null;
-            if (value.VariantType.ToString() == "Object")
-            {
-                effectState = value.As<BattleStatusEffectState>();
-            }
-            else if (value.VariantType.ToString() == "Dictionary")
-            {
-                effectState = BattleStatusEffectState.FromDictionary(value.AsGodotDictionary());
-            }
-            if (effectState != null && !effectState.IsEmpty())
-            {
-                result[effectState.status_id] = effectState.DuplicateState();
-            }
-        }
         return result;
     }
 
@@ -2517,14 +2690,214 @@ public partial class BattleUnitState : RefCounted
         return result;
     }
 
-    private static GDictionary AttributeSnapshotToDict(AttributeSnapshot snapshot)
+    private static IReadOnlyDictionary<string, object> AttributeSnapshotToPlain(
+        AttributeSnapshot snapshot
+    )
     {
-        return snapshot?.ToDictionary() ?? new GDictionary();
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (snapshot == null)
+            return result;
+        foreach ((StringName key, int value) in snapshot.GetAllValuesTyped())
+            result[key.ToString()] = value;
+        return result;
     }
 
-    private static GDictionary EquipmentViewToDict(EquipmentState view)
+    private static IReadOnlyDictionary<string, object> EquipmentViewToPlain(EquipmentState view)
     {
-        return view?.ToDictionary() ?? new GDictionary();
+        Dictionary<string, object> equippedSlots = new(StringComparer.Ordinal);
+        if (view != null)
+        {
+            foreach (StringName entrySlotId in view.GetEntrySlotIdsTyped())
+            {
+                EquipmentEntryState entry = view.GetEntry(entrySlotId);
+                if (entry != null)
+                    equippedSlots[entrySlotId.ToString()] = EquipmentEntryToPlain(entry);
+            }
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["equipped_slots"] = equippedSlots,
+        };
+    }
+
+    private static IReadOnlyDictionary<string, object> EquipmentEntryToPlain(
+        EquipmentEntryState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["occupied_slot_ids"] = StringNameListToPlain(entry?.occupied_slot_ids),
+            ["equipment_instance"] = EquipmentInstanceToPlain(entry?.equipment_instance),
+        };
+
+    private static IReadOnlyDictionary<string, object> EquipmentInstanceToPlain(
+        EquipmentInstanceState instance
+    )
+    {
+        if (instance == null)
+            return new Dictionary<string, object>(StringComparer.Ordinal);
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["instance_id"] = instance.instance_id.ToString(),
+            ["item_id"] = instance.item_id.ToString(),
+            ["rarity"] = instance.rarity,
+            ["current_durability"] = instance.current_durability,
+            ["trait_instances"] = TraitInstancesToPlain(instance.trait_instances),
+            ["ability_usage_periods"] = AbilityUsagePeriodsToPlain(
+                instance.ability_usage_periods
+            ),
+            ["ability_persistent_counters"] = AbilityPersistentCountersToPlain(
+                instance.ability_persistent_counters
+            ),
+        };
+    }
+
+    private static List<object> TraitInstancesToPlain(IEnumerable<TraitInstanceState> source)
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (TraitInstanceState instance in source)
+        {
+            if (instance == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["trait_instance_id"] = instance.trait_instance_id.ToString(),
+                    ["trait_id"] = instance.trait_id.ToString(),
+                    ["source_type"] = instance.source_type.ToString(),
+                    ["source_id"] = instance.source_id.ToString(),
+                    ["rank"] = instance.rank,
+                    ["stacks"] = instance.stacks,
+                    ["roll_values"] = TraitRollValuesToPlain(instance.roll_values),
+                }
+            );
+        }
+        return result;
+    }
+
+    private static IReadOnlyDictionary<StringName, object> TraitRollValuesToPlain(
+        IEnumerable<TraitRollValueState> source
+    )
+    {
+        Dictionary<StringName, object> result = new();
+        foreach (TraitRollValueState entry in TraitInstanceState.NormalizeRollValues(source))
+        {
+            result[entry.key] = entry.ValueTypeKind switch
+            {
+                TraitRollValueType.Int => entry.int_value,
+                TraitRollValueType.StringName => entry.string_name_value,
+                TraitRollValueType.Bool => entry.bool_value,
+                _ => null,
+            };
+        }
+        return result;
+    }
+
+    private static List<object> AbilityUsagePeriodsToPlain(
+        IEnumerable<EquipmentAbilityUsagePeriodState> source
+    )
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (EquipmentAbilityUsagePeriodState usage in source)
+        {
+            if (usage == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["ability_id"] = usage.AbilityId ?? "",
+                    ["period_kind"] = usage.PeriodKind ?? "",
+                    ["period_index"] = usage.PeriodIndex,
+                    ["used_count"] = usage.UsedCount,
+                }
+            );
+        }
+        return result;
+    }
+
+    private static List<object> AbilityPersistentCountersToPlain(
+        IEnumerable<EquipmentAbilityPersistentCounterState> source
+    )
+    {
+        List<object> result = new();
+        if (source == null)
+            return result;
+        foreach (EquipmentAbilityPersistentCounterState counter in source)
+        {
+            if (counter == null)
+                continue;
+            result.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["counter_id"] = counter.CounterId ?? "",
+                    ["value"] = counter.Value,
+                }
+            );
+        }
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, object> EffectiveTraitInstanceToPlain(
+        BattleEffectiveTraitInstanceState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["trait_id"] = entry.trait_id.ToString(),
+            ["effective_instance_key"] = entry.effective_instance_key.ToString(),
+            ["source_type"] = entry.source_type.ToString(),
+            ["source_id"] = entry.source_id.ToString(),
+            ["effect_type"] = entry.effect_type.ToString(),
+            ["trigger_type"] = entry.trigger_type.ToString(),
+            ["charge_scope"] = entry.charge_scope.ToString(),
+            ["charge_reset_timing"] = entry.charge_reset_timing.ToString(),
+            ["rank"] = Math.Max(entry.rank, 1),
+            ["stacks"] = Math.Max(entry.stacks, 1),
+            ["roll_values"] = TraitRollValuesToPlain(entry.roll_values),
+        };
+
+    private static IReadOnlyDictionary<string, object> EquipmentAbilitySourceToPlain(
+        BattleEquipmentAbilitySourceState entry
+    ) =>
+        new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["effective_instance_key"] = entry.EffectiveInstanceKey.ToString(),
+            ["equipment_def_id"] = entry.EquipmentDefId.ToString(),
+            ["source_equipment_instance_id"] = entry.SourceEquipmentInstanceId.ToString(),
+            ["source_kind"] = BattleEquipmentAbilitySourceState
+                .ToStringName(entry.SourceKind)
+                .ToString(),
+            ["ability_ids"] = StringNameListToPlain(entry.AbilityIds),
+        };
+
+    private static IReadOnlyDictionary<string, object> StringNameIntMapToPlain(
+        BattleStringNameIntMap source
+    )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, int> entry in source)
+            result[entry.Key.ToString()] = entry.Value;
+        return result;
+    }
+
+    private static IReadOnlyDictionary<StringName, int> StringNameIntMapToStringNameKeyPlain(
+        BattleStringNameIntMap source
+    ) => source?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
+
+    private static IReadOnlyDictionary<string, object> StringNameMapToPlain(
+        BattleStringNameMap source
+    )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        if (source == null)
+            return result;
+        foreach (KeyValuePair<StringName, StringName> entry in source)
+            result[entry.Key.ToString()] = entry.Value.ToString();
+        return result;
     }
 
     private static EquipmentState EquipmentFromDict(GDictionary payload)
@@ -2604,7 +2977,7 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
-    private static bool Vector2IArraysEqual(GVector2IArray left, GVector2IArray right)
+    private static bool Vector2IArraysEqual(IReadOnlyList<Vector2I> left, IReadOnlyList<Vector2I> right)
     {
         if (left == null || right == null || left.Count != right.Count)
         {

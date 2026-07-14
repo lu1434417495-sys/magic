@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_confirmed_bugfix_regression : SceneTree
+public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -19,12 +19,12 @@ public partial class run_confirmed_bugfix_regression : SceneTree
         TestWorldFootprintReRegisterClearsOldCells();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
-        Quit(_test.Finish("Confirmed bugfix regression"));
+        RequestTestExit(_test.Finish("Confirmed bugfix regression"));
     }
 
     private void TestAttackDispositionRespectsNaturalRollFlags()
     {
-        using var hitResolver = new BattleHitResolver();
+        BattleHitResolver hitResolver = new();
         AttackCheckInput forcedHitCheck = new(
             requiredRoll: 1,
             naturalOneAutoMiss: false,
@@ -66,53 +66,42 @@ public partial class run_confirmed_bugfix_regression : SceneTree
     private void TestMissingItemDefDoesNotTrapEquippedInstance()
     {
         PartyState partyState = new();
-        PartyEquipmentService equipmentService = new();
-        try
+        PartyMemberState memberState = new()
         {
-            PartyMemberState memberState = new()
-            {
-                member_id = "member_a",
-            };
-            memberState.progression.unit_base_attributes.SetAttributeValue("storage_space", 1);
-            partyState.SetMemberState(memberState);
+            member_id = "member_a",
+        };
+        memberState.progression.unit_base_attributes.SetAttributeValue("storage_space", 1);
+        partyState.SetMemberState(memberState);
 
-            GStringNameArray occupiedSlots = new() { "main_hand" };
-            EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
-                "missing_sword",
-                "eq_missing_sword"
-            );
-            bool equipped = memberState.equipment_state.SetEquippedEntry(
+        GStringNameArray occupiedSlots = new() { "main_hand" };
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(
+            "missing_sword",
+            "eq_missing_sword"
+        );
+        _test.True(
+            memberState.equipment_state.SetEquippedEntry(
                 "main_hand",
                 "missing_sword",
                 occupiedSlots,
                 instance
-            );
-            if (!equipped)
-                GodotRefCountedDisposer.DisposeIfValid(instance);
-            _test.True(
-                equipped,
-                "卸装回归前置：应能写入缺定义装备实例。"
-            );
+            ),
+            "卸装回归前置：应能写入缺定义装备实例。"
+        );
 
-            equipmentService.Setup(partyState, new Dictionary<StringName, ItemDef>());
-            var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
-            _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
-            _test.Eq(
-                memberState.equipment_state.GetEquippedItemId("main_hand"),
-                new StringName(""),
-                "卸下后装备槽应为空。"
-            );
-            _test.Eq(
-                partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
-                1,
-                "卸下的坏配置装备实例应回到仓库，不能丢失。"
-            );
-        }
-        finally
-        {
-            equipmentService.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+        PartyEquipmentService equipmentService = new();
+        equipmentService.Setup(partyState, new Dictionary<StringName, ItemDefinition>());
+        var result = equipmentService.UnequipItemTyped("member_a", "main_hand");
+        _test.True(result.Success, "缺失 item_def 的已装备实例仍应可卸下。");
+        _test.Eq(
+            memberState.equipment_state.GetEquippedItemId("main_hand"),
+            new StringName(""),
+            "卸下后装备槽应为空。"
+        );
+        _test.Eq(
+            partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped().Count,
+            1,
+            "卸下的坏配置装备实例应回到仓库，不能丢失。"
+        );
     }
 
     private static void SetStatusParams(
@@ -153,13 +142,16 @@ public partial class run_confirmed_bugfix_regression : SceneTree
 
     private static CombatEffectDef BuildDamageEffect(int power)
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = "physical_slash",
-            @params = new GDictionary(),
-        };
+        return TestResourceOwnership.Own(
+            new CombatEffectDef
+            {
+                effect_type = "damage",
+                power = power,
+                damage_tag = "physical_slash",
+                @params = new GDictionary(),
+            },
+            "ConfirmedBugfix.BuildDamageEffect"
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

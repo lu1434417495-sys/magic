@@ -325,12 +325,11 @@ internal sealed class BattleBarrierOutcomeResolver
             layer,
             outcome
         );
-        var effect = new CombatEffectDef();
-        effect.effect_type = "status";
-        effect.save_dc = saveParams.SaveDc;
-        effect.SaveDcModeKind = BattleSaveDcMode.Static;
-        effect.save_ability = saveParams.SaveAbility;
-        effect.save_tag = saveParams.SaveTag;
+        CombatEffectDefinition effect = BattleRuntimeEffectDefinitions.StaticSave(
+            saveParams.SaveDc,
+            saveParams.SaveAbility,
+            saveParams.SaveTag
+        );
         return BattleSaveResolver.ResolveSaveResult(
             _GetBarrierSourceUnit(barrier),
             unitState,
@@ -377,7 +376,12 @@ internal sealed class BattleBarrierOutcomeResolver
         int normalizedDamage = Mathf.Max(damageAmount, 0);
         int damage = _ResolveRuntime()
             ._damage_resolver
-            .ApplyDirectDamageToTargetTyped(unitState, normalizedDamage, sourceUnit);
+            .ApplyTaggedDirectDamageToTargetTyped(
+                unitState,
+                normalizedDamage,
+                damageTag,
+                sourceUnit
+            );
         unitState.SetCurrentHp(unitState.current_hp);
         return damage;
     }

@@ -3,18 +3,22 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_simulation_regression : SceneTree
+public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        CallDeferred(nameof(RunDeferred));
     }
 
-    private int Run()
+    private void RunDeferred()
+    {
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
+    }
+
+    private TestResult Run()
     {
         try
         {
@@ -31,10 +35,12 @@ public partial class run_battle_simulation_regression : SceneTree
 
     private void TestReadyQueueDoesNotConsumeTimelineTicks()
     {
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildReadyQueueScenario(),
-            new List<BattleSimProfileDef> { BuildBaselineProfile() }
+            new List<BattleSimProfileDefinition> { BuildBaselineProfile() }
         );
         _test.Eq(report.ProfileEntries.Count, 1, "ready queue regression 应产出单 profile entry。");
         if (report.ProfileEntries.Count == 0)
@@ -68,10 +74,12 @@ public partial class run_battle_simulation_regression : SceneTree
 
     private void TestSimulationReportIncludesTraceAndPatchedSkillFallback()
     {
-        var runner = new BattleSimRunner();
+        var runner = new BattleSimRunner(
+            new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
+        );
         BattleSimScenarioReport report = runner.RunScenario(
             BuildScenario(),
-            new List<BattleSimProfileDef>
+            new List<BattleSimProfileDefinition>
             {
                 BuildBaselineProfile(),
                 BuildSuppressiveFireBlockedProfile(),
@@ -126,12 +134,12 @@ public partial class run_battle_simulation_regression : SceneTree
             "高 stamina patch 后，AI 不应再使用 archer_suppressive_fire。"
         );
         _test.True(
-            GetInt(patchedEntry.Summary.SkillUsageTotals, "archer_pinning_shot") > 0,
+            HasTraceCommandSkill(patchedEntry, "archer_pinning_shot"),
             "压制射击被资源阻断后，AI 应回落到 archer_pinning_shot。"
         );
     }
 
-    private static BattleSimScenarioDef BuildReadyQueueScenario()
+    private static BattleSimScenarioDefinition BuildReadyQueueScenario()
     {
         var scenario = new BattleSimScenarioDef
         {
@@ -151,7 +159,7 @@ public partial class run_battle_simulation_regression : SceneTree
                 BuildReadyQueueUnit("ab_hostile_two", "敌方二号", "hostile", "ai", new Vector2I(1, 1)),
             },
         };
-        return scenario;
+        return scenario.ToDefinition();
     }
 
     private static BattleSimUnitSpec BuildReadyQueueUnit(
@@ -183,7 +191,7 @@ public partial class run_battle_simulation_regression : SceneTree
         };
     }
 
-    private static BattleSimScenarioDef BuildScenario()
+    private static BattleSimScenarioDefinition BuildScenario()
     {
         return new BattleSimScenarioDef
         {
@@ -204,7 +212,7 @@ public partial class run_battle_simulation_regression : SceneTree
             {
                 BuildEnemyArcher("mist_harrier_sim", "雾沼猎压者", new Vector2I(1, 2)),
             },
-        };
+        }.ToDefinition();
     }
 
     private static BattleSimUnitSpec BuildManualUnit(StringName unitId, string displayName, Vector2I coord)
@@ -241,7 +249,7 @@ public partial class run_battle_simulation_regression : SceneTree
             coord = coord,
             current_hp = 60,
             current_mp = 20,
-            current_stamina = 20,
+            current_stamina = 30,
             current_ap = 2,
             skill_ids = new GArray { "archer_suppressive_fire", "archer_pinning_shot" },
             skill_level_map = new GDictionary
@@ -249,12 +257,29 @@ public partial class run_battle_simulation_regression : SceneTree
                 ["archer_suppressive_fire"] = 1,
                 ["archer_pinning_shot"] = 1,
             },
+            weapon_projection = new GDictionary
+            {
+                ["weapon_profile_kind"] = "equipped",
+                ["weapon_item_id"] = "simulation_bow",
+                ["weapon_profile_type_id"] = "shortbow",
+                ["weapon_family"] = "bow",
+                ["weapon_current_grip"] = "two_handed",
+                ["weapon_attack_range"] = 5,
+                ["weapon_two_handed_dice"] = new GDictionary
+                {
+                    ["dice_count"] = 1,
+                    ["dice_sides"] = 6,
+                    ["flat_bonus"] = 0,
+                },
+                ["weapon_uses_two_hands"] = true,
+                ["weapon_physical_damage_tag"] = "piercing",
+            },
             base_attributes = BuildBaseAttributes(10, 12, 12, 14, 10, 10),
             attribute_overrides = new GDictionary
             {
                 ["hp_max"] = 60,
                 ["mp_max"] = 20,
-                ["stamina_max"] = 20,
+                ["stamina_max"] = 30,
                 ["action_points"] = 2,
                 ["attack_bonus"] = 6,
                 ["armor_ac_bonus"] = 5,
@@ -282,16 +307,16 @@ public partial class run_battle_simulation_regression : SceneTree
         };
     }
 
-    private static BattleSimProfileDef BuildBaselineProfile()
+    private static BattleSimProfileDefinition BuildBaselineProfile()
     {
         return new BattleSimProfileDef
         {
             profile_id = "baseline",
             display_name = "Baseline",
-        };
+        }.ToDefinition();
     }
 
-    private static BattleSimProfileDef BuildSuppressiveFireBlockedProfile()
+    private static BattleSimProfileDefinition BuildSuppressiveFireBlockedProfile()
     {
         return new BattleSimProfileDef
         {
@@ -307,7 +332,7 @@ public partial class run_battle_simulation_regression : SceneTree
                     ["value"] = 999,
                 },
             },
-        };
+        }.ToDefinition();
     }
 
     private static GArray GetArray(GDictionary source, string key)
@@ -368,6 +393,27 @@ public partial class run_battle_simulation_regression : SceneTree
     private static int GetInt(IReadOnlyDictionary<string, int> source, string key, int fallback = 0)
     {
         return source != null && source.TryGetValue(key, out int value) ? value : fallback;
+    }
+
+    private static bool HasTraceCommandSkill(
+        BattleSimProfileReportEntry profileEntry,
+        StringName skillId
+    )
+    {
+        if (profileEntry?.Runs == null || skillId == "")
+            return false;
+        string expectedSkillId = skillId.ToString();
+        foreach (BattleSimRunReport run in profileEntry.Runs)
+        {
+            if (run?.AiTurnTraces == null)
+                continue;
+            foreach (BattleAiTurnTraceProjection trace in run.AiTurnTraces)
+            {
+                if (trace?.Command?.SkillId == expectedSkillId)
+                    return true;
+            }
+        }
+        return false;
     }
 
 }

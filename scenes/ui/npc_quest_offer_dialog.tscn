@@ -1,0 +1,124 @@
+[gd_scene load_steps=3 format=3]
+; Scene purpose: NPC quest offer dialog for showing and accepting NPC-specific quests.
+; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
+
+; External scripts, scenes, and shared assets referenced by this scene.
+[ext_resource type="Script" path="res://scripts/ui/NpcQuestOfferDialog.cs" id="1_npcoffer"]
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
+
+; Root node and primary scene tree.
+[node name="NpcQuestOfferDialog" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_npcoffer")
+
+[node name="Shade" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0196078, 0.027451, 0.0588235, 0.7)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(720, 520)
+layout_mode = 2
+theme_override_styles/panel = ExtResource("2_panel_default")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 30
+text = "NPC 委托"
+
+[node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "关闭"
+
+[node name="Body" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="DialogueLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.756863, 0.835294, 0.956863, 1)
+theme_override_font_sizes/font_size = 18
+autowrap_mode = 3
+text = "对话文本"
+
+[node name="SummaryLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = "目标摘要"
+
+[node name="RewardLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = "奖励"
+
+[node name="FeedbackLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 15
+autowrap_mode = 3
+text = ""
+
+[node name="Footer" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="ReturnButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 44)
+layout_mode = 2
+text = "返回"
+
+[node name="AcceptButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 2
+text = "接受委托"

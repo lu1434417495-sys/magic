@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_wait_behavior_regression : SceneTree
+public partial class run_battle_ai_wait_behavior_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
     {
         try
         {
@@ -20,13 +24,12 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle AI wait behavior regression"));
+        RequestTestExit(_test.Finish("Battle AI wait behavior regression"));
     }
 
     private void TestWaitActionMarksActiveRestWhenStaminaStarved()
     {
-        EnemyAiBrainDef brain = BuildActiveRestProbeBrain();
+        EnemyAiBrainDefinition brain = BuildActiveRestProbeBrain();
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
@@ -35,7 +38,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             "体力耗尽战士",
             "hostile",
             new Vector2I(0, 0),
-            brain.brain_id,
+            brain.BrainId,
             "pressure",
             new[] { "basic_attack" },
             28,
@@ -56,34 +59,28 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = null;
-        try
-        {
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-            _test.Eq(
-                decision?.action_id ?? (StringName)"",
-                (StringName)"active_rest_wait",
-                "体力不足且无法支付基础攻击时，默认 wait action 应表达主动休息。"
-            );
-            _test.True(
-                decision?.score_input?.runtime_action_metadata?.HasActiveRest == true
-                    && decision.score_input.runtime_action_metadata.active_rest,
-                "主动休息应通过 score metadata 暴露 active_rest。"
-            );
-            _test.True(
-                decision?.score_input != null && decision.score_input.total_score > -40,
-                "主动休息应抬高 wait 评分，但仍保持低于有效移动/守线动作。"
-            );
-        }
-        finally
-        {
-            DisposeDecision(decision);
-        }
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
+        _test.Eq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"active_rest_wait",
+            "体力不足且无法支付基础攻击时，默认 wait action 应表达主动休息。"
+        );
+        _test.True(
+            decision?.score_input?.runtime_action_metadata?.HasActiveRest == true
+                && decision.score_input.runtime_action_metadata.active_rest,
+            "主动休息应通过 score metadata 暴露 active_rest。"
+        );
+        _test.True(
+            decision?.score_input != null && decision.score_input.total_score > -40,
+            "主动休息应抬高 wait 评分，但仍保持低于有效移动/守线动作。"
+        );
     }
 
     private void TestWaitActionReportsRestWhenNoActionIsAvailable()
     {
-        EnemyAiBrainDef brain = BuildFallbackRestProbeBrain();
+        EnemyAiBrainDefinition brain = BuildFallbackRestProbeBrain();
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
         BattleRuntimeModule runtime = runtimeScope.Runtime;
         BattleState state = BuildFlatState(new Vector2I(3, 1));
@@ -92,7 +89,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
             "无动作战士",
             "hostile",
             new Vector2I(0, 0),
-            brain.brain_id,
+            brain.BrainId,
             "engage",
             Array.Empty<string>(),
             28,
@@ -112,25 +109,19 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = null;
-        try
-        {
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-            _test.Eq(
-                decision?.action_id ?? (StringName)"",
-                (StringName)"fallback_rest_wait",
-                "没有有效动作时仍应由默认 wait action 收束。"
-            );
-            _test.Eq(
-                decision?.score_input?.total_score ?? 999,
-                -40,
-                "普通无动作休息只改变语义说明，不应提高 wait 评分去抢移动或卡位。"
-            );
-        }
-        finally
-        {
-            DisposeDecision(decision);
-        }
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
+        _test.Eq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"fallback_rest_wait",
+            "没有有效动作时仍应由默认 wait action 收束。"
+        );
+        _test.Eq(
+            decision?.score_input?.total_score ?? 999,
+            -40,
+            "普通无动作休息只改变语义说明，不应提高 wait 评分去抢移动或卡位。"
+        );
     }
 
     private void TestActiveRestDoesNotOutrankMeleeScreeningMove()
@@ -178,90 +169,112 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         AddUnitToState(runtime, state, player, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        BattleAiDecision decision = null;
-        try
-        {
-            decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
-            _test.Eq(
-                decision?.action_id ?? (StringName)"",
-                (StringName)"wolf_close_in",
-                "体力不足时，主动休息不能抢掉近战战士仍可执行的守线/接敌移动。"
-            );
-            _test.Eq(
-                decision?.command?.target_coord ?? new Vector2I(-1, -1),
-                new Vector2I(3, 4),
-                "体力不足的近战仍应先走到实际增加敌方路径成本的守线格，之后再等待休息。"
-            );
-        }
-        finally
-        {
-            DisposeDecision(decision);
-        }
-    }
-
-    private static EnemyAiBrainDef BuildActiveRestProbeBrain()
-    {
-        var basicAction = new UseUnitSkillAction
-        {
-            action_id = "active_rest_basic",
-            target_selector = "nearest_enemy",
-            desired_min_distance = 1,
-            desired_max_distance = 1,
-            DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-        };
-        basicAction.skill_ids.Add("basic_attack");
-        var waitAction = new WaitAction { action_id = "active_rest_wait" };
-        var pressureState = new EnemyAiStateDef { state_id = "pressure" };
-        pressureState.actions.Add(basicAction);
-        pressureState.actions.Add(waitAction);
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "active_rest_probe_brain",
-            default_state_id = "pressure",
-        };
-        brain.states.Add(pressureState);
-        return brain;
-    }
-
-    private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
-    {
-        var engageState = new EnemyAiStateDef { state_id = "engage" };
-        engageState.actions.Add(new WaitAction { action_id = "fallback_rest_wait" });
-        var brain = new EnemyAiBrainDef
-        {
-            brain_id = "fallback_rest_probe_brain",
-            default_state_id = "engage",
-        };
-        brain.states.Add(engageState);
-        return brain;
-    }
-
-    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)
-    {
-        var gameSession = new GameSession();
-        var runtime = new BattleRuntimeModule();
-        var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDef>(
-            gameSession.GetEnemyAiBrainsTyped()
+        BattleAiDecision decision = runtime._ai_service
+            .ChooseCommand(BuildAiContext(runtime, wolf), captureTrace: false)
+            ?.Decision;
+        _test.Eq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"wolf_close_in",
+            "体力不足时，主动休息不能抢掉近战战士仍可执行的守线/接敌移动。"
         );
-        foreach (EnemyAiBrainDef brain in extraBrains ?? Array.Empty<EnemyAiBrainDef>())
-        {
-            if (brain != null && brain.brain_id != (StringName)"")
+        _test.Eq(
+            decision?.command?.target_coord ?? new Vector2I(-1, -1),
+            new Vector2I(3, 4),
+            "体力不足的近战仍应先走到实际增加敌方路径成本的守线格，之后再等待休息。"
+        );
+    }
+
+    private static EnemyAiBrainDefinition BuildActiveRestProbeBrain()
+    {
+        var basicAction = new UseUnitSkillActionDefinition(
+            actionId: "active_rest_basic",
+            scoreBucketId: "",
+            actionIntent: BattleAiActionIntent.Positioning,
+            skillIds: new[] { (StringName)"basic_attack" },
+            targetSelector: "nearest_enemy",
+            minimumEffectiveTargetCount: 1,
+            maximumFriendlyFireTargetCount: 0,
+            allowFriendlyLethal: false,
+            desiredMinDistance: 1,
+            desiredMaxDistance: 1,
+            distanceReference: EnemyAiDistanceReferences.ToStringName(
+                EnemyAiDistanceReference.TargetUnit
+            )
+        );
+        var pressureState = new EnemyAiStateDefinition(
+            "pressure",
+            new EnemyAiActionDefinition[]
             {
-                enemyAiBrains[brain.brain_id] = brain;
+                basicAction,
+                BuildWaitAction("active_rest_wait"),
+            },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            "active_rest_probe_brain",
+            "pressure",
+            BattleAiScoreProfileDefinition.Default,
+            new[] { pressureState },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
+        );
+    }
+
+    private static EnemyAiBrainDefinition BuildFallbackRestProbeBrain()
+    {
+        var engageState = new EnemyAiStateDefinition(
+            "engage",
+            new EnemyAiActionDefinition[] { BuildWaitAction("fallback_rest_wait") },
+            Array.Empty<EnemyAiGenerationSlotDefinition>()
+        );
+        return new EnemyAiBrainDefinition(
+            "fallback_rest_probe_brain",
+            "engage",
+            BattleAiScoreProfileDefinition.Default,
+            new[] { engageState },
+            Array.Empty<EnemyAiTransitionRuleDefinition>()
+        );
+    }
+
+    private static WaitActionDefinition BuildWaitAction(StringName actionId) =>
+        new(
+            actionId: actionId,
+            scoreBucketId: "",
+            actionIntent: BattleAiActionIntent.Positioning,
+            activeRestActionBaseScore: 10,
+            activeRestMinStaminaResidue: 1
+        );
+
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(
+        params EnemyAiBrainDefinition[] extraBrains
+    )
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        var runtime = new BattleRuntimeModule();
+        var enemyAiBrains = new Dictionary<StringName, EnemyAiBrainDefinition>(
+            gameSession.GetEnemyAiBrainDefinitions()
+        );
+        foreach (
+            EnemyAiBrainDefinition brain in extraBrains
+                ?? Array.Empty<EnemyAiBrainDefinition>()
+        )
+        {
+            if (brain != null && brain.BrainId != (StringName)"")
+            {
+                enemyAiBrains[brain.BrainId] = brain;
             }
         }
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
             enemyAiBrains,
             null
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new FixedSuccessOneDamageResolver();
-        damageResolver.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        damageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(damageResolver);
-        return new BattleRuntimeScope(runtime, gameSession, extraBrains);
+        return new BattleRuntimeScope(runtime, gameSession);
     }
 
     private static BattleState BuildFlatState(Vector2I mapSize)
@@ -308,7 +321,7 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
                 runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
             runtime_action_plan = actionPlan,
         };
-        context.SetSkillDefs(runtime.GetSkillDefIndexTyped());
+        context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, context);
         return context;
     }
@@ -448,34 +461,14 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         );
     }
 
-    private static void DisposeDecision(BattleAiDecision decision)
-    {
-        if (decision == null)
-        {
-            return;
-        }
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.score_input);
-        BattleTestFixture.DisposeBattleAiScoreInput(decision.skill_score_input);
-        GodotSharpCleanup.DisposeGodotObject(decision.command);
-        decision.command = null;
-        decision.score_input = null;
-        decision.skill_score_input = null;
-    }
-
     private sealed class BattleRuntimeScope : IDisposable
     {
         private readonly GameSession _gameSession;
-        private readonly EnemyAiBrainDef[] _ownedExtraBrains;
 
-        internal BattleRuntimeScope(
-            BattleRuntimeModule runtime,
-            GameSession gameSession,
-            EnemyAiBrainDef[] ownedExtraBrains
-        )
+        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
         {
             Runtime = runtime;
             _gameSession = gameSession;
-            _ownedExtraBrains = ownedExtraBrains ?? Array.Empty<EnemyAiBrainDef>();
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -484,11 +477,6 @@ public partial class run_battle_ai_wait_behavior_regression : SceneTree
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
             _gameSession?.Dispose();
-            foreach (EnemyAiBrainDef brain in _ownedExtraBrains)
-            {
-                BattleTestFixture.DisposeEnemyAiBrain(brain);
-            }
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 }

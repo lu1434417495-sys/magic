@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
+public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HERO_ID = "hero";
     private static readonly StringName MISSTEP_TO_SCHEME_SKILL_ID = "misstep_to_scheme";
@@ -27,16 +27,26 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private const int BLACK_CONTRACT_PUSH_HP_COST = 10;
 
     private readonly TestHarness _test = new();
+    private ProgressionContentRegistry _progressionContentRegistry;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
 
     public override void _Initialize()
     {
-        TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents();
-        TestBlackContractPushOptionsPayTheirSelectedCostAndForceHitWithoutCrit();
-        TestDoomShiftMarksSelfAndSwapsWithNearbyAlly();
-        TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions();
+        TestResult exitCode = null;
+        try
+        {
+            TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents();
+            TestBlackContractPushOptionsPayTheirSelectedCostAndForceHitWithoutCrit();
+            TestDoomShiftMarksSelfAndSwapsWithNearbyAlly();
+            TestBlackCrownSealIsBossOnlyOncePerBattleAndAppliesBothLockOptions();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("FATE_25 regression"));
+            exitCode = _test.Finish("FATE_25 regression");
+        }
+        finally
+        {
+            DisposeContentRegistry();
+            RequestTestExit(exitCode ?? _test.Finish("FATE_25 regression", 1));
+        }
     }
 
     private void TestMisstepToSchemeGrantsBonusCalamityWithoutDuplicateCriticalFailEvents()
@@ -110,7 +120,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             "黑契推进·血契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            (GDictionary)bloodCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(bloodCase, "simulated_result"),
             "黑契推进·血契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -130,7 +140,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             "黑契推进·护契 preview 应按必定命中暴露给指令与 AI 评分。"
         );
         AssertForcedHitNoCrit(
-            (GDictionary)guardCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(guardCase, "simulated_result"),
             "黑契推进·护契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -151,7 +161,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattleRuntimeModule actionRuntime = (BattleRuntimeModule)actionCase["runtime"];
         BattleUnitState actionCaster = (BattleUnitState)actionCase["caster"];
         AssertForcedHitNoCrit(
-            (GDictionary)actionCase.GetValueOrDefault("simulated_result", new GDictionary()),
+            GetCaseValue<ForcedHitProjection>(actionCase, "simulated_result"),
             "黑契推进·行契应改为必定命中且不会暴击。"
         );
         _test.True(
@@ -166,7 +176,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             ((BattleUnitState)actionCase["enemy"]).current_hp < 60,
             "黑契推进·行契命中后应对目标造成伤害。"
         );
-        GodotSharpCleanup.DisposeGodotObject(turnStartBatch);
+        turnStartBatch?.Dispose();
         DisposeBlackContractCase(actionCase);
     }
 
@@ -223,7 +233,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         BattleUnitState counterCaster = counterCase.Caster;
         BattleUnitState boss = counterCase.Boss;
         BattleUnitState elite = counterCase.Elite;
-        SkillDef skillDef = GetSkill(counterRuntime.GetSkillDefIndexTyped(), BLACK_CROWN_SEAL_SKILL_ID);
+        SkillDefinition skillDefinition = counterRuntime.GetSkillDefinitionTyped(
+            BLACK_CROWN_SEAL_SKILL_ID
+        );
 
         BattleCommand illegalCommand = BuildUnitSkillCommand(counterCaster.unit_id, BLACK_CROWN_SEAL_SKILL_ID, elite, COUNTERATTACK_LOCK_VARIANT_ID);
         BattlePreview illegalPreview = counterRuntime.PreviewCommand(illegalCommand);
@@ -241,7 +253,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         _test.True(counterRuntime.IsUnitCounterattackLocked(boss), "黑冠封印·禁反击应封锁 boss 的反击。");
         counterCaster.current_ap = 1;
         _test.Eq(
-            BattleSkillCastBlockReasonKinds.IsBlocked(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(
+                counterRuntime.GetSkillCastBlockReason(counterCaster, skillDefinition)
+            ),
             true,
             "黑冠封印成功后应立刻进入每战 1 次的封锁状态并提供反馈。"
         );
@@ -263,8 +277,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private Dictionary<string, object> IssueBlackContractPushCase(StringName variantId)
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), BLACK_CONTRACT_PUSH_SKILL_ID);
-        CombatCastVariantDef castVariant = skillDef?.combat_profile?.GetCastVariant(variantId);
         BattleState state = BuildSkillTestState($"black_contract_{variantId}", new Vector2I(6, 4));
         BattleUnitState caster = BuildUnit("contract_caster", "契约战士", "player", new Vector2I(1, 1), 1, HERO_ID);
         caster.current_hp = 28;
@@ -284,32 +296,40 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
         BattleCommand previewCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
         BattlePreview preview = runtime.PreviewCommand(previewCommand);
-        _test.True(preview != null && preview.allowed, $"黑契推进 {variantId} 前置：目标应可预览。");
+        _test.True(
+            preview != null && preview.allowed,
+            $"黑契推进 {variantId} 前置：目标应可预览。preview={FormatPreview(preview)}"
+        );
 
+        SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(
+            BLACK_CONTRACT_PUSH_SKILL_ID
+        );
+        CombatCastVariantDefinition castVariantDefinition =
+            runtime._skill_resolution_rules.ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                caster,
+                variantId
+            );
         var simulatedTypedResult = runtime._skill_orchestrator.ResolveUnitSkillEffectResult(
             caster,
             enemy,
-            skillDef,
-            runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(skillDef, castVariant)
+            skillDefinition,
+            runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                caster
+            )
         );
-        var simulatedResult = AttackEffectResolutionResultReader.BuildGodotPayload(
-            simulatedTypedResult.Result
+        using GodotProjectionLease<GDictionary> simulatedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                simulatedTypedResult.Result
+            );
+        GDictionary simulatedResult = simulatedResultLease.Value;
+        var simulatedProjection = new ForcedHitProjection(
+            simulatedResult.GetValueOrDefault("attack_success", false).AsBool(),
+            simulatedResult.GetValueOrDefault("crit_locked", false).AsBool(),
+            simulatedResult.GetValueOrDefault("critical_hit", false).AsBool()
         );
-        if (simulatedTypedResult.CustomLogLines.Count != 0)
-        {
-            var customLogLines = new GArray();
-            foreach (string line in simulatedTypedResult.CustomLogLines)
-            {
-                if (!string.IsNullOrEmpty(line))
-                {
-                    customLogLines.Add(line);
-                }
-            }
-            if (customLogLines.Count != 0)
-            {
-                simulatedResult["custom_log_lines"] = customLogLines;
-            }
-        }
         BattleCommand issueCommand = BuildUnitSkillCommand(caster.unit_id, BLACK_CONTRACT_PUSH_SKILL_ID, enemy, variantId);
         BattleEventBatch batch = runtime.IssueCommand(issueCommand);
         return new Dictionary<string, object>
@@ -322,7 +342,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             ["preview"] = preview,
             ["preview_command"] = previewCommand,
             ["issue_command"] = issueCommand,
-            ["simulated_result"] = simulatedResult,
+            ["simulated_result"] = simulatedProjection,
         };
     }
 
@@ -356,12 +376,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         };
     }
 
-    private void AssertForcedHitNoCrit(GDictionary result, string message)
+    private void AssertForcedHitNoCrit(ForcedHitProjection result, string message)
     {
         _test.True(
-            result.GetValueOrDefault("attack_success", false).AsBool()
-                && result.GetValueOrDefault("crit_locked", false).AsBool()
-                && !result.GetValueOrDefault("critical_hit", false).AsBool(),
+            result != null && result.AttackSuccess && result.CritLocked && !result.CriticalHit,
             $"{message} result={result}"
         );
     }
@@ -369,7 +387,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
     private void AssertForceHitPreview(BattlePreview preview, string message)
     {
         AttackPreviewData hitPreview = preview?.hit_preview;
-        _test.True(hitPreview != null && !hitPreview.IsEmpty, $"{message} preview={preview}");
+        _test.True(
+            hitPreview != null && !hitPreview.IsEmpty,
+            $"{message} preview={FormatPreview(preview)}"
+        );
+        if (hitPreview == null || hitPreview.IsEmpty)
+            return;
         _test.Eq(hitPreview.HitRatePercent, 100, $"{message} hit_rate_percent 应为 100。");
         _test.Eq(hitPreview.SuccessRatePercent, 100, $"{message} success_rate_percent 应为 100。");
         _test.True(
@@ -380,15 +403,22 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         _test.True(hitPreview.CritLocked, $"{message} 应标记 crit_locked。");
     }
 
+    private static string FormatPreview(BattlePreview preview)
+    {
+        if (preview == null)
+            return "<null>";
+        return
+            $"allowed={preview.allowed}, logs=[{string.Join(" | ", preview.LogLinesTyped)}], target_units=[{string.Join(", ", preview.TargetUnitIdsTyped)}], target_coords=[{string.Join(", ", preview.TargetCoordsTyped)}]";
+    }
+
     private BattleRuntimeModule BuildRuntime()
     {
-        using var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            GetSkillDefinitionsForTests(),
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
@@ -409,6 +439,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             GetCaseValue<BattleUnitState>(testCase, "caster"),
             GetCaseValue<BattleUnitState>(testCase, "enemy")
         );
+        testCase.Clear();
     }
 
     private static T GetCaseValue<T>(Dictionary<string, object> testCase, string key)
@@ -417,12 +448,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private static void DisposeBlackCrownSealCase(
         BlackCrownSealCase testCase,
-        params GodotObject[] ownedObjects
+        params object[] ownedObjects
     )
     {
         if (testCase == null)
             return;
-        var owned = new List<GodotObject>();
+        var owned = new List<object>();
         if (ownedObjects != null)
             owned.AddRange(ownedObjects);
         owned.Add(testCase.Caster);
@@ -430,6 +461,28 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         owned.Add(testCase.Elite);
         owned.Add(testCase.AllyTarget);
         BattleTestFixture.DisposeBattleFixture(testCase.Runtime, testCase.State, owned.ToArray());
+        testCase.Runtime = null;
+        testCase.State = null;
+        testCase.Caster = null;
+        testCase.Boss = null;
+        testCase.Elite = null;
+        testCase.AllyTarget = null;
+    }
+
+    private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsForTests()
+    {
+        if (_skillDefinitions != null)
+            return _skillDefinitions;
+        _progressionContentRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        _skillDefinitions = _progressionContentRegistry.GetSkillDefinitionsTyped();
+        return _skillDefinitions;
+    }
+
+    private void DisposeContentRegistry()
+    {
+        _progressionContentRegistry?.Dispose();
+        _skillDefinitions = null;
+        _progressionContentRegistry = null;
     }
 
     private void BeginRuntimeBattle(BattleRuntimeModule runtime)
@@ -549,6 +602,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         var command = new BattleCommand();
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.skill_id = skillId;
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? default;
@@ -564,7 +618,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         partyState.active_member_ids = new GStringNameArray { HERO_ID };
         partyState.SetMemberState(BuildMemberState(hiddenLuckAtBirth));
         var manager = new CharacterManagementModule();
-        manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(partyState);
         var service = new LowLuckEventService();
         service.Setup(manager);
         return new LowLuckContext
@@ -661,11 +715,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
     private static BattleUnitState ReadBattleUnitState(object unitValue)
     {
-        if (unitValue is BattleUnitState unit)
-            return unit;
-        if (unitValue is Variant variant && variant.VariantType == Variant.Type.Object)
-            return variant.AsGodotObject() as BattleUnitState;
-        return null;
+        return BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit)
+            ? unit
+            : null;
     }
 
     private static bool ContainsStringName(IEnumerable<StringName> values, StringName target)
@@ -690,13 +742,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         return count;
     }
 
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
-    }
-
     private sealed class BlackCrownSealCase
     {
         public BattleRuntimeModule Runtime;
@@ -706,6 +751,12 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         public BattleUnitState Elite;
         public BattleUnitState AllyTarget;
     }
+
+    private sealed record ForcedHitProjection(
+        bool AttackSuccess,
+        bool CritLocked,
+        bool CriticalHit
+    );
 
     private sealed class LowLuckContext
     {
@@ -717,7 +768,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
             Service = null;
             Manager = null;
             PartyState = null;

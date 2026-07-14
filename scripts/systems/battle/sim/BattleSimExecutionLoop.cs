@@ -7,17 +7,17 @@ public sealed class BattleSimExecutionLoop
 
     private static readonly StringName DefaultManualPolicy = "wait";
 
-    public BattleSimExecutionLoopResult Run(
+    internal BattleSimExecutionLoopResult Run(
         BattleRuntimeModule runtime,
         BattleState state,
-        BattleSimScenarioDef scenarioDef,
+        BattleSimScenarioDefinition scenarioDefinition,
         int maxIdleLoops = DefaultMaxIdleLoops
     )
     {
-        int maxIterations = Mathf.Max(scenarioDef?.max_iterations ?? 0, 0);
-        StringName manualPolicy = scenarioDef?.manual_policy ?? DefaultManualPolicy;
+        int maxIterations = Mathf.Max(scenarioDefinition?.MaxIterations ?? 0, 0);
+        StringName manualPolicy = scenarioDefinition?.ManualPolicy ?? DefaultManualPolicy;
         int timelineTicksPerStep = Mathf.Max(
-            scenarioDef?.timeline_ticks_per_step ?? DefaultTimelineTicksPerStep,
+            scenarioDefinition?.TimelineTicksPerStep ?? DefaultTimelineTicksPerStep,
             DefaultTimelineTicksPerStep
         );
         return Run(
@@ -215,7 +215,9 @@ public sealed class BattleSimExecutionLoop
 
     private static void PrintTraceStats(AiTraceRecorder recorder, int iteration)
     {
-        var stats = recorder?.GetFuncStats();
+        using GodotProjectionLease<Godot.Collections.Dictionary> statsLease =
+            recorder?.GetFuncStatsLease();
+        Godot.Collections.Dictionary stats = statsLease?.Value;
         if (stats == null || stats.Count == 0)
         {
             return;

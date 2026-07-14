@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_quest_materializer_regression : SceneTree
+public partial class run_character_management_quest_materializer_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -28,33 +28,31 @@ public partial class run_character_management_quest_materializer_regression : Sc
         TestSkillMasteryRewardAggregatesTypedEntries();
         TestStringKeyOnlyQuestRewardDefIsRejected();
 
-        Quit(_test.Finish("Character management quest materializer regression"));
+        RequestTestExit(_test.Finish("Character management quest materializer regression"));
     }
 
     private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()
     {
         PartyState party = BuildPartyWithMember("hero", 1);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_level_trigger_catalog_boundary",
-            display_name = "Test level trigger catalog boundary",
-            max_level = 1,
-        };
+        SkillDefinition triggerSkill = BuildLevelTriggerSkillDefinition(
+            "test_level_trigger_catalog_boundary",
+            1
+        );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
         LevelGrowthEvaluationService service = new();
         service.Setup(
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
                 [new StringName("wrong_level_trigger_key")] = triggerSkill,
             }
@@ -64,10 +62,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "LevelGrowthEvaluationService.Setup should not recover a skill def from value.skill_id when the dictionary key is wrong."
         );
 
-        service.Setup(new Dictionary<StringName, SkillDef> { [triggerSkill.skill_id] = triggerSkill });
+        service.Setup(
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill }
+        );
         _test.True(
             service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should accept a typed skill def map keyed by skill id."
+            "LevelGrowthEvaluationService.Setup should accept a typed skill definition map keyed by skill id."
         );
     }
 
@@ -94,30 +94,45 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "iron_ore",
             2
         );
-        QuestDef missingTargetQuest = new()
-        {
-            quest_id = "contract_supply_delivery_missing_target",
-            display_name = "Missing target",
-        };
-        missingTargetQuest.objective_defs.Add(
-            new GDictionary
+        QuestDefinition missingTargetQuest = new(
+            "contract_supply_delivery_missing_target",
+            "Missing target",
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
             {
-                ["objective_id"] = "deliver_ore",
-                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                ["target_id"] = "iron_ore",
-            }
+                new QuestObjectiveDefinition(
+                    "deliver_ore",
+                    QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
+                    "iron_ore",
+                    0
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            ""
         );
 
-        CharacterManagementModule manager = BuildManager(
-            party,
-            itemDefs,
+        Dictionary<StringName, QuestDefinition> questDefinitions = BuildQuestDefIndex(
             new GDictionary
             {
                 [submitQuest.quest_id] = submitQuest,
                 [shortageQuest.quest_id] = shortageQuest,
                 [wrongItemQuest.quest_id] = wrongItemQuest,
-                [missingTargetQuest.quest_id] = missingTargetQuest,
             }
+        );
+        questDefinitions[missingTargetQuest.QuestId] = missingTargetQuest;
+        CharacterManagementModule manager = BuildManager(
+            party,
+            itemDefs,
+            questDefinitions
         );
         PartyWarehouseService warehouse = new();
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
@@ -204,11 +219,11 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "wrong item submit should not consume other inventory."
         );
 
-        QuestState missingTargetState = new() { quest_id = missingTargetQuest.quest_id };
+        QuestState missingTargetState = new() { quest_id = missingTargetQuest.QuestId };
         missingTargetState.MarkAccepted(9);
         party.SetActiveQuestState(missingTargetState);
         GDictionary missingTargetResult = QuestCommandResultProjection.Project(
-            manager.SubmitItemObjectiveTyped(missingTargetQuest.quest_id, "deliver_ore", 10)
+            manager.SubmitItemObjectiveTyped(missingTargetQuest.QuestId, "deliver_ore", 10)
         );
         _test.True(!ReadBool(missingTargetResult, "ok"), "submit_item should reject objectives without target_value.");
         _test.Eq(
@@ -217,8 +232,44 @@ public partial class run_character_management_quest_materializer_regression : Sc
             "missing target_value should not default to one."
         );
         _test.True(
-            party.HasActiveQuest(missingTargetQuest.quest_id),
+            party.HasActiveQuest(missingTargetQuest.QuestId),
             "missing target_value should keep quest active."
+        );
+    }
+
+    private static SkillDefinition BuildLevelTriggerSkillDefinition(StringName skillId, int maxLevel)
+    {
+        return new SkillDefinition(
+            skillId,
+            skillId.ToString(),
+            "",
+            "",
+            "combat",
+            maxLevel,
+            0,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
         );
     }
 
@@ -261,9 +312,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
         warehouse.Setup(party, BuildItemDefIndex(itemDefs));
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_supply_receipt", 8)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(ReadBool(claimResult, "ok"), "quest reward should claim successfully.");
         _test.Eq(ReadInt(claimResult, "gold_delta"), 12, "quest reward should expose gold delta.");
         _test.Eq(
@@ -287,9 +339,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
-        GDictionary overflowResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> overflowResultLease = QuestCommandResultProjection.ProjectLease(
             overflowManager.ClaimQuestRewardTyped("contract_reward_overflow", 9)
         );
+        GDictionary overflowResult = overflowResultLease.Value;
         _test.True(!ReadBool(overflowResult, "ok"), "quest reward should fail when warehouse is full.");
         _test.Eq(
             ReadString(overflowResult, "error_code"),
@@ -348,9 +401,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_growth_drill", 12)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(ReadBool(claimResult, "ok"), "pending character quest reward should claim.");
         _test.Eq(
             ReadArray(claimResult, "pending_character_rewards").Count,
@@ -388,9 +442,10 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
 
-        GDictionary claimResult = QuestCommandResultProjection.Project(
+        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
             manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
         );
+        GDictionary claimResult = claimResultLease.Value;
         _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
         _test.Eq(
             ReadString(claimResult, "error_code"),
@@ -402,242 +457,191 @@ public partial class run_character_management_quest_materializer_regression : Sc
     private void TestPendingCharacterRewardRejectsInvalidAttributeTarget()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        GDictionary itemDefs = BuildItemDefs();
         CharacterManagementModule manager = BuildManager(
             party,
-            itemDefs,
+            BuildItemDefs(),
             new GDictionary()
         );
-        PendingCharacterRewardEntry entry = null;
-        try
-        {
 
-            PendingCharacterReward reward = manager.BuildPendingCharacterReward(
-                "hero",
-                "",
-                "quest",
-                "invalid_attribute_reward",
-                "Invalid attribute reward",
-                new[]
+        PendingCharacterReward reward = manager.BuildPendingCharacterReward(
+            "hero",
+            "",
+            "quest",
+            "invalid_attribute_reward",
+            "Invalid attribute reward",
+            new[]
+            {
+                new PendingCharacterRewardEntry
                 {
-                    entry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
-                        target_id = "not_an_attribute",
-                        amount = 1,
-                    },
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = "not_an_attribute",
+                    amount = 1,
                 },
-                "Invalid target should be rejected."
-            );
+            },
+            "Invalid target should be rejected."
+        );
 
-            _test.True(
-                reward == null,
-                "pending character reward should reject attribute_progress entries with invalid targets."
-            );
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(entry);
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-            DisposeItemDefs(itemDefs);
-        }
+        _test.True(
+            reward == null,
+            "pending character reward should reject attribute_progress entries with invalid targets."
+        );
     }
 
     private void TestPendingCharacterRewardBoundaryAcceptsTypedRewards()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        GDictionary itemDefs = BuildItemDefs();
         CharacterManagementModule manager = BuildManager(
             party,
-            itemDefs,
+            BuildItemDefs(),
             new GDictionary()
         );
-        PendingCharacterRewardEntry typedEntry = null;
-        PendingCharacterRewardEntry masteryEntry = null;
-        PendingCharacterReward typedReward = null;
-        PendingCharacterReward masteryReward = null;
-        try
-        {
 
-            typedReward = manager.BuildPendingCharacterReward(
-                "hero",
-                "typed_reward",
-                "quest",
-                "typed_source",
-                "Typed reward",
-                new[]
+        PendingCharacterReward typedReward = manager.BuildPendingCharacterReward(
+            "hero",
+            "typed_reward",
+            "quest",
+            "typed_source",
+            "Typed reward",
+            new[]
+            {
+                new PendingCharacterRewardEntry
                 {
-                    typedEntry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
-                        target_id = "strength",
-                        target_label = "Strength",
-                        amount = 1,
-                    },
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeDelta,
+                    target_id = "strength",
+                    target_label = "Strength",
+                    amount = 1,
                 },
-                "typed summary"
-            );
-            masteryReward = manager.BuildPendingCharacterReward(
-                "hero",
-                "mastery_reward",
-                "quest",
-                "mastery_source",
-                "Mastery reward",
-                new[]
+            },
+            "typed summary"
+        );
+        PendingCharacterReward masteryReward = manager.BuildPendingCharacterReward(
+            "hero",
+            "mastery_reward",
+            "quest",
+            "mastery_source",
+            "Mastery reward",
+            new[]
+            {
+                new PendingCharacterRewardEntry
                 {
-                    masteryEntry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
-                        target_id = "charge",
-                        target_label = "Charge",
-                        amount = 2,
-                    },
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    target_label = "Charge",
+                    amount = 2,
                 },
-                "mastery summary"
-            );
+            },
+            "mastery summary"
+        );
 
-            _test.True(typedReward != null, "typed reward fixture should be valid.");
-            _test.True(masteryReward != null, "mastery reward fixture should be valid.");
-            if (typedReward == null || masteryReward == null)
-                return;
+        _test.True(typedReward != null, "typed reward fixture should be valid.");
+        _test.True(masteryReward != null, "mastery reward fixture should be valid.");
+        if (typedReward == null || masteryReward == null)
+            return;
 
-            manager.EnqueuePendingCharacterRewardsTyped(
-                new[]
-                {
-                    typedReward,
-                    masteryReward,
-                }
-            );
-            GodotRefCountedDisposer.DisposeIfValid(typedReward);
-            GodotRefCountedDisposer.DisposeIfValid(masteryReward);
-            typedReward = null;
-            masteryReward = null;
+        manager.EnqueuePendingCharacterRewardsTyped(
+            new[]
+            {
+                typedReward,
+                masteryReward,
+            }
+        );
 
-            _test.Eq(
-                party.pending_character_rewards.Count,
-                2,
-                "pending reward boundary should accept typed reward objects."
-            );
-            _test.Eq(
-                party.pending_character_rewards[0].reward_id,
-                new StringName("typed_reward"),
-                "typed pending reward should preserve reward id."
-            );
-            _test.Eq(
-                party.pending_character_rewards[1].reward_id,
-                new StringName("mastery_reward"),
-                "typed mastery pending reward should preserve reward id."
-            );
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(typedReward);
-            GodotRefCountedDisposer.DisposeIfValid(masteryReward);
-            GodotRefCountedDisposer.DisposeIfValid(typedEntry);
-            GodotRefCountedDisposer.DisposeIfValid(masteryEntry);
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-            DisposeItemDefs(itemDefs);
-        }
+        _test.Eq(
+            party.pending_character_rewards.Count,
+            2,
+            "pending reward boundary should accept typed reward objects."
+        );
+        _test.Eq(
+            party.pending_character_rewards[0].reward_id,
+            new StringName("typed_reward"),
+            "typed pending reward should preserve reward id."
+        );
+        _test.Eq(
+            party.pending_character_rewards[1].reward_id,
+            new StringName("mastery_reward"),
+            "typed mastery pending reward should preserve reward id."
+        );
     }
 
     private void TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        GDictionary itemDefs = BuildItemDefs();
         CharacterManagementModule manager = BuildManager(
             party,
-            itemDefs,
+            BuildItemDefs(),
             new GDictionary()
         );
-        PendingCharacterRewardEntry rewardEntry = null;
-        PendingCharacterReward reward = null;
-        try
-        {
-            PartyMemberState member = party.GetMemberState("hero");
-            UnitBaseAttributes attributes = member.progression.unit_base_attributes;
-            attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 19);
-            member.progression.SetAttributeGrowthProgressAmount(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 90);
+        PartyMemberState member = party.GetMemberState("hero");
+        UnitBaseAttributes attributes = member.progression.unit_base_attributes;
+        attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 19);
+        member.progression.SetAttributeGrowthProgressAmount(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 90);
 
-            reward = manager.BuildPendingCharacterReward(
-                "hero",
-                "agility_progress_cap",
-                "skill_core_max",
-                "test_ultimate_skill",
-                "Test ultimate skill",
-                new[]
+        PendingCharacterReward reward = manager.BuildPendingCharacterReward(
+            "hero",
+            "agility_progress_cap",
+            "skill_core_max",
+            "test_ultimate_skill",
+            "Test ultimate skill",
+            new[]
+            {
+                new PendingCharacterRewardEntry
                 {
-                    rewardEntry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
-                        target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
-                        amount = 240,
-                        reason_text = "cap check",
-                    },
+                    EntryKind = PendingCharacterRewardEntryKind.AttributeProgress,
+                    target_id = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    amount = 240,
+                    reason_text = "cap check",
                 },
-                "Cap check"
-            );
+            },
+            "Cap check"
+        );
 
-            _test.True(reward != null, "attribute progress reward should materialize.");
-            if (reward == null)
-                return;
+        _test.True(reward != null, "attribute progress reward should materialize.");
+        if (reward == null)
+            return;
 
-            CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
-            GodotRefCountedDisposer.DisposeIfValid(reward);
-            reward = null;
-            _test.Eq(
-                attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
-                20,
-                "attribute progress should convert until the base attribute cap."
-            );
-            _test.Eq(
-                ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
-                230,
-                "attribute progress should keep remaining progress after reaching the cap."
-            );
-            _test.Eq(
-                delta.AttributeChangesTyped.Count,
-                1,
-                "attribute progress reward should expose one attribute change."
-            );
-            if (delta.AttributeChangesTyped.Count == 0)
-                return;
+        CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(reward);
+        _test.Eq(
+            attributes.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
+            20,
+            "attribute progress should convert until the base attribute cap."
+        );
+        _test.Eq(
+            ReadGrowthProgress(member.progression, UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)),
+            230,
+            "attribute progress should keep remaining progress after reaching the cap."
+        );
+        _test.Eq(
+            delta.AttributeChangesTyped.Count,
+            1,
+            "attribute progress reward should expose one attribute change."
+        );
+        if (delta.AttributeChangesTyped.Count == 0)
+            return;
 
-            CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
-            _test.Eq(change.AttributeId, new StringName("agility"), "attribute change should keep the target id.");
-            _test.Eq(change.ProgressDelta, 240, "attribute change should expose progress delta.");
-            _test.Eq(change.ProgressBefore, 90, "attribute change should expose previous progress.");
-            _test.Eq(change.ProgressAfter, 230, "attribute change should expose remaining progress.");
-            _test.Eq(change.Delta, 1, "attribute change should expose converted attribute delta.");
-            _test.Eq(change.AttributeBefore, 19, "attribute change should expose previous attribute.");
-            _test.Eq(change.AttributeAfter, 20, "attribute change should expose final attribute.");
-            _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(reward);
-            GodotRefCountedDisposer.DisposeIfValid(rewardEntry);
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-            DisposeItemDefs(itemDefs);
-        }
+        CharacterAttributeChangeFact change = delta.AttributeChangesTyped[0];
+        _test.Eq(change.AttributeId, new StringName("agility"), "attribute change should keep the target id.");
+        _test.Eq(change.ProgressDelta, 240, "attribute change should expose progress delta.");
+        _test.Eq(change.ProgressBefore, 90, "attribute change should expose previous progress.");
+        _test.Eq(change.ProgressAfter, 230, "attribute change should expose remaining progress.");
+        _test.Eq(change.Delta, 1, "attribute change should expose converted attribute delta.");
+        _test.Eq(change.AttributeBefore, 19, "attribute change should expose previous attribute.");
+        _test.Eq(change.AttributeAfter, 20, "attribute change should expose final attribute.");
+        _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
     }
 
     private void TestActiveLevelTriggerSetAndClearUseTypedResult()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_set_clear_trigger",
-            display_name = "Test set clear trigger",
-            max_level = 1,
-        };
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            "test_set_clear_trigger",
+            displayName: "Test set clear trigger",
+            maxLevel: 1
+        );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
@@ -647,20 +651,20 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-            new GDictionary(),
-            new GDictionary()
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>()
         );
 
         LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
             "hero",
-            triggerSkill.skill_id
+            triggerSkill.SkillId
         );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
         _test.True(setResult.Ok, "set active trigger should succeed.");
         _test.Eq(
             setResult.SkillId,
-            triggerSkill.skill_id,
+            triggerSkill.SkillId,
             "set active trigger should preserve skill id in boundary result."
         );
         _test.Eq(
@@ -670,7 +674,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
-            triggerSkill.skill_id,
+            triggerSkill.SkillId,
             "set active trigger should update progression state."
         );
         _test.True(
@@ -679,7 +683,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
         );
 
         LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
-        triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
         _test.True(clearResult.Ok, "clear active trigger should succeed.");
         _test.Eq(
             member.progression.active_level_trigger_core_skill_id,
@@ -709,25 +713,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
         PartyMemberState member = party.GetMemberState("hero");
         member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
 
-        SkillDef triggerSkill = new()
-        {
-            skill_id = "test_growth_trigger",
-            display_name = "Test growth trigger",
-            max_level = 1,
-        };
-        triggerSkill.SetAttributeGrowthProgress(
-            new Dictionary<StringName, int> { ["agility"] = 60 }
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            "test_growth_trigger",
+            displayName: "Test growth trigger",
+            maxLevel: 1,
+            attributeGrowthProgress: new Dictionary<StringName, int> { ["agility"] = 60 }
         );
         member.progression.SetSkillProgress(
             new UnitSkillProgress
             {
-                skill_id = triggerSkill.skill_id,
+                skill_id = triggerSkill.SkillId,
                 is_learned = true,
                 is_core = true,
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
+        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
         ProfessionDef profession = new()
         {
@@ -741,9 +742,14 @@ public partial class run_character_management_quest_materializer_regression : Sc
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-            new GDictionary { [profession.profession_id] = profession },
-            new GDictionary()
+            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
+            TestProgressionDefinitionProjection.Professions(
+                new Dictionary<StringName, ProfessionDef>
+                {
+                    [profession.profession_id] = profession,
+                }
+            ),
+            new Dictionary<StringName, AchievementDefinition>()
         );
 
         CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -751,12 +757,12 @@ public partial class run_character_management_quest_materializer_regression : Sc
             profession.profession_id,
             PromotionSelectionData.Empty
         );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
+        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
 
         _test.Eq(delta.changed_profession_ids.Count, 1, "active trigger promotion should rank up.");
         _test.Eq(delta.AttributeChangesTyped.Count, 1, "active trigger should apply attribute growth directly.");
         _test.Eq(
-            triggerSkill.AttributeGrowthProgressTyped.Count,
+            triggerSkill.AttributeGrowthProgress.Count,
             1,
             "trigger skill should keep attribute growth entries in typed backing state."
         );
@@ -790,22 +796,34 @@ public partial class run_character_management_quest_materializer_regression : Sc
             new
             {
                 Label = "StringName key",
-                Growth = new GDictionary { [new StringName("agility")] = 60 },
+                Growth = OwnedDictionary(
+                    new GDictionary { [new StringName("agility")] = 60 },
+                    "character_management_quest_materializer.invalid_growth.string_name_key"
+                ),
             },
             new
             {
                 Label = "unknown attribute key",
-                Growth = new GDictionary { ["unknown_attribute"] = 60 },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["unknown_attribute"] = 60 },
+                    "character_management_quest_materializer.invalid_growth.unknown_attribute"
+                ),
             },
             new
             {
                 Label = "non-int amount",
-                Growth = new GDictionary { ["agility"] = "60" },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["agility"] = "60" },
+                    "character_management_quest_materializer.invalid_growth.non_int_amount"
+                ),
             },
             new
             {
                 Label = "non-positive amount",
-                Growth = new GDictionary { ["agility"] = 0 },
+                Growth = OwnedDictionary(
+                    new GDictionary { ["agility"] = 0 },
+                    "character_management_quest_materializer.invalid_growth.non_positive_amount"
+                ),
             },
         };
 
@@ -815,14 +833,22 @@ public partial class run_character_management_quest_materializer_regression : Sc
             PartyMemberState member = party.GetMemberState("hero");
             member.progression.unit_base_attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility), 2);
 
-            SkillDef triggerSkill = new()
-            {
-                skill_id = new StringName($"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"),
-                display_name = testCase.Label,
-                max_level = 1,
-                growth_tier = "basic",
-            };
-            triggerSkill.attribute_growth_progress = testCase.Growth.Duplicate(true);
+            SkillDef triggerSkill = TestResourceOwnership.Own(
+                new SkillDef
+                {
+                    skill_id = new StringName(
+                        $"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"
+                    ),
+                    display_name = testCase.Label,
+                    max_level = 1,
+                    growth_tier = "basic",
+                },
+                $"character_management_quest_materializer.invalid_growth.skill.{testCase.Label}"
+            );
+            triggerSkill.attribute_growth_progress = OwnedDictionary(
+                (GDictionary)testCase.Growth.Duplicate(true),
+                $"character_management_quest_materializer.invalid_growth.payload.{testCase.Label}"
+            );
             member.progression.SetSkillProgress(
                 new UnitSkillProgress
                 {
@@ -834,23 +860,36 @@ public partial class run_character_management_quest_materializer_regression : Sc
             );
             member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
 
-            ProfessionDef profession = new()
-            {
-                profession_id = new StringName(
-                    $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
-                ),
-                display_name = "Invalid growth profession",
-                is_initial_profession = true,
-                max_rank = 1,
-                hit_die_sides = 1,
-            };
+            ProfessionDef profession = TestResourceOwnership.Own(
+                new ProfessionDef
+                {
+                    profession_id = new StringName(
+                        $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
+                    ),
+                    display_name = "Invalid growth profession",
+                    is_initial_profession = true,
+                    max_rank = 1,
+                    hit_die_sides = 1,
+                },
+                $"character_management_quest_materializer.invalid_growth.profession.{testCase.Label}"
+            );
 
             CharacterManagementModule manager = new();
             manager.setup(
                 party,
-                new GDictionary { [triggerSkill.skill_id] = triggerSkill },
-                new GDictionary { [profession.profession_id] = profession },
-                new GDictionary()
+                SkillDefinition.ProjectIndex(
+                    new Dictionary<StringName, SkillDef>
+                    {
+                        [triggerSkill.skill_id] = triggerSkill,
+                    }
+                ),
+                TestProgressionDefinitionProjection.Professions(
+                    new Dictionary<StringName, ProfessionDef>
+                    {
+                        [profession.profession_id] = profession,
+                    }
+                ),
+                new Dictionary<StringName, AchievementDefinition>()
             );
 
             CharacterProgressionDelta delta = manager.PromoteProfession(
@@ -885,109 +924,95 @@ public partial class run_character_management_quest_materializer_regression : Sc
     private void TestSkillMasteryRewardAggregatesTypedEntries()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        SkillDef charge = new()
-        {
-            skill_id = "charge",
-            display_name = "Charge",
-        };
+        PartyMemberState member = party.GetMemberState("hero");
+        member.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = "charge",
+                is_learned = true,
+                skill_level = 1,
+            }
+        );
+        SkillDefinition charge = TestSkillDefinitionProjection.BuildSkill(
+            "charge",
+            displayName: "Charge",
+            masterySources: new[] { new StringName("battle") }
+        );
+
         CharacterManagementModule manager = new();
-        GDictionary itemDefs = BuildItemDefs();
-        PendingCharacterRewardEntry firstEntry = null;
-        PendingCharacterRewardEntry battleRatingEntry = null;
-        PendingCharacterRewardEntry trainingEntry = null;
-        PendingCharacterReward reward = null;
-        try
-        {
-            PartyMemberState member = party.GetMemberState("hero");
-            member.progression.SetSkillProgress(
-                new UnitSkillProgress
-                {
-                    skill_id = "charge",
-                    is_learned = true,
-                    skill_level = 1,
-                }
-            );
-            charge.mastery_sources = new Godot.Collections.Array<StringName> { "battle" };
+        manager.setup(
+            party,
+            new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            BuildItemDefIndex(BuildItemDefs()),
+            new Dictionary<StringName, QuestDefinition>()
+        );
 
-            manager.setup(
-                party,
-                new GDictionary { [charge.skill_id] = charge },
-                new GDictionary(),
-                new GDictionary(),
-                itemDefs,
-                new GDictionary()
-            );
-
-            reward = manager.BuildPendingSkillMasteryReward(
-                "hero",
-                "battle",
-                "Battle reward",
-                new[]
+        PendingCharacterReward reward = manager.BuildPendingSkillMasteryReward(
+            "hero",
+            "battle",
+            "Battle reward",
+            new[]
+            {
+                new PendingCharacterRewardEntry
                 {
-                    firstEntry = new PendingCharacterRewardEntry
-                    {
-                        target_id = "charge",
-                        amount = 3,
-                        reason_text = "first hit",
-                    },
-                    battleRatingEntry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
-                        target_id = "charge",
-                        amount = 4,
-                        mastery_source_type = "battle_rating",
-                    },
-                    trainingEntry = new PendingCharacterRewardEntry
-                    {
-                        EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
-                        target_id = "charge",
-                        amount = 99,
-                        mastery_source_type = "training",
-                    },
+                    target_id = "charge",
+                    amount = 3,
+                    reason_text = "first hit",
                 },
-                "Battle mastery"
-            );
+                new PendingCharacterRewardEntry
+                {
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 4,
+                    mastery_source_type = "battle_rating",
+                },
+                new PendingCharacterRewardEntry
+                {
+                    EntryKind = PendingCharacterRewardEntryKind.SkillMastery,
+                    target_id = "charge",
+                    amount = 99,
+                    mastery_source_type = "training",
+                },
+            },
+            "Battle mastery"
+        );
 
-            _test.True(reward != null, "skill mastery reward should materialize for learned skills.");
-            if (reward == null)
-                return;
-            _test.Eq(reward.entries.Count, 1, "skill mastery reward should aggregate entries by skill.");
-            PendingCharacterRewardEntry entry = reward.entries[0];
-            _test.Eq(
-                entry.entry_type,
-                PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
-                "skill mastery reward should produce mastery entries."
-            );
-            _test.Eq(entry.target_id, new StringName("charge"), "skill mastery reward should preserve skill id.");
-            _test.Eq(entry.amount, 7, "skill mastery reward should aggregate only allowed battle mastery.");
-            _test.Eq(entry.reason_text, "first hit", "skill mastery reward should preserve first reason text.");
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(reward);
-            GodotRefCountedDisposer.DisposeIfValid(firstEntry);
-            GodotRefCountedDisposer.DisposeIfValid(battleRatingEntry);
-            GodotRefCountedDisposer.DisposeIfValid(trainingEntry);
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-            BattleTestFixture.DisposeSkill(charge);
-            DisposeItemDefs(itemDefs);
-        }
+        _test.True(reward != null, "skill mastery reward should materialize for learned skills.");
+        if (reward == null)
+            return;
+        _test.Eq(reward.entries.Count, 1, "skill mastery reward should aggregate entries by skill.");
+        PendingCharacterRewardEntry entry = reward.entries[0];
+        _test.Eq(
+            entry.entry_type,
+            PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillMastery),
+            "skill mastery reward should produce mastery entries."
+        );
+        _test.Eq(entry.target_id, new StringName("charge"), "skill mastery reward should preserve skill id.");
+        _test.Eq(entry.amount, 7, "skill mastery reward should aggregate only allowed battle mastery.");
+        _test.Eq(entry.reason_text, "first hit", "skill mastery reward should preserve first reason text.");
     }
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
         GDictionary itemDefs,
         GDictionary questDefs
+    ) => BuildManager(party, itemDefs, BuildQuestDefIndex(questDefs));
+
+    private static CharacterManagementModule BuildManager(
+        PartyState party,
+        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
         CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs,
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            BuildItemDefIndex(itemDefs),
             questDefs
         );
         return manager;
@@ -1033,21 +1058,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         };
     }
 
-    private static void DisposeItemDefs(GDictionary itemDefs)
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
     {
-        if (itemDefs == null)
-            return;
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (itemDefs[key].AsGodotObject() is ItemDef itemDef)
-                BattleTestFixture.DisposeItem(itemDef);
-        }
-        itemDefs.Clear();
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
+        Dictionary<StringName, ItemDefinition> result = new();
         if (itemDefs == null)
             return result;
         foreach (Variant rawKey in itemDefs.Keys)
@@ -1058,7 +1071,27 @@ public partial class run_character_management_quest_materializer_regression : Sc
             if (itemId == "")
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
+                result[itemId] = itemDef.ToDefinition();
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, QuestDefinition> BuildQuestDefIndex(
+        GDictionary questDefs
+    )
+    {
+        Dictionary<StringName, QuestDefinition> result = new();
+        if (questDefs == null)
+            return result;
+        foreach (Variant rawKey in questDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName questId = rawKey.AsStringName();
+            if (questId == "")
+                continue;
+            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
+                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
         }
         return result;
     }
@@ -1074,6 +1107,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         {
             quest_id = questId,
             display_name = questId,
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
         };
         quest.objective_defs.Add(
             new GDictionary
@@ -1097,6 +1133,9 @@ public partial class run_character_management_quest_materializer_regression : Sc
         {
             quest_id = questId,
             display_name = displayName,
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
         };
         quest.objective_defs.Add(
             new GDictionary
@@ -1182,5 +1221,7 @@ public partial class run_character_management_quest_materializer_regression : Sc
             : 0;
     }
 
+    private static GDictionary OwnedDictionary(GDictionary dictionary, string reason) =>
+        TestResourceOwnership.OwnWrapper(dictionary, reason);
 
 }

@@ -7,10 +7,9 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public class PartyEquipmentService
 {
     private PartyState _party_state;
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private PartyWarehouseService _warehouse_service;
     private bool _ownsWarehouseService;
-    private bool _ownsPartyState;
 
     internal sealed class EquipmentDisplacedEntry
     {
@@ -143,39 +142,46 @@ public class PartyEquipmentService
     public PartyEquipmentService()
     {
         _party_state = new PartyState();
-        _ownsPartyState = true;
         _warehouse_service = new PartyWarehouseService();
         _ownsWarehouseService = true;
     }
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         PartyWarehouseService warehouseService = null,
         Func<StringName> equipmentInstanceIdAllocator = null
     )
     {
         ReleaseOwnedWarehouseService();
-        ReplacePartyState(partyState);
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
+        _party_state = partyState ?? new PartyState();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
         _warehouse_service = warehouseService ?? new PartyWarehouseService();
         _ownsWarehouseService = warehouseService == null;
-        _warehouse_service.Setup(_party_state, _item_defs, equipmentInstanceIdAllocator);
+        _warehouse_service.Setup(
+            _party_state,
+            _itemDefinitions,
+            equipmentInstanceIdAllocator
+        );
     }
 
     public void Dispose()
     {
         ReleaseOwnedWarehouseService();
         _warehouse_service = null;
-        ReleaseOwnedPartyState();
-        _item_defs.Clear();
+        _party_state = null;
+        _itemDefinitions.Clear();
     }
 
-    public ItemDef GetItemDef(StringName itemId)
+    public ItemDefinition GetItemDef(StringName itemId)
     {
         var n = ProgressionDataUtils.to_string_name(itemId);
-        return n != "" && _item_defs.TryGetValue(n, out var itemDef) ? itemDef : null;
+        return n != "" && _itemDefinitions.TryGetValue(n, out var itemDefinition)
+            ? itemDefinition
+            : null;
     }
 
     public EquipmentState GetEquipmentState(StringName memberId)
@@ -202,36 +208,36 @@ public class PartyEquipmentService
                     ItemId = itemId,
                     InstanceId = es.GetEquippedInstanceId(slotId),
                     EquipmentTypeId = itemDef?.GetEquipmentTypeIdNormalized() ?? "",
-                    DisplayName = itemDef != null && itemDef.display_name.Length > 0
-                        ? itemDef.display_name
+                    DisplayName = itemDef != null && itemDef.DisplayName.Length > 0
+                        ? itemDef.DisplayName
                         : itemId.ToString(),
-                    Icon = itemDef?.icon ?? "",
-                    Description = itemDef?.description ?? "",
+                    Icon = itemDef?.Icon ?? "",
+                    Description = itemDef?.Description ?? "",
                 }
             );
         }
         return entries;
     }
 
-    internal List<AttributeModifier> BuildAttributeModifiersTyped(
+    internal IReadOnlyList<AttributeModifierDefinition> BuildAttributeModifiersTyped(
         EquipmentState equipmentState
     )
     {
-        var r = new List<AttributeModifier>();
+        var r = new List<AttributeModifierDefinition>();
         if (equipmentState == null)
-            return r;
+            return Array.Empty<AttributeModifierDefinition>();
         foreach (var esId in equipmentState.GetEntrySlotIdsTyped())
         {
             var itemId = equipmentState.GetEquippedItemId(esId);
             var id = GetItemDef(itemId);
             if (id == null || !id.IsEquipment())
                 continue;
-            foreach (var m in id.GetAttributeModifiersTyped())
-                if (m != null)
-                    r.Add(m);
+            foreach (AttributeModifierDefinition definition in id.GetAttributeModifiersTyped())
+                if (definition != null)
+                    r.Add(definition);
             _append_armor_max_dex_modifier(r, id);
         }
-        return r;
+        return r.Count > 0 ? r.AsReadOnly() : Array.Empty<AttributeModifierDefinition>();
     }
 
     internal EquipmentEquipPreviewResult PreviewEquipTyped(
@@ -338,9 +344,9 @@ public class PartyEquipmentService
                     }
                 );
         }
-        if (id.equip_requirement is EquipmentRequirement eqReq)
+        if (id.EquipRequirement is EquipmentRequirementDefinition requirement)
         {
-            var cr = eqReq.CheckResult(ms);
+            var cr = requirement.CheckResult(ms);
             if (!cr.Allowed)
             {
                 var fcode = cr.Blockers.Count > 0 ? cr.Blockers[0] : "requirement_failed";
@@ -556,8 +562,8 @@ public class PartyEquipmentService
     }
 
     private void _append_armor_max_dex_modifier(
-        List<AttributeModifier> mods,
-        ItemDef id
+        List<AttributeModifierDefinition> mods,
+        ItemDefinition id
     )
     {
         if (id == null || !id.IsArmor())
@@ -566,14 +572,14 @@ public class PartyEquipmentService
         if (mdb < 0)
             return;
         mods.Add(
-            new AttributeModifier
-            {
-                attribute_id = AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
-                mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-                value = mdb,
-                source_type = "equipment",
-                source_id = id.item_id,
-            }
+            new AttributeModifierDefinition(
+                AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
+                AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                mdb,
+                0,
+                "equipment",
+                id.ItemId
+            )
         );
     }
 
@@ -627,26 +633,5 @@ public class PartyEquipmentService
 
         _warehouse_service.Dispose();
         _ownsWarehouseService = false;
-    }
-
-    private void ReplacePartyState(PartyState partyState)
-    {
-        ReleaseOwnedPartyState();
-        if (partyState != null)
-        {
-            _party_state = partyState;
-            _ownsPartyState = false;
-            return;
-        }
-        _party_state = new PartyState();
-        _ownsPartyState = true;
-    }
-
-    private void ReleaseOwnedPartyState()
-    {
-        if (_ownsPartyState)
-            GodotRefCountedDisposer.DisposeIfValid(_party_state);
-        _party_state = null;
-        _ownsPartyState = false;
     }
 }

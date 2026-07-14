@@ -1,22 +1,22 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
 internal sealed class TestHarness
 {
     public readonly List<string> Failures = new();
-    private readonly List<GodotObject> _trackedGodotObjects = new();
+    private readonly object _sync = new();
+    private TestResult _result;
 
     public void True(bool condition, string message)
     {
         if (!condition)
-            Failures.Add(message);
+            Fail(message);
     }
 
     public void False(bool condition, string message)
     {
         if (condition)
-            Failures.Add(message);
+            Fail(message);
     }
 
     public void Eq<T>(T actual, T expected, string message)
@@ -32,7 +32,7 @@ internal sealed class TestHarness
         }
 
         if (!equal)
-            Failures.Add($"{message} | actual={actual} expected={expected}");
+            Fail($"{message} | actual={actual} expected={expected}");
     }
 
     public void Eq(object actual, object expected, string message)
@@ -40,51 +40,37 @@ internal sealed class TestHarness
         if (actual is StringName || expected is StringName)
         {
             if (actual?.ToString() != expected?.ToString())
-                Failures.Add($"{message} | actual={actual} expected={expected}");
+                Fail($"{message} | actual={actual} expected={expected}");
             return;
         }
 
         if (!Equals(actual, expected))
-            Failures.Add($"{message} | actual={actual} expected={expected}");
+            Fail($"{message} | actual={actual} expected={expected}");
     }
 
     public void Ne<T>(T actual, T unexpected, string message)
     {
         if (Equals(actual, unexpected))
-            Failures.Add($"{message} | unexpected={unexpected}");
+            Fail($"{message} | unexpected={unexpected}");
     }
 
-    public void Fail(string message) => Failures.Add(message);
-
-    public T Track<T>(T value)
-        where T : GodotObject
+    public void Fail(string message)
     {
-        if (value != null)
-            _trackedGodotObjects.Add(value);
-        return value;
+        lock (_sync)
+            Failures.Add(message);
     }
 
-    public void DisposeTrackedGodotObjects()
+    public TestResult Finish(string label, int exitCode = 0)
     {
-        for (int index = _trackedGodotObjects.Count - 1; index >= 0; index--)
-            BattleTestFixture.DisposeFixtureObject(_trackedGodotObjects[index]);
-        _trackedGodotObjects.Clear();
-    }
-
-    public int Finish(string label)
-    {
-        DisposeTrackedGodotObjects();
-        GodotSharpCleanup.CollectPendingFinalizers();
-
-        if (Failures.Count == 0)
+        lock (_sync)
         {
-            GD.Print($"{label}: PASS");
-            return 0;
-        }
+            if (_result != null)
+                return _result;
 
-        foreach (string failure in Failures)
-            GD.PushError(failure);
-        GD.Print($"{label}: FAIL ({Failures.Count})");
-        return 1;
+            IReadOnlyList<string> failures = new List<string>(Failures).AsReadOnly();
+            bool passed = failures.Count == 0 && exitCode == 0;
+            _result = new TestResult(label, passed, passed ? 0 : 1, failures);
+            return _result;
+        }
     }
 }

@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_battle_contribution_event_builder_regression : SceneTree
+public partial class run_battle_contribution_event_builder_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -9,7 +9,7 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
         TestDictionaryPayloadParsesTypedEvent();
         TestRelationFallsBackFromFactionIds();
         TestTypedEventProjectsToDictionary();
-        Quit(_test.Finish("Battle contribution event builder regression"));
+        RequestTestExit(_test.Finish("Battle contribution event builder regression"));
     }
 
     private void TestDictionaryPayloadParsesTypedEvent()

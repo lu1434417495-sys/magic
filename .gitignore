@@ -33,6 +33,7 @@ __pycache__/
 !.ralph/review_state.json
 
 # Local temp and editor state
+.worktrees/
 .tmp/
 tmp/
 tmp_*.json

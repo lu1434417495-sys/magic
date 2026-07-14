@@ -94,6 +94,12 @@ internal static class BattleAiPayloadGuard
         return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
+    internal static bool ValidateNoForbiddenObject(BattleSaveBranchPreviewData value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
     internal static bool ValidateNoForbiddenObject(
         BattleAiScoreRuntimeMetadata value,
         string context
@@ -105,6 +111,15 @@ internal static class BattleAiPayloadGuard
 
     internal static bool ValidateNoForbiddenObject(
         BattleSpecialProfilePreviewFacts value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        BattleAiLayeredBarrierProjection value,
         string context
     )
     {
@@ -271,14 +286,6 @@ internal static class BattleAiPayloadGuard
             return false;
         if (scoreInput.preview != null && !PreviewHasNoLiveState(scoreInput.preview))
             return false;
-        if (scoreInput.skill_def != null)
-        {
-            return FailLoud(
-                "BattleAiScoreInput.skill_def must be stripped before leaving score assembly.",
-                FailureContext("score_input.skill_def")
-            );
-        }
-
         return ValidateNoForbiddenObject(
                 scoreInput.runtime_action_metadata,
                 "score_input.runtime_action_metadata"
@@ -294,6 +301,10 @@ internal static class BattleAiPayloadGuard
             && ValidateNoForbiddenObject(
                 scoreInput.special_profile_preview_facts,
                 "score_input.special_profile_preview_facts"
+            )
+            && ValidateNoForbiddenObject(
+                scoreInput.layered_barrier_projection,
+                "score_input.layered_barrier_projection"
             )
             && ValidateNoForbiddenObject(
                 scoreInput.target_numeric_summary,

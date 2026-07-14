@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_crown_break_regression : SceneTree
+public partial class run_crown_break_regression : LifecycleTestSceneTree
 {
     private static readonly StringName CROWN_BREAK_SKILL_ID = "crown_break";
     private static readonly StringName SAINT_BLADE_COMBO_SKILL_ID = "saint_blade_combo";
@@ -32,8 +32,7 @@ public partial class run_crown_break_regression : SceneTree
         TestCrownBreakBlindedEyeBlocksEvasion();
         TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Crown break regression"));
+        RequestTestExit(_test.Finish("Crown break regression"));
     }
 
     private void TestCrownBreakBrokenFangBlocksCrit()
@@ -71,7 +70,10 @@ public partial class run_crown_break_regression : SceneTree
 
             command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
             preview = runtime.PreviewCommand(command);
-            _test.True(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
+            _test.True(
+                preview != null && preview.allowed,
+                $"断牙分支前置：已被烙印的 elite 应允许预览折冠。 log={preview?.log_lines}"
+            );
             batch = runtime.IssueCommand(command);
             _test.Eq(runtime.GetMemberCalamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
             _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
@@ -99,11 +101,19 @@ public partial class run_crown_break_regression : SceneTree
         try
         {
             runtime = BuildRuntime();
-            SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), SAINT_BLADE_COMBO_SKILL_ID);
-            _test.True(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
-            if (skillDef == null || skillDef.combat_profile == null)
+            SkillDefinition skillDefinition = runtime.GetSkillDefinitionTyped(
+                SAINT_BLADE_COMBO_SKILL_ID
+            );
+            _test.True(
+                skillDefinition != null && skillDefinition.CombatProfile != null,
+                "折手回归前置：saint_blade_combo 定义应存在。"
+            );
+            if (skillDefinition == null || skillDefinition.CombatProfile == null)
                 return;
-            CombatEffectDef repeatEffect = GetEffectDef(skillDef.combat_profile.effect_defs, "repeat_attack_until_fail");
+            CombatEffectDefinition repeatEffect = GetEffectDefinition(
+                skillDefinition.CombatProfile.EffectDefinitions,
+                "repeat_attack_until_fail"
+            );
             _test.True(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
             if (repeatEffect == null)
                 return;
@@ -140,7 +150,13 @@ public partial class run_crown_break_regression : SceneTree
             state.phase = "unit_acting";
             elite.current_ap = 2;
             int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
-                runtime, state, elite, allyTarget, skillDef, repeatEffect, new[] { true, true }
+                runtime,
+                state,
+                elite,
+                allyTarget,
+                skillDefinition,
+                repeatEffect,
+                new[] { true, true }
             );
             _test.True(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
             if (followUpSeed < 0)
@@ -159,7 +175,7 @@ public partial class run_crown_break_regression : SceneTree
             followUpBatch = runtime.IssueCommand(followUpCommand);
             _test.Eq(
                 elite.current_aura,
-                auraBefore - (int)skillDef.combat_profile.aura_cost,
+                auraBefore - (skillDefinition?.CombatProfile?.AuraCost ?? 0),
                 "折手分支下的连斩应只结算首段 Aura 成本。"
             );
             _test.True(followUpBatch != null && followUpBatch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={followUpBatch?.log_lines}");
@@ -303,18 +319,23 @@ public partial class run_crown_break_regression : SceneTree
     private BattleRuntimeModule BuildRuntime()
     {
         var runtime = new BattleRuntimeModule();
-        using var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs =
-            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
-        runtime.setup(
-            null,
-            skillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
-        );
-        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
-        var damageResolver = new DeterministicBattleDamageResolver();
-        BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        try
+        {
+            runtime.setup(
+                null,
+                registry.GetSkillDefinitionsTyped(),
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>()
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+            var damageResolver = new DeterministicBattleDamageResolver();
+            BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
+        }
+        finally
+        {
+            registry.Dispose();
+        }
         return runtime;
     }
 
@@ -453,6 +474,7 @@ public partial class run_crown_break_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = CROWN_BREAK_SKILL_ID;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(CROWN_BREAK_SKILL_ID);
         command.skill_variant_id = variantId;
         command.target_coord = targetCoord;
         command.target_coords = new GVector2IArray { targetCoord };
@@ -465,19 +487,23 @@ public partial class run_crown_break_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;
     }
 
-    private static CombatEffectDef GetEffectDef(Godot.Collections.Array<CombatEffectDef> effectDefs, StringName effectType)
+    private static CombatEffectDefinition GetEffectDefinition(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        StringName effectType
+    )
     {
-        if (effectDefs == null)
+        if (effectDefinitions == null)
             return null;
-        foreach (CombatEffectDef typedEffect in effectDefs)
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
         {
-            if (typedEffect != null && typedEffect.effect_type == effectType)
-                return typedEffect;
+            if (effectDefinition != null && effectDefinition.EffectType == effectType)
+                return effectDefinition;
         }
         return null;
     }
@@ -487,12 +513,12 @@ public partial class run_crown_break_regression : SceneTree
         BattleState state,
         BattleUnitState activeUnit,
         BattleUnitState targetUnit,
-        SkillDef skillDef,
-        CombatEffectDef repeatEffect,
+        SkillDefinition skillDefinition,
+        CombatEffectDefinition repeatEffect,
         bool[] expectedStageOutcomes
     )
     {
-        if (runtime == null || state == null || activeUnit == null || targetUnit == null || skillDef == null || repeatEffect == null)
+        if (runtime == null || state == null || activeUnit == null || targetUnit == null || skillDefinition == null || repeatEffect == null)
             return -1;
         for (int candidateSeed = 0; candidateSeed < 4096; candidateSeed++)
         {
@@ -505,7 +531,7 @@ public partial class run_crown_break_regression : SceneTree
                     state,
                     activeUnit,
                     targetUnit,
-                    skillDef,
+                    skillDefinition,
                     repeatEffect,
                     stageIndex
                 );
@@ -531,13 +557,6 @@ public partial class run_crown_break_regression : SceneTree
         foreach (Vector2I coord in coords)
             pairs.Add(new Vector2I(coord.X, coord.Y));
         return pairs;
-    }
-
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
     }
 
     private sealed class SelectionRuntimeProxy

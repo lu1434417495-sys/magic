@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class capture_canyon_battle_board : SceneTree
+public partial class capture_canyon_battle_board : LifecycleTestSceneTree
 {
     private static readonly PackedScene BattleBoardScene = GD.Load<PackedScene>(
         "res://scenes/ui/battle_board_2d.tscn"
@@ -22,116 +22,96 @@ public partial class capture_canyon_battle_board : SceneTree
         "res://battle_board_canyon_capture.signature.txt";
 
     private readonly BattleGridService _gridService = new();
+    private readonly TestHarness _test = new();
 
     public override async void _Initialize()
     {
         int exitCode = await Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Canyon battle board capture", exitCode));
     }
 
     private async Task<int> Run()
     {
-        GDictionary layout = null;
-        BattleState state = null;
-        ColorRect background = null;
-        BattleBoard2D board = null;
-        try
+        using GodotProjectionLease<GDictionary> layoutLease = BuildCanyonLayout();
+        GDictionary layout = layoutLease.Value;
+        BattleState state = BuildState(layout);
+        Root.Size = ViewportSize;
+
+        var background = new ColorRect
         {
-            layout = BuildCanyonLayout();
-            state = BuildState(layout);
-            Root.Size = ViewportSize;
+            Color = new Color(0.12f, 0.08f, 0.06f),
+            Size = ViewportSize,
+        };
+        Root.AddChild(background);
 
-            background = new ColorRect
+        BattleBoard2D board = BattleBoardScene.Instantiate<BattleBoard2D>();
+        Root.AddChild(board);
+        await ProcessFrames(1);
+
+        Vector2I selectedCoord = DictVector2I(layout, "player_coord");
+        board.SetViewportSize(ViewportSize);
+        board.Configure(
+            state,
+            selectedCoord,
+            new GVector2IArray(),
+            new GVector2IArray(),
+            "single_unit",
+            1,
+            1,
+            new Dictionary<Vector2I, string>()
+        );
+        if (!await WaitForBoardRenderReady(board))
+        {
+            GD.PushError("Battle board capture did not reach render-ready state before screenshot.");
+            return 1;
+        }
+        if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
+            return 1;
+        if (!ValidateUnitPlacement(state, "enemy_capture", DictVector2I(layout, "enemy_coord"), "enemy_capture"))
+            return 1;
+
+        if (DisplayServer.GetName() == "headless")
+        {
+            Error signatureError = SaveHeadlessBoardSignature(board);
+            if (signatureError != Error.Ok)
             {
-                Color = new Color(0.12f, 0.08f, 0.06f),
-                Size = ViewportSize,
-            };
-            Root.AddChild(background);
-
-            board = BattleBoardScene.Instantiate<BattleBoard2D>();
-            Root.AddChild(board);
-            await ProcessFrames(1);
-
-            Vector2I selectedCoord = DictVector2I(layout, "player_coord");
-            board.SetViewportSize(ViewportSize);
-            board.Configure(
-                state,
-                selectedCoord,
-                new GVector2IArray(),
-                new GVector2IArray(),
-                "single_unit",
-                1,
-                1,
-                new GDictionary()
+                GD.PushError("Failed to save battle board headless signature.");
+                return 1;
+            }
+            GD.Print(
+                $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
             );
-            if (!await WaitForBoardRenderReady(board))
-            {
-                GD.PushError("Battle board capture did not reach render-ready state before screenshot.");
-                return 1;
-            }
-            if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
-                return 1;
-            if (!ValidateUnitPlacement(state, "enemy_capture", DictVector2I(layout, "enemy_coord"), "enemy_capture"))
-                return 1;
-
-            if (DisplayServer.GetName() == "headless")
-            {
-                Error signatureError = SaveHeadlessBoardSignature(board);
-                if (signatureError != Error.Ok)
-                {
-                    GD.PushError("Failed to save battle board headless signature.");
-                    return 1;
-                }
-                GD.Print(
-                    $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
-                );
-                return 0;
-            }
-
-            Image image = Root.GetTexture().GetImage();
-            string outputPath = ProjectSettings.GlobalizePath(OutputPath);
-            Error saveError = image.SavePng(outputPath);
-            if (saveError != Error.Ok)
-            {
-                GD.PushError($"Failed to save battle board capture: {outputPath}");
-                return 1;
-            }
-            GD.Print($"Saved battle board capture to {outputPath}");
             return 0;
         }
-        finally
+
+        Image image = Root.GetTexture().GetImage();
+        string outputPath = ProjectSettings.GlobalizePath(OutputPath);
+        Error saveError = image.SavePng(outputPath);
+        if (saveError != Error.Ok)
         {
-            board?.QueueFree();
-            background?.QueueFree();
-            BattleTestFixture.DisposeBattleState(state);
-            BattleTestFixture.DisposeBattleLayout(layout);
+            GD.PushError($"Failed to save battle board capture: {outputPath}");
+            return 1;
         }
+        GD.Print($"Saved battle board capture to {outputPath}");
+        return 0;
     }
 
-    private GDictionary BuildCanyonLayout()
+    private GodotProjectionLease<GDictionary> BuildCanyonLayout()
     {
-        var generator = new BattleTerrainGenerator();
-        EncounterAnchorData anchor = BuildEncounterAnchor();
-        try
+        using var generator = new BattleTerrainGenerator();
+        using GDictionary context = new()
         {
-            return generator.GenerateTyped(
-                anchor,
-                TestSeed,
-                new GDictionary
-                {
-                    ["world_coord"] = TestWorldCoord,
-                    ["world_seed"] = TestSeed,
-                    ["battle_terrain_profile"] = "canyon",
-                    ["battle_map_size"] = TestMapSize,
-                }
-            );
-        }
-        finally
-        {
-            generator.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(anchor);
-        }
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+            ["battle_map_size"] = TestMapSize,
+        };
+        return generator.GenerateLease(
+            BuildEncounterAnchor(),
+            TestSeed,
+            context,
+            LifetimeDomain.Request
+        );
     }
 
     private static EncounterAnchorData BuildEncounterAnchor() =>
@@ -157,7 +137,8 @@ public partial class capture_canyon_battle_board : SceneTree
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
+        using (GDictionary cells = DictDict(layout, "cells"))
+            state.SetCellsFromDictionary(cells, duplicateCells: true);
         BattleUnitState ally = BuildUnit("ally_capture", "队员", "player");
         BattleUnitState enemy = BuildUnit("enemy_capture", "敌人", "hostile");
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -195,20 +176,6 @@ public partial class capture_canyon_battle_board : SceneTree
         else
             state.ally_unit_ids.Add(unit.unit_id);
         _gridService.PlaceUnit(state, unit, coord, true);
-    }
-
-    private static GDictionary CloneCells(GDictionary cells)
-    {
-        var cloned = new GDictionary();
-        foreach (Variant coordValue in cells.Keys)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            BattleCellState cell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell();
-        }
-        return cloned;
     }
 
     private async Task<bool> WaitForBoardRenderReady(BattleBoard2D board)

@@ -30,39 +30,12 @@ Choose the narrowest layer that proves the behavior:
 Prefer existing project fixtures:
 
 - Use `tests/shared/TestHarness.cs` for assertions and final status. Avoid ad hoc `GD.PushError` assertion frameworks in new tests.
-- Use `GodotSharpCleanup.CollectPendingFinalizers()` before `Quit(...)` when a runner creates/disposes Godot C# objects, touches many `Variant` boundaries, or has native wrapper lifecycle risk.
-- Treat Godot C# `RefCounted`/`Resource` objects as native wrappers with explicit ownership. Godot does not guarantee C# finalizers run before native shutdown; test-owned wrappers must be disposed explicitly instead of relying on `RefCounted` auto-release.
+- Use `TestHarness.Finish(...)` as the only normal runner-level finalizer drain. Do not call `GodotSharpCleanup.CollectPendingFinalizers()` or `GodotObjectLifecycle.CollectPendingFinalizers()` from ordinary test runners; register Godot runtime graphs with the appropriate owner scope and let the centralized exit path drain known owners.
 - Use `SnapshotTestRuntime` for snapshot renderer tests instead of rebuilding a fake runtime source from scratch.
 - Reuse deterministic damage resolvers in `tests/shared/` and domain helpers in `tests/battle_runtime/helpers/` before adding new battle test doubles.
 - Use `HeadlessGameTestSession.GetGameSessionTyped()` / `GetRuntimeFacadeTyped()` and typed runtime APIs. Do not route formal test setup through `GodotObject.Call(...)` or string method names when typed APIs exist.
 - Use `GameTextCommandRunner` for text automation flows and call `Dispose(true)` when finished.
 - Put repeated helpers in `tests/shared/` or the nearest domain helper folder only after at least two tests need them. Keep one-off builders local to the runner.
-- Keep test runner exits on the unified lifecycle path: success and failure should use `TestHarness.Finish(...)` or explicitly call `GodotSharpCleanup.CollectPendingFinalizers()` before `Quit(...)`. The static guard `tests/static_analysis/run_test_lifecycle_style_guard_regression.cs` enforces no bare numeric `Quit(...)`, no test `.Free()`, and no manual `Quit(exitCode)` without cleanup.
-
-## Godot C# Lifecycle
-
-Make ownership explicit in every C# runner:
-
-- **Test-owned objects**: Anything created with `new`, built by a local fixture, returned as a newly materialized payload, or passed into the test with ownership transferred must be disposed in `finally`.
-- **Borrowed objects**: Content/resources returned from `GameSession`, content registries, runtime indexes, scenes, autoloads, or catalog lookups are borrowed unless the API documents ownership transfer. Do not dispose borrowed content; clear references and dispose the owning session/runtime instead.
-- **Transferred objects**: If production code or a helper accepts an externally supplied object and takes ownership, document that in the test setup and let the new owner dispose it. If ownership is not explicit, keep the caller responsible and dispose in the test.
-- **Exit path**: A runner that does `int exitCode = Run(); Quit(exitCode);` must call `GodotSharpCleanup.CollectPendingFinalizers()` between `Run()` and `Quit(exitCode)`, even when all cases return through `TestHarness.Finish(...)`.
-
-Dispose owned Godot wrappers from leaf to root:
-
-- Prefer `GodotSharpCleanup.DisposeGodotObject(...)`, `GodotRefCountedDisposer.DisposeIfValid(...)`, or `BattleTestFixture` helpers. Do not call `.Free()` in tests.
-- Use `BattleTestFixture.DisposeBattleFixture(...)` for test-owned battle runtime/state graphs, and `DisposeFixtureObject(...)` for batches, skills, enemy AI defs/actions, items, units, cells, and other known fixture resources.
-- For battle preview and AI scoring surfaces, use `BattleTestFixture.DisposeBattlePreview(...)`, `DisposeBattleAiScoreInput(...)`, and `DisposeBattleCommand(...)` rather than manually walking nested fields.
-- After `BattleAiDecision decision = ...`, dispose `decision.score_input`, `decision.skill_score_input`, and `decision.command`, then null those fields. This applies to `BattleAiService.ChooseCommand(...)` and direct `EnemyAiAction.Decide(...)` calls.
-- Dispose local `EnemyAiAction` instances created by tests (`MoveToRangeAction`, `UseChargePathAoeAction`, `UseRandomChainSkillAction`, etc.) after their decisions are no longer needed. Do not dispose authored actions borrowed from enemy brain resources.
-- Dispose test-created extra `EnemyAiBrainDef`, `SkillDef`, `ItemDef`, and similar injected content after disposing the runtime/session that borrowed them.
-
-Treat Godot collection and `Variant` boundaries as native lifecycle surfaces:
-
-- Dispose test-owned `Godot.Collections.Dictionary`, `Godot.Collections.Array`, and `Variant` values read from dictionaries/arrays in `finally`; do not leave them for finalizers at process exit.
-- Wrap dictionary/array reads in small helpers that dispose the intermediate `Variant` after converting it to a typed value.
-- If a projection method creates temporary Godot collections for a returned payload, define and test the ownership boundary: either the returned payload owns them and callers dispose the payload, or the projection disposes temporaries after a verified copy/transfer.
-- When a case creates many Godot wrappers or touches projection/Variant code, call `GodotSharpCleanup.CollectPendingFinalizers()` after cleanup and before quitting.
 
 ## Write The Runner
 
@@ -72,7 +45,7 @@ Treat Godot collection and `Variant` boundaries as native lifecycle surfaces:
 4. In `_Initialize()`, use `CallDeferred(nameof(Run))` when the test needs autoloads, scene tree readiness, async waits, or Godot resources that should settle before assertions. Direct `Run()` is acceptable for isolated pure logic runners.
 5. Split assertions into small private methods named for the contract being protected.
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
-7. Dispose owned sessions, runtimes, registries, windows, resources, services, AI decisions, previews, commands, event batches, and Godot collection payloads in `finally` blocks when cleanup affects later assertions or finalizers.
+7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers, but do not run a local forced-GC/finalizer drain there.
 8. If the runtime relationship, ownership boundary, or recommended read set changed, update `docs/design/project_context_units.md` after the code change.
 
 ## Assert These Things
@@ -120,12 +93,6 @@ python tests/run_regression_suite.py --pattern tests/<domain>
 ```
 
 Do not pass `--include-simulation` or `--include-benchmarks` unless the user explicitly requested those classes of tests.
-
-When changing C# runner lifecycle, direct `Quit(...)` handling, or test-owned Godot object cleanup, also run:
-
-```bash
-python tests/run_regression_suite.py --pattern tests/static_analysis
-```
 
 ## Keep This Skill Current
 

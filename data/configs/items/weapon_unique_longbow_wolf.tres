@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"longbow"
+training_group = &"martial"
+range_type = &"ranged"
+family = &"bow"
+damage_tag = &"physical_pierce"
+attack_range = 10
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 1
+properties = Array[StringName]([&"two_handed", &"heavy"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_bow_wolf_325"
+base_item_id = &"weapon_type_longbow_base"
+display_name = "狼牙之弓"
+description = "由狼牙与骨片强化的长弓。它回应群体狩猎的节奏，也能短暂唤出守护箭手的幽灵狼。"
+is_stackable = false
+base_price = 42000
+buy_price = 42000
+sell_price = 21000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"wolf_bow", &"bow", &"wolf", &"summon"])
+trait_ids = Array[StringName]([&"weapon.bow.wolf.pack_tactics", &"weapon.bow.wolf.spirit_summon"])
+weapon_profile = SubResource("Resource_weapon_profile")

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public static class SelectionCardBuilder
@@ -102,7 +103,8 @@ public static class SelectionCardBuilder
         var chipsValue = spec[key];
         if (chipsValue.VariantType == Variant.Type.Array)
         {
-            foreach (var chip in chipsValue.AsGodotArray())
+            using GArray chips = chipsValue.AsGodotArray();
+            foreach (var chip in chips)
                 results.Add(chip.AsString());
         }
         else if (chipsValue.VariantType == Variant.Type.PackedStringArray)

@@ -4,23 +4,23 @@ using Godot;
 public sealed class SkillMergeService
 {
     private UnitProgress _unit_progress;
-    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
     private ProfessionAssignmentService _assignment_service;
 
     public void Setup(
         UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         ProfessionAssignmentService assignmentService = null
     )
     {
         _unit_progress = unitProgress;
-        _skillDefs.Clear();
-        if (skillDefs != null)
+        _skillDefinitions.Clear();
+        if (skillDefinitions != null)
         {
-            foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+            foreach (KeyValuePair<StringName, SkillDefinition> pair in skillDefinitions)
             {
                 if (pair.Key != "" && pair.Value != null)
-                    _skillDefs[pair.Key] = pair.Value;
+                    _skillDefinitions[pair.Key] = pair.Value;
             }
         }
         _assignment_service = assignmentService;
@@ -312,15 +312,19 @@ public sealed class SkillMergeService
             else if (grantedByProfessionId != sourceProgress.profession_granted_by)
                 hasProfessionGrantConflict = true;
         }
-        SkillDef resultSkillDef = _skillDefs.TryGetValue(resultSkillId, out SkillDef foundSkillDef)
-            ? foundSkillDef
+        SkillDefinition resultSkillDefinition =
+            _skillDefinitions.TryGetValue(
+                resultSkillId,
+                out SkillDefinition foundSkillDefinition
+            )
+                ? foundSkillDefinition
             : null;
-        if (resultSkillDef != null)
+        if (resultSkillDefinition != null)
         {
             maxSkillLevel = Mathf.Min(
                 maxSkillLevel,
                 SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
-                    resultSkillDef,
+                    resultSkillDefinition,
                     resultProgress,
                     _unit_progress
                 )

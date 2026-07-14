@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"weapon.exotic.sands_time.time_dislocation"
+display_name = "时间错乱"
+description = "装备期间每次计算持有者行动进度或读条进度时，单独进行 1D20+智力调整值 vs DC16；成功获得 200% 进度，失败获得 50% 进度。该效果不是持续时间状态，不使用 TU 持续时间。"
+source_scope = &"equipment_fixed"
+categories = Array[StringName]([&"weapon_feat"])
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+effect_type = &"equipment_ability"
+trigger_type = &"passive"
+stack_policy = &"stack_by_instance"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+attribute_modifiers = Array[Resource]([])
+roll_value_schema = Array[Resource]([])

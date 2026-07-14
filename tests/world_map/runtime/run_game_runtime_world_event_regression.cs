@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_runtime_world_event_regression : SceneTree
+public partial class run_game_runtime_world_event_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,8 +16,7 @@ public partial class run_game_runtime_world_event_regression : SceneTree
     {
         TestNearbyWorldEventEntriesUseTypedContextData();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Game runtime world event regression"));
+        RequestTestExit(_test.Finish("Game runtime world event regression"));
     }
 
     private void TestNearbyWorldEventEntriesUseTypedContextData()
@@ -77,13 +76,19 @@ public partial class run_game_runtime_world_event_regression : SceneTree
             ["prompt_text"] = "",
         };
 
-    private static WorldMapGenerationConfig BuildConfig() =>
-        new()
+    private static WorldGenerationDefinition BuildConfig()
+    {
+        WorldMapGenerationConfig source = new()
         {
             world_size_in_chunks = new Vector2I(1, 1),
             chunk_size = new Vector2I(4, 4),
             player_start_coord = Vector2I.Zero,
         };
+        return TestWorldGenerationDefinitionFactory.Project(
+            "res://tests/world_map/runtime/world_event_generation.tres",
+            source
+        );
+    }
 
     private static GDictionary BuildRootWorldData() =>
         new()

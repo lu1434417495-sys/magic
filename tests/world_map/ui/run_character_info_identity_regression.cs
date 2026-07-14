@@ -1,14 +1,11 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_character_info_identity_regression : SceneTree
+public partial class run_character_info_identity_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -17,20 +14,12 @@ public partial class run_character_info_identity_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestBuilderUsesPlainCSharpHelperShape();
-            TestBuilderUsesTypedBattleStatusEntries();
-            TestBattleCharacterInfoIncludesIdentitySection();
-            TestWorldCharacterInfoRequiresFormalStringValues();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestBuilderUsesPlainCSharpHelperShape();
+        TestBuilderUsesTypedBattleStatusEntries();
+        TestBattleCharacterInfoIncludesIdentitySection();
+        TestWorldCharacterInfoRequiresFormalStringValues();
 
-        Quit(_test.Finish("Character info identity regression"));
+        RequestTestExit(_test.Finish("Character info identity regression"));
     }
 
     private void TestBuilderUsesPlainCSharpHelperShape()
@@ -41,11 +30,11 @@ public partial class run_character_info_identity_regression : SceneTree
     private void TestBuilderUsesTypedBattleStatusEntries()
     {
         GameRuntimeCharacterInfoBuilder builder = new();
-        BattleUnitState unit = TrackOwned(new BattleUnitState
+        BattleUnitState unit = new()
         {
             unit_id = "status_unit",
             display_name = "Status Unit",
-        });
+        };
         unit.SetStatusEffect(
             new BattleStatusEffectState
             {
@@ -80,13 +69,13 @@ public partial class run_character_info_identity_regression : SceneTree
             GameRuntimeCharacterInfoBuilder builder = new();
             builder.Setup(runtime);
 
-            BattleUnitState unit = TrackOwned(new BattleUnitState
+            BattleUnitState unit = new()
             {
                 source_member_id = "hero",
                 coord = new Vector2I(2, 3),
                 current_hp = 10,
                 current_mp = 2,
-            });
+            };
             unit.attribute_snapshot.SetValue("hp_max", 20);
             unit.attribute_snapshot.SetValue("mp_max", 5);
 
@@ -150,30 +139,30 @@ public partial class run_character_info_identity_regression : SceneTree
         );
     }
 
-    private GameRuntimeFacade BuildRuntime()
+    private static GameRuntimeFacade BuildRuntime()
     {
         GameRuntimeFacade runtime = new();
         runtime._character_management.setup(
             BuildPartyState(),
-            BuildSkillDefs(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            default,
+            BuildSkillDefinitions(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>(),
+            null,
             BuildProgressionIdentityCatalog()
         );
         return runtime;
     }
 
-    private PartyState BuildPartyState()
+    private static PartyState BuildPartyState()
     {
-        PartyState partyState = TrackOwned(new PartyState
+        PartyState partyState = new()
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
-        });
+            active_member_ids = new StringNameList { "hero" },
+        };
         partyState.SetMemberState(
             new PartyMemberState
             {
@@ -202,99 +191,178 @@ public partial class run_character_info_identity_regression : SceneTree
         return partyState;
     }
 
-    private GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        // 内容索引只接受 StringName key，String key 会被 typed 索引构建丢弃。
-        return new GDictionary
-        {
-            [new StringName("dragon_breath")] = TrackOwned(new SkillDef
-            {
-                skill_id = "dragon_breath",
-                display_name = "Dragon Breath",
-            }),
-        };
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "dragon_breath";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Dragon Breath",
+            "",
+            "",
+            "active",
+            1,
+            1,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
+        );
+        return result;
     }
 
-    private ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()
+    private static ProgressionIdentityCatalogData BuildProgressionIdentityCatalog()
     {
-        RaceDef race = TrackOwned(new RaceDef
-        {
-            race_id = "human",
-            display_name = "Human",
-            racial_trait_summary = new Godot.Collections.Array<string>
+        RaceDefinition race = new(
+            "human",
+            "Human",
+            "",
+            "",
+            "",
+            System.Array.Empty<StringName>(),
+            "medium",
+            6,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new StringName[] { "charm" },
+            new Dictionary<StringName, StringName> { ["fire"] = "half" },
+            System.Array.Empty<StringName>(),
+            new string[] { "Human ambition" }
+        );
+        SubraceDefinition subrace = new(
+            "high_human",
+            "human",
+            "High Human",
+            "",
+            "",
+            0,
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>()
+        );
+        AgeProfileDefinition ageProfile = new(
+            "human_age_profile",
+            "",
+            0,
+            12,
+            16,
+            18,
+            35,
+            53,
+            70,
+            90,
+            new AgeStageRuleDefinition[]
             {
-                "Human ambition",
+                new(
+                    "adult",
+                    "Adult",
+                    "",
+                    System.Array.Empty<AttributeModifierDefinition>(),
+                    System.Array.Empty<StringName>(),
+                    System.Array.Empty<string>(),
+                    false,
+                    false
+                ),
+                new(
+                    "dragon_awakened",
+                    "Dragon Awakened",
+                    "",
+                    System.Array.Empty<AttributeModifierDefinition>(),
+                    System.Array.Empty<StringName>(),
+                    new string[] { "Dragon stage" },
+                    false,
+                    false
+                ),
             },
-            damage_resistances = new GDictionary
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>()
+        );
+        BloodlineDefinition bloodline = new(
+            "titan",
+            "Titan",
+            "",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<string>()
+        );
+        BloodlineStageDefinition bloodlineStage = new(
+            "titan_awakened",
+            "titan",
+            "Awakened",
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            System.Array.Empty<string>()
+        );
+        AscensionDefinition ascension = new(
+            "dragon",
+            "Dragon",
+            "",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            new RacialGrantedSkillDefinition[]
             {
-                [new StringName("fire")] = new StringName("half"),
+                new("dragon_breath", 1, "per_battle", 1),
             },
-            save_advantage_tags = new GStringNameArray { "charm" },
-        });
-        SubraceDef subrace = TrackOwned(new SubraceDef
-        {
-            subrace_id = "high_human",
-            parent_race_id = "human",
-            display_name = "High Human",
-        });
-        AgeProfileDef ageProfile = TrackOwned(new AgeProfileDef
-        {
-            profile_id = "human_age_profile",
-            stage_rules = new Godot.Collections.Array<AgeStageRule>
-            {
-                TrackOwned(new AgeStageRule { stage_id = "adult", display_name = "Adult" }),
-                TrackOwned(new AgeStageRule
-                {
-                    stage_id = "dragon_awakened",
-                    display_name = "Dragon Awakened",
-                    trait_summary = new Godot.Collections.Array<string>
-                    {
-                        "Dragon stage",
-                    },
-                }),
-            },
-        });
-        BloodlineDef bloodline = TrackOwned(new BloodlineDef
-        {
-            bloodline_id = "titan",
-            display_name = "Titan",
-        });
-        BloodlineStageDef bloodlineStage = TrackOwned(new BloodlineStageDef
-        {
-            stage_id = "titan_awakened",
-            bloodline_id = "titan",
-            display_name = "Awakened",
-        });
-        AscensionDef ascension = TrackOwned(new AscensionDef
-        {
-            ascension_id = "dragon",
-            display_name = "Dragon",
-            racial_granted_skills = new Godot.Collections.Array<RacialGrantedSkill>
-            {
-                TrackOwned(new RacialGrantedSkill
-                {
-                    skill_id = "dragon_breath",
-                    ChargeKind = RacialSkillChargeKind.PerBattle,
-                    charges = 1,
-                }),
-            },
-        });
-        AscensionStageDef ascensionStage = TrackOwned(new AscensionStageDef
-        {
-            stage_id = "dragon_awakened",
-            ascension_id = "dragon",
-            display_name = "Awakened",
-        });
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<string>(),
+            false,
+            false
+        );
+        AscensionStageDefinition ascensionStage = new(
+            "dragon_awakened",
+            "dragon",
+            "Awakened",
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<RacialGrantedSkillDefinition>(),
+            "",
+            System.Array.Empty<string>()
+        );
 
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef> { [race.race_id] = race },
-            new Dictionary<StringName, SubraceDef> { [subrace.subrace_id] = subrace },
-            new Dictionary<StringName, AgeProfileDef> { [ageProfile.profile_id] = ageProfile },
-            new Dictionary<StringName, BloodlineDef> { [bloodline.bloodline_id] = bloodline },
-            new Dictionary<StringName, BloodlineStageDef> { [bloodlineStage.stage_id] = bloodlineStage },
-            new Dictionary<StringName, AscensionDef> { [ascension.ascension_id] = ascension },
-            new Dictionary<StringName, AscensionStageDef> { [ascensionStage.stage_id] = ascensionStage },
-            new Dictionary<StringName, StageAdvancementModifier>()
+            new Dictionary<StringName, RaceDefinition> { [race.RaceId] = race },
+            new Dictionary<StringName, SubraceDefinition> { [subrace.SubraceId] = subrace },
+            new Dictionary<StringName, AgeProfileDefinition> { [ageProfile.ProfileId] = ageProfile },
+            new Dictionary<StringName, BloodlineDefinition> { [bloodline.BloodlineId] = bloodline },
+            new Dictionary<StringName, BloodlineStageDefinition> { [bloodlineStage.StageId] = bloodlineStage },
+            new Dictionary<StringName, AscensionDefinition> { [ascension.AscensionId] = ascension },
+            new Dictionary<StringName, AscensionStageDefinition> { [ascensionStage.StageId] = ascensionStage },
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 
@@ -348,35 +416,5 @@ public partial class run_character_info_identity_regression : SceneTree
         return dictionary != null && dictionary.ContainsKey(key)
             ? dictionary[key].AsString()
             : "";
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 }

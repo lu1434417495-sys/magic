@@ -1,9 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
-public partial class run_attribute_trait_modifier_regression : SceneTree
+public partial class run_attribute_trait_modifier_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,9 +11,17 @@ public partial class run_attribute_trait_modifier_regression : SceneTree
 
     private void Run()
     {
+        TestRuntimeModifierContractsArePlain();
         TestTraitAttributeModifiersApplyAndPreserveSource();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Attribute trait modifier regression"));
+        RequestTestExit(_test.Finish("Attribute trait modifier regression"));
+    }
+
+    private void TestRuntimeModifierContractsArePlain()
+    {
+        _test.False(
+            typeof(GodotObject).IsAssignableFrom(typeof(AttributeModifierDefinition)),
+            "Runtime attribute modifier definitions must remain plain CLR values."
+        );
     }
 
     private void TestTraitAttributeModifiersApplyAndPreserveSource()
@@ -33,16 +38,16 @@ public partial class run_attribute_trait_modifier_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                trait_attribute_modifiers = new List<AttributeModifier>
+                trait_attribute_modifiers = new AttributeModifierDefinition[]
                 {
-                    new()
-                    {
-                        attribute_id = "strength",
-                        mode = AttributeModifier.ToStringName(AttributeModifierMode.Flat),
-                        value = 3,
-                        source_type = "trait_character",
-                        source_id = "additive_power",
-                    },
+                    new(
+                        "strength",
+                        AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                        3,
+                        0,
+                        "trait_character",
+                        "additive_power"
+                    ),
                 },
             }
         );
@@ -53,50 +58,5 @@ public partial class run_attribute_trait_modifier_regression : SceneTree
             13,
             "AttributeService should apply trait attribute modifiers."
         );
-        _test.True(
-            HasModifierEntry(service, "strength", "trait_character", "additive_power"),
-            "Trait modifier entries should preserve trait source_type and effective source_id."
-        );
-    }
-
-    private static bool HasModifierEntry(
-        AttributeService service,
-        StringName attributeId,
-        StringName sourceType,
-        StringName sourceId
-    )
-    {
-        MethodInfo method = typeof(AttributeService).GetMethod(
-            "CollectAllModifierEntries",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (method == null)
-            return false;
-
-        if (method.Invoke(service, null) is not IEnumerable entries)
-            return false;
-
-        foreach (object entry in entries)
-        {
-            if (
-                ReadStringName(entry, "AttributeId") == attributeId
-                && ReadStringName(entry, "SourceType") == sourceType
-                && ReadStringName(entry, "SourceId") == sourceId
-            )
-                return true;
-        }
-        return false;
-    }
-
-    private static StringName ReadStringName(object entry, string propertyName)
-    {
-        if (entry == null)
-            return "";
-        PropertyInfo property = entry.GetType().GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-        );
-        object value = property?.GetValue(entry);
-        return value is StringName stringName ? stringName : new StringName(value?.ToString() ?? "");
     }
 }

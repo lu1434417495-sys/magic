@@ -1,9 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class UnitProfessionProgress : RefCounted
+public class UnitProfessionProgress
 {
-    private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
+    private static readonly string[] TO_DICT_FIELDS =
     {
         "profession_id",
         "rank",
@@ -23,40 +23,13 @@ public partial class UnitProfessionProgress : RefCounted
 
     public bool is_hidden;
 
-    public Godot.Collections.Array<StringName> core_skill_ids = new();
+    public StringNameList core_skill_ids = new();
 
-    public Godot.Collections.Array<StringName> granted_skill_ids = new();
+    public StringNameList granted_skill_ids = new();
 
-    public Godot.Collections.Array<ProfessionPromotionRecord> promotion_history = new();
+    public List<ProfessionPromotionRecord> promotion_history = new();
 
     public StringName inactive_reason = "";
-    private bool _disposed;
-
-    public new void Dispose()
-    {
-        if (_disposed)
-            return;
-        System.GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            DisposeManagedState();
-        base.Dispose(disposing);
-    }
-
-    private void DisposeManagedState()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-        GodotRefCountedDisposer.DisposeAll(promotion_history);
-        promotion_history.Clear();
-        core_skill_ids.Clear();
-        granted_skill_ids.Clear();
-    }
 
     public void AddCoreSkill(StringName skillId)
     {
@@ -86,8 +59,8 @@ public partial class UnitProfessionProgress : RefCounted
             rank = rank,
             is_active = is_active,
             is_hidden = is_hidden,
-            core_skill_ids = new Godot.Collections.Array<StringName>(core_skill_ids),
-            granted_skill_ids = new Godot.Collections.Array<StringName>(granted_skill_ids),
+            core_skill_ids = core_skill_ids?.Duplicate() ?? new StringNameList(),
+            granted_skill_ids = granted_skill_ids?.Duplicate() ?? new StringNameList(),
             inactive_reason = inactive_reason,
         };
         foreach (var record in promotion_history)
@@ -198,7 +171,7 @@ public partial class UnitProfessionProgress : RefCounted
 
     private static bool _has_exact_fields(
         Godot.Collections.Dictionary data,
-        Godot.Collections.Array<string> expected
+        IReadOnlyCollection<string> expected
     )
     {
         if (data.Count != expected.Count)
@@ -233,18 +206,17 @@ public partial class UnitProfessionProgress : RefCounted
         return parsed;
     }
 
-    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+    private static StringNameList _parse_unique_string_name_array(
         Godot.Collections.Array values
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
-        var seen = new Godot.Collections.Dictionary();
+        var result = new StringNameList();
+        var seen = new HashSet<StringName>();
         foreach (var raw in values)
         {
             var parsed = _parse_string_name_field(raw, false, out bool ok);
-            if (!ok || seen.ContainsKey(parsed))
+            if (!ok || !seen.Add(parsed))
                 return null;
-            seen[parsed] = true;
             result.Add(parsed);
         }
         return result;

@@ -74,8 +74,8 @@ internal class MisfortuneGuidanceService
         "misfortune_guidance_exalted_ready:";
     private static readonly StringName CalamityReasonCriticalFail = "critical_fail";
     private static readonly StringName CalamityReasonStrongDebuff = "strong_debuff";
-    private static readonly IReadOnlyDictionary<StringName, ItemDef> EmptyItemDefs =
-        new Dictionary<StringName, ItemDef>();
+    private static readonly IReadOnlyDictionary<StringName, ItemDefinition> EmptyItemDefinitions =
+        new Dictionary<StringName, ItemDefinition>();
 
     private IBattleRuntimeCharacterGateway _characterGateway;
     private BattleRuntimeModule _battleRuntimeGateway;
@@ -157,20 +157,20 @@ internal class MisfortuneGuidanceService
     public List<StringName> HandleForgeResult(
         StringName memberId,
         MisfortuneForgeGuidanceInput result,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         return HandleForgeResultCore(
             memberId,
             result ?? MisfortuneForgeGuidanceInput.Empty,
-            itemDefs ?? EmptyItemDefs
+            itemDefinitions ?? EmptyItemDefinitions
         );
     }
 
     private List<StringName> HandleForgeResultCore(
         StringName memberId,
         MisfortuneForgeGuidanceInput result,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         var unlockedIds = new List<StringName>();
@@ -187,7 +187,7 @@ internal class MisfortuneGuidanceService
             return unlockedIds;
         if (!ForgeResultUsesFixedMaterial(result))
             return unlockedIds;
-        if (!ForgeResultOutputsDarkEquipment(result, itemDefs ?? EmptyItemDefs))
+        if (!ForgeResultOutputsDarkEquipment(result, itemDefinitions ?? EmptyItemDefinitions))
             return unlockedIds;
         if (UnlockAchievement(normalizedMemberId, AchievementGuidanceExalted))
             AppendUniqueStringName(unlockedIds, AchievementGuidanceExalted);
@@ -328,22 +328,22 @@ internal class MisfortuneGuidanceService
 
     private bool ForgeResultOutputsDarkEquipment(
         MisfortuneForgeGuidanceInput result,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         var outputItemId = ResolveForgeOutputItemId(result);
         if (outputItemId == "")
             return false;
-        var itemDef = GetItemDef(itemDefs, outputItemId);
-        if (itemDef == null || !itemDef.IsEquipment())
+        ItemDefinition itemDefinition = GetItemDefinition(itemDefinitions, outputItemId);
+        if (itemDefinition == null || !itemDefinition.IsEquipment())
             return false;
-        var tags = itemDef.GetTagsTyped();
+        var tags = itemDefinition.GetTagsTyped();
         foreach (var tag in tags)
         {
             if (tag == "dark" || tag == "misfortune" || tag == "doom")
                 return true;
         }
-        var groups = itemDef.GetCraftingGroupsTyped();
+        var groups = itemDefinition.GetCraftingGroupsTyped();
         foreach (var group in groups)
         {
             if (group == "misfortune" || group == "dark")
@@ -364,14 +364,16 @@ internal class MisfortuneGuidanceService
         return "";
     }
 
-    private ItemDef GetItemDef(
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+    private static ItemDefinition GetItemDefinition(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         StringName itemId
     )
     {
-        if (itemDefs == null || itemDefs.Count == 0 || itemId == "")
+        if (itemDefinitions == null || itemDefinitions.Count == 0 || itemId == "")
             return null;
-        return itemDefs.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
+        return itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+            ? itemDefinition
+            : null;
     }
 
     private bool UnlockAchievement(StringName memberId, StringName achievementId)

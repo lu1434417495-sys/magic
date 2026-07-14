@@ -3,7 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_trait_trigger_regression : SceneTree
+public partial class run_trait_trigger_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
     private static StringName HalflingLuck =>
@@ -15,12 +15,11 @@ public partial class run_trait_trigger_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestHalflingLuckRerollsNaturalOneAttack();
         TestSavageAttacksAddsOneWeaponDieOnMeleeCrit();
@@ -42,16 +41,18 @@ public partial class run_trait_trigger_regression : SceneTree
         );
         source.effective_trait_ids = new Godot.Collections.Array<StringName> { HalflingLuck };
         BattleUnitState target = BuildUnit("halfling_target", "enemy", 20);
-        CombatEffectDef effect = MakeDamageEffect(5, false);
+        CombatEffectDefinition effect = MakeDamageEffect(5, false);
         var attackContext = new AttackContext(new[] { 1, 20 });
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveAttackEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveAttackEffects(
             source,
             target,
-            new GArray { effect },
+            new[] { effect },
             new AttackCheckInput(requiredRoll: 99, displayRequiredRoll: 20, hitRatePercent: 5),
             attackContext
         ));
+        GDictionary result = resultLease.Value;
 
         _test.True(
             DictBool(result, "attack_success", false),
@@ -93,14 +94,16 @@ public partial class run_trait_trigger_regression : SceneTree
             1
         );
         BattleUnitState target = BuildUnit("savage_target", "enemy", 100);
-        CombatEffectDef effect = MakeDamageEffect(0, true);
+        CombatEffectDefinition effect = MakeDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["critical_hit"] = true }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
 
         _test.Eq(
@@ -136,9 +139,13 @@ public partial class run_trait_trigger_regression : SceneTree
         );
         target.effective_trait_ids = new Godot.Collections.Array<StringName> { RelentlessEndurance };
         SetStatus(target, "death_ward");
-        CombatEffectDef effect = MakeDamageEffect(99, false);
+        CombatEffectDefinition effect = MakeDamageEffect(99, false);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary result = resultLease.Value;
         _test.Eq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.");
         _test.True(target.is_alive, "relentless_endurance should keep the target alive.");
         _test.True(
@@ -151,7 +158,11 @@ public partial class run_trait_trigger_regression : SceneTree
             "fatal damage event should record relentless_endurance."
         );
 
-        GDictionary secondResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }));
+        using GodotProjectionLease<GDictionary> secondResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(source, target, new[] { effect })
+            );
+        GDictionary secondResult = secondResultLease.Value;
         _test.Eq(
             target.current_hp,
             0,
@@ -302,19 +313,14 @@ public partial class run_trait_trigger_regression : SceneTree
         return unit;
     }
 
-    private static CombatEffectDef MakeDamageEffect(int power, bool addWeaponDice)
+    private static CombatEffectDefinition MakeDamageEffect(int power, bool addWeaponDice)
     {
-        var effect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = "physical_slash",
-        };
-        if (addWeaponDice)
-        {
-            effect.add_weapon_dice = true;
-        }
-        return effect;
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: "physical_slash",
+            addWeaponDice: addWeaponDice
+        );
     }
 
     private static void SetStatus(BattleUnitState unit, StringName statusId)

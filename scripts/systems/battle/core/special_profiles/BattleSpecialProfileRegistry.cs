@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Godot;
 
-internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRegistry
+internal class BattleSpecialProfileRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string ManifestDirectory = "res://data/configs/skill_special_profiles/manifests";
+    private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
 
+    private readonly IContentResourceLoader _loader;
     private string _manifestDirectory = ManifestDirectory;
     private readonly Dictionary<StringName, BattleSpecialProfileManifest> _manifestsByProfileId = new();
     private readonly Dictionary<StringName, StringName> _profileIdBySkillId = new();
@@ -12,27 +14,19 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
     private readonly BattleSpecialProfileManifestValidator _validator = new();
     private bool _disposed;
 
-    public BattleSpecialProfileRegistry()
+    internal BattleSpecialProfileRegistry(IContentResourceLoader loader)
     {
+        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
             return;
         }
         System.GC.SuppressFinalize(this);
-        Dispose(true);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            DisposeManagedRegistry();
-        }
-        base.Dispose(disposing);
+        DisposeManagedRegistry();
     }
 
     private void DisposeManagedRegistry()
@@ -42,8 +36,6 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
         _disposed = true;
-        System.GC.SuppressFinalize(this);
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_manifestsByProfileId.Values);
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
@@ -57,21 +49,19 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
     }
 
     internal void Rebuild(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         string asOfDate = ""
     )
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_manifestsByProfileId.Values);
         _manifestsByProfileId.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
 
-        skillDefs ??= new Dictionary<StringName, SkillDef>();
+        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
         Dictionary<StringName, StringName> specialProfileIdBySkillId = CollectSpecialProfileIds(
-            skillDefs
+            skillDefinitions
         );
         bool hasSpecialSkills = specialProfileIdBySkillId.Count > 0;
-        Godot.Collections.Dictionary projectedSkillDefs = ToGodotDictionary(skillDefs);
 
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(_manifestDirectory)))
         {
@@ -85,7 +75,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
 
-        var directory = DirAccess.Open(_manifestDirectory);
+        DirAccess directory = DirAccess.Open(_manifestDirectory);
         if (directory == null)
         {
             _validationErrors.Add(
@@ -94,25 +84,31 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
             return;
         }
 
-        directory.ListDirBegin();
-        while (true)
+        try
         {
-            string entryName = directory.GetNext();
-            if (string.IsNullOrEmpty(entryName))
-                break;
-            if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
-                continue;
-            if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                continue;
-            RegisterManifestResource(
-                $"{_manifestDirectory}/{entryName}",
-                skillDefs,
-                specialProfileIdBySkillId,
-                projectedSkillDefs,
-                asOfDate
-            );
+            directory.ListDirBegin();
+            while (true)
+            {
+                string entryName = directory.GetNext();
+                if (string.IsNullOrEmpty(entryName))
+                    break;
+                if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
+                    continue;
+                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
+                    continue;
+                RegisterManifestResource(
+                    $"{_manifestDirectory}/{entryName}",
+                    skillDefinitions,
+                    specialProfileIdBySkillId,
+                    asOfDate
+                );
+            }
+            directory.ListDirEnd();
         }
-        directory.ListDirEnd();
+        finally
+        {
+            GodotObjectLifecycle.DisposeGodotObject(directory);
+        }
 
         AppendMissingManifestErrors(specialProfileIdBySkillId);
     }
@@ -125,67 +121,35 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
         return result;
     }
 
-    public BattleSpecialProfileManifest GetManifest(StringName profileId)
+    private BattleSpecialProfileManifest GetManifest(StringName profileId)
     {
         return _manifestsByProfileId.TryGetValue(profileId, out BattleSpecialProfileManifest manifest)
             ? manifest
             : null;
     }
 
-    public BattleSpecialProfileManifest GetManifestForSkill(StringName skillId)
+    internal IBattleSpecialProfileView BuildRuntimeProfileView()
     {
-        StringName profileId = _profileIdBySkillId.TryGetValue(skillId, out StringName existingProfileId)
-            ? existingProfileId
-            : new StringName("");
-        return profileId == "" ? null : GetManifest(profileId);
-    }
-
-    public bool HasProfile(StringName profileId)
-    {
-        return _manifestsByProfileId.ContainsKey(profileId);
-    }
-
-    public Godot.Collections.Dictionary GetSnapshot()
-    {
-        var profiles = new Godot.Collections.Dictionary();
+        if (_validationErrors.Count != 0)
+        {
+            return BattleSpecialProfileRuntimeView.Empty;
+        }
+        var meteorProfiles = new Dictionary<StringName, MeteorSwarmProfileData>();
         foreach (var profileIdValue in _manifestsByProfileId.Keys)
         {
             var profileId = ProgressionDataUtils.to_string_name(profileIdValue);
             var manifest = GetManifest(profileId);
-            if (manifest == null)
-                continue;
-
-            var owningSkillIds = new Godot.Collections.Array<string>();
-            foreach (var skillId in manifest.owning_skill_ids)
-                owningSkillIds.Add(skillId.ToString());
-
-            profiles[profileId.ToString()] = new Godot.Collections.Dictionary
+            if (manifest == null || profileId != MeteorSwarmProfileId)
             {
-                ["profile_id"] = manifest.profile_id.ToString(),
-                ["runtime_resolver_id"] = manifest.runtime_resolver_id.ToString(),
-                ["owning_skill_ids"] = owningSkillIds,
-                ["profile_resource"] = manifest.profile_resource,
-                ["presentation_metadata"] = manifest.presentation_metadata.Duplicate(true),
-                ["required_regression_tests"] = new Godot.Collections.Array<string>(
-                    manifest.required_regression_tests
-                ),
-            };
+                continue;
+            }
+            MeteorSwarmProfile meteorProfile =
+                manifest.RequireMeteorSwarmProfileForProjection();
+            MeteorSwarmProfileData data =
+                MeteorSwarmProfileData.FromResource(profileId, meteorProfile);
+            meteorProfiles[profileId] = data;
         }
-
-        var profileIdBySkillId = new Godot.Collections.Dictionary();
-        foreach (var skillIdValue in _profileIdBySkillId.Keys)
-        {
-            StringName skillId = skillIdValue;
-            profileIdBySkillId[skillId.ToString()] = _profileIdBySkillId[skillId].ToString();
-        }
-
-        return new Godot.Collections.Dictionary
-        {
-            ["ok"] = _validationErrors.Count == 0,
-            ["errors"] = new Godot.Collections.Array<string>(_validationErrors),
-            ["profiles"] = profiles,
-            ["profile_id_by_skill_id"] = profileIdBySkillId,
-        };
+        return new BattleSpecialProfileRuntimeView(meteorProfiles);
     }
 
     internal IReadOnlyDictionary<StringName, BattleSpecialProfileManifest> GetManifestsTyped() =>
@@ -198,23 +162,20 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
 
     private void RegisterManifestResource(
         string resourcePath,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, StringName> specialProfileIdBySkillId,
-        Godot.Collections.Dictionary projectedSkillDefs,
         string asOfDate
     )
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = _loader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"BattleSpecialProfileRegistry failed to load {resourcePath}.");
             return;
         }
-
         var manifest = resource as BattleSpecialProfileManifest;
         if (manifest == null)
         {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validationErrors.Add(
                 $"BattleSpecialProfileRegistry {resourcePath} is not a BattleSpecialProfileManifest."
             );
@@ -237,7 +198,7 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
 
         _manifestsByProfileId[manifest.profile_id] = manifest;
         AppendProfileResourcePathErrors(manifest);
-        foreach (var error in _validator.ValidateManifest(manifest, projectedSkillDefs, asOfDate))
+        foreach (var error in _validator.ValidateManifest(manifest, skillDefinitions, asOfDate))
             _validationErrors.Add(error);
 
         foreach (var skillId in manifest.owning_skill_ids)
@@ -309,32 +270,20 @@ internal partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRe
     }
 
     private static Dictionary<StringName, StringName> CollectSpecialProfileIds(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var result = new Dictionary<StringName, StringName>();
-        if (skillDefs == null)
+        if (skillDefinitions == null)
             return result;
-        foreach (StringName skillId in skillDefs.Keys)
+        foreach (StringName skillId in skillDefinitions.Keys)
         {
-            SkillDef skillDef = skillDefs[skillId];
-            var combatProfile = skillDef?.combat_profile as CombatSkillDef;
-            if (combatProfile == null || combatProfile.special_resolution_profile_id == "")
+            SkillDefinition skillDefinition = skillDefinitions[skillId];
+            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+            if (combatProfile == null || combatProfile.SpecialResolutionProfileId == "")
                 continue;
-            result[skillId] = combatProfile.special_resolution_profile_id;
+            result[skillId] = combatProfile.SpecialResolutionProfileId;
         }
-        return result;
-    }
-
-    private static Godot.Collections.Dictionary ToGodotDictionary(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        var result = new Godot.Collections.Dictionary();
-        if (skillDefs == null)
-            return result;
-        foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
-            result[entry.Key] = entry.Value;
         return result;
     }
 }

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 
-public partial class run_world_map_view_color_config_regression : SceneTree
+public partial class run_world_map_view_color_config_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -18,7 +18,7 @@ public partial class run_world_map_view_color_config_regression : SceneTree
         await ResetSession();
         await TestWorldMapSceneExposesDefaultViewPalette();
         await Cleanup();
-        Quit(_test.Finish("World map view color config regression"));
+        RequestTestExit(_test.Finish("World map view color config regression"));
     }
 
     private async Task TestWorldMapSceneExposesDefaultViewPalette()
@@ -119,7 +119,7 @@ public partial class run_world_map_view_color_config_regression : SceneTree
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }

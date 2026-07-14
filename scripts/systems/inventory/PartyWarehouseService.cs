@@ -15,34 +15,6 @@ public sealed class PartyWarehouseService : IDisposable
         public bool HasEquipmentInstance => EquipmentInstance != null;
     }
 
-    internal sealed class WarehouseBatchSwapResult
-    {
-        public readonly bool Allowed;
-        public readonly string ErrorCode;
-        public readonly StringName BlockedItemId;
-        public readonly StringName BlockedInstanceId;
-
-        private WarehouseBatchSwapResult(
-            bool allowed,
-            string errorCode,
-            StringName blockedItemId,
-            StringName blockedInstanceId)
-        {
-            Allowed = allowed;
-            ErrorCode = errorCode ?? "";
-            BlockedItemId = ProgressionDataUtils.to_string_name(blockedItemId);
-            BlockedInstanceId = ProgressionDataUtils.to_string_name(blockedInstanceId);
-        }
-
-        public static WarehouseBatchSwapResult Success() => new(true, "", "", "");
-
-        public static WarehouseBatchSwapResult Blocked(
-            string errorCode,
-            StringName blockedItemId = default,
-            StringName blockedInstanceId = default) =>
-            new(false, errorCode, blockedItemId, blockedInstanceId);
-    }
-
     internal sealed class WarehouseAddItemResult
     {
         public StringName ItemId { get; init; } = "";
@@ -94,26 +66,26 @@ public sealed class PartyWarehouseService : IDisposable
     }
 
     private PartyState _party_state = new();
-    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private WarehouseState _party_backpack_view;
     private Func<StringName> _equipment_instance_id_allocator;
     private EquipmentTraitRollService _equipment_trait_roll_service;
     private int _local_equipment_instance_serial = 1;
     private bool _disposed;
-    private bool _ownsPartyState = true;
-    private bool _ownsPartyBackpackView;
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         Func<StringName> equipmentInstanceIdAllocator = null,
         EquipmentTraitRollService equipmentTraitRollService = null
     )
     {
-        ReplacePartyState(partyState);
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
-        ReplacePartyBackpackView(null, false);
+        _party_state = partyState ?? new PartyState();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
+        _party_backpack_view = null;
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
         _equipment_trait_roll_service = equipmentTraitRollService;
     }
@@ -121,21 +93,23 @@ public sealed class PartyWarehouseService : IDisposable
     public void Setup(PartyState partyState) =>
         Setup(
             partyState,
-            default(IReadOnlyDictionary<StringName, ItemDef>),
+            default(IReadOnlyDictionary<StringName, ItemDefinition>),
             default(Func<StringName>)
         );
 
     public void SetupPartyBackpackView(
         PartyState partyState,
         WarehouseState partyBackpackView,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         Func<StringName> equipmentInstanceIdAllocator = null,
         EquipmentTraitRollService equipmentTraitRollService = null)
     {
-        ReplacePartyState(partyState);
-        _item_defs =
-            itemDefs != null ? new Dictionary<StringName, ItemDef>(itemDefs) : new Dictionary<StringName, ItemDef>();
-        ReplacePartyBackpackView(partyBackpackView ?? new WarehouseState(), partyBackpackView == null);
+        _party_state = partyState ?? new PartyState();
+        _itemDefinitions =
+            itemDefinitions != null
+                ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+                : new Dictionary<StringName, ItemDefinition>();
+        _party_backpack_view = partyBackpackView ?? new WarehouseState();
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
         _equipment_trait_roll_service = equipmentTraitRollService;
     }
@@ -145,9 +119,9 @@ public sealed class PartyWarehouseService : IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        ReleaseOwnedPartyState();
-        _item_defs.Clear();
-        ReleaseOwnedPartyBackpackView();
+        _party_state = null;
+        _itemDefinitions.Clear();
+        _party_backpack_view = null;
         _equipment_instance_id_allocator = null;
         _equipment_trait_roll_service = null;
         GC.SuppressFinalize(this);
@@ -232,11 +206,12 @@ public sealed class PartyWarehouseService : IDisposable
         return entries;
     }
 
-    public ItemDef GetItemDef(StringName itemId)
+    public ItemDefinition GetItemDef(StringName itemId)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        return normalizedItemId != "" && _item_defs.TryGetValue(normalizedItemId, out var itemDef)
-            ? itemDef
+        return normalizedItemId != ""
+            && _itemDefinitions.TryGetValue(normalizedItemId, out var itemDefinition)
+            ? itemDefinition
             : null;
     }
 
@@ -367,6 +342,37 @@ public sealed class PartyWarehouseService : IDisposable
             ParseBatchItemEntries(itemsToDeposit),
             true
         );
+
+    internal WarehouseBatchSwapResult CommitBatchSwapEntriesTyped(
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToDeposit) =>
+        _run_batch_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, true);
+
+    internal WarehouseBatchSwapResult PreviewBatchQuantitySwapTyped(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit) =>
+        _run_batch_quantity_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, false);
+
+    internal WarehouseBatchSwapResult CommitBatchQuantitySwapTyped(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit) =>
+        _run_batch_quantity_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, true);
+
+    internal WarehouseState CaptureWarehouseStateForTransaction() =>
+        _get_warehouse_state().DuplicateState();
+
+    internal void RestoreWarehouseStateForTransaction(WarehouseState snapshot)
+    {
+        var restoredState = snapshot?.DuplicateState() ?? new WarehouseState();
+        if (_party_backpack_view != null)
+        {
+            _copy_warehouse_state(restoredState, _party_backpack_view);
+            return;
+        }
+
+        _party_state ??= new PartyState();
+        _party_state.warehouse_state = restoredState;
+    }
 
     public EquipmentInstanceState GetEquipmentInstanceById(
         StringName instanceId,
@@ -687,26 +693,134 @@ public sealed class PartyWarehouseService : IDisposable
         bool commitOnSuccess)
     {
         var baselineState = _get_warehouse_state().DuplicateState();
-        EnsurePartyState();
-        bool hasBackpackView = _party_backpack_view != null;
+        _party_state ??= new PartyState();
         var originalState = _party_backpack_view ?? _party_state.warehouse_state;
 
         _set_transaction_warehouse_state(baselineState);
         var result = _execute_batch_swap(itemsToWithdraw, itemsToDeposit, commitOnSuccess);
         if (result.Allowed && commitOnSuccess)
         {
-            if (hasBackpackView)
+            if (_party_backpack_view != null)
             {
                 _copy_warehouse_state(baselineState, originalState);
                 _party_backpack_view = originalState;
-                GodotRefCountedDisposer.DisposeIfValid(baselineState);
             }
             return result;
         }
 
         _set_transaction_warehouse_state(originalState);
-        GodotRefCountedDisposer.DisposeIfValid(baselineState);
         return result;
+    }
+
+    private WarehouseBatchSwapResult _run_batch_quantity_swap_transaction_typed(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit,
+        bool commitOnSuccess)
+    {
+        _party_state ??= new PartyState();
+        var baselineState = _get_warehouse_state().DuplicateState();
+        var originalState = _party_backpack_view ?? _party_state.warehouse_state;
+
+        _set_transaction_warehouse_state(baselineState);
+        var result = _execute_batch_quantity_swap(itemsToWithdraw, itemsToDeposit);
+        if (result.Allowed && commitOnSuccess)
+        {
+            if (_party_backpack_view != null)
+            {
+                _copy_warehouse_state(baselineState, originalState);
+                _party_backpack_view = originalState;
+            }
+            return result;
+        }
+
+        _set_transaction_warehouse_state(originalState);
+        return result;
+    }
+
+    private WarehouseBatchSwapResult _execute_batch_quantity_swap(
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchQuantityEntry> itemsToDeposit)
+    {
+        var validationResult = _validate_batch_quantity_entries(itemsToWithdraw);
+        if (!validationResult.Allowed)
+            return validationResult;
+        validationResult = _validate_batch_quantity_entries(itemsToDeposit);
+        if (!validationResult.Allowed)
+            return validationResult;
+
+        foreach (var withdrawEntry in itemsToWithdraw ?? Array.Empty<WarehouseBatchQuantityEntry>())
+        {
+            int removedQuantity = _remove_stack_quantity(withdrawEntry.ItemId, withdrawEntry.Quantity);
+            if (removedQuantity < withdrawEntry.Quantity)
+                return WarehouseBatchSwapResult.Blocked("warehouse_missing_item", withdrawEntry.ItemId);
+        }
+
+        foreach (var depositEntry in itemsToDeposit ?? Array.Empty<WarehouseBatchQuantityEntry>())
+        {
+            var addResult = _process_add(depositEntry.ItemId, depositEntry.Quantity, true, false);
+            if (addResult.AddedQuantity < depositEntry.Quantity)
+                return WarehouseBatchSwapResult.Blocked("warehouse_blocked_swap", depositEntry.ItemId);
+        }
+
+        return WarehouseBatchSwapResult.Success();
+    }
+
+    private WarehouseBatchSwapResult _validate_batch_quantity_entries(
+        IReadOnlyList<WarehouseBatchQuantityEntry> entries)
+    {
+        if (entries == null)
+            return WarehouseBatchSwapResult.Success();
+
+        foreach (var entry in entries)
+        {
+            var itemId = ProgressionDataUtils.to_string_name(entry.ItemId);
+            if (itemId == "" || entry.Quantity <= 0)
+                return WarehouseBatchSwapResult.Blocked("invalid_batch_quantity_entry", itemId);
+
+            var itemDef = GetItemDef(itemId);
+            if (itemDef != null && itemDef.IsEquipment())
+                return WarehouseBatchSwapResult.Blocked(
+                    "warehouse_quantity_equipment_unsupported",
+                    itemId
+                );
+        }
+
+        return WarehouseBatchSwapResult.Success();
+    }
+
+    private int _remove_stack_quantity(StringName itemId, int quantity)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        if (normalizedItemId == "" || quantity <= 0)
+            return 0;
+
+        var warehouseState = _ensure_warehouse_state();
+        _compact_state(warehouseState);
+
+        int remainingQuantity = quantity;
+        for (int index = 0; index < warehouseState.GetStacksTyped().Count && remainingQuantity > 0;)
+        {
+            var stack = warehouseState.GetStackAt(index);
+            if (stack == null || stack.item_id != normalizedItemId)
+            {
+                index += 1;
+                continue;
+            }
+
+            int removedQuantity = Mathf.Min(Mathf.Max(stack.quantity, 0), remainingQuantity);
+            stack.quantity -= removedQuantity;
+            remainingQuantity -= removedQuantity;
+            if (stack.quantity <= 0)
+            {
+                warehouseState.RemoveStackAt(index);
+                continue;
+            }
+
+            index += 1;
+        }
+
+        _compact_state(warehouseState);
+        return quantity - remainingQuantity;
     }
 
     private static List<WarehouseBatchItemEntry> BuildBatchItemEntries(
@@ -762,16 +876,11 @@ public sealed class PartyWarehouseService : IDisposable
         string key)
     {
         object value = ReadValue(data, key);
-        if (TryAsEquipmentInstance(value, out var equipmentInstance))
+        if (value is EquipmentInstanceState equipmentInstance)
             return equipmentInstance.DuplicateState();
         if (TryRawDictionary(value, out var equipmentData))
             return EquipmentInstanceState.FromDictionary(equipmentData);
         return null;
-    }
-
-    private static ItemDef ReadItemDef(object rawValue)
-    {
-        return TryAsItemDef(rawValue, out var itemDef) ? itemDef : null;
     }
 
     private WarehouseAddItemResult _process_add(
@@ -787,124 +896,113 @@ public sealed class PartyWarehouseService : IDisposable
         var targetState = mutate
             ? _ensure_warehouse_state()
             : _get_warehouse_state().DuplicateState();
-        try
-        {
-            _compact_state(targetState);
+        _compact_state(targetState);
 
-            int currentUsed =
-                targetState.GetNonEmptyStacksTyped().Count
-                + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
-            bool itemFound = itemDef != null;
-            bool isEquipment = itemDef != null && itemDef.IsEquipment();
+        int currentUsed =
+            targetState.GetNonEmptyStacksTyped().Count
+            + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
+        bool itemFound = itemDef != null;
+        bool isEquipment = itemDef != null && itemDef.IsEquipment();
 
-            if (normalizedItemId == "" || requestedQuantity <= 0 || itemDef == null)
-                return new WarehouseAddItemResult
-                {
-                    ItemId = normalizedItemId,
-                    RequestedQuantity = requestedQuantity,
-                    AddedQuantity = 0,
-                    RemainingQuantity = requestedQuantity,
-                    UsedSlotsBefore = usedSlotsBefore,
-                    UsedSlotsAfter = currentUsed,
-                    FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - currentUsed, 0),
-                    CreatedStackCount = 0,
-                    FilledExistingQuantity = 0,
-                    IsOverCapacity = currentUsed > GetTotalCapacity(),
-                    ItemFound = itemFound,
-                    IsEquipment = isEquipment,
-                };
-
-            int remainingQuantity = requestedQuantity;
-            int createdStackCount = 0;
-            int filledExistingQuantity = 0;
-            var allocatedInstanceIds = new List<string>();
-            if (itemDef.IsEquipment())
-            {
-                int availableNewSlots = Mathf.Max(GetTotalCapacity() - currentUsed, 0);
-                while (remainingQuantity > 0 && availableNewSlots > 0)
-                {
-                    var newInstance = _create_equipment_instance(normalizedItemId, targetState, consumeAllocator);
-                    if (newInstance.instance_id == "")
-                    {
-                        GodotRefCountedDisposer.DisposeIfValid(newInstance);
-                        break;
-                    }
-                    if (consumeAllocator)
-                        allocatedInstanceIds.Add(newInstance.instance_id.ToString());
-                    targetState.AddEquipmentInstance(newInstance);
-                    remainingQuantity -= 1;
-                    availableNewSlots -= 1;
-                    createdStackCount += 1;
-                }
-            }
-            else
-            {
-                int maxStack = itemDef.GetEffectiveMaxStack();
-                foreach (var stack in targetState.GetNonEmptyStacksTyped())
-                {
-                    if (remainingQuantity <= 0)
-                        break;
-                    if (stack == null || stack.item_id != normalizedItemId)
-                        continue;
-                    if (stack.quantity >= maxStack)
-                        continue;
-
-                    int acceptedQuantity = Mathf.Min(maxStack - stack.quantity, remainingQuantity);
-                    if (acceptedQuantity <= 0)
-                        continue;
-
-                    stack.quantity += acceptedQuantity;
-                    remainingQuantity -= acceptedQuantity;
-                    filledExistingQuantity += acceptedQuantity;
-                }
-
-                int availableNewStacks = Mathf.Max(
-                    GetTotalCapacity()
-                        - targetState.GetNonEmptyStacksTyped().Count
-                        - targetState.GetNonEmptyEquipmentInstancesTyped().Count,
-                    0
-                );
-                while (remainingQuantity > 0 && availableNewStacks > 0)
-                {
-                    var newStack = new WarehouseStackState
-                    {
-                        item_id = normalizedItemId,
-                        quantity = Mathf.Min(maxStack, remainingQuantity),
-                    };
-                    targetState.AddStack(newStack);
-                    remainingQuantity -= newStack.quantity;
-                    availableNewStacks -= 1;
-                    createdStackCount += 1;
-                }
-
-                _compact_state(targetState);
-            }
-
-            int usedSlotsAfter =
-                targetState.GetNonEmptyStacksTyped().Count
-                + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
+        if (normalizedItemId == "" || requestedQuantity <= 0 || itemDef == null)
             return new WarehouseAddItemResult
             {
                 ItemId = normalizedItemId,
                 RequestedQuantity = requestedQuantity,
-                AddedQuantity = requestedQuantity - remainingQuantity,
-                RemainingQuantity = remainingQuantity,
+                AddedQuantity = 0,
+                RemainingQuantity = requestedQuantity,
                 UsedSlotsBefore = usedSlotsBefore,
-                UsedSlotsAfter = usedSlotsAfter,
-                FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - usedSlotsAfter, 0),
-                CreatedStackCount = createdStackCount,
-                FilledExistingQuantity = filledExistingQuantity,
-                IsOverCapacity = usedSlotsAfter > GetTotalCapacity(),
+                UsedSlotsAfter = currentUsed,
+                FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - currentUsed, 0),
+                CreatedStackCount = 0,
+                FilledExistingQuantity = 0,
+                IsOverCapacity = currentUsed > GetTotalCapacity(),
                 ItemFound = itemFound,
                 IsEquipment = isEquipment,
-                AllocatedEquipmentInstanceIds = allocatedInstanceIds,
             };
-        }
-        finally
+
+        int remainingQuantity = requestedQuantity;
+        int createdStackCount = 0;
+        int filledExistingQuantity = 0;
+        var allocatedInstanceIds = new List<string>();
+        if (itemDef.IsEquipment())
         {
-            if (!mutate)
-                GodotRefCountedDisposer.DisposeIfValid(targetState);
+            int availableNewSlots = Mathf.Max(GetTotalCapacity() - currentUsed, 0);
+            while (remainingQuantity > 0 && availableNewSlots > 0)
+            {
+                var newInstance = _create_equipment_instance(normalizedItemId, targetState, consumeAllocator);
+                if (newInstance.instance_id == "")
+                    break;
+                if (consumeAllocator)
+                    allocatedInstanceIds.Add(newInstance.instance_id.ToString());
+                targetState.AddEquipmentInstance(newInstance);
+                remainingQuantity -= 1;
+                availableNewSlots -= 1;
+                createdStackCount += 1;
+            }
         }
+        else
+        {
+            int maxStack = itemDef.GetEffectiveMaxStack();
+            foreach (var stack in targetState.GetNonEmptyStacksTyped())
+            {
+                if (remainingQuantity <= 0)
+                    break;
+                if (stack == null || stack.item_id != normalizedItemId)
+                    continue;
+                if (stack.quantity >= maxStack)
+                    continue;
+
+                int acceptedQuantity = Mathf.Min(maxStack - stack.quantity, remainingQuantity);
+                if (acceptedQuantity <= 0)
+                    continue;
+
+                stack.quantity += acceptedQuantity;
+                remainingQuantity -= acceptedQuantity;
+                filledExistingQuantity += acceptedQuantity;
+            }
+
+            int availableNewStacks = Mathf.Max(
+                GetTotalCapacity()
+                    - targetState.GetNonEmptyStacksTyped().Count
+                    - targetState.GetNonEmptyEquipmentInstancesTyped().Count,
+                0
+            );
+            while (remainingQuantity > 0 && availableNewStacks > 0)
+            {
+                var newStack = new WarehouseStackState
+                {
+                    item_id = normalizedItemId,
+                    quantity = Mathf.Min(maxStack, remainingQuantity),
+                };
+                targetState.AddStack(newStack);
+                remainingQuantity -= newStack.quantity;
+                availableNewStacks -= 1;
+                createdStackCount += 1;
+            }
+
+            _compact_state(targetState);
+        }
+
+        int usedSlotsAfter =
+            targetState.GetNonEmptyStacksTyped().Count
+            + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
+        return new WarehouseAddItemResult
+        {
+            ItemId = normalizedItemId,
+            RequestedQuantity = requestedQuantity,
+            AddedQuantity = requestedQuantity - remainingQuantity,
+            RemainingQuantity = remainingQuantity,
+            UsedSlotsBefore = usedSlotsBefore,
+            UsedSlotsAfter = usedSlotsAfter,
+            FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - usedSlotsAfter, 0),
+            CreatedStackCount = createdStackCount,
+            FilledExistingQuantity = filledExistingQuantity,
+            IsOverCapacity = usedSlotsAfter > GetTotalCapacity(),
+            ItemFound = itemFound,
+            IsEquipment = isEquipment,
+            AllocatedEquipmentInstanceIds = allocatedInstanceIds,
+        };
     }
 
     private EquipmentInstanceState _create_equipment_instance(
@@ -997,7 +1095,7 @@ public sealed class PartyWarehouseService : IDisposable
         if (_party_backpack_view != null)
             return _party_backpack_view;
 
-        EnsurePartyState();
+        _party_state ??= new PartyState();
         _party_state.warehouse_state ??= new WarehouseState();
         return _party_state.warehouse_state;
     }
@@ -1007,9 +1105,8 @@ public sealed class PartyWarehouseService : IDisposable
         if (_party_backpack_view != null)
             return _party_backpack_view;
         if (_party_state == null)
-            EnsurePartyState();
-        _party_state.warehouse_state ??= new WarehouseState();
-        return _party_state.warehouse_state;
+            return new WarehouseState();
+        return _party_state.warehouse_state ?? new WarehouseState();
     }
 
     private void _set_transaction_warehouse_state(WarehouseState warehouseState)
@@ -1020,53 +1117,8 @@ public sealed class PartyWarehouseService : IDisposable
             return;
         }
 
-        EnsurePartyState();
+        _party_state ??= new PartyState();
         _party_state.warehouse_state = warehouseState;
-    }
-
-    private void ReplacePartyState(PartyState partyState)
-    {
-        ReleaseOwnedPartyState();
-        if (partyState != null)
-        {
-            _party_state = partyState;
-            _ownsPartyState = false;
-            return;
-        }
-
-        _party_state = new PartyState();
-        _ownsPartyState = true;
-    }
-
-    private void EnsurePartyState()
-    {
-        if (_party_state != null)
-            return;
-        _party_state = new PartyState();
-        _ownsPartyState = true;
-    }
-
-    private void ReleaseOwnedPartyState()
-    {
-        if (_ownsPartyState)
-            GodotRefCountedDisposer.DisposeIfValid(_party_state);
-        _party_state = null;
-        _ownsPartyState = false;
-    }
-
-    private void ReplacePartyBackpackView(WarehouseState warehouseState, bool ownsWarehouseState)
-    {
-        ReleaseOwnedPartyBackpackView();
-        _party_backpack_view = warehouseState;
-        _ownsPartyBackpackView = warehouseState != null && ownsWarehouseState;
-    }
-
-    private void ReleaseOwnedPartyBackpackView()
-    {
-        if (_ownsPartyBackpackView)
-            GodotRefCountedDisposer.DisposeIfValid(_party_backpack_view);
-        _party_backpack_view = null;
-        _ownsPartyBackpackView = false;
     }
 
     private static void _copy_warehouse_state(WarehouseState sourceState, WarehouseState targetState)
@@ -1102,18 +1154,18 @@ public sealed class PartyWarehouseService : IDisposable
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         int resolvedQuantity = Mathf.Max(quantity, 0);
         var itemDef = GetItemDef(normalizedItemId);
-        var grantedSkillId = itemDef?.granted_skill_id ?? new StringName("");
+        var grantedSkillId = itemDef?.GrantedSkillId ?? new StringName("");
         return new WarehouseInventoryEntry(
             normalizedItemId,
             itemDef,
-            itemDef != null && itemDef.display_name.Length > 0
-                ? itemDef.display_name
+            itemDef != null && itemDef.DisplayName.Length > 0
+                ? itemDef.DisplayName
                 : normalizedItemId.ToString(),
-            itemDef?.description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
-            itemDef?.icon ?? "",
+            itemDef?.Description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
+            itemDef?.Icon ?? "",
             resolvedQuantity,
             CountItem(normalizedItemId),
-            itemDef?.is_stackable ?? resolvedQuantity > 1,
+            itemDef?.IsStackable ?? resolvedQuantity > 1,
             itemDef?.GetEffectiveMaxStack() ?? Mathf.Max(resolvedQuantity, 1),
             itemDef != null ? itemDef.GetItemCategoryNormalized() : new StringName(""),
             itemDef != null && itemDef.IsSkillBook(),
@@ -1201,52 +1253,6 @@ public sealed class PartyWarehouseService : IDisposable
         if (data.ContainsKey(stringNameKey))
             return data[stringNameKey];
         return null;
-    }
-
-    private static bool TryAsItemDef(object rawValue, out ItemDef value)
-    {
-        if (rawValue is ItemDef itemDef)
-        {
-            value = itemDef;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<ItemDef>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
-    }
-
-    private static bool TryAsEquipmentInstance(
-        object rawValue,
-        out EquipmentInstanceState value)
-    {
-        if (rawValue is EquipmentInstanceState equipmentInstance)
-        {
-            value = equipmentInstance;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<EquipmentInstanceState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
     }
 
     private static bool TryRawDictionary(

@@ -30,4 +30,10 @@ public partial class RecipeDef : Resource
 
     [Export]
     public string failure_reason = "";
+
+    internal Array<StringName> InputItemIdsProjectionBorrowed => input_item_ids;
+    internal int[] InputItemQuantitiesProjectionBorrowed => input_item_quantities;
+    internal Array<StringName> RequiredFacilityTagsProjectionBorrowed => required_facility_tags;
+
+    internal RecipeDefinition ToDefinition() => RecipeDefinition.FromResource(this);
 }

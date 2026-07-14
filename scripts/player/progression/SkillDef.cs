@@ -14,6 +14,7 @@ internal enum SkillLearnSourceKind
     Unknown = 0,
     Book,
     Innate,
+    Internal,
     Player,
     Profession,
     Race,
@@ -57,6 +58,7 @@ public partial class SkillDef : Resource
     private static readonly StringName SkillTypePassive = "passive";
     private static readonly StringName LearnSourceBook = "book";
     private static readonly StringName LearnSourceInnate = "innate";
+    private static readonly StringName LearnSourceInternal = "internal";
     private static readonly StringName LearnSourcePlayer = "player";
     private static readonly StringName LearnSourceProfession = "profession";
     private static readonly StringName LearnSourceRace = "race";
@@ -92,6 +94,11 @@ public partial class SkillDef : Resource
     private Godot.Collections.Dictionary _levelDescriptionConfigsProjection = new();
     private Godot.Collections.Array<Resource> _attributeModifiersProjection = new();
     private Godot.Collections.Array<StringName> _tagsProjection = new();
+    private Godot.Collections.Array<StringName> _learnRequirementsProjection = new();
+    private Godot.Collections.Array<StringName> _knowledgeRequirementsProjection = new();
+    private Godot.Collections.Array<StringName> _achievementRequirementsProjection = new();
+    private Godot.Collections.Array<StringName> _upgradeSourceSkillIdsProjection = new();
+    private Godot.Collections.Array<StringName> _masterySourcesProjection = new();
 
     [Export]
     public StringName skill_id { get; set; } = "";
@@ -134,7 +141,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> tags
     {
-        get => BuildStringNameArray(_tagsProjection);
+        get => _tagsProjection;
         set => SetTags(value);
     }
 
@@ -149,8 +156,12 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> learn_requirements
     {
-        get => BuildStringNameArray(_learnRequirements);
-        set => SetUniqueStringNames(_learnRequirements, value);
+        get => _learnRequirementsProjection;
+        set => SetUniqueStringNames(
+            _learnRequirements,
+            _learnRequirementsProjection,
+            value
+        );
     }
 
     [Export]
@@ -165,36 +176,48 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> knowledge_requirements
     {
-        get => BuildStringNameArray(_knowledgeRequirements);
-        set => SetUniqueStringNames(_knowledgeRequirements, value);
+        get => _knowledgeRequirementsProjection;
+        set => SetUniqueStringNames(
+            _knowledgeRequirements,
+            _knowledgeRequirementsProjection,
+            value
+        );
     }
 
     [Export]
     public Godot.Collections.Dictionary skill_level_requirements
     {
-        get => _skillLevelRequirementsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => _skillLevelRequirementsProjection;
         set => SetSkillLevelRequirements(value);
     }
 
     [Export]
     public Godot.Collections.Dictionary attribute_requirements
     {
-        get => _attributeRequirementsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => _attributeRequirementsProjection;
         set => SetAttributeRequirements(value);
     }
 
     [Export]
     public Godot.Collections.Array<StringName> achievement_requirements
     {
-        get => BuildStringNameArray(_achievementRequirements);
-        set => SetUniqueStringNames(_achievementRequirements, value);
+        get => _achievementRequirementsProjection;
+        set => SetUniqueStringNames(
+            _achievementRequirements,
+            _achievementRequirementsProjection,
+            value
+        );
     }
 
     [Export]
     public Godot.Collections.Array<StringName> upgrade_source_skill_ids
     {
-        get => BuildStringNameArray(_upgradeSourceSkillIds);
-        set => SetUniqueStringNames(_upgradeSourceSkillIds, value);
+        get => _upgradeSourceSkillIdsProjection;
+        set => SetUniqueStringNames(
+            _upgradeSourceSkillIds,
+            _upgradeSourceSkillIdsProjection,
+            value
+        );
     }
 
     [Export]
@@ -212,8 +235,8 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> mastery_sources
     {
-        get => BuildStringNameArray(_masterySources);
-        set => SetUniqueStringNames(_masterySources, value);
+        get => _masterySourcesProjection;
+        set => SetUniqueStringNames(_masterySources, _masterySourcesProjection, value);
     }
 
     [Export]
@@ -222,7 +245,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Dictionary attribute_growth_progress
     {
-        get => _attributeGrowthProgressProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => _attributeGrowthProgressProjection;
         set => SetAttributeGrowthProgress(value);
     }
 
@@ -237,7 +260,7 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Array<Resource> attribute_modifiers
     {
-        get => BuildResourceProjection(_attributeModifiersProjection);
+        get => _attributeModifiersProjection;
         set => SetAttributeModifiers(value);
     }
 
@@ -247,12 +270,15 @@ public partial class SkillDef : Resource
     [Export]
     public Godot.Collections.Dictionary level_description_configs
     {
-        get => _levelDescriptionConfigsProjection?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        get => _levelDescriptionConfigsProjection;
         set => SetLevelDescriptionConfigs(value);
     }
 
     [Export]
     public CombatSkillDef combat_profile { get; set; }
+
+    [Export]
+    public ContingencyAutomationDef contingency_automation_profile { get; set; }
 
     internal IReadOnlyDictionary<StringName, int> AttributeGrowthProgressTyped =>
         _attributeGrowthProgress;
@@ -275,13 +301,16 @@ public partial class SkillDef : Resource
     internal IReadOnlyList<StringName> MasterySourcesTyped => _masterySources;
     internal IReadOnlyDictionary<int, Dictionary<string, Variant>> LevelDescriptionConfigsTyped =>
         _levelDescriptionConfigs;
+    internal Godot.Collections.Dictionary LevelDescriptionConfigsProjectionBorrowed =>
+        _levelDescriptionConfigsProjection;
     internal IReadOnlyList<LevelDescriptionConfigEntryData> LevelDescriptionConfigEntriesTyped =>
         _levelDescriptionConfigEntries;
 
     private void SetAttributeGrowthProgress(Godot.Collections.Dictionary values)
     {
-        _attributeGrowthProgressProjection =
-            values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        using GdDictionary sourceCopy = values?.Duplicate(true) ?? new GdDictionary();
+        _attributeGrowthProgressProjection.Clear();
+        _attributeGrowthProgressProjection.Merge(sourceCopy, true);
         _attributeGrowthProgress.Clear();
         _attributeGrowthProgressEntries.Clear();
         foreach (Variant rawKey in _attributeGrowthProgressProjection.Keys)
@@ -306,7 +335,7 @@ public partial class SkillDef : Resource
 
     public void SetAttributeGrowthProgress(IEnumerable<KeyValuePair<StringName, int>> values)
     {
-        _attributeGrowthProgressProjection = new Godot.Collections.Dictionary();
+        _attributeGrowthProgressProjection.Clear();
         _attributeGrowthProgress.Clear();
         _attributeGrowthProgressEntries.Clear();
         if (values == null)
@@ -326,22 +355,26 @@ public partial class SkillDef : Resource
 
     private void SetTags(Godot.Collections.Array<StringName> values)
     {
-        _tagsProjection = BuildStringNameArray(values);
+        List<StringName> sourceValues = CopyStringNames(values);
+        _tagsProjection.Clear();
         _tags.Clear();
-        if (values == null)
-            return;
-        foreach (StringName value in values)
+        foreach (StringName value in sourceValues)
+        {
+            _tagsProjection.Add(value);
             _tags.Add(value);
+        }
     }
 
     public void SetTags(IEnumerable<StringName> values)
     {
-        _tagsProjection = BuildStringNameArray(values);
+        List<StringName> sourceValues = CopyStringNames(values);
+        _tagsProjection.Clear();
         _tags.Clear();
-        if (values == null)
-            return;
-        foreach (StringName value in values)
+        foreach (StringName value in sourceValues)
+        {
+            _tagsProjection.Add(value);
             _tags.Add(value);
+        }
     }
 
     public bool HasTag(StringName tag)
@@ -356,8 +389,9 @@ public partial class SkillDef : Resource
 
     private void SetSkillLevelRequirements(Godot.Collections.Dictionary values)
     {
-        _skillLevelRequirementsProjection =
-            values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        using GdDictionary sourceCopy = values?.Duplicate(true) ?? new GdDictionary();
+        _skillLevelRequirementsProjection.Clear();
+        _skillLevelRequirementsProjection.Merge(sourceCopy, true);
         _skillLevelRequirements.Clear();
         _skillLevelRequirementEntries.Clear();
         foreach (Variant rawKey in _skillLevelRequirementsProjection.Keys)
@@ -372,7 +406,7 @@ public partial class SkillDef : Resource
 
     public void SetSkillLevelRequirements(IEnumerable<KeyValuePair<StringName, int>> values)
     {
-        _skillLevelRequirementsProjection = new Godot.Collections.Dictionary();
+        _skillLevelRequirementsProjection.Clear();
         _skillLevelRequirements.Clear();
         _skillLevelRequirementEntries.Clear();
         if (values == null)
@@ -390,8 +424,9 @@ public partial class SkillDef : Resource
 
     private void SetAttributeRequirements(Godot.Collections.Dictionary values)
     {
-        _attributeRequirementsProjection =
-            values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        using GdDictionary sourceCopy = values?.Duplicate(true) ?? new GdDictionary();
+        _attributeRequirementsProjection.Clear();
+        _attributeRequirementsProjection.Merge(sourceCopy, true);
         _attributeRequirements.Clear();
         _attributeRequirementEntries.Clear();
         foreach (Variant rawKey in _attributeRequirementsProjection.Keys)
@@ -406,7 +441,7 @@ public partial class SkillDef : Resource
 
     public void SetAttributeRequirements(IEnumerable<KeyValuePair<StringName, int>> values)
     {
-        _attributeRequirementsProjection = new Godot.Collections.Dictionary();
+        _attributeRequirementsProjection.Clear();
         _attributeRequirements.Clear();
         _attributeRequirementEntries.Clear();
         if (values == null)
@@ -424,12 +459,12 @@ public partial class SkillDef : Resource
 
     private void SetAttributeModifiers(Godot.Collections.Array<Resource> values)
     {
-        _attributeModifiersProjection = BuildResourceProjection(values);
+        List<Resource> sourceValues = CopyResources(values);
+        _attributeModifiersProjection.Clear();
         _attributeModifiers.Clear();
-        if (values == null)
-            return;
-        foreach (Resource value in values)
+        foreach (Resource value in sourceValues)
         {
+            _attributeModifiersProjection.Add(value);
             if (value is AttributeModifier modifier)
                 _attributeModifiers.Add(modifier);
         }
@@ -437,11 +472,10 @@ public partial class SkillDef : Resource
 
     public void SetAttributeModifiers(IEnumerable<AttributeModifier> values)
     {
-        _attributeModifiersProjection = new Godot.Collections.Array<Resource>();
+        List<AttributeModifier> sourceValues = values != null ? new(values) : new();
+        _attributeModifiersProjection.Clear();
         _attributeModifiers.Clear();
-        if (values == null)
-            return;
-        foreach (AttributeModifier modifier in values)
+        foreach (AttributeModifier modifier in sourceValues)
         {
             if (modifier == null)
                 continue;
@@ -452,8 +486,9 @@ public partial class SkillDef : Resource
 
     private void SetLevelDescriptionConfigs(Godot.Collections.Dictionary values)
     {
-        _levelDescriptionConfigsProjection =
-            values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        using GdDictionary sourceCopy = values?.Duplicate(true) ?? new GdDictionary();
+        _levelDescriptionConfigsProjection.Clear();
+        _levelDescriptionConfigsProjection.Merge(sourceCopy, true);
         _levelDescriptionConfigs.Clear();
         _levelDescriptionConfigEntries.Clear();
         foreach (Variant rawKey in _levelDescriptionConfigsProjection.Keys)
@@ -473,7 +508,7 @@ public partial class SkillDef : Resource
         IEnumerable<KeyValuePair<int, Dictionary<string, Variant>>> values
     )
     {
-        _levelDescriptionConfigsProjection = new Godot.Collections.Dictionary();
+        _levelDescriptionConfigsProjection.Clear();
         _levelDescriptionConfigs.Clear();
         _levelDescriptionConfigEntries.Clear();
         if (values == null)
@@ -482,7 +517,7 @@ public partial class SkillDef : Resource
         {
             if (pair.Key < 0 || pair.Value == null)
                 continue;
-            GdDictionary configProjection = BuildVariantProjection(pair.Value);
+            using GdDictionary configProjection = BuildVariantProjection(pair.Value);
             string levelKey = pair.Key.ToString();
             _levelDescriptionConfigsProjection[levelKey] = configProjection;
             _levelDescriptionConfigs[pair.Key] = CloneVariantMap(pair.Value);
@@ -542,6 +577,8 @@ public partial class SkillDef : Resource
             return SkillLearnSourceKind.Book;
         if (value == LearnSourceInnate)
             return SkillLearnSourceKind.Innate;
+        if (value == LearnSourceInternal)
+            return SkillLearnSourceKind.Internal;
         if (value == LearnSourcePlayer)
             return SkillLearnSourceKind.Player;
         if (value == LearnSourceProfession)
@@ -563,6 +600,7 @@ public partial class SkillDef : Resource
         {
             SkillLearnSourceKind.Book => LearnSourceBook,
             SkillLearnSourceKind.Innate => LearnSourceInnate,
+            SkillLearnSourceKind.Internal => LearnSourceInternal,
             SkillLearnSourceKind.Player => LearnSourcePlayer,
             SkillLearnSourceKind.Profession => LearnSourceProfession,
             SkillLearnSourceKind.Race => LearnSourceRace,
@@ -828,15 +866,19 @@ public partial class SkillDef : Resource
         }
     }
 
-    private static Godot.Collections.Array<StringName> BuildStringNameArray(
-        IEnumerable<StringName> values
-    ) => values != null ? new Godot.Collections.Array<StringName>(values) : new();
-
-    private static Godot.Collections.Array<Resource> BuildResourceProjection(
-        IEnumerable<Resource> values
-    )
+    private static List<StringName> CopyStringNames(IEnumerable<StringName> values)
     {
-        var result = new Godot.Collections.Array<Resource>();
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static List<Resource> CopyResources(IEnumerable<Resource> values)
+    {
+        var result = new List<Resource>();
         if (values == null)
             return result;
         foreach (Resource value in values)
@@ -904,18 +946,22 @@ public partial class SkillDef : Resource
         return parsedLevel.ToString() == keyText;
     }
 
-    private static void SetUniqueStringNames(List<StringName> target, System.Collections.IEnumerable values)
+    private static void SetUniqueStringNames(
+        List<StringName> target,
+        Godot.Collections.Array<StringName> projection,
+        IEnumerable<StringName> values
+    )
     {
+        List<StringName> sourceValues = CopyStringNames(values);
         target.Clear();
-        if (values == null)
-            return;
+        projection.Clear();
         var seen = new HashSet<StringName>();
-        foreach (object value in values)
+        foreach (StringName value in sourceValues)
         {
-            StringName stringName = ProgressionDataUtils.to_string_name(value);
-            if (stringName == "" || !seen.Add(stringName))
+            if (value == "" || !seen.Add(value))
                 continue;
-            target.Add(stringName);
+            target.Add(value);
+            projection.Add(value);
         }
     }
 }

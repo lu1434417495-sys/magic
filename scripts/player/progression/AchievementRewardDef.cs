@@ -1,8 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class AchievementRewardDef : RefCounted
+public sealed class AchievementRewardDef
 {
     public StringName reward_type = "";
     public StringName target_id = "";

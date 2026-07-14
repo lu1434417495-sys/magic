@@ -12,11 +12,6 @@ internal enum CombatCastFootprintPattern
 [GlobalClass]
 public partial class CombatCastVariantDef : Resource
 {
-    private static readonly StringName FootprintSingle = "single";
-    private static readonly StringName FootprintLine2 = "line2";
-    private static readonly StringName FootprintSquare2 = "square2";
-    private static readonly StringName FootprintUnordered = "unordered";
-
     [Export]
     public StringName variant_id { get; set; } = "";
 
@@ -41,8 +36,8 @@ public partial class CombatCastVariantDef : Resource
     public StringName footprint_pattern { get; set; } = "single";
     internal CombatCastFootprintPattern FootprintPatternKind
     {
-        get => ToFootprintPattern(footprint_pattern);
-        set => footprint_pattern = ToStringName(value);
+        get => CombatSkillTargetingContentRules.ToFootprintPattern(footprint_pattern);
+        set => footprint_pattern = CombatSkillTargetingContentRules.ToFootprintPatternId(value);
     }
 
     [Export]
@@ -59,26 +54,11 @@ public partial class CombatCastVariantDef : Resource
 
     internal static CombatCastFootprintPattern ToFootprintPattern(StringName value)
     {
-        if (value == FootprintSingle)
-            return CombatCastFootprintPattern.Single;
-        if (value == FootprintLine2)
-            return CombatCastFootprintPattern.Line2;
-        if (value == FootprintSquare2)
-            return CombatCastFootprintPattern.Square2;
-        if (value == FootprintUnordered)
-            return CombatCastFootprintPattern.Unordered;
-        return CombatCastFootprintPattern.Unknown;
+        return CombatSkillTargetingContentRules.ToFootprintPattern(value);
     }
 
     internal static StringName ToStringName(CombatCastFootprintPattern pattern)
     {
-        return pattern switch
-        {
-            CombatCastFootprintPattern.Single => FootprintSingle,
-            CombatCastFootprintPattern.Line2 => FootprintLine2,
-            CombatCastFootprintPattern.Square2 => FootprintSquare2,
-            CombatCastFootprintPattern.Unordered => FootprintUnordered,
-            _ => "",
-        };
+        return CombatSkillTargetingContentRules.ToFootprintPatternId(pattern);
     }
 }

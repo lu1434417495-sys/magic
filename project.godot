@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+ApplicationLifetimeCoordinator="*res://scripts/systems/lifecycle/ApplicationLifetimeCoordinator.cs"
 GameSession="*res://scripts/systems/persistence/GameSession.cs"
 
 [display]

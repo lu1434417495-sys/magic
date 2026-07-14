@@ -1,6 +1,6 @@
 # 战斗运行时模块可重建规格说明
 
-更新日期：`2026-06-17`
+更新日期：`2026-07-10`
 
 ## 目标与边界
 
@@ -78,6 +78,8 @@ MovementQuery/Service 负责：边界、footprint、占用、terrain cost、reac
 5. 提交 outcome：写 BattleState、event batch、contribution、mastery。
 
 特殊技能 resolver（meteor swarm、charge、barrier、shield、special profile）由 runtime service 负责，不放 UI。
+
+装备耐久归零后的投影刷新由 `BattleDamageResolver` 在完整 `ResolveEffects(...)` / `ResolveAttackEffects(...)` 结束后统一触发，并委托 `BattleEquipmentAbilityRuntimeService.RefreshEquipmentProjectionAfterDurabilityDestruction(...)` 重建装备来源、清理失效目标标记和传播 changed unit id。直接装备耐久 action 在 commit 返回 destroyed 后调用同一 helper；`BattleSkillExecutionOrchestrator._apply_equipment_durability_result(...)` 只负责日志与 changed unit report。
 
 ## AI
 
@@ -257,7 +259,7 @@ AI 决策必须使用 snapshot/value object：
 - `internal int GetBlackStarBrandCastCost(StringName member_id) =>`
 - `internal bool HasMisfortuneReason(StringName member_id, StringName reason_id) =>`
 - `internal FateRuntimeModule GetFateRuntime() => _fate_runtime;`
-- `internal string GetSkillCastBlockReason(BattleUnitState active_unit, SkillDef skill_def) =>`
+- `internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(BattleUnitState active_unit, SkillDefinition skillDefinition) =>`
 - `public bool IsUnitGuardLocked(BattleUnitState unit_state) =>`
 - `public bool IsUnitCounterattackLocked(BattleUnitState unit_state) =>`
 - `public bool IsUnitFollowUpLocked(BattleUnitState unit_state) =>`
@@ -278,13 +280,12 @@ AI 决策必须使用 snapshot/value object：
 - `internal BattleAttackCheckPolicyService GetAttackCheckPolicyService()`
 - `public void ConfigureHitResolverForTests(BattleHitResolver hit_resolver)`
 - `internal BattleTerrainGenerator GetTerrainGenerator() => _terrain_generator;`
-- `public SkillDef GetSkillDefTyped(StringName skill_id)`
-- `internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefIndex;`
+- `internal SkillDefinition GetSkillDefinitionTyped(StringName skill_id)`
+- `internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() => _skillDefinitionIndex;`
 - `internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplateIndexTyped() =>`
 - `internal EnemyTemplateDef GetEnemyTemplateTyped(StringName templateId)`
 - `internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainIndexTyped() =>`
 - `internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefIndexTyped() => _itemDefIndex;`
-- `internal bool _has_special_profile(SkillDef skill_def, StringName profile_id) =>`
 - `internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()`
 - `internal int GetMinBattleSurfaceHeight() => MIN_BATTLE_SURFACE_HEIGHT;`
 - `internal Dictionary<StringName, BattleRatingMemberStats> GetBattleRatingStatsTyped() =>`
@@ -445,7 +446,7 @@ AI 决策必须使用 snapshot/value object：
 
 ### `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs`
 
-- `internal partial class BattleSkillExecutionOrchestrator : RefCounted`
+- `internal sealed class BattleSkillExecutionOrchestrator`
 - `public static ChainDamageParameters FromEffect(CombatEffectDef effectDef)`
 - `internal void Setup(BattleRuntimeModule runtime)`
 - `internal void DisposeRuntime()`
@@ -462,23 +463,21 @@ AI 决策必须使用 snapshot/value object：
 - `internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)`
 - `internal GVector2IArray _sort_coords(GArray target_coords)`
 - `internal GVector2IArray _sort_coords(GVector2IArray target_coords)`
-- `internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def)`
+- `internal int _get_effective_skill_range(BattleUnitState active_unit, SkillDefinition skillDefinition)`
+- `internal int _get_effective_skill_range(BattleUnitReadView active_unit, SkillDefinition skillDefinition)`
 - `internal void _append_damage_preview_line(BattlePreview preview)`
 - `internal void _shuffle_random_chain_pool(GArray chain_pool)`
 - `internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)`
-- `internal bool _is_multi_unit_skill(SkillDef skill_def)`
-- `internal void _refresh_target_after_equipment_destruction(BattleUnitState target_unit)`
-- `internal void _clamp_target_resources_after_equipment_projection(BattleUnitState target_unit)`
+- `internal bool _is_multi_unit_skill(SkillDefinition skillDefinition)`
+- `internal void _apply_equipment_durability_result(BattleUnitState target_unit, AttackEffectResolutionResult result, BattleEventBatch batch)`
 - `internal GVector2IArray _get_line_coords(Vector2I from, Vector2I to)`
 - `internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit)`
-- `internal bool _skill_grants_guarding(SkillDef skill_def)`
 - `internal IReadOnlyList<BattleUnitState> _collect_units_in_coords_typed(GVector2IArray effect_coords)`
 - `internal bool _is_unit_effect(CombatEffectDef effect_def)`
 - `internal bool _is_terrain_effect(CombatEffectDef effect_def)`
-- `internal StringName _resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)`
-- `internal CombatCastVariantDef _build_implicit_ground_cast_variant(SkillDef skill_def)`
+- `private StringName ResolveEffectTargetFilter(SkillDefinition skillDefinition, CombatEffectDefinition effectDefinition)`
 - `internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)`
-- `internal string _format_skill_variant_label(SkillDef skill_def, CombatCastVariantDef cast_variant)`
+- `internal string _format_skill_variant_label(SkillDefinition skillDefinition, CombatCastVariantDefinition castVariant)`
 
 ### `scripts/systems/battle/runtime/BattleTargetCollectionService.cs`
 
@@ -520,9 +519,11 @@ AI 决策必须使用 snapshot/value object：
 
 ### `scripts/systems/battle/runtime/BattleSkillMasteryService.cs`
 
-- `internal partial class BattleSkillMasteryService : RefCounted`
+- `internal sealed class BattleSkillMasteryService : IDisposable`
 - `internal void Clear()`
-- `public void RecordMasteryAmount(SkillDef skillDef, int amount)`
+- `public void RecordTargetResult(BattleUnitState sourceUnit, BattleUnitState targetUnit, SkillDefinition skillDefinition, AttackEffectResolutionResult result, IReadOnlyList<CombatEffectDefinition> effectDefinitions = null)`
+- `public void RecordBonus(BattleUnitState sourceUnit, BattleUnitState targetUnit, SkillDefinition skillDefinition, int baseAmount)`
+- `public void RecordMasteryAmount(StringName skillId, int amount)`
 - `public int ResolveActiveSkillMasteryAmount()`
 - `public StringName ResolveMasteryRewardSkillId(BattleUnitState sourceUnit, StringName skillId)`
 - `public int ResolveBattleRatingMasteryAmount(int score)`
@@ -675,4 +676,3 @@ AI 决策必须使用 snapshot/value object：
 - `internal void AddProgressionDelta(CharacterProgressionDelta delta)`
 - `internal GArray BuildReportEntriesArray()`
 - `internal GArray BuildProgressionDeltasArray()`
-

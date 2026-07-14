@@ -4,13 +4,9 @@ using Godot;
 
 /// <summary>
 /// <see cref="ISkillCatalog"/> 的默认实现。仅持有所属 <see cref="GameContentCatalog"/> 引用，
-/// 不缓存可变 skill 字典、不扫描资源：每次查询都从 <see cref="GameContentCatalog.GetSkillDefsTyped"/>
-/// 读取当前 typed 快照与 revision；derived effective profile 按 revision 缓存，因此随 catalog 的
+/// 不缓存可变 skill 字典、不扫描资源：每次查询都从 <see cref="GameContentCatalog.GetSkillDefinitionsTyped"/>
+/// 读取当前 runtime DTO 快照与 revision；derived effective definition 按 revision 缓存，因此随 catalog 的
 /// clear/rebuild 自动失效，门面实例本身无需重建。
-///
-/// 所有 effective getter 都读取同一个 <see cref="SkillEffectiveCombatProfile"/> 缓存项，避免同一
-/// skill/level 连续查询多个字段时重复合并 level override；技能不存在或无 combat profile 时返回安全默认值，
-/// 不做旧 string-key fallback。
 /// </summary>
 public sealed class SkillCatalog : ISkillCatalog
 {
@@ -35,13 +31,15 @@ public sealed class SkillCatalog : ISkillCatalog
         public override int GetHashCode() => System.HashCode.Combine(SkillId, SkillLevel);
     }
 
-    private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
-        new ReadOnlyDictionary<StringName, SkillDef>(new Dictionary<StringName, SkillDef>());
+    private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =
+        new ReadOnlyDictionary<StringName, SkillDefinition>(
+            new Dictionary<StringName, SkillDefinition>()
+        );
 
     private readonly GameContentCatalog _contentCatalog;
-    private readonly Dictionary<EffectiveCombatProfileCacheKey, SkillEffectiveCombatProfile> _effectiveCombatProfileCache =
+    private readonly Dictionary<EffectiveCombatProfileCacheKey, SkillEffectiveCombatDefinition> _effectiveCombatDefinitionCache =
         new();
-    private long _effectiveCombatProfileCacheRevision = long.MinValue;
+    private long _effectiveCombatCacheRevision = long.MinValue;
 
     internal SkillCatalog(GameContentCatalog contentCatalog)
     {
@@ -50,37 +48,41 @@ public sealed class SkillCatalog : ISkillCatalog
 
     public long GetRevision() => _contentCatalog?.GetRevision() ?? 0;
 
-    public IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped() =>
-        _contentCatalog?.GetSkillDefsTyped() ?? EmptySkillDefs;
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped() =>
+        _contentCatalog?.GetSkillDefinitionsTyped() ?? EmptySkillDefinitions;
 
     public bool HasSkill(StringName skillId) =>
-        skillId != "" && GetSkillDefsTyped().ContainsKey(skillId);
+        skillId != "" && GetSkillDefinitionsTyped().ContainsKey(skillId);
 
-    public bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    public bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition)
     {
-        skillDef = null;
-        return skillId != "" && GetSkillDefsTyped().TryGetValue(skillId, out skillDef);
+        skillDefinition = null;
+        return skillId != ""
+            && GetSkillDefinitionsTyped().TryGetValue(skillId, out skillDefinition);
     }
 
-    public CombatSkillDef GetCombatProfileTyped(StringName skillId)
-    {
-        return TryGetSkillDef(skillId, out SkillDef skillDef) ? skillDef?.combat_profile : null;
-    }
-
-    public SkillEffectiveCombatProfile GetEffectiveCombatProfile(
+    public SkillEffectiveCombatDefinition GetEffectiveCombatDefinition(
         StringName skillId,
         int skillLevel
     )
     {
-        EnsureEffectiveCombatProfileCacheRevision();
+        EnsureEffectiveCombatCacheRevision();
         var key = new EffectiveCombatProfileCacheKey(skillId, skillLevel);
-        if (_effectiveCombatProfileCache.TryGetValue(key, out SkillEffectiveCombatProfile cached))
+        if (
+            _effectiveCombatDefinitionCache.TryGetValue(
+                key,
+                out SkillEffectiveCombatDefinition cached
+            )
+        )
         {
             return cached;
         }
 
-        SkillEffectiveCombatProfile resolved = BuildEffectiveCombatProfile(skillId, skillLevel);
-        _effectiveCombatProfileCache[key] = resolved;
+        SkillEffectiveCombatDefinition resolved = BuildEffectiveCombatDefinition(
+            skillId,
+            skillLevel
+        );
+        _effectiveCombatDefinitionCache[key] = resolved;
         return resolved;
     }
 
@@ -89,63 +91,63 @@ public sealed class SkillCatalog : ISkillCatalog
         int skillLevel
     )
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).ResourceCosts;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).ResourceCosts;
     }
 
     public int GetEffectiveAttackRollBonus(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AttackRollBonus;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AttackRollBonus;
     }
 
     public StringName GetEffectiveAreaPattern(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AreaPattern;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AreaPattern;
     }
 
     public int GetEffectiveAreaValue(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).AreaValue;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).AreaValue;
     }
 
     public int GetEffectiveRangeValue(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).RangeValue;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).RangeValue;
     }
 
     public int GetEffectiveMaxTargetCount(StringName skillId, int skillLevel)
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).MaxTargetCount;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).MaxTargetCount;
     }
 
-    public IReadOnlyList<CombatCastVariantDef> GetUnlockedCastVariants(
+    public IReadOnlyList<CombatCastVariantDefinition> GetUnlockedCastVariantDefinitions(
         StringName skillId,
         int skillLevel
     )
     {
-        return GetEffectiveCombatProfile(skillId, skillLevel).UnlockedCastVariants;
+        return GetEffectiveCombatDefinition(skillId, skillLevel).UnlockedCastVariants;
     }
 
-    private void EnsureEffectiveCombatProfileCacheRevision()
+    private void EnsureEffectiveCombatCacheRevision()
     {
         long currentRevision = GetRevision();
-        if (_effectiveCombatProfileCacheRevision == currentRevision)
+        if (_effectiveCombatCacheRevision == currentRevision)
         {
             return;
         }
-        _effectiveCombatProfileCache.Clear();
-        _effectiveCombatProfileCacheRevision = currentRevision;
+        _effectiveCombatDefinitionCache.Clear();
+        _effectiveCombatCacheRevision = currentRevision;
     }
 
-    private SkillEffectiveCombatProfile BuildEffectiveCombatProfile(
+    private SkillEffectiveCombatDefinition BuildEffectiveCombatDefinition(
         StringName skillId,
         int skillLevel
     )
     {
-        if (!TryGetSkillDef(skillId, out SkillDef skillDef) || skillDef?.combat_profile == null)
+        if (!TryGetSkillDefinition(skillId, out SkillDefinition skillDefinition))
         {
-            return SkillEffectiveCombatProfileResolver.BuildMissing(skillLevel);
+            return SkillEffectiveCombatDefinition.BuildMissing(skillLevel);
         }
 
-        return SkillEffectiveCombatProfileResolver.BuildUncached(skillDef, skillLevel);
+        return SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
     }
 }

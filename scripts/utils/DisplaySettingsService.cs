@@ -49,7 +49,8 @@ public sealed class DisplaySettingsService
 
     public DisplaySettings LoadSettings()
     {
-        var config = new ConfigFile();
+        using var configScope = new GodotTransientResourceScope("DisplaySettingsService.LoadSettings");
+        var config = configScope.OwnWrapper(new ConfigFile(), "config");
         Error loadError = config.Load(_settingsPath);
         if (loadError != Error.Ok)
         {
@@ -57,12 +58,13 @@ public sealed class DisplaySettingsService
         }
         int width = ReadIntSetting(config, "display", "width", DefaultWindowedResolution.X);
         int height = ReadIntSetting(config, "display", "height", DefaultWindowedResolution.Y);
-        return NormalizeSettings(
+        DisplaySettings settings = NormalizeSettings(
             new DisplaySettings(
                 new Vector2I(width, height),
                 ReadBoolSetting(config, "display", "fullscreen", false)
             )
         );
+        return settings;
     }
 
     public DisplaySettings LoadAndApply(Window window = null)
@@ -73,12 +75,14 @@ public sealed class DisplaySettingsService
     public Error SaveSettings(DisplaySettings settings)
     {
         DisplaySettings normalized = NormalizeSettings(settings);
-        var config = new ConfigFile();
+        using var configScope = new GodotTransientResourceScope("DisplaySettingsService.SaveSettings");
+        var config = configScope.OwnWrapper(new ConfigFile(), "config");
         Vector2I resolution = normalized.Resolution;
         config.SetValue("display", "width", resolution.X);
         config.SetValue("display", "height", resolution.Y);
         config.SetValue("display", "fullscreen", normalized.Fullscreen);
-        return config.Save(_settingsPath);
+        Error saveError = config.Save(_settingsPath);
+        return saveError;
     }
 
     public DisplaySettings ApplySettings(DisplaySettings settings, Window window = null)

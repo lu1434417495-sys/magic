@@ -9,6 +9,7 @@ public sealed class AttackResolutionMetadata
     public bool CriticalFail;
     public bool OrdinaryMiss;
     public bool IsDisadvantage;
+    public bool IsAdvantage;
     public int HiddenLuckAtBirth;
     public int FaithLuckBonus;
     public int EffectiveLuck;

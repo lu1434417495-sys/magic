@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_party_member_state_owner_api_regression : SceneTree
+public partial class run_party_member_state_owner_api_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,7 +11,7 @@ public partial class run_party_member_state_owner_api_regression : SceneTree
         TestBodySizeApiKeepsProjectionConsistent();
         TestBloodlineAndAscensionApiOwnRelatedFields();
 
-        Quit(_test.Finish("Party member state owner API regression"));
+        RequestTestExit(_test.Finish("Party member state owner API regression"));
     }
 
     private void TestVitalsApiOwnsDeathState()

@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_faith_service_regression : SceneTree
+public partial class run_faith_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName FortunaDeityId = "fortuna";
@@ -21,12 +21,11 @@ public partial class run_faith_service_regression : SceneTree
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestFortunaConfigMatchesStoryAcceptance();
         TestFortunaRankUpAppliesFaithLuckBonusUntilCap();
@@ -39,10 +38,14 @@ public partial class run_faith_service_regression : SceneTree
 
     private void TestFortunaConfigMatchesStoryAcceptance()
     {
-        var faithService = new FaithService();
-        _test.True(faithService.Validate().Count == 0, "FaithService 默认配置应能通过基础校验。");
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        _test.True(
+            faithRegistry.GetValidationErrors().Count == 0,
+            "FaithService 默认配置应能通过基础校验。"
+        );
 
-        FaithDeityDef fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
+        FaithDeityDefinition fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
         _test.True(fortunaDef != null, "应能加载 Fortuna FaithDeityDef。");
         if (fortunaDef == null)
             return;
@@ -62,32 +65,32 @@ public partial class run_faith_service_regression : SceneTree
         for (int index = 0; index < 5; index++)
         {
             int rankIndex = index + 1;
-            FaithRankDef rankDef = fortunaDef.GetRankDef(rankIndex);
+            FaithRankDefinition rankDef = fortunaDef.GetRankDefinition(rankIndex);
             _test.True(rankDef != null, $"Fortuna 应存在 rank {rankIndex} 配置。");
             if (rankDef == null)
                 continue;
 
-            _test.Eq(rankDef.required_gold, expectedGold[index], $"Fortuna rank {rankIndex} required_gold 错误。");
-            _test.Eq(rankDef.required_level, expectedLevel[index], $"Fortuna rank {rankIndex} required_level 错误。");
+            _test.Eq(rankDef.RequiredGold, expectedGold[index], $"Fortuna rank {rankIndex} required_gold 错误。");
+            _test.Eq(rankDef.RequiredLevel, expectedLevel[index], $"Fortuna rank {rankIndex} required_level 错误。");
             if (rankIndex == 1)
             {
                 _test.Eq(
-                    rankDef.required_custom_stat_id,
+                    rankDef.RequiredCustomStatId,
                     FortuneMarkedStatId,
                     "Fortuna rank 1 应使用 fortune_marked 占位门票。"
                 );
-                _test.Eq(rankDef.required_custom_stat_min_value, 1, "Fortuna rank 1 应要求 fortune_marked == 1。");
+                _test.Eq(rankDef.RequiredCustomStatMinValue, 1, "Fortuna rank 1 应要求 fortune_marked == 1。");
             }
             else
             {
                 _test.Eq(
-                    rankDef.required_achievement_id,
+                    rankDef.RequiredAchievementId,
                     expectedAchievements[index],
                     $"Fortuna rank {rankIndex} guidance achievement 占位 id 错误。"
                 );
             }
 
-            IReadOnlyList<FaithRankRewardEntrySpec> rewardEntries = rankDef.GetRewardEntrySpecs();
+            IReadOnlyList<FaithRankRewardEntryDefinition> rewardEntries = rankDef.RewardEntries;
             _test.Eq(rewardEntries.Count, 1, $"Fortuna rank {rankIndex} 应只有一条骨架奖励。");
             if (rewardEntries.Count == 0)
                 continue;
@@ -104,75 +107,69 @@ public partial class run_faith_service_regression : SceneTree
     {
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
-        try
+        manager.setup(partyState);
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+
+        for (int targetRank = 1; targetRank <= 5; targetRank++)
         {
-            manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
-            var faithService = new FaithService();
-
-            for (int targetRank = 1; targetRank <= 5; targetRank++)
-            {
-                FaithDevotionResult devotionResult = faithService.ExecuteDevotion(
-                    partyState,
-                    HeroId,
-                    FortunaDeityId
-                );
-                _test.True(devotionResult.Success, $"Fortuna rank {targetRank} 应能成功进入 pending reward 队列。");
-                if (!devotionResult.Success)
-                    return;
-                _test.Eq(devotionResult.TargetRank, targetRank, "Fortuna 每次只应提升 1 阶。");
-
-                PendingCharacterReward pendingReward = partyState.GetNextPendingCharacterReward();
-                _test.True(pendingReward != null, $"Fortuna rank {targetRank} 成功后应排入 pending reward。");
-                if (pendingReward == null)
-                    return;
-
-                CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(pendingReward);
-                GodotRefCountedDisposer.DisposeIfValid(pendingReward);
-                _test.Eq(
-                    partyState.GetMemberState(HeroId).GetFaithLuckBonus(),
-                    targetRank,
-                    $"Fortuna rank {targetRank} 结算后应把 faith_luck_bonus 写到正确值。"
-                );
-                _test.Eq(
-                    delta.AttributeChangesTyped.Count,
-                    1,
-                    $"Fortuna rank {targetRank} 只应产生一条 attribute delta。"
-                );
-                if (delta.AttributeChangesTyped.Count > 0)
-                {
-                    _test.Eq(
-                        delta.AttributeChangesTyped[0].AttributeId,
-                        FaithLuckBonusStatId,
-                        $"Fortuna rank {targetRank} 的 delta 应指向 faith_luck_bonus。"
-                    );
-                }
-            }
-
-            FaithDevotionResult capResult = faithService.ExecuteDevotion(
+            FaithDevotionResult devotionResult = faithService.ExecuteDevotion(
                 partyState,
                 HeroId,
                 FortunaDeityId
             );
-            _test.False(capResult.Success, "达到 rank 5 后不应继续升级。");
-            _test.Eq(capResult.ErrorCode, "max_rank_reached", "达到上限后应返回 max_rank_reached。");
+            _test.True(devotionResult.Success, $"Fortuna rank {targetRank} 应能成功进入 pending reward 队列。");
+            if (!devotionResult.Success)
+                return;
+            _test.Eq(devotionResult.TargetRank, targetRank, "Fortuna 每次只应提升 1 阶。");
+
+            PendingCharacterReward pendingReward = partyState.GetNextPendingCharacterReward();
+            _test.True(pendingReward != null, $"Fortuna rank {targetRank} 成功后应排入 pending reward。");
+            if (pendingReward == null)
+                return;
+
+            CharacterProgressionDelta delta = manager.ApplyPendingCharacterReward(pendingReward);
             _test.Eq(
                 partyState.GetMemberState(HeroId).GetFaithLuckBonus(),
-                5,
-                "达到上限后 faith_luck_bonus 不应继续增加。"
+                targetRank,
+                $"Fortuna rank {targetRank} 结算后应把 faith_luck_bonus 写到正确值。"
             );
-            _test.True(partyState.GetNextPendingCharacterReward() == null, "达到上限后不应新增 pending reward。");
+            _test.Eq(
+                delta.AttributeChangesTyped.Count,
+                1,
+                $"Fortuna rank {targetRank} 只应产生一条 attribute delta。"
+            );
+            if (delta.AttributeChangesTyped.Count > 0)
+            {
+                _test.Eq(
+                    delta.AttributeChangesTyped[0].AttributeId,
+                    FaithLuckBonusStatId,
+                    $"Fortuna rank {targetRank} 的 delta 应指向 faith_luck_bonus。"
+                );
+            }
         }
-        finally
-        {
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+
+        FaithDevotionResult capResult = faithService.ExecuteDevotion(
+            partyState,
+            HeroId,
+            FortunaDeityId
+        );
+        _test.False(capResult.Success, "达到 rank 5 后不应继续升级。");
+        _test.Eq(capResult.ErrorCode, "max_rank_reached", "达到上限后应返回 max_rank_reached。");
+        _test.Eq(
+            partyState.GetMemberState(HeroId).GetFaithLuckBonus(),
+            5,
+            "达到上限后 faith_luck_bonus 不应继续增加。"
+        );
+        _test.True(partyState.GetNextPendingCharacterReward() == null, "达到上限后不应新增 pending reward。");
+        manager.Dispose();
     }
 
     private void TestMisfortuneConfigMatchesStoryAcceptance()
     {
-        var faithService = new FaithService();
-        FaithDeityDef misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        FaithDeityDefinition misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
         _test.True(misfortuneDef != null, "应能加载 Misfortune FaithDeityDef。");
         if (misfortuneDef == null)
             return;
@@ -197,36 +194,36 @@ public partial class run_faith_service_regression : SceneTree
         };
 
         _test.Eq(misfortuneDef.GetMaxRank(), 5, "Misfortune 应保留 5 阶骨架。");
-        _test.Eq(misfortuneDef.rank_progress_stat_id, DoomAuthorityStatId, "Misfortune 应使用 doom_authority 作为 rank progress stat。");
+        _test.Eq(misfortuneDef.RankProgressStatId, DoomAuthorityStatId, "Misfortune 应使用 doom_authority 作为 rank progress stat。");
         for (int index = 0; index < 5; index++)
         {
             int rankIndex = index + 1;
-            FaithRankDef rankDef = misfortuneDef.GetRankDef(rankIndex);
+            FaithRankDefinition rankDef = misfortuneDef.GetRankDefinition(rankIndex);
             _test.True(rankDef != null, $"Misfortune 应存在 rank {rankIndex} 配置。");
             if (rankDef == null)
                 continue;
 
-            _test.Eq(rankDef.required_gold, expectedGold[index], $"Misfortune rank {rankIndex} required_gold 错误。");
-            _test.Eq(rankDef.required_level, expectedLevel[index], $"Misfortune rank {rankIndex} required_level 错误。");
+            _test.Eq(rankDef.RequiredGold, expectedGold[index], $"Misfortune rank {rankIndex} required_gold 错误。");
+            _test.Eq(rankDef.RequiredLevel, expectedLevel[index], $"Misfortune rank {rankIndex} required_level 错误。");
             if (rankIndex == 1)
             {
                 _test.Eq(
-                    rankDef.required_custom_stat_id,
+                    rankDef.RequiredCustomStatId,
                     DoomMarkedStatId,
                     "Misfortune rank 1 应使用 doom_marked 占位门票。"
                 );
-                _test.Eq(rankDef.required_custom_stat_min_value, 1, "Misfortune rank 1 应要求 doom_marked == 1。");
+                _test.Eq(rankDef.RequiredCustomStatMinValue, 1, "Misfortune rank 1 应要求 doom_marked == 1。");
             }
             else
             {
                 _test.Eq(
-                    rankDef.required_achievement_id,
+                    rankDef.RequiredAchievementId,
                     expectedAchievements[index],
                     $"Misfortune rank {rankIndex} guidance achievement 占位 id 错误。"
                 );
             }
 
-            _test.Eq(rankDef.GetRewardEntrySpecs().Count, 2, $"Misfortune rank {rankIndex} 应保留 1 条属性奖励和 1 条占位奖励。");
+            _test.Eq(rankDef.RewardEntries.Count, 2, $"Misfortune rank {rankIndex} 应保留 1 条属性奖励和 1 条占位奖励。");
             _test.True(
                 HasRewardEntry(rankDef, "attribute_delta", DoomAuthorityStatId, 1),
                 $"Misfortune rank {rankIndex} 应包含 doom_authority +1。"
@@ -246,94 +243,83 @@ public partial class run_faith_service_regression : SceneTree
     {
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
-        try
+        manager.setup(partyState);
+        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
+        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        _test.True(
+            faithService.GetFaithDeityDef(MisfortuneDeityId) != null,
+            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithRegistry.GetValidationErrors())}"
+        );
+        var expectedKnowledgeUnlocks = new Dictionary<int, StringName>
         {
-            manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
-            var faithService = new FaithService();
-            _test.True(
-                faithService.GetFaithDeityDef(MisfortuneDeityId) != null,
-                $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithService.Validate())}"
-            );
-            var expectedKnowledgeUnlocks = new Dictionary<int, StringName>
-            {
-                [1] = "black_star_brand",
-                [3] = "crown_break",
-                [5] = "doom_sentence",
-            };
-            var expectedCalamityBonusByRank = new Dictionary<int, int>
-            {
-                [2] = 1,
-                [4] = 2,
-            };
+            [1] = "black_star_brand",
+            [3] = "crown_break",
+            [5] = "doom_sentence",
+        };
+        var expectedCalamityBonusByRank = new Dictionary<int, int>
+        {
+            [2] = 1,
+            [4] = 2,
+        };
 
-            for (int targetRank = 1; targetRank <= 5; targetRank++)
-            {
-                FaithDevotionResult devotionResult = faithService.ExecuteDevotion(
-                    partyState,
-                    HeroId,
-                    MisfortuneDeityId
-                );
-                _test.True(
-                    devotionResult.Success,
-                    $"Misfortune rank {targetRank} 应能成功进入 pending reward 队列。"
-                        + $" error={devotionResult.ErrorCode}"
-                        + $" missing_stat={devotionResult.MissingCustomStatId}"
-                        + $" missing_achievement={devotionResult.MissingAchievementId}"
-                        + $" current={devotionResult.CurrentRank}"
-                        + $" target={devotionResult.TargetRank}"
-                );
-                if (!devotionResult.Success)
-                    return;
-                _test.Eq(devotionResult.TargetRank, targetRank, "Misfortune 每次只应提升 1 阶。");
-
-                PendingCharacterReward pendingReward = partyState.GetNextPendingCharacterReward();
-                _test.True(pendingReward != null, $"Misfortune rank {targetRank} 成功后应排入 pending reward。");
-                if (pendingReward == null)
-                    return;
-
-                manager.ApplyPendingCharacterReward(pendingReward);
-                GodotRefCountedDisposer.DisposeIfValid(pendingReward);
-                _test.Eq(
-                    GetCustomStat(partyState, DoomAuthorityStatId),
-                    targetRank,
-                    $"Misfortune rank {targetRank} 结算后应把 doom_authority 写到正确值。"
-                );
-                if (expectedKnowledgeUnlocks.TryGetValue(targetRank, out StringName placeholderKnowledge))
-                {
-                    _test.True(
-                        partyState.GetMemberState(HeroId).progression.HasKnowledge(placeholderKnowledge),
-                        $"Misfortune rank {targetRank} 应把技能占位写入 known_knowledge_ids。"
-                    );
-                }
-                if (expectedCalamityBonusByRank.TryGetValue(targetRank, out int calamityBonus))
-                {
-                    _test.Eq(
-                        GetCustomStat(partyState, CalamityCapacityBonusStatId),
-                        calamityBonus,
-                        $"Misfortune rank {targetRank} 结算后应累计 calamity 上限占位。"
-                    );
-                }
-            }
-
-            FaithDevotionResult capResult = faithService.ExecuteDevotion(
+        for (int targetRank = 1; targetRank <= 5; targetRank++)
+        {
+            FaithDevotionResult devotionResult = faithService.ExecuteDevotion(
                 partyState,
                 HeroId,
                 MisfortuneDeityId
             );
-            _test.False(capResult.Success, "达到 Misfortune rank 5 后不应继续升级。");
-            _test.Eq(capResult.ErrorCode, "max_rank_reached", "Misfortune 达到上限后应返回 max_rank_reached。");
+            _test.True(
+                devotionResult.Success,
+                $"Misfortune rank {targetRank} 应能成功进入 pending reward 队列。"
+                    + $" error={devotionResult.ErrorCode}"
+                    + $" missing_stat={devotionResult.MissingCustomStatId}"
+                    + $" missing_achievement={devotionResult.MissingAchievementId}"
+                    + $" current={devotionResult.CurrentRank}"
+                    + $" target={devotionResult.TargetRank}"
+            );
+            if (!devotionResult.Success)
+                return;
+            _test.Eq(devotionResult.TargetRank, targetRank, "Misfortune 每次只应提升 1 阶。");
+
+            PendingCharacterReward pendingReward = partyState.GetNextPendingCharacterReward();
+            _test.True(pendingReward != null, $"Misfortune rank {targetRank} 成功后应排入 pending reward。");
+            if (pendingReward == null)
+                return;
+
+            manager.ApplyPendingCharacterReward(pendingReward);
             _test.Eq(
                 GetCustomStat(partyState, DoomAuthorityStatId),
-                5,
-                "达到上限后 doom_authority 不应继续增加。"
+                targetRank,
+                $"Misfortune rank {targetRank} 结算后应把 doom_authority 写到正确值。"
             );
-            _test.True(partyState.GetNextPendingCharacterReward() == null, "Misfortune 达到上限后不应新增 pending reward。");
+            if (expectedKnowledgeUnlocks.TryGetValue(targetRank, out StringName placeholderKnowledge))
+            {
+                _test.True(
+                    partyState.GetMemberState(HeroId).progression.HasKnowledge(placeholderKnowledge),
+                    $"Misfortune rank {targetRank} 应把技能占位写入 known_knowledge_ids。"
+                );
+            }
+            if (expectedCalamityBonusByRank.TryGetValue(targetRank, out int calamityBonus))
+            {
+                _test.Eq(
+                    GetCustomStat(partyState, CalamityCapacityBonusStatId),
+                    calamityBonus,
+                    $"Misfortune rank {targetRank} 结算后应累计 calamity 上限占位。"
+                );
+            }
         }
-        finally
-        {
-            manager.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(partyState);
-        }
+
+        FaithDevotionResult capResult = faithService.ExecuteDevotion(
+            partyState,
+            HeroId,
+            MisfortuneDeityId
+        );
+        _test.False(capResult.Success, "达到 Misfortune rank 5 后不应继续升级。");
+        _test.Eq(capResult.ErrorCode, "max_rank_reached", "Misfortune 达到上限后应返回 max_rank_reached。");
+        _test.Eq(GetCustomStat(partyState, DoomAuthorityStatId), 5, "达到上限后 doom_authority 不应继续增加。");
+        _test.True(partyState.GetNextPendingCharacterReward() == null, "Misfortune 达到上限后不应新增 pending reward。");
+        manager.Dispose();
     }
 
     private void TestFaithRankValidationRejectsUnsupportedRewardEntries()
@@ -432,8 +418,15 @@ public partial class run_faith_service_regression : SceneTree
         return memberState;
     }
 
+    private static FaithContentRegistry BuildFaithContentRegistry()
+    {
+        var registry = new FaithContentRegistry(new TestContentResourceLoader());
+        registry.Rebuild();
+        return registry;
+    }
+
     private static bool HasRewardEntry(
-        FaithRankDef rankDef,
+        FaithRankDefinition rankDef,
         StringName entryType,
         StringName targetId,
         int amount
@@ -441,7 +434,7 @@ public partial class run_faith_service_regression : SceneTree
     {
         return rankDef != null
             && rankDef
-                .GetRewardEntrySpecs()
+                .RewardEntries
                 .Any(entry =>
                     entry.EntryType == entryType
                     && entry.TargetId == targetId

@@ -79,6 +79,9 @@ internal sealed class GameRuntimeCharacterInfoBuilder
             sections.Add(
                 new Dictionary { ["title"] = "身份与特性", ["entries"] = identityEntries }
             );
+        var equipmentEntries = BuildBattleCharacterEquipmentEntries(unit);
+        if (equipmentEntries.Count > 0)
+            sections.Add(new Dictionary { ["title"] = "装备", ["entries"] = equipmentEntries });
         var statusEntries = BuildBattleCharacterStatusEntries(unit);
         if (statusEntries.Count > 0)
             sections.Add(new Dictionary { ["title"] = "状态效果", ["entries"] = statusEntries });
@@ -286,6 +289,90 @@ internal sealed class GameRuntimeCharacterInfoBuilder
                 }
             );
         return entries;
+    }
+
+    internal Godot.Collections.Array<Dictionary> BuildBattleCharacterEquipmentEntries(
+        BattleUnitState unit
+    )
+    {
+        var entries = new Godot.Collections.Array<Dictionary>();
+        if (unit == null)
+            return entries;
+        var itemDefs = _runtime?.GetItemDefsTyped();
+        if (itemDefs == null)
+            return entries;
+        var traitDefs = _runtime?.GetContentCatalogTyped()?.GetTraitDefsTyped();
+
+        var renderedItemIds = new System.Collections.Generic.HashSet<StringName>();
+        EquipmentState equipmentView = unit.GetEquipmentView();
+        if (equipmentView != null)
+        {
+            foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
+            {
+                StringName entrySlotId = equipmentView.GetEntrySlotForSlot(slotId);
+                // Skip secondary slots occupied by a multi-slot item anchored elsewhere.
+                if (entrySlotId != (StringName)"" && entrySlotId != slotId)
+                    continue;
+                StringName itemId = equipmentView.GetEquippedItemId(slotId);
+                if (itemId == (StringName)"")
+                    continue;
+                AppendEquipmentItemEntries(
+                    entries,
+                    itemDefs,
+                    traitDefs,
+                    itemId,
+                    EquipmentRules.GetSlotLabel(slotId),
+                    renderedItemIds
+                );
+            }
+        }
+
+        // Enemy units carry their weapon via weapon_item_id with an empty equipment view;
+        // surface it too so their weapon traits are inspectable.
+        if (unit.weapon_item_id != "" && !renderedItemIds.Contains(unit.weapon_item_id))
+            AppendEquipmentItemEntries(
+                entries,
+                itemDefs,
+                traitDefs,
+                unit.weapon_item_id,
+                "武器",
+                renderedItemIds
+            );
+        return entries;
+    }
+
+    private void AppendEquipmentItemEntries(
+        Godot.Collections.Array<Dictionary> entries,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
+        StringName itemId,
+        string slotLabel,
+        System.Collections.Generic.HashSet<StringName> renderedItemIds
+    )
+    {
+        if (!itemDefs.TryGetValue(itemId, out ItemDefinition itemDef) || itemDef == null)
+            return;
+        renderedItemIds.Add(itemId);
+        string itemName = string.IsNullOrEmpty(itemDef.DisplayName)
+            ? itemId.ToString()
+            : itemDef.DisplayName;
+
+        // Detail (flavor + trait mechanics) is revealed only on hover, so the row stays
+        // compact and the character info window is not flooded with every slot's mechanics.
+        string detail = ItemTraitDetailText.Compose(itemDef.Description, itemDef, traitDefs);
+        if (string.IsNullOrEmpty(detail))
+        {
+            entries.Add(new Dictionary { ["label"] = slotLabel, ["value"] = itemName });
+            return;
+        }
+        entries.Add(
+            new Dictionary
+            {
+                ["label"] = slotLabel,
+                ["value"] = $"{itemName} ⓘ",
+                ["tooltip"] = detail,
+            }
+        );
     }
 
     internal Godot.Collections.Array<Dictionary> BuildBattleCharacterStatusEntries(

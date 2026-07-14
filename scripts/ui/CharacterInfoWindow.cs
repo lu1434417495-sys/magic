@@ -23,6 +23,7 @@ public partial class CharacterInfoWindow : Control
     };
     private static readonly string[] SectionKeys = { "title", "entries" };
     private static readonly string[] PairEntryKeys = { "label", "value" };
+    private static readonly string[] PairTooltipEntryKeys = { "label", "value", "tooltip" };
     private static readonly string[] TextEntryKeys = { "text" };
     private static readonly string[] FateKeys =
     {
@@ -210,6 +211,16 @@ public partial class CharacterInfoWindow : Control
         valueNode.AddThemeColorOverride("font_color", new Color(0.960784f, 0.976471f, 1.0f, 1.0f));
         row.AddChild(valueNode);
 
+        // Reveal the detail (e.g. equipment trait mechanics) only on hover: the whole row
+        // carries the tooltip, and its child labels pass the hover through to the row.
+        if (!string.IsNullOrEmpty(entry.Tooltip))
+        {
+            row.MouseFilter = Control.MouseFilterEnum.Stop;
+            row.TooltipText = entry.Tooltip;
+            labelNode.MouseFilter = Control.MouseFilterEnum.Ignore;
+            valueNode.MouseFilter = Control.MouseFilterEnum.Ignore;
+        }
+
         return row;
     }
 
@@ -354,6 +365,23 @@ public partial class CharacterInfoWindow : Control
 
         private static CharacterInfoEntry NormalizeEntry(GDictionary entry)
         {
+            if (HasExactKeys(entry, PairTooltipEntryKeys))
+            {
+                if (
+                    !HasString(entry, "label")
+                    || !HasString(entry, "value")
+                    || !HasString(entry, "tooltip")
+                )
+                    return null;
+                string labelText = entry["label"].AsString().StripEdges();
+                if (string.IsNullOrEmpty(labelText))
+                    return null;
+                return CharacterInfoEntry.Pair(
+                    labelText,
+                    entry["value"].AsString(),
+                    entry["tooltip"].AsString()
+                );
+            }
             if (HasExactKeys(entry, PairEntryKeys))
             {
                 if (!HasString(entry, "label") || !HasString(entry, "value"))
@@ -597,14 +625,16 @@ public partial class CharacterInfoWindow : Control
         public string Label { get; private init; } = "";
         public string Value { get; private init; } = "";
         public string Text { get; private init; } = "";
+        public string Tooltip { get; private init; } = "";
 
-        public static CharacterInfoEntry Pair(string label, string value)
+        public static CharacterInfoEntry Pair(string label, string value, string tooltip = "")
         {
             return new CharacterInfoEntry
             {
                 Kind = EntryKind.Pair,
                 Label = label,
                 Value = value,
+                Tooltip = tooltip ?? "",
             };
         }
 

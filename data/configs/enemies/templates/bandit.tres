@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_bandit_insignia"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"bandit_insignia_drop"
+drop_type = &"item"
+item_id = &"bandit_insignia"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"bandit"
+display_name = "盗匪"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+enemy_count = 2
+creature_level = 1
+hit_die_sides = 8
+action_threshold = 35
+tags = Array[StringName]([&"humanoid", &"bandit"])
+attack_equipment_item_id = &"curved_scimitar"
+base_attribute_overrides = {
+&"strength": 12,
+&"agility": 12,
+&"constitution": 12,
+&"perception": 10,
+&"intelligence": 10,
+&"willpower": 9,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_bandit_insignia")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

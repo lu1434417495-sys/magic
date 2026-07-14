@@ -1,5 +1,5 @@
 using System;
-using Godot;
+using CryptoRandomNumberGenerator = System.Security.Cryptography.RandomNumberGenerator;
 
 public static class TrueRandomSeedService
 {
@@ -39,12 +39,8 @@ public static class TrueRandomSeedService
     }
     private static long SeedFromCryptoBytes()
     {
-        var crypto = new Crypto();
-        byte[] bytes = crypto.GenerateRandomBytes(SeedByteCount);
-        if (bytes.Length < SeedByteCount)
-        {
-            return -1;
-        }
+        byte[] bytes = new byte[SeedByteCount];
+        CryptoRandomNumberGenerator.Fill(bytes);
 
         long seed = 0;
         foreach (byte byteValue in bytes)
@@ -56,7 +52,7 @@ public static class TrueRandomSeedService
 
     private static long SeedFromFallbackRng()
     {
-        return Random.Shared.NextInt64(1L, long.MaxValue);
+        return Math.Max((long)Random.Shared.Next(), 1L);
     }
 
     private static int FallbackRngRange(int minValue, int maxValue)

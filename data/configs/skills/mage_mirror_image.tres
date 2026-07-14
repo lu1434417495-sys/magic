@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_1fxhq"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_apahk"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_sd56d"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="6_contingency"]
 
 [sub_resource type="Resource" id="Resource_1t75s"]
 script = ExtResource("3_1fxhq")
@@ -73,6 +74,14 @@ level_overrides = {
 mastery_trigger_mode = &"effect_applied"
 target_selection_mode = &"self"
 effect_defs = Array[ExtResource("3_1fxhq")]([SubResource("Resource_1t75s"), SubResource("Resource_jpoap"), SubResource("Resource_1fxhq"), SubResource("Resource_apahk"), SubResource("Resource_sd56d")])
+
+[sub_resource type="Resource" id="ContingencyAutomation"]
+script = ExtResource("6_contingency")
+can_be_stored_in_contingency = true
+min_contingency_skill_level = 1
+effect_category = &"defensive_self_buff"
+allowed_target_resolvers = Array[StringName]([&"self"])
+allowed_parameter_bindings = {}
 
 [resource]
 script = ExtResource("5_sd56d")
@@ -158,3 +167,4 @@ level_description_configs = {
 }
 }
 combat_profile = SubResource("Resource_3cvim")
+contingency_automation_profile = SubResource("ContingencyAutomation")

@@ -60,6 +60,16 @@ internal sealed class FateRuntimeModule
         _unitByMemberIdResolver = null;
     }
 
+    internal FateRuntimeRollbackState CaptureRollbackState() =>
+        new(_lowLuckEventService?.CaptureRollbackState());
+
+    internal void RestoreRollbackState(FateRuntimeRollbackState snapshot)
+    {
+        if (snapshot == null)
+            return;
+        _lowLuckEventService?.RestoreRollbackState(snapshot.LowLuckEventState);
+    }
+
     internal void BeginBattle(BattleCalamityStore calamity_store = null)
     {
         _misfortuneService?.BeginBattle(calamity_store ?? new BattleCalamityStore());
@@ -139,10 +149,7 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return _misfortuneService.HandleAppliedStatuses(
-            target_unit,
-            status_effect_ids ?? new GArray()
-        );
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
     internal GDictionary HandleAppliedStatuses(
@@ -152,10 +159,17 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return _misfortuneService.HandleAppliedStatuses(
-            target_unit,
-            status_effect_ids ?? new GStringNameArray()
-        );
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
+    }
+
+    internal GDictionary HandleAppliedStatuses(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        if (_misfortuneService == null)
+            return new GDictionary();
+        return _misfortuneService.HandleAppliedStatuses(target_unit, status_effect_ids);
     }
 
     internal GDictionary HandleBattleResolution(
@@ -177,18 +191,18 @@ internal sealed class FateRuntimeModule
             );
         }
 
-        Godot.Collections.Array<StringName> fortunaGuidanceUnlocks = new();
+        IReadOnlyList<StringName> fortunaGuidanceUnlocks = Array.Empty<StringName>();
         if (_fortunaGuidanceService != null)
-            fortunaGuidanceUnlocks = ToStringNameArray(
+            fortunaGuidanceUnlocks = ToStringNameList(
                 _fortunaGuidanceService.HandleBattleResolution(
                     battle_state,
                     battle_resolution_result
                 )
             );
 
-        Godot.Collections.Array<StringName> misfortuneGuidanceUnlocks = new();
+        IReadOnlyList<StringName> misfortuneGuidanceUnlocks = Array.Empty<StringName>();
         if (_misfortuneGuidanceService != null)
-            misfortuneGuidanceUnlocks = ToStringNameArray(
+            misfortuneGuidanceUnlocks = ToStringNameList(
                 _misfortuneGuidanceService.HandleBattleResolution(
                     battle_state,
                     battle_resolution_result
@@ -197,38 +211,40 @@ internal sealed class FateRuntimeModule
 
         return new GDictionary
         {
-            ["fortuna_guidance_unlocks"] = fortunaGuidanceUnlocks,
-            ["misfortune_guidance_unlocks"] = misfortuneGuidanceUnlocks,
+            ["fortuna_guidance_unlocks"] = ProgressionDataUtils
+                .string_name_array_to_string_array(fortunaGuidanceUnlocks),
+            ["misfortune_guidance_unlocks"] = ProgressionDataUtils
+                .string_name_array_to_string_array(misfortuneGuidanceUnlocks),
             ["low_luck_event_result"] = LowLuckEventResultToDictionary(lowLuckEventResult),
         };
     }
 
-    internal Godot.Collections.Array<StringName> HandleFortunaChapterCompleted(GDictionary payload)
+    internal List<StringName> HandleFortunaChapterCompleted(GDictionary payload)
     {
         if (_fortunaGuidanceService == null)
-            return new Godot.Collections.Array<StringName>();
-        return ToStringNameArray(
+            return new List<StringName>();
+        return ToStringNameList(
             _fortunaGuidanceService.HandleChapterCompleted(
-                BuildFortunaChapterCompletionInput(payload ?? new GDictionary())
+                BuildFortunaChapterCompletionInput(payload)
             )
         );
     }
 
-    internal Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
+    internal List<StringName> HandleMisfortuneForgeResult(
         StringName member_id,
         SettlementServiceResult result,
-        IReadOnlyDictionary<StringName, ItemDef> item_defs = null
+        IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null
     )
     {
         if (_misfortuneGuidanceService == null)
-            return new Godot.Collections.Array<StringName>();
-        return ToStringNameArray(
+            return new List<StringName>();
+        return ToStringNameList(
             _misfortuneGuidanceService.HandleForgeResult(
                 member_id,
                 BuildMisfortuneForgeGuidanceInput(result),
                 item_defs != null
-                    ? new Dictionary<StringName, ItemDef>(item_defs)
-                    : new Dictionary<StringName, ItemDef>()
+                    ? new Dictionary<StringName, ItemDefinition>(item_defs)
+                    : new Dictionary<StringName, ItemDefinition>()
             )
         );
     }
@@ -239,7 +255,7 @@ internal sealed class FateRuntimeModule
             return new GDictionary();
         return LowLuckEventResultToDictionary(
             _lowLuckEventService.HandleSettlementAction(
-                BuildLowLuckSettlementActionInput(context ?? new GDictionary())
+                BuildLowLuckSettlementActionInput(context)
             )
         );
     }
@@ -248,7 +264,7 @@ internal sealed class FateRuntimeModule
     {
         if (_misfortuneGuidanceService != null)
             _misfortuneGuidanceService.ClearExaltedReadyFlags(
-                ReadStringNameList(member_ids ?? new GArray())
+                ReadStringNameList(member_ids)
             );
     }
 
@@ -370,10 +386,12 @@ internal sealed class FateRuntimeModule
         return value == null || value == "";
     }
 
-    private static GArray ReadArray(GDictionary data, string key)
+    private static IEnumerable<Variant> ReadArray(GDictionary data, string key)
     {
         var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : System.Array.Empty<Variant>();
     }
 
     private static MisfortuneForgeGuidanceInput BuildMisfortuneForgeGuidanceInput(
@@ -575,7 +593,7 @@ internal sealed class FateRuntimeModule
         return result;
     }
 
-    private static List<StringName> ReadStringNameList(GArray values)
+    private static List<StringName> ReadStringNameList(IEnumerable<Variant> values)
     {
         var result = new List<StringName>();
         if (values == null)
@@ -589,11 +607,11 @@ internal sealed class FateRuntimeModule
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
+    private static List<StringName> ToStringNameList(
         IEnumerable<StringName> values
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
+        var result = new List<StringName>();
         if (values == null)
             return result;
         foreach (var value in values)
@@ -644,4 +662,14 @@ internal sealed class FateRuntimeModule
             return data[key];
         return default;
     }
+}
+
+internal sealed class FateRuntimeRollbackState
+{
+    internal FateRuntimeRollbackState(LowLuckEventRollbackState lowLuckEventState)
+    {
+        LowLuckEventState = lowLuckEventState;
+    }
+
+    internal LowLuckEventRollbackState LowLuckEventState { get; }
 }

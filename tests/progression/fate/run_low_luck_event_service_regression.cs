@@ -3,25 +3,23 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_low_luck_event_service_regression : SceneTree
+public partial class run_low_luck_event_service_regression : LifecycleTestSceneTree
 {
     private static readonly StringName HeroId = "hero";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestBrokenBridgeSurvivalTriggersOncePerRun();
         TestLampWithoutWitnessTriggersOncePerRun();
         TestBorrowedRoadTriggersOncePerRun();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
         return _test.Finish("Low luck event service regression");
     }
 
@@ -166,7 +164,12 @@ public partial class run_low_luck_event_service_regression : SceneTree
     {
         PartyState resolvedPartyState = partyState ?? BuildPartyState(hiddenLuckAtBirth);
         CharacterManagementModule manager = new();
-        manager.setup(resolvedPartyState, new GDictionary(), new GDictionary(), new GDictionary());
+        manager.setup(
+            resolvedPartyState,
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>()
+        );
         LowLuckEventService service = new();
         service.Setup(manager);
         return new LowLuckContext(resolvedPartyState, manager, service);
@@ -253,7 +256,9 @@ public partial class run_low_luck_event_service_regression : SceneTree
 
     private PartyState RoundTripPartyState(PartyState partyState)
     {
-        PartyState restored = PartyState.FromDictionary(partyState.ToDictionary());
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("LowLuckEventService.RoundTripPartyState");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restored != null, "PartyState 带 meta_flags 时应能完成 round-trip。");
         return restored;
     }
@@ -311,7 +316,6 @@ public partial class run_low_luck_event_service_regression : SceneTree
         {
             Service?.Dispose();
             Manager?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
         }
     }
 }

@@ -5,31 +5,31 @@ using Godot;
 public static class BattleEffectCategoryResolver
 {
     public static IReadOnlyList<StringName> ResolveCategories(
-        SkillDef skillDef,
-        IEnumerable<CombatEffectDef> effectDefs
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
         var categories = new List<StringName>();
         var seen = new HashSet<StringName>();
 
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile != null)
         {
-            AppendCategories(categories, seen, combatProfile.delivery_categories);
+            AppendCategories(categories, seen, combatProfile.DeliveryCategories);
         }
 
-        if (effectDefs == null)
+        if (effectDefinitions == null)
         {
             return categories;
         }
 
-        foreach (CombatEffectDef effect in effectDefs)
+        foreach (CombatEffectDefinition effect in effectDefinitions)
         {
             if (effect == null)
             {
                 continue;
             }
-            AppendCategories(categories, seen, effect.effect_categories);
+            AppendCategories(categories, seen, effect.EffectCategories);
         }
 
         return categories;

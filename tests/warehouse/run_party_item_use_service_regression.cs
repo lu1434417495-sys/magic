@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_item_use_service_regression : SceneTree
+public partial class run_party_item_use_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,16 +17,16 @@ public partial class run_party_item_use_service_regression : SceneTree
         TestTypedUseConsumesSkillBook();
         TestDuplicateLearnDoesNotConsumeInventory();
 
-        Quit(_test.Finish("Party item use service regression"));
+        RequestTestExit(_test.Finish("Party item use service regression"));
     }
 
     private void TestTypedUseConsumesSkillBook()
     {
-        using var fixture = BuildFixture();
+        var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
-            fixture.ItemDefIndex,
-            fixture.SkillDefIndex,
+            fixture.ItemDefinitions,
+            fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
@@ -62,11 +62,11 @@ public partial class run_party_item_use_service_regression : SceneTree
 
     private void TestDuplicateLearnDoesNotConsumeInventory()
     {
-        using var fixture = BuildFixture();
+        var fixture = BuildFixture();
         fixture.Service.Setup(
             fixture.PartyState,
-            fixture.ItemDefIndex,
-            fixture.SkillDefIndex,
+            fixture.ItemDefinitions,
+            fixture.SkillDefinitionIndex,
             fixture.WarehouseService,
             fixture.CharacterManagement
         );
@@ -97,13 +97,16 @@ public partial class run_party_item_use_service_regression : SceneTree
     private static Fixture BuildFixture()
     {
         PartyState partyState = BuildPartyState();
-        GDictionary itemDefs = BuildItemDefs();
-        GDictionary skillDefs = BuildSkillDefs();
-        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
+        Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
+        PartyWarehouseService warehouseService = BuildWarehouseService(
+            partyState,
+            itemDefinitions
+        );
         CharacterManagementModule characterManagement = BuildCharacterManagement(
             partyState,
-            skillDefs,
-            itemDefs
+            skillDefinitions,
+            itemDefinitions
         );
 
         return new Fixture(
@@ -111,17 +114,8 @@ public partial class run_party_item_use_service_regression : SceneTree
             warehouseService,
             characterManagement,
             new PartyItemUseService(),
-            itemDefs,
-            skillDefs,
-            new Dictionary<StringName, ItemDef>
-            {
-                ["skill_book_focus"] = (ItemDef)
-                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
-            },
-            new Dictionary<StringName, SkillDef>
-            {
-                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
-            }
+            itemDefinitions,
+            skillDefinitions
         );
     }
 
@@ -149,140 +143,118 @@ public partial class run_party_item_use_service_regression : SceneTree
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        GDictionary result = new();
-        result[new StringName("skill_book_focus")] = new ItemDef
+        ItemDef authored = TestResourceOwnership.Own(
+            new ItemDef
+            {
+                item_id = "skill_book_focus",
+                display_name = "Focus Manual",
+                CategoryKind = ItemCategoryKind.SkillBook,
+                is_stackable = true,
+                max_stack = 20,
+                granted_skill_id = "focus",
+            },
+            "party_item_use_service.skill_book_focus"
+        );
+        return new Dictionary<StringName, ItemDefinition>
         {
-            item_id = "skill_book_focus",
-            display_name = "Focus Manual",
-            CategoryKind = ItemCategoryKind.SkillBook,
-            is_stackable = true,
-            max_stack = 20,
-            granted_skill_id = "focus",
+            ["skill_book_focus"] = authored.ToDefinition(),
         };
-        return result;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        GDictionary result = new();
-        result[new StringName("focus")] = new SkillDef
-        {
-            skill_id = "focus",
-            display_name = "Focus",
-            learn_source = "book",
-            skill_type = "passive",
-            max_level = 1,
-        };
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "focus";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Focus",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            System.Array.Empty<int>(),
+            System.Array.Empty<StringName>(),
+            "book",
+            System.Array.Empty<StringName>(),
+            "",
+            System.Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            false,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            System.Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
+        );
         return result;
     }
 
     private static PartyWarehouseService BuildWarehouseService(
         PartyState partyState,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         PartyWarehouseService service = new();
-        service.Setup(partyState, BuildItemDefIndex(itemDefs));
+        service.Setup(partyState, itemDefinitions);
         return service;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
     }
 
     private static CharacterManagementModule BuildCharacterManagement(
         PartyState partyState,
-        GDictionary skillDefs,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
         CharacterManagementModule module = new();
-        module.setup(partyState, skillDefs, new GDictionary(), new GDictionary(), itemDefs);
+        module.setup(
+            partyState,
+            skillDefinitions,
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            itemDefinitions
+        );
         return module;
     }
 
 
 
-    private sealed class Fixture : System.IDisposable
+    private sealed class Fixture
     {
         public PartyState PartyState { get; }
         public PartyWarehouseService WarehouseService { get; }
         public CharacterManagementModule CharacterManagement { get; }
         public PartyItemUseService Service { get; }
-        private GDictionary ItemDefs { get; }
-        private GDictionary SkillDefs { get; }
-        public Dictionary<StringName, ItemDef> ItemDefIndex { get; }
-        public Dictionary<StringName, SkillDef> SkillDefIndex { get; }
+        public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; }
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex { get; }
 
         public Fixture(
             PartyState partyState,
             PartyWarehouseService warehouseService,
             CharacterManagementModule characterManagement,
             PartyItemUseService service,
-            GDictionary itemDefs,
-            GDictionary skillDefs,
-            Dictionary<StringName, ItemDef> itemDefIndex,
-            Dictionary<StringName, SkillDef> skillDefIndex
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex
         )
         {
             PartyState = partyState;
             WarehouseService = warehouseService;
             CharacterManagement = characterManagement;
             Service = service;
-            ItemDefs = itemDefs;
-            SkillDefs = skillDefs;
-            ItemDefIndex = itemDefIndex;
-            SkillDefIndex = skillDefIndex;
+            ItemDefinitions = itemDefinitions;
+            SkillDefinitionIndex = skillDefinitionIndex;
         }
-
-        public void Dispose()
-        {
-            Service?.Dispose();
-            CharacterManagement?.Dispose();
-            WarehouseService?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(PartyState);
-            DisposeItemDefs(ItemDefs);
-            DisposeSkillDefs(SkillDefs);
-        }
-    }
-
-    private static void DisposeItemDefs(GDictionary itemDefs)
-    {
-        if (itemDefs == null)
-            return;
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (itemDefs[key].AsGodotObject() is ItemDef itemDef)
-                BattleTestFixture.DisposeItem(itemDef);
-        }
-        itemDefs.Clear();
-    }
-
-    private static void DisposeSkillDefs(GDictionary skillDefs)
-    {
-        if (skillDefs == null)
-            return;
-        foreach (Variant key in skillDefs.Keys)
-        {
-            if (skillDefs[key].AsGodotObject() is SkillDef skillDef)
-                BattleTestFixture.DisposeSkill(skillDef);
-        }
-        skillDefs.Clear();
     }
 }

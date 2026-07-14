@@ -1,6 +1,6 @@
 # 战斗 AI 性能 Profile 与基线状态记录
 
-更新日期：`2026-06-11`
+更新日期：`2026-07-12`
 
 ## 文档定位
 
@@ -96,13 +96,22 @@ godot --headless --script tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnal
 - `medium_6v20`
 - `large_6v40`
 
+当前 synthetic fixture 会显式投影武器状态，避免技能内容升级后出现“AI 有技能但没有满足技能武器契约”的假性停滞：
+
+- `melee_aggressor` 使用等价于 `steel_longsword` 的稳定 typed projection。
+- `ranged_suppressor` 使用等价于 `ash_longbow` 的稳定 typed projection。
+- 每轮测量前都会检查 `warrior_heavy_strike` 与 `archer_pinning_shot` 仍是可生成的单目标敌对伤害动作，并验证武器 family、有效武器骰与 runtime cast block。
+- fixture 契约失败时立即以 `fixture_contract_invalid` 停止，不进入 `max_iterations` 长循环。
+
+正式 baseline 使用 runner 原生聚合口径：第一轮只 warmup，后三轮 measured 的 profiler samples 合并后统一计算 `avg/p50/p95`。不再沿用旧 JSON 的“三次独立输出后人工取最慢值”口径。
+
 这不同于旧方案中的 `small_2v4 / medium_6v12 / large_6v40`。
 
 更新 baseline 的推荐命令：
 
 ```powershell
 $env:UPDATE_BASELINE='1'
-$env:AI_BASELINE_REPEAT_COUNT='2'        # 1 warmup + 1 measured
+$env:AI_BASELINE_REPEAT_COUNT='4'        # 1 warmup + 3 measured，合并样本
 $env:AI_BASELINE_MAX_ITERATIONS='100000'
 $env:AI_BASELINE_REQUIRE_COMPLETED='1'
 godot --headless --path . --script tests/battle_runtime/benchmarks/run_battle_ai_performance_baseline.cs

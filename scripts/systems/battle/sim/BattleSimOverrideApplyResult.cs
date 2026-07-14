@@ -4,28 +4,29 @@ using Godot;
 internal sealed class BattleSimOverrideApplyResult
 {
     internal BattleSimOverrideApplyResult(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
-        BattleAiScoreProfile aiScoreProfile,
-        IReadOnlyDictionary<StringName, BattleAiScoreProfile> factionAiScoreProfiles,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
+        BattleAiScoreProfileDefinition aiScoreProfile,
+        IReadOnlyDictionary<StringName, BattleAiScoreProfileDefinition> factionAiScoreProfiles,
         IReadOnlyList<string> errors
     )
     {
-        SkillDefs = skillDefs ?? new Dictionary<StringName, SkillDef>();
-        EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDef>();
+        SkillDefinitions = skillDefinitions ?? new Dictionary<StringName, SkillDefinition>();
+        EnemyAiBrains = enemyAiBrains ?? new Dictionary<StringName, EnemyAiBrainDefinition>();
         AiScoreProfile = aiScoreProfile;
         FactionAiScoreProfiles =
-            factionAiScoreProfiles ?? new Dictionary<StringName, BattleAiScoreProfile>();
+            factionAiScoreProfiles
+            ?? new Dictionary<StringName, BattleAiScoreProfileDefinition>();
         Errors = errors ?? System.Array.Empty<string>();
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> SkillDefs { get; }
+    internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
 
-    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> EnemyAiBrains { get; }
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyAiBrains { get; }
 
-    internal BattleAiScoreProfile AiScoreProfile { get; }
+    internal BattleAiScoreProfileDefinition AiScoreProfile { get; }
 
-    internal IReadOnlyDictionary<StringName, BattleAiScoreProfile> FactionAiScoreProfiles { get; }
+    internal IReadOnlyDictionary<StringName, BattleAiScoreProfileDefinition> FactionAiScoreProfiles { get; }
 
     internal IReadOnlyList<string> Errors { get; }
 }

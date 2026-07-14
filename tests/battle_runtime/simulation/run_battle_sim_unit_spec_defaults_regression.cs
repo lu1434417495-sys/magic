@@ -1,7 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
+public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
         TestAttributeOverridesCanReplaceAttackBonusWithoutFinalAc();
         TestFormalBaseAttributesUseAcComponents();
         TestBaseAttributeOverridesUseFormalActionThreshold();
-        Quit(_test.Finish("Battle sim unit spec defaults regression"));
+        RequestTestExit(_test.Finish("Battle sim unit spec defaults regression"));
     }
 
     private void TestDefaultAttackBonusAndAcAreInitialized()
@@ -24,7 +24,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
             current_hp = 30,
             current_ap = 1,
         };
-        BattleUnitState unitState = unitSpec.ToBattleUnitState("player", "manual");
+        BattleUnitState unitState = unitSpec.ToDefinition("player", "manual").CreateRuntimeState();
         _test.Eq(
             unitState.attribute_snapshot.GetValue(AttributeService.ATTACK_BONUS),
             4,
@@ -48,7 +48,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
             action_threshold = 120,
             base_attributes = BaseAttributes(10, 16, 12, 14, 8, 10),
         };
-        BattleUnitState unitState = unitSpec.ToBattleUnitState("player", "ai");
+        BattleUnitState unitState = unitSpec.ToDefinition("player", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 16, "BattleSimUnitSpec 有 base_attributes 时应使用正式 0 级初始 HP 公式。");
         _test.Eq(unitState.current_hp, 16, "BattleSimUnitSpec 当前 HP 应按正式 HP 上限 clamp。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.STAMINA_MAX), 110, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生体力。");
@@ -71,7 +71,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
                 ["armor_class"] = 17,
             },
         };
-        BattleUnitState unitState = unitSpec.ToBattleUnitState("hostile", "ai");
+        BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ATTACK_BONUS), 6, "BattleSimUnitSpec 应允许 attribute_overrides 覆盖默认攻击加值。");
         _test.False(unitState.attribute_snapshot.HasValue(AttributeService.ARMOR_CLASS), "BattleSimUnitSpec 不应接受无 base_attributes 的最终 armor_class 兼容路径。");
     }
@@ -92,7 +92,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
                 ["deflection_bonus"] = 4,
             },
         };
-        BattleUnitState unitState = unitSpec.ToBattleUnitState("hostile", "ai");
+        BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 14, "BattleSimUnitSpec 有 base_attributes 时应忽略最终 armor_class，改用基础 8 + AC 组件。");
     }
 
@@ -113,7 +113,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : SceneTree
                 ["action_threshold"] = 47,
             },
         };
-        BattleUnitState unitState = unitSpec.ToBattleUnitState("hostile", "ai");
+        BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 36, "base attribute 模拟单位的 hp_max 覆盖应通过正式属性快照生效。");
         _test.Eq(unitState.action_threshold, 45, "base attribute 模拟单位的 action_threshold 覆盖应经过 AttributeService 的 5 TU 归一。");
     }

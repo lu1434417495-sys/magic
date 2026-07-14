@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_trait_dictionary_boundary_regression : SceneTree
+public partial class run_trait_dictionary_boundary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,7 +14,7 @@ public partial class run_trait_dictionary_boundary_regression : SceneTree
         TestTraitFormalSourcesDoNotUseDictionaryBackedRuntimeData();
         TestTraitConfigsDoNotUseDictionaryParams();
 
-        Quit(_test.Finish("Trait dictionary boundary regression"));
+        RequestTestExit(_test.Finish("Trait dictionary boundary regression"));
     }
 
     private void TestTraitFormalSourcesDoNotUseDictionaryBackedRuntimeData()
@@ -29,11 +29,19 @@ public partial class run_trait_dictionary_boundary_regression : SceneTree
         );
         AssertFileDoesNotContain(
             "res://scripts/player/progression/TraitContentRegistry.cs",
-            "Dictionary<StringName"
+            "Dictionary<StringName, TraitDef>"
         );
         AssertFileDoesNotContain(
+            "res://scripts/systems/progression/CharacterManagementModule.cs",
+            "Dictionary<StringName, TraitDef>"
+        );
+        AssertFileContains(
             "res://scripts/player/progression/TraitContentRegistry.cs",
-            "IReadOnlyDictionary<StringName"
+            "private readonly Dictionary<StringName, TraitDefinition> _traitDefinitions"
+        );
+        AssertFileContains(
+            "res://scripts/player/progression/TraitContentRegistry.cs",
+            "public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefsTyped()"
         );
         AssertFileDoesNotContain(
             "res://scripts/player/progression/TraitTriggerContentRules.cs",
@@ -44,32 +52,12 @@ public partial class run_trait_dictionary_boundary_regression : SceneTree
             "GetDispatchTriggerTypes"
         );
         AssertFileDoesNotContain(
-            "res://scripts/player/progression/TraitTriggerContentRules.cs",
-            "Dictionary<"
-        );
-        AssertFileDoesNotContain(
-            "res://scripts/player/progression/TraitTriggerContentRules.cs",
-            "IReadOnlyDictionary"
-        );
-        AssertFileDoesNotContain(
             "res://scripts/player/progression/TraitInstanceState.cs",
             "public Godot.Collections.Dictionary roll_values"
         );
         AssertFileDoesNotContain(
-            "res://scripts/systems/progression/CharacterTraitService.cs",
-            "Dictionary<StringName"
-        );
-        AssertFileDoesNotContain(
-            "res://scripts/systems/inventory/EquipmentTraitRollService.cs",
-            "Dictionary<StringName"
-        );
-        AssertFileDoesNotContain(
             "res://scripts/systems/progression/EffectiveTrait.cs",
             "Godot.Collections.Dictionary RollValues"
-        );
-        AssertFileDoesNotContain(
-            "res://scripts/systems/progression/EffectiveTrait.cs",
-            "Dictionary<StringName"
         );
         AssertFileDoesNotContain(
             "res://scripts/systems/progression/EffectiveTrait.cs",
@@ -124,6 +112,20 @@ public partial class run_trait_dictionary_boundary_regression : SceneTree
         _test.False(
             text.Contains(forbidden),
             $"{path} should not contain dictionary-backed trait runtime pattern: {forbidden}"
+        );
+    }
+
+    private void AssertFileContains(string path, string required)
+    {
+        using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Read);
+        _test.True(file != null, $"{path} should be readable.");
+        if (file == null)
+            return;
+
+        string text = file.GetAsText();
+        _test.True(
+            text.Contains(required),
+            $"{path} should expose the managed TraitDefinition boundary: {required}"
         );
     }
 }

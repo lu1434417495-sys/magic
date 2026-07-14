@@ -1,6 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_mist_herb"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"mist_herb"
+drop_type = &"item"
+item_id = &"moonfern_sample"
+quantity = 1
 
 [resource]
 script = ExtResource("1_template")
@@ -9,15 +17,22 @@ display_name = "雾沼异兽"
 brain_id = &"ranged_controller"
 initial_state_id = &"pressure"
 enemy_count = 2
+creature_level = 3
+hit_die_sides = 8
 action_threshold = 45
-tags = Array[StringName]([&"beast", &"mist"])
+tags = Array[StringName]([&"beast", &"mist", &"magical_beast"])
+save_advantage_tags = Array[StringName]([&"illusion_advantage", &"temporal_advantage"])
+damage_resistances = {
+&"physical_pierce": &"half",
+&"fire": &"double",
+}
 base_attribute_overrides = {
-&"strength": 5,
-&"agility": 5,
-&"constitution": 5,
-&"perception": 6,
-&"intelligence": 6,
-&"willpower": 6,
+&"strength": 10,
+&"agility": 12,
+&"constitution": 12,
+&"perception": 14,
+&"intelligence": 12,
+&"willpower": 13,
 }
 skill_ids = Array[StringName]([&"mage_fireball", &"mage_ice_lance", &"mage_temporal_rewind"])
 skill_level_map = {
@@ -25,10 +40,9 @@ skill_level_map = {
 &"mage_ice_lance": 3,
 &"mage_temporal_rewind": 3,
 }
+drop_entries = Array[Resource]([SubResource("Resource_drop_mist_herb")])
 attribute_overrides = {
-&"hp_max": 24,
 &"mp_max": 120,
 &"action_points": 2,
-&"attack_bonus": 6,
 &"deflection_bonus": 4,
 }

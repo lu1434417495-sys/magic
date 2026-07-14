@@ -5,9 +5,8 @@ using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_persist_failure_rollback_regression : SceneTree
+public partial class run_settlement_persist_failure_rollback_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -25,11 +24,14 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         await TestShopBuyRollbackOnPersistFailure();
         await TestShopSellRollbackOnPersistFailure();
         await TestSettlementServiceRollbackOnPersistFailure();
+        await TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure();
         await TestWarehouseSettlementServiceRollbackOnPersistFailure();
+        await TestPartyOnlyCommitStagesDelayedWorldOwner();
+        await TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty();
+        await TestPartyOnlyRollbackScopeSkipsWorldSnapshot();
         TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Settlement persist failure rollback regression"));
+        RequestTestExit(_test.Finish("Settlement persist failure rollback regression"));
     }
 
     private async Task TestStagecoachTravelRollbackOnPersistFailure()
@@ -40,7 +42,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             new[]
             {
                 BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, BuildShopAndStagecoachServices()),
-                BuildSettlementRecord("graystone_town_01", "灰石镇", new Vector2I(2, 1), new GArray()),
+                BuildSettlementRecord("graystone_town_01", "灰石镇", new Vector2I(7, 7), new GArray()),
             }
         );
         try
@@ -67,6 +69,10 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
 
             int goldBefore = runtime._party_state.GetGold();
             Vector2I playerCoordBefore = runtime.GetPlayerCoord();
+            _test.False(
+                runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
+                "驿站回滚测试前置：远端目的地不应已探索。"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult result =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
@@ -74,6 +80,10 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             _test.False(result.Ok, "驿站持久化失败时命令应返回失败。");
             _test.Eq(runtime._party_state.gold, goldBefore, "驿站失败后金币应回滚。");
             _test.Eq(runtime.GetPlayerCoord(), playerCoordBefore, "驿站失败后玩家坐标应回滚。");
+            _test.False(
+                runtime._fog_system.IsExplored(new Vector2I(7, 7), "player"),
+                "驿站失败后应从 rollback persistent fog 重建，不能保留目的地视野。"
+            );
             _test.True(
                 runtime._settlement_entry_active,
                 "驿站持久化失败后应恢复 settlement entry 激活状态。"
@@ -133,7 +143,8 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 );
             _test.True(openResult.Ok, "pending save 回滚测试前置：应能打开驿站路线。");
 
-            int dirtyWorldError = fixture.GameSession.SetWorldData(runtime.GetWorldData());
+            using GodotProjectionLease<GDictionary> worldDataLease = runtime.GetWorldDataLease();
+            int dirtyWorldError = fixture.GameSession.SetWorldData(worldDataLease.Value);
             _test.Eq(
                 dirtyWorldError,
                 (int)Error.Ok,
@@ -149,7 +160,9 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 "pending save 回滚测试前置：battle save lock 应留下既有保存错误元数据。"
             );
             fixture.GameSession.SetBattleSaveLock(false);
-            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> runtimeStateBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary runtimeStateBefore = runtimeStateBeforeLease.Value;
             _test.True(
                 fixture.GameSession.HasPendingSave(),
                 "pending save 回滚测试前置：命令开始前应存在既有 dirty session 状态。"
@@ -161,8 +174,10 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
             _test.False(result.Ok, "已有 pending save 时驿站持久化失败也应返回失败。");
+            using GodotProjectionLease<GDictionary> runtimeStateAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateAfterLease.Value,
                 runtimeStateBefore,
                 "已有 pending save 的驿站回滚后，session save metadata 应恢复到命令前状态。"
             );
@@ -367,7 +382,9 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             runtime._party_state.SetActiveQuestState(warehouseQuest);
             runtime._character_management.SetPartyState(runtime._party_state);
 
-            GDictionary runtimeStateBefore = fixture.GameSession.CaptureRuntimeState();
+            using GodotProjectionLease<GDictionary> runtimeStateBeforeLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
+            GDictionary runtimeStateBefore = runtimeStateBeforeLease.Value;
             fixture.GameSession.fail_payload_write = true;
 
             GameRuntimeFacade.RuntimeCommandResult result =
@@ -391,8 +408,10 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 "",
                 "仓储动作持久化失败后不应记录仓库入口标签。"
             );
+            using GodotProjectionLease<GDictionary> runtimeStateAfterLease =
+                fixture.GameSession.CaptureRuntimeStateLease();
             AssertRuntimeSaveMetadataEqual(
-                fixture.GameSession.CaptureRuntimeState(),
+                runtimeStateAfterLease.Value,
                 runtimeStateBefore,
                 "仓储动作持久化失败后，session save metadata 应恢复到命令前状态。"
             );
@@ -405,6 +424,201 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         finally
         {
             fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "world_only_quest_side_effect",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildRumorServices()
+                ),
+            },
+            BuildRumorQuestDefs()
+        );
+        try
+        {
+            var rumorQuest = new QuestState { quest_id = "contract_rumor_visit" };
+            rumorQuest.MarkAccepted(fixture.Runtime.GetWorldStep());
+            fixture.Runtime._party_state.SetActiveQuestState(rumorQuest);
+            fixture.Runtime._character_management.SetPartyState(
+                fixture.Runtime._party_state
+            );
+            fixture.GameSession.fail_payload_write = true;
+
+            GameRuntimeFacade.RuntimeCommandResult result =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:rumor",
+                    new GDictionary()
+                );
+
+            _test.False(result.Ok, "world-only rumor 持久化失败时命令应返回失败。");
+            _test.False(
+                fixture.Runtime._party_state.HasClaimableQuest("contract_rumor_visit"),
+                "world-only 服务附带的 quest side effect 必须纳入 party rollback scope。"
+            );
+        }
+        finally
+        {
+            fixture.GameSession.fail_payload_write = false;
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestPartyOnlyRollbackScopeSkipsWorldSnapshot()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "party_only_rollback_scope",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices()
+                ),
+            }
+        );
+        try
+        {
+            RuntimeTransactionRollbackState rollbackState =
+                RuntimeTransactionRollbackState.Capture(
+                    fixture.Runtime,
+                    new RuntimeTransaction().MarkPartyChanged()
+                );
+            _test.True(
+                rollbackState.CapturedPartyState,
+                "party-only rollback scope 应捕获 party owner。"
+            );
+            _test.False(
+                rollbackState.CapturedWorldData,
+                "party-only rollback scope 不应复制整个 world owner。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestPartyOnlyCommitStagesDelayedWorldOwner()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "party_only_total_save",
+            BuildPartyState(12, 200),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices(),
+                    BuildSettlementState(
+                        new GArray
+                        {
+                            new GDictionary
+                            {
+                                ["item_id"] = "healing_herb",
+                                ["quantity"] = 2,
+                                ["unit_price"] = 12,
+                                ["sold_out"] = false,
+                            },
+                        }
+                    )
+                ),
+            }
+        );
+        try
+        {
+            fixture.Runtime._world_map_data_context.SetWorldStep(37);
+            fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:basic_supply",
+                    new GDictionary()
+                );
+            _test.True(openResult.Ok, "party-only total-save 回归前置：应能打开商店。");
+
+            GameRuntimeFacade.RuntimeCommandResult buyResult =
+                fixture.Handler.CommandShopBuyTyped("healing_herb", 1);
+            _test.True(buyResult.Ok, "party-only 动作应成功提交 total-save。");
+
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
+            GDictionary worldData = worldDataLease.Value;
+            _test.Eq(
+                worldData["world_step"].AsInt32(),
+                37,
+                "party-only commit 前必须 staging 延迟更新的 canonical world owner。"
+            );
+            using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
+                .AsGodotDictionary();
+            var restoredFog = new WorldMapFogSystem();
+            restoredFog.Setup(new Vector2I(8, 8), fogState);
+            _test.True(
+                restoredFog.IsExplored(new Vector2I(7, 7), "player"),
+                "party-only total-save 不得丢失尚未物化的 fog revision。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty()
+    {
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "dispose_total_save",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    BuildShopAndStagecoachServices()
+                ),
+            }
+        );
+        try
+        {
+            fixture.Runtime._world_map_data_context.SetWorldStep(41);
+            fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
+            fixture.Runtime.Dispose();
+
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
+            GDictionary worldData = worldDataLease.Value;
+            _test.Eq(
+                worldData["world_step"].AsInt32(),
+                41,
+                "runtime dispose 应无条件 staging canonical world，而非只提交 session pending。"
+            );
+            using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
+                .AsGodotDictionary();
+            var restoredFog = new WorldMapFogSystem();
+            restoredFog.Setup(new Vector2I(8, 8), fogState);
+            _test.True(
+                restoredFog.IsExplored(new Vector2I(7, 7), "player"),
+                "runtime dispose 不得丢失首次视野或未物化 fog revision。"
+            );
+            _test.False(
+                fixture.GameSession.HasPendingSave(),
+                "runtime dispose 成功写盘后不应残留 pending save。"
+            );
+        }
+        finally
+        {
             await DisposeFixture(fixture);
         }
     }
@@ -532,19 +746,21 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         string suffix,
         PartyState partyState,
         IReadOnlyList<GDictionary> settlements,
-        GDictionary questDefs = null
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
     )
     {
-        GameSession gameSession = await InstallGameSession($"SettlementPersistFailure_{suffix}");
+        GameSession gameSession = await InstallGameSession(
+            $"SettlementPersistFailure_{suffix}",
+            questDefs
+        );
         GDictionary worldData = BuildWorldData(settlements);
         ConfigureSessionForRuntimeTest(
             gameSession,
             $"settlement_persist_failure_{suffix}",
             worldData,
-            partyState,
-            questDefs
+            partyState
         );
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
         var runtime = new GameRuntimeFacade
         {
@@ -553,14 +769,14 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             _player_coord = Vector2I.Zero,
             _selected_coord = Vector2I.Zero,
             _player_faction_id = "player",
+            _generation_definition = gameSession._generation_definition,
         };
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
-        var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
-            gameSession._generation_config,
-            contextGrid,
+            gameSession._generation_definition,
+            runtime._grid_system,
             Vector2I.Zero,
             Vector2I.Zero
         );
@@ -568,7 +784,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         MakeVisible(runtime, Vector2I.Zero);
         runtime._character_management.setup(
             partyState,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             gameSession.GetProfessionDefsTyped(),
             gameSession.GetAchievementDefsTyped(),
             itemDefs,
@@ -580,7 +796,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         runtime._party_item_use_service.Setup(
             partyState,
             itemDefs,
-            gameSession.GetSkillDefsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -607,8 +823,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         GameSession gameSession,
         string saveId,
         GDictionary worldData,
-        PartyState partyState,
-        GDictionary questDefs = null
+        PartyState partyState
     )
     {
         gameSession.ConfigureRuntimeWorldForTests(
@@ -616,14 +831,17 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             TestConfigPath,
             worldData,
             partyState,
-            questDefs ?? new GDictionary(),
             "settlement_persist_failure_test",
             "Settlement Persist Failure Test",
-            new Vector2I(8, 8)
+            new Vector2I(8, 8),
+            TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
     }
 
-    private async Task<GameSession> InstallGameSession(string nodeName)
+    private async Task<GameSession> InstallGameSession(
+        string nodeName,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = null
+    )
     {
         foreach (Node child in Root.GetChildren())
         {
@@ -631,7 +849,12 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
                 child.QueueFree();
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession { Name = nodeName };
+        GameSession gameSession = questDefs == null
+            ? GameSessionTestFactory.CreateBorrowingProcessSnapshot(nodeName)
+            : GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+                seed => seed.Quests = questDefs
+            );
+        gameSession.Name = nodeName;
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
@@ -649,7 +872,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             return;
         int clearError = gameSession.ClearPersistedGame();
         _test.Eq(clearError, (int)Error.Ok, "清理 persist failure 回归存档应成功。");
-        gameSession.Dispose();
+        gameSession.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
@@ -668,6 +891,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
             ["settlements"] = settlementArray,
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray(),
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,
@@ -753,21 +977,67 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         };
     }
 
-    private static GDictionary BuildWarehouseQuestDefs()
+    private static GArray BuildRumorServices() =>
+        new()
+        {
+            new GDictionary
+            {
+                ["action_id"] = "service:rumor",
+                ["facility_name"] = "酒馆",
+                ["npc_name"] = "说书人",
+                ["service_type"] = "传闻",
+                ["interaction_script_id"] = "service_village_rumor",
+            },
+        };
+
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildWarehouseQuestDefs()
     {
-        var questDefs = new GDictionary();
-        AddQuestDef(
-            questDefs,
-            BuildQuestDef(
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
                 "contract_warehouse_visit",
                 "仓储访问追踪",
                 "据点仓储动作进度测试。",
                 "service_warehouse_hidden",
-                new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) },
-                new GArray { BuildGoldReward(1) }
+                new QuestObjectiveDefinition[]
+                {
+                    BuildObjective(
+                        "warehouse_visit",
+                        "settlement_action",
+                        "service:warehouse",
+                        1
+                    ),
+                },
+                new QuestRewardDefinition[] { BuildGoldReward(1) }
             )
         );
-        return questDefs;
+        return questDefinitions;
+    }
+
+    private static IReadOnlyDictionary<StringName, QuestDefinition> BuildRumorQuestDefs()
+    {
+        var questDefinitions = new Dictionary<StringName, QuestDefinition>();
+        AddQuestDefinition(
+            questDefinitions,
+            BuildQuestDefinition(
+                "contract_rumor_visit",
+                "传闻追踪",
+                "据点 world-only 服务进度回滚测试。",
+                "service_rumor_hidden",
+                new QuestObjectiveDefinition[]
+                {
+                    BuildObjective(
+                        "rumor_visit",
+                        "settlement_action",
+                        "service:rumor",
+                        1
+                    ),
+                },
+                new QuestRewardDefinition[] { BuildGoldReward(1) }
+            )
+        );
+        return questDefinitions;
     }
 
     private static PartyState BuildPartyState(int storageSpace, int gold)
@@ -776,7 +1046,7 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
+            active_member_ids = new StringNameList { "hero" },
             gold = gold,
         };
         var hero = new PartyMemberState
@@ -919,56 +1189,59 @@ public partial class run_settlement_persist_failure_rollback_regression : SceneT
         return string.Join("|", entries);
     }
 
-    private static void AddQuestDef(GDictionary questDefs, QuestDef questDef)
+    private static void AddQuestDefinition(
+        Dictionary<StringName, QuestDefinition> questDefinitions,
+        QuestDefinition questDefinition
+    )
     {
-        questDefs[questDef.quest_id] = questDef;
+        questDefinitions[questDefinition.QuestId] = questDefinition;
     }
 
-    private static QuestDef BuildQuestDef(
+    private static QuestDefinition BuildQuestDefinition(
         string questId,
         string displayName,
         string description,
         string providerInteractionId,
-        GArray objectiveDefs,
-        GArray rewardEntries,
+        IReadOnlyList<QuestObjectiveDefinition> objectives,
+        IReadOnlyList<QuestRewardDefinition> rewards,
         bool isRepeatable = false
     )
     {
-        var quest = new QuestDef
-        {
-            quest_id = questId,
-            display_name = displayName,
-            description = description,
-            provider_interaction_id = providerInteractionId,
-            is_repeatable = isRepeatable,
-        };
-        foreach (GDictionary objective in objectiveDefs)
-            quest.objective_defs.Add((GDictionary)objective.Duplicate(true));
-        foreach (GDictionary reward in rewardEntries)
-            quest.reward_entries.Add((GDictionary)reward.Duplicate(true));
-        return quest;
+        return new QuestDefinition(
+            questId,
+            displayName,
+            description,
+            providerInteractionId,
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            objectives,
+            rewards,
+            isRepeatable,
+            "",
+            System.Array.Empty<StringName>(),
+            "",
+            "",
+            "",
+            ""
+        );
     }
 
-    private static GDictionary BuildObjective(
+    private static QuestObjectiveDefinition BuildObjective(
         string objectiveId,
         string objectiveType,
         string targetId,
         int targetValue
-    )
-    {
-        return new GDictionary
-        {
-            ["objective_id"] = objectiveId,
-            ["objective_type"] = objectiveType,
-            ["target_id"] = targetId,
-            ["target_value"] = targetValue,
-        };
-    }
+    ) => new(objectiveId, objectiveType, targetId, targetValue);
 
-    private static GDictionary BuildGoldReward(int amount)
-    {
-        return new GDictionary { ["reward_type"] = "gold", ["amount"] = amount };
-    }
+    private static QuestRewardDefinition BuildGoldReward(int amount) =>
+        new(
+            "gold",
+            amount,
+            "",
+            0,
+            "",
+            System.Array.Empty<QuestPendingRewardEntryDefinition>()
+        );
 
     private sealed class RuntimeFixture
     {

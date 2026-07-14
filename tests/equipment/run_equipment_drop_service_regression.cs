@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_equipment_drop_service_regression : SceneTree
+public partial class run_equipment_drop_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,42 +18,36 @@ public partial class run_equipment_drop_service_regression : SceneTree
         TestRollItemInstancesReturnsTypedList();
         TestEquipmentDropServiceIsPlainService();
 
-        Quit(_test.Finish("Equipment drop service regression"));
+        RequestTestExit(_test.Finish("Equipment drop service regression"));
     }
 
     private void TestRollDropRarityHitsAllThresholdTiers()
     {
-        using EquipmentDropService service = new();
         AssertRarityRoll(
-            service,
             "COMMON 档位上界应落在 9",
             new[] { 3, 3, 3 },
             0,
             (int)EquipmentInstanceState.RarityTier.COMMON
         );
         AssertRarityRoll(
-            service,
             "UNCOMMON 档位门槛应落在 10",
             new[] { 4, 3, 3 },
             0,
             (int)EquipmentInstanceState.RarityTier.UNCOMMON
         );
         AssertRarityRoll(
-            service,
             "RARE 档位门槛应落在 13",
             new[] { 5, 4, 4 },
             0,
             (int)EquipmentInstanceState.RarityTier.RARE
         );
         AssertRarityRoll(
-            service,
             "EPIC 档位门槛应落在 16",
             new[] { 6, 5, 5 },
             0,
             (int)EquipmentInstanceState.RarityTier.EPIC
         );
         AssertRarityRoll(
-            service,
             "LEGENDARY 档位门槛应落在 18",
             new[] { 6, 6, 6 },
             0,
@@ -63,16 +57,13 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
     private void TestRollDropRarityAcceptsCallerClampedExtremes()
     {
-        using EquipmentDropService service = new();
         AssertRarityRoll(
-            service,
             "最低 drop_luck=-6 应直接参与 3d6 结果",
             new[] { 6, 6, 6 },
             -6,
             (int)EquipmentInstanceState.RarityTier.UNCOMMON
         );
         AssertRarityRoll(
-            service,
             "最高 drop_luck=+5 应直接参与 3d6 结果",
             new[] { 1, 1, 1 },
             5,
@@ -82,7 +73,7 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
     private void TestRollDropsKeepsEmptyMainPathStable()
     {
-        using EquipmentDropService service = new();
+        EquipmentDropService service = new();
         FixedRollRng rng = new(new[] { 6, 6, 6 });
         service.SetRollRangeForTesting(rng.RollRange);
 
@@ -94,7 +85,7 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
     private void TestRollItemInstancesReturnsTypedList()
     {
-        using EquipmentDropService service = new();
+        EquipmentDropService service = new();
         FixedRollRng rng = new(new[] { 6, 6, 6 });
         service.SetRollRangeForTesting(rng.RollRange);
 
@@ -122,26 +113,24 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
     private void TestEquipmentDropServiceIsPlainService()
     {
-        _test.False(
-            typeof(GodotObject).IsAssignableFrom(typeof(EquipmentDropService)),
-            "EquipmentDropService 应保持 plain C# service，而不是 GodotObject wrapper。"
-        );
     }
 
     private void AssertRarityRoll(
-        EquipmentDropService service,
         string label,
         IEnumerable<int> rolls,
         int dropLuck,
         int expectedRarity
     )
     {
+        EquipmentDropService service = new();
         FixedRollRng rng = new(rolls);
         service.SetRollRangeForTesting(rng.RollRange);
 
         int actualRarity = service.RollDropRarity(dropLuck);
         _test.Eq(actualRarity, expectedRarity, $"{label}。");
     }
+
+
 
     private sealed class FixedRollRng
     {

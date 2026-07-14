@@ -1,15 +1,12 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_quest_progress_service_regression : SceneTree
+public partial class run_quest_progress_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -18,19 +15,11 @@ public partial class run_quest_progress_service_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestFormalProgressEventSchema();
-            TestStringKeyOnlyQuestDefsAreRejected();
-            TestMissingObjectiveTargetValueDoesNotDefaultToOne();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestFormalProgressEventSchema();
+        TestStringKeyOnlyQuestDefsAreRejected();
+        TestMissingObjectiveTargetValueDoesNotDefaultToOne();
 
-        Quit(_test.Finish("Quest progress service regression"));
+        RequestTestExit(_test.Finish("Quest progress service regression"));
     }
 
     private void TestFormalProgressEventSchema()
@@ -43,7 +32,7 @@ public partial class run_quest_progress_service_regression : SceneTree
             "service:training",
             2
         );
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         CharacterManagementModule manager = BuildManager(partyState, questDef);
 
         _test.True(manager.AcceptQuest(questDef.quest_id, 1), "测试任务应可被正式接取。");
@@ -124,17 +113,20 @@ public partial class run_quest_progress_service_regression : SceneTree
             "service:training",
             1
         );
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         GDictionary questDefs = new();
         questDefs[questDef.quest_id.ToString()] = questDef;
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            questDefs
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            ProjectQuestDefs(questDefs),
+            true,
+            null,
+            null
         );
 
         _test.True(
@@ -149,19 +141,35 @@ public partial class run_quest_progress_service_regression : SceneTree
 
     private void TestMissingObjectiveTargetValueDoesNotDefaultToOne()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestDefinition questDef = new(
             "contract_missing_target_value",
             "缺目标值",
-            "bad_target",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-            "service:bad",
-            0
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
+            {
+                new QuestObjectiveDefinition(
+                    "bad_target",
+                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    "service:bad",
+                    0
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            ""
         );
-        questDef.objective_defs[0].Remove("target_value");
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         CharacterManagementModule manager = BuildManager(partyState, questDef);
 
-        _test.True(manager.AcceptQuest(questDef.quest_id, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。");
+        _test.True(manager.AcceptQuest(questDef.QuestId, 5), "缺 target_value 的坏夹具仍可用于验证 service 拒绝进度事件。");
         manager.ApplyQuestProgressEventsTyped(
             new[]
             {
@@ -169,7 +177,7 @@ public partial class run_quest_progress_service_regression : SceneTree
                     new GDictionary
                     {
                         ["event_type"] = "progress",
-                        ["quest_id"] = questDef.quest_id.ToString(),
+                        ["quest_id"] = questDef.QuestId.ToString(),
                         ["objective_id"] = "bad_target",
                         ["progress_delta"] = 1,
                         ["world_step"] = 6,
@@ -177,31 +185,65 @@ public partial class run_quest_progress_service_regression : SceneTree
                 ),
             }
         );
-        QuestState questState = partyState.GetActiveQuestState(questDef.quest_id);
+        QuestState questState = partyState.GetActiveQuestState(questDef.QuestId);
         _test.True(questState != null, "缺 target_value 任务应保持 active。");
         if (questState != null)
             _test.Eq(questState.GetObjectiveProgress("bad_target"), 0, "缺正式 target_value 时不应按默认 1 推进任务。");
     }
 
-    private CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
+    private static CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
     {
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
+        return BuildManager(
+            partyState,
+            TestProgressionDefinitionProjection.Quest(questDef)
+        );
+    }
+
+    private static CharacterManagementModule BuildManager(
+        PartyState partyState,
+        QuestDefinition questDef
+    )
+    {
+        CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary { [questDef.quest_id] = questDef }
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>
+            {
+                [questDef.QuestId] = questDef,
+            }
         );
         return manager;
+    }
+
+    private static Dictionary<StringName, QuestDefinition> ProjectQuestDefs(
+        GDictionary questDefs
+    )
+    {
+        Dictionary<StringName, QuestDefinition> result = new();
+        if (questDefs == null)
+            return result;
+        foreach (Variant rawKey in questDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName questId = rawKey.AsStringName();
+            if (questId == "")
+                continue;
+            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
+                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
+        }
+        return result;
     }
 
     private static QuestProgressService.QuestProgressEventData QuestProgressEvent(
         GDictionary eventData
     ) => QuestProgressService.QuestProgressEventData.FromDictionary(eventData);
 
-    private QuestDef BuildQuestDef(
+    private static QuestDef BuildQuestDef(
         string questId,
         string displayName,
         string objectiveId,
@@ -210,11 +252,14 @@ public partial class run_quest_progress_service_regression : SceneTree
         int targetValue
     )
     {
-        QuestDef questDef = TrackOwned(new QuestDef
+        QuestDef questDef = new()
         {
             quest_id = questId,
             display_name = displayName,
-        });
+            provider_kind = "service_contract_board",
+            provider_interaction_id = "service_contract_board",
+            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+        };
         GDictionary objectiveDef = new()
         {
             ["objective_id"] = objectiveId,
@@ -292,48 +337,6 @@ public partial class run_quest_progress_service_regression : SceneTree
             return 0;
         Variant value = summary[key];
         return value.VariantType == Variant.Type.Array ? value.AsGodotArray().Count : 0;
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 
 

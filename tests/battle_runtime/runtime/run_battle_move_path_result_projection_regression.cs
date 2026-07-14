@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_battle_move_path_result_projection_regression : SceneTree
+public partial class run_battle_move_path_result_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
         TestMovePathTreeProjectsTypedMaps();
         TestValidatedMoveExecutionResultProjectsTypedPath();
         TestMovementServiceUsesTypedPathAndExecutesMove();
-        Quit(_test.Finish("Battle move path result projection regression"));
+        RequestTestExit(_test.Finish("Battle move path result projection regression"));
     }
 
     private void TestMovePathResultProjectsTypedPath()
@@ -97,53 +97,42 @@ public partial class run_battle_move_path_result_projection_regression : SceneTr
 
     private void TestMovementServiceUsesTypedPathAndExecutesMove()
     {
-        PartyState party = null;
-        CharacterManagementModule gateway = null;
-        BattleRuntimeModule runtime = null;
-        BattleState state = null;
-        try
-        {
-            party = BuildParty("movement_hero");
-            gateway = new CharacterManagementModule();
-            gateway.setup(party, new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary(), new Godot.Collections.Dictionary());
-            runtime = new BattleRuntimeModule();
-            runtime.setup(gateway);
-            state = BuildState("movement_service_projection_regression");
-            BattleUnitState ally = BuildUnit("movement_hero", Vector2I.Zero);
-            BattleUnitState enemy = BuildUnit("movement_enemy", new Vector2I(2, 0));
-            enemy.faction_id = "enemy";
-            InstallUnits(runtime, state, ally, enemy);
-            runtime.SetupStateForTests(state);
+        PartyState party = BuildParty("movement_hero");
+        CharacterManagementModule gateway = new();
+        gateway.setup(party);
+        BattleRuntimeModule runtime = new();
+        runtime.setup(gateway);
+        BattleState state = BuildState("movement_service_projection_regression");
+        BattleUnitState ally = BuildUnit("movement_hero", Vector2I.Zero);
+        BattleUnitState enemy = BuildUnit("movement_enemy", new Vector2I(2, 0));
+        enemy.faction_id = "enemy";
+        InstallUnits(runtime, state, ally, enemy);
+        runtime.SetupStateForTests(state);
 
-            IReadOnlyList<Vector2I> reachable = runtime._movement_service.GetUnitReachableMoveCoords(ally);
-            _test.True(
-                reachable.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-                "BattleMovementService reachable coords 真相源不应是 Godot Array。"
-            );
-            _test.True(reachable.Count == 1 && reachable[0] == new Vector2I(1, 0), "reachable coords 应只包含可达落点。");
+        IReadOnlyList<Vector2I> reachable = runtime._movement_service.GetUnitReachableMoveCoords(ally);
+        _test.True(
+            reachable.GetType() != typeof(Godot.Collections.Array<Vector2I>),
+            "BattleMovementService reachable coords 真相源不应是 Godot Array。"
+        );
+        _test.True(reachable.Count == 1 && reachable[0] == new Vector2I(1, 0), "reachable coords 应只包含可达落点。");
 
-            BattleMovePathResult moveResult = runtime._movement_service.ResolveMovePathResultTyped(
+        BattleMovePathResult moveResult = runtime._movement_service.ResolveMovePathResultTyped(
+            ally,
+            new Vector2I(1, 0)
+        );
+        _test.True(moveResult.Allowed, $"ResolveMovePathResultTyped 应允许一步移动。 message={moveResult.Message}");
+        BattleValidatedMoveExecutionResult executionResult =
+            runtime._movement_service.MoveUnitAlongValidatedPathTyped(
                 ally,
-                new Vector2I(1, 0)
+                moveResult.Path,
+                new Vector2I(1, 0),
+                new BattleEventBatch()
             );
-            _test.True(moveResult.Allowed, $"ResolveMovePathResultTyped 应允许一步移动。 message={moveResult.Message}");
-            BattleValidatedMoveExecutionResult executionResult =
-                runtime._movement_service.MoveUnitAlongValidatedPathTyped(
-                    ally,
-                    moveResult.Path,
-                    new Vector2I(1, 0),
-                    new BattleEventBatch()
-                );
-            _test.True(executionResult.Executed, "typed validated move 应实际执行。");
-            _test.True(executionResult.ReachedTarget, "typed validated move 应到达目标。");
-            _test.Eq(ally.coord, new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleFixture(runtime, state);
-            gateway?.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(party);
-        }
+        _test.True(executionResult.Executed, "typed validated move 应实际执行。");
+        _test.True(executionResult.ReachedTarget, "typed validated move 应到达目标。");
+        _test.Eq(ally.coord, new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
+
+        runtime.dispose();
     }
 
     private static bool IsForbiddenGodotBoundaryType(Type type) =>

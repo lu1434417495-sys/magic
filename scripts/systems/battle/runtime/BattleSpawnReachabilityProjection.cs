@@ -97,12 +97,8 @@ internal static class BattleSpawnReachabilityProjection
     )
     {
         var result = new Godot.Collections.Array<StringName>();
-        if (values == null)
-            return result;
-        foreach (StringName value in values)
-        {
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
             result.Add(value);
-        }
         return result;
     }
 

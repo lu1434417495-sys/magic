@@ -1,11 +1,16 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_parse_regression : SceneTree
+public partial class run_text_command_parse_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
     {
         var runner = new GameTextCommandRunner();
         runner.initialize();
@@ -14,26 +19,33 @@ public partial class run_text_command_parse_regression : SceneTree
         AssertInvalidScalarInputsFailWithoutStateDrift(runner);
 
         runner.Dispose(true);
-        Quit(_test.Finish("Text command parse regression"));
+        RequestTestExit(_test.Finish("Text command parse regression"));
     }
 
     private void AssertInvalidScalarInputsFailWithoutStateDrift(GameTextCommandRunner runner)
     {
-        GDictionary beforeSnapshot = runner.GetSession().BuildSnapshot();
-        GDictionary beforeCoord = Dict(Dict(beforeSnapshot, "world"), "player_coord");
+        IReadOnlyDictionary<string, object> beforeSnapshot =
+            runner.GetSession().BuildSnapshotPlain();
+        IReadOnlyDictionary<string, object> beforeCoord = PlainDict(
+            PlainDict(beforeSnapshot, "world"),
+            "player_coord"
+        );
 
         GameTextCommandResult badMove = RunCommandExpectFail(runner, "world move right nope");
         _test.True(badMove.message.Contains("移动次数"), "非法 world move count 应返回明确整数校验错误。");
         // GDictionary 是引用相等，坐标必须逐分量按值比较。
-        GDictionary afterCoord = Dict(Dict(badMove.snapshot, "world"), "player_coord");
+        IReadOnlyDictionary<string, object> afterCoord = PlainDict(
+            PlainDict(badMove.SnapshotTyped, "world"),
+            "player_coord"
+        );
         _test.Eq(
-            DictInt(afterCoord, "x"),
-            DictInt(beforeCoord, "x"),
+            PlainInt(afterCoord, "x"),
+            PlainInt(beforeCoord, "x"),
             "非法 world move count 不应漂移玩家坐标 X。"
         );
         _test.Eq(
-            DictInt(afterCoord, "y"),
-            DictInt(beforeCoord, "y"),
+            PlainInt(afterCoord, "y"),
+            PlainInt(beforeCoord, "y"),
             "非法 world move count 不应漂移玩家坐标 Y。"
         );
 
@@ -66,17 +78,27 @@ public partial class run_text_command_parse_regression : SceneTree
         return result;
     }
 
-    private static GDictionary Dict(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
-    }
+    private static IReadOnlyDictionary<string, object> PlainDict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object value)
+        && value is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>();
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback = int.MinValue)
-    {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback = int.MinValue
+    ) =>
+        dictionary != null && dictionary.TryGetValue(key, out object value)
+            ? value switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                _ => fallback,
+            }
             : fallback;
-    }
 }

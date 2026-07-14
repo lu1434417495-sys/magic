@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_validation_result_projection_regression : SceneTree
+public partial class run_battle_validation_result_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,24 +16,21 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
         TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle validation result projection regression"));
+        RequestTestExit(_test.Finish("Battle validation result projection regression"));
     }
 
     private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
     {
         var runtime = new BattleRuntimeModule();
-        SkillDef lockedZeroSkill = new()
-        {
-            skill_id = "locked_zero_skill",
-            max_level = 0,
-            dynamic_max_level_stat_id = "",
-        };
+        SkillDefinition lockedZeroSkill = TestSkillDefinitionProjection.BuildSkill(
+            "locked_zero_skill",
+            maxLevel: 0
+        );
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef>
+            new Dictionary<StringName, SkillDefinition>
             {
-                [new StringName("locked_zero_skill")] = lockedZeroSkill,
+                [lockedZeroSkill.SkillId] = lockedZeroSkill,
             }
         );
 
@@ -82,7 +78,6 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             BattleTestFixture.DisposeBattleUnit(activeOnlyUnit);
             BattleTestFixture.DisposeBattleUnit(lockedZeroUnit);
             BattleTestFixture.DisposeRuntime(runtime);
-            GodotSharpCleanup.DisposeGodotObject(lockedZeroSkill);
         }
     }
 
@@ -99,8 +94,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 "ok"
             );
 
-            Godot.Collections.Dictionary payload =
-                BattleValidationResultProjection.ProjectUnitSkill(result);
+            using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+                BattleValidationResultProjection.ProjectUnitSkillLease(result);
+            Godot.Collections.Dictionary payload = payloadLease.Value;
 
             _test.True(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
             _test.Eq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
@@ -109,9 +105,11 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 new StringName("target_1"),
                 "单位技能 validation 应投影目标 id。"
             );
+            Godot.Collections.Dictionary projectedTargetUnit =
+                payload["target_units"].AsGodotArray()[0].AsGodotDictionary();
             _test.Eq(
-                payload["target_units"].AsGodotArray()[0].As<BattleUnitState>(),
-                targetUnit,
+                projectedTargetUnit["unit_id"].AsString(),
+                targetUnit.unit_id.ToString(),
                 "单位技能 validation 应投影目标 unit。"
             );
             _test.Eq(
@@ -154,8 +152,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleGroundSkillValidationResult result = BattleGroundSkillValidationResult.FromDictionary(
             source
         );
-        Godot.Collections.Dictionary payload =
-            BattleValidationResultProjection.ProjectGroundSkill(result);
+        using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+            BattleValidationResultProjection.ProjectGroundSkillLease(result);
+        Godot.Collections.Dictionary payload = payloadLease.Value;
 
         _test.True(result.Allowed, "地面技能 validation 应从 string-key payload 解析 allowed。");
         _test.Eq(result.Message, "cast", "地面技能 validation 应解析 message。");
@@ -186,9 +185,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             payload,
             new AttackCheckInput(skillId: "black_contract_push")
         );
-        Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
-            result
-        );
+        using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(result);
+        Godot.Collections.Dictionary projected = projectedLease.Value;
 
         _test.False(
             result.AttackCheck.CritLocked,
@@ -203,8 +202,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             payload,
             new AttackCheckInput(skillId: "black_contract_push", critLocked: true)
         );
-        Godot.Collections.Dictionary typedProjected =
-            AttackEffectResolutionResultReader.BuildGodotPayload(typedResult);
+        using GodotProjectionLease<Godot.Collections.Dictionary> typedProjectedLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(typedResult);
+        Godot.Collections.Dictionary typedProjected = typedProjectedLease.Value;
         _test.True(
             typedResult.AttackCheck.CritLocked,
             "AttackEffectResolutionResultReader 应保留正式 typed AttackCheckInput 的 crit_locked=true。"
@@ -221,8 +221,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             new[] { new Vector2I(3, 2), new Vector2I(1, 1), new Vector2I(2, 1) }
         );
 
-        Godot.Collections.Dictionary payload =
-            BattleValidationResultProjection.ProjectTargetCollection(result);
+        using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+            BattleValidationResultProjection.ProjectTargetCollectionLease(result);
+        Godot.Collections.Dictionary payload = payloadLease.Value;
 
         _test.True(result.Handled, "目标收集结果应保留 handled。");
         _test.Eq(result.TargetCoords[0], new Vector2I(1, 1), "目标收集结果应按 y/x 排序。");
@@ -237,16 +238,17 @@ public partial class run_battle_validation_result_projection_regression : SceneT
     private void TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock()
     {
         var runtime = new BattleRuntimeModule();
-        ProgressionContentRegistry progressionContent = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = progressionContent.GetSkillDefsTyped();
+        ProgressionContentRegistry progressionContent = new(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            progressionContent.GetSkillDefinitionsTyped();
         runtime.setup(
             null,
-            skillDefs,
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>(),
+            skillDefinitions,
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>(),
             null,
             null,
-            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, ItemDefinition>(),
             null
         );
         BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
@@ -255,10 +257,9 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleState state = null;
         BattleUnitState source = null;
         BattleUnitState target = null;
-        SkillDef skill = null;
-        CombatCastVariantDef castVariant = null;
-        List<CombatEffectDef> effects = null;
-        Godot.Collections.Dictionary projected = null;
+        SkillDefinition skillDefinition = null;
+        CombatCastVariantDefinition castVariant = null;
+        List<CombatEffectDefinition> effects = null;
         try
         {
             state = new BattleState { map_size = new Vector2I(4, 3) };
@@ -285,11 +286,16 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             };
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
-            skill = skillDefs["black_contract_push"];
-            castVariant = skill.combat_profile.GetCastVariant("action_tithe");
-            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
-                skill,
-                castVariant
+            skillDefinition = skillDefinitions["black_contract_push"];
+            castVariant = runtime._skill_resolution_rules.ResolveUnitCastVariantDefinition(
+                skillDefinition,
+                source,
+                "action_tithe"
+            );
+            effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                source
             );
             state.SetUnit(source);
             state.SetUnit(target);
@@ -300,13 +306,21 @@ public partial class run_battle_validation_result_projection_regression : SceneT
 
             BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
                 ._skill_orchestrator
-                .ResolveUnitSkillEffectResult(source, target, skill, effects);
-            projected = AttackEffectResolutionResultReader.BuildGodotPayload(
-                typed.Result
-            );
+                .ResolveUnitSkillEffectResult(
+                    source,
+                    target,
+                    skillDefinition,
+                    effects
+                );
+            using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
+                AttackEffectResolutionResultReader.BuildGodotPayloadLease(typed.Result);
+            Godot.Collections.Dictionary projected = projectedLease.Value;
             if (typed.CustomLogLines.Count != 0)
             {
-                var customLines = new Godot.Collections.Array();
+                Godot.Collections.Array customLines = projectedLease.Own(
+                    new Godot.Collections.Array(),
+                    "battle validation projected custom log lines"
+                );
                 foreach (string line in typed.CustomLogLines)
                 {
                     customLines.Add(line);
@@ -331,11 +345,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            projected = null;
             effects = null;
             castVariant = null;
-            skill = null;
-            skillDefs = null;
+            skillDefinition = null;
+            skillDefinitions = null;
             BattleTestFixture.DisposeBattleFixture(runtime, state);
             progressionContent.Dispose();
         }
@@ -351,8 +364,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         BattleUnitState source = null;
         BattleUnitState primary = null;
         BattleUnitState chained = null;
-        SkillDef skill = null;
-        GCombatEffectArray effectDefs = null;
+        SkillDefinition skill = null;
+        List<CombatEffectDefinition> effectDefs = null;
         BattleEventBatch batch = null;
         try
         {
@@ -372,10 +385,10 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             runtime.SetupStateForTests(state);
 
             skill = BuildChainTestSkill();
-            effectDefs = new GCombatEffectArray
+            effectDefs = new List<CombatEffectDefinition>
             {
                 BuildChainDamagePayloadEffect(),
-                new CombatEffectDef { effect_type = "chain_damage" },
+                TestSkillDefinitionProjection.BuildEffect("chain_damage"),
             };
             batch = new BattleEventBatch();
 
@@ -384,7 +397,7 @@ public partial class run_battle_validation_result_projection_regression : SceneT
                 primary,
                 skill,
                 effectDefs,
-                new AttackEffectResolutionResult { Applied = true, SkillId = skill.skill_id },
+                new AttackEffectResolutionResult { Applied = true, SkillId = skill.SkillId },
                 batch,
                 "连锁测试"
             );
@@ -401,9 +414,8 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, skill);
-            BattleTestFixture.DisposeEffectDefs(effectDefs);
-            GodotSharpCleanup.DisposeGodotObject(batch);
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+            batch?.Dispose();
         }
     }
 
@@ -460,31 +472,27 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         return unit;
     }
 
-    private static SkillDef BuildChainTestSkill()
+    private static SkillDefinition BuildChainTestSkill()
     {
-        SkillDef skill = new()
-        {
-            skill_id = "chain_arc_projection",
-            display_name = "Chain Arc Projection",
-            skill_type = "active",
-        };
-        skill.combat_profile = new CombatSkillDef
-        {
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_pattern = "fixed",
-            range_value = 4,
-        };
-        return skill;
+        return TestSkillDefinitionProjection.BuildSkill(
+            "chain_arc_projection",
+            displayName: "Chain Arc Projection",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "chain_arc_projection",
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangePattern: "fixed",
+                rangeValue: 4
+            )
+        );
     }
 
-    private static CombatEffectDef BuildChainDamagePayloadEffect()
+    private static CombatEffectDefinition BuildChainDamagePayloadEffect()
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = "physical_slash",
-            power = 1,
-        };
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 1
+        );
     }
 }

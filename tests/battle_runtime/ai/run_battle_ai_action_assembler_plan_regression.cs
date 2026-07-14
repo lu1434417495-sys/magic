@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
+public partial class run_battle_ai_action_assembler_plan_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,116 +10,138 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
     {
         try
         {
-            TestAssemblerReturnsRuntimePlanWithoutMutatingState();
-            TestAssemblerEnablesCandidateForRuntimeMoveClones();
+            TestAssemblerReturnsDefinitionPlanWithoutMutatingAuthoringState();
+            TestAssemblerEnablesCandidateMetadataWithoutMutatingAuthoredMove();
             TestGenerationIsSlotFamilyScopedNotGlobalSkillSuppressed();
             TestGeneratedMetadataContainsStableRuntimeIdentity();
-            Quit(_test.Finish("Battle AI action assembler plan regression"));
+            RequestTestExit(_test.Finish("Battle AI action assembler plan regression"));
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
-            Quit(_test.Finish("Battle AI action assembler plan regression"));
+            RequestTestExit(_test.Finish("Battle AI action assembler plan regression", 1));
         }
     }
 
-    private void TestAssemblerReturnsRuntimePlanWithoutMutatingState()
+    private void TestAssemblerReturnsDefinitionPlanWithoutMutatingAuthoringState()
     {
         Fixture fixture = BuildFixture();
-        int originalActionCount = fixture.StateDef.actions.Count;
-        BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
+        int originalActionCount = fixture.StateResource.actions.Count;
+        using BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
             fixture.Unit,
             fixture.Brain,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
-        IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
+        IReadOnlyList<BattleAiRuntimeActionEntry> entries = plan.GetActionEntries("engage");
 
         _test.True(plan.HasState("engage"), "Assembler should create a plan state for the brain state.");
         _test.True(
-            actions.Count > originalActionCount,
-            "Runtime plan should contain authored and generated actions."
+            entries.Count > originalActionCount,
+            "Runtime plan should contain authored and generated definitions."
         );
         _test.Eq(
-            fixture.StateDef.actions.Count,
+            fixture.StateResource.actions.Count,
             originalActionCount,
-            "Assembler should not write generated actions back into the state resource."
+            "Assembler should not write generated actions back into the authoring Resource."
         );
+        foreach (BattleAiRuntimeActionEntry entry in entries)
+        {
+            _test.True(
+                entry?.Action is EnemyAiActionDefinition,
+                "Authored and generated entries should share EnemyAiActionDefinition."
+            );
+        }
     }
 
-    private void TestAssemblerEnablesCandidateForRuntimeMoveClones()
+    private void TestAssemblerEnablesCandidateMetadataWithoutMutatingAuthoredMove()
     {
         Fixture fixture = BuildFixture();
-        BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
+        using BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
             fixture.Unit,
             fixture.Brain,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
-        IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
-        MoveToRangeAction runtimeTemplateMove = FindActionById(actions, "template_move") as MoveToRangeAction;
-        _test.True(runtimeTemplateMove != null, "Runtime plan should keep the authored move_to_range action.");
+        MoveToRangeActionDefinition runtimeTemplateMove = FindActionById(
+            plan.GetActions("engage"),
+            "template_move"
+        ) as MoveToRangeActionDefinition;
+        _test.True(runtimeTemplateMove != null, "Runtime plan should keep the authored move definition.");
         _test.True(
-            runtimeTemplateMove != fixture.MoveTemplate,
-            "Runtime plan should clone authored move_to_range resources."
-        );
-        _test.True(
-            runtimeTemplateMove != null && runtimeTemplateMove.UsesCandidateRequest(),
-            "Runtime authored move_to_range clone should default to candidate_request."
+            ReferenceEquals(runtimeTemplateMove, fixture.MoveTemplateDefinition),
+            "Runtime plan should borrow the process-snapshot move definition."
         );
         _test.True(
-            !fixture.MoveTemplate.UsesCandidateRequest(),
-            "Assembler should not mutate the authored move_to_range resource."
+            plan.GetActionMetadata(runtimeTemplateMove).force_candidate_request_evaluation,
+            "Authored no-screening move metadata should select candidate evaluation."
+        );
+        _test.True(
+            fixture.MoveTemplateResource.ai_evaluation_mode != (StringName)"candidate_request",
+            "Assembler should not mutate the authored move Resource."
         );
 
-        MoveToRangeAction generatedMove = FindMoveActionForSkill(actions, "chain_arc");
+        BattleAiRuntimeActionEntry generatedMove = FindEntryForSkill<MoveToRangeActionDefinition>(
+            plan.GetActionEntries("engage"),
+            "chain_arc"
+        );
         _test.True(
-            generatedMove != null && generatedMove.UsesCandidateRequest(),
-            "Generated move_to_range action should enable candidate_request."
+            generatedMove?.Metadata.force_candidate_request_evaluation == true
+                && generatedMove.Action is MoveToRangeActionDefinition,
+            "Generated move_to_range should use one immutable definition and candidate metadata."
         );
     }
 
     private void TestGenerationIsSlotFamilyScopedNotGlobalSkillSuppressed()
     {
         Fixture fixture = BuildFixture();
-        BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
+        using BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
             fixture.Unit,
             fixture.Brain,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
-        IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
+        IReadOnlyList<BattleAiRuntimeActionEntry> entries = plan.GetActionEntries("engage");
+
         _test.True(
-            HasActionForSkill<UseRandomChainSkillAction>(actions, "chain_arc"),
-            "Random-chain skills should generate use_random_chain_skill actions."
+            FindEntryForSkill<UseRandomChainSkillActionDefinition>(entries, "chain_arc") != null,
+            "Random-chain skills should generate use_random_chain_skill definitions."
         );
         _test.True(
-            FindMoveActionForSkill(actions, "chain_arc") != null,
+            FindEntryForSkill<MoveToRangeActionDefinition>(entries, "chain_arc") != null,
             "The same random-chain skill should also generate its move_to_range companion."
         );
         _test.True(
-            !HasActionForSkill<UseMultiUnitSkillAction>(actions, "chain_arc"),
-            "Random-chain skills should not generate use_multi_unit_skill actions."
+            FindEntryForSkill<UseMultiUnitSkillActionDefinition>(entries, "chain_arc") == null,
+            "Random-chain skills should not generate use_multi_unit_skill definitions."
         );
         _test.True(
-            !HasActionForSkill<MoveToMultiUnitSkillPositionAction>(actions, "chain_arc"),
-            "Random-chain skills should not generate move_to_multi_unit_skill_position actions."
+            FindEntryForSkill<MoveToMultiUnitSkillPositionActionDefinition>(entries, "chain_arc")
+                == null,
+            "Random-chain skills should not generate multi-unit positioning definitions."
+        );
+        _test.True(
+            FindEntryForSkill<MoveToMultiUnitSkillPositionActionDefinition>(entries, "wide_arc")
+                != null,
+            "Multi-unit skills should generate typed positioning definitions."
+        );
+        _test.True(
+            FindEntryForSkill<UseGroundSkillActionDefinition>(entries, "ground_burst") != null,
+            "Ground skills should generate typed ground-skill definitions."
         );
     }
 
     private void TestGeneratedMetadataContainsStableRuntimeIdentity()
     {
         Fixture fixture = BuildFixture();
-        BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
+        using BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
             fixture.Unit,
             fixture.Brain,
-            fixture.SkillDefs
+            fixture.SkillDefinitions
         );
 
-        foreach (EnemyAiAction action in plan.GetActions("engage"))
+        foreach (BattleAiRuntimeActionEntry entry in plan.GetActionEntries("engage"))
         {
-            BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata = plan.GetActionMetadata(action);
+            BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata = entry.Metadata;
             if (!metadata.generated || metadata.skill_id != (StringName)"bolt")
-            {
                 continue;
-            }
 
             _test.Eq(metadata.state_id, new StringName("engage"), "Generated metadata should include state_id.");
             _test.Eq(metadata.slot_id, new StringName("offense"), "Generated metadata should include slot_id.");
@@ -130,9 +151,18 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
                 "Generated metadata should include action_family."
             );
             _test.Eq(
-                action.score_bucket_id,
+                metadata.identity_key,
+                "engage/offense/bolt/use_unit_skill",
+                "Generated metadata should use stable typed content identity."
+            );
+            _test.Eq(
+                entry.ScoreBucketId,
                 new StringName("harrier_pressure"),
-                "Slot score_bucket_id should override generated action score bucket."
+                "Slot score_bucket_id should override the generated definition."
+            );
+            _test.True(
+                entry.Action is UseUnitSkillActionDefinition,
+                "Generated unit-skill entries should use the shared definition type."
             );
             return;
         }
@@ -141,22 +171,28 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
 
     private static Fixture BuildFixture()
     {
-        var stateDef = new EnemyAiStateDef { state_id = "engage" };
-        var unitTemplate = new UseUnitSkillAction
-        {
-            action_id = "template_unit",
-            score_bucket_id = "frontline_pressure",
-            target_selector = "nearest_enemy",
-        };
-        var moveTemplate = new MoveToRangeAction
-        {
-            action_id = "template_move",
-            score_bucket_id = "archer_survival",
-            target_selector = "nearest_enemy",
-        };
-        stateDef.actions = new Godot.Collections.Array<EnemyAiAction> { unitTemplate, moveTemplate };
-        stateDef.generation_slots = new Godot.Collections.Array<EnemyAiGenerationSlotDef>
-        {
+        var stateResource = new EnemyAiStateDef { state_id = "engage" };
+        var unitTemplate = TestResourceOwnership.Own(
+            new UseUnitSkillAction
+            {
+                action_id = "template_unit",
+                score_bucket_id = "frontline_pressure",
+                target_selector = "nearest_enemy",
+            },
+            "BattleAiActionAssemblerPlan.BuildFixture.unit_template"
+        );
+        var moveTemplate = TestResourceOwnership.Own(
+            new MoveToRangeAction
+            {
+                action_id = "template_move",
+                score_bucket_id = "archer_survival",
+                target_selector = "nearest_enemy",
+            },
+            "BattleAiActionAssemblerPlan.BuildFixture.move_template"
+        );
+        stateResource.actions.Add(unitTemplate);
+        stateResource.actions.Add(moveTemplate);
+        stateResource.generation_slots.Add(
             Slot(
                 "offense",
                 10,
@@ -164,7 +200,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
                 new[] { new StringName("use_unit_skill") },
                 "template_unit",
                 "harrier_pressure"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "chain_cast",
                 20,
@@ -172,7 +210,9 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
                 new[] { new StringName("use_random_chain_skill") },
                 "template_unit",
                 "frontline_pressure"
-            ),
+            )
+        );
+        stateResource.generation_slots.Add(
             Slot(
                 "chain_move",
                 30,
@@ -180,41 +220,79 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
                 new[] { new StringName("move_to_range") },
                 "template_move",
                 "archer_survival"
-            ),
-        };
+            )
+        );
+        stateResource.generation_slots.Add(
+            Slot(
+                "multi_move",
+                40,
+                new[] { new StringName("multi_unit") },
+                new[] { new StringName("move_to_multi_unit_skill_position") },
+                "template_move",
+                "archer_survival"
+            )
+        );
+        stateResource.generation_slots.Add(
+            Slot(
+                "ground_cast",
+                50,
+                new[] { new StringName("ground_hostile.aoe") },
+                new[] { new StringName("use_ground_skill") },
+                "template_unit",
+                "frontline_pressure"
+            )
+        );
+        TestResourceOwnership.Own(
+            stateResource,
+            "BattleAiActionAssemblerPlan.BuildFixture.state"
+        );
 
-        var brain = new EnemyAiBrainDef
+        var brainResource = new EnemyAiBrainDef
         {
             brain_id = "plan_brain",
             default_state_id = "engage",
-            states = new Godot.Collections.Array<EnemyAiStateDef> { stateDef },
         };
+        brainResource.states.Add(stateResource);
+        TestResourceOwnership.Own(
+            brainResource,
+            "BattleAiActionAssemblerPlan.BuildFixture.brain"
+        );
+        EnemyAiBrainDefinition brain = brainResource.ToDefinition();
         var unit = new BattleUnitState
         {
             unit_id = "actor",
-            ai_brain_id = brain.brain_id,
-            known_active_skill_ids = new GStringNameArray { "bolt", "chain_arc" },
+            ai_brain_id = brain.BrainId,
         };
+        unit.SetKnownActiveSkillIds(
+            new StringName[] { "bolt", "chain_arc", "wide_arc", "ground_burst" }
+        );
         unit.SetKnownSkillLevelsTyped(
             new Dictionary<StringName, int>
             {
                 ["bolt"] = 1,
                 ["chain_arc"] = 1,
+                ["wide_arc"] = 1,
+                ["ground_burst"] = 1,
             }
         );
+
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
+        {
+            ["bolt"] = Skill("bolt", "unit", "enemy", "damage"),
+            ["chain_arc"] = ChainSkill(),
+            ["wide_arc"] = MultiUnitSkill(),
+            ["ground_burst"] = Skill("ground_burst", "ground", "enemy", "damage"),
+        };
 
         return new Fixture
         {
             Assembler = new BattleAiActionAssembler(),
             Brain = brain,
-            StateDef = stateDef,
+            StateResource = stateResource,
             Unit = unit,
-            MoveTemplate = moveTemplate,
-            SkillDefs = new Dictionary<StringName, SkillDef>
-            {
-                ["bolt"] = Skill("bolt", "unit", "enemy", "damage"),
-                ["chain_arc"] = ChainSkill(),
-            },
+            MoveTemplateResource = moveTemplate,
+            MoveTemplateDefinition = brain.GetState("engage").Actions[1] as MoveToRangeActionDefinition,
+            SkillDefinitions = skillDefinitions,
         };
     }
 
@@ -236,97 +314,106 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             target_selector = "nearest_enemy",
         };
         foreach (StringName affordance in affordances)
-        {
             slot.allowed_affordances.Add(affordance);
-        }
         foreach (StringName family in families)
-        {
             slot.action_families.Add(family);
-        }
-        return slot;
+        return TestResourceOwnership.Own(
+            slot,
+            $"BattleAiActionAssemblerPlan.Slot.{slotId}"
+        );
     }
 
-    private static SkillDef Skill(
+    private static SkillDefinition Skill(
         StringName skillId,
         StringName targetMode,
         StringName targetFilter,
         StringName effectType
-    )
-    {
-        var skill = new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            skill_type = "active",
-        };
-        var combat = new CombatSkillDef
-        {
-            target_mode = targetMode,
-            target_team_filter = targetFilter,
-            range_pattern = "fixed",
-            range_value = 4,
-        };
-        combat.effect_defs.Add(Effect(effectType));
-        skill.combat_profile = combat;
-        return skill;
-    }
+    ) =>
+        Skill(
+            skillId,
+            targetMode,
+            targetFilter,
+            effectType,
+            targetSelectionMode: default,
+            maxHitsPerTarget: 0
+        );
 
-    private static SkillDef ChainSkill()
-    {
-        SkillDef skill = Skill("chain_arc", "unit", "enemy", "chain_damage");
-        CombatSkillDef combat = skill.combat_profile as CombatSkillDef;
-        combat.target_selection_mode = "random_chain";
-        combat.max_hits_per_target = 2;
-        return skill;
-    }
+    private static SkillDefinition ChainSkill() =>
+        Skill(
+            "chain_arc",
+            "unit",
+            "enemy",
+            "chain_damage",
+            BattleTypedNames.ToStringName(BattleTargetSelectionMode.RandomChain),
+            2
+        );
 
-    private static CombatEffectDef Effect(StringName effectType)
-    {
-        return new CombatEffectDef { effect_type = effectType };
-    }
+    private static SkillDefinition MultiUnitSkill() =>
+        Skill(
+            "wide_arc",
+            "unit",
+            "enemy",
+            "damage",
+            BattleTypedNames.ToStringName(BattleTargetSelectionMode.MultiUnit),
+            0
+        );
 
-    private static bool HasActionForSkill<TAction>(
-        IReadOnlyList<EnemyAiAction> actions,
+    private static SkillDefinition Skill(
+        StringName skillId,
+        StringName targetMode,
+        StringName targetFilter,
+        StringName effectType,
+        StringName targetSelectionMode,
+        int maxHitsPerTarget
+    ) =>
+        TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            skillId.ToString(),
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { TestSkillDefinitionProjection.BuildEffect(effectType) },
+                targetMode: targetMode,
+                targetTeamFilter: targetFilter,
+                rangePattern: "fixed",
+                rangeValue: 4,
+                targetSelectionMode: targetSelectionMode,
+                maxHitsPerTarget: maxHitsPerTarget
+            )
+        );
+
+    private static BattleAiRuntimeActionEntry FindEntryForSkill<TAction>(
+        IReadOnlyList<BattleAiRuntimeActionEntry> entries,
         StringName skillId
     )
-        where TAction : EnemyAiAction
+        where TAction : EnemyAiActionDefinition
     {
-        foreach (EnemyAiAction action in actions)
+        foreach (BattleAiRuntimeActionEntry entry in entries)
         {
-            if (action is TAction && action.GetDeclaredSkillIds().Contains(skillId))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static MoveToRangeAction FindMoveActionForSkill(
-        IReadOnlyList<EnemyAiAction> actions,
-        StringName skillId
-    )
-    {
-        foreach (EnemyAiAction action in actions)
-        {
-            if (action is MoveToRangeAction moveAction && moveAction.range_skill_ids.Contains(skillId))
-            {
-                return moveAction;
-            }
+            if (entry?.Action is TAction && ContainsSkillId(entry.Action.DeclaredSkillIds, skillId))
+                return entry;
         }
         return null;
     }
 
-    private static EnemyAiAction FindActionById(
-        IReadOnlyList<EnemyAiAction> actions,
+    private static bool ContainsSkillId(IReadOnlyList<StringName> skillIds, StringName skillId)
+    {
+        foreach (StringName candidate in skillIds ?? Array.Empty<StringName>())
+        {
+            if (candidate == skillId)
+                return true;
+        }
+        return false;
+    }
+
+    private static EnemyAiActionDefinition FindActionById(
+        IReadOnlyList<EnemyAiActionDefinition> actions,
         StringName actionId
     )
     {
-        foreach (EnemyAiAction action in actions)
+        foreach (EnemyAiActionDefinition action in actions)
         {
-            if (action != null && action.action_id == actionId)
-            {
+            if (action?.ActionId == actionId)
                 return action;
-            }
         }
         return null;
     }
@@ -334,10 +421,11 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
     private sealed class Fixture
     {
         public BattleAiActionAssembler Assembler;
-        public EnemyAiBrainDef Brain;
-        public EnemyAiStateDef StateDef;
+        public EnemyAiBrainDefinition Brain;
+        public EnemyAiStateDef StateResource;
         public BattleUnitState Unit;
-        public MoveToRangeAction MoveTemplate;
-        public Dictionary<StringName, SkillDef> SkillDefs;
+        public MoveToRangeAction MoveTemplateResource;
+        public MoveToRangeActionDefinition MoveTemplateDefinition;
+        public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     }
 }

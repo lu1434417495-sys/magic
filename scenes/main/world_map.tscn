@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=22 format=3]
 ; Scene purpose: World map root scene that hosts exploration, battle overlays, and related windows.
 ; Review focus: verify external resources, root-node ownership, and major subtrees stay aligned.
 
@@ -16,9 +16,13 @@
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/basic_map_dark.png" id="10_2dj0w"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/village_dark.png" id="11_village"]
 [ext_resource type="Texture2D" path="res://assets/main/basic_map/npc/protagonist.png" id="12_2mc6t"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/farm.png" id="17_farm"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/herb_garden.png" id="18_herb"]
+[ext_resource type="Texture2D" path="res://assets/main/basic_map/mine.png" id="19_mine"]
 [ext_resource type="PackedScene" path="res://scenes/ui/submap_entry_window.tscn" id="13_submap"]
 [ext_resource type="PackedScene" path="res://scenes/ui/shop_window.tscn" id="14_shop"]
 [ext_resource type="PackedScene" path="res://scenes/ui/runtime_log_dock.tscn" id="15_runtime_log"]
+[ext_resource type="PackedScene" path="res://scenes/ui/npc_quest_offer_dialog.tscn" id="16_npcoffer"]
 
 ; Local sub-resources defined inline for this scene only.
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
@@ -107,6 +111,9 @@ script = ExtResource("2_7d2f8")
 cell_background_texture = ExtResource("10_2dj0w")
 player_texture = ExtResource("12_2mc6t")
 village_settlement_texture = ExtResource("11_village")
+farm_resource_texture = ExtResource("17_farm")
+herb_resource_texture = ExtResource("18_herb")
+mine_resource_texture = ExtResource("19_mine")
 
 [node name="BattleMapPanel" parent="MapViewport" instance=ExtResource("5_ba71e")]
 visible = false
@@ -196,6 +203,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 
 [node name="StagecoachServiceModal" parent="." instance=ExtResource("14_shop")]
+unique_name_in_owner = true
+
+[node name="NpcQuestOfferDialog" parent="." instance=ExtResource("16_npcoffer")]
 unique_name_in_owner = true
 
 [node name="CharacterInfoWindow" parent="." instance=ExtResource("6_l1m8n")]

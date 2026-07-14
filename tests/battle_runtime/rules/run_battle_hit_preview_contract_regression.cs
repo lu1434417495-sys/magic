@@ -2,12 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_hit_preview_contract_regression : SceneTree
+public partial class run_battle_hit_preview_contract_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -27,13 +24,28 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle hit preview contract regression"));
+        RequestTestExit(_test.Finish("Battle hit preview contract regression"));
     }
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
-        ProgressionContentRegistry registry = null;
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue(
+            BLACK_CONTRACT_PUSH_SKILL_ID,
+            out SkillDefinition skillDefinition
+        );
+        _test.True(
+            skillDefinition != null && skillDefinition.CombatProfile != null,
+            "黑契推进预览前置：技能定义应存在。"
+        );
+        if (skillDefinition == null || skillDefinition.CombatProfile == null)
+        {
+            registry.Dispose();
+            return;
+        }
+
         var runtime = new BattleRuntimeModule();
         BattleState state = null;
         BattleUnitState caster = null;
@@ -42,22 +54,11 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         BattlePreview preview = null;
         try
         {
-            registry = new ProgressionContentRegistry();
-            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-                new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
-            GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-            var skillDef = GetObject<SkillDef>(skillDefs, BLACK_CONTRACT_PUSH_SKILL_ID);
-            _test.True(skillDef != null && skillDef.combat_profile != null, "黑契推进预览前置：技能定义应存在。");
-            if (skillDef == null || skillDef.combat_profile == null)
-            {
-                return;
-            }
-
             runtime.setup(
                 null,
-                typedSkillDefs,
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
+                skillDefinitions,
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
                 null
             );
             state = _BuildState("preview_contract_force_hit");
@@ -104,16 +105,36 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview);
-            SuppressBorrowedSkillResources(registry?.GetSkillDefsTyped());
-            registry?.Dispose();
+            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, caster, target);
+            registry.Dispose();
         }
     }
 
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
-        ProgressionContentRegistry registry = null;
-        GameSession gameSession = null;
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue(
+            WARRIOR_HEAVY_STRIKE_SKILL_ID,
+            out SkillDefinition skillDefinition
+        );
+        _test.True(
+            skillDefinition != null && skillDefinition.CombatProfile != null,
+            "重击 HUD 预览前置：技能定义应存在。"
+        );
+        if (skillDefinition == null || skillDefinition.CombatProfile == null)
+        {
+            registry.Dispose();
+            return;
+        }
+
+        GameSession gameSession = await _InstallTestGameSession();
+        if (gameSession == null)
+        {
+            registry.Dispose();
+            return;
+        }
         var runtime = new BattleRuntimeModule();
         BattleHudAdapter adapter = null;
         BattleState state = null;
@@ -124,28 +145,11 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         BattlePreview critLockedPreview = null;
         try
         {
-            registry = new ProgressionContentRegistry();
-            IReadOnlyDictionary<StringName, SkillDef> typedSkillDefs =
-                new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
-            GDictionary skillDefs = ProjectSkillDefs(typedSkillDefs);
-            var skillDef = GetObject<SkillDef>(skillDefs, WARRIOR_HEAVY_STRIKE_SKILL_ID);
-            _test.True(skillDef != null && skillDef.combat_profile != null, "重击 HUD 预览前置：技能定义应存在。");
-            if (skillDef == null || skillDef.combat_profile == null)
-            {
-                return;
-            }
-
-            gameSession = await _InstallTestGameSession();
-            if (gameSession == null)
-            {
-                return;
-            }
-
             runtime.setup(
                 null,
-                typedSkillDefs,
-                new Dictionary<StringName, EnemyTemplateDef>(),
-                new Dictionary<StringName, EnemyAiBrainDef>(),
+                skillDefinitions,
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
                 null
             );
             var trapDamageResolver = new TrapDamageResolver();
@@ -192,16 +196,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             _test.True((preview?.FatePreviewTyped?.CritGateDie ?? 0) > 0, "重击 runtime fate preview 应暴露暴击门。");
             _test.True((preview?.FatePreviewTyped?.FumbleLowEnd ?? 0) > 0, "重击 runtime fate preview 应暴露大失败区间。");
             _test.Eq(trapDamageResolver.ResolveEffectsCalls, 0, "runtime preview 不应通过 BattleDamageResolver.ResolveEffects() 偷取伤害结果。");
-            _test.Eq(preview?.damage_preview?.GetValueOrDefault("min_damage", 0).AsInt32() ?? 0, 2, "runtime preview 应暴露非暴击基础伤害下限。");
-            _test.Eq(preview?.damage_preview?.GetValueOrDefault("max_damage", 0).AsInt32() ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
+            _test.Eq(preview?.DamagePreviewTyped?.MinDamage ?? 0, 2, "runtime preview 应暴露非暴击基础伤害下限。");
+            _test.Eq(preview?.DamagePreviewTyped?.MaxDamage ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
 
             adapter = new BattleHudAdapter();
             adapter.SetupRuntimeContext(null, gameSession);
-            GDictionary snapshot = adapter.BuildSnapshot(
+            BattleHudSnapshot snapshot = adapter.BuildSnapshot(
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -210,23 +214,26 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 "",
                 preview
             );
-            var snapshotStageRates = snapshot.GetValueOrDefault("selected_skill_hit_stage_rates", new GIntArray()).AsGodotArray();
-            var previewStageRates = preview?.hit_preview?.StageHitRates ?? new GIntArray();
-            _test.Eq(snapshotStageRates.Count, previewStageRates.Count, "HUD snapshot 应保留普通单段技能的阶段命中率数组长度。");
-            for (int i = 0; i < Mathf.Min(snapshotStageRates.Count, previewStageRates.Count); i++)
+            IReadOnlyList<int> snapshotStageRates = snapshot.SelectedSkillHitStageRates;
+            IReadOnlyList<AttackPreviewStage> previewStages =
+                preview?.hit_preview?.Stages is List<AttackPreviewStage> stages
+                    ? stages
+                    : Array.Empty<AttackPreviewStage>();
+            _test.Eq(snapshotStageRates.Count, previewStages.Count, "HUD snapshot 应保留普通单段技能的阶段命中率数组长度。");
+            for (int i = 0; i < Mathf.Min(snapshotStageRates.Count, previewStages.Count); i++)
             {
-                _test.Eq(snapshotStageRates[i].AsInt32(), previewStageRates[i], $"HUD snapshot stage rate[{i}] 应与 runtime 一致。");
+                _test.Eq(snapshotStageRates[i], previewStages[i].SuccessRatePercent, $"HUD snapshot stage rate[{i}] 应与 runtime 一致。");
             }
-            _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_min", 0).AsInt32(), 2, "HUD snapshot 应暴露非暴击基础伤害下限。");
-            _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_max", 0).AsInt32(), 10, "HUD snapshot 应暴露非暴击基础伤害上限。");
-            GArray fateBadges = snapshot.GetValueOrDefault("selected_skill_fate_badges", new GArray()).AsGodotArray();
+            _test.Eq(snapshot.SelectedSkillDamageMin, 2, "HUD snapshot 应暴露非暴击基础伤害下限。");
+            _test.Eq(snapshot.SelectedSkillDamageMax, 10, "HUD snapshot 应暴露非暴击基础伤害上限。");
+            IReadOnlyList<BattleHudFateBadgeSnapshot> fateBadges = snapshot.SelectedSkillFateBadges;
             _test.True(fateBadges.Count >= 3, "HUD snapshot 应保留普通 fate 攻击的 fate badges。");
             _test.True(BadgesContainText(fateBadges, "暴击门"), "HUD fate badges 应包含暴击门。");
             _test.True(BadgesContainText(fateBadges, "大失败"), "HUD fate badges 应包含大失败区间。");
-            string tooltip = snapshot.GetValueOrDefault("selected_skill_preview_tooltip_text", "").AsString();
+            string tooltip = snapshot.SelectedSkillPreviewTooltipText;
             _test.True(tooltip.Contains("命运判定概览"), "HUD tooltip 应包含 runtime fate 预览说明。");
 
-            GDictionary hoverPreview = adapter.BuildHoverPreview(
+            BattleHoverSnapshot hoverPreview = adapter.BuildHoverPreview(
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
@@ -234,15 +241,15 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 new Godot.Collections.Array<Vector2I> { target.coord },
                 preview
             );
-            GArray hoverFateBadges = hoverPreview.GetValueOrDefault("fate_badges", new GArray()).AsGodotArray();
+            IReadOnlyList<BattleHudFateBadgeSnapshot> hoverFateBadges = hoverPreview.FateBadges;
             _test.True(hoverFateBadges.Count >= 3, "HUD hover preview 应保留普通 fate 攻击的 fate badges。");
 
             critLockedPreview = BuildCritLockedPreview();
-            GDictionary critLockedSnapshot = adapter.BuildSnapshot(
+            BattleHudSnapshot critLockedSnapshot = adapter.BuildSnapshot(
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -251,19 +258,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 "",
                 critLockedPreview
             );
-            GArray critLockedBadges = critLockedSnapshot
-                .GetValueOrDefault("selected_skill_fate_badges", new GArray())
-                .AsGodotArray();
+            IReadOnlyList<BattleHudFateBadgeSnapshot> critLockedBadges =
+                critLockedSnapshot.SelectedSkillFateBadges;
             _test.True(BadgesContainText(critLockedBadges, "禁暴击"), "HUD snapshot 暴击锁定时应显示禁暴击。");
             _test.False(BadgesContainText(critLockedBadges, "暴击门"), "HUD snapshot 暴击锁定时不应显示暴击门。");
             _test.False(BadgesContainText(critLockedBadges, "高位大成功"), "HUD snapshot 暴击锁定时不应显示高位大成功。");
             _test.True(BadgesContainText(critLockedBadges, "大失败"), "HUD snapshot 暴击锁定时仍应显示大失败区间。");
-            string critLockedTooltip = critLockedSnapshot
-                .GetValueOrDefault("selected_skill_preview_tooltip_text", "")
-                .AsString();
+            string critLockedTooltip = critLockedSnapshot.SelectedSkillPreviewTooltipText;
             _test.True(critLockedTooltip.Contains("暴击：已封锁"), "HUD tooltip 暴击锁定时应说明暴击已封锁。");
 
-            GDictionary critLockedHoverPreview = adapter.BuildHoverPreview(
+            BattleHoverSnapshot critLockedHoverPreview = adapter.BuildHoverPreview(
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
@@ -271,9 +275,8 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 new Godot.Collections.Array<Vector2I> { target.coord },
                 critLockedPreview
             );
-            GArray critLockedHoverBadges = critLockedHoverPreview
-                .GetValueOrDefault("fate_badges", new GArray())
-                .AsGodotArray();
+            IReadOnlyList<BattleHudFateBadgeSnapshot> critLockedHoverBadges =
+                critLockedHoverPreview.FateBadges;
             _test.True(BadgesContainText(critLockedHoverBadges, "禁暴击"), "HUD hover 暴击锁定时应显示禁暴击。");
             _test.False(BadgesContainText(critLockedHoverBadges, "暴击门"), "HUD hover 暴击锁定时不应显示暴击门。");
             critLockedBadges = null;
@@ -283,11 +286,11 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             BattleTestFixture.DisposeBattlePreview(critLockedPreview);
             critLockedPreview = null;
 
-            GDictionary snapshotWithoutRuntimePreview = adapter.BuildSnapshot(
+            BattleHudSnapshot snapshotWithoutRuntimePreview = adapter.BuildSnapshot(
                 state,
                 target.coord,
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
-                skillDef.display_name,
+                skillDefinition.DisplayName,
                 "",
                 new Godot.Collections.Array<Vector2I>(),
                 1,
@@ -297,83 +300,42 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 null
             );
             _test.Eq(
-                snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_hit_stage_rates", new GIntArray()).AsGodotArray().Count,
+                snapshotWithoutRuntimePreview.SelectedSkillHitStageRates.Count,
                 0,
                 "HUD snapshot 未传 runtime preview 时不应自算阶段命中率。"
             );
             _test.Eq(
-                snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_damage_min", 0).AsInt32(),
+                snapshotWithoutRuntimePreview.SelectedSkillDamageMin,
                 0,
                 "HUD snapshot 未传 runtime preview 时不应自算伤害下限。"
             );
             _test.Eq(
-                snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_damage_max", 0).AsInt32(),
+                snapshotWithoutRuntimePreview.SelectedSkillDamageMax,
                 0,
                 "HUD snapshot 未传 runtime preview 时不应自算伤害上限。"
             );
             _test.Eq(
-                snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_fate_badges", new GArray()).AsGodotArray().Count,
+                snapshotWithoutRuntimePreview.SelectedSkillFateBadges.Count,
                 0,
                 "HUD snapshot 未传 runtime preview 时不应自算 fate badges。"
             );
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, critLockedPreview);
+            BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, critLockedPreview, attacker, target);
             adapter?.Dispose();
-            SuppressBorrowedSkillResources(registry?.GetSkillDefsTyped());
-            registry?.Dispose();
+            registry.Dispose();
             if (gameSession != null)
             {
                 if (GodotObject.IsInstanceValid(gameSession))
                 {
                     gameSession.ClearPersistedGame();
                     if (_ownsInstalledGameSession)
-                        gameSession.Dispose();
+                        gameSession.QueueFree();
                 }
                 _ownsInstalledGameSession = false;
             }
             await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        }
-    }
-
-    private static void SuppressBorrowedSkillResources(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        if (skillDefs == null)
-            return;
-        foreach (SkillDef skillDef in skillDefs.Values)
-        {
-            if (skillDef == null)
-                continue;
-            GC.SuppressFinalize(skillDef);
-            if (skillDef.combat_profile != null)
-            {
-                GC.SuppressFinalize(skillDef.combat_profile);
-                SuppressBorrowedEffects(skillDef.combat_profile.effect_defs);
-                foreach (CombatCastVariantDef castVariant in skillDef.combat_profile.cast_variants)
-                {
-                    if (castVariant == null)
-                        continue;
-                    GC.SuppressFinalize(castVariant);
-                    SuppressBorrowedEffects(castVariant.effect_defs);
-                }
-            }
-        }
-    }
-
-    private static void SuppressBorrowedEffects(Godot.Collections.Array<CombatEffectDef> effectDefs)
-    {
-        if (effectDefs == null)
-            return;
-        Godot.Collections.Array rawEffectDefs = (Godot.Collections.Array)effectDefs;
-        foreach (Variant rawEffect in rawEffectDefs)
-        {
-            if (rawEffect.VariantType != Variant.Type.Object)
-                continue;
-            if (rawEffect.AsGodotObject() is CombatEffectDef effectDef)
-                GC.SuppressFinalize(effectDef);
         }
     }
 
@@ -397,13 +359,12 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
                 }
                 else
                 {
-                    GC.SuppressFinalize(child);
                     child.QueueFree();
                 }
             }
         }
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        var gameSession = new GameSession();
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         gameSession.Name = "GameSession";
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(
@@ -420,22 +381,6 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         Root.AddChild(gameSession);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         return gameSession;
-    }
-
-    private static GDictionary ProjectSkillDefs(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
-    )
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
     }
 
     private BattleState _BuildState(StringName battleId)
@@ -540,17 +485,11 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? new StringName("");
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;
-    }
-
-    private static T GetObject<T>(GDictionary dict, StringName key) where T : GodotObject
-    {
-        if (dict == null || !dict.ContainsKey(key))
-            return null;
-        return dict[key].AsGodotObject() as T;
     }
 
     private static BattlePreview BuildCritLockedPreview()
@@ -577,14 +516,16 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         };
     }
 
-    private static bool BadgesContainText(GArray badges, string fragment)
+    private static bool BadgesContainText(
+        IEnumerable<BattleHudFateBadgeSnapshot> badges,
+        string fragment
+    )
     {
         if (badges == null || string.IsNullOrEmpty(fragment))
             return false;
-        foreach (Variant item in badges)
+        foreach (BattleHudFateBadgeSnapshot badge in badges)
         {
-            GDictionary badge = item.AsGodotDictionary();
-            string text = badge.GetValueOrDefault("text", "").AsString();
+            string text = badge?.Text ?? "";
             if (text.Contains(fragment))
                 return true;
         }

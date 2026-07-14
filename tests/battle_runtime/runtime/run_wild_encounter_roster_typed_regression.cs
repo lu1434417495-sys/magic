@@ -1,10 +1,9 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_wild_encounter_roster_typed_regression : SceneTree
+public partial class run_wild_encounter_roster_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,59 +17,48 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
         TestTypedStageSelectionUsesNearestDeclaredStage();
         TestSchemaValidationUsesTypedTemplateIdBoundary();
         TestEncounterRosterBuilderBuildsMixedMistHollowUnits();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Wild encounter roster typed regression"));
+        RequestTestExit(_test.Finish("Wild encounter roster typed regression"));
     }
 
     private void TestTypedStageSelectionUsesNearestDeclaredStage()
     {
-        using WildEncounterRosterDef roster = new()
-        {
-            profile_id = "typed_stage_roster",
-            display_name = "Typed Stage Roster",
-            initial_stage = 0,
-        };
-        roster.stages.Add(
-            BuildStage(
+        WildEncounterRosterDefinition roster = new(
+            "typed_stage_roster",
+            "Typed Stage Roster",
+            0,
+            1,
+            0,
+            new[]
+            {
+                BuildDefinitionStage(
                 0,
-                new WildEncounterRosterUnitEntryDef
-                {
-                    template_id = "wolf",
-                    count = 1,
-                    display_name = "荒狼前锋",
-                }
-            )
-        );
-        roster.stages.Add(
-            BuildStage(
+                    new WildEncounterRosterUnitEntryDefinition("wolf", 1, "荒狼前锋")
+                ),
+                BuildDefinitionStage(
                 2,
-                new WildEncounterRosterUnitEntryDef
-                {
-                    template_id = "wolf_shaman",
-                    count = 2,
-                    display_name = "织咒者",
-                }
-            )
+                    new WildEncounterRosterUnitEntryDefinition("wolf_shaman", 2, "织咒者")
+                ),
+            }
         );
 
-        IReadOnlyList<WildEncounterRosterUnitEntryDef> stageOneEntries =
-            roster.GetStageUnitEntriesTyped(1);
+        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> stageOneEntries =
+            roster.GetStageUnitEntries(1);
         _test.Eq(stageOneEntries.Count, 1, "growth_stage=1 时应命中最近的已声明 stage 0。");
         if (stageOneEntries.Count > 0)
         {
-            _test.Eq(stageOneEntries[0].template_id.ToString(), "wolf", "stage 0 template_id 应被 typed 读取。");
-            _test.Eq(stageOneEntries[0].count, 1, "stage 0 count 应被 typed 读取。");
-            _test.Eq(stageOneEntries[0].display_name, "荒狼前锋", "stage 0 display_name 应被 typed 读取。");
+            _test.Eq(stageOneEntries[0].TemplateId.ToString(), "wolf", "stage 0 template_id 应被 typed 读取。");
+            _test.Eq(stageOneEntries[0].Count, 1, "stage 0 count 应被 typed 读取。");
+            _test.Eq(stageOneEntries[0].DisplayName, "荒狼前锋", "stage 0 display_name 应被 typed 读取。");
         }
 
-        IReadOnlyList<WildEncounterRosterUnitEntryDef> stageThreeEntries =
-            roster.GetStageUnitEntriesTyped(3);
+        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> stageThreeEntries =
+            roster.GetStageUnitEntries(3);
         _test.Eq(stageThreeEntries.Count, 1, "growth_stage=3 时应命中最近的已声明 stage 2。");
         if (stageThreeEntries.Count > 0)
         {
-            _test.Eq(stageThreeEntries[0].template_id.ToString(), "wolf_shaman", "stage 2 template_id 应被 typed 读取。");
-            _test.Eq(stageThreeEntries[0].count, 2, "stage 2 count 应被 typed 读取。");
-            _test.Eq(stageThreeEntries[0].display_name, "织咒者", "stage 2 display_name 应被 typed 读取。");
+            _test.Eq(stageThreeEntries[0].TemplateId.ToString(), "wolf_shaman", "stage 2 template_id 应被 typed 读取。");
+            _test.Eq(stageThreeEntries[0].Count, 2, "stage 2 count 应被 typed 读取。");
+            _test.Eq(stageThreeEntries[0].DisplayName, "织咒者", "stage 2 display_name 应被 typed 读取。");
         }
     }
 
@@ -109,11 +97,11 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
 
     private void TestEncounterRosterBuilderBuildsMixedMistHollowUnits()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
 
         EncounterAnchorData encounterAnchor = new()
@@ -128,13 +116,14 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
             encounter_profile_id = "mist_hollow",
             growth_stage = 2,
         };
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray enemyUnits = enemyUnitsLease.Value;
 
         _test.Eq(enemyUnits.Count, 5, "mist_hollow 第 2 阶段应构建 5 个敌方单位。");
         _test.Eq(
@@ -184,6 +173,11 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
         return stageDef;
     }
 
+    private static WildEncounterRosterStageDefinition BuildDefinitionStage(
+        int stage,
+        params WildEncounterRosterUnitEntryDefinition[] unitEntries
+    ) => new(stage, unitEntries);
+
     private static string FormatErrors(IEnumerable<string> errors)
     {
         List<string> values = new();
@@ -192,50 +186,6 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
             values.Add(error);
         }
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
-    }
-
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
-    )
-    {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
-            result[templateId] = template;
-        return result;
-    }
-
-    private static GDictionary ProjectEnemyAiBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
-    )
-    {
-        GDictionary result = new();
-        if (enemyAiBrains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
-            result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-            result[itemId] = itemDef;
-        return result;
     }
 
     private static int CountUnitsWithTemplateId(GArray enemyUnits, StringName templateId)
@@ -293,24 +243,7 @@ public partial class run_wild_encounter_roster_typed_regression : SceneTree
 
     private static bool TryAsBattleUnitState(object rawValue, out BattleUnitState value)
     {
-        if (rawValue is BattleUnitState typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<BattleUnitState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
+        return BattleUnitState.TryReadUnitPayload(rawValue, out value);
     }
 
 }

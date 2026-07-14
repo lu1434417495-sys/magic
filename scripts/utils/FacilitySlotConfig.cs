@@ -14,4 +14,7 @@ public partial class FacilitySlotConfig : Resource
 
     [Export]
     public bool required { get; set; } = false;
+
+    internal FacilitySlotDefinition ToDefinition(string path) =>
+        FacilitySlotDefinition.FromResource(this, path);
 }

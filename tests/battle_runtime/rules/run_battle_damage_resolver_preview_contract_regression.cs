@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_damage_resolver_preview_contract_regression : SceneTree
+public partial class run_battle_damage_resolver_preview_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -23,7 +23,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
             _test.Fail($"Battle damage resolver preview contract regression crashed: {ex}");
         }
 
-        Quit(_test.Finish("Battle damage resolver preview contract regression"));
+        RequestTestExit(_test.Finish("Battle damage resolver preview contract regression"));
     }
 
     private void TestPreviewDamageEffectUsesSharedDamageMathWithoutMutatingUnits()
@@ -37,18 +37,25 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         target.current_shield_hp = 5;
         target.shield_max_hp = 5;
         target.shield_duration = 100;
-        CombatEffectDef effect = MakeDamageEffect("fire", 10);
-        effect.dice_count = 2;
-        effect.dice_sides = 6;
-
-        GDictionary expectedPreview = resolver.PreviewDamageEffect(
-            source,
-            target,
-            effect,
-            new GDictionary(),
-            BattleDamagePreviewRollMode.Average,
-            BattleDamagePreviewSaveMode.Expected
+        CombatEffectDefinition effect = MakeDamageEffect(
+            "fire",
+            10,
+            diceCount: 2,
+            diceSides: 6
         );
+
+        using GodotProjectionLease<GDictionary> expectedPreviewLease =
+            BattleDamagePreviewProjection.BuildLease(
+            resolver.PreviewDamageEffectTyped(
+                source,
+                target,
+                effect,
+                DamageResolutionContext.Empty(),
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
+            )
+        );
+        GDictionary expectedPreview = expectedPreviewLease.Value;
         GDictionary expectedOutcome = DictDictionary(expectedPreview, "damage_outcome");
         _test.Eq(DictInt(expectedOutcome, "rolled_damage", -1), 20, "Average preview should reuse offense-multiplied rolled_damage.");
         _test.Eq(DictStringName(expectedOutcome, "mitigation_tier"), "half", "Average preview should reuse mitigation tier.");
@@ -57,14 +64,18 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         _test.Eq(DictInt(expectedPreview, "shield_absorbed", -1), 5, "Average preview should use shared shield absorption.");
         _test.Eq(DictInt(expectedPreview, "hp_damage", -1), 3, "Average preview hp_damage should subtract absorbed shield.");
 
-        GDictionary worstPreview = resolver.PreviewDamageEffect(
-            source,
-            target,
-            effect,
-            new GDictionary(),
-            BattleDamagePreviewRollMode.Maximum,
-            BattleDamagePreviewSaveMode.Worst
+        using GodotProjectionLease<GDictionary> worstPreviewLease =
+            BattleDamagePreviewProjection.BuildLease(
+            resolver.PreviewDamageEffectTyped(
+                source,
+                target,
+                effect,
+                DamageResolutionContext.Empty(),
+                BattleDamagePreviewRollMode.Maximum,
+                BattleDamagePreviewSaveMode.Worst
+            )
         );
+        GDictionary worstPreview = worstPreviewLease.Value;
         _test.Eq(DictInt(worstPreview, "post_save_damage", -1), 11, "Worst preview should use max dice and same mitigation chain.");
         _test.Eq(DictInt(worstPreview, "hp_damage", -1), 6, "Worst preview should resolve hp damage on cloned shield state.");
         _test.Eq(target.current_hp, 30, "Preview should not mutate target HP.");
@@ -78,20 +89,29 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("save_preview_source", "player");
         BattleUnitState target = MakeUnit("save_preview_target", "enemy");
-        CombatEffectDef effect = MakeDamageEffect("fire", 20);
-        effect.save_dc = 10;
-        effect.save_ability = "agility";
-        effect.save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic);
-        effect.save_partial_on_success = true;
-
-        GDictionary preview = resolver.PreviewDamageEffect(
-            source,
-            target,
-            effect,
-            new GDictionary { ["save_roll_override"] = 20 },
-            BattleDamagePreviewRollMode.Average,
-            BattleDamagePreviewSaveMode.Expected
+        CombatEffectDefinition effect = MakeDamageEffect(
+            "fire",
+            20,
+            saveDc: 10,
+            saveAbility: "agility",
+            saveTag: BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+            savePartialOnSuccess: true
         );
+
+        using GodotProjectionLease<GDictionary> previewLease =
+            BattleDamagePreviewProjection.BuildLease(
+            resolver.PreviewDamageEffectTyped(
+                source,
+                target,
+                effect,
+                DamageResolutionContext.FromDictionary(
+                    new GDictionary { ["save_roll_override"] = 20 }
+                ),
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
+            )
+        );
+        GDictionary preview = previewLease.Value;
         GDictionary saveEstimate = DictDictionary(preview, "save_estimate");
         _test.True(DictBool(saveEstimate, "has_save"), "Save preview should output save_estimate.");
         _test.Eq(
@@ -114,21 +134,22 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
 
         BattleUnitState healTarget = MakeUnit("heal_target", "player");
         healTarget.current_hp = 10;
-        var healEffect = new CombatEffectDef
-        {
-            effect_type = "heal",
-            effect_target_team_filter = "ally",
-            dice_count = 2,
-            dice_sides_base = 4,
-            dice_sides_per_constitution_mod = 1,
-            dice_sides_per_willpower_mod = 1,
-        };
-        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        CombatEffectDefinition healEffect = TestSkillDefinitionProjection.BuildEffect(
+            "heal",
+            effectTargetTeamFilter: "ally",
+            diceCount: 2,
+            diceSidesBase: 4,
+            diceSidesPerConstitutionMod: 1,
+            diceSidesPerWillpowerMod: 1
+        );
+        using GodotProjectionLease<GDictionary> healResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             healTarget,
-            new Godot.Collections.Array { healEffect },
-            new GDictionary()
+            new[] { healEffect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary healResult = healResultLease.Value;
         int healing = DictInt(healResult, "healing");
         _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
         _test.Eq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
@@ -136,20 +157,19 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         BattleUnitState staminaTarget = MakeUnit("stamina_target", "player");
         staminaTarget.current_stamina = 0;
         staminaTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 30);
-        var staminaEffect = new CombatEffectDef
-        {
-            effect_type = "stamina_restore",
-            effect_target_team_filter = "ally",
-            dice_count = 2,
-            dice_sides_base = 4,
-            dice_sides_per_constitution_mod = 1,
-            dice_sides_per_willpower_mod = 1,
-        };
+        CombatEffectDefinition staminaEffect = TestSkillDefinitionProjection.BuildEffect(
+            "stamina_restore",
+            effectTargetTeamFilter: "ally",
+            diceCount: 2,
+            diceSidesBase: 4,
+            diceSidesPerConstitutionMod: 1,
+            diceSidesPerWillpowerMod: 1
+        );
         resolver.ResolveEffects(
             source,
             staminaTarget,
-            new Godot.Collections.Array { staminaEffect },
-            new GDictionary()
+            new[] { staminaEffect },
+            DamageResolutionContext.Empty()
         );
         _test.True(
             staminaTarget.current_stamina >= 2 && staminaTarget.current_stamina <= 14,
@@ -157,14 +177,13 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         );
 
         var shieldService = new BattleShieldService();
-        var shieldEffect = new CombatEffectDef
-        {
-            effect_type = "shield",
-            dice_count = 2,
-            dice_sides_base = 4,
-            dice_sides_per_constitution_mod = 1,
-            dice_sides_per_willpower_mod = 1,
-        };
+        CombatEffectDefinition shieldEffect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            diceCount: 2,
+            diceSidesBase: 4,
+            diceSidesPerConstitutionMod: 1,
+            diceSidesPerWillpowerMod: 1
+        );
         _test.True(shieldService._has_shield_dice_config(shieldEffect), "Shield service should detect typed attribute-scaled dice.");
         int shieldHp = shieldService._resolve_shield_hp(source, shieldEffect, new GDictionary());
         _test.True(shieldHp >= 2 && shieldHp <= 14, "Shield HP should use typed attribute-scaled dice.");
@@ -179,22 +198,22 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
         target.attribute_snapshot.SetValue("constitution", 14);
         target.attribute_snapshot.SetValue("constitution_modifier", 2);
-        var healFatalEffect = new CombatEffectDef
-        {
-            effect_type = "heal_fatal",
-            base_heal = 8,
-            heal_per_level = 4,
-            con_mod_base = 2,
-            con_mod_per_2_levels = 1,
-            skill_level = 3,
-        };
+        CombatEffectDefinition healFatalEffect = TestSkillDefinitionProjection.BuildEffect(
+            "heal_fatal",
+            baseHeal: 8,
+            healPerLevel: 4,
+            conModBase: 2,
+            conModPer2Levels: 1
+        );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new Godot.Collections.Array { healFatalEffect },
-            new GDictionary()
+            new[] { healFatalEffect },
+            DamageResolutionContext.Empty().WithSourceSkillLevel(3)
         ));
+        GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "healing"), 22, "heal_fatal 应按 typed 参数公式结算治疗量。");
         _test.Eq(target.current_hp, 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
     }
@@ -206,19 +225,20 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         BattleUnitState target = MakeUnit("dispel_target", "player");
         SetStatus(target, "burning", 1, new GDictionary());
         SetStatus(target, "slow", 1, new GDictionary());
-        var dispelEffect = new CombatEffectDef
-        {
-            effect_type = "dispel_magic",
-            remove_harmful = true,
-            max_status_removed = 1,
-        };
+        CombatEffectDefinition dispelEffect = TestSkillDefinitionProjection.BuildEffect(
+            "dispel_magic",
+            removeHarmful: true,
+            maxStatusRemoved: 1
+        );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new Godot.Collections.Array { dispelEffect },
-            new GDictionary()
+            new[] { dispelEffect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray dispelEvents = result.ContainsKey("dispel_events")
             ? result["dispel_events"].AsGodotArray()
             : new GArray();
@@ -235,15 +255,28 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Sc
         );
     }
 
-    private static CombatEffectDef MakeDamageEffect(StringName damageTag, int power)
+    private static CombatEffectDefinition MakeDamageEffect(
+        StringName damageTag,
+        int power,
+        int diceCount = 0,
+        int diceSides = 0,
+        int saveDc = 0,
+        StringName saveAbility = default,
+        StringName saveTag = default,
+        bool savePartialOnSuccess = false
+    )
     {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            damage_tag = damageTag,
-            power = power,
-            @params = new GDictionary(),
-        };
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: damageTag,
+            power: power,
+            diceCount: diceCount,
+            diceSides: diceSides,
+            saveDc: saveDc,
+            saveAbility: saveAbility,
+            saveTag: saveTag,
+            savePartialOnSuccess: savePartialOnSuccess
+        );
     }
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)

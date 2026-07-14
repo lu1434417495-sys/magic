@@ -21,6 +21,9 @@ public partial class PartyManagementWindow : Control
     public delegate void warehouse_requestedEventHandler();
 
     [Signal]
+    public delegate void contingency_setup_requestedEventHandler(StringName member_id);
+
+    [Signal]
     public delegate void closedEventHandler();
 
     private const int MaxActiveMemberCount = 4;
@@ -43,6 +46,7 @@ public partial class PartyManagementWindow : Control
     public Button move_to_active_button;
     public Button move_to_reserve_button;
     public Button warehouse_button;
+    public Button contingency_setup_button;
     public RichTextLabel overview_label;
     public RichTextLabel attributes_label;
     public RichTextLabel equipment_label;
@@ -52,14 +56,16 @@ public partial class PartyManagementWindow : Control
     public Button close_button;
 
     public PartyState _party_state;
-    private IReadOnlyDictionary<StringName, AchievementDef> _achievement_defs =
-        new Dictionary<StringName, AchievementDef>();
-    private IReadOnlyDictionary<StringName, ItemDef> _item_defs =
-        new Dictionary<StringName, ItemDef>();
-    private IReadOnlyDictionary<StringName, SkillDef> _skill_defs =
-        new Dictionary<StringName, SkillDef>();
-    private IReadOnlyDictionary<StringName, ProfessionDef> _profession_defs =
-        new Dictionary<StringName, ProfessionDef>();
+    private IReadOnlyDictionary<StringName, AchievementDefinition> _achievement_defs =
+        new Dictionary<StringName, AchievementDefinition>();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions =
+        new Dictionary<StringName, ItemDefinition>();
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skill_definitions =
+        new Dictionary<StringName, SkillDefinition>();
+    private IReadOnlyDictionary<StringName, ProfessionDefinition> _profession_defs =
+        new Dictionary<StringName, ProfessionDefinition>();
+    private IReadOnlyDictionary<StringName, TraitDefinition> _trait_defs =
+        new Dictionary<StringName, TraitDefinition>();
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -86,6 +92,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button = GetNode<Button>("%MoveToActiveButton");
         move_to_reserve_button = GetNode<Button>("%MoveToReserveButton");
         warehouse_button = GetNode<Button>("%WarehouseButton");
+        contingency_setup_button = GetNode<Button>("%ContingencySetupButton");
         overview_label = GetNode<RichTextLabel>("%OverviewLabel");
         attributes_label = GetNode<RichTextLabel>("%AttributesLabel");
         equipment_label = GetNode<RichTextLabel>("%EquipmentLabel");
@@ -105,6 +112,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button.Pressed += _on_move_to_active_button_pressed;
         move_to_reserve_button.Pressed += _on_move_to_reserve_button_pressed;
         warehouse_button.Pressed += _on_warehouse_button_pressed;
+        contingency_setup_button.Pressed += _on_contingency_setup_button_pressed;
     }
 
     public void ShowParty(PartyState party_state)
@@ -119,31 +127,47 @@ public partial class PartyManagementWindow : Control
     }
 
     public void SetAchievementDefs(
-        IReadOnlyDictionary<StringName, AchievementDef> achievement_defs
+        IReadOnlyDictionary<StringName, AchievementDefinition> achievement_defs
     )
     {
-        _achievement_defs = achievement_defs ?? new Dictionary<StringName, AchievementDef>();
+        _achievement_defs =
+            achievement_defs ?? new Dictionary<StringName, AchievementDefinition>();
         if (Visible)
             RefreshView();
     }
 
-    public void SetItemDefs(IReadOnlyDictionary<StringName, ItemDef> item_defs)
+    public void SetItemDefs(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
-        _item_defs = item_defs ?? new Dictionary<StringName, ItemDef>();
+        _itemDefinitions =
+            itemDefinitions ?? new Dictionary<StringName, ItemDefinition>();
         if (Visible)
             RefreshView();
     }
 
-    public void SetSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skill_defs)
+    public void SetSkillDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skill_definitions
+    )
     {
-        _skill_defs = skill_defs ?? new Dictionary<StringName, SkillDef>();
+        _skill_definitions =
+            skill_definitions ?? new Dictionary<StringName, SkillDefinition>();
         if (Visible)
             RefreshView();
     }
 
-    public void SetProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> profession_defs)
+    public void SetProfessionDefs(
+        IReadOnlyDictionary<StringName, ProfessionDefinition> profession_defs
+    )
     {
-        _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDef>();
+        _profession_defs = profession_defs ?? new Dictionary<StringName, ProfessionDefinition>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDefinition> trait_defs)
+    {
+        _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDefinition>();
         if (Visible)
             RefreshView();
     }
@@ -207,6 +231,8 @@ public partial class PartyManagementWindow : Control
         _clear_detail_labels();
         if (status_label != null)
             status_label.Text = "";
+        if (contingency_setup_button != null)
+            contingency_setup_button.Disabled = true;
     }
 
     public void _update_responsive_layout()
@@ -264,6 +290,7 @@ public partial class PartyManagementWindow : Control
                 move_to_active_button,
                 move_to_reserve_button,
                 warehouse_button,
+                contingency_setup_button,
             }
         )
         {
@@ -405,6 +432,7 @@ public partial class PartyManagementWindow : Control
         move_to_active_button.Disabled = !canMoveToActive;
         move_to_reserve_button.Disabled = !canMoveToReserve;
         warehouse_button.Disabled = _party_state == null;
+        contingency_setup_button.Disabled = !hasSelection;
     }
 
     private void _refresh_details()
@@ -631,13 +659,15 @@ public partial class PartyManagementWindow : Control
         }
 
         EquipmentState equipmentState = memberState.equipment_state;
+        var occupiedNotes = new List<string>();
+        var emptySlotLabels = new List<string>();
         int filledCount = 0;
         foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             StringName entrySlotId = GetEntrySlotForSlot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)
             {
-                lines.Add(
+                occupiedNotes.Add(
                     $"{EquipmentRules.GetSlotLabel(slotId)}：由{EquipmentRules.GetSlotLabel(entrySlotId)}占用"
                 );
                 continue;
@@ -645,28 +675,61 @@ public partial class PartyManagementWindow : Control
             StringName itemId = GetEquippedItemId(equipmentState, slotId);
             if (itemId == (StringName)"")
             {
-                lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：空");
+                emptySlotLabels.Add(EquipmentRules.GetSlotLabel(slotId));
                 continue;
             }
+            if (filledCount > 0)
+                lines.Add("");
             filledCount += 1;
-            ItemDef itemDef = GetTypedObject(_item_defs, itemId);
-            lines.Add($"{EquipmentRules.GetSlotLabel(slotId)}：{_get_item_display_name(itemId)}");
-            if (itemDef != null)
-            {
-                string typeLabel = _get_equipment_type_label(
-                    itemDef.GetEquipmentTypeIdNormalized()
-                );
-                if (!string.IsNullOrEmpty(typeLabel))
-                    lines.Add($"  类型：{typeLabel}");
-                List<string> modifierLines = _build_modifier_lines(itemDef.attribute_modifiers);
-                if (modifierLines.Count > 0)
-                    lines.Add($"  属性：{string.Join("，", modifierLines)}");
-                if (!string.IsNullOrEmpty(itemDef.description))
-                    lines.Add($"  说明：{itemDef.description}");
-            }
+            _append_equipment_card(lines, itemId);
         }
-        lines.Insert(0, $"已装备：{filledCount}");
+
+        if (filledCount == 0)
+            lines.Add("尚未装备任何物品。");
+        foreach (string note in occupiedNotes)
+            lines.Add($"[color=#6b7385]{_escape_bbcode(note)}[/color]");
+        if (emptySlotLabels.Count > 0)
+            lines.Add(
+                $"[color=#6b7385]空置槽位：{_escape_bbcode(string.Join("、", emptySlotLabels))}[/color]"
+            );
         return lines;
+    }
+
+    private void _append_equipment_card(List<string> lines, StringName itemId)
+    {
+        ItemDefinition itemDef = GetTypedObject(_itemDefinitions, itemId);
+        string header = $"[b][color=#e8c36a]{_escape_bbcode(_get_item_display_name(itemId))}[/color][/b]";
+        if (itemDef != null)
+        {
+            string typeLabel = _get_equipment_type_label(itemDef.GetEquipmentTypeIdNormalized());
+            if (!string.IsNullOrEmpty(typeLabel))
+                header += $"（{_escape_bbcode(typeLabel)}）";
+        }
+        lines.Add(header);
+        string damageLabel = _build_weapon_damage_label(itemDef);
+        if (!string.IsNullOrEmpty(damageLabel))
+            lines.Add($"[color=#e0c890]{_escape_bbcode(damageLabel)}[/color]");
+        string propertyLabel = _build_weapon_property_label(itemDef);
+        if (!string.IsNullOrEmpty(propertyLabel))
+            lines.Add($"[color=#9fb0c4]{_escape_bbcode(propertyLabel)}[/color]");
+        lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+
+        if (itemDef == null)
+            return;
+
+        if (!string.IsNullOrEmpty(itemDef.Description))
+            lines.Add(_escape_bbcode(itemDef.Description));
+
+        foreach (StringName traitId in itemDef.GetTraitIdsTyped())
+        {
+            TraitDefinition traitDef = _get_trait_def(traitId);
+            if (traitDef == null || string.IsNullOrEmpty(traitDef.DisplayName))
+                continue;
+            lines.Add("");
+            lines.Add($"[b][color=#a9d4ff]{_escape_bbcode(traitDef.DisplayName)}[/color][/b]");
+            if (!string.IsNullOrEmpty(traitDef.Description))
+                lines.Add(_escape_bbcode(traitDef.Description));
+        }
     }
 
     private List<string> _build_skill_detail_lines(
@@ -688,7 +751,7 @@ public partial class PartyManagementWindow : Control
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
             learnedCount += 1;
-            SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
+            SkillDefinition skillDefinition = GetTypedObject(_skill_definitions, skillId);
             var tags = new List<string>();
             if (skillProgress.is_core)
                 tags.Add("核心");
@@ -705,7 +768,7 @@ public partial class PartyManagementWindow : Control
                     $"指派：{_get_profession_display_name(skillProgress.assigned_profession_id)}"
                 );
             string typeLabel = _get_skill_type_label(
-                skillDef != null ? skillDef.skill_type : new StringName("")
+                skillDefinition != null ? skillDefinition.SkillType : new StringName("")
             );
             lines.Add(
                 $"{_get_skill_display_name(skillId)}  Lv.{skillProgress.skill_level}{(tags.Count > 0 ? $"  |  {string.Join("，", tags)}" : "")}"
@@ -715,11 +778,11 @@ public partial class PartyManagementWindow : Control
             lines.Add(
                 $"  熟练度：{skillProgress.current_mastery}  总获得：{skillProgress.total_mastery_earned}"
             );
-            if (skillDef != null && !string.IsNullOrEmpty(skillDef.description))
-                lines.Add($"  说明：{skillDef.description}");
+            if (skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.Description))
+                lines.Add($"  说明：{skillDefinition.Description}");
 
             int currentLevel = skillProgress.skill_level;
-            if (skillDef != null)
+            if (skillDefinition != null)
             {
                 var runtimeContext = new GDictionary();
                 if (snapshot != null)
@@ -734,17 +797,20 @@ public partial class PartyManagementWindow : Control
                     );
                 }
                 runtimeContext["dynamic_max_level"] = SkillEffectiveMaxLevelRules
-                    .GetEffectiveMaxLevel(skillDef, skillProgress, progression)
+                    .GetEffectiveMaxLevel(skillDefinition, skillProgress, progression)
                     .ToString();
                 string levelDesc = SkillLevelDescriptionFormatter.BuildLevelDescription(
-                    skillDef,
+                    skillDefinition,
                     currentLevel,
                     runtimeContext
                 );
                 if (!string.IsNullOrEmpty(levelDesc))
                     lines.Add($"  当前效果：{levelDesc}");
                 foreach (
-                    string previewLine in _build_level_override_preview(skillDef, currentLevel)
+                    string previewLine in _build_level_override_preview(
+                        skillDefinition,
+                        currentLevel
+                    )
                 )
                     lines.Add(previewLine);
             }
@@ -762,22 +828,26 @@ public partial class PartyManagementWindow : Control
         return lines;
     }
 
-    private static List<string> _build_level_override_preview(SkillDef skillDef, int skillLevel)
+    private static List<string> _build_level_override_preview(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
     {
         var lines = new List<string>();
-        if (skillDef?.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
             return lines;
-        GDictionary overrides = skillDef.combat_profile.level_overrides;
+        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> overrides =
+            skillDefinition.CombatProfile.LevelOverrides;
         if (overrides.Count == 0)
             return lines;
+        var levels = new List<int>(overrides.Keys);
+        levels.Sort();
         var nextLevels = new List<string>();
-        foreach (var levelKey in overrides.Keys)
+        foreach (int level in levels)
         {
-            int level = levelKey.AsString().ToInt();
             if (level <= skillLevel)
                 continue;
-            var dataValue = overrides[levelKey];
-            if (!dataValue.TryAsDictionary(out GDictionary data))
+            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, object> data))
                 continue;
             var parts = new List<string>();
             foreach (
@@ -791,7 +861,7 @@ public partial class PartyManagementWindow : Control
                 }
             )
             {
-                if (!data.ContainsKey(costKey))
+                if (!data.TryGetValue(costKey, out object costValue))
                     continue;
                 string label = costKey switch
                 {
@@ -802,7 +872,8 @@ public partial class PartyManagementWindow : Control
                     "cooldown_tu" => "冷却",
                     _ => "",
                 };
-                parts.Add($"{label}→{data[costKey].AsInt32()}");
+                if (TryReadPlainInt(costValue, out int resolvedCost))
+                    parts.Add($"{label}→{resolvedCost}");
             }
             if (parts.Count > 0)
                 nextLevels.Add($"Lv.{level}：{string.Join("，", parts)}");
@@ -810,6 +881,34 @@ public partial class PartyManagementWindow : Control
         if (nextLevels.Count > 0)
             lines.Add($"  升级预览：{string.Join("；", nextLevels)}");
         return lines;
+    }
+
+    private static bool TryReadPlainInt(object value, out int result)
+    {
+        switch (value)
+        {
+            case byte byteValue:
+                result = byteValue;
+                return true;
+            case short shortValue:
+                result = shortValue;
+                return true;
+            case int intValue:
+                result = intValue;
+                return true;
+            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
+                result = (int)longValue;
+                return true;
+            case float floatValue when floatValue >= int.MinValue && floatValue <= int.MaxValue:
+                result = (int)floatValue;
+                return true;
+            case double doubleValue when doubleValue >= int.MinValue && doubleValue <= int.MaxValue:
+                result = (int)doubleValue;
+                return true;
+            default:
+                result = 0;
+                return false;
+        }
     }
 
     private List<string> _build_profession_detail_lines(UnitProgress progression)
@@ -830,7 +929,7 @@ public partial class PartyManagementWindow : Control
             if (professionProgress == null || professionProgress.is_hidden)
                 continue;
             professionCount += 1;
-            ProfessionDef professionDef = GetTypedObject(
+            ProfessionDefinition professionDef = GetTypedObject(
                 _profession_defs,
                 professionId
             );
@@ -839,10 +938,10 @@ public partial class PartyManagementWindow : Control
             );
             if (professionProgress.inactive_reason != (StringName)"")
                 lines.Add($"  原因：{professionProgress.inactive_reason}");
-            if (professionDef != null && !string.IsNullOrEmpty(professionDef.description))
-                lines.Add($"  说明：{professionDef.description}");
+            if (professionDef != null && !string.IsNullOrEmpty(professionDef.Description))
+                lines.Add($"  说明：{professionDef.Description}");
             List<string> modifierLines = _build_modifier_lines(
-                professionDef != null ? professionDef.attribute_modifiers : null,
+                professionDef != null ? professionDef.AttributeModifiers : null,
                 professionProgress.rank
             );
             if (modifierLines.Count > 0)
@@ -909,25 +1008,84 @@ public partial class PartyManagementWindow : Control
 
     private string _get_item_display_name(StringName itemId)
     {
-        ItemDef itemDef = GetTypedObject(_item_defs, itemId);
-        return itemDef != null && !string.IsNullOrEmpty(itemDef.display_name)
-            ? itemDef.display_name
+        ItemDefinition itemDef = GetTypedObject(_itemDefinitions, itemId);
+        return itemDef != null && !string.IsNullOrEmpty(itemDef.DisplayName)
+            ? itemDef.DisplayName
             : itemId.ToString();
+    }
+
+    private TraitDefinition _get_trait_def(StringName traitId)
+    {
+        return GetTypedObject(_trait_defs, traitId);
+    }
+
+    private static string _build_weapon_damage_label(ItemDefinition itemDef)
+    {
+        WeaponProfileDefinition profile = itemDef?.WeaponProfile;
+        if (profile == null)
+            return "";
+        var parts = new List<string>();
+        if (profile.OneHandedDice != null)
+            parts.Add(profile.OneHandedDice.ToRollLabel());
+        if (profile.TwoHandedDice != null)
+        {
+            string twoHanded = profile.TwoHandedDice.ToRollLabel();
+            if (parts.Count == 0 || parts[0] != twoHanded)
+                parts.Add(twoHanded);
+        }
+        return string.Join(" \\ ", parts);
+    }
+
+    private static string _build_weapon_property_label(ItemDefinition itemDef)
+    {
+        WeaponProfileDefinition profile = itemDef?.WeaponProfile;
+        if (profile == null)
+            return "";
+        var labels = new List<string>();
+        foreach (StringName property in profile.GetPropertiesTyped())
+        {
+            string label = _get_weapon_property_label(property);
+            if (!string.IsNullOrEmpty(label))
+                labels.Add(label);
+        }
+        return string.Join("、", labels);
+    }
+
+    private static string _get_weapon_property_label(StringName property)
+    {
+        if (property == (StringName)"finesse")
+            return "灵巧";
+        if (property == (StringName)"light")
+            return "轻型";
+        if (property == (StringName)"reach")
+            return "触及";
+        if (property == (StringName)"thrown")
+            return "投掷";
+        if (property == (StringName)"two_handed")
+            return "双手";
+        if (property == (StringName)"versatile")
+            return "多用";
+        return "";
+    }
+
+    private static string _escape_bbcode(string text)
+    {
+        return string.IsNullOrEmpty(text) ? (text ?? "") : text.Replace("[", "[lb]");
     }
 
     private string _get_skill_display_name(StringName skillId)
     {
-        SkillDef skillDef = GetTypedObject(_skill_defs, skillId);
-        return skillDef != null && !string.IsNullOrEmpty(skillDef.display_name)
-            ? skillDef.display_name
+        SkillDefinition skillDefinition = GetTypedObject(_skill_definitions, skillId);
+        return skillDefinition != null && !string.IsNullOrEmpty(skillDefinition.DisplayName)
+            ? skillDefinition.DisplayName
             : skillId.ToString();
     }
 
     private string _get_profession_display_name(StringName professionId)
     {
-        ProfessionDef professionDef = GetTypedObject(_profession_defs, professionId);
-        return professionDef != null && !string.IsNullOrEmpty(professionDef.display_name)
-            ? professionDef.display_name
+        ProfessionDefinition professionDef = GetTypedObject(_profession_defs, professionId);
+        return professionDef != null && !string.IsNullOrEmpty(professionDef.DisplayName)
+            ? professionDef.DisplayName
             : professionId.ToString();
     }
 
@@ -944,16 +1102,19 @@ public partial class PartyManagementWindow : Control
         return string.Join("，", labels);
     }
 
-    private List<string> _build_modifier_lines(IEnumerable modifiers, int rank = 1)
+    private List<string> _build_modifier_lines(
+        IReadOnlyList<AttributeModifierDefinition> modifiers,
+        int rank = 1
+    )
     {
         var lines = new List<string>();
         if (modifiers == null)
             return lines;
-        foreach (object modifierValue in modifiers)
+        foreach (AttributeModifierDefinition modifier in modifiers)
         {
-            if (modifierValue is not AttributeModifier modifier)
+            if (modifier == null)
                 continue;
-            StringName attributeId = modifier.attribute_id;
+            StringName attributeId = modifier.AttributeId;
             int value = modifier.GetValueForRank(rank);
             if (attributeId == (StringName)"" || value == 0)
                 continue;
@@ -1047,7 +1208,10 @@ public partial class PartyManagementWindow : Control
 
         foreach (StringName achievementId in GetSortedKeys(_achievement_defs))
         {
-            AchievementDef achievementDef = GetTypedObject(_achievement_defs, achievementId);
+            AchievementDefinition achievementDef = GetTypedObject(
+                _achievement_defs,
+                achievementId
+            );
             if (achievementDef == null)
                 continue;
 
@@ -1061,7 +1225,7 @@ public partial class PartyManagementWindow : Control
                 if (unlockedAt >= recentUnlockedTime)
                 {
                     recentUnlockedTime = unlockedAt;
-                    recentUnlockedName = achievementDef.display_name;
+                    recentUnlockedName = achievementDef.DisplayName;
                 }
                 continue;
             }
@@ -1069,12 +1233,12 @@ public partial class PartyManagementWindow : Control
             int currentValue = progressState?.current_value ?? 0;
             if (currentValue <= 0)
                 continue;
-            int threshold = Mathf.Max(achievementDef.threshold, 1);
+            int threshold = Mathf.Max(achievementDef.Threshold, 1);
             inProgressEntries.Add(
                 new AchievementProgressPreview(
-                    achievementDef.display_name,
+                    achievementDef.DisplayName,
                     currentValue,
-                    achievementDef.threshold,
+                    achievementDef.Threshold,
                     currentValue / (float)threshold
                 )
             );
@@ -1297,6 +1461,13 @@ public partial class PartyManagementWindow : Control
         if (_party_state == null)
             return;
         EmitSignal(SignalName.warehouse_requested);
+    }
+
+    public void _on_contingency_setup_button_pressed()
+    {
+        if (_selected_member_id == (StringName)"")
+            return;
+        EmitSignal(SignalName.contingency_setup_requested, _selected_member_id);
     }
 
     public void _on_shade_gui_input(InputEvent @event)

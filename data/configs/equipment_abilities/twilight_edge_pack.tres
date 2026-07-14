@@ -1,0 +1,402 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=91 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="12_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="13_attack_roll_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollAdvantageActionPayloadDef.cs" id="14_attack_roll_advantage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="15_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityStateSchemaDef.cs" id="16_state_schema"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ModifyAbilityStateActionPayloadDef.cs" id="17_modify_state"]
+
+[sub_resource type="Resource" id="Fact_environment_tags"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"battle_environment_tag"
+value_kind = &"string_name_set"
+
+[sub_resource type="Resource" id="Literal_night"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"night"
+
+[sub_resource type="Resource" id="Literal_twilight"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"string_name"
+string_name_literal = &"twilight"
+
+[sub_resource type="Resource" id="Compare_env_contains_night"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_environment_tags")
+compare = &"contains"
+right = SubResource("Literal_night")
+
+[sub_resource type="Resource" id="Compare_env_contains_twilight"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_environment_tags")
+compare = &"contains"
+right = SubResource("Literal_twilight")
+
+[sub_resource type="Resource" id="Condition_env_night"]
+script = ExtResource("6_condition")
+condition_id = &"condition.twilight_edge.env.night"
+kind = &"compare_fact"
+payload = SubResource("Compare_env_contains_night")
+
+[sub_resource type="Resource" id="Condition_env_twilight"]
+script = ExtResource("6_condition")
+condition_id = &"condition.twilight_edge.env.twilight"
+kind = &"compare_fact"
+payload = SubResource("Compare_env_contains_twilight")
+
+[sub_resource type="Resource" id="Condition_group_night_or_twilight"]
+script = ExtResource("5_condition_group")
+mode = &"any"
+conditions = Array[Resource]([SubResource("Condition_env_night"), SubResource("Condition_env_twilight")])
+
+[sub_resource type="Resource" id="Condition_group_daylight"]
+script = ExtResource("5_condition_group")
+mode = &"any"
+negate = true
+conditions = Array[Resource]([SubResource("Condition_env_night"), SubResource("Condition_env_twilight")])
+
+[sub_resource type="Resource" id="Fact_current_tu"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"current_tu"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Literal_70"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 70
+
+[sub_resource type="Resource" id="Compare_current_tu_gte_70"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_current_tu")
+compare = &"gte"
+right = SubResource("Literal_70")
+
+[sub_resource type="Resource" id="Condition_current_tu_gte_70"]
+script = ExtResource("6_condition")
+condition_id = &"condition.twilight_edge.twilight_step.current_tu_gte_70"
+kind = &"compare_fact"
+payload = SubResource("Compare_current_tu_gte_70")
+
+[sub_resource type="Resource" id="Condition_group_current_tu_gte_70"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_current_tu_gte_70")])
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Fact_twilight_step_current_turn"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+state_key = &"twilight_step_current_turn"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_twilight_step_state_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_twilight_step_current_turn")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_twilight_step_state"]
+script = ExtResource("6_condition")
+condition_id = &"condition.twilight_edge.twilight_cut.step_current_turn"
+kind = &"compare_fact"
+payload = SubResource("Compare_twilight_step_state_gte_1")
+
+[sub_resource type="Resource" id="Condition_group_twilight_step_state"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_twilight_step_state")])
+
+[sub_resource type="Resource" id="Fact_twilight_day_exposed_current_turn"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"equipment_ability_state"
+subject = &"source"
+state_key = &"twilight_day_exposed_current_turn"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_day_exposed_state_gte_1"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_twilight_day_exposed_current_turn")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_day_exposed_state"]
+script = ExtResource("6_condition")
+condition_id = &"condition.twilight_edge.twilight_guard.day_exposed_current_turn"
+kind = &"compare_fact"
+payload = SubResource("Compare_day_exposed_state_gte_1")
+
+[sub_resource type="Resource" id="Condition_group_day_exposed"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_day_exposed_state")])
+groups = Array[Resource]([SubResource("Condition_group_daylight")])
+
+[sub_resource type="Resource" id="State_twilight_step_current_turn"]
+script = ExtResource("16_state_schema")
+state_key = &"twilight_step_current_turn"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_turn"
+
+[sub_resource type="Resource" id="State_twilight_day_exposed_current_turn"]
+script = ExtResource("16_state_schema")
+state_key = &"twilight_day_exposed_current_turn"
+owner_scope = &"binding"
+value_kind = &"int"
+initial_int_value = 0
+max_int_value = 1
+reset_timing = &"per_turn"
+
+[sub_resource type="Resource" id="Grant_twilight_step_skill"]
+script = ExtResource("15_grant")
+granted_action_id = &"grant.twilight_edge.twilight_step.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_twilight_edge_twilight_step"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+availability_conditions = SubResource("Condition_group_current_tu_gte_70")
+
+[sub_resource type="Resource" id="Action_mark_twilight_step_payload"]
+script = ExtResource("17_modify_state")
+target_selector = &"source"
+state_key = &"twilight_step_current_turn"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_twilight_step"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.twilight_step.mark_cut_current_turn"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_twilight_step_payload")
+
+[sub_resource type="Resource" id="Action_mark_day_exposed_payload"]
+script = ExtResource("17_modify_state")
+target_selector = &"source"
+state_key = &"twilight_day_exposed_current_turn"
+operation = &"set"
+int_delta = 1
+
+[sub_resource type="Resource" id="Action_mark_day_exposed"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.twilight_step.mark_day_exposed"
+kind = &"modify_ability_state"
+payload = SubResource("Action_mark_day_exposed_payload")
+condition_group = SubResource("Condition_group_daylight")
+
+[sub_resource type="Resource" id="Reaction_twilight_step_used"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.twilight_edge.twilight_step.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_mark_twilight_step"), SubResource("Action_mark_day_exposed")])
+
+[sub_resource type="Resource" id="Binding_twilight_step"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.twilight_edge.twilight_step"
+trait_id = &"weapon.sword.twilight_edge.twilight_step"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"twilight_edge"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+state_schemas = Array[Resource]([SubResource("State_twilight_step_current_turn"), SubResource("State_twilight_day_exposed_current_turn")])
+reactions = Array[Resource]([SubResource("Reaction_twilight_step_used")])
+granted_actions = Array[Resource]([SubResource("Grant_twilight_step_skill")])
+
+[sub_resource type="Resource" id="Dice_flat_1_force"]
+script = ExtResource("9_dice")
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Dice_flat_2_force"]
+script = ExtResource("9_dice")
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Action_day_damage_payload"]
+script = ExtResource("12_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_flat_1_force")
+damage_type = &"force"
+damage_tags = Array[StringName]([&"force"])
+
+[sub_resource type="Resource" id="Action_day_damage"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.day_night_balance.day_force_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_day_damage_payload")
+condition_group = SubResource("Condition_group_daylight")
+
+[sub_resource type="Resource" id="Action_night_damage_payload"]
+script = ExtResource("12_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_flat_2_force")
+damage_type = &"force"
+damage_tags = Array[StringName]([&"force"])
+
+[sub_resource type="Resource" id="Action_night_damage"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.day_night_balance.night_force_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_night_damage_payload")
+condition_group = SubResource("Condition_group_night_or_twilight")
+
+[sub_resource type="Resource" id="Action_night_advantage_payload"]
+script = ExtResource("14_attack_roll_advantage")
+target_selector = &"attack_target"
+mode = &"advantage"
+stack_mode = &"max"
+label = "昼夜平衡"
+
+[sub_resource type="Resource" id="Action_night_advantage"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.day_night_balance.night_attack_advantage"
+kind = &"attack_roll_advantage"
+payload = SubResource("Action_night_advantage_payload")
+condition_group = SubResource("Condition_group_night_or_twilight")
+
+[sub_resource type="Resource" id="Reaction_day_night_damage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.twilight_edge.day_night_balance.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_day_damage"), SubResource("Action_night_damage")])
+
+[sub_resource type="Resource" id="Reaction_day_night_advantage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.twilight_edge.day_night_balance.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+actions = Array[Resource]([SubResource("Action_night_advantage")])
+
+[sub_resource type="Resource" id="Binding_day_night_balance"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.twilight_edge.day_night_balance"
+trait_id = &"weapon.sword.twilight_edge.day_night_balance"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"twilight_edge"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_day_night_damage"), SubResource("Reaction_day_night_advantage")])
+
+[sub_resource type="Resource" id="Dice_term_2d6_psychic"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6_psychic"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6_psychic")])
+
+[sub_resource type="Resource" id="Action_twilight_cut_payload"]
+script = ExtResource("12_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6_psychic")
+damage_type = &"psychic"
+damage_tags = Array[StringName]([&"psychic"])
+
+[sub_resource type="Resource" id="Action_twilight_cut"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.twilight_cut.psychic_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_twilight_cut_payload")
+condition_group = SubResource("Condition_group_twilight_step_state")
+
+[sub_resource type="Resource" id="Reaction_twilight_cut"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.twilight_edge.twilight_cut.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+once_scope = &"turn"
+actions = Array[Resource]([SubResource("Action_twilight_cut")])
+
+[sub_resource type="Resource" id="Binding_twilight_cut"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.twilight_edge.twilight_cut"
+trait_id = &"weapon.sword.twilight_edge.twilight_cut"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"twilight_edge"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_twilight_cut")])
+
+[sub_resource type="Resource" id="Action_guard_night_payload"]
+script = ExtResource("13_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = -1
+stack_mode = &"max"
+label = "暮光守护"
+
+[sub_resource type="Resource" id="Action_guard_night"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.twilight_guard.night_attack_penalty"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_guard_night_payload")
+condition_group = SubResource("Condition_group_night_or_twilight")
+
+[sub_resource type="Resource" id="Action_guard_day_exposed_payload"]
+script = ExtResource("13_attack_roll_bonus")
+target_selector = &"attacker"
+bonus = 1
+stack_mode = &"max"
+label = "暮光守护"
+
+[sub_resource type="Resource" id="Action_guard_day_exposed"]
+script = ExtResource("11_action")
+action_id = &"action.twilight_edge.twilight_guard.day_exposed_attack_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_guard_day_exposed_payload")
+condition_group = SubResource("Condition_group_day_exposed")
+
+[sub_resource type="Resource" id="Reaction_twilight_guard"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.twilight_edge.twilight_guard.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+actions = Array[Resource]([SubResource("Action_guard_night"), SubResource("Action_guard_day_exposed")])
+
+[sub_resource type="Resource" id="Binding_twilight_guard"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.twilight_edge.twilight_guard"
+trait_id = &"weapon.sword.twilight_edge.twilight_guard"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"twilight_edge"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_twilight_guard")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability_pack.twilight_edge"
+schema_version = 1
+load_order = 100
+bindings = Array[Resource]([SubResource("Binding_twilight_step"), SubResource("Binding_day_night_balance"), SubResource("Binding_twilight_cut"), SubResource("Binding_twilight_guard")])

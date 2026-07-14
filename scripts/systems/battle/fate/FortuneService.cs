@@ -88,7 +88,7 @@ internal class FortuneService
     private FateAttackFormula.IRollSource ResolveRollSource(FortuneMarkEventInput payload)
     {
         return _rollSourceFactory?.Invoke(payload)
-            ?? new SeededClrRollSource(BuildConfirmationSeedSource(payload));
+            ?? new SeededRuntimeRollSource(BuildConfirmationSeedSource(payload));
     }
 
     private static string BuildConfirmationSeedSource(FortuneMarkEventInput payload)
@@ -132,33 +132,18 @@ internal class FortuneService
         return value == null || value == "";
     }
 
-    private sealed class SeededClrRollSource : FateAttackFormula.IRollSource
+    private sealed class SeededRuntimeRollSource : FateAttackFormula.IRollSource
     {
-        private readonly Random _rng;
+        private readonly RuntimeRandom _rng;
 
-        public SeededClrRollSource(string seedSource)
+        public SeededRuntimeRollSource(string seedSource)
         {
-            _rng = new Random(StableHash(seedSource ?? ""));
+            _rng = new RuntimeRandom(unchecked((long)StringExtensions.Hash(seedSource ?? "")));
         }
 
         public int RandiRange(int minValue, int maxValue)
         {
-            int lower = Math.Min(minValue, maxValue);
-            int upper = Math.Max(minValue, maxValue);
-            if (lower == upper)
-                return lower;
-            return _rng.Next(lower, upper + 1);
-        }
-
-        private static int StableHash(string value)
-        {
-            unchecked
-            {
-                int hash = 17;
-                foreach (char ch in value)
-                    hash = hash * 31 + ch;
-                return hash;
-            }
+            return _rng.RandiRange(minValue, maxValue);
         }
     }
 }

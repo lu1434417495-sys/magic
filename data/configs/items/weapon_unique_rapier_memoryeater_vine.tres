@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_rapier_memoryeater_vine"
+base_item_id = &"weapon_type_rapier_base"
+display_name = "噬忆血蔓"
+description = "埃拉西亚王庭哀悼藤醒来前的刺剑。它只吞食非构装、非亡灵敌人的生命故事，并把生命簿与血阶一同刻进装备实例，逐步让持有者与剑脊中的新生人格缠在一起。"
+is_stackable = false
+base_price = 75000
+buy_price = 75000
+sell_price = 37500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"memoryeater_vine"])
+trait_ids = Array[StringName]([&"weapon.rapier.memoryeater_vine.lifeblood_ledger", &"weapon.rapier.memoryeater_vine.symbiotic_siphon", &"weapon.rapier.memoryeater_vine.memory_thorn_edge", &"weapon.rapier.memoryeater_vine.story_root_snare", &"weapon.rapier.memoryeater_vine.mourning_vine_lunge", &"weapon.rapier.memoryeater_vine.black_bloom_awakening"])
+weapon_profile = SubResource("Resource_weapon_profile")

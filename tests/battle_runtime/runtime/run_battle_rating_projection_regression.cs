@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_rating_projection_regression : SceneTree
+public partial class run_battle_rating_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -10,7 +10,7 @@ public partial class run_battle_rating_projection_regression : SceneTree
     {
         TestMemberStatsProjectionCopiesTypedState();
         TestStatsMapProjectionUsesMemberKeys();
-        Quit(_test.Finish("Battle rating projection regression"));
+        RequestTestExit(_test.Finish("Battle rating projection regression"));
     }
 
     private void TestMemberStatsProjectionCopiesTypedState()

@@ -11,9 +11,6 @@ public readonly record struct BattleExecuteSoulFractureParams(
 {
     public static BattleExecuteSoulFractureParams Empty =>
         new(false, BattleExecutionRules.SoulFractureStatusId, 0, 100, 100);
-
-    public static BattleExecuteSoulFractureParams DefaultResisted =>
-        new(false, BattleExecutionRules.SoulFractureStatusId, 60, 100, 100);
 }
 
 public readonly record struct BattleExecutePlan(
@@ -45,20 +42,20 @@ public readonly record struct BattleExecutionRuleParams(
         new(Normalize(skillId), 0, 17, 5, 20, 50, 0, 100, 100);
 
     public static BattleExecutionRuleParams FromEffect(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         StringName skillId = default
     )
     {
         return new BattleExecutionRuleParams(
             Normalize(skillId),
-            Math.Max(effectDef?.threshold_base_value ?? 0, 0),
-            Math.Max(effectDef?.threshold_level_anchor ?? 17, 0),
-            Math.Max(effectDef?.threshold_level_bonus_per_delta ?? 5, 0),
-            Math.Max(effectDef?.threshold_max_hp_ratio_percent ?? 20, 0),
-            Math.Max(effectDef?.threshold_cap_max_hp_ratio_percent ?? 50, 0),
-            Math.Max(effectDef?.soul_fracture_duration_tu ?? 0, 0),
-            Math.Clamp(effectDef?.heal_multiplier_percent ?? 100, 0, 100),
-            Math.Clamp(effectDef?.shield_gain_multiplier_percent ?? 100, 0, 100)
+            Math.Max(effectDefinition?.ThresholdBaseValue ?? 0, 0),
+            Math.Max(effectDefinition?.ThresholdLevelAnchor ?? 17, 0),
+            Math.Max(effectDefinition?.ThresholdLevelBonusPerDelta ?? 5, 0),
+            Math.Max(effectDefinition?.ThresholdMaxHpRatioPercent ?? 20, 0),
+            Math.Max(effectDefinition?.ThresholdCapMaxHpRatioPercent ?? 50, 0),
+            Math.Max(effectDefinition?.SoulFractureDurationTu ?? 0, 0),
+            Math.Clamp(effectDefinition?.HealMultiplierPercent ?? 100, 0, 100),
+            Math.Clamp(effectDefinition?.ShieldGainMultiplierPercent ?? 100, 0, 100)
         );
     }
 

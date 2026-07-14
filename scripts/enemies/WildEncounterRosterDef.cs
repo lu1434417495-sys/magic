@@ -36,6 +36,24 @@ public partial class WildEncounterRosterDef : Resource
         return maxStage;
     }
 
+    internal WildEncounterRosterDefinition ToDefinition()
+    {
+        var stageDefinitions = new List<WildEncounterRosterStageDefinition>();
+        foreach (WildEncounterRosterStageDef stageDef in stages)
+        {
+            if (stageDef != null)
+                stageDefinitions.Add(stageDef.ToDefinition());
+        }
+        return new WildEncounterRosterDefinition(
+            profile_id,
+            display_name,
+            initial_stage,
+            growth_step_interval,
+            suppression_steps_on_victory,
+            stageDefinitions
+        );
+    }
+
     internal IReadOnlyList<WildEncounterRosterUnitEntryDef> GetStageUnitEntriesTyped(int stage)
     {
         int bestStage = -1;

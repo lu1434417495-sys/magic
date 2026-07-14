@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleSimUnitMetricsSnapshot
@@ -10,6 +9,7 @@ public sealed class BattleSimUnitMetricsSnapshot
         string factionId,
         string controlMode,
         string sourceMemberId,
+        int unitCount,
         Dictionary<string, int> actionCounts,
         Dictionary<string, int> skillAttemptCounts,
         Dictionary<string, int> skillSuccessCounts,
@@ -28,6 +28,7 @@ public sealed class BattleSimUnitMetricsSnapshot
         FactionId = factionId ?? "";
         ControlMode = controlMode ?? "";
         SourceMemberId = sourceMemberId ?? "";
+        UnitCount = unitCount;
         ActionCounts = actionCounts ?? NewIntMap();
         SkillAttemptCounts = skillAttemptCounts ?? NewIntMap();
         SkillSuccessCounts = skillSuccessCounts ?? NewIntMap();
@@ -46,6 +47,7 @@ public sealed class BattleSimUnitMetricsSnapshot
     public string FactionId { get; }
     public string ControlMode { get; }
     public string SourceMemberId { get; }
+    public int UnitCount { get; }
     public IReadOnlyDictionary<string, int> ActionCounts { get; }
     public IReadOnlyDictionary<string, int> SkillAttemptCounts { get; }
     public IReadOnlyDictionary<string, int> SkillSuccessCounts { get; }
@@ -58,91 +60,101 @@ public sealed class BattleSimUnitMetricsSnapshot
     public int KillCount { get; }
     public int DeathCount { get; }
 
-    internal static BattleSimUnitMetricsSnapshot FromDictionary(string unitId, GDictionary data)
+    internal static BattleSimUnitMetricsSnapshot Capture(
+        string unitId,
+        BattleMetricEntry data
+    )
     {
-        data ??= new GDictionary();
+        data ??= new BattleMetricEntry();
         return new BattleSimUnitMetricsSnapshot(
-            ReadString(data, "unit_id", unitId),
-            ReadString(data, "display_name"),
-            ReadString(data, "faction_id"),
-            ReadString(data, "control_mode"),
-            ReadString(data, "source_member_id"),
-            ReadIntMap(ReadDictionary(data, "action_counts")),
-            ReadIntMap(ReadDictionary(data, "skill_attempt_counts")),
-            ReadIntMap(ReadDictionary(data, "skill_success_counts")),
-            ReadInt(data, "turn_count"),
-            ReadInt(data, "successful_skill_count"),
-            ReadInt(data, "total_damage_done"),
-            ReadInt(data, "total_healing_done"),
-            ReadInt(data, "total_damage_taken"),
-            ReadInt(data, "total_healing_received"),
-            ReadInt(data, "kill_count"),
-            ReadInt(data, "death_count")
+            string.IsNullOrEmpty(data.UnitId) ? unitId : data.UnitId,
+            data.DisplayName,
+            data.FactionId,
+            data.ControlMode,
+            data.SourceMemberId,
+            data.UnitCount,
+            CloneIntMap(data.ActionCounts),
+            CloneIntMap(data.SkillAttemptCounts),
+            CloneIntMap(data.SkillSuccessCounts),
+            data.TurnCount,
+            data.SuccessfulSkillCount,
+            data.TotalDamageDone,
+            data.TotalHealingDone,
+            data.TotalDamageTaken,
+            data.TotalHealingReceived,
+            data.KillCount,
+            data.DeathCount
         );
     }
 
-    private static Dictionary<string, int> ReadIntMap(GDictionary data)
+    internal Dictionary<string, object> BuildPlain()
+    {
+        var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
+        {
+            ["faction_id"] = FactionId,
+            ["turn_count"] = TurnCount,
+            ["action_counts"] = ActionCounts,
+            ["skill_attempt_counts"] = SkillAttemptCounts,
+            ["skill_success_counts"] = SkillSuccessCounts,
+            ["successful_skill_count"] = SuccessfulSkillCount,
+            ["total_damage_done"] = TotalDamageDone,
+            ["total_healing_done"] = TotalHealingDone,
+            ["total_damage_taken"] = TotalDamageTaken,
+            ["total_healing_received"] = TotalHealingReceived,
+            ["kill_count"] = KillCount,
+            ["death_count"] = DeathCount,
+        };
+        if (!string.IsNullOrEmpty(UnitId))
+        {
+            result["unit_id"] = UnitId;
+            result["display_name"] = DisplayName;
+            result["control_mode"] = ControlMode;
+            result["source_member_id"] = SourceMemberId;
+        }
+        else
+        {
+            result["unit_count"] = UnitCount;
+        }
+        return result;
+    }
+
+    internal Dictionary<string, object> BuildFactionPlain() =>
+        new(System.StringComparer.Ordinal)
+        {
+            ["unit_count"] = UnitCount,
+            ["turn_count"] = TurnCount,
+            ["successful_skill_count"] = SuccessfulSkillCount,
+            ["total_damage_done"] = TotalDamageDone,
+            ["total_healing_done"] = TotalHealingDone,
+            ["total_damage_taken"] = TotalDamageTaken,
+            ["total_healing_received"] = TotalHealingReceived,
+            ["kill_count"] = KillCount,
+            ["death_count"] = DeathCount,
+        };
+
+    private static Dictionary<string, int> CloneIntMap(
+        IReadOnlyDictionary<string, int> data
+    )
     {
         var result = NewIntMap();
         if (data == null)
-        {
             return result;
-        }
-        foreach (Variant key in data.Keys)
-        {
-            Variant value = data[key];
-            if (value.VariantType == Variant.Type.Int)
-            {
-                result[VariantText(key)] = value.AsInt32();
-            }
-        }
+        foreach (KeyValuePair<string, int> entry in data)
+            if (!string.IsNullOrEmpty(entry.Key))
+                result[entry.Key] = entry.Value;
         return result;
     }
 
     private static Dictionary<string, int> NewIntMap() =>
         new(System.StringComparer.Ordinal);
 
-    private static GDictionary ReadDictionary(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return new GDictionary();
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static int ReadInt(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return 0;
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
-    }
-
-    private static string ReadString(GDictionary data, string key, string fallback = "")
-    {
-        if (data == null || !data.ContainsKey(key))
-            return fallback ?? "";
-        return VariantText(data[key], fallback);
-    }
-
-    private static string VariantText(Variant value, string fallback = "")
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback ?? "",
-        };
-    }
 }
 
 public sealed class BattleSimMetricsSnapshot
 {
     private readonly Dictionary<string, BattleSimUnitMetricsSnapshot> _units =
         new(System.StringComparer.Ordinal);
-    private readonly Dictionary<string, BattleSimFactionMetricSummary> _factions =
+    private readonly Dictionary<string, BattleSimUnitMetricsSnapshot> _factions =
         new(System.StringComparer.Ordinal);
 
     private BattleSimMetricsSnapshot() { }
@@ -153,87 +165,58 @@ public sealed class BattleSimMetricsSnapshot
 
     public IReadOnlyDictionary<string, BattleSimUnitMetricsSnapshot> Units => _units;
 
-    public IReadOnlyDictionary<string, BattleSimFactionMetricSummary> Factions => _factions;
+    public IReadOnlyDictionary<string, BattleSimUnitMetricsSnapshot> Factions => _factions;
 
     internal static BattleSimMetricsSnapshot Empty() => new();
 
-    internal static BattleSimMetricsSnapshot FromDictionary(GDictionary data)
+    internal static BattleSimMetricsSnapshot Capture(BattleMetricsState data)
     {
         var result = new BattleSimMetricsSnapshot();
         if (data == null)
-        {
             return result;
-        }
-        result.BattleId = ReadString(data, "battle_id");
-        result.Seed = ReadLong(data, "seed");
-        foreach (KeyValuePair<string, GDictionary> entry in ReadDictionaryEntries(data, "units"))
+        result.BattleId = data.BattleId ?? "";
+        result.Seed = data.Seed;
+        foreach (KeyValuePair<string, BattleMetricEntry> entry in data.Units)
+            if (!string.IsNullOrEmpty(entry.Key))
+                result._units[entry.Key] = BattleSimUnitMetricsSnapshot.Capture(
+                    entry.Key,
+                    entry.Value
+                );
+        foreach (KeyValuePair<string, BattleMetricEntry> entry in data.Factions)
         {
-            result._units[entry.Key] = BattleSimUnitMetricsSnapshot.FromDictionary(
-                entry.Key,
+            if (string.IsNullOrEmpty(entry.Key) || entry.Value == null)
+                continue;
+            result._factions[entry.Key] = BattleSimUnitMetricsSnapshot.Capture(
+                "",
                 entry.Value
             );
-        }
-        foreach (KeyValuePair<string, GDictionary> entry in ReadDictionaryEntries(data, "factions"))
-        {
-            BattleSimFactionMetricSummary summary = new();
-            summary.AccumulateFrom(entry.Value);
-            result._factions[entry.Key] = summary;
         }
         return result;
     }
 
-    internal GDictionary ToDictionary() => BattleSimReportProjection.Project(this);
+    internal GodotProjectionLease<GDictionary> BuildLease() =>
+        BattleSimReportProjection.BuildMetricsLease(this);
 
-    private static IEnumerable<KeyValuePair<string, GDictionary>> ReadDictionaryEntries(
-        GDictionary data,
-        string key
-    )
+    internal Dictionary<string, object> BuildPlain()
     {
-        if (data == null || !data.ContainsKey(key))
-        {
-            yield break;
-        }
-        Variant value = data[key];
-        if (value.VariantType != Variant.Type.Dictionary)
-        {
-            yield break;
-        }
-        GDictionary entries = value.AsGodotDictionary();
-        foreach (Variant entryKey in entries.Keys)
-        {
-            Variant entryValue = entries[entryKey];
-            if (entryValue.VariantType == Variant.Type.Dictionary)
-            {
-                yield return new KeyValuePair<string, GDictionary>(
-                    VariantText(entryKey),
-                    entryValue.AsGodotDictionary()
-                );
-            }
-        }
-    }
+        var units = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        foreach (KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry in _units)
+            units[entry.Key] = entry.Value?.BuildPlain() ?? NewPlainMap();
 
-    private static long ReadLong(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return 0L;
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt64() : 0L;
-    }
+        var factions = new Dictionary<string, object>(System.StringComparer.Ordinal);
+        foreach (KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry in _factions)
+            factions[entry.Key] = entry.Value?.BuildFactionPlain() ?? NewPlainMap();
 
-    private static string ReadString(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return "";
-        return VariantText(data[key]);
-    }
-
-    private static string VariantText(Variant value)
-    {
-        return value.VariantType switch
+        return new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => "",
+            ["battle_id"] = BattleId,
+            ["seed"] = Seed,
+            ["units"] = units,
+            ["factions"] = factions,
         };
     }
+
+    private static Dictionary<string, object> NewPlainMap() =>
+        new(System.StringComparer.Ordinal);
+
 }

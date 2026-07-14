@@ -1,0 +1,103 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=22 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="5_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="6_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="7_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="8_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="9_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentRollGateDef.cs" id="10_roll_gate"]
+
+[sub_resource type="Resource" id="Dice_term_1d6_fire"]
+script = ExtResource("6_dice_term")
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_1d6_fire"]
+script = ExtResource("5_dice")
+terms = Array[Resource]([SubResource("Dice_term_1d6_fire")])
+
+[sub_resource type="Resource" id="Action_flame_damage_payload"]
+script = ExtResource("8_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_1d6_fire")
+damage_type = &"fire"
+damage_tags = Array[StringName]([&"fire"])
+
+[sub_resource type="Resource" id="Action_flame_damage"]
+script = ExtResource("7_action")
+action_id = &"action.flame_morningstar.flame_strike.add_fire_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_flame_damage_payload")
+
+[sub_resource type="Resource" id="Roll_term_d20"]
+script = ExtResource("6_dice_term")
+dice_count = 1
+dice_sides = 20
+
+[sub_resource type="Resource" id="Roll_d20"]
+script = ExtResource("5_dice")
+terms = Array[Resource]([SubResource("Roll_term_d20")])
+
+[sub_resource type="Resource" id="Roll_gate_ignite"]
+script = ExtResource("10_roll_gate")
+rng_stream = &"equipment_ability.flame_morningstar.ignite"
+roll = SubResource("Roll_d20")
+compare = &"gte"
+threshold = 11
+
+[sub_resource type="Resource" id="Action_burning_payload"]
+script = ExtResource("9_apply_status")
+target_selector = &"target"
+status_id = &"burning"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"add"
+stack_limit = 3
+display_label = "燃烧"
+attack_roll_penalty = 0
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+tick_interval_tu = 10
+
+[sub_resource type="Resource" id="Action_burning"]
+script = ExtResource("7_action")
+action_id = &"action.flame_morningstar.flame_strike.apply_burning"
+kind = &"apply_status"
+payload = SubResource("Action_burning_payload")
+
+[sub_resource type="Resource" id="Reaction_flame_damage"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.flame_morningstar.flame_strike.damage_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_flame_damage")])
+
+[sub_resource type="Resource" id="Reaction_flame_burning"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.flame_morningstar.flame_strike.burning_after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+roll_gate = SubResource("Roll_gate_ignite")
+actions = Array[Resource]([SubResource("Action_burning")])
+
+[sub_resource type="Resource" id="Binding_flame_strike"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.morningstar.flame.flame_strike"
+trait_id = &"weapon.morningstar.flame.flame_strike"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"flame_morningstar"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_flame_damage"), SubResource("Reaction_flame_burning")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.morningstar.flame"
+schema_version = 1
+load_order = 180
+bindings = Array[Resource]([SubResource("Binding_flame_strike")])

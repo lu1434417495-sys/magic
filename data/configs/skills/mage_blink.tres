@@ -5,6 +5,7 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_w6kpn"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/ContingencyAutomationDef.cs" id="4_contingency"]
 
 [sub_resource type="Resource" id="BlinkJump"]
 script = ExtResource("1_effect")
@@ -36,6 +37,14 @@ level_overrides = {
 mastery_trigger_mode = &"effect_applied"
 ai_tags = Array[StringName]([&"mobility", &"escape"])
 effect_defs = Array[ExtResource("1_effect")]([SubResource("BlinkJump")])
+
+[sub_resource type="Resource" id="ContingencyAutomation"]
+script = ExtResource("4_contingency")
+can_be_stored_in_contingency = true
+min_contingency_skill_level = 7
+effect_category = &"mobility"
+allowed_target_resolvers = Array[StringName]([&"empty_cell_near_owner"])
+allowed_parameter_bindings = {}
 
 [resource]
 script = ExtResource("3_skill")
@@ -105,3 +114,4 @@ level_description_configs = {
 }
 }
 combat_profile = SubResource("Combat")
+contingency_automation_profile = SubResource("ContingencyAutomation")

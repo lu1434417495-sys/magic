@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_echo_throw_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+damage_tag = &"physical_slash"
+dice_count = 1
+dice_sides = 6
+dice_bonus = 1
+
+[sub_resource type="Resource" id="Combat_echo_throw"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_axe_echo_throw"
+target_mode = &"ground"
+target_team_filter = &"enemy"
+range_value = 6
+weapon_range_policy = &"configured"
+area_pattern = &"line"
+area_value = 6
+ap_cost = 1
+stamina_cost = 40
+cooldown_tu = 90
+attack_resolution_mode = &"direct_effect"
+mastery_trigger_mode = &"skill_damage_dice_max"
+area_origin_mode = &"caster"
+area_direction_mode = &"target_vector"
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_echo_throw_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_axe_echo_throw"
+display_name = "回音投掷"
+icon_id = &"weapon_axe_echo_throw"
+description = "装备技能。选择同列或同行 6 格内地面，对使用者到目标格路径上的敌人造成 1D6+1 挥砍伤害；每个实际受伤敌人为持有者获得 1 层余音，最多 5 层，持续 60TU。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"echo", &"weapon", &"axe", &"thrown"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_echo_throw")

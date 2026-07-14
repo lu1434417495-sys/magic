@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+item_id = "dragon_scale"
+display_name = "红龙鳞"
+description = "从红龙躯体上剥下的赤红鳞片，坚逾精铁且蕴着余温，是铸造龙鳞甲械的核心材料。"
+icon = "res://icon.svg"
+is_stackable = true
+base_price = 120
+buy_price = 120
+sell_price = 60
+sellable = true
+max_stack = 20
+tags = Array[StringName](["material", "scale", "dragon"])
+crafting_groups = Array[StringName](["smithing", "armor", "weaponsmithing"])

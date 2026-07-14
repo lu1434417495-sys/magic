@@ -1,19 +1,17 @@
-using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
+public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestDustAttackModifierUsesSchemaNotSourceId();
         TestDustDistanceGateAndEndpointStacking();
@@ -25,39 +23,32 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     private void TestDustAttackModifierUsesSchemaNotSourceId()
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 3), new Vector2I(0, 1), new Vector2I(3, 1));
-        try
-        {
-            CombatEffectDef oddNamedDust = setup.Track(BuildDustEffect("schema_driven_not_meteor_named"));
-            _test.True(
-                setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    setup.Target.coord,
-                    setup.Attacker,
-                    null,
-                    oddNamedDust,
-                    "dust_target"
-                ),
-                "dust schema 测试应能写入 target footprint。"
-            );
+        CombatEffectDefinition oddNamedDust = BuildDustEffect("schema_driven_not_meteor_named");
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                setup.Target.coord,
+                setup.Attacker,
+                null,
+                oddNamedDust,
+                "dust_target"
+            ),
+            "dust schema 测试应能写入 target footprint。"
+        );
 
-            AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
-            _test.Eq(
-                probe.AttackCheck.SituationalAttackPenalty,
-                2,
-                "尘土命中 -2 应通过 accuracy_modifier_spec 生效，而不是靠 source id。"
-            );
-            _test.Eq(probe.ModifierBundle.Breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
-            _test.Eq(
-                probe.ModifierBundle.Breakdown.Count > 0
-                    ? probe.ModifierBundle.Breakdown[0].modifier_delta
-                    : 0,
-                -2,
-                "breakdown 应保留有效 -2 修饰。"
-            );
-        }
-        finally
-        {
-            setup.Dispose();
-        }
+        AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
+        _test.Eq(
+            probe.AttackCheck.SituationalAttackPenalty,
+            2,
+            "尘土命中 -2 应通过 accuracy_modifier_spec 生效，而不是靠 source id。"
+        );
+        _test.Eq(probe.ModifierBundle.Breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
+        _test.Eq(
+            probe.ModifierBundle.Breakdown.Count > 0
+                ? probe.ModifierBundle.Breakdown[0].modifier_delta
+                : 0,
+            -2,
+            "breakdown 应保留有效 -2 修饰。"
+        );
     }
 
     private void TestDustDistanceGateAndEndpointStacking()
@@ -67,132 +58,109 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             new Vector2I(0, 0),
             new Vector2I(1, 0)
         );
-        try
-        {
-            _test.True(
-                adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    adjacentSetup.Target.coord,
-                    adjacentSetup.Attacker,
-                    null,
-                    adjacentSetup.Track(BuildDustEffect("adjacent_dust")),
-                    "adjacent_dust"
-                ),
-                "相邻尘土 fixture 应能写入。"
-            );
-            AttackPolicyProbe adjacentProbe = BuildPolicyAttackProbe(
-                adjacentSetup.Runtime,
+        _test.True(
+            adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                adjacentSetup.Target.coord,
                 adjacentSetup.Attacker,
-                adjacentSetup.Target
-            );
-            _test.Eq(
-                adjacentProbe.ModifierBundle.Breakdown.Count,
-                0,
-                "distance_min_exclusive=1 时相邻攻击不应吃尘土命中惩罚。"
-            );
-        }
-        finally
-        {
-            adjacentSetup.Dispose();
-        }
+                null,
+                BuildDustEffect("adjacent_dust"),
+                "adjacent_dust"
+            ),
+            "相邻尘土 fixture 应能写入。"
+        );
+        AttackPolicyProbe adjacentProbe = BuildPolicyAttackProbe(
+            adjacentSetup.Runtime,
+            adjacentSetup.Attacker,
+            adjacentSetup.Target
+        );
+        _test.Eq(
+            adjacentProbe.ModifierBundle.Breakdown.Count,
+            0,
+            "distance_min_exclusive=1 时相邻攻击不应吃尘土命中惩罚。"
+        );
 
         Fixture doubleSetup = BuildRuntimeWithUnits(
             new Vector2I(5, 2),
             new Vector2I(0, 0),
             new Vector2I(3, 0)
         );
-        try
-        {
-            _test.True(
-                doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    doubleSetup.Attacker.coord,
-                    doubleSetup.Attacker,
-                    null,
-                    doubleSetup.Track(BuildDustEffect("attacker_dust")),
-                    "attacker_dust"
-                ),
-                "attacker footprint 尘土应能写入。"
-            );
-            _test.True(
-                doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    doubleSetup.Target.coord,
-                    doubleSetup.Attacker,
-                    null,
-                    doubleSetup.Track(BuildDustEffect("target_dust")),
-                    "target_dust"
-                ),
-                "target footprint 尘土应能写入。"
-            );
-            AttackPolicyProbe doubleProbe = BuildPolicyAttackProbe(
-                doubleSetup.Runtime,
+        _test.True(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                doubleSetup.Attacker.coord,
                 doubleSetup.Attacker,
-                doubleSetup.Target
-            );
-            _test.Eq(
-                doubleProbe.AttackCheck.SituationalAttackPenalty,
-                2,
-                "attacker/target 同时处于 dust 时同 stack_key 不应叠成 -4。"
-            );
-            _test.Eq(
-                doubleProbe.ModifierBundle.Breakdown.Count,
-                1,
-                "同 stack_key dust 只应保留一条 post-stack breakdown。"
-            );
-        }
-        finally
-        {
-            doubleSetup.Dispose();
-        }
+                null,
+                BuildDustEffect("attacker_dust"),
+                "attacker_dust"
+            ),
+            "attacker footprint 尘土应能写入。"
+        );
+        _test.True(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                doubleSetup.Target.coord,
+                doubleSetup.Attacker,
+                null,
+                BuildDustEffect("target_dust"),
+                "target_dust"
+            ),
+            "target footprint 尘土应能写入。"
+        );
+        AttackPolicyProbe doubleProbe = BuildPolicyAttackProbe(
+            doubleSetup.Runtime,
+            doubleSetup.Attacker,
+            doubleSetup.Target
+        );
+        _test.Eq(
+            doubleProbe.AttackCheck.SituationalAttackPenalty,
+            2,
+            "attacker/target 同时处于 dust 时同 stack_key 不应叠成 -4。"
+        );
+        _test.Eq(
+            doubleProbe.ModifierBundle.Breakdown.Count,
+            1,
+            "同 stack_key dust 只应保留一条 post-stack breakdown。"
+        );
     }
 
     private void TestDustExpiresWhileBattleLifetimeTerrainStaysActive()
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 2), new Vector2I(0, 0), new Vector2I(3, 0));
-        try
-        {
-            _test.True(
-                setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    setup.Target.coord,
-                    setup.Attacker,
-                    null,
-                    setup.Track(BuildDustEffect("meteor_swarm_dust")),
-                    "timed_dust"
-                ),
-                "timed dust 应能写入。"
-            );
-            _test.True(
-                setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
-                    setup.Target.coord,
-                    setup.Attacker,
-                    null,
-                    setup.Track(BuildBattleTerrainEffect("meteor_swarm_rubble", 2)),
-                    "rubble"
-                ),
-                "battle lifetime rubble 应能写入。"
-            );
-            setup.State.timeline.current_tu = 55;
-            setup.Runtime._terrain_effect_system.ProcessTimedTerrainEffects(
-                setup.Track(new BattleEventBatch())
-            );
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                setup.Target.coord,
+                setup.Attacker,
+                null,
+                BuildDustEffect("meteor_swarm_dust"),
+                "timed_dust"
+            ),
+            "timed dust 应能写入。"
+        );
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
+                setup.Target.coord,
+                setup.Attacker,
+                null,
+                BuildBattleTerrainEffect("meteor_swarm_rubble", 2),
+                "rubble"
+            ),
+            "battle lifetime rubble 应能写入。"
+        );
+        setup.State.timeline.current_tu = 55;
+        setup.Runtime._terrain_effect_system.ProcessTimedTerrainEffects(new BattleEventBatch());
 
-            AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
-            _test.Eq(
-                probe.ModifierBundle.Breakdown.Count,
-                0,
-                "timed dust 到期后不应继续提供命中惩罚。"
-            );
-            _test.Eq(
-                setup.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(
-                    setup.Target,
-                    setup.Target.coord
-                ),
-                2,
-                "battle lifetime rubble 推进后仍应保留移动成本。"
-            );
-        }
-        finally
-        {
-            setup.Dispose();
-        }
+        AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
+        _test.Eq(
+            probe.ModifierBundle.Breakdown.Count,
+            0,
+            "timed dust 到期后不应继续提供命中惩罚。"
+        );
+        _test.Eq(
+            setup.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(
+                setup.Target,
+                setup.Target.coord
+            ),
+            2,
+            "battle lifetime rubble 推进后仍应保留移动成本。"
+        );
     }
 
     private AttackPolicyProbe BuildPolicyAttackProbe(
@@ -202,11 +170,11 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     )
     {
         BattleAttackCheckPolicyService attackPolicy = runtime.GetAttackCheckPolicyService();
-        BattleAttackCheckPolicyContext context = attackPolicy.BuildAttackContext(
+        BattleAttackCheckPolicyContext context = attackPolicy.BuildSkillDefinitionAttackContext(
             runtime.GetState(),
             attacker,
             target,
-            null,
+            (SkillDefinition)null,
             "skill_attack_check",
             "execute",
             false
@@ -320,79 +288,65 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         }
     }
 
-    private static CombatEffectDef BuildDustEffect(StringName effectId)
+    private static CombatEffectDefinition BuildDustEffect(StringName effectId)
     {
-        CombatEffectDef effect = BuildTimedTerrainEffect(effectId, 0, "timed", 50, 5);
-        effect.accuracy_modifier_spec = new BattleAttackRollModifierSpec
-        {
-            source_domain = "terrain",
-            label = "尘土",
-            modifier_delta = -2,
-            stack_key = "dust_attack_roll_penalty",
-            stack_mode = "max",
-            roll_kind_filter = "spell_attack",
-            endpoint_mode = "either",
-            distance_min_exclusive = 1,
-            distance_max_inclusive = -1,
-            target_team_filter = "any",
-            footprint_mode = "any_cell",
-            applies_to = "attack_roll",
-        };
-        return effect;
+        return BuildTimedTerrainEffect(
+            effectId,
+            0,
+            "timed",
+            50,
+            5,
+            new BattleAttackRollModifierSpec
+            {
+                source_domain = "terrain",
+                label = "尘土",
+                modifier_delta = -2,
+                stack_key = "dust_attack_roll_penalty",
+                stack_mode = "max",
+                roll_kind_filter = "spell_attack",
+                endpoint_mode = "either",
+                distance_min_exclusive = 1,
+                distance_max_inclusive = -1,
+                target_team_filter = "any",
+                footprint_mode = "any_cell",
+                applies_to = "attack_roll",
+            }
+        );
     }
 
-    private static CombatEffectDef BuildBattleTerrainEffect(StringName effectId, int moveCostDelta)
+    private static CombatEffectDefinition BuildBattleTerrainEffect(StringName effectId, int moveCostDelta)
     {
         return BuildTimedTerrainEffect(effectId, moveCostDelta, "battle", 0, 0);
     }
 
-    private static CombatEffectDef BuildTimedTerrainEffect(
+    private static CombatEffectDefinition BuildTimedTerrainEffect(
         StringName effectId,
         int moveCostDelta,
         StringName lifetimePolicy,
         int durationTu,
-        int tickIntervalTu
-    )
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "terrain_effect",
-            tick_effect_type = "none",
-            lifetime_policy = lifetimePolicy,
-            move_cost_delta = moveCostDelta,
-            terrain_effect_id = effectId,
-            display_name = effectId.ToString(),
-            render_overlay_id = effectId,
-            duration_tu = durationTu,
-            tick_interval_tu = tickIntervalTu,
-            effect_target_team_filter = "any",
-        };
-    }
+        int tickIntervalTu,
+        BattleAttackRollModifierSpec accuracyModifierSpec = null
+    ) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            effectTargetTeamFilter: "any",
+            tickEffectType: "none",
+            lifetimePolicy: lifetimePolicy,
+            moveCostDelta: moveCostDelta,
+            terrainEffectId: effectId,
+            displayName: effectId.ToString(),
+            renderOverlayId: effectId,
+            durationTu: durationTu,
+            tickIntervalTu: tickIntervalTu,
+            accuracyModifierSpec: accuracyModifierSpec
+        );
 
-    private sealed class Fixture : IDisposable
+    private sealed class Fixture
     {
-        private readonly System.Collections.Generic.List<GodotObject> _ownedObjects = new();
-
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Attacker;
         public BattleUnitState Target;
-
-        public T Track<T>(T ownedObject)
-            where T : GodotObject
-        {
-            if (ownedObject != null)
-                _ownedObjects.Add(ownedObject);
-            return ownedObject;
-        }
-
-        public void Dispose()
-        {
-            for (int index = _ownedObjects.Count - 1; index >= 0; index--)
-                BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
-            _ownedObjects.Clear();
-            BattleTestFixture.DisposeBattleFixture(Runtime, State);
-        }
     }
 
     private sealed class AttackPolicyProbe

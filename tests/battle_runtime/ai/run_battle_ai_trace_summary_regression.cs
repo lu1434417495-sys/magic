@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battle_ai_trace_summary_regression : SceneTree
+public partial class run_battle_ai_trace_summary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -13,7 +13,7 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
         try
         {
             TestCommandSummaryCopiesBattleCommandAndProjectsToDictionary();
-            TestBattlePreviewDamagePreviewSetterDecodesProjectedPayload();
+            TestBattlePreviewStoresTypedDamagePreview();
             TestActionTraceProjectsStableDictionaryShape();
         }
         catch (Exception exception)
@@ -21,7 +21,7 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
             _test.Fail($"Unhandled exception: {exception}");
         }
 
-        Quit(_test.Finish("Battle AI trace summary regression"));
+        RequestTestExit(_test.Finish("Battle AI trace summary regression"));
     }
 
     private void TestCommandSummaryCopiesBattleCommandAndProjectsToDictionary()
@@ -35,65 +35,59 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
             target_unit_id = "target",
             target_coord = new Vector2I(3, 4),
         };
-        try
-        {
-            command.SetTargetUnitIds(new[] { new StringName("target"), new StringName("support") });
-            command.SetTargetCoords(new[] { new Vector2I(3, 4), new Vector2I(4, 4) });
+        command.SetTargetUnitIds(new[] { new StringName("target"), new StringName("support") });
+        command.SetTargetCoords(new[] { new Vector2I(3, 4), new Vector2I(4, 4) });
 
-            AiCommandSummary summary = AiCommandSummary.FromCommand(command);
-            command.target_unit_ids.Add("late_mutation");
-            command.target_coords.Add(new Vector2I(9, 9));
+        AiCommandSummary summary = AiCommandSummary.FromCommand(command);
+        command.target_unit_ids.Add("late_mutation");
+        command.target_coords.Add(new Vector2I(9, 9));
 
-            _test.Eq(summary.CommandType, "skill", "CommandType should copy command_type.");
-            _test.Eq(summary.UnitId, "caster", "UnitId should copy unit_id.");
-            _test.Eq(summary.TargetUnitIds.Count, 2, "TargetUnitIds should be copied into a C# list.");
-            _test.Eq(summary.TargetCoords.Count, 2, "TargetCoords should be copied into a C# list.");
+        _test.Eq(summary.CommandType, "skill", "CommandType should copy command_type.");
+        _test.Eq(summary.UnitId, "caster", "UnitId should copy unit_id.");
+        _test.Eq(summary.TargetUnitIds.Count, 2, "TargetUnitIds should be copied into a C# list.");
+        _test.Eq(summary.TargetCoords.Count, 2, "TargetCoords should be copied into a C# list.");
 
-            Godot.Collections.Dictionary payload = summary.ToDictionary();
-            _test.Eq(payload["command_type"].AsString(), "skill", "Projection should include command_type.");
-            _test.Eq(
-                payload["target_unit_ids"].AsGodotArray().Count,
-                2,
-                "Projection should preserve copied target unit ids."
-            );
-            _test.Eq(
-                payload["target_coords"].AsGodotArray().Count,
-                2,
-                "Projection should preserve copied target coords."
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleCommand(command);
-        }
+        using GodotProjectionLease<GDictionary> lease = TraceDictionaryProjection.BuildLease(
+            summary.ToTraceDictionary(),
+            "ai_command_summary_test",
+            LifetimeDomain.Request,
+            "run_battle_ai_trace_summary_regression.command"
+        );
+        GDictionary payload = lease.Value;
+        _test.Eq(payload["command_type"].AsString(), "skill", "Projection should include command_type.");
+        _test.Eq(
+            payload["target_unit_ids"].AsGodotArray().Count,
+            2,
+            "Projection should preserve copied target unit ids."
+        );
+        _test.Eq(
+            payload["target_coords"].AsGodotArray().Count,
+            2,
+            "Projection should preserve copied target coords."
+        );
     }
 
-    private void TestBattlePreviewDamagePreviewSetterDecodesProjectedPayload()
+    private void TestBattlePreviewStoresTypedDamagePreview()
     {
         var preview = new BattlePreview();
-        try
-        {
-            preview.damage_preview = new GDictionary
-            {
-                ["has_damage"] = true,
-                ["min_damage"] = 4,
-                ["max_damage"] = 9,
-            };
+        preview.SetDamagePreview(
+            new BattleDamagePreviewRangeService.SkillDamagePreview(
+                true,
+                4,
+                9,
+                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+            )
+        );
 
-            _test.True(
-                preview.DamagePreviewTyped.HasValue,
-                "BattlePreview.damage_preview setter 应继续解码成 internal typed payload。"
-            );
-            if (preview.DamagePreviewTyped.HasValue)
-            {
-                _test.True(preview.DamagePreviewTyped.Value.HasDamage, "BattlePreview damage preview setter 应保留 has_damage。");
-                _test.Eq(preview.DamagePreviewTyped.Value.MinDamage, 4, "BattlePreview damage preview setter 应保留 min_damage。");
-                _test.Eq(preview.DamagePreviewTyped.Value.MaxDamage, 9, "BattlePreview damage preview setter 应保留 max_damage。");
-            }
-        }
-        finally
+        _test.True(
+            preview.DamagePreviewTyped.HasValue,
+            "BattlePreview 应保存 typed damage preview。"
+        );
+        if (preview.DamagePreviewTyped.HasValue)
         {
-            BattleTestFixture.DisposeBattlePreview(preview);
+            _test.True(preview.DamagePreviewTyped.Value.HasDamage, "BattlePreview damage preview setter 应保留 has_damage。");
+            _test.Eq(preview.DamagePreviewTyped.Value.MinDamage, 4, "BattlePreview damage preview setter 应保留 min_damage。");
+            _test.Eq(preview.DamagePreviewTyped.Value.MaxDamage, 9, "BattlePreview damage preview setter 应保留 max_damage。");
         }
     }
 
@@ -144,7 +138,13 @@ public partial class run_battle_ai_trace_summary_regression : SceneTree
         trace.CandidateTraceCounters["evaluated"] = 3;
 
         _test.True(!trace.IsEmpty(), "Trace with trace_id should not be empty.");
-        Godot.Collections.Dictionary payload = trace.ToDictionary();
+        using GodotProjectionLease<GDictionary> lease = TraceDictionaryProjection.BuildLease(
+            trace.ToTraceDictionary(),
+            "ai_action_trace_test",
+            LifetimeDomain.Request,
+            "run_battle_ai_trace_summary_regression.action_trace"
+        );
+        GDictionary payload = lease.Value;
         _test.Eq(payload["trace_id"].AsString(), "trace_1", "Trace projection should include trace_id.");
         _test.Eq(payload["action_id"].AsString(), "cast_bolt", "Trace projection should include action_id.");
         _test.Eq(payload["evaluation_count"].AsInt32(), 3, "Trace projection should include evaluation_count.");

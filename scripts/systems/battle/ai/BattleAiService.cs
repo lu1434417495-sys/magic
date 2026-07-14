@@ -1,36 +1,38 @@
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleAiService : IDisposable
 {
-    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDefinition> _enemyAiBrains = new();
     private readonly BattleAiScoreService _scoreService = new();
     private readonly BattleAiStateResolver _stateResolver = new();
     private readonly BattleAiDecisionEngine _decisionEngine = new();
     private bool _disposed;
 
-    internal bool EnableMutationGuard { get; set; } = true;
+    internal BattleAiMutationGuardMode MutationGuardMode { get; set; } =
+        BattleAiMutationGuardMode.Disabled;
 
     internal void Setup(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains = null,
         BattleDamageResolver damageResolver = null
     )
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _enemyAiBrains.Clear();
-        Dictionary<StringName, BattleAiScoreProfile> brainProfiles = new();
+        Dictionary<StringName, BattleAiScoreProfileDefinition> brainProfiles = new();
         if (enemyAiBrains != null)
         {
-            foreach (KeyValuePair<StringName, EnemyAiBrainDef> entry in enemyAiBrains)
+            foreach (KeyValuePair<StringName, EnemyAiBrainDefinition> entry in enemyAiBrains)
             {
                 if (IsEmpty(entry.Key) || entry.Value == null)
                 {
                     continue;
                 }
                 _enemyAiBrains[entry.Key] = entry.Value;
-                if (entry.Value.score_profile != null)
+                if (entry.Value.ScoreProfile != null)
                 {
-                    brainProfiles[entry.Key] = entry.Value.score_profile;
+                    brainProfiles[entry.Key] = entry.Value.ScoreProfile;
                 }
             }
         }
@@ -38,19 +40,19 @@ internal sealed class BattleAiService : IDisposable
         _scoreService.SetBrainProfiles(brainProfiles);
     }
 
-    internal void SetScoreProfile(BattleAiScoreProfile profile)
+    internal void SetScoreProfile(BattleAiScoreProfileDefinition profile)
     {
         _scoreService.SetProfile(profile);
     }
 
     internal void SetFactionScoreProfiles(
-        IReadOnlyDictionary<StringName, BattleAiScoreProfile> profiles
+        IReadOnlyDictionary<StringName, BattleAiScoreProfileDefinition> profiles
     )
     {
         _scoreService.SetFactionProfiles(profiles);
     }
 
-    internal BattleAiScoreProfile GetScoreProfile()
+    internal BattleAiScoreProfileDefinition GetScoreProfile()
     {
         return _scoreService.GetProfile();
     }
@@ -60,84 +62,96 @@ internal sealed class BattleAiService : IDisposable
         return _scoreService;
     }
 
-    internal BattleAiDecision ChooseCommand(BattleAiContext context)
+    public void Dispose()
     {
-        if (
-            context == null
-            || context.state == null
-            || context.unit_state == null
-            || context.grid_service == null
-        )
-        {
-            return null;
-        }
+        if (_disposed)
+            return;
+        _disposed = true;
+        _enemyAiBrains.Clear();
+        _scoreService.Dispose();
+    }
 
-        _scoreService.BeginDecisionScope(
-            context.state,
-            context.unit_state,
-            ((IBattleAiScoreContext)context).skill_defs
-        );
-        context.active_score_profile = _scoreService.GetProfile();
+    internal BattleAiDecisionResult ChooseCommand(BattleAiContext context, bool captureTrace)
+    {
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (
+                context == null
+                || context.state == null
+                || context.unit_state == null
+                || context.grid_service == null
+            )
+            {
+                return null;
+            }
+
+            _scoreService.BeginDecisionScope(context.state, context.unit_state);
+            context.active_score_profile = _scoreService.GetProfile();
             context.ClearMutationGuardViolations();
 
-            if (!EnableMutationGuard)
+            if (MutationGuardMode == BattleAiMutationGuardMode.Disabled)
             {
-                AiTraceRecorder.Enter("choose:impl");
-                BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
-                AiTraceRecorder.Exit("choose:impl");
-                return decisionNoGuard;
+                BattleAiDecision decisionNoGuard;
+                using (new BattleAiTraceSpan("choose:impl"))
+                    decisionNoGuard = ChooseCommandImpl(context);
+                return BattleAiDecisionResult.Capture(context, decisionNoGuard, captureTrace);
+            }
+
+            if (MutationGuardMode != BattleAiMutationGuardMode.FullSnapshotDiagnostic)
+            {
+                throw new InvalidOperationException(
+                    $"Unsupported AI mutation guard mode: {MutationGuardMode}."
+                );
             }
 
             BattleAiMutationGuard mutationGuard = new();
-            AiTraceRecorder.Enter("choose:mutation_guard_capture");
-            mutationGuard.Capture(context);
-            AiTraceRecorder.Exit("choose:mutation_guard_capture");
+            using (new BattleAiTraceSpan("choose:mutation_guard_capture"))
+                mutationGuard.Capture(context);
 
-            AiTraceRecorder.Enter("choose:impl");
-            BattleAiDecision decision = ChooseCommandImpl(
-                context,
-                BuildActionMutationCheckpoint()
-            );
-            AiTraceRecorder.Exit("choose:impl");
+            BattleAiDecision decision;
+            using (new BattleAiTraceSpan("choose:impl"))
+                decision = ChooseCommandImpl(context);
 
-            AiTraceRecorder.Enter("choose:mutation_guard_validate");
-            BattleAiMutationViolationReport report =
-                mutationGuard.ValidateAndRestoreReportTyped(
+            BattleAiMutationViolationReport report;
+            using (new BattleAiTraceSpan("choose:mutation_guard_validate"))
+                report = mutationGuard.ValidateAndRestoreReportTyped(
                     context,
                     "decision",
                     callSite: "BattleAiService.ChooseCommandImpl"
                 );
-            AiTraceRecorder.Exit("choose:mutation_guard_validate");
             if (report == null)
             {
-                return decision;
+                return BattleAiDecisionResult.Capture(context, decision, captureTrace);
             }
 
+            decision?.ClearOwnedRuntimeReferences();
             AbortMutationViolation(context, report);
             return null;
         }
         finally
         {
-            context.active_score_profile = null;
-            _scoreService.EndDecisionScope();
+            try
+            {
+                context?.ClearRuntimeBindings();
+            }
+            finally
+            {
+                _scoreService.EndDecisionScope();
+            }
         }
     }
 
-    private BattleAiDecision ChooseCommandImpl(
-        BattleAiContext context,
-        BattleAiActionMutationCheckpoint mutationCheckpoint = null
-    )
+    private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
     {
         context.skill_score_input_callback ??=
-            (aiContext, skillDef, command, preview, effectDefs, metadata) =>
+            (aiContext, skillDefinition, command, preview, effectDefs, metadata) =>
                 _scoreService.BuildSkillScoreInput(
                     aiContext,
-                    skillDef,
+                    skillDefinition,
                     command,
                     preview,
-                    effectDefs ?? System.Array.Empty<CombatEffectDef>(),
+                    effectDefs ?? System.Array.Empty<CombatEffectDefinition>(),
                     metadata
                 );
         context.action_score_input_callback ??=
@@ -165,42 +179,9 @@ internal sealed class BattleAiService : IDisposable
             _enemyAiBrains,
             _stateResolver,
             BuildWaitDecision,
-            _scoreService,
-            mutationCheckpoint
+            _scoreService
         );
         return decision;
-    }
-
-    private BattleAiActionMutationCheckpoint BuildActionMutationCheckpoint()
-    {
-        BattleAiMutationGuard actionMutationGuard = null;
-        return (context, action, actionIndex, stage) =>
-        {
-            if (stage == "before_action")
-            {
-                actionMutationGuard = new BattleAiMutationGuard();
-                actionMutationGuard.Capture(context);
-                return;
-            }
-            if (stage != "after_action" || actionMutationGuard == null)
-            {
-                return;
-            }
-
-            BattleAiMutationViolationReport report =
-                actionMutationGuard.ValidateAndRestoreReportTyped(
-                    context,
-                    "action",
-                    action,
-                    actionIndex,
-                    BattleAiMutationViolationReport.BuildActionCallSite(action, actionIndex)
-                );
-            actionMutationGuard = null;
-            if (report != null)
-            {
-                AbortMutationViolation(context, report);
-            }
-        };
     }
 
     private static void AbortMutationViolation(
@@ -244,16 +225,5 @@ internal sealed class BattleAiService : IDisposable
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-        _disposed = true;
-        _enemyAiBrains.Clear();
-        _scoreService.Dispose();
     }
 }

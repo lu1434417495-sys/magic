@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_cell_state_schema_regression : SceneTree
+public partial class run_battle_cell_state_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -25,15 +25,20 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         TestRejectsBadTimedTerrainEffectEntry();
         TestRejectsBadEdgeFeatureEntry();
         TestNullEdgeFeatureSerializesAsCurrentNonePayload();
+        TestAllowsEmptyOccupantUnitId();
         TestOwnerMutationApiNormalizesCellFields();
 
-        Quit(_test.Finish("Battle cell state schema regression"));
+        RequestTestExit(_test.Finish("Battle cell state schema regression"));
     }
 
     private void TestValidRoundTripWithEdgeWallAndTimedEffect()
     {
         BattleCellState source = BuildValidCell();
-        GDictionary payload = source.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = source.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "run_battle_cell_state_schema_regression.valid_round_trip"
+        );
+        GDictionary payload = payloadLease.Value;
         BattleCellState restored = BattleCellState.FromDictionary(payload);
         _test.True(restored != null, "合法 BattleCellState payload 应能恢复。");
         if (restored == null)
@@ -86,14 +91,15 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
             );
         }
 
-        GDictionary columns = BattleCellState.BuildColumnsFromSurfaceCells(
-            new GDictionary { [restored.coord] = restored }
-        );
+        Dictionary<Vector2I, List<BattleCellState>> columns =
+            BattleCellState.BuildColumnsFromSurfaceCells(
+                new Dictionary<Vector2I, BattleCellState> { [restored.coord] = restored }
+            );
         _test.True(columns.ContainsKey(restored.coord), "build_columns_from_surface_cells 应继续为合法 cell 生成列。");
         if (columns.ContainsKey(restored.coord))
         {
             _test.True(
-                columns[restored.coord].AsGodotArray().Count > 0,
+                columns[restored.coord].Count > 0,
                 "build_columns_from_surface_cells 生成的列不应为空。"
             );
         }
@@ -101,41 +107,49 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
 
     private void TestRejectsMissingField()
     {
-        GDictionary payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+        GDictionary payload = payloadLease.Value;
         payload.Remove("move_cost");
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝缺字段 payload。");
     }
 
     private void TestRejectsExtraField()
     {
-        GDictionary payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+        GDictionary payload = payloadLease.Value;
         payload["legacy_height"] = 2;
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝额外旧字段 payload。");
     }
 
     private void TestRejectsWrongType()
     {
-        GDictionary payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> coordLease = ValidPayloadLease();
+        GDictionary payload = coordLease.Value;
         payload["coord"] = new Vector2(1.0f, 2.0f);
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 coord 非 Vector2i。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> passableLease = ValidPayloadLease();
+        payload = passableLease.Value;
         payload["passable"] = "true";
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 passable 非 bool。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> terrainLease = ValidPayloadLease();
+        payload = terrainLease.Value;
         payload["base_terrain"] = "";
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝空 base_terrain。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> occupantLease = ValidPayloadLease();
+        payload = occupantLease.Value;
         payload["occupant_unit_id"] = 12;
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 occupant_unit_id 非 String/StringName。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> flowLease = ValidPayloadLease();
+        payload = flowLease.Value;
         payload["flow_direction"] = new Vector2(1.0f, 0.0f);
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 flow_direction 非 Vector2i。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> moveCostLease = ValidPayloadLease();
+        payload = moveCostLease.Value;
         payload["move_cost"] = 0;
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非正 move_cost。");
     }
@@ -144,7 +158,8 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
     {
         foreach (string fieldName in new[] { "stack_layer", "base_height", "height_offset", "current_height", "move_cost" })
         {
-            GDictionary payload = ValidPayload();
+            using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+            GDictionary payload = payloadLease.Value;
             payload[fieldName] = "1";
             _test.True(BattleCellState.FromDictionary(payload) == null, $"from_dict 应拒绝字符串数值字段 {fieldName}。");
         }
@@ -152,36 +167,52 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
 
     private void TestRejectsNonArrayIds()
     {
-        GDictionary payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> propLease = ValidPayloadLease();
+        GDictionary payload = propLease.Value;
         payload["prop_ids"] = "rock";
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 Array prop_ids。");
 
-        payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> terrainEffectLease = ValidPayloadLease();
+        payload = terrainEffectLease.Value;
         payload["terrain_effect_ids"] = "mud";
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 Array terrain_effect_ids。");
     }
 
     private void TestRejectsEmptyIdEntry()
     {
-        GDictionary payload = ValidPayload();
-        payload["prop_ids"] = new GArray { "rock", "" };
+        using GodotProjectionLease<GDictionary> propLease = ValidPayloadLease();
+        GDictionary payload = propLease.Value;
+        payload["prop_ids"] = propLease.Own(
+            new GArray { "rock", "" },
+            "run_battle_cell_state_schema_regression.bad_prop_ids"
+        );
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝空 prop id entry。");
 
-        payload = ValidPayload();
-        payload["terrain_effect_ids"] = new GArray { new StringName("mud"), 7 };
+        using GodotProjectionLease<GDictionary> terrainEffectLease = ValidPayloadLease();
+        payload = terrainEffectLease.Value;
+        payload["terrain_effect_ids"] = terrainEffectLease.Own(
+            new GArray { new StringName("mud"), 7 },
+            "run_battle_cell_state_schema_regression.bad_terrain_effect_ids"
+        );
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝非 String/StringName terrain effect id entry。");
     }
 
     private void TestRejectsBadTimedTerrainEffectEntry()
     {
-        GDictionary payload = ValidPayload();
-        payload["timed_terrain_effects"] = new GArray { BuildTimedEffect().ToDictionary(), "bad_effect_entry" };
+        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+        using GodotProjectionLease<GDictionary> effectLease = BuildTimedEffect().ToDictionaryLease();
+        GDictionary payload = payloadLease.Value;
+        payload["timed_terrain_effects"] = payloadLease.Own(
+            new GArray { effectLease.Value, "bad_effect_entry" },
+            "run_battle_cell_state_schema_regression.bad_timed_effects"
+        );
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 timed_terrain_effects 坏 entry。");
     }
 
     private void TestRejectsBadEdgeFeatureEntry()
     {
-        GDictionary payload = ValidPayload();
+        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+        GDictionary payload = payloadLease.Value;
         payload["edge_feature_east"] = "bad_edge_entry";
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 edge feature 坏 entry。");
     }
@@ -190,7 +221,11 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
     {
         BattleCellState cell = BuildValidCell();
         cell.edge_feature_east = null;
-        GDictionary payload = cell.ToDictionary();
+        using GodotProjectionLease<GDictionary> payloadLease = cell.ToDictionaryLease(
+            LifetimeDomain.Request,
+            "run_battle_cell_state_schema_regression.null_edge"
+        );
+        GDictionary payload = payloadLease.Value;
         Variant edgePayload = payload["edge_feature_east"];
         _test.True(
             edgePayload.VariantType == Variant.Type.Dictionary,
@@ -212,6 +247,24 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
                 restored.edge_feature_east.feature_kind,
                 BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
                 "null edge feature 应恢复为 none。"
+            );
+        }
+    }
+
+    private void TestAllowsEmptyOccupantUnitId()
+    {
+        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
+        GDictionary payload = payloadLease.Value;
+        payload["occupant_unit_id"] = "";
+
+        BattleCellState restored = BattleCellState.FromDictionary(payload);
+        _test.True(restored != null, "from_dict 应接受空 occupant_unit_id 表示未占用格子。");
+        if (restored != null)
+        {
+            _test.Eq(
+                restored.occupant_unit_id,
+                new StringName(""),
+                "空 occupant_unit_id roundtrip 后应保持为空。"
             );
         }
     }
@@ -255,9 +308,9 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         };
         cell.RecalculateRuntimeValues();
         cell.occupant_unit_id = "unit_001";
-        cell.prop_ids = new GStringNameArray { new StringName("stone_pillar"), new StringName("torch") };
-        cell.terrain_effect_ids = new GStringNameArray { new StringName("rapid_current") };
-        cell.timed_terrain_effects = new Godot.Collections.Array<BattleTerrainEffectState>
+        cell.prop_ids = new List<StringName> { new("stone_pillar"), new("torch") };
+        cell.terrain_effect_ids = new List<StringName> { new("rapid_current") };
+        cell.timed_terrain_effects = new List<BattleTerrainEffectState>
         {
             BuildTimedEffect(),
         };
@@ -269,7 +322,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
 
     private static BattleTerrainEffectState BuildTimedEffect()
     {
-        return new BattleTerrainEffectState
+        var effect = new BattleTerrainEffectState
         {
             field_instance_id = "field_001",
             effect_id = "burning_ground",
@@ -283,16 +336,20 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
             tick_interval_tu = 10,
             next_tick_at_tu = 10,
             stack_behavior = "refresh",
-            @params = new GDictionary { ["damage_tag"] = "fire" },
         };
+        using GDictionary parameters = new() { ["damage_tag"] = "fire" };
+        effect.@params = parameters;
+        return effect;
     }
 
-    private static GDictionary ValidPayload()
-    {
-        return (GDictionary)BuildValidCell().ToDictionary().Duplicate(true);
-    }
+    private static GodotProjectionLease<GDictionary> ValidPayloadLease() =>
+        BuildValidCell()
+            .ToDictionaryLease(
+                LifetimeDomain.Request,
+                "run_battle_cell_state_schema_regression.valid_payload"
+            );
 
-    private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
+    private void AssertStringNameArrayEq(IReadOnlyList<StringName> actual, IReadOnlyList<string> expected, string message)
     {
         if (actual == null || actual.Count != expected.Count)
         {
@@ -309,7 +366,7 @@ public partial class run_battle_cell_state_schema_regression : SceneTree
         }
     }
 
-    private static string FormatStringNameArray(GStringNameArray values)
+    private static string FormatStringNameArray(IEnumerable<StringName> values)
     {
         if (values == null)
         {

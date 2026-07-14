@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_character_trait_service_regression : SceneTree
+public partial class run_character_trait_service_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,8 +15,7 @@ public partial class run_character_trait_service_regression : SceneTree
         TestAggregatesIdentityCharacterAndEquipmentSources();
         TestStackPoliciesCollapseOrPreserveKeys();
         TestTraitAttributeModifiersUseEffectiveSourceKeys();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Character trait service regression"));
+        RequestTestExit(_test.Finish("Character trait service regression"));
     }
 
     private void TestAggregatesIdentityCharacterAndEquipmentSources()
@@ -68,18 +67,23 @@ public partial class run_character_trait_service_regression : SceneTree
     {
         var service = BuildService();
         EffectiveTraitSet set = service.BuildEffectiveTraits("hero");
-        List<AttributeModifier> modifiers = service.ResolveTraitAttributeModifiers(set);
+        IReadOnlyList<AttributeModifierDefinition> modifiers =
+            service.ResolveTraitAttributeModifiers(set);
 
-        AttributeModifier attack = FindModifier(modifiers, "attack_bonus");
+        AttributeModifierDefinition attack = FindModifier(modifiers, "attack_bonus");
         _test.True(attack != null, "Trait attribute modifiers should include attack_bonus.");
-        _test.Eq(attack.value, 4, "additive trait modifier should multiply base value by effective stacks.");
         _test.Eq(
-            attack.source_type,
+            attack.Value,
+            4,
+            "additive trait modifier should multiply base value by effective stacks."
+        );
+        _test.Eq(
+            attack.SourceType,
             new StringName("trait_character"),
             "character trait modifier should use trait source type."
         );
         _test.Eq(
-            attack.source_id,
+            attack.SourceId,
             new StringName("additive_power"),
             "collapsed modifier source_id should be final effective key."
         );
@@ -88,7 +92,10 @@ public partial class run_character_trait_service_regression : SceneTree
     private static CharacterTraitService BuildService()
     {
         var gateway = new FakeGateway();
-        return new CharacterTraitService(BuildTraitDefs().Values, gateway);
+        return new CharacterTraitService(
+            TestProgressionDefinitionProjection.Traits(BuildTraitDefs()).Values,
+            gateway
+        );
     }
 
     private static Dictionary<StringName, TraitDef> BuildTraitDefs() =>
@@ -157,16 +164,16 @@ public partial class run_character_trait_service_regression : SceneTree
         return trait;
     }
 
-    private static AttributeModifier FindModifier(
-        IEnumerable<AttributeModifier> modifiers,
+    private static AttributeModifierDefinition FindModifier(
+        IEnumerable<AttributeModifierDefinition> modifiers,
         StringName attributeId
     )
     {
         if (modifiers == null)
             return null;
-        foreach (AttributeModifier modifier in modifiers)
+        foreach (AttributeModifierDefinition modifier in modifiers)
         {
-            if (modifier != null && modifier.attribute_id == attributeId)
+            if (modifier != null && modifier.AttributeId == attributeId)
                 return modifier;
         }
         return null;
@@ -176,7 +183,8 @@ public partial class run_character_trait_service_regression : SceneTree
     {
         private readonly PartyMemberState _member;
         private readonly EquipmentState _equipment;
-        private readonly Dictionary<StringName, ItemDef> _items = new();
+        private readonly Dictionary<StringName, ItemDefinition> _items = new();
+        private readonly RaceDefinition _raceDefinition;
 
         public FakeGateway()
         {
@@ -185,6 +193,15 @@ public partial class run_character_trait_service_regression : SceneTree
                 member_id = "hero",
                 display_name = "Hero",
             };
+            RaceDef raceResource = new()
+            {
+                race_id = "human",
+                trait_ids = new Godot.Collections.Array<StringName> { "identity_watch" },
+            };
+            _raceDefinition = RaceDefinition.FromResource(
+                raceResource,
+                "test.character_trait.race"
+            );
             _member.trait_instances.Add(
                 TraitInstanceState.Create(
                     "hero_trait_001",
@@ -210,11 +227,15 @@ public partial class run_character_trait_service_regression : SceneTree
                 )
             );
 
-            _items["iron_sword"] = new ItemDef
-            {
-                item_id = "iron_sword",
-                trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
-            };
+            ItemDef itemResource = TestResourceOwnership.Own(
+                new ItemDef
+                {
+                    item_id = "iron_sword",
+                    trait_ids = new Godot.Collections.Array<StringName> { "fixed_guard" },
+                },
+                "run_character_trait_service_regression.FakeGateway.iron_sword"
+            );
+            _items["iron_sword"] = itemResource.ToDefinition();
 
             EquipmentInstanceState equipmentInstance =
                 EquipmentInstanceState.CreateInstance("iron_sword", "eq_000001");
@@ -255,22 +276,18 @@ public partial class run_character_trait_service_regression : SceneTree
             );
         }
 
-        public RaceDef GetRaceDefForTraitAggregation(StringName memberId) =>
-            new()
-            {
-                race_id = "human",
-                trait_ids = new Godot.Collections.Array<StringName> { "identity_watch" },
-            };
+        public RaceDefinition GetRaceDefForTraitAggregation(StringName memberId) =>
+            _raceDefinition;
 
-        public SubraceDef GetSubraceDefForTraitAggregation(StringName memberId) => null;
+        public SubraceDefinition GetSubraceDefForTraitAggregation(StringName memberId) => null;
 
-        public BloodlineDef GetBloodlineDefForTraitAggregation(StringName memberId) => null;
+        public BloodlineDefinition GetBloodlineDefForTraitAggregation(StringName memberId) => null;
 
-        public BloodlineStageDef GetBloodlineStageDefForTraitAggregation(StringName memberId) => null;
+        public BloodlineStageDefinition GetBloodlineStageDefForTraitAggregation(StringName memberId) => null;
 
-        public AscensionDef GetAscensionDefForTraitAggregation(StringName memberId) => null;
+        public AscensionDefinition GetAscensionDefForTraitAggregation(StringName memberId) => null;
 
-        public AscensionStageDef GetAscensionStageDefForTraitAggregation(StringName memberId) => null;
+        public AscensionStageDefinition GetAscensionStageDefForTraitAggregation(StringName memberId) => null;
 
         public PartyMemberState GetMemberStateForTraitAggregation(StringName memberId) =>
             memberId == _member.member_id ? _member : null;
@@ -278,7 +295,9 @@ public partial class run_character_trait_service_regression : SceneTree
         public EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId) =>
             memberId == _member.member_id ? _equipment : null;
 
-        public ItemDef GetItemDefForTraitAggregation(StringName itemId) =>
-            _items.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
+        public ItemDefinition GetItemDefForTraitAggregation(StringName itemId) =>
+            _items.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                ? itemDefinition
+                : null;
     }
 }

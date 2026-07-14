@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_runtime_data_typed_regression : SceneTree
+public partial class run_world_runtime_data_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -11,9 +11,10 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
     {
         TestMalformedSettlementStateIsRejected();
         TestTypedSettlementUpdateProjectsToPayload();
+        TestResourceNodesRoundTripThroughTypedWorldData();
         TestContextAndRuntimeTransactionUseTypedWorldData();
         TestSaveWorldStateAcceptsTypedWorldData();
-        Quit(_test.Finish("World runtime data typed regression"));
+        RequestTestExit(_test.Finish("World runtime data typed regression"));
     }
 
     private void TestMalformedSettlementStateIsRejected()
@@ -41,7 +42,9 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
         );
         _test.True(updated, "typed settlement state update 应成功。");
 
-        GDictionary projected = runtimeData.ToDictionary();
+        using GodotProjectionLease<GDictionary> projectedLease =
+            WorldMapDataProjection.ProjectLease(runtimeData);
+        GDictionary projected = projectedLease.Value;
         GDictionary settlement = projected["settlements"].AsGodotArray()[0].AsGodotDictionary();
         GDictionary state = settlement["settlement_state"].AsGodotDictionary();
         _test.True(state["visited"].AsBool(), "typed visited 更新应体现在 projection。");
@@ -50,6 +53,43 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
             state["active_conditions"].AsGodotArray()[0].AsString(),
             "safe",
             "typed active_conditions 更新应体现在 projection。"
+        );
+    }
+
+    private void TestResourceNodesRoundTripThroughTypedWorldData()
+    {
+        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(BuildWorldData());
+        _test.True(runtimeData != null, "valid world_data 应能构建 typed WorldRuntimeData。");
+        if (runtimeData == null)
+            return;
+
+        _test.Eq(runtimeData.ResourceNodes.Count, 1, "typed world_data 应保留 resource_nodes。");
+        WorldMapResourceNodeData node = runtimeData.ResourceNodes[0];
+        _test.Eq(node.NodeId, "resource_farm_1", "typed resource node 应保留 node_id。");
+        _test.Eq(node.NodeKind, WorldMapResourceNodeData.KindFarm, "typed resource node 应保留类型。");
+        _test.Eq(node.WorldCoord, new Vector2I(2, 2), "typed resource node 应保留坐标。");
+        _test.Eq(
+            node.YieldItemId,
+            WorldMapResourceNodeData.YieldTravelRation,
+            "typed resource node 应保留产出物品。"
+        );
+        _test.Eq(node.SourceSettlementId, "spring", "typed resource node 应保留所属据点。");
+        _test.Eq(node.RemainingCharges, 3, "typed resource node 应保留剩余次数。");
+
+        using GodotProjectionLease<GDictionary> projectedLease =
+            WorldMapDataProjection.ProjectLease(runtimeData);
+        GDictionary projected = projectedLease.Value;
+        GDictionary projectedNode = projected["resource_nodes"].AsGodotArray()[0]
+            .AsGodotDictionary();
+        _test.Eq(
+            projectedNode["node_kind"].AsString(),
+            WorldMapResourceNodeData.KindFarm,
+            "resource_nodes projection 应保留 node_kind。"
+        );
+        _test.Eq(
+            projectedNode["yield_item_id"].AsString(),
+            WorldMapResourceNodeData.YieldTravelRation,
+            "resource_nodes projection 应保留 yield_item_id。"
         );
     }
 
@@ -77,11 +117,13 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
     {
         SaveSerializer serializer = new();
         WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(BuildWorldData(3));
-        GDictionary worldState = serializer.BuildWorldStatePayload(
-            runtimeData,
-            new Vector2I(2, 1),
-            "player"
-        );
+        using GodotProjectionLease<GDictionary> worldStateLease =
+            serializer.BuildWorldStatePayloadLease(
+                runtimeData.BuildSaveSnapshotPlain(),
+                new Vector2I(2, 1),
+                "player"
+            );
+        GDictionary worldState = worldStateLease.Value;
 
         WorldRuntimeData roundTrip = WorldRuntimeData.FromDictionary(
             worldState["world_data"].AsGodotDictionary()
@@ -105,12 +147,49 @@ public partial class run_world_runtime_data_typed_regression : SceneTree
             },
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
+            ["resource_nodes"] = new GArray
+            {
+                BuildResourceNode(
+                    "resource_farm_1",
+                    WorldMapResourceNodeData.KindFarm,
+                    "农田",
+                    new Vector2I(2, 2),
+                    WorldMapResourceNodeData.YieldTravelRation,
+                    "spring",
+                    3,
+                    3
+                ),
+            },
             ["mounted_submaps"] = new GDictionary(),
             ["world_npcs"] = new GArray(),
             ["player_start_coord"] = Vector2I.Zero,
             ["player_start_settlement_id"] = "spring",
             ["player_start_settlement_name"] = "Spring",
             ["fog_states"] = new GDictionary(),
+        };
+    }
+
+    private static GDictionary BuildResourceNode(
+        string nodeId,
+        string nodeKind,
+        string displayName,
+        Vector2I worldCoord,
+        string yieldItemId,
+        string sourceSettlementId,
+        int maxCharges,
+        int remainingCharges
+    )
+    {
+        return new GDictionary
+        {
+            ["node_id"] = nodeId,
+            ["node_kind"] = nodeKind,
+            ["display_name"] = displayName,
+            ["world_coord"] = worldCoord,
+            ["yield_item_id"] = yieldItemId,
+            ["source_settlement_id"] = sourceSettlementId,
+            ["max_charges"] = maxCharges,
+            ["remaining_charges"] = remainingCharges,
         };
     }
 

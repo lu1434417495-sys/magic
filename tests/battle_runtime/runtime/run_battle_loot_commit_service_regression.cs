@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_loot_commit_service_regression : SceneTree
+public partial class run_battle_loot_commit_service_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private readonly TestHarness _test = new();
@@ -40,7 +40,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             TestBattleOverflowFeedbackSurfacesInMessageAndSnapshot
         );
 
-        Quit(_test.Finish("Battle loot commit service regression"));
+        RequestTestExit(_test.Finish("Battle loot commit service regression"));
     }
 
     private void RunTest(string name, System.Action test)
@@ -216,8 +216,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 "缺失 skill_def 的 pending character reward 不应写入 party_state。"
             );
 
-            Godot.Collections.Array logEntries = DictArray(
-                fixture.GameSession.GetLogSnapshot(),
+            IReadOnlyList<object> logEntries = PlainList(
+                fixture.GameSession.GetLogSnapshotPlain(),
                 "entries"
             );
             _test.True(
@@ -244,8 +244,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         WorldBattleFixture fixture = BuildWorldBattleFixture();
         try
         {
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
             EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
-                fixture.GameSession.GetWorldData(),
+                worldDataLease.Value,
                 EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
             );
             _test.True(encounterAnchor != null, "确认开战回归需要至少一个单体野怪遭遇。");
@@ -254,8 +256,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
             fixture.GameSession.SetBattleSaveLock(true);
             fixture.Facade.StartBattle(encounterAnchor);
+            using GodotProjectionLease<GDictionary> startedSnapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
             GDictionary startedSnapshot = DictDictionary(
-                fixture.Facade.BuildHeadlessSnapshot(),
+                startedSnapshotLease.Value,
                 "battle"
             );
             _test.True(DictBool(startedSnapshot, "active", false), "正式 battle start 后应处于 battle active。");
@@ -284,8 +288,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             GameRuntimeFacade.RuntimeCommandResult confirmResult =
                 fixture.Facade.CommandConfirmBattleStartTyped();
             _test.True(confirmResult.Ok, "确认开始战斗命令应成功。");
+            using GodotProjectionLease<GDictionary> confirmedSnapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
             GDictionary confirmedSnapshot = DictDictionary(
-                fixture.Facade.BuildHeadlessSnapshot(),
+                confirmedSnapshotLease.Value,
                 "battle"
             );
             _test.False(
@@ -328,8 +334,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             );
             warehouseService.AddItemTyped("healing_herb", 1);
 
+            using GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease();
             EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
-                fixture.GameSession.GetWorldData(),
+                worldDataLease.Value,
                 EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement)
             );
             _test.True(encounterAnchor != null, "battle overflow 反馈回归需要一个聚落类野怪遭遇。");
@@ -365,7 +373,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 "battle overflow 后 beast_hide 不应误写入共享仓库。"
             );
 
-            GDictionary snapshot = fixture.Facade.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> snapshotLease =
+                fixture.Facade.BuildHeadlessSnapshotLease();
+            GDictionary snapshot = snapshotLease.Value;
             GDictionary lootSnapshot = DictDictionary(snapshot, "loot");
             Godot.Collections.Array lootEntries = DictArray(lootSnapshot, "loot_entries");
             Godot.Collections.Array overflowEntries = DictArray(lootSnapshot, "overflow_entries");
@@ -384,16 +394,16 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 "headless snapshot 的 overflow_entry_count 应匹配正式 overflow_entries 数量。"
             );
             _test.True(
-                HasLootEntry(lootEntries, "beast_hide", 4),
-                $"headless snapshot 应暴露本次战斗原始 loot entry。 entries={lootEntries}"
+                HasLootEntry(lootEntries, "beast_hide", 6),
+                $"headless snapshot 应暴露本次战斗原始 loot entry（4 荒狼各 1 张 + 狼王 2 张兽皮）。 entries={lootEntries}"
             );
             _test.True(
-                HasLootEntry(overflowEntries, "beast_hide", 4),
-                $"headless snapshot 应暴露本次战斗 overflow entry。 entries={overflowEntries}"
+                HasLootEntry(overflowEntries, "beast_hide", 6),
+                $"headless snapshot 应暴露本次战斗 overflow entry（4 荒狼各 1 张 + 狼王 2 张兽皮）。 entries={overflowEntries}"
             );
 
-            GDictionary resolvedLog = FindRecentLogEntry(
-                DictArray(fixture.GameSession.GetLogSnapshot(), "entries"),
+            IReadOnlyDictionary<string, object> resolvedLog = FindRecentLogEntry(
+                PlainList(fixture.GameSession.GetLogSnapshotPlain(), "entries"),
                 "battle.resolved"
             );
             _test.True(resolvedLog.Count > 0, "battle overflow 结算后应写入 battle.resolved 日志。");
@@ -410,15 +420,14 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
     private static RuntimeFixture BuildFixture(int capacity)
     {
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefinitions = BuildItemDefinitions();
         PartyState partyState = BuildPartyState(capacity);
         PartyWarehouseService warehouseService = new();
-        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
+        warehouseService.Setup(partyState, itemDefinitions);
 
-        GameSession gameSession = new()
-        {
-            _item_defs = itemDefs,
-        };
+        GameSession gameSession = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed => seed.Items = itemDefinitions
+        );
         GameRuntimeFacade runtime = new()
         {
             _game_session = gameSession,
@@ -454,7 +463,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return partyState;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
         ItemDef sword = new()
         {
@@ -469,30 +478,18 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
                 EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
             },
         };
-        return new GDictionary { [new StringName("iron_sword")] = sword };
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
+        ItemDefinition swordDefinition = TestResourceOwnership
+            .Own(sword, "BattleLootCommitService.BuildItemDefinitions.iron_sword")
+            .ToDefinition();
+        return new Dictionary<StringName, ItemDefinition>
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
+            [swordDefinition.ItemId] = swordDefinition,
+        };
     }
 
     private BattleSessionFacadeFixture BuildBattleSessionInvalidRewardFixture()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(
             createError,
@@ -501,7 +498,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         );
         if (createError != (int)Error.Ok)
         {
-            gameSession.Dispose();
+            gameSession.Free();
             return null;
         }
 
@@ -517,7 +514,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         expectedResult.SetLootEntries(new[] { BuildMissingItemLootEntry() });
         runtime.SetRuntimeBattleState(endedState);
 
-        BattleSessionFacade facade = new();
+        BattleSessionFacade facade = new(new FixedBattleSeedSource(1729));
         facade.Setup(runtime);
         return new BattleSessionFacadeFixture(facade, runtime, gameSession, battleRuntime, expectedResult);
     }
@@ -542,7 +539,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             amount = 4,
             reason_text = "战斗评分 4 · 渐入佳境",
         };
-        reward.entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry };
+        reward.entries = new List<PendingCharacterRewardEntry> { entry };
         return reward;
     }
 
@@ -573,15 +570,15 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
     private static WorldBattleFixture BuildWorldBattleFixture()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         if (createError != (int)Error.Ok)
         {
-            gameSession.Dispose();
+            gameSession.QueueFree();
             return null;
         }
 
-        GameRuntimeFacade facade = new();
+        GameRuntimeFacade facade = new(new FixedBattleSeedSource(1729));
         facade.Setup(gameSession);
         ConfigureFixedCombatForFacade(facade);
         return new WorldBattleFixture(facade, gameSession);
@@ -595,7 +592,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         FixedSuccessOneDamageResolver damageResolver = new();
-        damageResolver.SetSkillDefs(facade.GetGameSession().GetSkillDefsTyped());
+        damageResolver.SetSkillDefinitions(
+            facade.GetGameSession().GetContentCatalogTyped().GetSkillDefinitionsTyped()
+        );
         runtime.ConfigureDamageResolverForTests(damageResolver);
     }
 
@@ -606,7 +605,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
     {
         foreach (Variant encounterValue in DictArray(worldData, "encounter_anchors"))
         {
-            EncounterAnchorData encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
+            EncounterAnchorData encounterAnchor =
+                encounterValue.VariantType == Variant.Type.Dictionary
+                    ? EncounterAnchorData.FromDictionary(encounterValue.AsGodotDictionary())
+                    : null;
             if (encounterAnchor == null)
                 continue;
             if (encounterAnchor.encounter_kind == encounterKind)
@@ -650,9 +652,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             return;
         int resolvedCapacity = Mathf.Max(capacity, 0);
         bool firstMemberAssigned = false;
-        foreach (Variant memberValue in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            PartyMemberState memberState = memberValue.AsGodotObject() as PartyMemberState;
             if (memberState?.progression?.unit_base_attributes == null)
                 continue;
             memberState.progression.unit_base_attributes.custom_stats[
@@ -733,20 +734,46 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return false;
     }
 
-    private static GDictionary FindRecentLogEntry(Godot.Collections.Array entries, string eventId)
+    private static IReadOnlyList<object> PlainList(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> items
+                ? items
+                : System.Array.Empty<object>();
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
+    }
+
+    private static IReadOnlyDictionary<string, object> FindRecentLogEntry(
+        IReadOnlyList<object> entries,
+        string eventId
+    )
     {
         if (entries == null)
-            return new GDictionary();
+            return new Dictionary<string, object>();
         for (int index = entries.Count - 1; index >= 0; index--)
         {
-            Variant entryValue = entries[index];
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (entries[index] is not IReadOnlyDictionary<string, object> entry)
                 continue;
-            GDictionary entry = entryValue.AsGodotDictionary();
-            if (DictString(entry, "event_id", "") == eventId)
+            if (PlainString(entry, "event_id") == eventId)
                 return entry;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>();
     }
 
     private sealed class RuntimeFixture
@@ -771,10 +798,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
-            BattleRuntimeModule battleRuntime = Runtime?._battle_runtime;
-            BattleTestFixture.DisposeBattleFixture(battleRuntime, battleRuntime?._state);
             Runtime?.Dispose();
-            GameSession?.Dispose();
+            GameSession?.QueueFree();
         }
     }
 
@@ -803,11 +828,10 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
-            BattleTestFixture.DisposeBattleFixture(BattleRuntime, BattleRuntime?._state);
             Facade?.Dispose();
             Runtime?.Dispose();
             GameSession?.ClearPersistedGame();
-            GameSession?.Dispose();
+            GameSession?.QueueFree();
         }
     }
 
@@ -824,11 +848,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
-            BattleRuntimeModule battleRuntime = Facade?._battle_runtime;
-            BattleTestFixture.DisposeBattleFixture(battleRuntime, battleRuntime?._state);
             Facade?.Dispose();
             GameSession?.ClearPersistedGame();
-            GameSession?.Dispose();
+            GameSession?.QueueFree();
         }
     }
 }

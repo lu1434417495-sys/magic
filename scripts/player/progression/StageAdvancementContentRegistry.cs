@@ -1,14 +1,16 @@
+using System.Collections.Generic;
+using System.IO;
 using Godot;
 
-[GlobalClass]
-public partial class StageAdvancementContentRegistry : IdentityContentRegistryBase
+public class StageAdvancementContentRegistry : IdentityContentRegistryBase
 {
     private const string StageAdvancementConfigDirectoryPath =
         "res://data/configs/stage_advancements";
 
-    private System.Collections.Generic.Dictionary<StringName, StageAdvancementModifier> _stage_advancement_defs = new();
+    private readonly Dictionary<StringName, StageAdvancementDefinition> _stage_advancement_defs = new();
 
-    public StageAdvancementContentRegistry()
+    internal StageAdvancementContentRegistry(IContentResourceLoader resourceLoader)
+        : base(resourceLoader)
     {
         _registry_label = "StageAdvancementContentRegistry";
         Rebuild();
@@ -23,7 +25,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
 
     public void LoadFromDirectories(Godot.Collections.Array<string> directoryPaths)
     {
-        ClearRegistryData();
+        _stage_advancement_defs.Clear();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
             _scan_directory(directoryPath);
@@ -31,22 +33,17 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             _validation_errors.Add(e);
     }
 
-    public System.Collections.Generic.IReadOnlyDictionary<StringName, StageAdvancementModifier> GetStageAdvancementDefsTyped()
-    {
-        return new System.Collections.Generic.Dictionary<StringName, StageAdvancementModifier>(
-            _stage_advancement_defs
-        );
-    }
+    public IReadOnlyDictionary<StringName, StageAdvancementDefinition> GetStageAdvancementDefsTyped() =>
+        _snapshot_definitions(_stage_advancement_defs);
 
     protected override void ClearRegistryData()
     {
-        GodotRefCountedDisposer.KeepBorrowedResourceGraphsAlive(_stage_advancement_defs.Values);
         _stage_advancement_defs.Clear();
     }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
@@ -54,7 +51,6 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         }
         if (resource is not StageAdvancementModifier modifier)
         {
-            GodotRefCountedDisposer.KeepBorrowedResourceGraphAlive(resource);
             _validation_errors.Add(
                 $"Stage advancement config {resourcePath} is not a StageAdvancementModifier."
             );
@@ -75,12 +71,25 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             return;
         }
 
-        _stage_advancement_defs[modifier.modifier_id] = modifier;
+        try
+        {
+            StageAdvancementDefinition definition = StageAdvancementDefinition.FromResource(
+                modifier,
+                $"stage_advancement.{modifier.modifier_id}"
+            );
+            _stage_advancement_defs.Add(definition.ModifierId, definition);
+        }
+        catch (InvalidDataException exception)
+        {
+            _validation_errors.Add(
+                $"Stage advancement config {resourcePath} projection failed: {exception.Message}"
+            );
+        }
     }
 
-    private Godot.Collections.Array<string> _collect_validation_errors()
+    private List<string> _collect_validation_errors()
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
         foreach (var modifierKey in _sorted_registry_keys(_stage_advancement_defs.Keys))
         {
             var modifierId = new StringName(modifierKey);
@@ -90,24 +99,24 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
     }
 
     private void _append_stage_advancement_validation_errors(
-        Godot.Collections.Array<string> errors,
+        ICollection<string> errors,
         StringName modifierId,
-        StageAdvancementModifier modifier
+        StageAdvancementDefinition modifier
     )
     {
         var ownerLabel = $"StageAdvancement {modifierId}";
-        _append_string_name_field_error(errors, ownerLabel, "modifier_id", modifier.modifier_id);
-        _append_string_field_error(errors, ownerLabel, "display_name", modifier.display_name);
-        _append_string_name_field_error(errors, ownerLabel, "target_axis", modifier.target_axis);
+        _append_string_name_field_error(errors, ownerLabel, "modifier_id", modifier.ModifierId);
+        _append_string_field_error(errors, ownerLabel, "display_name", modifier.DisplayName);
+        _append_string_name_field_error(errors, ownerLabel, "target_axis", modifier.TargetAxis);
         StageAdvancementTargetAxis axisKind = modifier.TargetAxisKind;
         if (axisKind == StageAdvancementTargetAxis.Unknown)
-            errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.target_axis}.");
-        _append_int_field_error(errors, ownerLabel, "stage_offset", modifier.stage_offset);
+            errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.TargetAxis}.");
+        _append_int_field_error(errors, ownerLabel, "stage_offset", modifier.StageOffset);
         _append_string_name_field_error(
             errors,
             ownerLabel,
             "max_stage_id",
-            modifier.max_stage_id,
+            modifier.MaxStageId,
             true
         );
 
@@ -116,12 +125,12 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             || axisKind == StageAdvancementTargetAxis.Divine
         )
         {
-            if (modifier.max_stage_id == "")
+            if (modifier.MaxStageId == "")
                 errors.Add(
-                    $"{ownerLabel}.max_stage_id must be non-empty for target_axis {modifier.target_axis}."
+                    $"{ownerLabel}.max_stage_id must be non-empty for target_axis {modifier.TargetAxis}."
                 );
         }
-        else if (modifier.stage_offset <= 0)
+        else if (modifier.StageOffset <= 0)
         {
             errors.Add(
                 $"{ownerLabel}.stage_offset must be > 0 for age-stage axis (current value yields no advancement)."
@@ -131,49 +140,40 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(modifier.applies_to_race_ids),
+            modifier.AppliesToRaceIds,
             "applies_to_race_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(modifier.applies_to_subrace_ids),
+            modifier.AppliesToSubraceIds,
             "applies_to_subrace_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(modifier.applies_to_bloodline_ids),
+            modifier.AppliesToBloodlineIds,
             "applies_to_bloodline_ids"
         );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
-            V(modifier.applies_to_ascension_ids),
+            modifier.AppliesToAscensionIds,
             "applies_to_ascension_ids"
         );
         _append_bool_field_error(
             errors,
             ownerLabel,
             "grants_attributes",
-            modifier.grants_attributes
+            modifier.GrantsAttributes
         );
-        _append_bool_field_error(errors, ownerLabel, "grants_traits", modifier.grants_traits);
+        _append_bool_field_error(errors, ownerLabel, "grants_traits", modifier.GrantsTraits);
         _append_bool_field_error(
             errors,
             ownerLabel,
             "grants_body_size_change",
-            modifier.grants_body_size_change
+            modifier.GrantsBodySizeChange
         );
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
-    }
 }

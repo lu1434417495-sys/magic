@@ -32,12 +32,18 @@ public partial class QuestDef : Resource
         "quest_id",
         "display_name",
         "description",
+        "provider_kind",
         "provider_interaction_id",
+        "listing_channels",
         "tags",
         "accept_requirements",
         "objective_defs",
         "reward_entries",
         "is_repeatable",
+        "accept_dialogue_text",
+        "accept_feedback_success",
+        "accept_feedback_failure",
+        "accept_confirmation_text",
     };
 
     internal static StringName ToStringName(QuestObjectiveKind kind)
@@ -113,6 +119,53 @@ public partial class QuestDef : Resource
 
     [Export]
     public bool is_repeatable { get; set; }
+
+    [Export]
+    public StringName provider_kind { get; set; } = "";
+
+    [Export]
+    public Godot.Collections.Array<StringName> listing_channels { get; set; } = new();
+
+    [Export(PropertyHint.MultilineText)]
+    public string accept_dialogue_text { get; set; } = "";
+
+    [Export]
+    public string accept_feedback_success { get; set; } = "";
+
+    [Export]
+    public string accept_feedback_failure { get; set; } = "";
+
+    [Export(PropertyHint.MultilineText)]
+    public string accept_confirmation_text { get; set; } = "";
+
+    internal Godot.Collections.Array<StringName> TagsBorrowed => tags;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> AcceptRequirementsBorrowed =>
+        accept_requirements;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> ObjectiveDefsBorrowed =>
+        objective_defs;
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> RewardEntriesBorrowed =>
+        reward_entries;
+    internal Godot.Collections.Array<StringName> ListingChannelsBorrowed => listing_channels;
+
+    internal sealed class AcceptRequirementEntryData
+    {
+        public readonly StringName RequirementType;
+        public readonly StringName QuestId;
+
+        private AcceptRequirementEntryData(StringName requirementType, StringName questId)
+        {
+            RequirementType = requirementType;
+            QuestId = questId;
+        }
+
+        public static AcceptRequirementEntryData FromDictionary(
+            Godot.Collections.Dictionary requirementData
+        ) =>
+            new(
+                DictStringName(requirementData, "requirement_type"),
+                DictStringName(requirementData, "quest_id")
+            );
+    }
 
     internal sealed class ObjectiveEntryData
     {
@@ -258,6 +311,15 @@ public partial class QuestDef : Resource
             errors.Add("QuestDef 缺少 quest_id。");
         if (display_name.StripEdges().Length == 0)
             errors.Add($"QuestDef {(string)quest_id} 缺少 display_name。");
+        if (provider_kind == "")
+            errors.Add($"QuestDef {(string)quest_id} 的 provider_kind 不能为空。");
+        if (listing_channels == null || listing_channels.Count == 0)
+            errors.Add($"QuestDef {(string)quest_id} 的 listing_channels 不能为空数组。");
+        foreach (StringName channel in listing_channels)
+        {
+            if (channel == "")
+                errors.Add($"QuestDef {(string)quest_id} 的 listing_channels 包含空值。");
+        }
         if (objective_defs.Count == 0)
             errors.Add($"QuestDef {(string)quest_id} 至少需要一个 objective_def。");
 
@@ -369,6 +431,14 @@ public partial class QuestDef : Resource
         return result;
     }
 
+    internal IReadOnlyList<AcceptRequirementEntryData> GetAcceptRequirementEntriesTyped()
+    {
+        var result = new System.Collections.Generic.List<AcceptRequirementEntryData>();
+        foreach (var requirementData in accept_requirements)
+            result.Add(AcceptRequirementEntryData.FromDictionary(requirementData));
+        return result;
+    }
+
     internal IReadOnlyList<RewardEntryData> GetRewardEntriesTyped()
     {
         var result = new System.Collections.Generic.List<RewardEntryData>();
@@ -440,6 +510,12 @@ public partial class QuestDef : Resource
             objective_defs = objectiveDefValues,
             reward_entries = rewardEntryValues,
             is_repeatable = isRepeatableValue,
+            provider_kind = ReadStringName(payload, "provider_kind"),
+            listing_channels = ReadStringNameArray(payload, "listing_channels"),
+            accept_dialogue_text = ReadString(payload, "accept_dialogue_text"),
+            accept_feedback_success = ReadString(payload, "accept_feedback_success"),
+            accept_feedback_failure = ReadString(payload, "accept_feedback_failure"),
+            accept_confirmation_text = ReadString(payload, "accept_confirmation_text"),
         };
         return questDef.ValidateSchema().Count == 0 ? questDef : null;
     }
@@ -466,6 +542,58 @@ public partial class QuestDef : Resource
         if (!TryReadStringName(payload, key, out StringName parsedValue))
             return "";
         return parsedValue;
+    }
+
+    private static StringName ReadStringName(Godot.Collections.Dictionary payload, string key)
+    {
+        if (payload == null || !payload.ContainsKey(key))
+            return "";
+        Variant value = payload[key];
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
+    }
+
+    private static string ReadString(Godot.Collections.Dictionary payload, string key)
+    {
+        if (payload == null || !payload.ContainsKey(key))
+            return "";
+        Variant value = payload[key];
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => "",
+        };
+    }
+
+    private static Godot.Collections.Array<StringName> ReadStringNameArray(
+        Godot.Collections.Dictionary payload,
+        string key
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        if (!TryGetArray(payload, key, out Godot.Collections.Array source))
+            return result;
+        foreach (var rawValue in source)
+        {
+            if (!TryAsStringLike(rawValue, out string rawText))
+            {
+                result.Clear();
+                return result;
+            }
+            string parsedText = rawText.StripEdges();
+            if (parsedText.Length == 0)
+            {
+                result.Clear();
+                return result;
+            }
+            result.Add(new StringName(parsedText));
+        }
+        return result;
     }
 
     private static Godot.Collections.Array<StringName> GetSupportedObjectiveTypes()

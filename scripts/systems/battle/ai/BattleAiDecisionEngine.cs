@@ -1,19 +1,23 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using System;
-
-internal delegate void BattleAiActionMutationCheckpoint(
-    BattleAiContext context,
-    EnemyAiAction action,
-    int actionIndex,
-    string stage
-);
 
 internal sealed class BattleAiDecisionEngine
 {
     private static readonly StringName ArcherSurvivalBucketId = "archer_survival";
+
+    private readonly BattleAiUnitSkillCandidateEvaluator _unitSkill = new();
+    private readonly BattleAiGroundSkillActionEvaluator _groundSkill = new();
+    private readonly BattleAiMultiUnitSkillEvaluator _multiUnit = new();
+    private readonly BattleAiMoveToMultiUnitSkillPositionEvaluator _multiUnitMove = new();
+    private readonly BattleAiRandomChainSkillEvaluator _randomChain = new();
+    private readonly BattleAiChargeActionEvaluator _charge = new();
+    private readonly BattleAiChargePathAoeActionEvaluator _chargePathAoe = new();
+    private readonly BattleAiMoveToRangeActionEvaluator _moveToRange = new();
+    private readonly BattleAiMoveToAdvantageActionEvaluator _advantage = new();
+    private readonly BattleAiGroundRepositionActionEvaluator _groundReposition = new();
+    private readonly BattleAiRetreatActionEvaluator _retreat = new();
+    private readonly BattleAiWaitActionEvaluator _wait = new();
 
     private sealed class ScoreInputFacts
     {
@@ -48,11 +52,10 @@ internal sealed class BattleAiDecisionEngine
 
     internal BattleAiDecision ChooseCommandImpl(
         BattleAiContext context,
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
         BattleAiStateResolver stateResolver,
         System.Func<BattleAiContext, StringName, StringName, StringName, string, BattleAiDecision> waitDecisionFactory,
-        BattleAiScoreService scoreService,
-        BattleAiActionMutationCheckpoint mutationCheckpoint = null
+        BattleAiScoreService scoreService
     )
     {
         if (context == null)
@@ -67,7 +70,7 @@ internal sealed class BattleAiDecisionEngine
         }
 
         StringName unitBrainId = unitState.ai_brain_id;
-        EnemyAiBrainDef brain = ResolveBrain(enemyAiBrains, unitBrainId);
+        EnemyAiBrainDefinition brain = ResolveBrain(enemyAiBrains, unitBrainId);
         if (brain == null)
         {
             BattleAiDecision missingBrainDecision = BuildWaitDecision(
@@ -82,7 +85,7 @@ internal sealed class BattleAiDecisionEngine
             return missingBrainDecision;
         }
 
-        StringName brainId = brain.brain_id;
+        StringName brainId = brain.BrainId;
 
         BattleAiStateResolver.TransitionResult transitionResult =
             stateResolver != null
@@ -91,8 +94,8 @@ internal sealed class BattleAiDecisionEngine
         StringName nextStateId =
             transitionResult != null && !IsEmpty(transitionResult.StateId)
                 ? transitionResult.StateId
-                : brain.default_state_id;
-        EnemyAiStateDef stateDef = brain.GetState(nextStateId);
+                : brain.DefaultStateId;
+        brain.TryGetState(nextStateId, out EnemyAiStateDefinition stateDef);
         if (stateDef == null)
         {
             BattleAiDecision missingStateDecision = BuildWaitDecision(
@@ -111,8 +114,7 @@ internal sealed class BattleAiDecisionEngine
         RuntimeActionResolution actionResolution = ResolveRuntimeActions(
             context,
             brain,
-            nextStateId,
-            stateDef
+            nextStateId
         );
         StringName waitActionId = actionResolution.WaitActionId;
         if (!IsEmpty(waitActionId))
@@ -133,30 +135,22 @@ internal sealed class BattleAiDecisionEngine
         BattleAiDecision bestScoredDecision = null;
         int bestScoredActionIndex = int.MaxValue;
         BattleAiDecision fallbackDecision = null;
-        IReadOnlyList<EnemyAiAction> actions = actionResolution.Actions;
+        IReadOnlyList<BattleAiRuntimeActionEntry> actions = actionResolution.Actions;
         for (int actionIndex = 0; actionIndex < actions.Count; actionIndex++)
         {
-            EnemyAiAction action = actions[actionIndex];
-            if (action == null)
+            BattleAiRuntimeActionEntry actionEntry = actions[actionIndex];
+            if (actionEntry == null)
             {
                 continue;
             }
 
             BattleAiRuntimeActionPlan.RuntimeActionMetadata actionMetadata =
-                context.GetRuntimeActionMetadataTyped(action);
+                actionEntry.Metadata?.Clone() ?? new BattleAiRuntimeActionPlan.RuntimeActionMetadata();
             context.PushActionMetadata(actionMetadata);
             BattleAiDecision decision;
             try
             {
-                mutationCheckpoint?.Invoke(context, action, actionIndex, "before_action");
-                try
-                {
-                    decision = EvaluateAction(context, action);
-                }
-                finally
-                {
-                    mutationCheckpoint?.Invoke(context, action, actionIndex, "after_action");
-                }
+                decision = EvaluateEntry(context, actionEntry);
             }
             finally
             {
@@ -165,6 +159,7 @@ internal sealed class BattleAiDecisionEngine
 
             if (decision == null || decision.command == null)
             {
+                decision?.ClearOwnedRuntimeReferences();
                 continue;
             }
 
@@ -176,6 +171,7 @@ internal sealed class BattleAiDecisionEngine
             {
                 if (!BattleAiSafetyGate.IsEligible(scoreInput))
                 {
+                    decision.ClearOwnedRuntimeReferences();
                     continue;
                 }
                 if (
@@ -187,18 +183,36 @@ internal sealed class BattleAiDecisionEngine
                     )
                 )
                 {
+                    if (
+                        bestScoredDecision != null
+                        && !ReferenceEquals(bestScoredDecision, decision)
+                    )
+                        bestScoredDecision.ClearOwnedRuntimeReferences();
                     bestScoredDecision = decision;
                     bestScoredActionIndex = actionIndex;
+                }
+                else
+                {
+                    decision.ClearOwnedRuntimeReferences();
                 }
                 continue;
             }
 
-            fallbackDecision ??= decision;
+            if (fallbackDecision == null)
+                fallbackDecision = decision;
+            else
+                decision.ClearOwnedRuntimeReferences();
         }
 
         BattleAiDecision resolvedDecision = bestScoredDecision ?? fallbackDecision;
         if (resolvedDecision != null)
         {
+            if (
+                bestScoredDecision != null
+                && fallbackDecision != null
+                && !ReferenceEquals(bestScoredDecision, fallbackDecision)
+            )
+                fallbackDecision.ClearOwnedRuntimeReferences();
             AttachPatchAndMark(context, resolvedDecision);
             return resolvedDecision;
         }
@@ -221,77 +235,85 @@ internal sealed class BattleAiDecisionEngine
         return CompareScoreInput(candidate, bestCandidate);
     }
 
-    private static BattleAiDecision EvaluateAction(BattleAiContext context, EnemyAiAction action)
-    {
-        if (action == null)
-        {
-            return null;
-        }
+    internal static bool IsBetterScoreInputTyped(
+        BattleAiScoreInput candidate,
+        BattleAiScoreInput bestCandidate
+    ) => CompareScoreInput(candidate, bestCandidate);
 
-        if (action.UsesCandidateRequest())
-        {
-            return EvaluateCandidateAction(context, action);
-        }
-
-        return DecideWithActionFallback(context, action);
-    }
-
-    private static BattleAiDecision EvaluateCandidateAction(BattleAiContext context, EnemyAiAction action)
-    {
-        if (context == null)
-        {
-            return FailCandidateAction(
-                action,
-                "candidate_request action requires BattleAiContext.GetAiQueryService()."
-            );
-        }
-
-        BattleAiQueryService query = context.GetAiQueryService();
-        if (query == null)
-        {
-            return FailCandidateAction(
-                action,
-                "candidate_request action requires a non-null AI query service."
-            );
-        }
-
-        BattleAiCandidateRequest request = action.BuildCandidateRequest(query);
-        if (request == null)
-        {
-            return FailCandidateAction(action, "candidate_request action returned null request.");
-        }
-
-        return context.EvaluateCandidateRequest(request);
-    }
-
-    private static BattleAiDecision FailCandidateAction(EnemyAiAction action, string message)
-    {
-        StringName actionId = !IsEmpty(action.action_id)
-            ? action.action_id
-            : "anonymous_action";
-        string fullMessage = $"AI action {actionId} failed: {message}";
-        GameLog.Error(fullMessage, "ai.decision.no_candidates", "ai");
-        return null;
-    }
-
-    private static BattleAiDecision DecideWithActionFallback(
+    internal BattleAiDecision EvaluateEntry(
         BattleAiContext context,
-        EnemyAiAction action
+        BattleAiRuntimeActionEntry entry
     )
     {
-        return action?.Decide(context);
+        if (entry?.Action == null || context == null)
+            return null;
+
+        return entry.Action.Kind switch
+        {
+            EnemyAiActionKind.UseUnitSkill => _unitSkill.Evaluate(
+                (UseUnitSkillActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseGroundSkill => _groundSkill.Evaluate(
+                (UseGroundSkillActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseMultiUnitSkill => _multiUnit.Evaluate(
+                (UseMultiUnitSkillActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.MoveToMultiUnitSkillPosition => _multiUnitMove.Evaluate(
+                (MoveToMultiUnitSkillPositionActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseRandomChainSkill => _randomChain.Evaluate(
+                (UseRandomChainSkillActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseCharge => _charge.Evaluate(
+                (UseChargeActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseChargePathAoe => _chargePathAoe.Evaluate(
+                (UseChargePathAoeActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.MoveToRange => _moveToRange.Evaluate(
+                (MoveToRangeActionDefinition)entry.Action,
+                context,
+                entry.Metadata?.force_candidate_request_evaluation == true
+            ),
+            EnemyAiActionKind.MoveToAdvantagePosition => _advantage.Evaluate(
+                (MoveToAdvantagePositionActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.UseGroundRepositionSkill => _groundReposition.Evaluate(
+                (UseGroundRepositionSkillActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.Retreat => _retreat.Evaluate(
+                (RetreatActionDefinition)entry.Action,
+                context
+            ),
+            EnemyAiActionKind.Wait => _wait.Evaluate(
+                (WaitActionDefinition)entry.Action,
+                context
+            ),
+            _ => throw new InvalidOperationException(
+                $"Unsupported action kind {entry.Action.Kind}"
+            ),
+        };
     }
 
     private static RuntimeActionResolution ResolveRuntimeActions(
         BattleAiContext context,
-        EnemyAiBrainDef brain,
-        StringName stateId,
-        EnemyAiStateDef stateDef
+        EnemyAiBrainDefinition brain,
+        StringName stateId
     )
     {
         if (context == null)
         {
-            return RuntimeActionResolution.ForActions(System.Array.Empty<EnemyAiAction>());
+            return RuntimeActionResolution.ForActions(System.Array.Empty<BattleAiRuntimeActionEntry>());
         }
 
         BattleAiRuntimeActionPlan runtimeActionPlan = context.runtime_action_plan;
@@ -311,7 +333,8 @@ internal sealed class BattleAiDecisionEngine
                     $"{context.unit_state.display_name} 缺少状态 {stateId} 的 AI runtime plan，改为待机。"
                 );
             }
-            IReadOnlyList<EnemyAiAction> runtimeActions = context.GetRuntimeActionsTyped(stateId);
+            IReadOnlyList<BattleAiRuntimeActionEntry> runtimeActions =
+                context.GetRuntimeActionEntriesTyped(stateId);
             if (runtimeActions.Count == 0)
             {
                 return RuntimeActionResolution.ForWait(
@@ -322,13 +345,6 @@ internal sealed class BattleAiDecisionEngine
             return RuntimeActionResolution.ForActions(runtimeActions);
         }
 
-        if (context.allow_authored_action_fallback_for_tests)
-        {
-            return RuntimeActionResolution.ForActions(
-                stateDef != null ? stateDef.GetTypedActions() : new List<EnemyAiAction>()
-            );
-        }
-
         return RuntimeActionResolution.ForWait(
             "wait_missing_runtime_plan",
             $"{context.unit_state.display_name} 缺少 AI runtime plan，改为待机。"
@@ -337,15 +353,18 @@ internal sealed class BattleAiDecisionEngine
 
     private sealed class RuntimeActionResolution
     {
-        public IReadOnlyList<EnemyAiAction> Actions = System.Array.Empty<EnemyAiAction>();
+        public IReadOnlyList<BattleAiRuntimeActionEntry> Actions =
+            System.Array.Empty<BattleAiRuntimeActionEntry>();
         public StringName WaitActionId = "";
         public string WaitReasonText = "";
 
-        public static RuntimeActionResolution ForActions(IReadOnlyList<EnemyAiAction> actions)
+        public static RuntimeActionResolution ForActions(
+            IReadOnlyList<BattleAiRuntimeActionEntry> actions
+        )
         {
             return new RuntimeActionResolution
             {
-                Actions = actions ?? System.Array.Empty<EnemyAiAction>(),
+                Actions = actions ?? System.Array.Empty<BattleAiRuntimeActionEntry>(),
             };
         }
 
@@ -808,8 +827,8 @@ internal sealed class BattleAiDecisionEngine
         return decision.score_input ?? decision.skill_score_input;
     }
 
-    private static EnemyAiBrainDef ResolveBrain(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> brains,
+    private static EnemyAiBrainDefinition ResolveBrain(
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> brains,
         StringName brainId
     )
     {
@@ -817,7 +836,7 @@ internal sealed class BattleAiDecisionEngine
         {
             return null;
         }
-        return brains.TryGetValue(brainId, out EnemyAiBrainDef brain) ? brain : null;
+        return brains.TryGetValue(brainId, out EnemyAiBrainDefinition brain) ? brain : null;
     }
 
     private static bool IsEmpty(StringName value)

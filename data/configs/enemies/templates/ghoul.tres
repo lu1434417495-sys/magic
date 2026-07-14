@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_ghoul_gland"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"ghoul_gland"
+drop_type = &"item"
+item_id = &"antidote_herb"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"ghoul"
+display_name = "食尸鬼"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+creature_level = 4
+hit_die_sides = 8
+action_threshold = 30
+tags = Array[StringName]([&"undead", &"ghoul", &"beast", &"claw"])
+save_advantage_tags = Array[StringName]([&"sleep_immunity", &"charm_immunity", &"poison_immunity"])
+base_attribute_overrides = {
+&"strength": 14,
+&"agility": 15,
+&"constitution": 14,
+&"perception": 10,
+&"intelligence": 6,
+&"willpower": 8,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_ghoul_gland")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

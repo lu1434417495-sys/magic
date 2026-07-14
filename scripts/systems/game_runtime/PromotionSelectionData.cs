@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class PromotionSelectionData
 {
@@ -39,7 +38,6 @@ public sealed class PromotionSelectionData
 
     public static PromotionSelectionData FromPayload(GDictionary payload)
     {
-        payload ??= new GDictionary();
         bool hasAssigned = HasPayloadKey(payload, AssignedCoreSkillIdsKey);
         bool hasQualifier = HasPayloadKey(payload, QualifierSkillIdsKey);
         bool hasTrigger = HasPayloadKey(payload, TriggerSkillIdsKey);
@@ -47,6 +45,23 @@ public sealed class PromotionSelectionData
             ReadPayloadArray(payload, AssignedCoreSkillIdsKey),
             ReadPayloadArray(payload, QualifierSkillIdsKey),
             ReadPayloadArray(payload, TriggerSkillIdsKey),
+            hasAssigned,
+            hasQualifier,
+            hasTrigger
+        );
+    }
+
+    public static PromotionSelectionData FromPlainPayload(
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        bool hasAssigned = payload?.ContainsKey(AssignedCoreSkillIdsKey) ?? false;
+        bool hasQualifier = payload?.ContainsKey(QualifierSkillIdsKey) ?? false;
+        bool hasTrigger = payload?.ContainsKey(TriggerSkillIdsKey) ?? false;
+        return new PromotionSelectionData(
+            ReadPlainPayloadArray(payload, AssignedCoreSkillIdsKey),
+            ReadPlainPayloadArray(payload, QualifierSkillIdsKey),
+            ReadPlainPayloadArray(payload, TriggerSkillIdsKey),
             hasAssigned,
             hasQualifier,
             hasTrigger
@@ -74,21 +89,21 @@ public sealed class PromotionSelectionData
             && TriggerSkillIds.SequenceEqual(other.TriggerSkillIds);
     }
 
-    public GDictionary ToPayloadProjection()
+    public Dictionary<string, object> ToPlainPayload()
     {
-        GDictionary payload = new();
+        Dictionary<string, object> payload = new(System.StringComparer.Ordinal);
         if (HasAssignedCoreSkillIds)
-            payload[AssignedCoreSkillIdsKey] = BuildStringNameArray(AssignedCoreSkillIds);
+            payload[AssignedCoreSkillIdsKey] = BuildPlainStringNameList(AssignedCoreSkillIds);
         if (HasQualifierSkillIds)
-            payload[QualifierSkillIdsKey] = BuildStringNameArray(QualifierSkillIds);
+            payload[QualifierSkillIdsKey] = BuildPlainStringNameList(QualifierSkillIds);
         if (HasTriggerSkillIds)
-            payload[TriggerSkillIdsKey] = BuildStringNameArray(TriggerSkillIds);
+            payload[TriggerSkillIdsKey] = BuildPlainStringNameList(TriggerSkillIds);
         return payload;
     }
 
-    internal static GStringNameArray BuildStringNameArray(IEnumerable<StringName> values)
+    private static List<object> BuildPlainStringNameList(IEnumerable<StringName> values)
     {
-        GStringNameArray result = new();
+        List<object> result = new();
         if (values == null)
             return result;
         foreach (StringName value in values)
@@ -114,11 +129,26 @@ public sealed class PromotionSelectionData
         return result.ToArray();
     }
 
-    private static IEnumerable ReadPayloadArray(GDictionary payload, string key)
+    private static IReadOnlyList<StringName> ReadPayloadArray(GDictionary payload, string key)
     {
         if (!TryReadPayloadValue(payload, key, out Variant value))
             return null;
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : null;
+        if (value.VariantType != Variant.Type.Array)
+            return null;
+        using Godot.Collections.Array values = value.AsGodotArray();
+        return Normalize(values);
+    }
+
+    private static IReadOnlyList<object> ReadPlainPayloadArray(
+        IReadOnlyDictionary<string, object> payload,
+        string key
+    )
+    {
+        return payload != null
+            && payload.TryGetValue(key, out object value)
+            && value is IReadOnlyList<object> values
+            ? values
+            : null;
     }
 
     private static bool HasPayloadKey(GDictionary payload, string key)

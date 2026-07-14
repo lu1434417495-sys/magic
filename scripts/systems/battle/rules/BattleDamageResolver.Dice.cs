@@ -8,80 +8,11 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // BattleDamageResolver 的 partial：伤害/加成/武器骰池的掷骰与骰面事件聚合。按阶段拆出，不改逻辑。
 public partial class BattleDamageResolver
 {
-    private DicePoolRollResult RollDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.dice_count, 0);
-        int diceSides = Math.Max(effectDef.dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
 
-    private DicePoolRollResult RollBonusDamageDice(
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "bonus_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (effectDef == null)
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(effectDef.bonus_damage_dice_count, 0);
-        int diceSides = Math.Max(effectDef.bonus_damage_dice_sides, 0);
-        int diceBonus = includeBonus ? effectDef.bonus_damage_dice_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
 
-    private DicePoolRollResult RollWeaponDice(
-        BattleUnitState sourceUnit,
-        CombatEffectDef effectDef,
-        bool includeBonus = true,
-        string fieldPrefix = "weapon_damage_dice",
-        StringName rollMode = default
-    )
-    {
-        if (!ShouldAddWeaponDice(effectDef))
-        {
-            return DicePoolRollResult.Empty;
-        }
-        WeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
-        if (dice == null || dice.IsEmpty())
-        {
-            return DicePoolRollResult.Empty;
-        }
-        int diceCount = Math.Max(dice.dice_count, 0);
-        int diceSides = Math.Max(dice.dice_sides, 0);
-        int diceBonus = includeBonus ? dice.flat_bonus : 0;
-        return RollDicePool(
-            diceCount,
-            diceSides,
-            diceBonus,
-            fieldPrefix,
-            IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode
-        );
-    }
+
+
+
 
     private DicePoolRollResult RollDicePool(
         int diceCount,
@@ -146,6 +77,229 @@ public partial class BattleDamageResolver
             maxTotal,
             diceTotal == maxTotal
         );
+    }
+
+    private IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> RollEquipmentAbilityBonusDamageDiceByTag(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        DamageResolutionContext damageContext,
+        StringName fallbackDamageTag,
+        bool resultIncludesWeaponDamage,
+        StringName rollMode = default
+    )
+    {
+        if (
+            _equipment_ability_runtime_service == null
+            || sourceUnit == null
+            || targetUnit == null
+            || damageContext?.AttackSuccess != true
+            || !resultIncludesWeaponDamage
+        )
+        {
+            return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
+        }
+
+        IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> diceResults =
+            _equipment_ability_runtime_service.CollectBonusDamageDiceOnHit(
+                new BattleEquipmentAbilityBonusDamageDiceContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = _equipment_ability_runtime_service.GetBattleState(),
+                    AttackSucceeded = true,
+                    CriticalHit = damageContext.CriticalHit,
+                }
+            );
+        var aggregateByTag = new List<EquipmentAbilityTaggedBonusDamageRoll>();
+        foreach (BattleEquipmentAbilityBonusDamageDiceResult dice in diceResults)
+        {
+            if (
+                dice == null
+                || ((dice.DiceCount <= 0 || dice.DiceSides <= 0) && dice.FlatBonus <= 0)
+            )
+                continue;
+            StringName damageTag = ResolveEquipmentAbilityBonusDamageTag(
+                dice,
+                fallbackDamageTag
+            );
+            if (damageTag == "")
+                continue;
+            DicePoolRollResult roll =
+                dice.DiceCount > 0 && dice.DiceSides > 0
+                    ? RollDicePool(
+                        dice.DiceCount,
+                        dice.DiceSides,
+                        dice.FlatBonus,
+                        "equipment_ability_bonus_damage_dice",
+                        rollMode
+                    )
+                    : new DicePoolRollResult(
+                        0,
+                        0,
+                        Array.Empty<int>(),
+                        0,
+                        dice.FlatBonus,
+                        dice.FlatBonus,
+                        true
+                    );
+            AddEquipmentAbilityBonusDamageRoll(
+                aggregateByTag,
+                damageTag,
+                roll,
+                dice.Subtract,
+                dice.MitigationBypassDamageTags,
+                dice.MitigationBypassTiers
+            );
+        }
+        return aggregateByTag.Count == 0
+            ? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
+            : aggregateByTag;
+    }
+
+    private static void AddEquipmentAbilityBonusDamageRoll(
+        List<EquipmentAbilityTaggedBonusDamageRoll> result,
+        StringName damageTag,
+        DicePoolRollResult roll,
+        bool subtract,
+        IReadOnlyList<StringName> mitigationBypassDamageTags = null,
+        IReadOnlyList<StringName> mitigationBypassTiers = null
+    )
+    {
+        if (result == null || damageTag == "" || (!roll.HasDice && roll.Bonus <= 0))
+            return;
+        for (int index = 0; index < result.Count; index++)
+        {
+            EquipmentAbilityTaggedBonusDamageRoll existing = result[index];
+            if (existing.DamageTag != damageTag || existing.Subtract != subtract)
+                continue;
+            result[index] = new EquipmentAbilityTaggedBonusDamageRoll(
+                damageTag,
+                CombineDicePoolRolls(existing.Roll, roll),
+                subtract,
+                MergeStringNameLists(
+                    existing.MitigationBypassDamageTags,
+                    mitigationBypassDamageTags
+                ),
+                MergeStringNameLists(existing.MitigationBypassTiers, mitigationBypassTiers)
+            );
+            return;
+        }
+        result.Add(
+            new EquipmentAbilityTaggedBonusDamageRoll(
+                damageTag,
+                roll,
+                subtract,
+                CopyStringNameList(mitigationBypassDamageTags),
+                CopyStringNameList(mitigationBypassTiers)
+            )
+        );
+    }
+
+    private static IReadOnlyList<StringName> MergeStringNameLists(
+        IReadOnlyList<StringName> left,
+        IReadOnlyList<StringName> right
+    )
+    {
+        if ((left == null || left.Count == 0) && (right == null || right.Count == 0))
+            return Array.Empty<StringName>();
+        var result = new List<StringName>();
+        AppendDistinctStringNames(result, left);
+        AppendDistinctStringNames(result, right);
+        return result.Count == 0 ? Array.Empty<StringName>() : result.ToArray();
+    }
+
+    private static IReadOnlyList<StringName> CopyStringNameList(IReadOnlyList<StringName> values)
+    {
+        if (values == null || values.Count == 0)
+            return Array.Empty<StringName>();
+        var result = new List<StringName>();
+        AppendDistinctStringNames(result, values);
+        return result.Count == 0 ? Array.Empty<StringName>() : result.ToArray();
+    }
+
+    private static void AppendDistinctStringNames(
+        List<StringName> result,
+        IReadOnlyList<StringName> values
+    )
+    {
+        if (result == null || values == null)
+            return;
+        foreach (StringName rawValue in values)
+        {
+            StringName value = ProgressionDataUtils.to_string_name(rawValue);
+            if (value == "")
+                continue;
+            bool exists = false;
+            foreach (StringName existing in result)
+            {
+                if (existing == value)
+                {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+                result.Add(value);
+        }
+    }
+
+    private static StringName ResolveEquipmentAbilityBonusDamageTag(
+        BattleEquipmentAbilityBonusDamageDiceResult dice,
+        StringName fallbackDamageTag
+    )
+    {
+        foreach (StringName damageTag in dice?.DamageTags ?? Array.Empty<StringName>())
+        {
+            StringName normalized = ProgressionDataUtils.to_string_name(damageTag);
+            if (DamageTagContentRules.ToDamageTagKind(normalized) != DamageTagKind.Unknown)
+                return normalized;
+        }
+
+        StringName damageType = ProgressionDataUtils.to_string_name(dice?.DamageType ?? new StringName(""));
+        if (DamageTagContentRules.ToDamageTagKind(damageType) != DamageTagKind.Unknown)
+            return damageType;
+
+        StringName fallback = ProgressionDataUtils.to_string_name(fallbackDamageTag);
+        return DamageTagContentRules.ToDamageTagKind(fallback) != DamageTagKind.Unknown
+            ? fallback
+            : new StringName("");
+    }
+
+    private static DicePoolRollResult CombineDicePoolRolls(
+        DicePoolRollResult left,
+        DicePoolRollResult right
+    )
+    {
+        if (DicePoolRollIsEmpty(left))
+            return right;
+        if (DicePoolRollIsEmpty(right))
+            return left;
+
+        int[] leftRolls = left.Rolls ?? Array.Empty<int>();
+        int[] rightRolls = right.Rolls ?? Array.Empty<int>();
+        int[] rolls = new int[leftRolls.Length + rightRolls.Length];
+        Array.Copy(leftRolls, rolls, leftRolls.Length);
+        Array.Copy(rightRolls, 0, rolls, leftRolls.Length, rightRolls.Length);
+        int sides = left.Sides == right.Sides ? left.Sides : 0;
+        int maxTotal = Math.Max(left.MaxTotal, 0) + Math.Max(right.MaxTotal, 0);
+        int total = Math.Max(left.Total, 0) + Math.Max(right.Total, 0);
+        return new DicePoolRollResult(
+            Math.Max(left.Count, 0) + Math.Max(right.Count, 0),
+            sides,
+            rolls,
+            total,
+            left.Bonus + right.Bonus,
+            maxTotal,
+            maxTotal > 0 && total == maxTotal
+        );
+    }
+
+    private static bool DicePoolRollIsEmpty(DicePoolRollResult value)
+    {
+        return Math.Max(value.Count, 0) <= 0
+            && Math.Max(value.Total, 0) <= 0
+            && Math.Max(value.Bonus, 0) <= 0
+            && (value.Rolls == null || value.Rolls.Length == 0);
     }
 
     private int RollDamageDieVirtual(int diceSides)

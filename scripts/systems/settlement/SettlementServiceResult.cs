@@ -1,14 +1,12 @@
 using System.Collections.Generic;
-using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public sealed class SettlementServiceResult : System.IDisposable
+public sealed class SettlementServiceResult
 {
     private readonly List<SettlementServiceResultPayloadEntry> _inventoryDelta = new();
     private readonly List<PendingCharacterReward> _pendingCharacterRewards = new();
     private readonly List<QuestProgressService.QuestProgressEventData> _questProgressEvents = new();
     private readonly List<SettlementServiceResultPayloadEntry> _serviceSideEffects = new();
-    private bool _disposed;
 
     public bool Success { get; set; }
     public string Message { get; set; } = "";
@@ -27,8 +25,11 @@ public sealed class SettlementServiceResult : System.IDisposable
 
     public SettlementServiceResult SetInventoryDelta(GDictionary value)
     {
-        ThrowIfDisposed();
-        ReplacePayloadEntryList(_inventoryDelta, value);
+        ReplacePayloadEntryList(
+            _inventoryDelta,
+            value,
+            "SettlementServiceResult.inventory_delta"
+        );
         return this;
     }
 
@@ -36,7 +37,6 @@ public sealed class SettlementServiceResult : System.IDisposable
         IEnumerable<PendingCharacterReward> rewards
     )
     {
-        ThrowIfDisposed();
         ReplacePendingRewardList(_pendingCharacterRewards, rewards);
         return this;
     }
@@ -45,33 +45,18 @@ public sealed class SettlementServiceResult : System.IDisposable
         IEnumerable<QuestProgressService.QuestProgressEventData> events
     )
     {
-        ThrowIfDisposed();
         ReplaceQuestProgressEventList(_questProgressEvents, events);
         return this;
     }
 
     public SettlementServiceResult SetServiceSideEffects(GDictionary effects)
     {
-        ThrowIfDisposed();
-        ReplacePayloadEntryList(_serviceSideEffects, effects);
+        ReplacePayloadEntryList(
+            _serviceSideEffects,
+            effects,
+            "SettlementServiceResult.service_side_effects"
+        );
         return this;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-        _inventoryDelta.Clear();
-        DisposePendingRewardList(_pendingCharacterRewards);
-        _questProgressEvents.Clear();
-        _serviceSideEffects.Clear();
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (_disposed)
-            throw new System.ObjectDisposedException(nameof(SettlementServiceResult));
     }
 
     private static IReadOnlyList<SettlementServiceResultPayloadEntry> DuplicatePayloadEntryList(
@@ -88,14 +73,17 @@ public sealed class SettlementServiceResult : System.IDisposable
 
     private static void ReplacePayloadEntryList(
         List<SettlementServiceResultPayloadEntry> target,
-        GDictionary values
+        GDictionary values,
+        string ownerPath
     )
     {
+        Dictionary<string, object> normalized = RuntimePlainPayload.NormalizeDictionaryStrict(
+            values,
+            ownerPath
+        );
         target.Clear();
-        if (values == null)
-            return;
-        foreach (Variant key in values.Keys)
-            target.Add(new SettlementServiceResultPayloadEntry(key, values[key]));
+        foreach (KeyValuePair<string, object> entry in normalized)
+            target.Add(new SettlementServiceResultPayloadEntry(entry.Key, entry.Value));
     }
 
     private static IReadOnlyList<PendingCharacterReward> DuplicatePendingRewardList(
@@ -123,7 +111,7 @@ public sealed class SettlementServiceResult : System.IDisposable
         IEnumerable<PendingCharacterReward> values
     )
     {
-        DisposePendingRewardList(target);
+        target.Clear();
         if (values == null)
         {
             return;
@@ -136,12 +124,6 @@ public sealed class SettlementServiceResult : System.IDisposable
                 target.Add(copy);
             }
         }
-    }
-
-    private static void DisposePendingRewardList(List<PendingCharacterReward> target)
-    {
-        GodotRefCountedDisposer.DisposeAll(target);
-        target.Clear();
     }
 
     private static void ReplaceQuestProgressEventList(
@@ -166,26 +148,22 @@ public sealed class SettlementServiceResult : System.IDisposable
 
 internal readonly struct SettlementServiceResultPayloadEntry
 {
-    internal readonly Variant Key;
-    private readonly Variant _value;
+    internal readonly string Key;
+    private readonly object _value;
 
-    internal SettlementServiceResultPayloadEntry(Variant key, Variant value)
+    internal SettlementServiceResultPayloadEntry(string key, object value)
     {
+        if (string.IsNullOrEmpty(key))
+        {
+            throw new System.InvalidOperationException(
+                "Settlement service result payload entries require a non-empty string key."
+            );
+        }
         Key = key;
-        _value = DuplicateVariant(value);
+        _value = RuntimePlainPayload.CloneValue(value);
     }
 
-    internal Variant Value => DuplicateVariant(_value);
+    internal object Value => RuntimePlainPayload.CloneValue(_value);
 
     internal SettlementServiceResultPayloadEntry Duplicate() => new(Key, _value);
-
-    private static Variant DuplicateVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
-            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
-            _ => value,
-        };
-    }
 }

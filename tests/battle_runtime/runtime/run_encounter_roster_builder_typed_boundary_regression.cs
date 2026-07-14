@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_encounter_roster_builder_typed_boundary_regression : SceneTree
+public partial class run_encounter_roster_builder_typed_boundary_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,25 +17,25 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
     {
         TestTypedEnemyUnitBuildMatchesPublicBoundary();
         TestEncounterBuilderUnlocksCasterMpResources();
-        TestTypedLootPreviewMatchesPublicBoundary();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Encounter roster builder typed boundary regression"));
+        TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags();
+        TestPlainLootPreviewMatchesTypedDefinitions();
+        RequestTestExit(_test.Finish("Encounter roster builder typed boundary regression"));
     }
 
     private void TestTypedEnemyUnitBuildMatchesPublicBoundary()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         using BattleRuntimeModule runtime = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
         runtime.setup(
             null,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             builder,
             null,
             gameSession.GetItemDefsTyped()
@@ -55,20 +56,23 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             suppressed_until_step = 0,
         };
 
-        GArray typedUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> typedUnitsLease =
+            builder.BuildEnemyUnitsFromDefinitionsLease(
             encounterAnchor,
-            runtime.GetSkillDefIndexTyped(),
+            runtime.GetSkillDefinitionIndexTyped(),
             runtime.GetEnemyTemplateIndexTyped(),
             runtime.GetEnemyAiBrainIndexTyped(),
             runtime.BuildItemDefIndexSnapshotTyped()
         );
-        GArray sessionUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> sessionUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
+        GArray typedUnits = typedUnitsLease.Value;
+        GArray sessionUnits = sessionUnitsLease.Value;
 
         _test.Eq(typedUnits.Count, sessionUnits.Count, "不同 typed 输入源构建的 enemy unit 数量应一致。");
         _test.Eq(
@@ -80,11 +84,11 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
 
     private void TestEncounterBuilderUnlocksCasterMpResources()
     {
-        using GameSession gameSession = new();
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
 
         foreach (StringName templateId in new[] { new StringName("mist_beast"), new StringName("mist_weaver"), new StringName("wolf_shaman") })
@@ -104,13 +108,199 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         }
     }
 
-    private void TestTypedLootPreviewMatchesPublicBoundary()
+    private void TestEnemyAttackEquipmentProjectsAbilitySourceAndCreatureTags()
     {
-        using GameSession gameSession = new();
+        using EncounterRosterBuilder builder = new();
+        StringName grantedSkillId = "enemy_flame_equipment_skill";
+        ItemDef weapon = TestResourceOwnership.Own(
+            MakeWeapon("enemy_flame_blade"),
+            "EncounterRosterBuilderTypedBoundary.enemy_flame_blade"
+        );
+        weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
+        weapon.tags = new GStringNameArray { "blade" };
+        ItemDefinition weaponDefinition = weapon.ToDefinition();
+        var itemDefinitions = new Dictionary<StringName, ItemDefinition>
+        {
+            [weaponDefinition.ItemId] = weaponDefinition,
+        };
+        var traitDefs = new Dictionary<StringName, TraitDefinition>
+        {
+            ["trait.weapon.flame"] = new TraitDefinition(
+                "trait.weapon.flame",
+                "Flame Weapon",
+                "Fixture trait.",
+                [new StringName("weapon_feat")],
+                [new StringName("equipment_fixed")],
+                "halfling_luck",
+                "on_natural_one",
+                "stack_by_instance",
+                "none",
+                "none",
+                "",
+                0,
+                0,
+                System.Array.Empty<AttributeModifierDefinition>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
+                System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+                System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
+                System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
+            ),
+        };
+        var bindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>
+        {
+            ["binding.weapon.flame"] = new EquipmentAbilityBindingDefinition
+            {
+                BindingId = "binding.weapon.flame",
+                TraitId = "trait.weapon.flame",
+                AllowedSourceKinds = new HashSet<StringName> { "equipment_fixed" },
+                RequiredTraitCategories = new HashSet<StringName> { "weapon_feat" },
+                RequiredItemTags = new HashSet<StringName> { "blade" },
+                SupportedEquipmentTypeIds = new HashSet<StringName> { "weapon" },
+                GrantedActions = new EquipmentGrantedActionDefinition[]
+                {
+                    new()
+                    {
+                        GrantedActionId = "grant.enemy_flame_equipment_skill",
+                        GrantedKind = EquipmentGrantedActionKind.Skill,
+                        SkillId = grantedSkillId,
+                        SkillLevel = 1,
+                    },
+                },
+            },
+        };
+        EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
+        template.tags = new GStringNameArray { "undead" };
+        var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
+        {
+            [template.template_id] = template.ToDefinition(itemDefinitions),
+        };
+
+        using GodotProjectionLease<GArray> enemyUnitsLease =
+            builder.BuildEnemyUnitsFromDefinitionsLease(
+            BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
+            new Dictionary<StringName, SkillDefinition>(),
+            enemyTemplates,
+            new Dictionary<StringName, EnemyAiBrainDefinition>(),
+            itemDefinitions,
+            traitDefs: traitDefs,
+            equipmentAbilityBindings: bindings
+        );
+        GArray enemyUnits = enemyUnitsLease.Value;
+
+        _test.Eq(enemyUnits.Count, 1, "enemy template fixture 应生成一个敌方单位。");
+        BattleUnitState unit = enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState parsed)
+                ? parsed
+                : null;
+        _test.True(unit != null, "enemy template fixture 生成的 payload 应能读取为 BattleUnitState。");
+        if (unit == null)
+        {
+            return;
+        }
+
+        template.tags = new GStringNameArray { "construct" };
+        _test.True(
+            BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "undead"),
+            "creature type check 应读取 BattleUnitState.creature_type_tags，而不是回查敌人模板。"
+        );
+        _test.True(
+            !BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "construct"),
+            "模板后续变化不应改变已投影单位的 creature type check。"
+        );
+        _test.Eq(
+            unit.equipment_ability_sources.Count,
+            1,
+            "enemy attack equipment 应投影 battle-only equipment ability source。"
+        );
+        BattleEquipmentAbilitySourceState source = unit.equipment_ability_sources[0];
+        _test.Eq(
+            source.SourceKind,
+            EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
+            "enemy equipment ability source 应标记为 battle-only。"
+        );
+        _test.Eq(
+            source.SourceEquipmentInstanceId,
+            new StringName(""),
+            "enemy battle-only equipment source 不应携带持久装备 instance id。"
+        );
+        _test.Eq(
+            source.EquipmentDefId,
+            weapon.item_id,
+            "enemy equipment ability source 应保留攻击装备 item id。"
+        );
+        _test.True(
+            source.AbilityIds.Contains("binding.weapon.flame"),
+            "enemy equipment ability source 应列出匹配绑定 id。"
+        );
+
+        SkillDefinition grantedSkill = TestSkillDefinitionProjection.BuildSkill(
+            grantedSkillId,
+            displayName: "enemy flame equipment skill",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(grantedSkillId)
+        );
+        BattleSkillAvailabilityService service = new(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [grantedSkillId] = grantedSkill,
+            },
+            bindings
+        );
+        BattleSkillAvailabilityView view = service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                WorldStep = 0,
+            }
+        );
+        _test.True(
+            TryFindSkillEntry(view, grantedSkillId, out BattleAvailableSkillEntry entry),
+            "enemy battle-only equipment source 应生成装备技能入口。"
+        );
+        _test.True(entry?.IsSelectable == true, "enemy battle-only 装备技能首次应可用。");
+        _test.True(
+            EquipmentAbilityUsageRuntime.TryCommitUsage(unit, entry, worldStep: 0),
+            "enemy battle-only 装备技能应能用 effective key 提交同回合使用。"
+        );
+        StringName expectedTurnUseKey = new(
+            $"equipment_skill_turn_use:{source.EffectiveInstanceKey}:grant.enemy_flame_equipment_skill"
+        );
+        _test.True(
+            unit.HasPerTurnChargeTyped(expectedTurnUseKey),
+            $"enemy battle-only 装备技能应写入 effective key 同回合 charge。entry_key={entry?.EntryRef.SourceEquipmentEffectiveInstanceKey} source_key={source.EffectiveInstanceKey} charges={SummarizeCharges(unit)}"
+        );
+        BattleSkillAvailabilityView sameTurnView = service.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                Consumer = BattleSkillAvailabilityConsumer.ManualSelection,
+                WorldStep = 0,
+            }
+        );
+        _test.True(
+            TryFindSkillEntry(sameTurnView, grantedSkillId, out BattleAvailableSkillEntry sameTurnEntry),
+            "enemy battle-only 装备技能提交后入口仍应可见。"
+        );
+        _test.False(sameTurnEntry?.IsSelectable ?? true, "enemy battle-only 装备技能同一行动回合不能再次使用。");
+        _test.Eq(
+            sameTurnEntry?.DisabledReason ?? new StringName(""),
+            EquipmentAbilityUsageRuntime.PerActionTurnUseExhaustedReason,
+            "enemy battle-only 装备技能同回合限制应使用 effective key 生效。"
+        );
+    }
+
+    private void TestPlainLootPreviewMatchesTypedDefinitions()
+    {
+        using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
-            gameSession.GetWildEncounterRostersTyped(),
-            gameSession.GetEnemyTemplatesTyped()
+            gameSession.GetEncounterRosterDefinitions(),
+            gameSession.GetEnemyTemplateDefinitions()
         );
 
         EncounterAnchorData encounterAnchor = new()
@@ -128,20 +318,22 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             suppressed_until_step = 0,
         };
 
-        GArray typedLoot = builder.BuildLootEntriesTyped(encounterAnchor);
-        GArray explicitTypedLoot = builder.BuildLootEntriesTyped(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> plainLoot =
+            builder.BuildLootEntriesPlain(encounterAnchor);
+        IReadOnlyList<IReadOnlyDictionary<string, object>> explicitPlainLoot =
+            builder.BuildLootEntriesPlain(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
 
-        _test.Eq(typedLoot.Count, explicitTypedLoot.Count, "typed loot preview 数量应一致。");
+        _test.Eq(plainLoot.Count, explicitPlainLoot.Count, "plain loot preview 数量应一致。");
         _test.Eq(
-            SummarizeLoot(typedLoot),
-            SummarizeLoot(explicitTypedLoot),
-            "不同 typed 输入源的 loot preview 结果应保持一致。"
+            SummarizeLoot(plainLoot),
+            SummarizeLoot(explicitPlainLoot),
+            "不同 typed definition 输入源的 plain loot preview 结果应保持一致。"
         );
     }
 
@@ -150,8 +342,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         List<string> values = new();
         foreach (Variant unitValue in units ?? new GArray())
         {
-            BattleUnitState unit = unitValue.AsGodotObject() as BattleUnitState;
-            if (unit == null)
+            if (!BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit) || unit == null)
             {
                 values.Add("null");
                 continue;
@@ -163,22 +354,78 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
         return string.Join(" || ", values);
     }
 
-    private static string SummarizeLoot(GArray lootEntries)
+    private static string SummarizeLoot(
+        IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries
+    )
     {
         List<string> values = new();
-        foreach (Variant entryValue in lootEntries ?? new GArray())
+        foreach (
+            IReadOnlyDictionary<string, object> entry in
+            lootEntries ?? System.Array.Empty<IReadOnlyDictionary<string, object>>()
+        )
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
+            if (entry == null)
             {
                 values.Add("non_dict");
                 continue;
             }
-            GDictionary entry = entryValue.AsGodotDictionary();
             values.Add(
-                $"{DictString(entry, "drop_source_kind")}|{DictString(entry, "drop_source_id")}|{DictString(entry, "drop_entry_id")}|{DictString(entry, "item_id")}|{DictInt(entry, "quantity", 0)}"
+                $"{PlainString(entry, "drop_source_kind")}|{PlainString(entry, "drop_source_id")}|{PlainString(entry, "drop_entry_id")}|{PlainString(entry, "item_id")}|{PlainInt(entry, "quantity", 0)}"
             );
         }
         return string.Join(" || ", values);
+    }
+
+    private static string PlainString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string fallback = ""
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is string text
+                ? text
+                : fallback;
+    }
+
+    private static int PlainInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int fallback = 0
+    )
+    {
+        return values != null
+            && values.TryGetValue(key, out object value)
+            && value is int number
+                ? number
+                : fallback;
+    }
+
+    private static bool TryFindSkillEntry(
+        BattleSkillAvailabilityView view,
+        StringName skillId,
+        out BattleAvailableSkillEntry result
+    )
+    {
+        result = null;
+        foreach (BattleAvailableSkillEntry entry in view?.SkillEntries ?? new List<BattleAvailableSkillEntry>())
+        {
+            if (entry?.EntryRef.SkillId == skillId)
+            {
+                result = entry;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string SummarizeCharges(BattleUnitState unit)
+    {
+        List<string> values = new();
+        foreach ((StringName key, int value) in unit?.GetPerTurnChargesTyped() ?? new Dictionary<StringName, int>())
+            values.Add($"{key}:{value}");
+        return string.Join(",", values);
     }
 
     private static BattleUnitState BuildSingleTemplateUnit(
@@ -202,58 +449,91 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Sc
             suppressed_until_step = 0,
         };
 
-        GArray enemyUnits = builder.BuildEnemyUnitsTyped(
+        using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
             encounterAnchor,
-            gameSession.GetSkillDefsTyped(),
-            gameSession.GetEnemyTemplatesTyped(),
-            gameSession.GetEnemyAiBrainsTyped(),
+            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
+            gameSession.GetEnemyTemplateDefinitions(),
+            gameSession.GetEnemyAiBrainDefinitions(),
             gameSession.GetItemDefsTyped()
         );
-        return enemyUnits.Count > 0 ? enemyUnits[0].AsGodotObject() as BattleUnitState : null;
+        GArray enemyUnits = enemyUnitsLease.Value;
+        return enemyUnits.Count > 0
+            && BattleUnitState.TryReadUnitPayload(enemyUnits[0], out BattleUnitState unit)
+                ? unit
+                : null;
     }
 
-    private static GDictionary ProjectEnemyTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+    private static EncounterAnchorData BuildEncounterAnchor(StringName encounterId, StringName templateId)
+    {
+        return new EncounterAnchorData
+        {
+            entity_id = encounterId,
+            display_name = templateId.ToString(),
+            world_coord = new Vector2I(3, 3),
+            faction_id = "hostile",
+            enemy_roster_template_id = templateId,
+            region_tag = "typed_tests",
+            vision_range = 2,
+            encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
+            encounter_profile_id = "",
+            growth_stage = 0,
+            suppressed_until_step = 0,
+        };
+    }
+
+    private static EnemyTemplateDef BuildEnemyTemplate(
+        StringName templateId,
+        StringName attackEquipmentItemId
     )
     {
-        GDictionary result = new();
-        if (enemyTemplates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef template) in enemyTemplates)
-            result[templateId] = template;
-        return result;
+        return new EnemyTemplateDef
+        {
+            template_id = templateId,
+            display_name = templateId.ToString(),
+            brain_id = "",
+            enemy_count = 1,
+            body_size = BattleUnitState.BodySizeMedium,
+            action_threshold = BattleUnitState.DefaultActionThreshold,
+            attack_equipment_item_id = attackEquipmentItemId,
+            skill_ids = new GStringNameArray(),
+            base_attribute_overrides = new GDictionary
+            {
+                ["strength"] = 10,
+                ["agility"] = 10,
+                ["constitution"] = 10,
+                ["perception"] = 10,
+                ["intelligence"] = 10,
+                ["willpower"] = 10,
+            },
+        };
     }
 
-    private static GDictionary ProjectEnemyAiBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains
-    )
+    private static ItemDef MakeWeapon(StringName itemId)
     {
-        GDictionary result = new();
-        if (enemyAiBrains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brain) in enemyAiBrains)
-            result[brainId] = brain;
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-            result[skillId] = skillDef;
-        return result;
-    }
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
-    {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-            result[itemId] = itemDef;
-        return result;
+        return new ItemDef
+        {
+            item_id = itemId,
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
+            is_stackable = false,
+            max_stack = 1,
+            weapon_profile = new WeaponProfileDef
+            {
+                weapon_type_id = "shortsword",
+                training_group = "martial",
+                range_type = "melee",
+                family = "sword",
+                damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+                attack_range = 1,
+                one_handed_dice = new WeaponDamageDiceDef
+                {
+                    dice_count = 1,
+                    dice_sides = 6,
+                    flat_bonus = 0,
+                },
+            },
+        };
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)

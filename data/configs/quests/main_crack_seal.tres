@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"main_crack_seal"
+display_name = "裂隙封印"
+description = "裂隙正在扩大。从雾里走出来的东西不再是普通的野兽——它们披着灰烬，眼里没有瞳孔。阻止它们。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"main_story", &"contract"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"main_mist_investigation"}])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_mist_beasts", &"objective_type": &"defeat_enemy", &"target_id": &"mist_beast", &"target_value": 2}, {&"objective_id": &"defeat_mist_weaver", &"objective_type": &"defeat_enemy", &"target_id": &"mist_weaver", &"target_value": 1}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 500}, {&"reward_type": &"item", &"item_id": &"calamity_shard", &"quantity": 1}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"attribute_progress", &"target_id": &"intelligence", &"amount": 20}])}])
+is_repeatable = false

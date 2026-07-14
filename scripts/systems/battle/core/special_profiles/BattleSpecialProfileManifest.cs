@@ -1,3 +1,4 @@
+using System.IO;
 using Godot;
 using Godot.Collections;
 
@@ -35,4 +36,21 @@ public partial class BattleSpecialProfileManifest : Resource
 
     [Export]
     public string sunset_hard_block_date = "";
+
+    internal MeteorSwarmProfile RequireMeteorSwarmProfileForProjection()
+    {
+        if (profile_resource is not MeteorSwarmProfile meteorProfile)
+        {
+            throw new InvalidDataException(
+                $"Battle special profile {profile_id} requires a MeteorSwarmProfile resource."
+            );
+        }
+        if (meteorProfile.ResourcePath == null)
+        {
+            throw new InvalidDataException(
+                $"Battle special profile {profile_id} profile resource path must not be null."
+            );
+        }
+        return meteorProfile;
+    }
 }

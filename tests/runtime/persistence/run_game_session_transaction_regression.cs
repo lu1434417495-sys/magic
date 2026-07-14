@@ -4,7 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_game_session_transaction_regression : SceneTree
+public partial class run_game_session_transaction_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -22,13 +22,12 @@ public partial class run_game_session_transaction_regression : SceneTree
         TestCommitFailureKeepsDirtyAndLastError();
         TestUnloadCommitsPendingRuntimeState();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("GameSession transaction regression"));
+        RequestTestExit(_test.Finish("GameSession transaction regression"));
     }
 
     private void TestSettersStageRuntimeWithoutDiskWrite()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -38,7 +37,7 @@ public partial class run_game_session_transaction_regression : SceneTree
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
 
@@ -47,7 +46,7 @@ public partial class run_game_session_transaction_regression : SceneTree
             _test.Eq(gameSession.GetPlayerCoord(), stagedCoord, "set_player_coord 后内存坐标应立即更新。");
             _test.True(gameSession.HasPendingSave(), "setter 更新后应存在 pending save。");
 
-            GDictionary diskPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> diskPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "未 commit 前 setter 不应把玩家坐标写入磁盘。");
         }
         finally
@@ -58,7 +57,7 @@ public partial class run_game_session_transaction_regression : SceneTree
 
     private void TestCommitRuntimeStatePersistsCompleteSnapshot()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -68,21 +67,34 @@ public partial class run_game_session_transaction_regression : SceneTree
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             int originalWorldStep = PayloadWorldStep(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
-            GDictionary stagedWorldData = (GDictionary)gameSession.GetWorldData().Duplicate(true);
+            using GodotProjectionLease<GDictionary> stagedWorldDataLease =
+                gameSession.GetWorldDataLease();
+            GDictionary stagedWorldData = stagedWorldDataLease.Value;
             stagedWorldData["world_step"] = originalWorldStep + 7;
+            WorldRuntimeData stagedWorldRuntimeData = WorldRuntimeData.FromDictionary(
+                stagedWorldData
+            );
+            _test.True(
+                stagedWorldRuntimeData != null,
+                "事务 commit 回归前置：typed world_data 应能从合法 staging payload 构建。"
+            );
 
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务 commit 回归前置：坐标 staging 应成功。");
-            _test.Eq((Error)gameSession.SetWorldData(stagedWorldData), Error.Ok, "事务 commit 回归前置：world_data staging 应成功。");
+            _test.Eq(
+                (Error)gameSession.SetWorldData(stagedWorldRuntimeData),
+                Error.Ok,
+                "事务 commit 回归前置：trusted typed world_data staging 应成功。"
+            );
 
             Error commitError = (Error)gameSession.CommitRuntimeState(new StringName("test.full_snapshot"));
             _test.Eq(commitError, Error.Ok, "commit_runtime_state 应一次性持久化完整运行时快照。");
             _test.False(gameSession.HasPendingSave(), "commit 成功后 pending save 应被清空。");
 
-            GDictionary committedPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> committedPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(committedPayload), stagedCoord, "commit 后磁盘应保存 staged 玩家坐标。");
             _test.Eq(PayloadWorldStep(committedPayload), originalWorldStep + 7, "commit 后磁盘应保存 staged world_data。");
         }
@@ -94,7 +106,7 @@ public partial class run_game_session_transaction_regression : SceneTree
 
     private void TestCommitFailureKeepsDirtyAndLastError()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -104,7 +116,7 @@ public partial class run_game_session_transaction_regression : SceneTree
                 return;
             }
 
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
             Vector2I stagedCoord = originalCoord + Vector2I.Right;
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "事务失败回归前置：坐标 staging 应成功。");
@@ -114,14 +126,16 @@ public partial class run_game_session_transaction_regression : SceneTree
             _test.Eq(commitError, Error.CantCreate, "payload 写入失败时 commit_runtime_state 应返回底层错误。");
             _test.True(gameSession.HasPendingSave(), "commit 失败后 pending save 不能被清空。");
 
-            GDictionary status = gameSession.GetSaveStatus();
+            using GodotProjectionLease<GDictionary> statusLease =
+                gameSession.GetSaveStatusLease();
+            GDictionary status = statusLease.Value;
             _test.Eq(DictError(status, "last_error", Error.Ok), Error.CantCreate, "commit 失败后 save_status 应记录最近错误。");
             _test.True(
                 ArrayHasStringName(status.ContainsKey("dirty_scopes") ? status["dirty_scopes"] : Variant.From(new GArray()), new StringName("player_coord")),
                 "commit 失败后 dirty_scopes 应保留玩家坐标变更。"
             );
 
-            GDictionary diskPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> diskPayload = ReadActiveSavePayload(gameSession);
             _test.Eq(PayloadPlayerCoord(diskPayload), originalCoord, "commit 失败后磁盘坐标应保持旧快照。");
         }
         finally
@@ -133,7 +147,7 @@ public partial class run_game_session_transaction_regression : SceneTree
 
     private void TestUnloadCommitsPendingRuntimeState()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
@@ -144,7 +158,7 @@ public partial class run_game_session_transaction_regression : SceneTree
             }
 
             string saveId = gameSession.GetActiveSaveId();
-            GDictionary originalPayload = ReadActiveSavePayload(gameSession);
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
             Vector2I stagedCoord = PayloadPlayerCoord(originalPayload) + Vector2I.Right;
             _test.Eq((Error)gameSession.SetPlayerCoord(stagedCoord), Error.Ok, "卸载提交回归前置：坐标 staging 应成功。");
             _test.True(gameSession.HasPendingSave(), "卸载前应存在 pending save。");
@@ -173,36 +187,62 @@ public partial class run_game_session_transaction_regression : SceneTree
         }
     }
 
-    private static GDictionary ReadActiveSavePayload(GameSession gameSession)
+    private static Dictionary<string, object> ReadActiveSavePayload(GameSession gameSession)
     {
         string savePath = gameSession.GetActiveSavePath();
         if (string.IsNullOrEmpty(savePath))
         {
-            return new GDictionary();
+            return new Dictionary<string, object>(StringComparer.Ordinal);
         }
 
-        GDictionary readResult = gameSession.ReadSavePayload(savePath, false);
-        if (DictError(readResult, "error", Error.CantOpen) != Error.Ok)
-        {
-            return new GDictionary();
-        }
-        return readResult.ContainsKey("payload") && readResult["payload"].VariantType == Variant.Type.Dictionary
-            ? readResult["payload"].AsGodotDictionary()
-            : new GDictionary();
+        int readError = gameSession.ReadSavePayload(
+            savePath,
+            out Dictionary<string, object> payload,
+            false
+        );
+        return readError == (int)Error.Ok
+            ? payload
+            : new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private static Vector2I PayloadPlayerCoord(GDictionary payload)
+    private static Vector2I PayloadPlayerCoord(
+        IReadOnlyDictionary<string, object> payload
+    )
     {
-        GDictionary worldState = DictDictionary(payload, "world_state");
-        return DictVector2I(worldState, "player_coord", Vector2I.Zero);
+        IReadOnlyDictionary<string, object> worldState = PlainDictionary(
+            payload,
+            "world_state"
+        );
+        return worldState.TryGetValue("player_coord", out object value)
+            && value is Vector2I coord
+            ? coord
+            : Vector2I.Zero;
     }
 
-    private static int PayloadWorldStep(GDictionary payload)
+    private static int PayloadWorldStep(IReadOnlyDictionary<string, object> payload)
     {
-        GDictionary worldState = DictDictionary(payload, "world_state");
-        GDictionary worldData = DictDictionary(worldState, "world_data");
-        return DictInt(worldData, "world_step", 0);
+        IReadOnlyDictionary<string, object> worldState = PlainDictionary(
+            payload,
+            "world_state"
+        );
+        IReadOnlyDictionary<string, object> worldData = PlainDictionary(
+            worldState,
+            "world_data"
+        );
+        return worldData.TryGetValue("world_step", out object value)
+            ? Convert.ToInt32(value)
+            : 0;
     }
+
+    private static IReadOnlyDictionary<string, object> PlainDictionary(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    ) =>
+        values != null
+        && values.TryGetValue(key, out object value)
+        && value is IReadOnlyDictionary<string, object> dictionary
+            ? dictionary
+            : new Dictionary<string, object>(StringComparer.Ordinal);
 
     private static Variant DictionaryGet(GDictionary values, string key)
     {
@@ -268,6 +308,6 @@ public partial class run_game_session_transaction_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 }

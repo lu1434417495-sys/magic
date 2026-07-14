@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_battlesim_formal_fixture_regression : SceneTree
+public partial class run_battlesim_formal_fixture_regression : LifecycleTestSceneTree
 {
     private static readonly StringName[] AttributeIds =
     {
@@ -28,6 +28,7 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         try
         {
             TestFixtureNoLongerRegistersGlobalClass();
+            TestRosterMemberIdsUsePlainCollections();
             TestDefaultMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterUsesConfiguredRerollCount();
@@ -46,11 +47,54 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
             DisposeFixtures();
         }
 
-        Quit(_test.Finish("BattleSimFormalCombatFixture regression"));
+        RequestTestExit(_test.Finish("BattleSimFormalCombatFixture regression"));
     }
 
     private void TestFixtureNoLongerRegistersGlobalClass()
     {
+    }
+
+    private void TestRosterMemberIdsUsePlainCollections()
+    {
+        Type allyMemberIdsType = typeof(BattleSimFormalCombatFixture)
+            .GetField(nameof(BattleSimFormalCombatFixture.ally_member_ids))
+            ?.FieldType;
+        Type hostileMemberIdsType = typeof(BattleSimFormalCombatFixture)
+            .GetField(nameof(BattleSimFormalCombatFixture.hostile_member_ids))
+            ?.FieldType;
+        _test.Eq(
+            allyMemberIdsType,
+            typeof(List<StringName>),
+            "formal fixture 友军 roster owner 应是 plain List<StringName>。"
+        );
+        _test.Eq(
+            hostileMemberIdsType,
+            typeof(List<StringName>),
+            "formal fixture 敌军 roster owner 应是 plain List<StringName>。"
+        );
+
+        BattleSimFormalCombatFixture fixture = BuildFixture(
+            BattleSimFormalCombatFixture.ROSTER_MIXED_2S1A
+        );
+        _test.Eq(fixture.ally_member_ids.Count, 3, "2s1a fixture 应保留 3 个友军成员。");
+        _test.Eq(fixture.hostile_member_ids.Count, 3, "2s1a fixture 应保留 3 个敌军成员。");
+        _test.Eq(
+            fixture.ally_member_ids[0],
+            new StringName("ally_longsword_01"),
+            "plain 友军 roster 应保留建卡顺序。"
+        );
+        _test.Eq(
+            fixture.hostile_member_ids[0],
+            new StringName("enemy_longsword_01"),
+            "plain 敌军 roster 应保留建卡顺序。"
+        );
+        PartyState partyState = fixture.GetPartyState();
+        _test.Eq(partyState.active_member_ids.Count, 3, "active roster 应继续复制全部友军成员。");
+        _test.Eq(
+            partyState.active_member_ids[0],
+            fixture.ally_member_ids[0],
+            "active roster 应继续沿用相同的首位友军。"
+        );
     }
 
     private void TestDefaultMainCharacterGetsRerollLuck()
@@ -182,24 +226,16 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         UnitBaseAttributes attrs = mage.progression.unit_base_attributes;
         int constitution = attrs.GetAttributeValue("constitution");
         int expectedHp = CharacterCreationService.CalculateInitialHpMax(constitution);
-        RandomNumberGenerator hpRng = new();
-        try
-        {
-            hpRng.Seed = (ulong)(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
-            for (int swordRank = 0; swordRank < 4 * 2; swordRank++)
-                hpRng.RandiRange(1, 10);
-            for (int archerRank = 0; archerRank < 2; archerRank++)
-                hpRng.RandiRange(1, 8);
-            for (int mageRank = 0; mageRank < 5; mageRank++)
-                expectedHp += ProgressionService.CalculateProfessionHitPointGain(
-                    hpRng.RandiRange(1, 6),
-                    constitution
-                );
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(hpRng);
-        }
+        RuntimeRandom hpRng = new(seed + BattleSimFormalCombatFixture.HP_ROLL_SEED_OFFSET);
+        for (int swordRank = 0; swordRank < 4 * 2; swordRank++)
+            hpRng.RandiRange(1, 10);
+        for (int archerRank = 0; archerRank < 2; archerRank++)
+            hpRng.RandiRange(1, 8);
+        for (int mageRank = 0; mageRank < 5; mageRank++)
+            expectedHp += ProgressionService.CalculateProfessionHitPointGain(
+                hpRng.RandiRange(1, 6),
+                constitution
+            );
         int oldAggregateHp = CharacterCreationService.CalculateInitialHpMax(constitution);
         oldAggregateHp +=
             ProgressionService.CalculateProfessionHitPointGain(5, constitution) * 5;
@@ -287,7 +323,9 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
                 );
             _test.Eq(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus)), 20, "精英剑士有效生命上限应包含强健的 20% 人物生命加成。");
             eliteSword.current_hp = 1;
-            fixture.BuildRuntimeContext(null, new GDictionary());
+            using GDictionary baseContext = new();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(null, baseContext);
             _test.Eq(eliteSword.current_hp, Mathf.Max(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1), "build_runtime_context 开战前应重新把模拟单位补到有效生命上限。");
         }
     }
@@ -323,7 +361,10 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
     private void TestFormalFixtureRequestsBidirectionalSpawnReachability()
     {
         BattleSimFormalCombatFixture fixture = BuildFixture(BattleSimFormalCombatFixture.ROSTER_MIXED_6V12);
-        GDictionary context = fixture.BuildRuntimeContext(null, new GDictionary());
+        using GDictionary baseContext = new();
+        using GodotProjectionLease<GDictionary> contextLease =
+            fixture.BuildRuntimeContextLease(null, baseContext);
+        GDictionary context = contextLease.Value;
         _test.True(ReadBool(context, "validate_spawn_reachability"), "formal combat fixture 模拟应开启出生可达性验证。");
         _test.True(ReadBool(context, "validate_bidirectional_spawn_reachability"), "formal combat fixture 模拟应开启玩家/敌方双向可攻击验证。");
         _test.True(ReadBool(context, "enforce_opposing_spawn_sides"), "formal combat fixture 模拟应开启玩家/敌方对侧出生约束。");
@@ -334,8 +375,9 @@ public partial class run_battlesim_formal_fixture_regression : SceneTree
         BattleSimFormalRosterOptionsData rosterOptions = null
     )
     {
-        ProgressionContentRegistry progressionRegistry = new();
-        ItemContentRegistry itemRegistry = new();
+        var loader = new TestContentResourceLoader();
+        ProgressionContentRegistry progressionRegistry = new(loader);
+        ItemContentRegistry itemRegistry = new(loader);
         BattleSimFormalCombatFixture fixture = new();
         bool keepFixture = false;
         try

@@ -42,6 +42,7 @@ public partial class ShopWindow : Control
     private int _selectedEntryIndex = -1;
     private StringName _selectedMemberId = "";
     private readonly List<StringName> _memberOptionIds = new();
+    private bool _isShowingConfirmation = false;
 
     public override void _Ready()
     {
@@ -144,14 +145,13 @@ public partial class ShopWindow : Control
             HideWindow();
             return;
         }
-        GDictionary normalized = (GDictionary)window_data.Duplicate(true);
-        normalized["panel_kind"] = SettlementPanelKinds.ToPayloadValue(panelKind);
-        ShowShop(normalized);
+        ShowShop(window_data);
     }
 
     public void HideWindow()
     {
         Visible = false;
+        _isShowingConfirmation = false;
         _windowData = ShopWindowData.Empty();
         _settlementId = "";
         _actionId = "";
@@ -200,8 +200,6 @@ public partial class ShopWindow : Control
         title_label.Text = _windowData.Title;
         meta_label.Text = _build_meta_text();
         summary_label.Text = _windowData.SummaryText;
-        confirm_button.Text = _windowData.ConfirmLabel;
-        cancel_button.Text = _windowData.CancelLabel;
         _apply_section_titles();
         _rebuild_entry_list();
         _build_member_selector();
@@ -209,6 +207,10 @@ public partial class ShopWindow : Control
         _refresh_member_state();
         _refresh_details();
         _refresh_controls();
+        if (_windowData.PendingConfirmationQuestId != (StringName)"")
+            _show_confirmation_panel();
+        else
+            _hide_confirmation_panel();
     }
 
     private string _build_meta_text()
@@ -405,43 +407,60 @@ public partial class ShopWindow : Control
             : "";
     }
 
-    private GDictionary _build_confirm_payload()
+    private GodotProjectionLease<GDictionary> _build_confirm_payload()
     {
         ShopEntry entry = _get_selected_entry();
-        GDictionary payload = (GDictionary)entry.Payload.Duplicate(true);
-        string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
-        string submissionSource = SettlementSubmissionSources.ToPayloadValue(
-            SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
+        GodotProjectionLease<GDictionary> lease = RuntimePlainPayload.ProjectDictionaryLease(
+            entry.Payload,
+            "ShopWindow.confirm_payload",
+            LifetimeDomain.Request,
+            "ShopWindow.confirm_payload"
         );
-        payload["settlement_id"] = _settlementId;
-        payload["action_id"] = _actionId;
-        payload["interaction_script_id"] = FirstNonEmpty(
-            _windowData.InteractionScriptId,
-            DictString(payload, "interaction_script_id", "")
-        );
-        payload["facility_id"] = FirstNonEmpty(
-            _windowData.FacilityId,
-            DictString(payload, "facility_id", "")
-        );
-        payload["facility_name"] = FirstNonEmpty(
-            _windowData.FacilityName,
-            DictString(payload, "facility_name", "")
-        );
-        payload["npc_id"] = FirstNonEmpty(_windowData.NpcId, DictString(payload, "npc_id", ""));
-        payload["npc_name"] = FirstNonEmpty(
-            _windowData.NpcName,
-            DictString(payload, "npc_name", "")
-        );
-        payload["service_type"] = FirstNonEmpty(
-            _windowData.ServiceType,
-            DictString(payload, "service_type", "")
-        );
-        payload["member_id"] = _selectedMemberId.ToString();
-        payload["default_member_id"] = _selectedMemberId.ToString();
-        payload["submission_source"] = submissionSource;
-        payload["panel_kind"] = panelKind;
-        payload["state_summary_text"] = _windowData.StateSummaryText;
-        return payload;
+        try
+        {
+            GDictionary payload = lease.Value;
+            string panelKind = SettlementPanelKinds.ToPayloadValue(_windowData.PanelKind);
+            string submissionSource = SettlementSubmissionSources.ToPayloadValue(
+                SettlementSubmissionSources.FromPanelKind(_windowData.PanelKind)
+            );
+            payload["settlement_id"] = _settlementId;
+            payload["action_id"] = _actionId;
+            payload["interaction_script_id"] = FirstNonEmpty(
+                _windowData.InteractionScriptId,
+                DictString(payload, "interaction_script_id", "")
+            );
+            payload["facility_id"] = FirstNonEmpty(
+                _windowData.FacilityId,
+                DictString(payload, "facility_id", "")
+            );
+            payload["facility_name"] = FirstNonEmpty(
+                _windowData.FacilityName,
+                DictString(payload, "facility_name", "")
+            );
+            payload["npc_id"] = FirstNonEmpty(
+                _windowData.NpcId,
+                DictString(payload, "npc_id", "")
+            );
+            payload["npc_name"] = FirstNonEmpty(
+                _windowData.NpcName,
+                DictString(payload, "npc_name", "")
+            );
+            payload["service_type"] = FirstNonEmpty(
+                _windowData.ServiceType,
+                DictString(payload, "service_type", "")
+            );
+            payload["member_id"] = _selectedMemberId.ToString();
+            payload["default_member_id"] = _selectedMemberId.ToString();
+            payload["submission_source"] = submissionSource;
+            payload["panel_kind"] = panelKind;
+            payload["state_summary_text"] = _windowData.StateSummaryText;
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     private void _on_entry_selected(int index)
@@ -462,11 +481,40 @@ public partial class ShopWindow : Control
         _refresh_controls();
     }
 
+    private void _show_confirmation_panel()
+    {
+        _isShowingConfirmation = true;
+        confirm_button.Text = "确认";
+        cancel_button.Text = "返回";
+        details_label.Text = _windowData.PendingConfirmationText;
+    }
+
+    private void _hide_confirmation_panel()
+    {
+        _isShowingConfirmation = false;
+        confirm_button.Text = _windowData.ConfirmLabel;
+        cancel_button.Text = _windowData.CancelLabel;
+        _refresh_details();
+    }
+
     private void _on_confirm_button_pressed()
     {
         if (confirm_button.Disabled)
             return;
-        GDictionary payload = _build_confirm_payload();
+        if (
+            _windowData.PendingConfirmationQuestId != (StringName)""
+            && !_isShowingConfirmation
+        )
+        {
+            _show_confirmation_panel();
+            return;
+        }
+
+        using GodotProjectionLease<GDictionary> payloadLease = _build_confirm_payload();
+        GDictionary payload = payloadLease.Value;
+        if (_windowData.PendingConfirmationQuestId != (StringName)"")
+            payload["confirm_accept"] = true;
+
         string settlementId = _settlementId;
         string actionId = _actionId;
         HideWindow();
@@ -477,6 +525,11 @@ public partial class ShopWindow : Control
     {
         if (!Visible)
             return;
+        if (_isShowingConfirmation)
+        {
+            _hide_confirmation_panel();
+            return;
+        }
         HideWindow();
         EmitSignal(SignalName.closed);
     }
@@ -545,6 +598,9 @@ public partial class ShopWindow : Control
         public Dictionary<StringName, MemberOption> MemberOptionMap { get; private init; } = new();
         public StringName ExplicitDefaultMemberId { get; private init; } = "";
         public StringName SelectedMemberId { get; private init; } = "";
+        public StringName PendingConfirmationQuestId { get; private init; } = "";
+        public string PendingConfirmationText { get; private init; } = "";
+        public string PendingConfirmationSource { get; private init; } = "";
 
         public static ShopWindowData Empty() => new();
 
@@ -613,6 +669,9 @@ public partial class ShopWindow : Control
                 MemberOptionMap = memberMap,
                 ExplicitDefaultMemberId = DictStringName(data, "default_member_id"),
                 SelectedMemberId = DictStringName(data, "selected_member_id"),
+                PendingConfirmationQuestId = DictStringName(data, "pending_confirmation_quest_id"),
+                PendingConfirmationText = DictString(data, "pending_confirmation_text", ""),
+                PendingConfirmationSource = DictString(data, "pending_confirmation_source", ""),
             };
         }
 
@@ -685,7 +744,7 @@ public partial class ShopWindow : Control
         public string CostLabel { get; private init; } = "";
         public bool IsEnabled { get; private init; }
         public string DisabledReason { get; private init; } = "";
-        public GDictionary Payload { get; private init; } = new();
+        public Dictionary<string, object> Payload { get; private init; } = new();
 
         public static ShopEntry From(GDictionary data)
         {
@@ -718,24 +777,33 @@ public partial class ShopWindow : Control
             if (!isEnabled && string.IsNullOrEmpty(disabledReason))
                 return null;
 
-            GDictionary payload = (GDictionary)data.Duplicate(true);
-            payload["entry_id"] = data["entry_id"].AsString().StripEdges();
-            payload["display_name"] = data["display_name"].AsString().StripEdges();
-            payload["summary_text"] = data["summary_text"].AsString().StripEdges();
-            payload["details_text"] = data["details_text"].AsString().StripEdges();
-            payload["state_label"] = data["state_label"].AsString().StripEdges();
-            payload["cost_label"] = data["cost_label"].AsString().StripEdges();
+            Dictionary<string, object> payload = RuntimePlainPayload.NormalizeDictionary(
+                data,
+                "ShopWindow.ShopEntry"
+            );
+            string entryId = data["entry_id"].AsString().StripEdges();
+            string displayName = data["display_name"].AsString().StripEdges();
+            string summaryText = data["summary_text"].AsString().StripEdges();
+            string detailsText = data["details_text"].AsString().StripEdges();
+            string stateLabel = data["state_label"].AsString().StripEdges();
+            string costLabel = data["cost_label"].AsString().StripEdges();
+            payload["entry_id"] = entryId;
+            payload["display_name"] = displayName;
+            payload["summary_text"] = summaryText;
+            payload["details_text"] = detailsText;
+            payload["state_label"] = stateLabel;
+            payload["cost_label"] = costLabel;
             payload["is_enabled"] = isEnabled;
             payload["disabled_reason"] = disabledReason;
 
             return new ShopEntry
             {
-                EntryId = payload["entry_id"].AsString(),
-                DisplayName = payload["display_name"].AsString(),
-                SummaryText = payload["summary_text"].AsString(),
-                DetailsText = payload["details_text"].AsString(),
-                StateLabel = payload["state_label"].AsString(),
-                CostLabel = payload["cost_label"].AsString(),
+                EntryId = entryId,
+                DisplayName = displayName,
+                SummaryText = summaryText,
+                DetailsText = detailsText,
+                StateLabel = stateLabel,
+                CostLabel = costLabel,
                 IsEnabled = isEnabled,
                 DisabledReason = disabledReason,
                 Payload = payload,
@@ -901,7 +969,9 @@ public partial class ShopWindow : Control
     {
         if (!TryRead(data, "party_state", out Variant value))
             return null;
-        return value.AsGodotObject() as PartyState;
+        return PartyState.TryReadPartyPayload(value, out PartyState partyState)
+            ? partyState
+            : null;
     }
 
     private static bool HasString(GDictionary data, string key)

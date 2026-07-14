@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_rule_status_param_schema_regression : SceneTree
+public partial class run_battle_rule_status_param_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,7 +21,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         TestSecondaryHitUsesTypedControlSaveBonus();
         TestOutgoingDamageMultiplierAcceptsStringNameParamKey();
 
-        Quit(_test.Finish("Battle rule status param schema regression"));
+        RequestTestExit(_test.Finish("Battle rule status param schema regression"));
     }
 
 
@@ -58,12 +58,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_passive",
             new GDictionary { ["passive_reduction"] = 3 }
         );
-        GDictionary legacyPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             legacyPassiveTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
+            new[] { BuildDamageEffect(10) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary legacyPassiveResult = legacyPassiveResultLease.Value;
         _test.Eq(
             DictInt(legacyPassiveResult, "damage", -1),
             10,
@@ -72,19 +74,21 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
         BattleUnitState formalPassiveTarget = BuildUnit("formal_passive_target");
         SetTypedStatus(formalPassiveTarget, "formal_passive", passiveReduction: 3);
-        GDictionary formalPassiveResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalPassiveResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             formalPassiveTarget,
-            new GArray { BuildDamageEffect(10) },
-            new GDictionary()
+            new[] { BuildDamageEffect(10) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary formalPassiveResult = formalPassiveResultLease.Value;
         _test.Eq(
             DictInt(formalPassiveResult, "damage", -1),
             7,
             "typed passive_reduction 字段必须驱动正式减伤。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -151,7 +155,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "typed lock_dodge_bonus 字段必须继续压制 dodge AC 组件。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -234,7 +238,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
     private void TestStatusAttackRollPenaltyUsesFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -297,7 +301,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "typed dispellable_beneficial_magic 字段应驱动正式 beneficial dispel 语义。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -322,7 +326,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
     private void TestStatusDurationAndTickIntervalUseFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -355,12 +359,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_half_mitigation",
             new GDictionary { [new StringName("mitigation_tier")] = "half" }
         );
-        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary legacyResult = legacyResultLease.Value;
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -376,12 +382,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         BattleUnitState formalSource = BuildUnit("formal_mitigation_source");
         BattleUnitState formalTarget = BuildUnit("formal_mitigation_target");
         SetTypedStatus(formalTarget, "formal_half_mitigation", mitigationTier: "half");
-        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             formalSource,
             formalTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary formalResult = formalResultLease.Value;
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,
@@ -394,7 +402,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "typed mitigation_tier 字段必须继续记录到伤害事件。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -460,7 +468,7 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "typed control_save_bonus 字段应提高目标二次豁免，阻止同一固定掷骰触发 secondary_hit。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -488,12 +496,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "legacy_outgoing_multiplier",
             new GDictionary { [new StringName("outgoing_damage_multiplier")] = 0.5 }
         );
-        GDictionary legacyResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> legacyResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             legacySource,
             legacyTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary legacyResult = legacyResultLease.Value;
         _test.Eq(
             DictInt(legacyResult, "damage", -1),
             20,
@@ -513,12 +523,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
             "formal_outgoing_multiplier",
             outgoingDamageMultiplier: 0.5
         );
-        GDictionary formalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> formalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             formalSource,
             formalTarget,
-            new GArray { BuildDamageEffect(20) },
-            new GDictionary()
+            new[] { BuildDamageEffect(20) },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary formalResult = formalResultLease.Value;
         _test.Eq(
             DictInt(formalResult, "damage", -1),
             10,
@@ -578,16 +590,12 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus), dodgeBonus);
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power)
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = "physical_slash",
-            @params = new GDictionary(),
-        };
-    }
+    private static CombatEffectDefinition BuildDamageEffect(int power) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: "physical_slash"
+        );
 
     private static GDictionary FirstDamageEvent(GDictionary result)
     {

@@ -2,10 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class PendingProfessionChoice : RefCounted
+public class PendingProfessionChoice
 {
     private readonly List<StringName> _triggerSkillIds = new();
     private readonly List<StringName> _candidateProfessionIds = new();
@@ -13,15 +11,15 @@ public partial class PendingProfessionChoice : RefCounted
     private readonly List<StringName> _qualifierSkillPoolIds = new();
     private readonly List<StringName> _assignableSkillCandidateIds = new();
 
-    public GStringNameArray trigger_skill_ids
+    public StringNameList trigger_skill_ids
     {
-        get => BuildStringNameArray(_triggerSkillIds);
+        get => new(_triggerSkillIds);
         set => SetTriggerSkillIds(value);
     }
 
-    public GStringNameArray candidate_profession_ids
+    public StringNameList candidate_profession_ids
     {
-        get => BuildStringNameArray(_candidateProfessionIds);
+        get => new(_candidateProfessionIds);
         set => SetCandidateProfessionIds(value);
     }
 
@@ -31,15 +29,15 @@ public partial class PendingProfessionChoice : RefCounted
         set => SetTargetRankMap(value);
     }
 
-    public GStringNameArray qualifier_skill_pool_ids
+    public StringNameList qualifier_skill_pool_ids
     {
-        get => BuildStringNameArray(_qualifierSkillPoolIds);
+        get => new(_qualifierSkillPoolIds);
         set => SetQualifierSkillPoolIds(value);
     }
 
-    public GStringNameArray assignable_skill_candidate_ids
+    public StringNameList assignable_skill_candidate_ids
     {
-        get => BuildStringNameArray(_assignableSkillCandidateIds);
+        get => new(_assignableSkillCandidateIds);
         set => SetAssignableSkillCandidateIds(value);
     }
 
@@ -236,14 +234,6 @@ public partial class PendingProfessionChoice : RefCounted
         if (value == "" || target.Contains(value))
             return;
         target.Add(value);
-    }
-
-    private static GStringNameArray BuildStringNameArray(IEnumerable<StringName> values)
-    {
-        var result = new GStringNameArray();
-        foreach (StringName value in values)
-            result.Add(value);
-        return result;
     }
 
     private GDictionary BuildTargetRankMap()

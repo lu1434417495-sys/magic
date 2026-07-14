@@ -24,6 +24,14 @@ public partial class FacilityConfig : Resource
     [Export]
     public string interaction_type { get; set; } = "";
 
+    internal Godot.Collections.Array<string> AllowedSlotTagsProjectionBorrowed =>
+        allowed_slot_tags;
+    internal Godot.Collections.Array<Resource> BoundServiceNpcsProjectionBorrowed =>
+        bound_service_npcs;
+
+    internal FacilityDefinition ToDefinition(string path) =>
+        FacilityDefinition.FromResource(this, path);
+
     public string GetTemplateId()
     {
         return (facility_id ?? string.Empty).Trim();

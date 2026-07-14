@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_tremor_shockwave_damage"]
+script = ExtResource("1_effect")
+effect_type = &"damage"
+effect_target_team_filter = &"any"
+damage_tag = &"thunder"
+save_dc = 14
+save_ability = &"constitution"
+save_partial_on_success = true
+save_failure_status_id = &"prone"
+save_tag = &"magic"
+dice_count = 2
+dice_sides = 6
+duration_tu = 50
+
+[sub_resource type="Resource" id="Combat_tremor_shockwave"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_hammer_tremor_shockwave"
+target_mode = &"ground"
+target_team_filter = &"any"
+range_pattern = &"single"
+range_value = 1
+area_pattern = &"radius"
+area_value = 2
+ap_cost = 1
+attack_resolution_mode = &"direct_effect"
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_tremor_shockwave_damage")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_hammer_tremor_shockwave"
+display_name = "震击"
+icon_id = &"weapon_hammer_tremor_shockwave"
+description = "装备技能。攻击近身地面，对半径2格内所有生物造成2D6雷鸣伤害；目标进行constitution DC14豁免，成功则伤害减半，失败额外倒地50TU。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"tremor", &"hammer", &"thunder", &"weapon"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_tremor_shockwave")

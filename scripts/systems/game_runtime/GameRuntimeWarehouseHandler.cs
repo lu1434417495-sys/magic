@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
+using PlainDictionary = System.Collections.Generic.Dictionary<string, object>;
+using PlainList = System.Collections.Generic.List<object>;
 
 public sealed class GameRuntimeWarehouseHandler
 {
@@ -8,10 +11,45 @@ public sealed class GameRuntimeWarehouseHandler
 
     private sealed class WarehouseTransactionSnapshot
     {
-        internal Dictionary RuntimeState { get; set; } = new();
+        private readonly System.Collections.Generic.Dictionary<string, object> _runtimeState =
+            new(System.StringComparer.Ordinal);
+        private readonly System.Collections.Generic.Dictionary<string, object> _worldData =
+            new(System.StringComparer.Ordinal);
+        internal IReadOnlyDictionary<string, object> RuntimeStatePlain =>
+            RuntimePlainPayload.CloneDictionary(_runtimeState);
         public PartyState PartyState { get; set; }
-        internal Dictionary WorldData { get; set; } = new();
+        internal IReadOnlyDictionary<string, object> WorldDataPlain =>
+            RuntimePlainPayload.CloneDictionary(_worldData);
         public StringName SelectedMemberId { get; set; } = "";
+
+        internal void SetRuntimeState(Dictionary payload) =>
+            ReplacePlainPayload(
+                _runtimeState,
+                payload,
+                "GameRuntimeWarehouseHandler.RuntimeState"
+            );
+
+        internal void SetWorldData(Dictionary payload) =>
+            ReplacePlainPayload(
+                _worldData,
+                payload,
+                "GameRuntimeWarehouseHandler.WorldData"
+            );
+
+        private static void ReplacePlainPayload(
+            System.Collections.Generic.Dictionary<string, object> target,
+            Dictionary payload,
+            string ownerPath
+        )
+        {
+            target.Clear();
+            System.Collections.Generic.Dictionary<string, object> normalized =
+                RuntimePlainPayload.NormalizeDictionary(payload ?? new Dictionary(), ownerPath);
+            foreach (System.Collections.Generic.KeyValuePair<string, object> entry in normalized)
+            {
+                target[entry.Key] = entry.Value;
+            }
+        }
     }
 
     private WeakReference<GameRuntimeFacade> _runtimeRef;
@@ -39,6 +77,15 @@ public sealed class GameRuntimeWarehouseHandler
         if (GetPartyState() == null || GetPartyWarehouseService() == null)
             return new Dictionary();
         return BuildWarehouseWindowData();
+    }
+
+    internal System.Collections.Generic.IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain()
+    {
+        if (!HasRuntime())
+            return new PlainDictionary(StringComparer.Ordinal);
+        if (GetPartyState() == null || GetPartyWarehouseService() == null)
+            return new PlainDictionary(StringComparer.Ordinal);
+        return BuildWarehouseWindowDataSnapshotPlain();
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()
@@ -106,10 +153,7 @@ public sealed class GameRuntimeWarehouseHandler
         );
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(
-        StringName itemId,
-        StringName instanceId = default
-    )
+    internal GameRuntimeFacade.RuntimeCommandResult CommandDiscardAllTyped(StringName itemId)
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -120,6 +164,20 @@ public sealed class GameRuntimeWarehouseHandler
 
         var partyWarehouseService = GetPartyWarehouseService();
         var itemName = GetItemDisplayName(itemId);
+        ItemDefinition itemDef = partyWarehouseService.GetItemDef(itemId);
+        if (itemDef != null && itemDef.IsEquipment())
+        {
+            var unsupportedMessage = string.Format(
+                "{0} 是独立装备实例，不能丢弃全部同类。请选择具体装备后使用“丢弃此装备”。",
+                itemName
+            );
+            UpdateStatus(unsupportedMessage);
+            return GameRuntimeFacade.RuntimeCommandResult.Failure(
+                unsupportedMessage,
+                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+            );
+        }
+
         var totalQuantity = partyWarehouseService.CountItem(itemId);
         if (totalQuantity <= 0)
         {
@@ -129,12 +187,7 @@ public sealed class GameRuntimeWarehouseHandler
         }
 
         var snapshot = CaptureWarehouseTransactionSnapshot();
-        var result = RemoveWarehouseItemOrInstance(
-            partyWarehouseService,
-            itemId,
-            totalQuantity,
-            instanceId
-        );
+        var result = partyWarehouseService.RemoveItemTyped(itemId, totalQuantity);
         var removedQuantity = result.RemovedQuantity;
         if (removedQuantity <= 0)
         {
@@ -311,7 +364,7 @@ public sealed class GameRuntimeWarehouseHandler
             var itemDefs =
                 gameSession != null
                     ? gameSession.GetItemDefsTyped()
-                    : new System.Collections.Generic.Dictionary<StringName, ItemDef>();
+                    : new System.Collections.Generic.Dictionary<StringName, ItemDefinition>();
             Func<StringName> equipmentInstanceIdAllocator =
                 gameSession != null ? gameSession.AllocateEquipmentInstanceId : null;
             partyWarehouseService.Setup(GetPartyState(), itemDefs, equipmentInstanceIdAllocator);
@@ -419,6 +472,56 @@ public sealed class GameRuntimeWarehouseHandler
         return entries;
     }
 
+    private PlainList BuildWarehouseTargetMemberEntriesPlain()
+    {
+        var entries = new PlainList();
+        var seenMemberIds = new System.Collections.Generic.HashSet<StringName>();
+        PartyState partyState = GetPartyState();
+        if (!HasRuntime() || partyState == null)
+            return entries;
+
+        foreach (StringName memberId in partyState.active_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            entries.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["member_id"] = memberId.ToString(),
+                    ["display_name"] = GetMemberDisplayName(memberId),
+                    ["roster_role"] = "active",
+                }
+            );
+        }
+
+        foreach (StringName memberId in partyState.reserve_member_ids)
+        {
+            if (
+                memberId == ""
+                || !seenMemberIds.Add(memberId)
+                || partyState.GetMemberState(memberId) == null
+            )
+            {
+                continue;
+            }
+            entries.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["member_id"] = memberId.ToString(),
+                    ["display_name"] = GetMemberDisplayName(memberId),
+                    ["roster_role"] = "reserve",
+                }
+            );
+        }
+        return entries;
+    }
+
     private string BuildWarehouseUseFailureMessage(PartyItemUseService.PartyItemUseResult useResult)
     {
         if (useResult == null)
@@ -482,11 +585,22 @@ public sealed class GameRuntimeWarehouseHandler
             freeSlots = partyWarehouseService.GetFreeSlots();
             isOverCapacity = partyWarehouseService.IsOverCapacity();
 
+            GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+                contentCatalog != null
+                    ? contentCatalog.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDefinition>();
+
             foreach (var inventoryEntryData in partyWarehouseService.GetInventoryEntriesTyped())
             {
                 var entryData = PartyInventoryProjection.Project(inventoryEntryData);
                 entryData["granted_skill_name"] = GetSkillDisplayName(
                     inventoryEntryData.GrantedSkillId
+                );
+                entryData["description"] = ItemTraitDetailText.Compose(
+                    inventoryEntryData.Description,
+                    inventoryEntryData.ItemDefinition,
+                    traitDefs
                 );
                 inventoryEntries.Add(entryData);
             }
@@ -521,6 +635,108 @@ public sealed class GameRuntimeWarehouseHandler
         };
     }
 
+    private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseWindowDataSnapshotPlain()
+    {
+        int totalCapacity = 0;
+        int usedSlots = 0;
+        int freeSlots = 0;
+        bool isOverCapacity = false;
+        var inventoryEntries = new PlainList();
+        PlainList targetMembers = BuildWarehouseTargetMemberEntriesPlain();
+
+        PartyWarehouseService partyWarehouseService = GetPartyWarehouseService();
+        if (partyWarehouseService != null)
+        {
+            totalCapacity = partyWarehouseService.GetTotalCapacity();
+            usedSlots = partyWarehouseService.GetUsedSlots();
+            freeSlots = partyWarehouseService.GetFreeSlots();
+            isOverCapacity = partyWarehouseService.IsOverCapacity();
+
+            GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
+            System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
+                contentCatalog != null
+                    ? contentCatalog.GetTraitDefsTyped()
+                    : new System.Collections.Generic.Dictionary<StringName, TraitDefinition>();
+
+            foreach (
+                WarehouseInventoryEntry inventoryEntry in
+                partyWarehouseService.GetInventoryEntriesTyped()
+            )
+            {
+                inventoryEntries.Add(
+                    BuildWarehouseInventoryEntrySnapshotPlain(inventoryEntry, traitDefs)
+                );
+            }
+        }
+
+        string summaryText = string.Format(
+            "容量 {0} 格  |  已用 {1} 格  |  空余 {2} 格",
+            totalCapacity,
+            usedSlots,
+            freeSlots
+        );
+        string statusText =
+            "当前版本支持查看、丢弃和让指定角色使用技能书。非装备物品会优先补满同类堆栈，装备则按实例独立占格。";
+        if (isOverCapacity)
+        {
+            statusText = string.Format(
+                "仓库当前超容 {0} 格。已存物品不会被删除，但此时不能继续新增条目，只能整理和移除。",
+                usedSlots - totalCapacity
+            );
+        }
+
+        return new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["title"] = "共享仓库",
+            ["meta"] = string.Format(
+                "入口：{0}  |  规则：全队共享、按堆栈/实例占格、不计重量。",
+                GetActiveWarehouseMetaLabel()
+            ),
+            ["summary_text"] = summaryText,
+            ["status_text"] = statusText,
+            ["target_members"] = targetMembers,
+            ["default_target_member_id"] = ResolveWarehouseTargetMemberId().ToString(),
+            ["entries"] = inventoryEntries,
+        };
+    }
+
+    private System.Collections.Generic.IReadOnlyDictionary<string, object> BuildWarehouseInventoryEntrySnapshotPlain(
+        WarehouseInventoryEntry entry,
+        System.Collections.Generic.IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
+    )
+    {
+        if (entry == null)
+            return new PlainDictionary(StringComparer.Ordinal);
+
+        var result = new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["item_id"] = entry.ItemId.ToString(),
+            ["display_name"] = entry.DisplayName,
+            ["description"] = ItemTraitDetailText.Compose(
+                entry.Description,
+                entry.ItemDefinition,
+                traitDefs
+            ),
+            ["icon"] = entry.Icon,
+            ["quantity"] = entry.Quantity,
+            ["total_quantity"] = entry.TotalQuantity,
+            ["is_stackable"] = entry.IsStackable,
+            ["stack_limit"] = entry.StackLimit,
+            ["item_category"] = entry.ItemCategory.ToString(),
+            ["is_skill_book"] = entry.IsSkillBook,
+            ["granted_skill_id"] = entry.GrantedSkillId.ToString(),
+            ["storage_mode"] = entry.StorageMode.ToString(),
+        };
+        if (entry.HasEquipmentInstance)
+        {
+            result["instance_id"] = entry.InstanceId.ToString();
+            result["rarity"] = entry.Rarity;
+            result["current_durability"] = entry.CurrentDurability;
+        }
+        result["granted_skill_name"] = GetSkillDisplayName(entry.GrantedSkillId);
+        return result;
+    }
+
     private PartyWarehouseService.WarehouseRemoveItemResult RemoveWarehouseItemOrInstance(
         PartyWarehouseService partyWarehouseService,
         StringName itemId,
@@ -529,7 +745,7 @@ public sealed class GameRuntimeWarehouseHandler
     )
     {
         var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
-        ItemDef itemDef = partyWarehouseService?.GetItemDef(itemId);
+        ItemDefinition itemDef = partyWarehouseService?.GetItemDef(itemId);
         if (itemDef != null && itemDef.IsEquipment())
             return partyWarehouseService.RemoveEquipmentInstanceTyped(itemId, normalizedInstanceId);
         return partyWarehouseService.RemoveItemTyped(itemId, quantity);
@@ -568,18 +784,9 @@ public sealed class GameRuntimeWarehouseHandler
 
     private string GetSkillDisplayName(StringName skillId)
     {
-        var gameSession = GetGameSession();
-        if (gameSession == null)
+        if (!HasRuntime())
             return skillId.ToString();
-        var skillDefs = gameSession.GetSkillDefsTyped();
-        if (
-            skillDefs != null
-            && skillDefs.TryGetValue(skillId, out SkillDef skillDef)
-            && skillDef != null
-            && !string.IsNullOrEmpty(skillDef.display_name)
-        )
-            return skillDef.display_name;
-        return skillId.ToString();
+        return _runtime.GetSkillDisplayName(skillId);
     }
 
     private string GetMemberDisplayName(StringName memberId)
@@ -691,9 +898,9 @@ public sealed class GameRuntimeWarehouseHandler
         var gameSession = GetGameSession();
         if (gameSession != null)
         {
-            var runtimeState = gameSession.CaptureRuntimeState();
-            if (runtimeState != null)
-                snapshot.RuntimeState = runtimeState.Duplicate(true);
+            using GodotProjectionLease<Dictionary> runtimeStateLease =
+                gameSession.CaptureRuntimeStateLease();
+            snapshot.SetRuntimeState(runtimeStateLease.Value);
         }
 
         var partyState = GetPartyState();
@@ -702,9 +909,9 @@ public sealed class GameRuntimeWarehouseHandler
 
         if (gameSession != null)
         {
-            var worldData = gameSession.GetWorldData();
-            if (worldData != null)
-                snapshot.WorldData = worldData.Duplicate(true);
+            using GodotProjectionLease<Dictionary> worldDataLease =
+                gameSession.GetWorldDataLease();
+            snapshot.SetWorldData(worldDataLease.Value);
         }
 
         return snapshot;
@@ -719,17 +926,37 @@ public sealed class GameRuntimeWarehouseHandler
         if (restoredPartyState == null)
             return false;
 
-        var restoredWorldData =
-            snapshot.WorldData.Count > 0 ? snapshot.WorldData.Duplicate(true) : new Dictionary();
+        System.Collections.Generic.Dictionary<string, object> restoredWorldDataPlain =
+            RuntimePlainPayload.CloneDictionary(snapshot.WorldDataPlain);
+        using GodotProjectionLease<Dictionary> worldDataLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                restoredWorldDataPlain,
+                "GameRuntimeWarehouseHandler.RestoreWorldData",
+                LifetimeDomain.Request,
+                "GameRuntimeWarehouseHandler.RestoreWorldData"
+            );
+        Dictionary restoredWorldData = worldDataLease.Value;
         var gameSession = GetGameSession();
 
-        if (gameSession != null && snapshot.RuntimeState.Count > 0)
+        System.Collections.Generic.Dictionary<string, object> restoredRuntimeStatePlain =
+            RuntimePlainPayload.CloneDictionary(snapshot.RuntimeStatePlain);
+        if (gameSession != null && restoredRuntimeStatePlain.Count > 0)
         {
-            var restoredRuntimeState = snapshot.RuntimeState.Duplicate(true);
-            restoredRuntimeState["party_state"] = restoredPartyState;
-            if (restoredWorldData.Count > 0)
-                restoredRuntimeState["world_data"] = restoredWorldData;
-            gameSession.RestoreRuntimeState(restoredRuntimeState);
+            restoredRuntimeStatePlain["party_state"] =
+                restoredPartyState?.BuildSaveSnapshotPlain()
+                ?? new System.Collections.Generic.Dictionary<string, object>(
+                    System.StringComparer.Ordinal
+                );
+            if (restoredWorldDataPlain.Count > 0)
+                restoredRuntimeStatePlain["world_data"] = restoredWorldDataPlain;
+            using GodotProjectionLease<Dictionary> runtimeStateLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    restoredRuntimeStatePlain,
+                    "GameRuntimeWarehouseHandler.RestoreRuntimeState",
+                    LifetimeDomain.Request,
+                    "GameRuntimeWarehouseHandler.RestoreRuntimeState"
+                );
+            gameSession.RestoreRuntimeState(runtimeStateLease.Value);
         }
         else if (gameSession != null)
         {
@@ -760,7 +987,7 @@ public sealed class GameRuntimeWarehouseHandler
 
         dataContext.BindRootWorldData(restoredWorldData);
         dataContext.SyncActiveWorldContext(
-            _runtime.GetGenerationConfig(),
+            _runtime.GetGenerationDefinition(),
             _runtime.GetGridSystem(),
             _runtime.GetPlayerCoord(),
             _runtime.GetSelectedCoord()

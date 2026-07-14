@@ -91,6 +91,21 @@ public partial class EnemyAiTransitionRuleDef : Resource
         return $"{order}:{rule_id}:{target_state_id}:from=[{string.Join(",", StringNameArrayToStrings(from_state_ids))}]:conditions=[{string.Join(";", conditionEntries)}]";
     }
 
+    internal EnemyAiTransitionRuleDefinition ToDefinition()
+    {
+        var conditionDefinitions = new List<EnemyAiTransitionConditionDefinition>();
+        foreach (EnemyAiTransitionConditionDef condition in GetTypedConditions())
+            conditionDefinitions.Add(condition.ToDefinition());
+        return new EnemyAiTransitionRuleDefinition(
+            rule_id,
+            order,
+            new List<StringName>(from_state_ids),
+            target_state_id,
+            conditionDefinitions,
+            designer_note
+        );
+    }
+
     private static List<string> StringNameArrayToStrings(GStringNameArray values)
     {
         var results = new List<string>();

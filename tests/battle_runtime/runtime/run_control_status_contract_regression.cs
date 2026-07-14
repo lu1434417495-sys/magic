@@ -1,9 +1,8 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_control_status_contract_regression : SceneTree
+public partial class run_control_status_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,12 +17,12 @@ public partial class run_control_status_contract_regression : SceneTree
         TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction();
         TestMadnessSelfSaveFailureReturnsAiOverridePolicy();
         TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction();
-        Quit(_test.Finish("Control status contract regression"));
+        RequestTestExit(_test.Finish("Control status contract regression"));
     }
 
     private void TestPetrifiedSelfSaveFailureSkipsTurn()
     {
-        using Fixture fixture = BuildTurnResolver();
+        Fixture fixture = BuildTurnResolver();
         if (fixture.Resolver == null)
         {
             return;
@@ -37,7 +36,10 @@ public partial class run_control_status_contract_regression : SceneTree
             selfSaveTag: "constitution"
         );
 
-        BattleTurnControlStatusResult result = ResolveTurnControlStatusResult(fixture);
+        BattleTurnControlStatusResult result = fixture.Resolver.ResolveTurnControlStatusResult(
+            fixture.Target,
+            new BattleEventBatch()
+        );
         _test.True(result.SkipTurn, "Petrified self-save failure must skip the current turn.");
         _test.False(result.AiControlled, "Petrified self-save failure must not request AI control.");
         _test.Eq(fixture.Target.current_ap, 0, "Petrified self-save failure must clear AP.");
@@ -54,7 +56,7 @@ public partial class run_control_status_contract_regression : SceneTree
 
     private void TestPetrifiedSelfSaveSuccessRemovesStatusAndAllowsAction()
     {
-        using Fixture fixture = BuildTurnResolver();
+        Fixture fixture = BuildTurnResolver();
         if (fixture.Resolver == null)
         {
             return;
@@ -68,7 +70,10 @@ public partial class run_control_status_contract_regression : SceneTree
             selfSaveTag: "constitution"
         );
 
-        BattleTurnControlStatusResult result = ResolveTurnControlStatusResult(fixture);
+        BattleTurnControlStatusResult result = fixture.Resolver.ResolveTurnControlStatusResult(
+            fixture.Target,
+            new BattleEventBatch()
+        );
         _test.False(
             result.SkipTurn,
             "Petrified self-save success must allow the unit to act immediately."
@@ -82,7 +87,7 @@ public partial class run_control_status_contract_regression : SceneTree
 
     private void TestMadnessSelfSaveFailureReturnsAiOverridePolicy()
     {
-        using Fixture fixture = BuildTurnResolver();
+        Fixture fixture = BuildTurnResolver();
         if (fixture.Resolver == null)
         {
             return;
@@ -96,7 +101,10 @@ public partial class run_control_status_contract_regression : SceneTree
             selfSaveTag: "willpower"
         );
 
-        BattleTurnControlStatusResult result = ResolveTurnControlStatusResult(fixture);
+        BattleTurnControlStatusResult result = fixture.Resolver.ResolveTurnControlStatusResult(
+            fixture.Target,
+            new BattleEventBatch()
+        );
         _test.False(result.SkipTurn, "Madness self-save failure must not skip the turn.");
         _test.True(result.AiControlled, "Madness self-save failure must request AI control.");
         _test.Eq(
@@ -116,7 +124,7 @@ public partial class run_control_status_contract_regression : SceneTree
 
     private void TestMadnessSelfSaveSuccessRemovesStatusAndAllowsAction()
     {
-        using Fixture fixture = BuildTurnResolver();
+        Fixture fixture = BuildTurnResolver();
         if (fixture.Resolver == null)
         {
             return;
@@ -130,7 +138,10 @@ public partial class run_control_status_contract_regression : SceneTree
             selfSaveTag: "willpower"
         );
 
-        BattleTurnControlStatusResult result = ResolveTurnControlStatusResult(fixture);
+        BattleTurnControlStatusResult result = fixture.Resolver.ResolveTurnControlStatusResult(
+            fixture.Target,
+            new BattleEventBatch()
+        );
         _test.False(
             result.SkipTurn,
             "Madness self-save success must allow the unit to act immediately."
@@ -156,20 +167,7 @@ public partial class run_control_status_contract_regression : SceneTree
         state.enemy_unit_ids.Add(target.unit_id);
         runtime._grid_service.PlaceUnit(state, target, target.coord, true);
         runtime.SetupStateForTests(state);
-        return new Fixture(runtime, state, runtime._skill_turn_resolver, target);
-    }
-
-    private static BattleTurnControlStatusResult ResolveTurnControlStatusResult(Fixture fixture)
-    {
-        var batch = new BattleEventBatch();
-        try
-        {
-            return fixture.Resolver.ResolveTurnControlStatusResult(fixture.Target, batch);
-        }
-        finally
-        {
-            BattleTestFixture.DisposeFixtureObject(batch);
-        }
+        return new Fixture(runtime, runtime._skill_turn_resolver, target);
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -251,30 +249,9 @@ public partial class run_control_status_contract_regression : SceneTree
         unitState.SetStatusEffect(status);
     }
 
-    private sealed class Fixture : IDisposable
-    {
-        public Fixture(
-            BattleRuntimeModule runtime,
-            BattleState state,
-            BattleRuntimeSkillTurnResolver resolver,
-            BattleUnitState target
-        )
-        {
-            Runtime = runtime;
-            State = state;
-            Resolver = resolver;
-            Target = target;
-        }
-
-        public BattleRuntimeModule Runtime { get; }
-        public BattleState State { get; }
-        public BattleRuntimeSkillTurnResolver Resolver { get; }
-        public BattleUnitState Target { get; }
-
-        public void Dispose()
-        {
-            Runtime?.Dispose();
-            BattleTestFixture.DisposeBattleState(State);
-        }
-    }
+    private readonly record struct Fixture(
+        BattleRuntimeModule Runtime,
+        BattleRuntimeSkillTurnResolver Resolver,
+        BattleUnitState Target
+    );
 }

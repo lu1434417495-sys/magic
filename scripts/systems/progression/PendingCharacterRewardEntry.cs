@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class PendingCharacterRewardEntry : RefCounted
+public class PendingCharacterRewardEntry
 {
     public StringName entry_type = "";
 

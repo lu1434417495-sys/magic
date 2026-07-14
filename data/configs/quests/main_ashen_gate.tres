@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"main_ashen_gate"
+display_name = "灰烬之门"
+description = "裂隙无法被封印——因为它不是意外。穿过它，你会闻到三百年前的硝烟。另一侧有人（或者什么东西）在等你。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"main_story", &"contract"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"main_crack_seal"}])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"report_to_board", &"objective_type": &"settlement_action", &"target_id": &"service_contract_board", &"target_value": 1}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 1000}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"warrior_backstep", &"amount": 1}])}])
+is_repeatable = false

@@ -11,4 +11,7 @@ public partial class TraitRollGroupEntryDef : Resource
 
     [Export]
     public StringName exclusive_group { get; set; } = "";
+
+    internal TraitRollGroupEntryDefinition ToDefinition() =>
+        TraitRollGroupEntryDefinition.FromResource(this);
 }

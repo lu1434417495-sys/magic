@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
+
+[sub_resource type="Resource" id="Combat_inheritance_seal"]
+script = ExtResource("1_combat")
+skill_id = &"weapon_sword_last_lesson_inheritance_seal"
+target_mode = &"unit"
+target_team_filter = &"self"
+range_value = 0
+ap_cost = 1
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"equipment", &"weapon", &"buff"])
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"weapon_sword_last_lesson_inheritance_seal"
+display_name = "传承之印"
+icon_id = &"weapon_sword_last_lesson_inheritance_seal"
+description = "装备技能。消耗3层教诲，使当前行动轮次内攻击伤害骰取最大，并使本次回合结束无法获得教诲。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"last_lesson", &"weapon", &"buff"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_inheritance_seal")

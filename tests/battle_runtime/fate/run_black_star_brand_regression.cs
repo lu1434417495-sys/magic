@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_black_star_brand_regression : SceneTree
+public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 {
     private static readonly StringName BLACK_STAR_BRAND_SKILL_ID = "black_star_brand";
     private static readonly StringName WARRIOR_GUARD_SKILL_ID = "warrior_guard";
@@ -24,18 +24,17 @@ public partial class run_black_star_brand_regression : SceneTree
         TestBlackStarBrandNormalTargetBlocksGuardAndCounterattack();
         TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Black star brand regression"));
+        RequestTestExit(_test.Finish("Black star brand regression"));
     }
 
     private void TestBlackStarBrandFirstCastFreeThenCostsCalamity()
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef blackStarBrand = GetSkill(runtime.GetSkillDefIndexTyped(), BLACK_STAR_BRAND_SKILL_ID);
-        _test.True(blackStarBrand != null, "black_star_brand SkillDef 应能从内容注册表加载。");
+        SkillDefinition blackStarBrand = runtime.GetSkillDefinitionTyped(BLACK_STAR_BRAND_SKILL_ID);
+        _test.True(blackStarBrand != null, "black_star_brand 定义应能从内容注册表加载。");
         if (blackStarBrand == null)
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+            runtime.dispose();
             return;
         }
 
@@ -87,7 +86,7 @@ public partial class run_black_star_brand_regression : SceneTree
         _test.True(spendPreview != null && spendPreview.allowed, "有足够 calamity 时后续施放应允许。");
         runtime.IssueCommand(firstCommand);
         _test.Eq(runtime.GetMemberCalamity("hero"), 1, "后续成功施放黑星烙印后应只扣除 1 点 calamity。");
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private void TestBlackStarBrandNormalTargetBlocksGuardAndCounterattack()
@@ -134,17 +133,19 @@ public partial class run_black_star_brand_regression : SceneTree
         runtime.IssueCommand(guardCommand);
         _test.Eq(enemy.current_ap, apBeforeIssue, "被普通黑星烙印封锁时不应继续扣除格挡技能的行动点。");
         _test.True(!enemy.HasStatusEffect(STATUS_GUARDING), "被普通黑星烙印封锁时不应重新获得 guarding。");
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private void TestBlackStarBrandEliteTargetUsesEliteOnlyDebuffs()
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef heavyStrike = GetSkill(runtime.GetSkillDefIndexTyped(), WARRIOR_HEAVY_STRIKE_SKILL_ID);
+        SkillDefinition heavyStrike = runtime.GetSkillDefinitionTyped(
+            WARRIOR_HEAVY_STRIKE_SKILL_ID
+        );
         _test.True(heavyStrike != null, "elite case 前置：warrior_heavy_strike 定义应存在。");
         if (heavyStrike == null)
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+            runtime.dispose();
             return;
         }
 
@@ -193,13 +194,17 @@ public partial class run_black_star_brand_regression : SceneTree
         runtime.IssueCommand(guardCommand);
         _test.True(elite.HasStatusEffect(STATUS_GUARDING), "elite 黑星烙印不应阻止目标进入 guarding。");
 
-        GDictionary firstHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
+        using GodotProjectionLease<GDictionary> firstHitResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
+            .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
+        GDictionary firstHitResult = firstHitResultLease.Value;
         GDictionary firstEvent = ExtractFirstDamageEvent(firstHitResult);
-        GDictionary secondHitResult = AttackEffectResolutionResultReader.BuildGodotPayload(runtime
+        using GodotProjectionLease<GDictionary> secondHitResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime
             .GetDamageResolver()
-            .ResolveEffects(caster, elite, new GArray { BuildDamageEffect() }));
+            .ResolveEffects(caster, elite, new[] { BuildDamageEffect() }));
+        GDictionary secondHitResult = secondHitResultLease.Value;
         _test.True(
             ReadInt(firstHitResult, "damage") > ReadInt(secondHitResult, "damage"),
             $"elite 黑星烙印的第一次受击应比后续同条件受击承受更高伤害。 first={firstHitResult} second={secondHitResult}"
@@ -212,18 +217,18 @@ public partial class run_black_star_brand_regression : SceneTree
             !elite.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW),
             "elite 黑星烙印的首次受击窗口应在第一下结算后被消耗。"
         );
-        BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+        runtime.dispose();
     }
 
     private BattleRuntimeModule BuildRuntime()
     {
-        using var registry = new ProgressionContentRegistry();
+        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped()),
-            new Dictionary<StringName, EnemyTemplateDef>(),
-            new Dictionary<StringName, EnemyAiBrainDef>()
+            registry.GetSkillDefinitionsTyped(),
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
         runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
@@ -313,19 +318,18 @@ public partial class run_black_star_brand_regression : SceneTree
         command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
+        command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
         command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
         return command;
     }
 
-    private CombatEffectDef BuildDamageEffect()
-    {
-        var effect = new CombatEffectDef();
-        effect.effect_type = "damage";
-        effect.damage_tag = "physical_slash";
-        effect.power = 12;
-        return effect;
-    }
+    private CombatEffectDefinition BuildDamageEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 12
+        );
 
     private void SetStatus(
         BattleUnitState unitState,
@@ -376,10 +380,4 @@ public partial class run_black_star_brand_regression : SceneTree
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
-            return null;
-        return skillDef;
-    }
 }

@@ -21,6 +21,7 @@ dotnet build magic.csproj
 godot --headless -s res://tests/text_runtime/headless/run_headless_game_test_session_regression.cs
 godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
 godot --headless -s res://tests/world_map/schema/run_world_map_low_level_defensive_regression.cs
+godot --headless -s res://tests/world_map/runtime/run_npc_quest_offer_regression.cs
 ```
 
 There is no separate build or lint step; runtime parsing in Godot is the validation baseline.

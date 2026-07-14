@@ -3,10 +3,17 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 [GlobalClass]
-public partial class WorldMapSystem : Control
+public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 {
+    private const string ApplicationShutdownParticipantId = "world-map-system";
+    private const ApplicationShutdownParticipantStage ApplicationShutdownStage =
+        ApplicationShutdownParticipantStage.Runtime;
+    private const int ApplicationShutdownOrder = 0;
     private const float WORLD_MOVE_REPEAT_INTERVAL = 0.5f;
     private const string STARTUP_SCENE_SETTING = "application/run/main_scene";
     private const string BATTLE_LOADING_LABEL_TEXT = "LOADING...";
@@ -23,6 +30,8 @@ public partial class WorldMapSystem : Control
     private const float BATTLE_LOADING_PROGRESS_MIN = 0.0f;
     private const float BATTLE_LOADING_PROGRESS_MAX = 100.0f;
     private const string BATTLE_LOADING_MODAL_ID = "battle_loading";
+    private const string ContingencySetupWindowScenePath =
+        "res://scenes/ui/contingency_setup_window.tscn";
     private const float LOG_DOCK_DESIGN_TOP_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_BOTTOM_MARGIN = 60.0f;
     private const float LOG_DOCK_DESIGN_RIGHT_MARGIN = 12.0f;
@@ -42,8 +51,11 @@ public partial class WorldMapSystem : Control
     public ShopWindow shop_service_modal;
     public ShopWindow forge_service_modal;
     public ShopWindow stagecoach_service_modal;
+    // Dedicated modal for NPC quest offers; driven by RuntimeModalKind.NpcQuestOffer.
+    public NpcQuestOfferDialog npc_quest_offer_dialog;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
+    public ContingencySetupWindow contingency_setup_window;
     public PartyWarehouseWindow party_warehouse_window;
     public PromotionChoiceWindow promotion_choice_window;
     public MasteryRewardWindow character_reward_window;
@@ -60,8 +72,27 @@ public partial class WorldMapSystem : Control
     public GameSession _game_session;
     public GameRuntimeFacade _runtime;
     internal WorldMapRuntimeProxy _runtime_proxy = new WorldMapRuntimeProxy();
-    public Godot.Collections.Array<Key> _held_world_move_keys = new();
+    public List<Key> _held_world_move_keys = new();
     public float _world_move_repeat_timer;
+    private ApplicationLifetimeCoordinator _applicationLifetimeCoordinator;
+    private bool _signalsConnected;
+    private bool _closed;
+
+    string IApplicationShutdownParticipant.ShutdownParticipantId =>
+        ApplicationShutdownParticipantId;
+
+    ApplicationShutdownParticipantStage IApplicationShutdownParticipant.ShutdownStage =>
+        ApplicationShutdownStage;
+
+    int IApplicationShutdownParticipant.ShutdownOrder => ApplicationShutdownOrder;
+
+    ValueTask IApplicationShutdownParticipant.CloseForApplicationShutdownAsync(
+        ShutdownReport report
+    )
+    {
+        CloseRuntimeOwner();
+        return ValueTask.CompletedTask;
+    }
 
     public override void _Ready()
     {
@@ -76,9 +107,9 @@ public partial class WorldMapSystem : Control
             GameLog.Error("World map requires an active save loaded in GameSession.", "worldmap.no_active_save", "worldmap");
             return;
         }
-        if (_game_session.GetGenerationConfig() == null)
+        if (_game_session.GetGenerationDefinition() == null)
         {
-            GameLog.Error("GameSession is missing an active world generation config.", "worldmap.missing_generation_config", "worldmap");
+            GameLog.Error("GameSession is missing an active world generation definition.", "worldmap.missing_generation_definition", "worldmap");
             return;
         }
 
@@ -89,10 +120,12 @@ public partial class WorldMapSystem : Control
         var proxy = new WorldMapRuntimeProxy();
         _runtime_proxy = proxy;
         proxy.Setup(_runtime, this);
+        RegisterApplicationShutdownParticipant();
 
         battle_map_panel.SetupRuntimeContext(_runtime_proxy, _runtime, _game_session);
 
         Resized += _update_responsive_log_layout;
+        _signalsConnected = true;
         if (runtime_log_dock != null)
             runtime_log_dock.panel_layout_changed += _update_responsive_log_layout;
         _update_responsive_log_layout();
@@ -107,7 +140,8 @@ public partial class WorldMapSystem : Control
         GameContentCatalog contentCatalog = _game_session.GetContentCatalogTyped();
         party_management_window.SetAchievementDefs(contentCatalog.GetAchievementDefsTyped());
         party_management_window.SetItemDefs(contentCatalog.GetItemDefsTyped());
-        party_management_window.SetSkillDefs(contentCatalog.GetSkillDefsTyped());
+        party_management_window.SetTraitDefs(contentCatalog.GetTraitDefsTyped());
+        party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
         party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());
 
@@ -115,62 +149,82 @@ public partial class WorldMapSystem : Control
         world_map_view.Configure(
             _runtime_proxy.GetGridSystem(),
             _runtime_proxy.GetFogSystem(),
-            _runtime_proxy.GetWorldData(),
+            _runtime_proxy.GetWorldRuntimeData(),
             _runtime_proxy.GetPlayerCoord(),
             _runtime_proxy.GetSelectedCoord(),
             _runtime_proxy.IsPlayerVisibleOnWorldMap(),
             _runtime_proxy.GetPlayerFactionId()
         );
-        RenderFromRuntime(true, new GDictionary());
+        RenderFromRuntime(true);
     }
 
-    public override void _ExitTree()
+    public override void _ExitTree() => CloseRuntimeOwner();
+
+    private void CloseRuntimeOwner()
     {
-        DisconnectSignals();
-        if (battle_map_panel != null)
-            battle_map_panel.SetupRuntimeContext(null, null, null);
-        SuppressNodeFieldFinalizers();
-        _runtime_proxy?.Dispose();
-        _runtime?.Dispose();
-        _clear_world_move_hold();
-        ClearNodeRefs();
-        _runtime = null;
-        GC.SuppressFinalize(this);
+        if (_closed)
+        {
+            UnregisterApplicationShutdownParticipant();
+            return;
+        }
+        _closed = true;
+        UnregisterApplicationShutdownParticipant();
+
+        try
+        {
+            if (_signalsConnected)
+            {
+                _signalsConnected = false;
+                DisconnectSignals();
+            }
+            if (battle_map_panel != null)
+                battle_map_panel.SetupRuntimeContext(null, null, null);
+        }
+        finally
+        {
+            WorldMapRuntimeProxy runtimeProxy = _runtime_proxy;
+            GameRuntimeFacade runtime = _runtime;
+            _runtime_proxy = null;
+            _runtime = null;
+            try
+            {
+                runtimeProxy?.Dispose();
+            }
+            finally
+            {
+                runtime?.Dispose();
+                _clear_world_move_hold();
+                ClearNodeRefs();
+                _game_session = null;
+            }
+        }
     }
 
-    private void SuppressNodeFieldFinalizers()
+    private void RegisterApplicationShutdownParticipant()
     {
-        SuppressGodotFinalizer(world_map_view);
-        SuppressGodotFinalizer(map_viewport);
-        SuppressGodotFinalizer(world_map_background);
-        SuppressGodotFinalizer(battle_map_panel);
-        SuppressGodotFinalizer(runtime_log_dock);
-        SuppressGodotFinalizer(status_label);
-        SuppressGodotFinalizer(settlement_window);
-        SuppressGodotFinalizer(contract_board_service_modal);
-        SuppressGodotFinalizer(shop_service_modal);
-        SuppressGodotFinalizer(forge_service_modal);
-        SuppressGodotFinalizer(stagecoach_service_modal);
-        SuppressGodotFinalizer(character_info_window);
-        SuppressGodotFinalizer(party_management_window);
-        SuppressGodotFinalizer(party_warehouse_window);
-        SuppressGodotFinalizer(promotion_choice_window);
-        SuppressGodotFinalizer(character_reward_window);
-        SuppressGodotFinalizer(submap_entry_window);
-        SuppressGodotFinalizer(submap_hint_panel);
-        SuppressGodotFinalizer(submap_hint_label);
-        SuppressGodotFinalizer(bottom_action_bar);
-        SuppressGodotFinalizer(party_button);
-        SuppressGodotFinalizer(battle_loading_overlay);
-        SuppressGodotFinalizer(battle_loading_label);
-        SuppressGodotFinalizer(battle_loading_progress_bar);
-        SuppressGodotFinalizer(battle_loading_percent_label);
+        ApplicationLifetimeCoordinator coordinator = GetTree()
+            ?.Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        if (coordinator == null)
+        {
+            throw new InvalidOperationException(
+                "WorldMapSystem requires ApplicationLifetimeCoordinator."
+            );
+        }
+
+        coordinator.RegisterParticipant(this);
+        _applicationLifetimeCoordinator = coordinator;
     }
 
-    private static void SuppressGodotFinalizer(GodotObject instance)
+    private void UnregisterApplicationShutdownParticipant()
     {
-        if (instance != null)
-            GC.SuppressFinalize(instance);
+        ApplicationLifetimeCoordinator coordinator = _applicationLifetimeCoordinator;
+        _applicationLifetimeCoordinator = null;
+        if (coordinator == null || !GodotObject.IsInstanceValid(coordinator))
+            return;
+
+        coordinator.UnregisterParticipant(this);
     }
 
     public void _update_responsive_log_layout()
@@ -214,19 +268,40 @@ public partial class WorldMapSystem : Control
 
     public void RenderFromRuntime()
     {
-        RenderFromRuntime(true, new GDictionary());
+        RenderFromRuntimeCore(true, null, null);
     }
 
     public void RenderFromRuntime(bool refresh_world)
     {
-        RenderFromRuntime(refresh_world, new GDictionary());
+        RenderFromRuntimeCore(refresh_world, null, null);
     }
 
     public void RenderFromRuntime(bool refresh_world, GDictionary command_result)
     {
+        RenderFromRuntimeCore(refresh_world, command_result, null);
+    }
+
+    internal void RenderFromRuntime(
+        bool refresh_world,
+        BattlePresentationDelta battle_presentation_delta
+    )
+    {
+        RenderFromRuntimeCore(refresh_world, null, battle_presentation_delta);
+    }
+
+    private void RenderFromRuntimeCore(
+        bool refresh_world,
+        GDictionary command_result,
+        BattlePresentationDelta battle_presentation_delta
+    )
+    {
         if (_runtime == null)
             return;
-        WorldRuntimeViewModel worldViewModel = _runtime_proxy.GetWorldRuntimeViewModel();
+        // nearbyLimit:0 — RenderFromRuntime only reads status/coords/modal from the
+        // view model, never NearbyEncounters/NearbyWorldEvents (those feed the text
+        // snapshot via a separate path). Passing 0 skips an O(all anchors) scan+sort
+        // that otherwise ran on every render of both world and battle maps.
+        WorldRuntimeViewModel worldViewModel = _runtime_proxy.GetWorldRuntimeViewModel(0);
         // 裸节点（未进场景树、UI 子节点未装配）上的渲染是 no-op；
         // headless 测试经 proxy 自动渲染时不应 NRE 吞掉 Quit。
         if (world_map_view == null || battle_map_panel == null)
@@ -248,55 +323,100 @@ public partial class WorldMapSystem : Control
             world_map_view.Visible = false;
             if (submap_hint_panel != null)
                 submap_hint_panel.Visible = false;
-            string refreshMode = DictString(command_result, "battle_refresh_mode", "full");
+            bool battlePanelWasVisible = battle_map_panel.Visible;
             BattleState battleState = _runtime_proxy.GetBattleState();
-            Vector2I selectedCoord = _runtime_proxy.GetBattleSelectedCoord();
-            StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
-            string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
-            string selectedSkillVariantName = _runtime_proxy.GetSelectedBattleSkillVariantName();
-            StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
-            GVector2IArray selectedTargetCoords =
-                _runtime_proxy.GetSelectedBattleSkillTargetCoords();
-            GStringNameArray selectedTargetUnitIds =
-                _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
-            GVector2IArray validTargetCoords = _runtime_proxy.GetBattleOverlayTargetCoords();
-            int requiredCoordCount = _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
-
-            if (battle_map_panel.Visible && refreshMode == "overlay")
+            bool skipBattlePanelRefresh =
+                battle_map_panel.Visible
+                && battle_presentation_delta != null
+                && !battle_presentation_delta.RequiresPanelRefresh;
+            if (skipBattlePanelRefresh)
             {
-                battle_map_panel.RefreshOverlay(
-                    battleState,
-                    selectedCoord,
-                    selectedSkillId,
-                    selectedSkillName,
-                    selectedSkillVariantName,
-                    selectedTargetCoords,
-                    validTargetCoords,
-                    requiredCoordCount,
-                    selectedTargetUnitIds,
-                    selectedSkillVariantId
-                );
+                if (
+                    (
+                        battle_presentation_delta.DirtyFlags
+                        & BattlePresentationDirtyFlags.Log
+                    ) != 0
+                )
+                {
+                    // Keep the compact command-dock log current without touching board/HUD state.
+                    battle_map_panel.RefreshLogs(battleState);
+                }
             }
             else
             {
-                battle_map_panel.ShowBattle(
-                    battleState,
-                    selectedCoord,
-                    selectedSkillId,
-                    selectedSkillName,
-                    selectedSkillVariantName,
-                    selectedTargetCoords,
-                    validTargetCoords,
-                    requiredCoordCount,
-                    selectedTargetUnitIds,
-                    selectedSkillVariantId
-                );
+                string refreshMode = DictString(command_result, "battle_refresh_mode", "full");
+                Vector2I selectedCoord = _runtime_proxy.GetBattleSelectedCoord();
+                StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
+                string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
+                string selectedSkillVariantName =
+                    _runtime_proxy.GetSelectedBattleSkillVariantName();
+                StringName selectedSkillVariantId =
+                    _runtime_proxy.GetSelectedBattleSkillVariantId();
+                IReadOnlyList<Vector2I> selectedTargetCoords =
+                    _runtime_proxy.GetSelectedBattleSkillTargetCoords();
+                IReadOnlyList<StringName> selectedTargetUnitIds =
+                    _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
+                IReadOnlyList<Vector2I> validTargetCoords =
+                    _runtime_proxy.GetBattleOverlayTargetCoords();
+                int requiredCoordCount =
+                    _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
+                bool useTypedOverlayRefresh =
+                    battle_map_panel.Visible
+                    && battle_presentation_delta?.RequiresPanelRefresh == true
+                    && !battle_presentation_delta.RequiresFullBoardRefresh;
+                if (
+                    useTypedOverlayRefresh
+                    || (battle_map_panel.Visible && refreshMode == "overlay")
+                )
+                {
+                    battle_map_panel.RefreshOverlay(
+                        battleState,
+                        selectedCoord,
+                        selectedSkillId,
+                        selectedSkillName,
+                        selectedSkillVariantName,
+                        selectedTargetCoords,
+                        validTargetCoords,
+                        requiredCoordCount,
+                        selectedTargetUnitIds,
+                        selectedSkillVariantId
+                    );
+                    if (
+                        battle_presentation_delta != null
+                        && (
+                            battle_presentation_delta.DirtyFlags
+                            & BattlePresentationDirtyFlags.Units
+                        ) != 0
+                    )
+                    {
+                        battle_map_panel.RefreshUnits(
+                            battleState,
+                            battle_presentation_delta.ChangedUnitIds
+                        );
+                    }
+                }
+                else
+                {
+                    battle_map_panel.ShowBattle(
+                        battleState,
+                        selectedCoord,
+                        selectedSkillId,
+                        selectedSkillName,
+                        selectedSkillVariantName,
+                        selectedTargetCoords,
+                        validTargetCoords,
+                        requiredCoordCount,
+                        selectedTargetUnitIds,
+                        selectedSkillVariantId
+                    );
+                }
             }
             _set_battle_loading_overlay(
                 battle_map_panel.IsLoadingBattle(),
                 battle_map_panel.GetLoadingProgress()
             );
-            runtime_log_dock?.ShowBattleLogs(battleState);
+            if (ShouldRefreshBattleLogDock(battlePanelWasVisible, battle_presentation_delta))
+                runtime_log_dock?.ShowBattleLogs(battleState);
         }
         else
         {
@@ -306,7 +426,7 @@ public partial class WorldMapSystem : Control
             battle_map_panel.HideBattle();
             _set_battle_loading_overlay(modalId == BATTLE_LOADING_MODAL_ID, 0.0f);
             if (refresh_world)
-                world_map_view.RefreshWorld(_runtime_proxy.GetWorldData());
+                world_map_view.RefreshWorld(_runtime_proxy.GetWorldRuntimeData());
             world_map_view.SetRuntimeState(
                 worldViewModel.PlayerCoord,
                 worldViewModel.SelectedCoord,
@@ -317,7 +437,7 @@ public partial class WorldMapSystem : Control
             if (submap_hint_label != null)
                 submap_hint_label.Text = worldViewModel.SubmapReturnHintText;
             runtime_log_dock?.ShowWorldLogs(
-                _runtime_proxy.GetLogSnapshot(120),
+                _runtime_proxy.GetLogSnapshotPlain(120),
                 worldViewModel.ActiveMapDisplayName,
                 worldViewModel.StatusText
             );
@@ -326,6 +446,17 @@ public partial class WorldMapSystem : Control
         RenderWindows(modalId);
     }
 
+    internal static bool ShouldRefreshBattleLogDock(
+        bool battlePanelWasVisible,
+        BattlePresentationDelta battlePresentationDelta
+    ) =>
+        !battlePanelWasVisible
+        || battlePresentationDelta == null
+        || (
+            battlePresentationDelta.DirtyFlags
+            & (BattlePresentationDirtyFlags.Log | BattlePresentationDirtyFlags.FullBoard)
+        ) != 0;
+
     public override void _Process(double delta)
     {
         if (_runtime == null)
@@ -333,14 +464,17 @@ public partial class WorldMapSystem : Control
         bool changed = _runtime_proxy.Advance((float)delta);
         if (changed)
         {
-            var renderResult = new GDictionary();
             if (_runtime_proxy.IsBattleActive())
             {
-                string battleRefreshMode = _runtime_proxy.GetLastAdvanceBattleRefreshMode();
-                if (!string.IsNullOrEmpty(battleRefreshMode))
-                    renderResult["battle_refresh_mode"] = battleRefreshMode;
+                RenderFromRuntime(
+                    true,
+                    _runtime_proxy.GetLastAdvanceBattlePresentationDelta()
+                );
             }
-            RenderFromRuntime(true, renderResult);
+            else
+            {
+                RenderFromRuntime(true);
+            }
         }
         if (_runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen())
         {
@@ -485,19 +619,9 @@ public partial class WorldMapSystem : Control
     {
         switch (key_event.Keycode)
         {
-            case Key.Key1:
-            case Key.Key2:
-            case Key.Key3:
-            case Key.Key4:
-            case Key.Key5:
-            case Key.Key6:
-            case Key.Key7:
-            case Key.Key8:
-            case Key.Key9:
-                _runtime_proxy.CommandBattleSelectSkill(
-                    (int)key_event.Keycode - (int)Key.Key1
-                );
-                break;
+            // Skill slots are mouse-click only (A2): combat is a deliberate strategy
+            // pace, so the 1-9 keyboard skill binding was removed. Variant/clear/
+            // resolve keep keyboard shortcuts as high-frequency tactical controls.
             case Key.Q:
                 _runtime_proxy.CommandBattleCycleVariant(-1);
                 break;
@@ -654,10 +778,11 @@ public partial class WorldMapSystem : Control
         if (battle_map_panel.IsLoadingBattle())
             return;
         StringName selectedSkillId = _runtime_proxy.GetSelectedBattleSkillId();
-        GVector2IArray validTargetCoords = _runtime_proxy.GetBattleOverlayTargetCoords();
+        IReadOnlyList<Vector2I> validTargetCoords =
+            _runtime_proxy.GetBattleOverlayTargetCoords();
         StringName selectedSkillVariantId = _runtime_proxy.GetSelectedBattleSkillVariantId();
         BattleState battleState = _runtime_proxy.GetBattleState();
-        battle_map_panel.UpdateHoverPreview(
+        BattlePreview hoverPreview = battle_map_panel.UpdateHoverPreview(
             battleState,
             coord,
             validTargetCoords,
@@ -666,27 +791,81 @@ public partial class WorldMapSystem : Control
         );
         if (selectedSkillId == "")
             return;
-        Vector2I selectedCoord = validTargetCoords.Contains(coord)
-            ? coord
-            : _runtime_proxy.GetBattleSelectedCoord();
-        battle_map_panel.RefreshOverlay(
+        string selectedSkillName = _runtime_proxy.GetSelectedBattleSkillName();
+        string selectedSkillVariantName = _runtime_proxy.GetSelectedBattleSkillVariantName();
+        IReadOnlyList<Vector2I> selectedTargetCoords =
+            _runtime_proxy.GetSelectedBattleSkillTargetCoords();
+        int requiredCoordCount = _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount();
+        IReadOnlyList<StringName> selectedTargetUnitIds =
+            _runtime_proxy.GetSelectedBattleSkillTargetUnitIds();
+        if (validTargetCoords.Contains(coord))
+        {
+            battle_map_panel.RefreshOverlayWithPreview(
+                battleState,
+                coord,
+                selectedSkillId,
+                selectedSkillName,
+                selectedSkillVariantName,
+                selectedTargetCoords,
+                validTargetCoords,
+                requiredCoordCount,
+                selectedTargetUnitIds,
+                selectedSkillVariantId,
+                hoverPreview
+            );
+            return;
+        }
+        bool restoredCachedPreview = battle_map_panel.RefreshOverlayWithCachedPreview(
             battleState,
-            selectedCoord,
+            _runtime_proxy.GetBattleSelectedCoord(),
             selectedSkillId,
-            _runtime_proxy.GetSelectedBattleSkillName(),
-            _runtime_proxy.GetSelectedBattleSkillVariantName(),
-            _runtime_proxy.GetSelectedBattleSkillTargetCoords(),
+            selectedSkillName,
+            selectedSkillVariantName,
+            selectedTargetCoords,
             validTargetCoords,
-            _runtime_proxy.GetSelectedBattleSkillRequiredCoordCount(),
-            _runtime_proxy.GetSelectedBattleSkillTargetUnitIds(),
+            requiredCoordCount,
+            selectedTargetUnitIds,
             selectedSkillVariantId
         );
+        if (!restoredCachedPreview)
+        {
+            battle_map_panel.RefreshOverlay(
+                battleState,
+                _runtime_proxy.GetBattleSelectedCoord(),
+                selectedSkillId,
+                selectedSkillName,
+                selectedSkillVariantName,
+                selectedTargetCoords,
+                validTargetCoords,
+                requiredCoordCount,
+                selectedTargetUnitIds,
+                selectedSkillVariantId
+            );
+        }
     }
 
     public void _on_battle_skill_slot_selected(int index)
     {
         if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
             _runtime_proxy.CommandBattleSelectSkill(index);
+    }
+
+    public void _on_battle_resolve_pressed()
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleWaitOrResolve();
+    }
+
+    public void _on_battle_cycle_variant_pressed(int step)
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleCycleVariant(step);
+    }
+
+    public void _on_battle_clear_skill_pressed()
+    {
+        if (_runtime != null && !_runtime_proxy.IsModalWindowOpen())
+            _runtime_proxy.CommandBattleClearSkill();
     }
 
     public void _on_settlement_action_requested(
@@ -759,6 +938,22 @@ public partial class WorldMapSystem : Control
     }
 
     public void _on_stagecoach_service_modal_closed()
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandCloseActiveModal();
+    }
+
+    public void _on_npc_quest_offer_dialog_action_requested(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    )
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+    }
+
+    public void _on_npc_quest_offer_dialog_closed()
     {
         if (_runtime != null)
             _runtime_proxy.CommandCloseActiveModal();
@@ -843,6 +1038,62 @@ public partial class WorldMapSystem : Control
             _runtime_proxy.CommandOpenPartyWarehouse();
     }
 
+    public void _on_party_contingency_setup_requested(StringName member_id)
+    {
+        ShowContingencySetupWindow(member_id);
+    }
+
+    public void _on_contingency_setup_save_requested(
+        StringName member_id,
+        StringName setup_payload_name
+    )
+    {
+        if (_runtime == null)
+            return;
+        _runtime.SaveContingencySetupTemplateRuntimeTyped(member_id, setup_payload_name);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_charge_requested(StringName member_id, StringName setup_id)
+    {
+        if (_runtime == null)
+            return;
+        _runtime.ChargeContingencySetupRuntimeTyped(member_id, setup_id);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_clear_charge_requested(StringName member_id, StringName setup_id)
+    {
+        if (_runtime == null)
+            return;
+        _runtime.ClearContingencyChargeRuntimeTyped(member_id, setup_id);
+        RefreshAfterContingencyMutation(member_id);
+    }
+
+    public void _on_contingency_setup_window_closed() { }
+
+    private void RefreshAfterContingencyMutation(StringName memberId)
+    {
+        RenderFromRuntime(true);
+        ShowContingencySetupWindow(memberId);
+        if (party_management_window != null && party_management_window.Visible)
+        {
+            party_management_window.SetPartyState(_runtime_proxy.GetPartyState());
+            party_management_window.SelectMember(memberId);
+        }
+    }
+
+    private void ShowContingencySetupWindow(StringName memberId)
+    {
+        if (contingency_setup_window == null || _runtime_proxy == null)
+            return;
+        PartyState partyState = _runtime_proxy.GetPartyState();
+        PartyMemberState member = partyState?.GetMemberState(memberId);
+        if (member == null)
+            return;
+        contingency_setup_window.ShowForMember(member, _runtime_proxy.GetCharacterManagement());
+    }
+
     public void _on_party_button_pressed()
     {
         if (
@@ -865,14 +1116,11 @@ public partial class WorldMapSystem : Control
         }
     }
 
-    public void _on_party_warehouse_discard_all_requested(
-        StringName item_id,
-        StringName instance_id
-    )
+    public void _on_party_warehouse_discard_all_requested(StringName item_id)
     {
         if (_runtime != null)
         {
-            _runtime_proxy.CommandWarehouseDiscardAll(item_id, instance_id);
+            _runtime_proxy.CommandWarehouseDiscardAll(item_id);
             RenderFromRuntime();
         }
     }
@@ -937,6 +1185,11 @@ public partial class WorldMapSystem : Control
             _return_to_startup_scene();
             return;
         }
+        if (modalId == "resource_harvest_confirm")
+        {
+            _runtime_proxy.CommandConfirmResourceHarvest();
+            return;
+        }
         _runtime_proxy.CommandConfirmSubmapEntry();
     }
 
@@ -950,18 +1203,46 @@ public partial class WorldMapSystem : Control
             RenderFromRuntime(false);
             return;
         }
+        if (modalId == "resource_harvest_confirm")
+        {
+            _runtime_proxy.CommandCancelResourceHarvest();
+            return;
+        }
         _runtime_proxy.CommandCancelSubmapEntry();
     }
 
-    private GDictionary _build_confirmation_prompt(string modal_id)
+    private GodotProjectionLease<GDictionary> _build_confirmation_prompt(string modal_id)
     {
         if (modal_id == "submap_confirm")
-            return _runtime_proxy.GetPendingSubmapPrompt();
+        {
+            using GDictionary raw = _runtime_proxy.GetPendingSubmapPrompt();
+            return RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(raw, "WorldMapSystem.submap_prompt"),
+                "WorldMapSystem.submap_prompt",
+                LifetimeDomain.Request,
+                "WorldMapSystem.submap_prompt"
+            );
+        }
+        if (modal_id == "resource_harvest_confirm")
+        {
+            using GDictionary raw = _runtime_proxy.GetPendingResourceHarvestPrompt();
+            return RuntimePlainPayload.ProjectDictionaryLease(
+                RuntimePlainPayload.NormalizeDictionary(
+                    raw,
+                    "WorldMapSystem.resource_harvest_prompt"
+                ),
+                "WorldMapSystem.resource_harvest_prompt",
+                LifetimeDomain.Request,
+                "WorldMapSystem.resource_harvest_prompt"
+            );
+        }
         if (modal_id == "battle_start_confirm")
-            return _runtime_proxy.GetPendingBattleStartPrompt();
+            return _runtime_proxy.GetPendingBattleStartPromptLease();
         if (modal_id == "game_over")
         {
-            GDictionary prompt = _runtime_proxy.GetGameOverContext();
+            GodotProjectionLease<GDictionary> lease =
+                _runtime_proxy.GetGameOverContextLease();
+            GDictionary prompt = lease.Value;
             prompt["cancel_visible"] = false;
             prompt["dismiss_on_shade"] = false;
             prompt["accept_input_enabled"] = true;
@@ -975,9 +1256,16 @@ public partial class WorldMapSystem : Control
             prompt["margin_right"] = 40;
             prompt["margin_bottom"] = 34;
             prompt["layout_separation"] = 26;
-            return prompt;
+            return lease;
         }
-        return new GDictionary();
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            ),
+            "WorldMapSystem.empty_prompt",
+            LifetimeDomain.Request,
+            "WorldMapSystem.empty_prompt"
+        );
     }
 
     public void _return_to_startup_scene()
@@ -993,6 +1281,17 @@ public partial class WorldMapSystem : Control
         if (string.IsNullOrEmpty(startupScenePath))
         {
             GameLog.Error("WorldMapSystem 未配置 application/run/main_scene，不能返回标题。", "worldmap.return_title.no_main_scene", "worldmap");
+            return;
+        }
+        int flushError = _runtime?.FlushCanonicalRuntimeState("runtime.return_title")
+            ?? (int)Error.Ok;
+        if (flushError != (int)Error.Ok)
+        {
+            GameLog.Error(
+                $"WorldMapSystem 返回标题前保存运行时状态失败，错误码 {flushError}。",
+                "worldmap.return_title.save_failed",
+                "worldmap"
+            );
             return;
         }
         Error changeError = sceneTree.ChangeSceneToFile(startupScenePath);
@@ -1020,8 +1319,18 @@ public partial class WorldMapSystem : Control
         shop_service_modal = GetNode<ShopWindow>("ShopServiceModal");
         forge_service_modal = GetNode<ShopWindow>("ForgeServiceModal");
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
+        npc_quest_offer_dialog = GetNode<NpcQuestOfferDialog>("NpcQuestOfferDialog");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
+        contingency_setup_window = GetNodeOrNull<ContingencySetupWindow>("ContingencySetupWindow");
+        if (contingency_setup_window == null)
+        {
+            contingency_setup_window = EngineAssetAccess
+                .ResolveBorrowed<PackedScene>(this, ContingencySetupWindowScenePath)
+                .Instantiate<ContingencySetupWindow>();
+            contingency_setup_window.Name = "ContingencySetupWindow";
+            AddChild(contingency_setup_window);
+        }
         party_warehouse_window = GetNode<PartyWarehouseWindow>("PartyWarehouseWindow");
         promotion_choice_window = GetNode<PromotionChoiceWindow>("PromotionChoiceWindow");
         character_reward_window = GetNode<MasteryRewardWindow>("MasteryRewardWindow");
@@ -1049,11 +1358,21 @@ public partial class WorldMapSystem : Control
         forge_service_modal.closed += _on_forge_service_modal_closed;
         stagecoach_service_modal.action_requested += _on_stagecoach_service_modal_action_requested;
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
+        npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
+        npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
         character_info_window.closed += _on_character_info_window_closed;
         party_management_window.leader_change_requested += _on_party_leader_change_requested;
         party_management_window.roster_change_requested += _on_party_roster_change_requested;
         party_management_window.warehouse_requested += _on_party_management_warehouse_requested;
+        party_management_window.contingency_setup_requested += _on_party_contingency_setup_requested;
         party_management_window.closed += _on_party_management_window_closed;
+        if (contingency_setup_window != null)
+        {
+            contingency_setup_window.save_requested += _on_contingency_setup_save_requested;
+            contingency_setup_window.charge_requested += _on_contingency_setup_charge_requested;
+            contingency_setup_window.clear_charge_requested += _on_contingency_setup_clear_charge_requested;
+            contingency_setup_window.closed += _on_contingency_setup_window_closed;
+        }
         party_warehouse_window.discard_one_requested += _on_party_warehouse_discard_one_requested;
         party_warehouse_window.discard_all_requested += _on_party_warehouse_discard_all_requested;
         party_warehouse_window.use_requested += _on_party_warehouse_use_requested;
@@ -1070,6 +1389,9 @@ public partial class WorldMapSystem : Control
         battle_map_panel.battle_cell_right_clicked += _on_battle_cell_right_clicked;
         battle_map_panel.battle_cell_hovered += _on_battle_cell_hovered;
         battle_map_panel.battle_skill_slot_selected += _on_battle_skill_slot_selected;
+        battle_map_panel.battle_resolve_pressed += _on_battle_resolve_pressed;
+        battle_map_panel.battle_cycle_variant_pressed += _on_battle_cycle_variant_pressed;
+        battle_map_panel.battle_clear_skill_pressed += _on_battle_clear_skill_pressed;
     }
 
     private void DisconnectSignals()
@@ -1105,6 +1427,11 @@ public partial class WorldMapSystem : Control
             stagecoach_service_modal.action_requested -= _on_stagecoach_service_modal_action_requested;
             stagecoach_service_modal.closed -= _on_stagecoach_service_modal_closed;
         }
+        if (npc_quest_offer_dialog != null)
+        {
+            npc_quest_offer_dialog.action_requested -= _on_npc_quest_offer_dialog_action_requested;
+            npc_quest_offer_dialog.closed -= _on_npc_quest_offer_dialog_closed;
+        }
         if (character_info_window != null)
             character_info_window.closed -= _on_character_info_window_closed;
         if (party_management_window != null)
@@ -1112,7 +1439,15 @@ public partial class WorldMapSystem : Control
             party_management_window.leader_change_requested -= _on_party_leader_change_requested;
             party_management_window.roster_change_requested -= _on_party_roster_change_requested;
             party_management_window.warehouse_requested -= _on_party_management_warehouse_requested;
+            party_management_window.contingency_setup_requested -= _on_party_contingency_setup_requested;
             party_management_window.closed -= _on_party_management_window_closed;
+        }
+        if (contingency_setup_window != null)
+        {
+            contingency_setup_window.save_requested -= _on_contingency_setup_save_requested;
+            contingency_setup_window.charge_requested -= _on_contingency_setup_charge_requested;
+            contingency_setup_window.clear_charge_requested -= _on_contingency_setup_clear_charge_requested;
+            contingency_setup_window.closed -= _on_contingency_setup_window_closed;
         }
         if (party_warehouse_window != null)
         {
@@ -1146,6 +1481,9 @@ public partial class WorldMapSystem : Control
             battle_map_panel.battle_cell_right_clicked -= _on_battle_cell_right_clicked;
             battle_map_panel.battle_cell_hovered -= _on_battle_cell_hovered;
             battle_map_panel.battle_skill_slot_selected -= _on_battle_skill_slot_selected;
+            battle_map_panel.battle_resolve_pressed -= _on_battle_resolve_pressed;
+            battle_map_panel.battle_cycle_variant_pressed -= _on_battle_cycle_variant_pressed;
+            battle_map_panel.battle_clear_skill_pressed -= _on_battle_clear_skill_pressed;
         }
     }
 
@@ -1162,8 +1500,10 @@ public partial class WorldMapSystem : Control
         shop_service_modal = null;
         forge_service_modal = null;
         stagecoach_service_modal = null;
+        npc_quest_offer_dialog = null;
         character_info_window = null;
         party_management_window = null;
+        contingency_setup_window = null;
         party_warehouse_window = null;
         promotion_choice_window = null;
         character_reward_window = null;
@@ -1192,23 +1532,48 @@ public partial class WorldMapSystem : Control
         else
             settlement_window.HideWindow();
         if (modalId == "shop")
-            shop_service_modal.ShowShop(_runtime_proxy.GetShopWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetShopWindowDataLease();
+            shop_service_modal.ShowShop(windowLease.Value);
+        }
         else
             shop_service_modal.HideWindow();
         if (modalId == "contract_board")
-            contract_board_service_modal.ShowShop(_runtime_proxy.GetContractBoardWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetContractBoardWindowDataLease();
+            contract_board_service_modal.ShowShop(windowLease.Value);
+        }
         else
             contract_board_service_modal.HideWindow();
         if (modalId == "forge")
-            forge_service_modal.ShowShop(_runtime_proxy.GetForgeWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetForgeWindowDataLease();
+            forge_service_modal.ShowShop(windowLease.Value);
+        }
         else
             forge_service_modal.HideWindow();
         if (modalId == "stagecoach")
-            stagecoach_service_modal.ShowStagecoach(_runtime_proxy.GetStagecoachWindowData());
+        {
+            using GodotProjectionLease<GDictionary> windowLease =
+                _runtime_proxy.GetStagecoachWindowDataLease();
+            stagecoach_service_modal.ShowStagecoach(windowLease.Value);
+        }
         else
             stagecoach_service_modal.HideWindow();
+        // NPC quest offer modal lifecycle is tied to RuntimeModalKind.NpcQuestOffer.
+        if (modalId == "npc_quest_offer")
+            npc_quest_offer_dialog.ShowDialog(_runtime_proxy.GetNpcQuestOfferWindowDataTyped());
+        else
+            npc_quest_offer_dialog.HideDialog();
         if (modalId == "character_info")
-            character_info_window.ShowCharacter(_runtime_proxy.GetCharacterInfoContext());
+        {
+            using GodotProjectionLease<GDictionary> contextLease =
+                _runtime_proxy.GetCharacterInfoContextLease();
+            character_info_window.ShowCharacter(contextLease.Value);
+        }
         else
             character_info_window.HideWindow();
         if (modalId == "party")
@@ -1225,7 +1590,9 @@ public partial class WorldMapSystem : Control
         else
             party_warehouse_window.HideWindow();
         if (modalId == "promotion")
-            promotion_choice_window.ShowPromotion(_runtime_proxy.GetCurrentPromotionPrompt());
+            promotion_choice_window.ShowPromotion(
+                _runtime_proxy.GetCurrentPromotionPromptSnapshotPlain()
+            );
         else
             promotion_choice_window.HideWindow();
         if (modalId == "reward")
@@ -1237,10 +1604,15 @@ public partial class WorldMapSystem : Control
             character_reward_window.HideWindow();
         if (
             modalId == "submap_confirm"
+            || modalId == "resource_harvest_confirm"
             || modalId == "battle_start_confirm"
             || modalId == "game_over"
         )
-            submap_entry_window.ShowPrompt(_build_confirmation_prompt(modalId));
+        {
+            using GodotProjectionLease<GDictionary> promptLease =
+                _build_confirmation_prompt(modalId);
+            submap_entry_window.ShowPrompt(promptLease.Value);
+        }
         else
             submap_entry_window.HideWindow();
     }

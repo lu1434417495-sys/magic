@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
+
+[sub_resource type="Resource" id="Combat_last_lesson"]
+script = ExtResource("1_combat")
+skill_id = &"weapon_sword_last_lesson_last_lesson"
+target_mode = &"unit"
+target_team_filter = &"self"
+range_value = 0
+ap_cost = 1
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"equipment", &"weapon", &"buff"])
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"weapon_sword_last_lesson_last_lesson"
+display_name = "最后一课"
+icon_id = &"weapon_sword_last_lesson_last_lesson"
+description = "装备技能。消耗1层教诲，使下一次攻击检定获得优势。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"last_lesson", &"weapon", &"buff"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_last_lesson")

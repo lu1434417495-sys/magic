@@ -73,19 +73,30 @@ internal sealed class BattleStatusEffectCollection
         return result;
     }
 
-    public GDictionary ToDictionary()
+    internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
-        var payload = new GDictionary();
+        var payload = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (StringName statusId in GetSortedStatusEffectIds())
         {
             BattleStatusEffectState effect = Get(statusId);
             if (effect != null && !effect.IsEmpty())
             {
-                payload[statusId.ToString()] = effect.ToDictionary();
+                payload[statusId.ToString()] = effect.BuildSnapshotPlain();
             }
         }
         return payload;
     }
+
+    internal GodotProjectionLease<GDictionary> ToDictionaryLease(
+        LifetimeDomain domain,
+        string reason
+    ) =>
+        RuntimePlainPayload.ProjectDictionaryLease(
+            BuildSnapshotPlain(),
+            "battle-status-effect-collection",
+            domain,
+            reason
+        );
 
     public static BattleStatusEffectCollection FromDictionary(GDictionary payload)
     {

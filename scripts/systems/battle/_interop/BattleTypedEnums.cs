@@ -100,6 +100,7 @@ internal enum BattleEffectKind
     CleanseHarmful,
     BodySizeCategoryOverride,
     Execute,
+    GradedSaveExecute,
     Terrain,
     TerrainReplace,
     TerrainReplaceTo,
@@ -185,6 +186,7 @@ internal enum CombatSkillMasteryTriggerMode
     EffectApplied,
     IncomingPhysicalHit,
     SecondaryHit,
+    SourceBoundWeaponBonusDamage,
 }
 
 internal enum CombatSkillMasteryAmountMode
@@ -247,6 +249,7 @@ internal static class BattleTypedNames
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
     internal static readonly StringName EffectHeal = "heal";
     internal static readonly StringName EffectHealFatal = "heal_fatal";
     internal static readonly StringName EffectHeight = "height";
@@ -303,6 +306,8 @@ internal static class BattleTypedNames
     internal static readonly StringName MasteryTriggerIncomingPhysicalHit =
         "incoming_physical_hit";
     internal static readonly StringName MasteryTriggerSecondaryHit = "secondary_hit";
+    internal static readonly StringName MasteryTriggerSourceBoundWeaponBonusDamage =
+        "source_bound_weapon_bonus_damage";
     internal static readonly StringName MasteryAmountPerTargetRank = "per_target_rank";
     internal static readonly StringName MasteryAmountPerCastHpRatio = "per_cast_hp_ratio";
     internal static readonly StringName EnemyTargetRankNormal = "normal";
@@ -573,6 +578,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.BodySizeCategoryOverride;
         if (value == EffectExecute)
             return BattleEffectKind.Execute;
+        if (value == EffectGradedSaveExecute)
+            return BattleEffectKind.GradedSaveExecute;
         if (value == EffectTerrain)
             return BattleEffectKind.Terrain;
         if (value == EffectTerrainReplace)
@@ -614,6 +621,7 @@ internal static class BattleTypedNames
             BattleEffectKind.CleanseHarmful => EffectCleanseHarmful,
             BattleEffectKind.BodySizeCategoryOverride => EffectBodySizeCategoryOverride,
             BattleEffectKind.Execute => EffectExecute,
+            BattleEffectKind.GradedSaveExecute => EffectGradedSaveExecute,
             BattleEffectKind.Terrain => EffectTerrain,
             BattleEffectKind.TerrainReplace => EffectTerrainReplace,
             BattleEffectKind.TerrainReplaceTo => EffectTerrainReplaceTo,
@@ -829,6 +837,8 @@ internal static class BattleTypedNames
             return CombatSkillMasteryTriggerMode.IncomingPhysicalHit;
         if (value == MasteryTriggerSecondaryHit)
             return CombatSkillMasteryTriggerMode.SecondaryHit;
+        if (value == MasteryTriggerSourceBoundWeaponBonusDamage)
+            return CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage;
         return CombatSkillMasteryTriggerMode.Unknown;
     }
 
@@ -846,6 +856,8 @@ internal static class BattleTypedNames
             CombatSkillMasteryTriggerMode.IncomingPhysicalHit =>
                 MasteryTriggerIncomingPhysicalHit,
             CombatSkillMasteryTriggerMode.SecondaryHit => MasteryTriggerSecondaryHit,
+            CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage =>
+                MasteryTriggerSourceBoundWeaponBonusDamage,
             _ => Empty,
         };
     }
@@ -899,6 +911,7 @@ internal static class BattleTypedNames
             is BattleEffectKind.Damage
                 or BattleEffectKind.ChainDamage
                 or BattleEffectKind.Execute
+                or BattleEffectKind.GradedSaveExecute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
                 or BattleEffectKind.PathStepAoe
@@ -933,6 +946,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
-                or BattleEffectKind.Execute;
+                or BattleEffectKind.Execute
+                or BattleEffectKind.GradedSaveExecute;
     }
 }

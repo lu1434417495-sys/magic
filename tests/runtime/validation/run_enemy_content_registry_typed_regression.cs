@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_enemy_content_registry_typed_regression : SceneTree
+public partial class run_enemy_content_registry_typed_regression : LifecycleTestSceneTree
 {
     private const string OfficialSeedPath = "res://data/configs/enemies/enemy_content_seed.tres";
     private const string InvalidReferenceSeedPath =
@@ -18,69 +19,96 @@ public partial class run_enemy_content_registry_typed_regression : SceneTree
 
     private void Run()
     {
-        TestOfficialTypedCatalogMatchesProjectedCatalog();
+        TestProcessSnapshotPublishesImmutablePlainEnemyDefinitions();
         TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Enemy content registry typed regression"));
+        RequestTestExit(_test.Finish("Enemy content registry typed regression"));
     }
 
-    private void TestOfficialTypedCatalogMatchesProjectedCatalog()
+    private void TestProcessSnapshotPublishesImmutablePlainEnemyDefinitions()
     {
-        using EnemyContentRegistry registry = new();
+        ProcessContentHost host = Root
+            .GetNode<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator")
+            .ContentHost;
+        ContentSnapshot snapshot = host.GetSnapshot();
 
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> typedBrains = registry.GetEnemyAiBrainsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> typedTemplates = registry.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> typedRosters =
-            registry.GetWildEncounterRostersTyped();
-        IReadOnlyList<string> typedErrors = registry.ValidateTyped();
-        GDictionary projectedBrains = ProjectBrains(typedBrains);
-        GDictionary projectedTemplates = ProjectTemplates(typedTemplates);
-        GDictionary projectedRosters = ProjectRosters(typedRosters);
-        GStringArray errors = registry.Validate();
+        _test.True(snapshot.EnemyTemplates.ContainsKey("wolf_raider"), "snapshot 应发布正式敌人模板定义。");
+        _test.True(snapshot.EnemyBrains.ContainsKey("melee_aggressor"), "snapshot 应发布正式 AI brain 定义。");
+        _test.True(snapshot.EncounterRosters.ContainsKey("wolf_den"), "snapshot 应发布正式 encounter roster 定义。");
+        _test.Eq(snapshot.BattleSimProfiles.Count, 4, "snapshot 应一次投影四个正式 BattleSim profile。");
 
+        EnemyTemplateDefinition template = snapshot.EnemyTemplates["wolf_raider"];
+        using TestContentResourceLoader loader = new();
+        using EnemyContentRegistry rawRegistry = new(loader);
+        EnemyTemplateDef rawTemplate = rawRegistry.GetEnemyTemplatesTyped()["wolf_raider"];
+        int rawTagCount = rawTemplate.tags.Count;
+        int rawDropCount = rawTemplate.drop_entries.Count;
+        EnemyTemplateDefinition repeatedProjection = rawTemplate.ToDefinition(snapshot.Items);
+        _test.Eq(template.TemplateId, new StringName("wolf_raider"), "模板 key/value id 应保持一致。");
+        _test.Eq(rawTemplate.tags.Count, rawTagCount, "definition projection 不得修改 source tags。");
+        _test.Eq(rawTemplate.drop_entries.Count, rawDropCount, "definition projection 不得修改 source drops。");
+        _test.Eq(repeatedProjection.TemplateId, template.TemplateId, "重复投影应保持字段稳定。");
         _test.Eq(
-            typedErrors.Count,
-            errors.Count,
-            "enemy registry typed/public validation error 数量应保持一致。"
-        );
-        _test.Eq(errors.Count, 0, $"正式 enemy content registry 不应报错: {FormatErrors(errors)}");
-        _test.Eq(typedBrains.Count, 7, "正式 enemy brain typed catalog 应注册 7 个条目。");
-        _test.Eq(typedTemplates.Count, 8, "正式 enemy template typed catalog 应注册 8 个条目。");
-        _test.Eq(typedRosters.Count, 2, "正式 wild encounter roster typed catalog 应注册 2 个条目。");
-        _test.Eq(
-            projectedBrains.Count,
-            typedBrains.Count,
-            "brain 的 public Dictionary 投影数量应与 typed catalog 一致。"
-        );
-        _test.Eq(
-            projectedTemplates.Count,
-            typedTemplates.Count,
-            "template 的 public Dictionary 投影数量应与 typed catalog 一致。"
-        );
-        _test.Eq(
-            projectedRosters.Count,
-            typedRosters.Count,
-            "roster 的 public Dictionary 投影数量应与 typed catalog 一致。"
-        );
-
-        _test.True(
-            typedBrains.ContainsKey("melee_aggressor"),
-            "typed brain catalog 应保留 melee_aggressor。"
+            template.BattleSpriteTexturePath,
+            string.IsNullOrWhiteSpace(rawTemplate.battle_sprite_texture?.ResourcePath)
+                ? ""
+                : ContentPathCanonicalizer.Canonicalize(
+                    rawTemplate.battle_sprite_texture.ResourcePath
+                ),
+            "texture wrapper 必须投影为资源路径。"
         );
         _test.True(
-            typedTemplates.ContainsKey("wolf_raider"),
-            "typed template catalog 应保留 wolf_raider。"
+            template.Tags is not Godot.Collections.Array<StringName>,
+            "模板列表必须是只读 CLR collection。"
         );
         _test.True(
-            typedRosters.ContainsKey("wolf_den"),
-            "typed roster catalog 应保留 wolf_den。"
+            Throws<NotSupportedException>(() =>
+                ((IDictionary<StringName, EnemyTemplateDefinition>)snapshot.EnemyTemplates).Add(
+                    "forbidden",
+                    template
+                )
+            ),
+            "enemy snapshot dictionary 应拒绝修改。"
         );
+        _test.True(
+            Throws<NotSupportedException>(() =>
+                ((IList<StringName>)template.Tags).Add("forbidden")
+            ),
+            "enemy template nested list 应拒绝修改。"
+        );
+
+        foreach (
+            Type rootType in new[]
+            {
+                typeof(EnemyTemplateDefinition),
+                typeof(EnemyAiBrainDefinition),
+                typeof(WildEncounterRosterDefinition),
+                typeof(BattleAiScoreProfileDefinition),
+            }
+        )
+        {
+            foreach (Type type in EnumerateTypeGraph(rootType))
+            {
+                _test.False(
+                    typeof(GodotObject).IsAssignableFrom(type),
+                    $"definition graph 不得包含 GodotObject: {rootType.Name} -> {type.FullName}"
+                );
+                _test.False(
+                    type.Namespace?.StartsWith("Godot.Collections", StringComparison.Ordinal) == true,
+                    $"definition graph 不得包含 Godot collection: {rootType.Name} -> {type.FullName}"
+                );
+                _test.False(
+                    type == typeof(Variant),
+                    $"definition graph 不得包含 Variant: {rootType.Name}"
+                );
+            }
+        }
     }
 
     private void TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed()
     {
-        using EnemyContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using EnemyContentRegistry registry = new(loader);
         registry.ConfigureSeedResource(OfficialSeedPath, true, true);
         registry.ConfigureSeedResource(InvalidReferenceSeedPath, true, false);
 
@@ -119,52 +147,48 @@ public partial class run_enemy_content_registry_typed_regression : SceneTree
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
     }
 
-    private static GDictionary ProjectBrains(
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> brains
-    )
+    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
     {
-        GDictionary result = new();
-        if (brains == null)
-            return result;
-        foreach ((StringName brainId, EnemyAiBrainDef brainDef) in brains)
+        var pending = new Stack<Type>();
+        var visited = new HashSet<Type>();
+        pending.Push(root);
+        while (pending.Count > 0)
         {
-            if (brainId == "" || brainDef == null)
+            Type current = pending.Pop();
+            if (current == null || !visited.Add(current))
                 continue;
-            result[brainId] = brainDef;
+            yield return current;
+            if (current.IsArray)
+                pending.Push(current.GetElementType());
+            if (current.IsGenericType)
+            {
+                foreach (Type argument in current.GetGenericArguments())
+                    pending.Push(argument);
+            }
+            foreach (
+                PropertyInfo property in current.GetProperties(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )
+            )
+            {
+                if (property.DeclaringType == current)
+                    pending.Push(property.PropertyType);
+            }
         }
-        return result;
     }
 
-    private static GDictionary ProjectTemplates(
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> templates
-    )
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
     {
-        GDictionary result = new();
-        if (templates == null)
-            return result;
-        foreach ((StringName templateId, EnemyTemplateDef templateDef) in templates)
+        try
         {
-            if (templateId == "" || templateDef == null)
-                continue;
-            result[templateId] = templateDef;
+            action();
+            return false;
         }
-        return result;
-    }
-
-    private static GDictionary ProjectRosters(
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> rosters
-    )
-    {
-        GDictionary result = new();
-        if (rosters == null)
-            return result;
-        foreach ((StringName rosterId, WildEncounterRosterDef rosterDef) in rosters)
+        catch (TException)
         {
-            if (rosterId == "" || rosterDef == null)
-                continue;
-            result[rosterId] = rosterDef;
+            return true;
         }
-        return result;
     }
 
 }

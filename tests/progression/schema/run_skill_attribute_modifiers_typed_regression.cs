@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GResourceArray = Godot.Collections.Array<Godot.Resource>;
 
-public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
+public partial class run_skill_attribute_modifiers_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,44 +17,45 @@ public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
         TestOfficialSkillResourcesExposeTypedAttributeModifiers();
         TestAttributeServiceAppliesTypedSkillModifiers();
 
-        Quit(_test.Finish("Skill attribute modifiers typed regression"));
+        RequestTestExit(_test.Finish("Skill attribute modifiers typed regression"));
     }
 
     private void TestOfficialSkillResourcesExposeTypedAttributeModifiers()
     {
-        ProgressionContentRegistry registry = new();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = registry.GetSkillDefsTyped();
+        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
 
         _test.True(
-            skillDefs.TryGetValue("warrior_toughness", out SkillDef warriorToughness)
+            skillDefinitions.TryGetValue("warrior_toughness", out SkillDefinition warriorToughness)
                 && warriorToughness != null,
-            "ProgressionContentRegistry 应暴露正式强健资源。"
+            "ProgressionContentRegistry 应暴露正式强健 DTO。"
         );
         if (warriorToughness == null)
             return;
 
         _test.Eq(
-            warriorToughness.AttributeModifiersTyped.Count,
+            warriorToughness.AttributeModifiers.Count,
             2,
-            "强健应通过 typed modifier list 暴露两条属性修正。"
+            "强健应通过 DTO modifier list 暴露两条属性修正。"
         );
         _test.Eq(
-            warriorToughness.AttributeModifiersTyped[0].attribute_id,
+            warriorToughness.AttributeModifiers[0].AttributeId,
             AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus),
             "强健第一条修正应写入人物生命百分比通道。"
         );
         _test.Eq(
-            warriorToughness.AttributeModifiersTyped[0].value,
+            warriorToughness.AttributeModifiers[0].Value,
             20,
             "强健人物生命百分比加成应保留 20。"
         );
         _test.Eq(
-            warriorToughness.AttributeModifiersTyped[1].attribute_id,
+            warriorToughness.AttributeModifiers[1].AttributeId,
             AttributeService.ToStringName(AttributeIdKind.StaminaRecoveryPercentBonus),
             "强健第二条修正应写入体力恢复百分比通道。"
         );
         _test.Eq(
-            warriorToughness.AttributeModifiersTyped[1].value,
+            warriorToughness.AttributeModifiers[1].Value,
             50,
             "强健体力恢复百分比加成应保留 50。"
         );
@@ -84,7 +85,10 @@ public partial class run_skill_attribute_modifiers_typed_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                skill_defs = new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill },
+                skill_definitions = new Dictionary<StringName, SkillDefinition>
+                {
+                    [skill.skill_id] = SkillDefinition.FromResource(skill),
+                },
             }
         );
 

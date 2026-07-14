@@ -4,12 +4,16 @@ using GDictionary = Godot.Collections.Dictionary;
 public sealed class BattleBarrierOutcomeState
 {
     private const int DefaultFatalDamage = 99999;
+    private static readonly StringName OutcomeDamage = "damage";
+    private static readonly StringName OutcomePoisonDeath = "poison_death";
+    private static readonly StringName OutcomeStatus = "status";
+    private static readonly StringName OutcomeBanish = "banish";
 
     public StringName OutcomeType { get; set; } = "";
     internal BarrierOutcomeKind OutcomeKind
     {
-        get => BarrierOutcomeDef.ToOutcomeKind(OutcomeType);
-        set => OutcomeType = BarrierOutcomeDef.ToStringName(value);
+        get => ToOutcomeKind(OutcomeType);
+        set => OutcomeType = ToOutcomeType(value);
     }
     public int Amount { get; set; }
     public StringName DamageTag { get; set; } = "";
@@ -23,6 +27,29 @@ public sealed class BattleBarrierOutcomeState
     public int SaveDc { get; set; }
 
     public bool IsEmpty => OutcomeKind == BarrierOutcomeKind.None;
+
+    internal static BattleBarrierOutcomeState FromDefinition(
+        BarrierOutcomeDefinition definition,
+        int defaultSaveDc
+    )
+    {
+        if (definition == null)
+            return new BattleBarrierOutcomeState();
+        return new BattleBarrierOutcomeState
+        {
+            OutcomeType = definition.OutcomeType,
+            Amount = definition.Amount,
+            DamageTag = definition.DamageTag,
+            HalfOnSuccess = definition.HalfOnSuccess,
+            SuccessAmount = definition.SuccessAmount,
+            SuccessDamageTag = definition.SuccessDamageTag,
+            FatalDamage = definition.ResolveFatalDamage(),
+            StatusId = definition.StatusId,
+            SaveAbility = definition.SaveAbility,
+            SaveTag = definition.SaveTag,
+            SaveDc = definition.ResolveSaveDc(defaultSaveDc),
+        };
+    }
 
     internal static BattleBarrierOutcomeState FromRuntimeDict(GDictionary source)
     {
@@ -89,5 +116,32 @@ public sealed class BattleBarrierOutcomeState
             return fallback;
         }
         return data[key].AsBool();
+    }
+
+    private static BarrierOutcomeKind ToOutcomeKind(StringName value)
+    {
+        if (value == "")
+            return BarrierOutcomeKind.None;
+        if (value == OutcomeDamage)
+            return BarrierOutcomeKind.Damage;
+        if (value == OutcomePoisonDeath)
+            return BarrierOutcomeKind.PoisonDeath;
+        if (value == OutcomeStatus)
+            return BarrierOutcomeKind.Status;
+        if (value == OutcomeBanish)
+            return BarrierOutcomeKind.Banish;
+        return BarrierOutcomeKind.Unknown;
+    }
+
+    private static StringName ToOutcomeType(BarrierOutcomeKind value)
+    {
+        return value switch
+        {
+            BarrierOutcomeKind.Damage => OutcomeDamage,
+            BarrierOutcomeKind.PoisonDeath => OutcomePoisonDeath,
+            BarrierOutcomeKind.Status => OutcomeStatus,
+            BarrierOutcomeKind.Banish => OutcomeBanish,
+            _ => "",
+        };
     }
 }

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"side_bandit_cleansing"
+display_name = "匪徒清剿"
+description = "一群装备精良的匪徒占据了商道。他们身上的纹章你不认识——也许来自裂隙另一侧？"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"contract", &"side"])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_raiders", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_raider", &"target_value": 8}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 250}, {&"reward_type": &"item", &"item_id": &"bandit_insignia", &"quantity": 2}])
+is_repeatable = false

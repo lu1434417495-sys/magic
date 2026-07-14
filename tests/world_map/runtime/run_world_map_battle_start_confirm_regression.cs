@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_battle_start_confirm_regression : SceneTree
+public partial class run_world_map_battle_start_confirm_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
     private static readonly PackedScene WorldMapScene = GD.Load<PackedScene>(
@@ -19,7 +19,7 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
         await ResetSession();
         await TestBattleStartConfirmStaysNonCancellableOnWorldMapScene();
         await Cleanup();
-        Quit(_test.Finish("World map battle start confirm regression"));
+        RequestTestExit(_test.Finish("World map battle start confirm regression"));
     }
 
     private async Task TestBattleStartConfirmStaysNonCancellableOnWorldMapScene()
@@ -43,8 +43,10 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
             return;
         }
 
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            _gameSession.GetWorldDataLease();
         EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
-            _gameSession.GetWorldData(),
+            worldDataLease.Value,
             "single"
         );
         _test.True(encounterAnchor != null, "battle-start confirm 场景回归需要至少一个单体野怪遭遇。");
@@ -59,7 +61,9 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
         worldMap.RenderFromRuntime(true);
         await ProcessFrames(1);
 
-        GDictionary startPrompt = runtime.GetPendingBattleStartPrompt();
+        using GodotProjectionLease<GDictionary> startPromptLease =
+            runtime.GetPendingBattleStartPromptLease();
+        GDictionary startPrompt = startPromptLease.Value;
         BattleState battleState = runtime.GetBattleState();
         _test.Eq(runtime.GetActiveModalId(), "battle_start_confirm", "开战后应进入 battle_start_confirm modal。");
         _test.True(startPrompt.ContainsKey("cancel_visible"), "battle-start confirm prompt 应显式包含 cancel_visible。");
@@ -99,8 +103,10 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
         _test.True(promptWindow.Visible, "battle-start confirm 模式下 stray cancel 信号后场景应重新显示确认窗。");
         _test.False(promptWindow.cancel_button.Visible, "stray cancel 信号后取消按钮仍应保持隐藏。");
         _test.Eq(runtime.GetActiveModalId(), "battle_start_confirm", "stray cancel 信号不应改写 runtime modal。");
+        using GodotProjectionLease<GDictionary> promptAfterCancelLease =
+            runtime.GetPendingBattleStartPromptLease();
         _test.False(
-            DictBool(runtime.GetPendingBattleStartPrompt(), "cancel_visible", true),
+            DictBool(promptAfterCancelLease.Value, "cancel_visible", true),
             "stray cancel 信号后 runtime prompt 仍应保持不可取消契约。"
         );
         if (battleState?.timeline != null)
@@ -114,7 +120,7 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
         _gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
         if (_gameSession != null)
             return;
-        _gameSession = new GameSession { Name = "GameSession" };
+        _gameSession = GameSessionTestFactory.CreateForCoordinatorAttachment();
         Root.AddChild(_gameSession);
         await ProcessFrames(1);
     }
@@ -133,8 +139,14 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
 
     private async Task DisposeNode(Node node)
     {
+        if (node == null || !GodotObject.IsInstanceValid(node))
+            return;
         node.QueueFree();
-        await ProcessFrames(1);
+        await ProcessFrames(2);
+        _test.False(
+            GodotObject.IsInstanceValid(node),
+            "world_map scene should finish queued deletion before lifecycle shutdown"
+        );
     }
 
     private async Task ProcessFrames(int count)
@@ -149,11 +161,18 @@ public partial class run_world_map_battle_start_confirm_regression : SceneTree
             return null;
         foreach (Variant value in worldData["encounter_anchors"].AsGodotArray())
         {
-            EncounterAnchorData anchor = value.As<EncounterAnchorData>();
+            EncounterAnchorData anchor = ReadEncounterAnchor(value);
             if (anchor != null && anchor.encounter_kind == kind)
                 return anchor;
         }
         return null;
+    }
+
+    private static EncounterAnchorData ReadEncounterAnchor(Variant value)
+    {
+        return value.VariantType == Variant.Type.Dictionary
+            ? EncounterAnchorData.FromDictionary(value.AsGodotDictionary())
+            : null;
     }
 
     private static InputEventMouseButton MakeMouseButtonEvent(MouseButton buttonIndex)

@@ -1,23 +1,26 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using VT = Godot.Variant.Type;
 
-public partial class RunMixed6v12MirrorAnalysis : SceneTree
+public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 {
     private const int MaxIdleLoops = 25;
     private const int DefaultSimulationTimeoutSeconds = 30 * 60;
     private const string ScenarioPath = "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
 
+    private readonly TestHarness _test = new();
     private bool _progressEnabled = true;
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(RunDeferred));
+    }
+
+    private void RunDeferred()
+    {
         int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(_test.Finish("Mixed 6v12 mirror analysis", exitCode));
     }
 
     private int Run()
@@ -42,7 +45,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         bool validateSpawnReachability = ReadBoolEnvironment("VALIDATE_SPAWN_REACHABILITY", true);
         bool validateBidirectionalSpawnReachability = ReadBoolEnvironment("VALIDATE_BIDIRECTIONAL_SPAWN_REACHABILITY", true);
         bool aiProfileEnabled = ReadBoolEnvironment("AI_PROFILE", false);
-        var aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
+        using AiProfileCapture aiProfiler = aiProfileEnabled ? new AiProfileCapture() : null;
         if (aiProfiler != null)
         {
             aiProfiler.Setup(
@@ -67,44 +70,47 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             : ScenarioPath;
         if (string.IsNullOrEmpty(scenarioPath))
             scenarioPath = ScenarioPath;
-        var scenario = ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
-        if (scenario == null)
+        BattleSimScenarioDef scenarioResource =
+            ResourceLoader.Load<BattleSimScenarioDef>(scenarioPath);
+        if (scenarioResource == null)
         {
             GameLog.Error($"Failed to load scenario: {scenarioPath}", "bench.scenario.load_failed", "bench");
             return 1;
         }
+        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
+        scenarioResource = null;
 
-        var contentProvider = new BattleSimContentProvider();
+        var contentLoader = new TestContentResourceLoader();
+        var contentProvider = new BattleSimContentProvider(
+            GameSessionTestFactory.GetProcessSnapshot()
+        );
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry();
-        var itemRegistry = new ItemContentRegistry();
+        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
+        var itemRegistry = new ItemContentRegistry(contentLoader);
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = contentProvider.GetSkillDefsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            contentProvider.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             contentProvider.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains =
+        IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains =
             contentProvider.GetEnemyAiBrainsTyped();
-        if (skillDefs.Count == 0 || enemyAiBrains.Count == 0)
+        if (skillDefinitions.Count == 0 || enemyAiBrains.Count == 0)
         {
-            GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefs.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
+            GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefinitions.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
             DisposeObjects(itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
             return 1;
         }
 
-        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to a BattleSimProfileDef,
+        // Opt-in tuning hook: when AI_PROFILE_OVERRIDE_FILE points to an authored profile,
         // its override_patches (incl. faction_ai_score_profile) are applied. Unset = the
         // immutable empty baseline, so the standard 6v12 matchup is unchanged.
-        var loadedBaseline = LoadOverrideProfile();
-        bool ownsBaseline = loadedBaseline == null;
-        var baseline = loadedBaseline ?? new BattleSimProfileDef
-        {
-            profile_id = "baseline",
-            display_name = "Baseline",
-        };
+        BattleSimProfileDefinition baseline =
+            LoadOverrideProfile()
+            ?? contentProvider.GetBattleSimProfilesTyped()["baseline"];
         var traceSummaryReport = new BattleSimScenarioReport
         {
-            ScenarioDef = scenario,
+            Scenario = scenario,
             GeneratedAtUnix = (int)Time.GetUnixTimeFromSystem(),
         };
         traceSummaryReport.ProfileEntries.Add(
@@ -115,16 +121,16 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             }
         );
         BattleSimOverrideApplyResult overrides = overrideApplier.ApplyProfileTyped(
-            skillDefs,
+            skillDefinitions,
             enemyAiBrains,
             baseline
         );
         BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
 
-        var rng = new RandomNumberGenerator { Seed = (ulong)Math.Max(startSeed, 1L) };
+        var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
         var accum = new BatchAccumulator();
-        var perUnitSummary = new GDictionary();
-        var runDetails = new GArray();
+        var perUnitSummary = new Dictionary<string, PerUnitAggregate>(StringComparer.Ordinal);
+        var runDetails = new List<object>();
 
         ulong batchStartMsec = Time.GetTicksMsec();
         int completedRunCount = 0;
@@ -159,7 +165,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 rosterOptions,
                 seed
             );
-            GDictionary result;
+            MixedSimulationRunResult result;
             try
             {
                 result = RunSingleSimulation(
@@ -176,12 +182,9 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                     aiProfiler
                 );
 
-                GDictionary metrics = GetDict(result, "metrics");
-                GDictionary factions = GetDict(metrics, "factions");
-                GDictionary units = GetDict(result, "units");
-                MergePerUnitSummary(perUnitSummary, units);
-                runDetails.Add(BuildRunDetail(runIndex, seed, result, factions, units, traceAi));
-                accum.AbsorbRun(result, factions, fixture);
+                MergePerUnitSummary(perUnitSummary, result.Metrics.Units);
+                runDetails.Add(BuildRunDetail(runIndex, seed, result, traceAi));
+                accum.AbsorbRun(result, fixture);
                 traceSummaryReport.ProfileEntries[0].Runs.Add(
                     BuildTraceSummaryRun(seed, result, traceAi)
                 );
@@ -195,7 +198,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             double elapsed = (Time.GetTicksMsec() - batchStartMsec) / 1000.0;
             double runElapsed = (Time.GetTicksMsec() - runStartMsec) / 1000.0;
             PrintProgress(
-                $"[Progress] run {runIndex + 1}/{requestedRunCount} done winner={GetString(result, "winner_faction_id")} ended={ReadExactBool(result, "battle_ended")} iterations={GetInt(result, "iterations")} timeline_steps={GetInt(result, "timeline_steps")} run_elapsed={runElapsed:F1}s batch_elapsed={elapsed:F1}s rate={(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s"
+                $"[Progress] run {runIndex + 1}/{requestedRunCount} done winner={result.WinnerFactionId} ended={result.BattleEnded} iterations={result.Iterations} timeline_steps={result.TimelineSteps} run_elapsed={runElapsed:F1}s batch_elapsed={elapsed:F1}s rate={(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s"
             );
 
             if (HasReachedTimeout(batchStartMsec, timeoutSeconds) && completedRunCount < requestedRunCount)
@@ -228,10 +231,10 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             report["trace_summary_file"] = ResolveTraceSummaryPath(outputPath);
         if (aiProfiler != null)
         {
-            GDictionary profileReport = aiProfiler.WriteReports();
-            report["ai_profile"] = profileReport;
+            Dictionary<string, object> plainProfileReport = aiProfiler.WriteReports();
+            report["ai_profile"] = plainProfileReport;
             PrintProgress(
-                $"[Progress] wrote AI profile {GetString(profileReport, "hotspots_path")}"
+                $"[Progress] wrote AI profile {GetPlainString(plainProfileReport, "hotspots_path")}"
             );
         }
         traceSummaryReport.ProfileEntries[0].Summary = new BattleSimProfileSummary
@@ -241,13 +244,16 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
 
         if (string.IsNullOrEmpty(outputPath))
         {
-            GameLog.Info(
-                Json.Stringify(ToVariant(NormalizeValue(report)), "\t"),
-                "bench.report",
-                "bench"
-            );
+            using GodotProjectionLease<GDictionary> reportLease =
+                TraceDictionaryProjection.BuildJsonSafeLease(
+                    report,
+                    "mixed-mirror-analysis-report",
+                    LifetimeDomain.Request,
+                    "RunMixed6v12MirrorAnalysis.stdout"
+                );
+            GameLog.Info(Json.Stringify(reportLease.Value, "\t"), "bench.report", "bench");
         }
-        else if (!WriteJsonFile(outputPath, report))
+        else if (!WritePlainJsonFile(outputPath, report))
         {
             GameLog.Error($"[ERROR] Failed to write: {outputPath}.", "bench.output_write_failed", "bench");
         }
@@ -258,18 +264,18 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
 
         if (traceAi)
         {
-            string traceSummaryPath = GetString(report, "trace_summary_file");
+            string traceSummaryPath = GetPlainString(report, "trace_summary_file");
             var traceSummaryBuilder = new BattleSimTraceSummaryBuilder();
-            var compactReport = traceSummaryBuilder.Build(traceSummaryReport, outputPath);
-            if (!WriteJsonFile(traceSummaryPath, compactReport))
+            using GodotProjectionLease<GDictionary> compactReportLease =
+                traceSummaryBuilder.BuildFileLease(traceSummaryReport, outputPath);
+            if (!WriteLeasedJsonFile(traceSummaryPath, compactReportLease.Value))
                 GameLog.Error($"[ERROR] Failed to write trace summary: {traceSummaryPath}.", "bench.trace_write_failed", "bench");
             else
                 PrintProgress($"[Progress] wrote trace summary {traceSummaryPath}");
         }
 
         DisposeObjects(
-            rng,
-            ownsBaseline ? baseline : null,
+            baseline,
             itemRegistry,
             progressionRegistry,
             terrainGenerator,
@@ -283,25 +289,13 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
     {
         foreach (object obj in objects)
         {
-            switch (obj)
-            {
-                case null:
-                    continue;
-                case BattleTerrainGenerator terrainGenerator:
-                    terrainGenerator.Dispose();
-                    continue;
-                case GodotObject godotObject:
-                    GodotSharpCleanup.DisposeGodotObject(godotObject);
-                    continue;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    continue;
-            }
+            if (obj is IDisposable disposable)
+                disposable.Dispose();
         }
     }
 
     private static BattleSimFormalCombatFixture BuildFormalFixture(
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
         ProgressionContentRegistry progressionRegistry,
         ItemContentRegistry itemRegistry,
@@ -313,7 +307,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         fixture.SetupContent(
             progressionRegistry,
             itemRegistry,
-            overrides.SkillDefs
+            overrides.SkillDefinitions
         );
         BattleSimFormalRosterOptionsData effectiveRosterOptions = new()
         {
@@ -333,16 +327,16 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             };
         }
         if (
-            !fixture.BuildRoster(scenario.scenario_id, effectiveRosterOptions)
+            !fixture.BuildRoster(scenario.ScenarioId, effectiveRosterOptions)
         )
-            GameLog.Error($"Unsupported formal battle sim roster: {scenario.scenario_id}", "bench.roster.unsupported", "bench");
+            GameLog.Error($"Unsupported formal battle sim roster: {scenario.ScenarioId}", "bench.roster.unsupported", "bench");
         return fixture;
     }
 
-    private GDictionary RunSingleSimulation(
-        BattleSimScenarioDef scenario,
+    private MixedSimulationRunResult RunSingleSimulation(
+        BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed,
@@ -350,7 +344,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         bool aiMutationGuardEnabled,
         bool validateSpawnReachability,
         bool validateBidirectionalSpawnReachability,
-        AiProfileCapture aiProfiler = null
+        AiProfileCapture aiProfiler
     )
     {
         var runtime = new BattleRuntimeModule();
@@ -360,36 +354,43 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         bool aiProfileRecorderEnded = false;
         try
         {
-            bool useFormalTerrain = scenario != null && scenario.use_formal_terrain_generation;
+            bool useFormalTerrain = scenario.UseFormalTerrainGeneration;
             PrintProgress($"[Progress] run seed={seed} runtime setup start");
             runtime.setup(
                 fixture,
-                overrides.SkillDefs,
+                overrides.SkillDefinitions,
                 enemyTemplates,
                 overrides.EnemyAiBrains,
                 null,
                 default,
                 fixture.GetItemDefsTyped(),
                 useFormalTerrain ? null : terrainGenerator,
-                default,
-                new GDictionary()
+                default
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
             runtime.SetAiTraceEnabled(traceAi);
-            runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
+            runtime._ai_service.MutationGuardMode = aiMutationGuardEnabled
+                ? BattleAiMutationGuardMode.FullSnapshotDiagnostic
+                : BattleAiMutationGuardMode.Disabled;
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);
             runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
             encounterAnchor = new EncounterAnchorData
             {
-                entity_id = scenario != null && scenario.scenario_id != "" ? scenario.scenario_id : "battle_sim",
-                display_name = scenario != null && !string.IsNullOrEmpty(scenario.display_name) ? scenario.display_name : scenario?.scenario_id.ToString() ?? "battle_sim",
+                entity_id = scenario.ScenarioId != "" ? scenario.ScenarioId : "battle_sim",
+                display_name = !string.IsNullOrEmpty(scenario.DisplayName)
+                    ? scenario.DisplayName
+                    : scenario.ScenarioId.ToString(),
                 faction_id = "hostile",
                 world_coord = Vector2I.Zero,
                 region_tag = "simulation",
             };
 
-            GDictionary context = fixture.BuildRuntimeContext(runtime, scenario.BuildStartContext());
+            using GodotProjectionLease<GDictionary> baseContextLease =
+                scenario.BuildStartContextLease();
+            using GodotProjectionLease<GDictionary> contextLease =
+                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
+            GDictionary context = contextLease.Value;
             context["validate_spawn_reachability"] = validateSpawnReachability;
             context["validate_bidirectional_spawn_reachability"] = validateBidirectionalSpawnReachability;
             PrintProgress($"[Progress] run seed={seed} start_battle start");
@@ -403,37 +404,33 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             var loopResult = new BattleSimExecutionLoop().Run(runtime, state, scenario, MaxIdleLoops);
             PrintProgress($"[Progress] run seed={seed} execution_loop done");
 
-            GDictionary rawMetrics = BattleMetricsProjection.Project(runtime.GetBattleMetricsTyped());
-            GDictionary profileSummary = new();
+            BattleMetricsState metricsState = runtime.GetBattleMetricsTyped();
+            BattleSimMetricsSnapshot metricsSnapshot =
+                BattleSimMetricsSnapshot.Capture(metricsState);
+            var profileSummary = new Dictionary<string, object>(StringComparer.Ordinal);
             if (aiProfileRecorder != null && aiProfiler != null)
             {
-                profileSummary = aiProfiler.EndRun(aiProfileRecorder, CountAiTurns(rawMetrics));
+                profileSummary = aiProfiler.EndRun(
+                    aiProfileRecorder,
+                    CountAiTurns(metricsSnapshot)
+                );
                 aiProfileRecorderEnded = true;
             }
-            GDictionary metrics = NormalizeValue(rawMetrics) is GDictionary normalizedMetrics
-                ? normalizedMetrics
-                : new GDictionary();
-            var result = new GDictionary
+            var result = new MixedSimulationRunResult
             {
-                ["battle_ended"] = state != null && state.phase == "battle_ended",
-                ["winner_faction_id"] = state != null ? state.winner_faction_id.ToString() : "",
-                ["iterations"] = loopResult.iterations,
-                ["timeline_steps"] = loopResult.timeline_steps,
-                ["metrics"] = metrics,
-                ["units"] = GetDict(metrics, "units"),
-                ["factions"] = GetDict(metrics, "factions"),
+                BattleEnded = state != null && state.phase == "battle_ended",
+                WinnerFactionId = state != null ? state.winner_faction_id.ToString() : "",
+                Iterations = loopResult.iterations,
+                TimelineSteps = loopResult.timeline_steps,
+                Metrics = metricsSnapshot,
+                AiProfile = profileSummary,
             };
-            if (profileSummary.Count > 0)
-                result["ai_profile"] = profileSummary;
             if (startFailure != null && !startFailure.IsEmpty)
-                result["start_failure"] = BattleSpawnReachabilityProjection.Project(startFailure);
+                result.StartFailure = BuildStartFailurePlain(startFailure);
             if (traceAi)
-            {
-                GArray rawTraces = (GArray)runtime.GetAiTurnTraces().Duplicate(true);
-                result["ai_turn_traces"] = NormalizeValue(rawTraces) is GArray normalizedTraces
-                    ? normalizedTraces
-                    : new GArray();
-            }
+                result.AiTurnTraces = new List<BattleAiTurnTraceProjection>(
+                    runtime.GetAiTurnTracesTyped()
+                );
             return result;
         }
         finally
@@ -442,20 +439,19 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 aiProfiler.EndRun(aiProfileRecorder, 0);
             runtime.dispose();
             BattleTestFixture.DisposeBattleState(state);
-            GodotRefCountedDisposer.DisposeIfValid(encounterAnchor);
         }
     }
 
-    private static int CountAiTurns(GDictionary metrics)
+    private static int CountAiTurns(BattleSimMetricsSnapshot metrics)
     {
         int aiTurns = 0;
-        GDictionary units = GetDict(metrics, "units");
-        foreach (Variant unitKey in units.Keys)
+        if (metrics == null)
+            return aiTurns;
+        foreach (BattleSimUnitMetricsSnapshot unit in metrics.Units.Values)
         {
-            GDictionary unit = GetDict(units, unitKey);
-            if (GetString(unit, "control_mode") == "manual")
+            if (unit == null || unit.ControlMode == "manual")
                 continue;
-            aiTurns += Math.Max(GetInt(unit, "turn_count"), 0);
+            aiTurns += Math.Max(unit.TurnCount, 0);
         }
         return aiTurns;
     }
@@ -491,169 +487,155 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         };
     }
 
-    private static GDictionary BuildRunDetail(
+    private static Dictionary<string, object> BuildRunDetail(
         int runIndex,
         long seed,
-        GDictionary result,
-        GDictionary factions,
-        GDictionary units,
+        MixedSimulationRunResult result,
         bool traceAi
     )
     {
-        var runFactions = new GDictionary();
-        foreach (var factionKey in factions.Keys)
+        var runFactions = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (
+            KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
+            in result.Metrics.Factions
+        )
         {
-            GDictionary factionData = GetDict(factions, factionKey);
-            if (factionData.Count == 0)
+            BattleSimUnitMetricsSnapshot faction = entry.Value;
+            if (faction == null)
                 continue;
-            runFactions[factionKey] = new GDictionary
+            runFactions[entry.Key] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["total_damage_done"] = GetInt(factionData, "total_damage_done"),
-                ["total_damage_taken"] = GetInt(factionData, "total_damage_taken"),
-                ["kill_count"] = GetInt(factionData, "kill_count"),
-                ["death_count"] = GetInt(factionData, "death_count"),
-                ["turn_count"] = GetInt(factionData, "turn_count"),
+                ["total_damage_done"] = faction.TotalDamageDone,
+                ["total_damage_taken"] = faction.TotalDamageTaken,
+                ["kill_count"] = faction.KillCount,
+                ["death_count"] = faction.DeathCount,
+                ["turn_count"] = faction.TurnCount,
             };
         }
 
-        var runUnits = new GDictionary();
-        foreach (var unitId in units.Keys)
+        var runUnits = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (
+            KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
+            in result.Metrics.Units
+        )
         {
-            GDictionary unitData = GetDict(units, unitId);
-            if (unitData.Count == 0)
+            BattleSimUnitMetricsSnapshot unit = entry.Value;
+            if (unit == null)
                 continue;
-            runUnits[unitId] = new GDictionary
+            runUnits[entry.Key] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["display_name"] = GetString(unitData, "display_name"),
-                ["faction_id"] = GetString(unitData, "faction_id"),
-                ["turn_count"] = GetInt(unitData, "turn_count"),
-                ["total_damage_done"] = GetInt(unitData, "total_damage_done"),
-                ["total_damage_taken"] = GetInt(unitData, "total_damage_taken"),
-                ["kill_count"] = GetInt(unitData, "kill_count"),
-                ["death_count"] = GetInt(unitData, "death_count"),
-                ["skill_attempts"] = GetDict(unitData, "skill_attempt_counts"),
-                ["skill_successes"] = GetDict(unitData, "skill_success_counts"),
+                ["display_name"] = unit.DisplayName,
+                ["faction_id"] = unit.FactionId,
+                ["turn_count"] = unit.TurnCount,
+                ["total_damage_done"] = unit.TotalDamageDone,
+                ["total_damage_taken"] = unit.TotalDamageTaken,
+                ["kill_count"] = unit.KillCount,
+                ["death_count"] = unit.DeathCount,
+                ["skill_attempts"] = unit.SkillAttemptCounts,
+                ["skill_successes"] = unit.SkillSuccessCounts,
             };
         }
 
-        var detail = new GDictionary
+        var detail = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["run_index"] = runIndex,
             ["seed"] = seed,
-            ["winner_faction_id"] = GetString(result, "winner_faction_id"),
-            ["iterations"] = GetInt(result, "iterations"),
-            ["timeline_steps"] = GetInt(result, "timeline_steps"),
+            ["winner_faction_id"] = result.WinnerFactionId,
+            ["iterations"] = result.Iterations,
+            ["timeline_steps"] = result.TimelineSteps,
             ["factions"] = runFactions,
             ["units"] = runUnits,
         };
-        GDictionary startFailure = GetDict(result, "start_failure");
-        if (startFailure.Count > 0)
-            detail["start_failure"] = startFailure;
+        if (result.StartFailure.Count > 0)
+            detail["start_failure"] = result.StartFailure;
         if (traceAi)
-            detail["ai_turn_traces"] = GetArray(result, "ai_turn_traces");
+        {
+            var traces = new List<object>();
+            foreach (BattleAiTurnTraceProjection trace in result.AiTurnTraces)
+                traces.Add(BattleAiTurnTracePayloadProjection.BuildPlain(trace));
+            detail["ai_turn_traces"] = traces;
+        }
         return detail;
     }
 
-    private static BattleSimRunReport BuildTraceSummaryRun(long seed, GDictionary result, bool traceAi)
+    private static BattleSimRunReport BuildTraceSummaryRun(
+        long seed,
+        MixedSimulationRunResult result,
+        bool traceAi
+    )
     {
         return new BattleSimRunReport
         {
             Seed = seed,
-            BattleEnded = ReadExactBool(result, "battle_ended"),
-            WinnerFactionId = GetString(result, "winner_faction_id"),
-            Iterations = GetInt(result, "iterations"),
-            TimelineSteps = GetInt(result, "timeline_steps"),
-            Metrics = GetDict(result, "metrics"),
+            BattleEnded = result.BattleEnded,
+            WinnerFactionId = result.WinnerFactionId,
+            Iterations = result.Iterations,
+            TimelineSteps = result.TimelineSteps,
+            MetricsSnapshot = result.Metrics,
             AiTurnTraces = traceAi
-                ? BuildTypedTraceSummaries(GetArray(result, "ai_turn_traces"))
+                ? BuildLegacyTraceSummaryViews(result.AiTurnTraces)
                 : System.Array.Empty<BattleAiTurnTraceProjection>(),
         };
     }
 
-    private static IReadOnlyList<BattleAiTurnTraceProjection> BuildTypedTraceSummaries(GArray traces)
+    internal static IReadOnlyList<BattleAiTurnTraceProjection> BuildLegacyTraceSummaryViews(
+        IReadOnlyList<BattleAiTurnTraceProjection> traces
+    )
     {
         var result = new List<BattleAiTurnTraceProjection>();
-        foreach (Variant traceValue in traces ?? new GArray())
+        foreach (
+            BattleAiTurnTraceProjection trace
+            in traces ?? System.Array.Empty<BattleAiTurnTraceProjection>()
+        )
         {
-            GDictionary trace = traceValue.VariantType == Variant.Type.Dictionary
-                ? traceValue.AsGodotDictionary()
-                : new GDictionary();
-            if (trace.Count == 0)
+            if (trace == null)
                 continue;
+            BattleAiScoreInput sourceScore = trace.ScoreInput;
             result.Add(
                 new BattleAiTurnTraceProjection
                 {
-                    TurnStartedTu = GetInt(trace, "turn_started_tu"),
-                    UnitId = GetString(trace, "unit_id"),
-                    UnitName = GetString(trace, "unit_name"),
-                    FactionId = GetString(trace, "faction_id"),
-                    BrainId = GetString(trace, "brain_id"),
-                    StateId = GetString(trace, "state_id"),
-                    ActionId = GetString(trace, "action_id"),
-                    ReasonText = GetString(trace, "reason_text"),
-                    ScoreInput = BuildTraceScoreInput(GetDict(trace, "score_input")),
+                    TurnStartedTu = trace.TurnStartedTu,
+                    UnitId = trace.UnitId,
+                    UnitName = trace.UnitName,
+                    FactionId = trace.FactionId,
+                    BrainId = trace.BrainId,
+                    StateId = trace.StateId,
+                    ActionId = trace.ActionId,
+                    ReasonText = trace.ReasonText,
+                    ScoreInput = new BattleAiScoreInput
+                    {
+                        score_bucket_id = sourceScore?.score_bucket_id ?? "",
+                        target_count = sourceScore?.target_count ?? 0,
+                        total_score = sourceScore?.total_score ?? 0,
+                    },
                 }
             );
         }
         return result;
     }
 
-    private static BattleAiScoreInput BuildTraceScoreInput(GDictionary score)
+    private static void MergePerUnitSummary(
+        Dictionary<string, PerUnitAggregate> perUnitSummary,
+        IReadOnlyDictionary<string, BattleSimUnitMetricsSnapshot> units
+    )
     {
-        return new BattleAiScoreInput
+        if (units == null)
+            return;
+        foreach (KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry in units)
         {
-            score_bucket_id = GetString(score, "score_bucket_id"),
-            target_count = GetInt(score, "target_count"),
-            total_score = GetInt(score, "total_score"),
-        };
-    }
-
-    private static void MergePerUnitSummary(GDictionary perUnitSummary, GDictionary units)
-    {
-        foreach (var unitId in units.Keys)
-        {
-            GDictionary unitData = GetDict(units, unitId);
-            if (unitData.Count == 0)
+            BattleSimUnitMetricsSnapshot unit = entry.Value;
+            if (unit == null)
                 continue;
-            if (!perUnitSummary.ContainsKey(unitId))
+            if (!perUnitSummary.TryGetValue(entry.Key, out PerUnitAggregate summary))
             {
-                perUnitSummary[unitId] = new GDictionary
-                {
-                    ["display_name"] = GetString(unitData, "display_name"),
-                    ["faction_id"] = GetString(unitData, "faction_id"),
-                    ["runs"] = 0,
-                    ["turn_count"] = 0,
-                    ["total_damage_done"] = 0,
-                    ["total_damage_taken"] = 0,
-                    ["total_healing_done"] = 0,
-                    ["total_healing_received"] = 0,
-                    ["kill_count"] = 0,
-                    ["death_count"] = 0,
-                    ["skill_attempts"] = new GDictionary(),
-                    ["skill_successes"] = new GDictionary(),
-                };
+                summary = new PerUnitAggregate(unit.DisplayName, unit.FactionId);
+                perUnitSummary[entry.Key] = summary;
             }
-            GDictionary summary = GetDict(perUnitSummary, unitId);
-            summary["runs"] = GetInt(summary, "runs") + 1;
-            summary["turn_count"] = GetInt(summary, "turn_count") + GetInt(unitData, "turn_count");
-            summary["total_damage_done"] = GetInt(summary, "total_damage_done") + GetInt(unitData, "total_damage_done");
-            summary["total_damage_taken"] = GetInt(summary, "total_damage_taken") + GetInt(unitData, "total_damage_taken");
-            summary["total_healing_done"] = GetInt(summary, "total_healing_done") + GetInt(unitData, "total_healing_done");
-            summary["total_healing_received"] = GetInt(summary, "total_healing_received") + GetInt(unitData, "total_healing_received");
-            summary["kill_count"] = GetInt(summary, "kill_count") + GetInt(unitData, "kill_count");
-            summary["death_count"] = GetInt(summary, "death_count") + GetInt(unitData, "death_count");
-            MergeSkillCounters(GetDict(summary, "skill_attempts"), GetDict(unitData, "skill_attempt_counts"));
-            MergeSkillCounters(GetDict(summary, "skill_successes"), GetDict(unitData, "skill_success_counts"));
+            summary.Absorb(unit);
         }
     }
 
-    private static void MergeSkillCounters(GDictionary target, GDictionary source)
-    {
-        foreach (var skillId in source.Keys)
-            target[skillId] = GetInt(target, skillId) + source[skillId].AsInt32();
-    }
-
-    private static GDictionary BuildReport(
+    private static Dictionary<string, object> BuildReport(
         long startSeed,
         string startSeedSource,
         int requestedRunCount,
@@ -664,16 +646,20 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         bool aiMutationGuardEnabled,
         bool validateSpawnReachability,
         bool validateBidirectionalSpawnReachability,
-        BattleSimScenarioDef scenario,
+        BattleSimScenarioDefinition scenario,
         BatchAccumulator accum,
-        GDictionary perUnitSummary,
-        GArray runDetails,
+        IReadOnlyDictionary<string, PerUnitAggregate> perUnitSummary,
+        IReadOnlyList<object> runDetails,
         double n
     )
     {
-        return new GDictionary
+        var perUnitReport = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, PerUnitAggregate> entry in perUnitSummary)
+            perUnitReport[entry.Key] = entry.Value.BuildPlain();
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["scenario"] = BattleSimReportProjection.Project(scenario),
+            ["scenario"] = ProjectScenarioPlain(scenario),
             ["generated_at_unix"] = (long)Time.GetUnixTimeFromSystem(),
             ["batch_id"] = startSeed,
             ["start_seed"] = startSeed,
@@ -690,13 +676,13 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             ["ended_count"] = accum.EndedCount,
             ["avg_iterations"] = accum.TotalIterations / n,
             ["avg_timeline_steps"] = accum.TotalTimelineSteps / n,
-            ["win_rate"] = new GDictionary
+            ["win_rate"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["player"] = accum.TotalWinsPlayer,
                 ["hostile"] = accum.TotalWinsHostile,
                 ["draw"] = accum.TotalDraws,
             },
-            ["global"] = new GDictionary
+            ["global"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["charge"] = BuildSkillReport(accum.TotalChargeAttempts, accum.TotalChargeSuccesses, accum.TotalChargeMastery, n),
                 ["warrior_heavy_strike"] = BuildSkillReport(accum.TotalHeavyAttempts, accum.TotalHeavySuccesses, accum.TotalHeavyMastery, n),
@@ -706,12 +692,12 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             },
             ["player"] = BuildFactionReport(accum.PlayerDamageDone, accum.PlayerDamageTaken, accum.PlayerChargeAttempts, accum.PlayerChargeSuccesses, accum.PlayerHeavyAttempts, accum.PlayerHeavySuccesses, accum.PlayerAimedAttempts, accum.PlayerAimedSuccesses, accum.PlayerMultishotAttempts, accum.PlayerMultishotSuccesses, accum.PlayerBasicAttempts, accum.PlayerBasicSuccesses, n),
             ["hostile"] = BuildFactionReport(accum.HostileDamageDone, accum.HostileDamageTaken, accum.HostileChargeAttempts, accum.HostileChargeSuccesses, accum.HostileHeavyAttempts, accum.HostileHeavySuccesses, accum.HostileAimedAttempts, accum.HostileAimedSuccesses, accum.HostileMultishotAttempts, accum.HostileMultishotSuccesses, accum.HostileBasicAttempts, accum.HostileBasicSuccesses, n),
-            ["per_unit_summary"] = perUnitSummary,
+            ["per_unit_summary"] = perUnitReport,
             ["runs"] = runDetails,
         };
     }
 
-    private static GDictionary BuildFactionReport(
+    private static Dictionary<string, object> BuildFactionReport(
         int damageDone,
         int damageTaken,
         int chargeAttempts,
@@ -727,7 +713,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         double n
     )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["total_damage_done"] = damageDone,
             ["total_damage_taken"] = damageTaken,
@@ -741,9 +727,14 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         };
     }
 
-    private static GDictionary BuildSkillReport(int attempts, int successes, int mastery, double runCount)
+    private static Dictionary<string, object> BuildSkillReport(
+        int attempts,
+        int successes,
+        int mastery,
+        double runCount
+    )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["attempts"] = attempts,
             ["successes"] = successes,
@@ -766,14 +757,15 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             GameLog.Info(message, "bench.summary", "bench");
     }
 
-    private static BattleSimProfileDef LoadOverrideProfile()
+    private static BattleSimProfileDefinition LoadOverrideProfile()
     {
         if (!OS.HasEnvironment("AI_PROFILE_OVERRIDE_FILE"))
             return null;
         string path = OS.GetEnvironment("AI_PROFILE_OVERRIDE_FILE").StripEdges();
         if (string.IsNullOrEmpty(path))
             return null;
-        var profile = ResourceLoader.Load<BattleSimProfileDef>(path);
+        BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(path);
+        BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
         if (profile == null)
             GameLog.Error(
                 $"AI_PROFILE_OVERRIDE_FILE could not be loaded: {path}",
@@ -801,7 +793,22 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         return $"user://simulation_reports/mixed_6v12_trace_summary_{(long)Time.GetUnixTimeFromSystem()}.json";
     }
 
-    private static bool WriteJsonFile(string path, GDictionary payload)
+    private static bool WritePlainJsonFile(
+        string path,
+        IReadOnlyDictionary<string, object> payload
+    )
+    {
+        using GodotProjectionLease<GDictionary> lease =
+            TraceDictionaryProjection.BuildJsonSafeLease(
+                payload,
+                "mixed-mirror-analysis-file-payload",
+                LifetimeDomain.Request,
+                $"RunMixed6v12MirrorAnalysis.write:{path}"
+            );
+        return WriteLeasedJsonFile(path, lease.Value);
+    }
+
+    private static bool WriteLeasedJsonFile(string path, GDictionary payload)
     {
         if (string.IsNullOrEmpty(path))
             return false;
@@ -811,95 +818,111 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         string directory = absolutePath.GetBaseDir();
         if (!string.IsNullOrEmpty(directory))
             DirAccess.MakeDirRecursiveAbsolute(directory);
-        using var file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
-        if (file == null)
-            return false;
-        file.StoreString(
-            Json.Stringify(ToVariant(NormalizeValue(payload)), "\t")
+        using NativeLeaseScope fileScope = new(
+            "mixed-mirror-analysis-json-file",
+            LifetimeDomain.Request
         );
-        return true;
+        FileAccess openedFile = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
+        if (openedFile == null)
+            return false;
+        try
+        {
+            FileAccess file = fileScope.Own(openedFile, $"open:{absolutePath}");
+            file.StoreString(Json.Stringify(payload, "\t"));
+            return true;
+        }
+        finally
+        {
+            openedFile.Close();
+        }
     }
 
-    private static object NormalizeValue(object rawValue)
+    private static Dictionary<string, object> ProjectScenarioPlain(
+        BattleSimScenarioDefinition scenario
+    ) => BattleSimFilePayloadProjection.BuildScenarioFacts(scenario);
+
+    private static Dictionary<string, object> BuildStartFailurePlain(
+        BattleStartFailureSnapshot snapshot
+    )
     {
-        if (rawValue is Variant rawVariant)
-            return NormalizeVariant(rawVariant);
-        if (rawValue is GDictionary rawDictionary)
-        {
-            var normalized = new GDictionary();
-            foreach (var key in rawDictionary.Keys)
-                normalized[key.ToString()] = ToVariant(NormalizeValue(rawDictionary[key]));
-            return normalized;
-        }
-        if (rawValue is GArray rawArray)
-        {
-            var normalized = new GArray();
-            foreach (var entry in rawArray)
-                normalized.Add(ToVariant(NormalizeValue(entry)));
-            return normalized;
-        }
-        if (rawValue is GodotObject obj)
-            return NormalizeGodotObject(obj);
-        return rawValue;
+        var result = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (snapshot == null)
+            return result;
+        if (!string.IsNullOrEmpty(snapshot.Reason))
+            result["reason"] = snapshot.Reason;
+        if (snapshot.AllyUnitCount >= 0)
+            result["ally_unit_count"] = snapshot.AllyUnitCount;
+        if (snapshot.EnemyUnitCount >= 0)
+            result["enemy_unit_count"] = snapshot.EnemyUnitCount;
+        if (snapshot.PlacementAttempt >= 0)
+            result["placement_attempt"] = snapshot.PlacementAttempt;
+        if (snapshot.TerrainSeed != 0)
+            result["terrain_seed"] = snapshot.TerrainSeed;
+        if (snapshot.AllySpawnCount >= 0)
+            result["ally_spawn_count"] = snapshot.AllySpawnCount;
+        if (snapshot.EnemySpawnCount >= 0)
+            result["enemy_spawn_count"] = snapshot.EnemySpawnCount;
+        if (snapshot.PlacementAttempts >= 0)
+            result["placement_attempts"] = snapshot.PlacementAttempts;
+
+        if (snapshot.ReachabilityResult != null)
+            result["reachability"] = BuildReachabilityPlain(snapshot.ReachabilityResult);
+        return result;
     }
 
-    private static object NormalizeVariant(Variant value)
+    private static Dictionary<string, object> BuildReachabilityPlain(
+        BattleSpawnReachabilityResult reachability
+    )
     {
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName().ToString();
-        if (value.VariantType == Variant.Type.Vector2I)
+        var details = new List<object>();
+        foreach (BattleSpawnReachabilityUnitResult detail in reachability.Details)
         {
-            Vector2I v = value.AsVector2I();
-            return new GDictionary { ["x"] = v.X, ["y"] = v.Y };
+            var item = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["valid"] = detail.Valid,
+            };
+            if (detail.UnitId != (StringName)"")
+                item["unit_id"] = detail.UnitId;
+            if (detail.FactionId != (StringName)"")
+                item["faction_id"] = detail.FactionId;
+            if (!string.IsNullOrEmpty(detail.Reason))
+                item["reason"] = detail.Reason;
+            if (detail.AttackAnchor != new Vector2I(-1, -1))
+                item["attack_anchor"] = detail.AttackAnchor;
+            if (detail.TargetUnitId != (StringName)"")
+                item["target_unit_id"] = detail.TargetUnitId;
+            if (detail.SkillId != (StringName)"")
+                item["skill_id"] = detail.SkillId;
+            if (detail.ReachableAnchorCount >= 0)
+                item["reachable_anchor_count"] = detail.ReachableAnchorCount;
+            if (detail.AttackSkillIds.Count > 0)
+                item["attack_skill_ids"] = new List<StringName>(detail.AttackSkillIds);
+            details.Add(item);
         }
-        if (value.VariantType == Variant.Type.Array)
-        {
-            var normalized = new GArray();
-            foreach (var entry in value.AsGodotArray())
-                normalized.Add(ToVariant(NormalizeValue(entry)));
-            return normalized;
-        }
-        if (value.VariantType == Variant.Type.Dictionary)
-        {
-            var normalized = new GDictionary();
-            GDictionary dictionary = value.AsGodotDictionary();
-            foreach (var key in dictionary.Keys)
-                normalized[key.ToString()] = ToVariant(NormalizeValue(dictionary[key]));
-            return normalized;
-        }
-        if (value.VariantType == Variant.Type.Object)
-            return NormalizeGodotObject(value.AsGodotObject());
-        return value;
-    }
 
-    private static object NormalizeGodotObject(GodotObject obj)
-    {
-        if (obj is BattleSimScenarioDef scenarioDef)
-            return NormalizeValue(BattleSimReportProjection.Project(scenarioDef));
-        if (obj is BattleSimProfileDef profileDef)
-            return NormalizeValue(BattleSimReportProjection.Project(profileDef));
-        if (obj is BattleUnitState unitState)
-            return NormalizeValue(BattleSimReportProjection.Project(unitState));
-        return obj?.ToString() ?? "";
-    }
-
-    private static Variant ToVariant(object value) =>
-        value switch
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            Variant variant => variant,
-            string text => text,
-            StringName stringName => stringName,
-            int intValue => intValue,
-            long longValue => longValue,
-            bool boolValue => boolValue,
-            float floatValue => floatValue,
-            double doubleValue => doubleValue,
-            Vector2I coord => coord,
-            GArray array => array,
-            GDictionary dictionary => dictionary,
-            GodotObject godotObject => godotObject,
-            _ => default,
+            ["valid"] = reachability.Valid,
+            ["invalid_enemy_unit_ids"] = new List<StringName>(
+                reachability.InvalidEnemyUnitIds
+            ),
+            ["invalid_player_unit_ids"] = new List<StringName>(
+                reachability.InvalidPlayerUnitIds
+            ),
+            ["details"] = details,
         };
+    }
+
+    private static string GetPlainString(
+        IReadOnlyDictionary<string, object> source,
+        string key,
+        string fallback = ""
+    ) =>
+        source != null
+        && source.TryGetValue(key, out object value)
+        && value is string text
+            ? text
+            : fallback;
 
     private static bool ReadBoolEnvironment(string name, bool defaultValue)
     {
@@ -941,9 +964,9 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         return string.IsNullOrEmpty(value) ? defaultValue : value;
     }
 
-    private static Godot.Collections.Array<long> ReadLongListEnvironment(string name)
+    private static List<long> ReadLongListEnvironment(string name)
     {
-        var values = new Godot.Collections.Array<long>();
+        var values = new List<long>();
         if (!OS.HasEnvironment(name))
             return values;
         string rawValue = OS.GetEnvironment(name).StripEdges().Replace(";", ",");
@@ -958,93 +981,91 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         return values;
     }
 
-    private static GDictionary GetDict(GDictionary dictionary, object key)
+    private sealed class MixedSimulationRunResult
     {
-        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        public bool BattleEnded { get; init; }
+        public string WinnerFactionId { get; init; } = "";
+        public int Iterations { get; init; }
+        public int TimelineSteps { get; init; }
+        public BattleSimMetricsSnapshot Metrics { get; init; } =
+            BattleSimMetricsSnapshot.Empty();
+        public Dictionary<string, object> AiProfile { get; init; } =
+            new(StringComparer.Ordinal);
+        public Dictionary<string, object> StartFailure { get; set; } =
+            new(StringComparer.Ordinal);
+        public IReadOnlyList<BattleAiTurnTraceProjection> AiTurnTraces { get; set; } =
+            System.Array.Empty<BattleAiTurnTraceProjection>();
     }
 
-    private static GArray GetArray(GDictionary dictionary, object key)
+    private sealed class PerUnitAggregate
     {
-        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
-    }
+        private readonly Dictionary<string, int> _skillAttempts =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _skillSuccesses =
+            new(StringComparer.Ordinal);
 
-    private static int GetInt(GDictionary dictionary, object key, int fallback = 0)
-    {
-        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt32()
-            : fallback;
-    }
-
-    private static long GetLong(GDictionary dictionary, object key, long fallback = 0L)
-    {
-        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Int
-            ? value.AsInt64()
-            : fallback;
-    }
-
-    private static string GetString(GDictionary dictionary, object key, string fallback = "")
-    {
-        if (!TryRead(dictionary, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
+        internal PerUnitAggregate(string displayName, string factionId)
         {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
-    }
-
-    private static bool ReadExactBool(GDictionary dictionary, object key, bool fallback = false)
-    {
-        if (!TryRead(dictionary, key, out Variant value))
-            return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
-    {
-        value = default;
-        if (dictionary == null || key == null)
-            return false;
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (dictionary.ContainsKey(variantKey))
-        {
-            value = dictionary[variantKey];
-            return value.VariantType != Variant.Type.Nil;
+            DisplayName = displayName ?? "";
+            FactionId = factionId ?? "";
         }
-        if (variantKey.VariantType == Variant.Type.String)
+
+        private string DisplayName { get; }
+        private string FactionId { get; }
+        private int Runs { get; set; }
+        private int TurnCount { get; set; }
+        private int TotalDamageDone { get; set; }
+        private int TotalDamageTaken { get; set; }
+        private int TotalHealingDone { get; set; }
+        private int TotalHealingReceived { get; set; }
+        private int KillCount { get; set; }
+        private int DeathCount { get; set; }
+
+        internal void Absorb(BattleSimUnitMetricsSnapshot unit)
         {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
+            Runs++;
+            TurnCount += unit.TurnCount;
+            TotalDamageDone += unit.TotalDamageDone;
+            TotalDamageTaken += unit.TotalDamageTaken;
+            TotalHealingDone += unit.TotalHealingDone;
+            TotalHealingReceived += unit.TotalHealingReceived;
+            KillCount += unit.KillCount;
+            DeathCount += unit.DeathCount;
+            MergeCounts(_skillAttempts, unit.SkillAttemptCounts);
+            MergeCounts(_skillSuccesses, unit.SkillSuccessCounts);
+        }
+
+        internal Dictionary<string, object> BuildPlain() =>
+            new(StringComparer.Ordinal)
             {
-                value = dictionary[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
+                ["display_name"] = DisplayName,
+                ["faction_id"] = FactionId,
+                ["runs"] = Runs,
+                ["turn_count"] = TurnCount,
+                ["total_damage_done"] = TotalDamageDone,
+                ["total_damage_taken"] = TotalDamageTaken,
+                ["total_healing_done"] = TotalHealingDone,
+                ["total_healing_received"] = TotalHealingReceived,
+                ["kill_count"] = KillCount,
+                ["death_count"] = DeathCount,
+                ["skill_attempts"] = _skillAttempts,
+                ["skill_successes"] = _skillSuccesses,
+            };
+
+        private static void MergeCounts(
+            Dictionary<string, int> target,
+            IReadOnlyDictionary<string, int> source
+        )
+        {
+            if (source == null)
+                return;
+            foreach (KeyValuePair<string, int> entry in source)
+            {
+                target[entry.Key] =
+                    (target.TryGetValue(entry.Key, out int current) ? current : 0)
+                    + entry.Value;
             }
         }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        return false;
     }
 
     private sealed class BatchAccumulator
@@ -1095,7 +1116,10 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         public int TotalWinsHostile;
         public int TotalDraws;
 
-        public void AbsorbRun(GDictionary result, GDictionary factions, BattleSimFormalCombatFixture fixture)
+        public void AbsorbRun(
+            MixedSimulationRunResult result,
+            BattleSimFormalCombatFixture fixture
+        )
         {
             int chargeAttempts = 0;
             int chargeSuccesses = 0;
@@ -1108,23 +1132,44 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             int basicAttempts = 0;
             int basicSuccesses = 0;
 
-            foreach (var factionKey in factions.Keys)
+            foreach (
+                KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
+                in result.Metrics.Factions
+            )
             {
-                GDictionary factionData = GetDict(factions, factionKey);
-                GDictionary skillAttempts = GetDict(factionData, "skill_attempt_counts");
-                GDictionary skillSuccesses = GetDict(factionData, "skill_success_counts");
-                int facChargeA = GetInt(skillAttempts, "charge");
-                int facChargeS = GetInt(skillSuccesses, "charge");
-                int facHeavyA = GetInt(skillAttempts, "warrior_heavy_strike");
-                int facHeavyS = GetInt(skillSuccesses, "warrior_heavy_strike");
-                int facAimedA = GetInt(skillAttempts, "archer_aimed_shot");
-                int facAimedS = GetInt(skillSuccesses, "archer_aimed_shot");
-                int facMultiA = GetInt(skillAttempts, "archer_multishot");
-                int facMultiS = GetInt(skillSuccesses, "archer_multishot");
-                int facBasicA = GetInt(skillAttempts, "basic_attack");
-                int facBasicS = GetInt(skillSuccesses, "basic_attack");
-                int facDamageDone = GetInt(factionData, "total_damage_done");
-                int facDamageTaken = GetInt(factionData, "total_damage_taken");
+                BattleSimUnitMetricsSnapshot faction = entry.Value;
+                if (faction == null)
+                    continue;
+                int facChargeA = ReadCount(faction.SkillAttemptCounts, "charge");
+                int facChargeS = ReadCount(faction.SkillSuccessCounts, "charge");
+                int facHeavyA = ReadCount(
+                    faction.SkillAttemptCounts,
+                    "warrior_heavy_strike"
+                );
+                int facHeavyS = ReadCount(
+                    faction.SkillSuccessCounts,
+                    "warrior_heavy_strike"
+                );
+                int facAimedA = ReadCount(
+                    faction.SkillAttemptCounts,
+                    "archer_aimed_shot"
+                );
+                int facAimedS = ReadCount(
+                    faction.SkillSuccessCounts,
+                    "archer_aimed_shot"
+                );
+                int facMultiA = ReadCount(
+                    faction.SkillAttemptCounts,
+                    "archer_multishot"
+                );
+                int facMultiS = ReadCount(
+                    faction.SkillSuccessCounts,
+                    "archer_multishot"
+                );
+                int facBasicA = ReadCount(faction.SkillAttemptCounts, "basic_attack");
+                int facBasicS = ReadCount(faction.SkillSuccessCounts, "basic_attack");
+                int facDamageDone = faction.TotalDamageDone;
+                int facDamageTaken = faction.TotalDamageTaken;
 
                 chargeAttempts += facChargeA;
                 chargeSuccesses += facChargeS;
@@ -1137,7 +1182,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 basicAttempts += facBasicA;
                 basicSuccesses += facBasicS;
 
-                if (factionKey.ToString() == "player")
+                if (entry.Key == "player")
                 {
                     PlayerChargeAttempts += facChargeA;
                     PlayerChargeSuccesses += facChargeS;
@@ -1185,10 +1230,10 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             TotalMultishotMastery += fixture.multishot_mastery;
             TotalBasicMastery += fixture.basic_mastery;
 
-            if (ReadExactBool(result, "battle_ended"))
+            if (result.BattleEnded)
             {
                 EndedCount++;
-                string winner = GetString(result, "winner_faction_id");
+                string winner = result.WinnerFactionId;
                 if (winner == "player")
                     TotalWinsPlayer++;
                 else if (winner == "hostile")
@@ -1196,8 +1241,14 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
                 else
                     TotalDraws++;
             }
-            TotalIterations += GetInt(result, "iterations");
-            TotalTimelineSteps += GetInt(result, "timeline_steps");
+            TotalIterations += result.Iterations;
+            TotalTimelineSteps += result.TimelineSteps;
         }
+
+        private static int ReadCount(
+            IReadOnlyDictionary<string, int> counts,
+            string key
+        ) =>
+            counts != null && counts.TryGetValue(key, out int value) ? value : 0;
     }
 }

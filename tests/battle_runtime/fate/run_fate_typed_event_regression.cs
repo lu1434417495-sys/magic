@@ -3,7 +3,7 @@ using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_fate_typed_event_regression : SceneTree
+public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,8 +18,7 @@ public partial class run_fate_typed_event_regression : SceneTree
         TestTypedMisfortuneRequestCannotLoseUnitStateToDictionaryTypo();
         TestRawDictionaryFateEventSurfaceIsAbsent();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Fate typed event regression"));
+        RequestTestExit(_test.Finish("Fate typed event regression"));
     }
 
     private void TestTypedFateEventCannotLoseAttackerMemberIdToDictionaryTypo()
@@ -55,7 +54,7 @@ public partial class run_fate_typed_event_regression : SceneTree
         finally
         {
             fateRuntime.DisposeRuntime();
-            GodotSharpCleanup.DisposeGodotObject(hero);
+            BattleTestFixture.DisposeBattleUnit(hero);
         }
     }
 
@@ -85,7 +84,7 @@ public partial class run_fate_typed_event_regression : SceneTree
         finally
         {
             fateRuntime.DisposeRuntime();
-            GodotSharpCleanup.DisposeGodotObject(hero);
+            BattleTestFixture.DisposeBattleUnit(hero);
         }
     }
 

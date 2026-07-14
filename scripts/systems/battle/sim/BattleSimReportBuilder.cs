@@ -3,15 +3,15 @@ using Godot;
 
 public sealed class BattleSimReportBuilder
 {
-    public BattleSimProfileSummary BuildProfileSummary(
-        BattleSimProfileDef profile,
+    internal BattleSimProfileSummary BuildProfileSummary(
+        BattleSimProfileDefinition profile,
         IReadOnlyList<BattleSimRunReport> runs
     )
     {
         var summary = new BattleSimProfileSummary
         {
-            ProfileId = profile?.profile_id.ToString() ?? "",
-            DisplayName = profile?.display_name ?? "",
+            ProfileId = profile?.ProfileId.ToString() ?? "",
+            DisplayName = profile?.DisplayName ?? "",
             RunCount = runs?.Count ?? 0,
         };
 
@@ -175,7 +175,7 @@ public sealed class BattleSimReportBuilder
     {
         if (metrics == null)
             return;
-        foreach (KeyValuePair<string, BattleSimFactionMetricSummary> entry in metrics.Factions)
+        foreach (KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry in metrics.Factions)
         {
             if (!factionMetricTotals.TryGetValue(entry.Key, out BattleSimFactionMetricSummary targetEntry))
             {
@@ -188,7 +188,7 @@ public sealed class BattleSimReportBuilder
 
     private static void AccumulateFactionMetrics(
         BattleSimFactionMetricSummary target,
-        BattleSimFactionMetricSummary source
+        BattleSimUnitMetricsSnapshot source
     )
     {
         if (target == null || source == null)

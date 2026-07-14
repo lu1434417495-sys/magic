@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_barrier_geometry_contract_regression : SceneTree
+public partial class run_barrier_geometry_contract_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_barrier_geometry_contract_regression : SceneTree
         TestFootprintTransitionDoesNotBlockInsideToInside();
         TestProjectedLineContract();
         TestCoordInsideBarrierContract();
-        Quit(_test.Finish("Barrier geometry contract regression"));
+        RequestTestExit(_test.Finish("Barrier geometry contract regression"));
     }
 
     private void TestFootprintTransitionDetectsLargeUnitBoundaryCrossing()

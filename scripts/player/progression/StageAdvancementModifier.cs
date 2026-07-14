@@ -63,6 +63,15 @@ public partial class StageAdvancementModifier : Resource
     [Export]
     public bool grants_body_size_change;
 
+    internal Godot.Collections.Array<StringName> AppliesToRaceIdsBorrowed =>
+        applies_to_race_ids;
+    internal Godot.Collections.Array<StringName> AppliesToSubraceIdsBorrowed =>
+        applies_to_subrace_ids;
+    internal Godot.Collections.Array<StringName> AppliesToBloodlineIdsBorrowed =>
+        applies_to_bloodline_ids;
+    internal Godot.Collections.Array<StringName> AppliesToAscensionIdsBorrowed =>
+        applies_to_ascension_ids;
+
     internal static StageAdvancementTargetAxis ToTargetAxis(StringName targetAxis)
     {
         if (targetAxis == TargetAxisFull)
@@ -94,5 +103,4 @@ public partial class StageAdvancementModifier : Resource
             StageAdvancementTargetAxis.Domain => TargetAxisDomain,
             _ => "",
         };
-
 }

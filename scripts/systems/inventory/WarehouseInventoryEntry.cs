@@ -3,7 +3,7 @@ using Godot;
 public sealed class WarehouseInventoryEntry
 {
     public StringName ItemId { get; }
-    public ItemDef ItemDef { get; }
+    public ItemDefinition ItemDefinition { get; }
     public string DisplayName { get; }
     public string Description { get; }
     public string Icon { get; }
@@ -22,7 +22,7 @@ public sealed class WarehouseInventoryEntry
 
     public WarehouseInventoryEntry(
         StringName itemId,
-        ItemDef itemDef,
+        ItemDefinition itemDefinition,
         string displayName,
         string description,
         string icon,
@@ -40,7 +40,7 @@ public sealed class WarehouseInventoryEntry
         bool hasEquipmentInstance = false)
     {
         ItemId = ProgressionDataUtils.to_string_name(itemId);
-        ItemDef = itemDef;
+        ItemDefinition = itemDefinition;
         DisplayName = displayName ?? "";
         Description = description ?? "";
         Icon = icon ?? "";

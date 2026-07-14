@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_goblin_cloth"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"goblin_cloth"
+drop_type = &"item"
+item_id = &"linen_cloth"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"goblin_raider"
+display_name = "哥布林劫掠者"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+enemy_count = 2
+creature_level = 1
+hit_die_sides = 6
+action_threshold = 30
+tags = Array[StringName]([&"humanoid", &"goblinoid"])
+save_advantage_tags = Array[StringName]([&"frightened_disadvantage"])
+attack_equipment_item_id = &"iron_dagger"
+base_attribute_overrides = {
+&"strength": 8,
+&"agility": 13,
+&"constitution": 10,
+&"perception": 10,
+&"intelligence": 8,
+&"willpower": 7,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_goblin_cloth")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

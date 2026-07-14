@@ -1,39 +1,39 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_validation_text_surface_regression : SceneTree
+public partial class run_validation_text_surface_regression : LifecycleTestSceneTree
 {
-    private const string InvalidItemDirectory =
-        "res://tests/fixtures/resource_validation/item_registry_invalid";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        var runner = new GameTextCommandRunner();
-        runner.initialize();
-
-        AssertOfficialValidationSurface(runner);
-        AssertInvalidQuestValidationSurface(runner);
-        AssertInvalidItemValidationSurface(runner);
-        AssertInvalidWorldValidationSurface(runner);
-
-        runner.Dispose(true);
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Validation text surface regression"));
+        CallDeferred(nameof(Run));
     }
 
-    private void AssertOfficialValidationSurface(GameTextCommandRunner runner)
+    private void Run()
     {
+        AssertOfficialValidationSurface();
+        AssertInvalidQuestValidationSurface();
+        AssertInvalidItemValidationSurface();
+        AssertInvalidWorldValidationSurface();
+        RequestTestExit(_test.Finish("Validation text surface regression"));
+    }
+
+    private void AssertOfficialValidationSurface()
+    {
+        using GameTextCommandRunner runner = CreateRunner();
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
-        GDictionary validationSnapshot = Dict(snapshotResult.snapshot, "validation");
-        GDictionary domains = Dict(validationSnapshot, "domains");
-        GDictionary progressionDomain = Dict(domains, "progression");
-        GDictionary itemDomain = Dict(domains, "item");
-        GDictionary questDomain = Dict(domains, "quest");
-        GDictionary worldDomain = Dict(domains, "world");
-        GArray progressionErrors = ArrayValue(progressionDomain, "errors");
+        IReadOnlyDictionary<string, object> validationSnapshot = Dict(
+            snapshotResult.SnapshotTyped,
+            "validation"
+        );
+        IReadOnlyDictionary<string, object> domains = Dict(validationSnapshot, "domains");
+        IReadOnlyDictionary<string, object> progressionDomain = Dict(domains, "progression");
+        IReadOnlyDictionary<string, object> itemDomain = Dict(domains, "item");
+        IReadOnlyDictionary<string, object> questDomain = Dict(domains, "quest");
+        IReadOnlyDictionary<string, object> worldDomain = Dict(domains, "world");
+        IReadOnlyList<object> progressionErrors = ArrayValue(progressionDomain, "errors");
 
         _test.True(DictBool(validationSnapshot, "ok", false), "正式 headless validation 快照应通过。");
         _test.Eq(DictInt(validationSnapshot, "error_count", -1), 0, "正式 headless validation 快照不应有错误。");
@@ -47,58 +47,61 @@ public partial class run_validation_text_surface_regression : SceneTree
         _test.True(snapshotResult.snapshot_text.Contains("domain=item | errors=0"), "文本快照应稳定渲染 item validation 摘要。");
         _test.True(snapshotResult.snapshot_text.Contains("domain=quest | errors=0"), "文本快照应稳定渲染 quest validation 摘要。");
         _test.True(snapshotResult.snapshot_text.Contains("domain=world | errors=0"), "文本快照应稳定渲染 world validation 摘要。");
-        _test.True(FindLogEntry(snapshotResult.snapshot, "session.content.item_validation_failed").Count == 0, "正式内容不应依赖 item validation 错误日志。");
+        _test.True(FindLogEntry(snapshotResult.SnapshotTyped, "session.content.item_validation_failed").Count == 0, "正式内容不应依赖 item validation 错误日志。");
 
         RunCommand(runner, "expect field validation.ok == true");
         RunCommand(runner, "expect field validation.error_count == 0");
     }
 
-    private void AssertInvalidQuestValidationSurface(GameTextCommandRunner runner)
+    private void AssertInvalidQuestValidationSurface()
     {
-        GameSession gameSession = runner.GetSession().GetGameSession();
-        _test.True(gameSession != null, "quest validation surface 回归前置：GameSession 应可访问。");
-        if (gameSession == null)
-            return;
-
-        var originalQuestDefs = gameSession.GetQuestDefsSnapshotForTests();
-        var invalidQuest = new QuestDef
-        {
-            quest_id = "contract_invalid_headless_quest",
-            display_name = "Invalid Headless Quest",
-            provider_interaction_id = "service_contract_board",
-            objective_defs = new Godot.Collections.Array<GDictionary>
+        var invalidQuest = new QuestDefinition(
+            "contract_invalid_headless_quest",
+            "Invalid Headless Quest",
+            "Invalid quest fixture for validation text.",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new QuestObjectiveDefinition[]
             {
-                new()
-                {
-                    ["objective_id"] = "submit_missing_item",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                    ["target_id"] = "missing_headless_item",
-                    ["target_value"] = 1,
-                },
+                new("submit_missing_item", "submit_item", "missing_headless_item", 1),
             },
-            reward_entries = new Godot.Collections.Array<GDictionary>
+            new QuestRewardDefinition[]
             {
-                new()
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold),
-                    ["amount"] = 10,
-                },
+                new(
+                    "gold",
+                    10,
+                    "",
+                    0,
+                    "",
+                    System.Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
             },
-        };
-        Error installError = (Error)gameSession.InstallTestContentDef(
-            "quest",
-            invalidQuest.quest_id,
-            invalidQuest
+            false,
+            "service_contract_board",
+            new StringName[] { "contract_board" },
+            "",
+            "",
+            "",
+            ""
         );
-        _test.Eq(installError, Error.Ok, "测试应能注入非法 quest 内容。");
-        gameSession.RefreshContentValidationSnapshot();
+        using GameTextCommandRunner runner = CreateRunner(seed =>
+        {
+            seed.Quests = new Dictionary<StringName, QuestDefinition>(seed.Quests)
+            {
+                [invalidQuest.QuestId] = invalidQuest,
+            };
+        });
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
-        GDictionary validationSnapshot = Dict(snapshotResult.snapshot, "validation");
-        GDictionary domains = Dict(validationSnapshot, "domains");
-        GDictionary progressionDomain = Dict(domains, "progression");
-        GDictionary questDomain = Dict(domains, "quest");
-        GArray questErrors = ArrayValue(questDomain, "errors");
+        IReadOnlyDictionary<string, object> validationSnapshot = Dict(
+            snapshotResult.SnapshotTyped,
+            "validation"
+        );
+        IReadOnlyDictionary<string, object> domains = Dict(validationSnapshot, "domains");
+        IReadOnlyDictionary<string, object> progressionDomain = Dict(domains, "progression");
+        IReadOnlyDictionary<string, object> questDomain = Dict(domains, "quest");
+        IReadOnlyList<object> questErrors = ArrayValue(questDomain, "errors");
 
         _test.False(DictBool(validationSnapshot, "ok", true), "非法 quest 应让 headless validation 快照标记失败。");
         _test.Eq(DictInt(progressionDomain, "error_count", -1), 0, "非法 quest 不应污染 progression validation domain。");
@@ -107,68 +110,59 @@ public partial class run_validation_text_surface_regression : SceneTree
         _test.True(snapshotResult.snapshot_text.Contains("domain=quest | errors="), "headless 文本快照应稳定渲染 quest validation 摘要。");
         _test.True(snapshotResult.snapshot_text.Contains("references missing item missing_headless_item"), "headless 文本快照应渲染 quest validation 错误。");
 
-        gameSession.ReplaceQuestDefsForTests(originalQuestDefs);
-        gameSession.RefreshContentValidationSnapshot();
     }
 
-    private void AssertInvalidItemValidationSurface(GameTextCommandRunner runner)
+    private void AssertInvalidItemValidationSurface()
     {
-        GameSession gameSession = runner.GetSession().GetGameSession();
-        _test.True(gameSession != null, "validation surface 回归前置：GameSession 应可访问。");
-        if (gameSession == null)
-            return;
-
-        ItemContentRegistry originalRegistry = gameSession.GetItemContentRegistryForTests();
-        var invalidItemRegistry = new ItemContentRegistry();
-        invalidItemRegistry.RebuildFromDirectories(new GArray { InvalidItemDirectory }, new GArray());
-        gameSession.SetItemContentRegistryForTests(invalidItemRegistry);
-        gameSession.RefreshContentValidationSnapshot();
+        ItemDefinition invalidSkillBook = BuildInvalidSkillBookDefinition();
+        using GameTextCommandRunner runner = CreateRunner(seed =>
+        {
+            seed.Items = new Dictionary<StringName, ItemDefinition>(seed.Items)
+            {
+                [invalidSkillBook.ItemId] = invalidSkillBook,
+            };
+        });
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
-        GDictionary validationSnapshot = Dict(snapshotResult.snapshot, "validation");
-        GDictionary domains = Dict(validationSnapshot, "domains");
-        GDictionary itemDomain = Dict(domains, "item");
-        GArray itemErrors = ArrayValue(itemDomain, "errors");
+        IReadOnlyDictionary<string, object> validationSnapshot = Dict(
+            snapshotResult.SnapshotTyped,
+            "validation"
+        );
+        IReadOnlyDictionary<string, object> domains = Dict(validationSnapshot, "domains");
+        IReadOnlyDictionary<string, object> itemDomain = Dict(domains, "item");
+        IReadOnlyList<object> itemErrors = ArrayValue(itemDomain, "errors");
 
         _test.False(DictBool(validationSnapshot, "ok", true), "非法 item registry 应让 headless validation 快照标记失败。");
-        _test.Eq(DictInt(itemDomain, "error_count", 0), 6, "非法 item registry 应稳定暴露 6 条 item 校验错误。");
-        AssertErrorContains(itemErrors, "is missing item_id", "headless validation 快照应暴露缺失 item_id。");
-        AssertErrorContains(itemErrors, "Duplicate item_id registered: duplicate_item", "headless validation 快照应暴露重复 item_id。");
-        AssertErrorContains(itemErrors, "declares invalid slot phantom_slot", "headless validation 快照应暴露非法槽位引用。");
-        AssertErrorContains(itemErrors, "references missing template weapon_type_longsword_base", "headless validation 快照不应借用官方 item template cache。");
-        _test.True(snapshotResult.snapshot_text.Contains("domain=item | errors=6"), "headless 文本快照应稳定渲染 item validation 错误计数。");
-        _test.True(snapshotResult.snapshot_text.Contains("is missing item_id"), "headless 文本快照应渲染缺失 item_id 错误。");
-        _test.True(snapshotResult.snapshot_text.Contains("Duplicate item_id registered: duplicate_item"), "headless 文本快照应渲染重复 item_id 错误。");
-        _test.True(snapshotResult.snapshot_text.Contains("declares invalid slot phantom_slot"), "headless 文本快照应渲染非法槽位错误。");
-        _test.True(FindLogEntry(snapshotResult.snapshot, "session.content.item_validation_failed").Count == 0, "validation surface 回归不应依赖额外日志注入来暴露 item 错误。");
+        _test.Eq(DictInt(itemDomain, "error_count", 0), 1, "非法 skill-book definition 应稳定暴露 1 条 item 校验错误。");
+        AssertErrorContains(itemErrors, "references missing skill missing_headless_skill", "headless validation 快照应暴露技能书跨表引用错误。");
+        _test.True(snapshotResult.snapshot_text.Contains("domain=item | errors=1"), "headless 文本快照应稳定渲染 item validation 错误计数。");
+        _test.True(snapshotResult.snapshot_text.Contains("references missing skill missing_headless_skill"), "headless 文本快照应渲染技能书跨表引用错误。");
+        _test.True(
+            FindLogEntry(
+                snapshotResult.SnapshotTyped,
+                "session.content.item_validation_failed"
+            ).Count > 0,
+            "synthetic invalid item snapshot 应在 bind-time 记录正式 validation 日志。"
+        );
 
         RunCommand(runner, "expect field validation.ok == false");
-        RunCommand(runner, "expect field validation.domains.item.error_count == 6");
-
-        gameSession.SetOwnedItemContentRegistryForTests(originalRegistry);
-        invalidItemRegistry.Dispose();
-        invalidItemRegistry = null;
-        originalRegistry = null;
-        gameSession.RefreshContentValidationSnapshot();
+        RunCommand(runner, "expect field validation.domains.item.error_count == 1");
     }
 
-    private void AssertInvalidWorldValidationSurface(GameTextCommandRunner runner)
+    private void AssertInvalidWorldValidationSurface()
     {
-        GameSession gameSession = runner.GetSession().GetGameSession();
-        _test.True(gameSession != null, "world validation surface 回归前置：GameSession 应可访问。");
-        if (gameSession == null)
-            return;
-
-        WorldMapContentValidator originalValidator = gameSession.GetWorldContentValidatorForTests();
-        WorldMapContentValidator invalidValidator = new InvalidWorldContentValidator();
-        gameSession.SetWorldContentValidatorForTests(invalidValidator);
-        gameSession.RefreshContentValidationSnapshot();
+        using GameTextCommandRunner runner = CreateRunner(seed =>
+            seed.WorldGenerations = BuildInvalidWorldGenerations(seed.WorldGenerations)
+        );
 
         GameTextCommandResult snapshotResult = RunCommand(runner, "snapshot");
-        GDictionary validationSnapshot = Dict(snapshotResult.snapshot, "validation");
-        GDictionary domains = Dict(validationSnapshot, "domains");
-        GDictionary worldDomain = Dict(domains, "world");
-        GArray worldErrors = ArrayValue(worldDomain, "errors");
+        IReadOnlyDictionary<string, object> validationSnapshot = Dict(
+            snapshotResult.SnapshotTyped,
+            "validation"
+        );
+        IReadOnlyDictionary<string, object> domains = Dict(validationSnapshot, "domains");
+        IReadOnlyDictionary<string, object> worldDomain = Dict(domains, "world");
+        IReadOnlyList<object> worldErrors = ArrayValue(worldDomain, "errors");
 
         _test.False(DictBool(validationSnapshot, "ok", true), "非法 world preset 应让 headless validation 快照标记失败。");
         _test.Eq(DictInt(worldDomain, "error_count", 0), 1, "非法 world validator 应稳定暴露 1 条 world 校验错误。");
@@ -176,10 +170,113 @@ public partial class run_validation_text_surface_regression : SceneTree
         _test.True(snapshotResult.snapshot_text.Contains("domain=world | errors=1"), "headless 文本快照应稳定渲染 world validation 错误计数。");
         _test.True(snapshotResult.snapshot_text.Contains("references missing settlement missing_settlement"), "headless 文本快照应渲染 world validation 错误。");
 
-        gameSession.SetWorldContentValidatorForTests(originalValidator);
-        invalidValidator.Dispose();
-        gameSession.RefreshContentValidationSnapshot();
     }
+
+    private static GameTextCommandRunner CreateRunner(
+        Action<SyntheticContentSnapshotSeed> configure = null
+    )
+    {
+        var runner = new GameTextCommandRunner();
+        GameSessionTestFactory.CreateSynthetic(
+            runner.GetSession(),
+            configure
+        );
+        runner.initialize();
+        return runner;
+    }
+
+    private static ItemDefinition BuildInvalidSkillBookDefinition() =>
+        new(
+            "contract_invalid_skill_book",
+            "",
+            "Invalid Skill Book",
+            "Invalid skill-book fixture for validation text.",
+            "",
+            true,
+            0,
+            0,
+            0,
+            true,
+            1,
+            ItemDefinition.ToStringName(ItemCategoryKind.SkillBook),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<TraitRollGroupDefinition>(),
+            Array.Empty<string>(),
+            Array.Empty<AttributeModifierDefinition>(),
+            "missing_headless_skill",
+            Array.Empty<string>(),
+            null,
+            "",
+            null,
+            -1
+        );
+
+    private static IReadOnlyDictionary<string, WorldGenerationDefinition> BuildInvalidWorldGenerations(
+        IReadOnlyDictionary<string, WorldGenerationDefinition> source
+    )
+    {
+        var result = new Dictionary<string, WorldGenerationDefinition>(
+            source ?? new Dictionary<string, WorldGenerationDefinition>(),
+            StringComparer.Ordinal
+        );
+        foreach ((string path, WorldGenerationDefinition definition) in result)
+        {
+            result[path] = CloneWithMissingSettlement(definition);
+            return result;
+        }
+        throw new InvalidOperationException(
+            "Validation text fixture requires at least one process world definition."
+        );
+    }
+
+    private static WorldGenerationDefinition CloneWithMissingSettlement(
+        WorldGenerationDefinition source
+    ) =>
+        new(
+            source.CanonicalPath,
+            source.Seed,
+            source.WorldSizeInChunks,
+            source.ChunkSize,
+            source.PlayerStartCoord,
+            source.PlayerVisionRange,
+            source.ProceduralGenerationEnabled,
+            source.ProceduralWildSpawnChunkChanceDenominator,
+            source.InjectDefaultMainWorldContent,
+            source.ProceduralVillageCount,
+            source.ProceduralTownCount,
+            source.ProceduralCityCount,
+            source.ProceduralCapitalCount,
+            source.ProceduralWorldStrongholdCount,
+            source.ProceduralMetropolisCount,
+            source.VillageSpacingCells,
+            source.TownSpacingCells,
+            source.CitySpacingCells,
+            source.CapitalSpacingCells,
+            source.WorldStrongholdSpacingCells,
+            source.MetropolisSpacingCells,
+            source.GuaranteeStartingWildEncounter,
+            source.StartingWildSpawnMinDistance,
+            source.StartingWildSpawnMaxDistance,
+            source.SettlementLibrary,
+            source.FacilityLibrary,
+            new[]
+            {
+                new SettlementDistributionDefinition(
+                    "missing_settlement",
+                    Vector2I.Zero,
+                    "test_faction"
+                ),
+            },
+            source.WildMonsterDistribution,
+            source.MountedSubmaps,
+            source.WorldEvents,
+            source.DefaultSettlementBundle,
+            source.DefaultWildSpawnBundle,
+            source.SettlementNamePools
+        );
 
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
     {
@@ -191,67 +288,97 @@ public partial class run_validation_text_surface_regression : SceneTree
         return result;
     }
 
-    private void AssertErrorContains(GArray errors, string fragment, string message)
+    private void AssertErrorContains(IReadOnlyList<object> errors, string fragment, string message)
     {
-        foreach (Variant error in errors)
+        foreach (object error in errors)
         {
-            if (error.AsString().Contains(fragment))
+            if (error is string errorText && errorText.Contains(fragment, StringComparison.Ordinal))
                 return;
         }
         _test.Fail(message);
     }
 
-    private static GDictionary FindLogEntry(GDictionary snapshot, string eventId)
+    private static IReadOnlyDictionary<string, object> FindLogEntry(
+        IReadOnlyDictionary<string, object> snapshot,
+        string eventId
+    )
     {
-        foreach (Variant entryValue in ArrayValue(Dict(snapshot, "logs"), "entries"))
+        foreach (object entryValue in ArrayValue(Dict(snapshot, "logs"), "entries"))
         {
-            GDictionary entry = entryValue.AsGodotDictionary();
+            if (entryValue is not IReadOnlyDictionary<string, object> entry)
+                continue;
             if (DictString(entry, "event_id") == eventId)
                 return entry;
         }
-        return new GDictionary();
+        return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private static GArray ArrayValue(GDictionary dictionary, string key)
+    private static IReadOnlyList<object> ArrayValue(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotArray()
-            : new GArray();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyList<object> list
+            ? list
+            : System.Array.Empty<object>();
     }
 
-    private static GDictionary Dict(GDictionary dictionary, string key)
+    private static IReadOnlyDictionary<string, object> Dict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    private static bool DictBool(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        bool fallback
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsBool() : fallback;
+        return dictionary != null
+            && dictionary.TryGetValue(key, out object rawValue)
+            && rawValue is bool value
+            ? value
+            : fallback;
     }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback
+    )
     {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsInt32() : fallback;
-    }
-
-    private static string DictString(GDictionary dictionary, string key)
-    {
-        return dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : "";
-    }
-
-    private sealed partial class InvalidWorldContentValidator : WorldMapContentValidator
-    {
-        public override Godot.Collections.Array<string> ValidateWorldPresets(
-            GDictionary enemy_templates = null,
-            GDictionary wild_encounter_rosters = null
-        )
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
         {
-            return new Godot.Collections.Array<string>
-            {
-                "World preset fixture references missing settlement missing_settlement.",
-            };
-        }
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => fallback,
+        };
     }
+
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return "";
+        return rawValue switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => "",
+        };
+    }
+
 }

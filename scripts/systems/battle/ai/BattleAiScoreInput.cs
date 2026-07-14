@@ -7,7 +7,7 @@ using GArray = Godot.Collections.Array;
 public sealed class BattleAiScoreInput
 {
     public BattleCommand command { get; set; }
-    public SkillDef skill_def { get; set; }
+    public StringName skill_id { get; set; } = "";
     public BattlePreview preview { get; set; }
     public StringName action_kind { get; set; } = "skill";
     public string action_label { get; set; } = "";
@@ -62,6 +62,7 @@ public sealed class BattleAiScoreInput
     public Dictionary<StringName, List<DamageSaveEstimate>> save_estimates_by_target_id { get; set; } = new();
     public Dictionary<StringName, List<DamageEstimateBreakdown>> damage_estimates_by_target_id { get; set; } = new();
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }
+    public BattleAiLayeredBarrierProjection layered_barrier_projection { get; set; }
     public List<MeteorSwarmNumericSummary> target_numeric_summary { get; set; } = new();
     public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summary { get; set; } = new();
     public string friendly_fire_reject_reason { get; set; } = "";
@@ -212,9 +213,9 @@ public sealed class BattleAiScoreInput
         {
             resolvedSkillId = runtime_action_metadata.skill_id.ToString();
         }
-        else if (skill_def != null)
+        else if (skill_id != "")
         {
-            resolvedSkillId = skill_def.skill_id.ToString();
+            resolvedSkillId = skill_id.ToString();
         }
 
         string resolvedCommandUnitId = "";
@@ -296,6 +297,9 @@ public sealed class BattleAiScoreInput
             ["special_profile_preview_facts"] = ToTraceDictionary(
                 special_profile_preview_facts
             ),
+            ["layered_barrier_projection"] =
+                layered_barrier_projection?.ToTraceDictionary()
+                ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
             ["target_numeric_summary"] = ToTraceNumericSummaryList(target_numeric_summary),
             ["friendly_fire_numeric_summary"] = ToTraceNumericSummaryList(
                 friendly_fire_numeric_summary
@@ -364,9 +368,9 @@ public sealed class BattleAiScoreInput
         {
             resolvedSkillId = runtime_action_metadata.skill_id.ToString();
         }
-        else if (skill_def != null)
+        else if (skill_id != "")
         {
-            resolvedSkillId = skill_def.skill_id.ToString();
+            resolvedSkillId = skill_id.ToString();
         }
 
         var builder = new System.Text.StringBuilder();
@@ -569,6 +573,11 @@ public sealed class BattleAiScoreInput
             builder,
             "special_profile_preview_facts",
             special_profile_preview_facts
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "layered_barrier_projection",
+            layered_barrier_projection
         );
         AppendNamedValueFingerprint(builder, "target_numeric_summary", target_numeric_summary);
         AppendNamedValueFingerprint(
@@ -1137,20 +1146,4 @@ public sealed class BattleAiScoreInput
         return result;
     }
 
-    private static GArray ToStringArray(IEnumerable<string> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (string value in values)
-        {
-            if (!string.IsNullOrEmpty(value))
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
 }

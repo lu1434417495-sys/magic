@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 internal readonly record struct BattleCommonSkillTargetResult(
@@ -14,14 +15,16 @@ internal class BattleCommonSkillOutcome
     public StringName skill_id { get; set; } = "";
     public int total_damage { get; set; }
     public int total_healing { get; set; }
-    public Godot.Collections.Array<StringName> defeated_unit_ids { get; set; } = new();
-    public Godot.Collections.Array<StringName> changed_unit_ids { get; set; } = new();
-    public Godot.Collections.Array<Vector2I> changed_coords { get; set; } = new();
-    public Godot.Collections.Array<string> log_lines { get; set; } = new();
-    public Godot.Collections.Array<Godot.Collections.Dictionary> report_entries { get; set; } =
-        new();
+    public StringNameList defeated_unit_ids { get; set; } = new();
+    public StringNameList changed_unit_ids { get; set; } = new();
+    public Vector2IList changed_coords { get; set; } = new();
+    public StringList log_lines { get; set; } = new();
     public List<BattleCommonSkillTargetResult> target_results { get; } = new();
     public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
+
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
 
     internal void AddChangedUnitId(StringName unit_id)
     {
@@ -81,6 +84,33 @@ internal class BattleCommonSkillOutcome
                 existing.Add(statusId);
             }
         }
+    }
+
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
+    {
+        if (reportEntry == null || reportEntry.Count == 0)
+        {
+            return;
+        }
+        _reportEntries.Add(
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
+            )
+        );
+    }
+
+    private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result;
     }
 
     private static bool IsEmpty(StringName value)

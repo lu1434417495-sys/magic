@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_ettin_ore"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"ettin_ore"
+drop_type = &"item"
+item_id = &"iron_ore"
+quantity = 2
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"ettin"
+display_name = "双头巨人"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+body_size = 3
+creature_level = 7
+hit_die_sides = 10
+action_threshold = 50
+tags = Array[StringName]([&"giant", &"ettin"])
+save_advantage_tags = Array[StringName]([&"sleep_advantage", &"illusion_advantage"])
+attack_equipment_item_id = &"iron_greatclub"
+base_attribute_overrides = {
+&"strength": 21,
+&"agility": 8,
+&"constitution": 17,
+&"perception": 14,
+&"intelligence": 6,
+&"willpower": 8,
+}
+skill_ids = Array[StringName]([&"warrior_heavy_strike"])
+target_rank = &"elite"
+drop_entries = Array[Resource]([SubResource("Resource_drop_ettin_ore")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

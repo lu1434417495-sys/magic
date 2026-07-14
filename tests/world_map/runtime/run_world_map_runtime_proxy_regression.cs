@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using RuntimeCommandResult = GameRuntimeFacade.RuntimeCommandResult;
 
-public partial class run_world_map_runtime_proxy_regression : SceneTree
+public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
 {
     private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -20,18 +19,13 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
     private sealed class RuntimeFixture : IDisposable
     {
         public GameRuntimeFacade Runtime { get; init; }
-        public PartyState PartyState { get; init; }
         public WorldMapGenerationConfig GenerationConfig { get; init; }
         public GDictionary ItemDefs { get; init; }
-        public GDictionary SkillDefs { get; init; }
 
         public void Dispose()
         {
             Runtime?.Dispose();
-            DisposeOwned(PartyState);
-            DisposeOwned(GenerationConfig);
-            DisposeDictionaryObjects(ItemDefs);
-            DisposeDictionaryObjects(SkillDefs);
+            ItemDefs?.Clear();
         }
     }
 
@@ -48,8 +42,7 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         TestWarehouseUseTypedOptionsDelegateToRuntime();
         TestMissingRuntimeReturnsError();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("World map runtime proxy regression"));
+        RequestTestExit(_test.Finish("World map runtime proxy regression"));
     }
 
     private void TestGettersForwardToRuntime()
@@ -71,13 +64,14 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             "进入灰烬地图",
             ""
         );
-        runtime.SetPendingBattleStartPrompt(new GDictionary
+        using GDictionary pendingBattlePrompt = new()
         {
             ["title"] = "开始战斗",
             ["confirm_text"] = "开始战斗",
-        });
-        runtime.SetBattleSelectionTargetUnitIdsState(
-            new GStringNameArray { "enemy_alpha", "enemy_beta" }
+        };
+        runtime.SetPendingBattleStartPrompt(pendingBattlePrompt);
+        runtime.SetBattleSelectionTargetUnitIdsStateTyped(
+            new[] { new StringName("enemy_alpha"), new StringName("enemy_beta") }
         );
 
         WorldMapRuntimeProxy proxy = new();
@@ -97,7 +91,9 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             _test.Eq(viewModel.PlayerCoord, runtime.GetPlayerCoord(), "World view model 应读取 player coord。");
             _test.Eq(viewModel.SelectedCoord, runtime.GetSelectedCoord(), "World view model 应读取 selected coord。");
             _test.False(viewModel.PlayerVisible, "World view model 应读取 player visibility。");
-            _test.Eq(proxy.GetPendingBattleStartPrompt()["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
+            using GodotProjectionLease<GDictionary> battlePromptLease =
+                proxy.GetPendingBattleStartPromptLease();
+            _test.Eq(battlePromptLease.Value["confirm_text"].AsString(), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。");
             _test.Eq(proxy.GetPendingSubmapPrompt()["target_display_name"].AsString(), "灰烬地图", "GetPendingSubmapPrompt() 应直接读取 runtime。");
             _test.False(proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。");
             _test.True(proxy.IsSubmapActive(), "IsSubmapActive() 应直接读取 runtime。");
@@ -111,7 +107,6 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -127,16 +122,18 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         proxy.Setup(runtime);
         try
         {
-            GDictionary headlessSnapshot = proxy.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> headlessSnapshotLease =
+                proxy.BuildHeadlessSnapshotLease();
+            GDictionary headlessSnapshot = headlessSnapshotLease.Value;
             _test.Eq(
                 DictString(Dict(headlessSnapshot, "status"), "text", ""),
                 "runtime-status",
-                "BuildHeadlessSnapshot() 应返回 runtime 快照。"
+                "BuildHeadlessSnapshotPlain() 应返回 runtime 快照。"
             );
             _test.Eq(
                 DictString(Dict(headlessSnapshot, "world"), "map_id", ""),
                 "snapshot_map",
-                "BuildHeadlessSnapshot() 应包含 runtime 世界上下文。"
+                "BuildHeadlessSnapshotPlain() 应包含 runtime 世界上下文。"
             );
             _test.Eq(
                 proxy.BuildTextSnapshot(),
@@ -148,7 +145,6 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -179,30 +175,22 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             proxy.Dispose();
             fixture.Dispose();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
     private void TestMissingRuntimeReturnsError()
     {
         WorldMapRuntimeProxy proxy = new();
-        try
-        {
-            proxy.Setup(null);
-            RuntimeCommandResult result = proxy.CommandWorldMove(Vector2I.Right, 1);
-            _test.False(result.Ok, "缺少 runtime 时命令应返回失败。");
-            _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
-            _test.Eq(
-                result.Code,
-                GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
-                "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
-            );
-            _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
-        }
-        finally
-        {
-            proxy.Dispose();
-        }
+        proxy.Setup(null);
+        RuntimeCommandResult result = proxy.CommandWorldMove(Vector2I.Right, 1);
+        _test.False(result.Ok, "缺少 runtime 时命令应返回失败。");
+        _test.Eq(result.Message, "运行时尚未初始化。", "缺少 runtime 时应返回正式错误文案。");
+        _test.Eq(
+            result.Code,
+            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable,
+            "缺少 runtime 时 typed command 应返回 RuntimeUnavailable。"
+        );
+        _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
     }
 
     private void TestWarehouseUseTypedOptionsDelegateToRuntime()
@@ -308,7 +296,6 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         finally
         {
             runner.Dispose(true);
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -322,15 +309,19 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         if (memberState?.progression == null)
             return new BookSkillPickData();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)
@@ -345,40 +336,38 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
 
     private static RuntimeFixture BuildRuntime(PartyState partyState)
     {
-        GDictionary skillDefs = BuildSkillDefs();
+        Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
         GDictionary itemDefs = BuildItemDefs();
         WorldMapGenerationConfig generationConfig = new();
+        WorldGenerationDefinition generationDefinition =
+            TestWorldGenerationDefinitionFactory.Project(
+                "res://tests/world_map/runtime/runtime_proxy_generation.tres",
+                generationConfig
+            );
         GameRuntimeFacade runtime = new()
         {
             _party_state = partyState,
-            _generation_config = generationConfig,
+            _generation_definition = generationDefinition,
         };
-        runtime._world_map_data_context.active_generation_config = generationConfig;
-        runtime._world_map_data_context.active_world_data = new GDictionary
+        runtime._world_map_data_context.active_generation_definition = generationDefinition;
+        runtime._world_map_data_context.SetActiveWorldData(new GDictionary
         {
             ["world_step"] = 0,
             ["world_events"] = new Godot.Collections.Array(),
             ["encounter_anchors"] = new Godot.Collections.Array(),
-        };
+        });
         runtime._character_management.setup(
             partyState,
-            skillDefs,
-            new GDictionary(),
-            new GDictionary(),
-            itemDefs
+            skillDefinitions,
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            BuildTypedItemDefs(itemDefs)
         );
         runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
         runtime._party_item_use_service.Setup(
             partyState,
-            new Dictionary<StringName, ItemDef>
-            {
-                ["skill_book_focus"] = (ItemDef)
-                    itemDefs[new StringName("skill_book_focus")].AsGodotObject(),
-            },
-            new Dictionary<StringName, SkillDef>
-            {
-                ["focus"] = (SkillDef)skillDefs[new StringName("focus")].AsGodotObject(),
-            },
+            BuildTypedItemDefs(itemDefs),
+            skillDefinitions,
             runtime._party_warehouse_service,
             runtime._character_management
         );
@@ -390,31 +379,35 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         return new RuntimeFixture
         {
             Runtime = runtime,
-            PartyState = partyState,
             GenerationConfig = generationConfig,
             ItemDefs = itemDefs,
-            SkillDefs = skillDefs,
         };
     }
 
     private static GDictionary BuildItemDefs()
     {
-        GDictionary result = new();
-        result[new StringName("skill_book_focus")] = new ItemDef
-        {
-            item_id = "skill_book_focus",
-            display_name = "Focus Manual",
-            CategoryKind = ItemCategoryKind.SkillBook,
-            is_stackable = true,
-            max_stack = 20,
-            granted_skill_id = "focus",
-        };
+        GDictionary result = TestResourceOwnership.OwnWrapper(
+            new GDictionary(),
+            "world_map_runtime_proxy.item_defs"
+        );
+        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
+            new ItemDef
+            {
+                item_id = "skill_book_focus",
+                display_name = "Focus Manual",
+                CategoryKind = ItemCategoryKind.SkillBook,
+                is_stackable = true,
+                max_stack = 20,
+                granted_skill_id = "focus",
+            },
+            "world_map_runtime_proxy.skill_book_focus"
+        );
         return result;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildTypedItemDefs(GDictionary itemDefs)
+    private static Dictionary<StringName, ItemDefinition> BuildTypedItemDefs(GDictionary itemDefs)
     {
-        Dictionary<StringName, ItemDef> result = new();
+        Dictionary<StringName, ItemDefinition> result = new();
         foreach (Variant rawKey in itemDefs.Keys)
         {
             if (rawKey.VariantType != Variant.Type.StringName)
@@ -423,22 +416,47 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             if (itemId == "")
                 continue;
             if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
+                result[itemId] = itemDef.ToDefinition();
         }
         return result;
     }
 
-    private static GDictionary BuildSkillDefs()
+    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
     {
-        GDictionary result = new();
-        result[new StringName("focus")] = new SkillDef
-        {
-            skill_id = "focus",
-            display_name = "Focus",
-            learn_source = "book",
-            skill_type = "passive",
-            max_level = 1,
-        };
+        Dictionary<StringName, SkillDefinition> result = new();
+        StringName skillId = "focus";
+        result[skillId] = new SkillDefinition(
+            skillId,
+            "Focus",
+            "",
+            "",
+            "passive",
+            1,
+            1,
+            "",
+            0,
+            0,
+            Array.Empty<int>(),
+            Array.Empty<StringName>(),
+            "book",
+            Array.Empty<StringName>(),
+            "",
+            Array.Empty<StringName>(),
+            new Dictionary<StringName, int>(),
+            new Dictionary<StringName, int>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            false,
+            "",
+            Array.Empty<StringName>(),
+            "",
+            new Dictionary<StringName, int>(),
+            "",
+            Array.Empty<AttributeModifierDefinition>(),
+            "",
+            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            null
+        );
         return result;
     }
 
@@ -448,8 +466,8 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         {
             leader_member_id = "hero",
             main_character_member_id = "hero",
-            active_member_ids = new GStringNameArray { "hero" },
-            reserve_member_ids = new GStringNameArray { "mage" },
+            active_member_ids = new StringNameList { "hero" },
+            reserve_member_ids = new StringNameList { "mage" },
         };
         partyState.SetMemberState(BuildMember("hero", "Hero"));
         partyState.SetMemberState(BuildMember("mage", "Mage"));
@@ -495,28 +513,11 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
             : fallback;
     }
 
-    private static void DisposeDictionaryObjects(GDictionary dictionary)
-    {
-        if (dictionary == null)
-            return;
-        foreach (Variant value in dictionary.Values)
-        {
-            if (value.VariantType != Variant.Type.Object)
-                continue;
-            DisposeOwned(value.AsGodotObject());
-        }
-        dictionary.Clear();
-    }
-
-    private static void DisposeOwned(GodotObject owned)
-    {
-        if (owned == null || !GodotObject.IsInstanceValid(owned))
-            return;
-        GC.SuppressFinalize(owned);
-        owned.Dispose();
-    }
-
-    private void AssertSequence(GStringNameArray actual, string[] expected, string message)
+    private void AssertSequence(
+        IReadOnlyList<StringName> actual,
+        string[] expected,
+        string message
+    )
     {
         List<string> values = new();
         if (actual != null)

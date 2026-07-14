@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_kobold_ore"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"kobold_ore"
+drop_type = &"item"
+item_id = &"iron_ore"
+quantity = 1
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"kobold_skirmisher"
+display_name = "狗头人游击兵"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+enemy_count = 3
+creature_level = 1
+hit_die_sides = 6
+action_threshold = 25
+tags = Array[StringName]([&"humanoid", &"kobold"])
+save_advantage_tags = Array[StringName]([&"frightened_disadvantage"])
+attack_equipment_item_id = &"iron_dagger"
+base_attribute_overrides = {
+&"strength": 8,
+&"agility": 14,
+&"constitution": 10,
+&"perception": 11,
+&"intelligence": 9,
+&"willpower": 8,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_kobold_ore")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

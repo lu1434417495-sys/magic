@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyTemplateDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/DropEntryDef.cs" id="2_dropdef"]
+
+[sub_resource type="Resource" id="Resource_drop_spider_silk"]
+script = ExtResource("2_dropdef")
+drop_entry_id = &"spider_silk"
+drop_type = &"item"
+item_id = &"linen_cloth"
+quantity = 2
+
+[resource]
+script = ExtResource("1_template")
+template_id = &"giant_spider"
+display_name = "巨蛛"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+creature_level = 3
+hit_die_sides = 8
+action_threshold = 30
+tags = Array[StringName]([&"beast", &"spider", &"bite"])
+save_advantage_tags = Array[StringName]([&"charm_advantage"])
+base_attribute_overrides = {
+&"strength": 14,
+&"agility": 15,
+&"constitution": 12,
+&"perception": 12,
+&"intelligence": 2,
+&"willpower": 8,
+}
+skill_ids = Array[StringName]([&"basic_attack"])
+drop_entries = Array[Resource]([SubResource("Resource_drop_spider_silk")])
+attribute_overrides = {
+&"mp_max": 0,
+&"action_points": 2,
+}

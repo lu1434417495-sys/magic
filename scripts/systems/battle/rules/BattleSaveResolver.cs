@@ -182,22 +182,22 @@ public static class BattleSaveResolver
     public static BattleSaveResult ResolveSaveResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        int resolvedDc = ResolveSaveDc(source_unit, effect_def, context);
-        if (target_unit == null || effect_def == null || resolvedDc <= 0)
+        int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
+        if (target_unit == null || effect_definition == null || resolvedDc <= 0)
         {
             return BattleSaveResult.Empty(AdvantageStateNormal);
         }
 
-        StringName saveTag = ToStringName(effect_def.save_tag);
-        StringName saveAbility = ToStringName(effect_def.save_ability);
+        StringName saveTag = ToStringName(effect_definition.SaveTag);
+        StringName saveAbility = ToStringName(effect_definition.SaveAbility);
         BattleSaveTagState tagState = CollectSaveTagState(target_unit, saveTag);
         if (tagState.Immune)
         {
-            return new BattleSaveResult(
+            BattleSaveResult immuneResult = new(
                 true,
                 true,
                 true,
@@ -215,13 +215,17 @@ public static class BattleSaveResolver
             {
                 Degree = BattleSaveDegreeKind.CriticalSuccess,
             };
+            ConsumeOneShotSaveStatuses(target_unit);
+            return immuneResult;
         }
 
         StringName advantageState = ResolveAdvantageState(tagState);
         int naturalRoll = RollSaveDie(advantageState, context);
         int abilityValue = GetTargetAbilityValue(target_unit, saveAbility);
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
-        int saveBonus = GetStatusSaveBonus(target_unit, saveTag);
+        int saveBonus =
+            GetStatusSaveBonus(target_unit, saveTag)
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
         int rollTotal = naturalRoll + abilityModifier + saveBonus;
         bool success = DoesNaturalSaveRollSucceed(
             naturalRoll,
@@ -229,7 +233,7 @@ public static class BattleSaveResolver
             abilityModifier,
             saveBonus
         );
-        return new BattleSaveResult(
+        BattleSaveResult result = new(
             true,
             false,
             success,
@@ -247,6 +251,23 @@ public static class BattleSaveResolver
         {
             Degree = ResolveSaveDegree(naturalRoll, rollTotal, resolvedDc),
         };
+        ConsumeOneShotSaveStatuses(target_unit);
+        return result;
+    }
+
+    private static void ConsumeOneShotSaveStatuses(BattleUnitState targetUnit)
+    {
+        if (targetUnit == null)
+            return;
+        List<StringName> consumedStatusIds = new();
+        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = targetUnit.GetStatusEffect(statusId);
+            if (status?.consume_on_next_save == true)
+                consumedStatusIds.Add(statusId);
+        }
+        foreach (StringName statusId in consumedStatusIds)
+            targetUnit.EraseStatusEffect(statusId);
     }
 
     internal static BattleSaveDegreeKind ResolveSaveDegree(int naturalRoll, int rollTotal, int dc)
@@ -274,18 +295,18 @@ public static class BattleSaveResolver
     public static BattleSaveProbabilityResult EstimateSaveSuccessProbabilityResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        int resolvedDc = ResolveSaveDc(source_unit, effect_def, context);
-        if (target_unit == null || effect_def == null || resolvedDc <= 0)
+        int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
+        if (target_unit == null || effect_definition == null || resolvedDc <= 0)
         {
             return BattleSaveProbabilityResult.Empty(AdvantageStateNormal);
         }
 
-        StringName saveTag = ToStringName(effect_def.save_tag);
-        StringName saveAbility = ToStringName(effect_def.save_ability);
+        StringName saveTag = ToStringName(effect_definition.SaveTag);
+        StringName saveAbility = ToStringName(effect_definition.SaveAbility);
         int abilityValue = GetTargetAbilityValue(target_unit, saveAbility);
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
         BattleSaveTagState tagState = CollectSaveTagState(target_unit, saveTag);
@@ -308,7 +329,9 @@ public static class BattleSaveResolver
         }
 
         StringName advantageState = ResolveAdvantageState(tagState);
-        int saveBonus = GetStatusSaveBonus(target_unit, saveTag);
+        int saveBonus =
+            GetStatusSaveBonus(target_unit, saveTag)
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
         int successBasisPoints = EstimateSuccessProbabilityBasisPoints(
             advantageState,
             resolvedDc,
@@ -334,22 +357,22 @@ public static class BattleSaveResolver
 
     public static int ResolveSaveDc(
         BattleUnitState source_unit,
-        CombatEffectDef effect_def,
+        CombatEffectDefinition effect_definition,
         BattleSaveContext context = default
     )
     {
-        if (effect_def == null)
+        if (effect_definition == null)
         {
             return 0;
         }
         int lockedSkillHitBonus = GetSkillLockHitBonusFromContext(source_unit, context);
-        if (effect_def.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
+        if (effect_definition.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
         {
-            int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_def);
+            int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_definition);
             return casterDc > 0 ? casterDc + lockedSkillHitBonus : 0;
         }
 
-        int staticDc = Math.Max(effect_def.save_dc, 0);
+        int staticDc = Math.Max(effect_definition.SaveDc, 0);
         return staticDc > 0 ? staticDc + lockedSkillHitBonus : 0;
     }
 
@@ -360,14 +383,14 @@ public static class BattleSaveResolver
 
     private static int ResolveCasterSpellSaveDc(
         BattleUnitState sourceUnit,
-        CombatEffectDef effectDef
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (sourceUnit == null || sourceUnit.attribute_snapshot == null || effectDef == null)
+        if (sourceUnit == null || sourceUnit.attribute_snapshot == null || effectDefinition == null)
         {
             return 0;
         }
-        StringName sourceAbility = ToStringName(effectDef.save_dc_source_ability);
+        StringName sourceAbility = ToStringName(effectDefinition.SaveDcSourceAbility);
         if (IsEmpty(sourceAbility))
         {
             return 0;
@@ -713,6 +736,17 @@ public static class BattleSaveResolver
             return 0;
         }
         return Math.Max(sourceUnit.GetKnownSkillLockHitBonusTyped(skillId), 0);
+    }
+
+    private static int GetUnitAbilitySaveBonus(BattleUnitState targetUnit, StringName saveAbility)
+    {
+        if (targetUnit?.save_bonus_by_ability == null || IsEmpty(saveAbility))
+        {
+            return 0;
+        }
+        return targetUnit.save_bonus_by_ability.TryGetValue(saveAbility, out int bonus)
+            ? bonus
+            : 0;
     }
 
     private static int GetStatusSaveBonus(BattleUnitState targetUnit, StringName saveTag)

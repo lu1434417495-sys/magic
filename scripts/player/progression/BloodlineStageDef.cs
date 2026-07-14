@@ -26,4 +26,10 @@ public partial class BloodlineStageDef : Resource
 
     [Export]
     public Godot.Collections.Array<string> trait_summary = new();
+
+    internal Godot.Collections.Array<Resource> AttributeModifiersBorrowed => attribute_modifiers;
+    internal Godot.Collections.Array<StringName> TraitIdsBorrowed => trait_ids;
+    internal Godot.Collections.Array<RacialGrantedSkill> RacialGrantedSkillsBorrowed =>
+        racial_granted_skills;
+    internal Godot.Collections.Array<string> TraitSummaryBorrowed => trait_summary;
 }

@@ -26,11 +26,16 @@ public readonly struct AttackCheckInput
     public readonly int CritGateDie;
     public readonly int EffectiveLuck;
     public readonly bool ForceHitNoCrit;
+    public readonly bool ForceCriticalOnHit;
+    public readonly StringName ForcedCriticalSourceEquipmentInstanceId;
+    public readonly StringName ForcedCriticalSourceBindingId;
+    public readonly StringName ForcedCriticalSourceActionId;
 
     public readonly StringName SkillId;
     public readonly int FollowUpAttackPenalty;
     public readonly bool ExponentialPenalty;
     public readonly bool IsDisadvantage;
+    public readonly bool IsAdvantage;
 
     public readonly bool Invalid;
     public readonly StringName ErrorId;
@@ -59,10 +64,15 @@ public readonly struct AttackCheckInput
         int critGateDie = 0,
         int effectiveLuck = 0,
         bool forceHitNoCrit = false,
+        bool forceCriticalOnHit = false,
+        StringName forcedCriticalSourceEquipmentInstanceId = null,
+        StringName forcedCriticalSourceBindingId = null,
+        StringName forcedCriticalSourceActionId = null,
         StringName skillId = null,
         int followUpAttackPenalty = 0,
         bool exponentialPenalty = false,
         bool isDisadvantage = false,
+        bool isAdvantage = false,
         bool invalid = false,
         StringName errorId = null,
         string errorMessage = "",
@@ -90,10 +100,16 @@ public readonly struct AttackCheckInput
         CritGateDie = critGateDie;
         EffectiveLuck = effectiveLuck;
         ForceHitNoCrit = forceHitNoCrit;
+        ForceCriticalOnHit = forceCriticalOnHit;
+        ForcedCriticalSourceEquipmentInstanceId =
+            forcedCriticalSourceEquipmentInstanceId ?? new StringName("");
+        ForcedCriticalSourceBindingId = forcedCriticalSourceBindingId ?? new StringName("");
+        ForcedCriticalSourceActionId = forcedCriticalSourceActionId ?? new StringName("");
         SkillId = skillId ?? new StringName("");
         FollowUpAttackPenalty = followUpAttackPenalty;
         ExponentialPenalty = exponentialPenalty;
         IsDisadvantage = isDisadvantage;
+        IsAdvantage = isAdvantage;
         Invalid = invalid;
         ErrorId = errorId ?? new StringName("");
         ErrorMessage = errorMessage ?? "";

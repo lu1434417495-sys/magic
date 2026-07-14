@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using Godot;
-public partial class run_wild_encounter_growth_system_regression : SceneTree
+public partial class run_wild_encounter_growth_system_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,18 +15,18 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         TestBattleVictoryUsesTypedRosterFields();
         TestMissingRosterIsRejected();
 
-        Quit(_test.Finish("Wild encounter growth system regression"));
+        RequestTestExit(_test.Finish("Wild encounter growth system regression"));
     }
 
     private void TestStepAdvanceUsesTypedRosterFields()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
         using WildEncounterRosterDef roster = BuildRoster();
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
-        var rosters = new Dictionary<StringName, WildEncounterRosterDef>
+        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>
         {
-            ["wolf_den"] = roster,
+            ["wolf_den"] = roster.ToDefinition(),
         };
 
         bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 2, rosters);
@@ -42,11 +42,11 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     private void TestBattleVictoryUsesTypedRosterFields()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
         using WildEncounterRosterDef roster = BuildRoster();
-        var rosters = new Dictionary<StringName, WildEncounterRosterDef>
+        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>
         {
-            ["wolf_den"] = roster,
+            ["wolf_den"] = roster.ToDefinition(),
         };
 
         bool changed = growthSystem.ApplyBattleVictory(encounterAnchor, 5, rosters);
@@ -63,13 +63,13 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     private void TestMissingRosterIsRejected()
     {
         WildEncounterGrowthSystem growthSystem = new();
-        using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
+        EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
-        var rosters = new Dictionary<StringName, WildEncounterRosterDef>();
+        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>();
 
         bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 10, rosters);
 
-        _test.False(changed, "缺少 typed WildEncounterRosterDef 时不应推进成长阶段。");
+        _test.False(changed, "缺少 typed WildEncounterRosterDefinition 时不应推进成长阶段。");
         _test.Eq(encounterAnchor.growth_stage, 0, "无有效 typed roster 时不应推进成长阶段。");
     }
 

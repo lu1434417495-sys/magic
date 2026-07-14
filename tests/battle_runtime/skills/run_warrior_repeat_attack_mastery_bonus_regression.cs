@@ -1,22 +1,19 @@
-using System;
 using System.Collections.Generic;
 using Godot;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneTree
+public partial class run_warrior_repeat_attack_mastery_bonus_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         TestRepeatAttackResolverUsesTypedResourceCosts();
         TestRepeatAttackMasteryBonusStartsOnFifthStageEntry();
@@ -29,14 +26,17 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
     private void TestRepeatAttackResolverUsesTypedResourceCosts()
     {
         using RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
-        fixture.CombatProfile.ap_cost = 2;
-        fixture.CombatProfile.mp_cost = 3;
-        fixture.CombatProfile.stamina_cost = 4;
-        fixture.CombatProfile.aura_cost = 5;
+        SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
+            "combo_mastery_stage_test",
+            apCost: 2,
+            mpCost: 3,
+            staminaCost: 4,
+            auraCost: 5
+        );
 
         CombatSkillResourceCosts costs = fixture.Resolver._resolve_effective_skill_costs(
             fixture.ActiveUnit,
-            fixture.SkillDef
+            skillDefinition
         );
         _test.Eq(costs.ApCost, 2, "repeat attack typed costs 应保留 AP。");
         _test.Eq(costs.MpCost, 3, "repeat attack typed costs 应保留 MP。");
@@ -46,7 +46,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         _test.Eq(
             fixture.Resolver._get_repeat_attack_base_resource_cost(
                 fixture.ActiveUnit,
-                fixture.SkillDef,
+                skillDefinition,
                 CombatResourceKind.Aura
             ),
             5,
@@ -59,13 +59,14 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         using RepeatAttackFixture missFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, false }
         );
-        bool missExecuted = ApplyRepeatAttackSkillResult(
+        using var missBatch = new BattleEventBatch();
+        bool missExecuted = missFixture.Resolver.ApplyRepeatAttackSkillResult(
             missFixture.ActiveUnit,
             missFixture.TargetUnit,
-            missFixture.SkillDef,
-            missFixture.CombatProfile.effect_defs,
-            missFixture.RepeatEffect,
-            missFixture.Resolver
+            missFixture.SkillDefinition,
+            missFixture.EffectDefinitions,
+            missFixture.RepeatEffectDefinition,
+            missBatch
         );
         _test.True(missExecuted, "连击段数熟练度回归前置：应至少执行到第五段。");
         _test.Eq(
@@ -82,13 +83,14 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         using RepeatAttackFixture hitFixture = BuildRepeatAttackFixture(
             new[] { true, true, true, true, true, false }
         );
-        bool hitExecuted = ApplyRepeatAttackSkillResult(
+        using var hitBatch = new BattleEventBatch();
+        bool hitExecuted = hitFixture.Resolver.ApplyRepeatAttackSkillResult(
             hitFixture.ActiveUnit,
             hitFixture.TargetUnit,
-            hitFixture.SkillDef,
-            hitFixture.CombatProfile.effect_defs,
-            hitFixture.RepeatEffect,
-            hitFixture.Resolver
+            hitFixture.SkillDefinition,
+            hitFixture.EffectDefinitions,
+            hitFixture.RepeatEffectDefinition,
+            hitBatch
         );
         _test.True(hitExecuted, "连击段数熟练度回归前置：命中夹具应执行。");
         _test.Eq(
@@ -101,33 +103,6 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             1,
             "第五段命中后应发放 1 点连击段数 bonus。"
         );
-    }
-
-    private static bool ApplyRepeatAttackSkillResult(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef,
-        GCombatEffectArray effectDefs,
-        CombatEffectDef repeatEffect,
-        BattleRepeatAttackResolver resolver
-    )
-    {
-        var batch = new BattleEventBatch();
-        try
-        {
-            return resolver.ApplyRepeatAttackSkillResult(
-                activeUnit,
-                targetUnit,
-                skillDef,
-                effectDefs,
-                repeatEffect,
-                batch
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeFixtureObject(batch);
-        }
     }
 
     private RepeatAttackFixture BuildRepeatAttackFixture(bool[] stageSuccesses)
@@ -159,37 +134,10 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         targetUnit.current_hp = 999;
         targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 999);
 
-        var damageEffect = new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 0,
-        };
-        var repeatEffect = new CombatEffectDef
-        {
-            effect_type = "repeat_attack_until_fail",
-            stop_on_miss = true,
-            stop_on_target_down = true,
-            @params = new GDictionary
-            {
-                ["cost_resource"] = "aura",
-                ["follow_up_fixed_cost"] = 0,
-                ["follow_up_attack_penalty"] = 0,
-            },
-        };
-        var skillDef = new SkillDef
-        {
-            skill_id = "combo_mastery_stage_test",
-            display_name = "连击熟练度段数测试",
-        };
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillDef.skill_id,
-            mastery_amount_mode = "per_target_rank",
-            mastery_trigger_mode = "damage_dealt",
-            aura_cost = 0,
-            effect_defs = new GCombatEffectArray { damageEffect, repeatEffect },
-        };
-        skillDef.combat_profile = combatProfile;
+        SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
+            "combo_mastery_stage_test"
+        );
+        CombatEffectDefinition repeatEffectDefinition = skillDefinition.CombatProfile.EffectDefinitions[1];
 
         return new RepeatAttackFixture
         {
@@ -199,9 +147,9 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             Resolver = resolver,
             ActiveUnit = activeUnit,
             TargetUnit = targetUnit,
-            SkillDef = skillDef,
-            CombatProfile = combatProfile,
-            RepeatEffect = repeatEffect,
+            SkillDefinition = skillDefinition,
+            EffectDefinitions = skillDefinition.CombatProfile.EffectDefinitions,
+            RepeatEffectDefinition = repeatEffectDefinition,
         };
     }
 
@@ -237,7 +185,10 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         var service = new BattleSkillMasteryService();
         BattleUnitState source = BuildMasteryUnit("mastery_weapon_source", "player", "hero");
         BattleUnitState target = BuildMasteryUnit("mastery_weapon_target", "enemy");
-        SkillDef skillDef = BuildMasterySkill("weapon_quality_contract", "weapon_attack_quality");
+        SkillDefinition skillDefinition = BuildMasterySkill(
+            "weapon_quality_contract",
+            "weapon_attack_quality"
+        );
 
         var result = new GDictionary
         {
@@ -254,23 +205,13 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             },
         };
 
-        try
-        {
-            service.RecordTargetResult(source, target, skillDef, result);
+        service.RecordTargetResult(source, target, skillDefinition, result);
 
-            _test.Eq(
-                service.ResolveActiveSkillMasteryAmount(),
-                1,
-                "weapon_attack_quality 应继续通过 payload 中的 weapon_dice_max reason 触发熟练度。"
-            );
-        }
-        finally
-        {
-            service.Dispose();
-            BattleTestFixture.DisposeFixtureObject(skillDef);
-            BattleTestFixture.DisposeFixtureObject(target);
-            BattleTestFixture.DisposeFixtureObject(source);
-        }
+        _test.Eq(
+            service.ResolveActiveSkillMasteryAmount(),
+            1,
+            "weapon_attack_quality 应继续通过 payload 中的 weapon_dice_max reason 触发熟练度。"
+        );
     }
 
     private void TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey()
@@ -290,52 +231,42 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
             AttackSuccess = true,
             Damage = 7,
         };
-        var effectDefs = new GCombatEffectArray
+        var effectDefs = new List<CombatEffectDefinition>
         {
-            new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "physical_slash",
-            },
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                damageTag: "physical_slash"
+            ),
         };
-        SkillDef guardSkill = BuildMasterySkill("warrior_guard", "incoming_physical_hit");
-        var skillDefs = new Dictionary<StringName, SkillDef>
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
         {
-            [new StringName("warrior_guard")] = guardSkill,
+            [new StringName("warrior_guard")] = BuildMasterySkill(
+                "warrior_guard",
+                "incoming_physical_hit"
+            ),
         };
 
-        try
-        {
-            BattleSkillMasteryGrant grant = service.BuildGuardMasteryGrantFromIncomingHitTyped(
-                attacker,
-                target,
-                effectDefs,
-                result,
-                skillDefs
-            );
+        BattleSkillMasteryGrant grant = service.BuildGuardMasteryGrantFromIncomingHitTyped(
+            attacker,
+            target,
+            effectDefs,
+            result,
+            skillDefinitions
+        );
 
-            _test.True(
-                grant != null,
-                "guard mastery grant 应继续从 typed skill dictionary key 成功读取 warrior_guard。"
-            );
-            if (grant != null)
-            {
-                _test.Eq(
-                    grant.SkillId.ToString(),
-                    "warrior_guard",
-                    "guard mastery grant 应保留 warrior_guard skill id。"
-                );
-                _test.Eq(grant.Amount, 1, "普通敌方命中 guarding 目标时应给予 1 点熟练度。");
-                _test.Eq(grant.MemberId.ToString(), "hero", "guard mastery grant 应归属给被保护的成员。");
-            }
-        }
-        finally
+        _test.True(
+            grant != null,
+            "guard mastery grant 应继续从 typed skill dictionary key 成功读取 warrior_guard。"
+        );
+        if (grant != null)
         {
-            service.Dispose();
-            BattleTestFixture.DisposeEffectDefs(effectDefs);
-            BattleTestFixture.DisposeFixtureObject(guardSkill);
-            BattleTestFixture.DisposeFixtureObject(target);
-            BattleTestFixture.DisposeFixtureObject(attacker);
+            _test.Eq(
+                grant.SkillId.ToString(),
+                "warrior_guard",
+                "guard mastery grant 应保留 warrior_guard skill id。"
+            );
+            _test.Eq(grant.Amount, 1, "普通敌方命中 guarding 目标时应给予 1 点熟练度。");
+            _test.Eq(grant.MemberId.ToString(), "hero", "guard mastery grant 应归属给被保护的成员。");
         }
     }
 
@@ -358,41 +289,94 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         return unit;
     }
 
-    private static SkillDef BuildMasterySkill(StringName skillId, string masteryTriggerMode)
+    private static SkillDefinition BuildRepeatAttackSkillDefinition(
+        StringName skillId,
+        int apCost = 0,
+        int mpCost = 0,
+        int staminaCost = 0,
+        int auraCost = 0
+    )
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            mastery_trigger_mode = masteryTriggerMode,
-            mastery_amount_mode = "per_target_rank",
-        };
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            combat_profile = combatProfile,
-        };
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 0
+        );
+        CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
+            "repeat_attack_until_fail",
+            parameters: new Dictionary<string, object>
+            {
+                ["cost_resource"] = "aura",
+                ["follow_up_fixed_cost"] = 0,
+                ["follow_up_attack_penalty"] = 0,
+            }
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: "连击熟练度段数测试",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect, repeatEffect },
+                apCost: apCost,
+                mpCost: mpCost,
+                staminaCost: staminaCost,
+                auraCost: auraCost,
+                masteryTriggerMode: "damage_dealt",
+                masteryAmountMode: "per_target_rank"
+            )
+        );
     }
 
-    private sealed class RepeatAttackFixture : IDisposable
+    private static SkillDefinition BuildMasterySkill(StringName skillId, string masteryTriggerMode)
     {
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                masteryTriggerMode: masteryTriggerMode,
+                masteryAmountMode: "per_target_rank"
+            )
+        );
+    }
+
+    private sealed class RepeatAttackFixture : System.IDisposable
+    {
+        private bool _disposed;
+
         public BattleRuntimeModule Runtime;
         public StageOutcomeDamageResolver DamageResolver;
         internal BattleSkillMasteryService MasteryService;
         public BattleRepeatAttackResolver Resolver;
         public BattleUnitState ActiveUnit;
         public BattleUnitState TargetUnit;
-        public SkillDef SkillDef;
-        public CombatSkillDef CombatProfile;
-        public CombatEffectDef RepeatEffect;
+        public SkillDefinition SkillDefinition;
+        public IReadOnlyList<CombatEffectDefinition> EffectDefinitions;
+        public CombatEffectDefinition RepeatEffectDefinition;
 
         public void Dispose()
         {
-            Runtime?.Dispose();
+            if (_disposed)
+                return;
+            _disposed = true;
+
+            Resolver?.Setup(null, null);
             MasteryService?.Dispose();
-            BattleTestFixture.DisposeFixtureObject(SkillDef);
-            BattleTestFixture.DisposeFixtureObject(TargetUnit);
-            BattleTestFixture.DisposeFixtureObject(ActiveUnit);
+            BattleTestFixture.DisposeBattleFixture(
+                Runtime,
+                null,
+                ActiveUnit,
+                TargetUnit
+            );
+
+            Runtime = null;
+            DamageResolver = null;
+            MasteryService = null;
+            Resolver = null;
+            ActiveUnit = null;
+            TargetUnit = null;
+            SkillDefinition = null;
+            EffectDefinitions = null;
+            RepeatEffectDefinition = null;
         }
     }
 }

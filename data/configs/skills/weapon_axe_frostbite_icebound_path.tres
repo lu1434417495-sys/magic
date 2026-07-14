@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_variant"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
+
+[sub_resource type="Resource" id="Effect_icebound_path_freeze"]
+script = ExtResource("1_effect")
+effect_type = &"terrain_replace"
+terrain_replace_to = &"ice"
+
+[sub_resource type="Resource" id="Variant_icebound_path_single_water"]
+script = ExtResource("2_variant")
+variant_id = &"ice_single_water"
+display_name = "单格冰层"
+description = "将相邻 1 格水域冻结为冰层。"
+target_mode = &"ground"
+footprint_pattern = &"single"
+required_coord_count = 1
+allowed_base_terrains = Array[StringName]([&"water", &"shallow_water", &"flowing_water", &"deep_water"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_icebound_path_freeze")])
+
+[sub_resource type="Resource" id="Combat_icebound_path"]
+script = ExtResource("3_combat")
+skill_id = &"weapon_axe_frostbite_icebound_path"
+target_mode = &"ground"
+range_value = 1
+ap_cost = 0
+stamina_cost = 60
+cooldown_tu = 120
+mastery_trigger_mode = &"effect_applied"
+cast_variants = Array[ExtResource("2_variant")]([SubResource("Variant_icebound_path_single_water")])
+
+[resource]
+script = ExtResource("4_skill")
+skill_id = &"weapon_axe_frostbite_icebound_path"
+display_name = "冰封之路"
+icon_id = &"weapon_axe_frostbite_icebound_path"
+description = "装备技能。选择相邻 1 格水域，将其冻结为冰层；消耗 60 体力，冷却 120TU。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"frostbite", &"weapon", &"terrain", &"freeze"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_icebound_path")

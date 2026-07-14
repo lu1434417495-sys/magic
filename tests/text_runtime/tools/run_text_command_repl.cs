@@ -2,7 +2,7 @@ using Godot;
 
 // Development REPL for the headless text command chain.
 // It is intentionally skipped by tests/run_regression_suite.py because it lives under /tools/.
-public partial class run_text_command_repl : SceneTree
+public partial class run_text_command_repl : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -18,7 +18,7 @@ public partial class run_text_command_repl : SceneTree
             if (string.IsNullOrEmpty(line))
             {
                 runner.Dispose();
-                Quit(_test.Finish("Text command REPL"));
+                RequestTestExit(_test.Finish("Text command REPL"));
                 return;
             }
             string commandText = line.StripEdges();
@@ -26,7 +26,7 @@ public partial class run_text_command_repl : SceneTree
             {
                 GD.Print("Bye.");
                 runner.Dispose();
-                Quit(_test.Finish("Text command REPL"));
+                RequestTestExit(_test.Finish("Text command REPL"));
                 return;
             }
             GameTextCommandResult result = runner.ExecuteLine(commandText);

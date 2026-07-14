@@ -1,57 +1,131 @@
 using Godot;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
+using System.Collections.ObjectModel;
 
-public partial class BattleEventBatch : RefCounted
+public class BattleEventBatch : IDisposable
 {
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
     private readonly List<string> _logLines = new();
-    private readonly List<GDictionary> _reportEntries = new();
+    private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
     private readonly List<CharacterProgressionDelta> _progressionDeltas = new();
+    private readonly ReadOnlyCollection<StringName> _changedUnitIdsView;
+    private readonly ReadOnlyCollection<Vector2I> _changedCoordsView;
+    private readonly ReadOnlyCollection<string> _logLinesView;
+    private bool _phaseChanged;
+    private bool _battleEnded;
+    private bool _modalRequested;
 
-    public bool phase_changed { get; set; }
-    public bool battle_ended { get; set; }
-    public Godot.Collections.Array<StringName> changed_unit_ids
+    public BattleEventBatch()
     {
-        get => BuildChangedUnitIdsArray();
-        set => SetChangedUnitIds(value);
+        _changedUnitIdsView = _changedUnitIds.AsReadOnly();
+        _changedCoordsView = _changedCoords.AsReadOnly();
+        _logLinesView = _logLines.AsReadOnly();
     }
-    public Godot.Collections.Array<Vector2I> changed_coords
+
+    public bool phase_changed
     {
-        get => BuildChangedCoordsArray();
-        set => SetChangedCoords(value);
+        get => _phaseChanged;
+        set
+        {
+            _phaseChanged = value;
+            SetFlag(BattleChangeFlags.Phase, value);
+        }
     }
-    public Godot.Collections.Array<string> log_lines
+    public bool battle_ended
     {
-        get => BuildLogLinesArray();
-        set => SetLogLines(value);
+        get => _battleEnded;
+        set
+        {
+            _battleEnded = value;
+            SetFlag(BattleChangeFlags.BattleLifecycle, value);
+        }
     }
-    public GArray report_entries
+    public ReadOnlyCollection<StringName> changed_unit_ids => _changedUnitIdsView;
+    public ReadOnlyCollection<Vector2I> changed_coords => _changedCoordsView;
+    public ReadOnlyCollection<string> log_lines => _logLinesView;
+    public ReadOnlyCollection<IReadOnlyDictionary<string, object>> report_entries =>
+        BuildReportEntrySnapshots();
+    public ReadOnlyCollection<CharacterProgressionDelta> progression_deltas =>
+        BuildProgressionDeltaSnapshots();
+    public bool modal_requested
     {
-        get => BuildReportEntriesArray();
-        set => SetReportEntries(value);
+        get => _modalRequested;
+        set
+        {
+            _modalRequested = value;
+            SetFlag(BattleChangeFlags.Modal, value);
+        }
     }
-    public GArray progression_deltas
-    {
-        get => BuildProgressionDeltasArray();
-        set => SetProgressionDeltas(value);
-    }
-    public bool modal_requested { get; set; }
 
     internal IReadOnlyList<StringName> ChangedUnitIdsTyped => _changedUnitIds;
     internal IReadOnlyList<Vector2I> ChangedCoordsTyped => _changedCoords;
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
-    internal IReadOnlyList<GDictionary> ReportEntriesTyped => _reportEntries;
-    internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped => _progressionDeltas;
+    internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
+        BuildReportEntrySnapshots();
+    internal IReadOnlyList<CharacterProgressionDelta> ProgressionDeltasTyped =>
+        BuildProgressionDeltaSnapshots();
+    internal int ProgressionDeltaCount => _progressionDeltas.Count;
+    internal BattleChangeFlags ChangeFlags { get; private set; }
+
+    public void Dispose() { }
+
+    internal void MarkChanged(BattleChangeFlags flags)
+    {
+        ChangeFlags |= flags;
+    }
+
+    internal void MarkUnitPlacementChanged()
+    {
+        MarkChanged(BattleChangeFlags.UnitPlacement);
+    }
+
+    internal void MarkCellStateChanged(Vector2I coord)
+    {
+        AddChangedCoord(coord);
+        MarkChanged(BattleChangeFlags.CellState);
+    }
+
+    internal void MarkPropStateChanged(Vector2I coord)
+    {
+        AddChangedCoord(coord);
+        MarkChanged(BattleChangeFlags.PropState);
+    }
+
+    internal void MarkTimelineChanged()
+    {
+        MarkChanged(BattleChangeFlags.Timeline);
+    }
+
+    internal void MergeFrom(BattleEventBatch source)
+    {
+        if (source == null || ReferenceEquals(source, this))
+            return;
+
+        MarkChanged(source.ChangeFlags);
+        phase_changed |= source.phase_changed;
+        battle_ended |= source.battle_ended;
+        modal_requested |= source.modal_requested;
+        foreach (StringName unitId in source._changedUnitIds)
+            AddChangedUnitId(unitId);
+        foreach (Vector2I coord in source._changedCoords)
+            AddChangedCoord(coord);
+        foreach (string logLine in source._logLines)
+            AddLogLine(logLine);
+        foreach (IReadOnlyDictionary<string, object> reportEntry in source._reportEntries)
+            AddReportEntry(reportEntry);
+        foreach (CharacterProgressionDelta progressionDelta in source._progressionDeltas)
+            AddProgressionDelta(progressionDelta);
+    }
 
     internal void SetChangedUnitIds(IEnumerable values)
     {
         _changedUnitIds.Clear();
         if (values == null)
         {
+            SetFlag(BattleChangeFlags.UnitState, false);
             return;
         }
         foreach (object value in values)
@@ -62,11 +136,13 @@ public partial class BattleEventBatch : RefCounted
                 _changedUnitIds.Add(unitId);
             }
         }
+        SetFlag(BattleChangeFlags.UnitState, _changedUnitIds.Count > 0);
     }
 
     internal void ClearChangedUnitIds()
     {
         _changedUnitIds.Clear();
+        SetFlag(BattleChangeFlags.UnitState, false);
     }
 
     internal void AddChangedUnitId(StringName unitId)
@@ -76,6 +152,7 @@ public partial class BattleEventBatch : RefCounted
             return;
         }
         _changedUnitIds.Add(unitId);
+        MarkChanged(BattleChangeFlags.UnitState);
     }
 
     internal bool ContainsChangedUnitId(StringName unitId)
@@ -88,6 +165,7 @@ public partial class BattleEventBatch : RefCounted
         _changedCoords.Clear();
         if (values == null)
         {
+            SetFlag(BattleChangeFlags.AffectedCoords, false);
             return;
         }
         foreach (object value in values)
@@ -97,11 +175,13 @@ public partial class BattleEventBatch : RefCounted
                 _changedCoords.Add(coord);
             }
         }
+        SetFlag(BattleChangeFlags.AffectedCoords, _changedCoords.Count > 0);
     }
 
     internal void ClearChangedCoords()
     {
         _changedCoords.Clear();
+        SetFlag(BattleChangeFlags.AffectedCoords, false);
     }
 
     internal void AddChangedCoord(Vector2I coord)
@@ -111,6 +191,7 @@ public partial class BattleEventBatch : RefCounted
             return;
         }
         _changedCoords.Add(coord);
+        MarkChanged(BattleChangeFlags.AffectedCoords);
     }
 
     internal bool ContainsChangedCoord(Vector2I coord)
@@ -123,27 +204,32 @@ public partial class BattleEventBatch : RefCounted
         _logLines.Clear();
         if (values == null)
         {
+            SetFlag(BattleChangeFlags.Log, false);
             return;
         }
         foreach (object value in values)
         {
             _logLines.Add(value?.ToString() ?? "");
         }
+        SetFlag(BattleChangeFlags.Log, _logLines.Count > 0);
     }
 
     internal void ClearLogLines()
     {
         _logLines.Clear();
+        SetFlag(BattleChangeFlags.Log, false);
     }
 
     internal void AddLogLine(string value)
     {
         _logLines.Add(value ?? "");
+        MarkChanged(BattleChangeFlags.Log);
     }
 
     internal void InsertLogLine(int index, string value)
     {
         _logLines.Insert(index, value ?? "");
+        MarkChanged(BattleChangeFlags.Log);
     }
 
     internal bool ContainsLogLine(string value)
@@ -151,55 +237,56 @@ public partial class BattleEventBatch : RefCounted
         return _logLines.Contains(value ?? "");
     }
 
-    internal void SetReportEntries(IEnumerable values)
+    internal void SetReportEntries(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
+    )
     {
         _reportEntries.Clear();
         if (values == null)
         {
+            SetFlag(BattleChangeFlags.Report, false);
             return;
         }
-        foreach (object value in values)
-        {
-            if (value is GDictionary reportEntry)
-            {
-                AddReportEntry(reportEntry);
-            }
-        }
+        foreach (IReadOnlyDictionary<string, object> value in values)
+            AddReportEntry(value);
     }
 
     internal void ClearReportEntries()
     {
         _reportEntries.Clear();
+        SetFlag(BattleChangeFlags.Report, false);
     }
 
-    internal void AddReportEntry(GDictionary reportEntry)
+    internal void AddReportEntry(IReadOnlyDictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
         {
             return;
         }
-        _reportEntries.Add((GDictionary)reportEntry.Duplicate(true));
+        _reportEntries.Add(
+            new ReadOnlyDictionary<string, object>(
+                RuntimePlainPayload.CloneDictionary(reportEntry)
+            )
+        );
+        MarkChanged(BattleChangeFlags.Report);
     }
 
-    internal void SetProgressionDeltas(IEnumerable values)
+    internal void SetProgressionDeltas(IEnumerable<CharacterProgressionDelta> values)
     {
         _progressionDeltas.Clear();
         if (values == null)
         {
+            SetFlag(BattleChangeFlags.Progression, false);
             return;
         }
-        foreach (object value in values)
-        {
-            if (value is CharacterProgressionDelta delta)
-            {
-                AddProgressionDelta(delta);
-            }
-        }
+        foreach (CharacterProgressionDelta value in values)
+            AddProgressionDelta(value);
     }
 
     internal void ClearProgressionDeltas()
     {
         _progressionDeltas.Clear();
+        SetFlag(BattleChangeFlags.Progression, false);
     }
 
     internal void AddProgressionDelta(CharacterProgressionDelta delta)
@@ -208,56 +295,38 @@ public partial class BattleEventBatch : RefCounted
         {
             return;
         }
-        _progressionDeltas.Add(delta);
+        _progressionDeltas.Add(delta.DuplicateState());
+        MarkChanged(BattleChangeFlags.Progression);
     }
 
-    private Godot.Collections.Array<string> BuildLogLinesArray()
+    private ReadOnlyCollection<CharacterProgressionDelta> BuildProgressionDeltaSnapshots()
     {
-        var result = new Godot.Collections.Array<string>();
-        foreach (string value in _logLines)
-        {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private Godot.Collections.Array<StringName> BuildChangedUnitIdsArray()
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (StringName unitId in _changedUnitIds)
-        {
-            result.Add(unitId);
-        }
-        return result;
-    }
-
-    private Godot.Collections.Array<Vector2I> BuildChangedCoordsArray()
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in _changedCoords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
-    internal GArray BuildReportEntriesArray()
-    {
-        var result = new GArray();
-        foreach (GDictionary reportEntry in _reportEntries)
-        {
-            result.Add((GDictionary)reportEntry.Duplicate(true));
-        }
-        return result;
-    }
-
-    internal GArray BuildProgressionDeltasArray()
-    {
-        var result = new GArray();
+        var result = new List<CharacterProgressionDelta>(_progressionDeltas.Count);
         foreach (CharacterProgressionDelta delta in _progressionDeltas)
-        {
-            result.Add(delta);
-        }
-        return result;
+            result.Add(delta?.DuplicateState());
+        return result.AsReadOnly();
     }
+
+    private ReadOnlyCollection<IReadOnlyDictionary<string, object>> BuildReportEntrySnapshots()
+    {
+        var result = new List<IReadOnlyDictionary<string, object>>(_reportEntries.Count);
+        foreach (IReadOnlyDictionary<string, object> entry in _reportEntries)
+        {
+            result.Add(
+                new ReadOnlyDictionary<string, object>(
+                    RuntimePlainPayload.CloneDictionary(entry)
+                )
+            );
+        }
+        return result.AsReadOnly();
+    }
+
+    private void SetFlag(BattleChangeFlags flag, bool enabled)
+    {
+        if (enabled)
+            ChangeFlags |= flag;
+        else
+            ChangeFlags &= ~flag;
+    }
+
 }

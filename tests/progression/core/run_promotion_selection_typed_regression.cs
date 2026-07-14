@@ -1,8 +1,9 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_promotion_selection_typed_regression : SceneTree
+public partial class run_promotion_selection_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,11 +15,75 @@ public partial class run_promotion_selection_typed_regression : SceneTree
     private void Run()
     {
         TestSelectionDataNormalizesEquivalentValues();
+        TestSelectionDataRoundTripsPlainPayload();
+        TestSelectionDataDoesNotExposeLegacyPayloadProjection();
         TestProgressionServiceDoesNotExposeDictionarySelectionOverload();
         TestProfessionPromotionConsumesTypedSelection();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Promotion selection typed regression"));
+        RequestTestExit(_test.Finish("Promotion selection typed regression"));
+    }
+
+    private void TestSelectionDataRoundTripsPlainPayload()
+    {
+        IReadOnlyDictionary<string, object> payload = new Dictionary<string, object>(
+            StringComparer.Ordinal
+        )
+        {
+            [PromotionSelectionData.AssignedCoreSkillIdsKey] = new List<object>
+            {
+                "slash",
+                "guard",
+            },
+            [PromotionSelectionData.TriggerSkillIdsKey] = new List<object> { "focus" },
+        };
+
+        PromotionSelectionData selection = PromotionSelectionData.FromPlainPayload(payload);
+
+        _test.True(
+            selection.HasAssignedCoreSkillIds,
+            "Plain promotion selection 应保留 assigned core skill 字段存在性。"
+        );
+        _test.False(
+            selection.HasQualifierSkillIds,
+            "Plain promotion selection 不应把缺失 qualifier 字段当成显式空选择。"
+        );
+        _test.True(
+            selection.HasTriggerSkillIds,
+            "Plain promotion selection 应保留 trigger skill 字段存在性。"
+        );
+        _test.Eq(
+            selection.AssignedCoreSkillIds[0],
+            new StringName("slash"),
+            "Plain promotion selection 应按稳定顺序读取 assigned core skill。"
+        );
+        _test.Eq(
+            selection.TriggerSkillIds[0],
+            new StringName("focus"),
+            "Plain promotion selection 应直接解析 trigger skill。"
+        );
+
+        IReadOnlyDictionary<string, object> roundTripPayload = selection.ToPlainPayload();
+        _test.True(
+            roundTripPayload[PromotionSelectionData.AssignedCoreSkillIdsKey]
+                is IReadOnlyList<object>,
+            "Promotion selection plain payload 的 nested skill ids 应保持 CLR list。"
+        );
+        PromotionSelectionData restored = PromotionSelectionData.FromPlainPayload(
+            roundTripPayload
+        );
+        _test.True(
+            restored.SelectionEquals(selection),
+            "Promotion selection 应通过递归 plain payload 保持字段存在性与稳定顺序。"
+        );
+    }
+
+    private void TestSelectionDataDoesNotExposeLegacyPayloadProjection()
+    {
+        _test.True(
+            typeof(PromotionSelectionData).GetMethod("ToPayloadProjection", Type.EmptyTypes)
+                == null,
+            "PromotionSelectionData 不应继续暴露无 lease 所有权的 Godot payload projection。"
+        );
     }
 
     private void TestSelectionDataNormalizesEquivalentValues()
@@ -87,12 +152,11 @@ public partial class run_promotion_selection_typed_regression : SceneTree
     {
         StringName triggerSkillId = "slash";
         UnitProgress progress = BuildReadyProgress(triggerSkillId);
-        SkillDef triggerSkill = new()
-        {
-            skill_id = triggerSkillId,
-            display_name = "Slash",
-            max_level = 1,
-        };
+        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
+            triggerSkillId,
+            displayName: "Slash",
+            maxLevel: 1
+        );
         ProfessionDef profession = new()
         {
             profession_id = "warrior",
@@ -102,15 +166,16 @@ public partial class run_promotion_selection_typed_regression : SceneTree
             hit_die_sides = 1,
         };
         ProgressionService service = new();
-        service.Setup(
+        service.SetupDefinitions(
             progress,
-            new System.Collections.Generic.Dictionary<StringName, SkillDef>
+            new System.Collections.Generic.Dictionary<StringName, SkillDefinition>
             {
-                [triggerSkill.skill_id] = triggerSkill,
+                [triggerSkill.SkillId] = triggerSkill,
             },
-            new System.Collections.Generic.Dictionary<StringName, ProfessionDef>
+            new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>
             {
-                [profession.profession_id] = profession,
+                [profession.profession_id] =
+                    TestProgressionDefinitionProjection.Profession(profession),
             }
         );
 

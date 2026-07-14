@@ -1,7 +1,8 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
-internal sealed class BattleAiRuntimeActionPlan
+internal sealed class BattleAiRuntimeActionPlan : IDisposable
 {
     public StringName unit_id = "";
     public StringName brain_id = "";
@@ -9,137 +10,180 @@ internal sealed class BattleAiRuntimeActionPlan
     public List<string> warnings = new();
     public List<string> errors = new();
 
-    private readonly Dictionary<StringName, List<EnemyAiAction>> _actionsByState = new();
-    private readonly Dictionary<StringName, List<EnemyAiAction>> _generatedActionsByState = new();
-    private readonly Dictionary<long, RuntimeActionMetadata> _metadataByInstanceId = new();
+    private readonly Dictionary<StringName, List<BattleAiRuntimeActionEntry>> _entriesByState =
+        new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skillAffordanceRecordsBySkillId =
         new();
+    private bool _disposed;
 
-    public void SetSource(BattleUnitState unitState, EnemyAiBrainDef brain)
+    internal bool HasRuntimeBorrowers =>
+        _entriesByState.Count != 0 || _skillAffordanceRecordsBySkillId.Count != 0;
+
+    public void SetSource(BattleUnitState unitState, EnemyAiBrainDefinition brain)
     {
-        unit_id = unitState != null ? unitState.unit_id : new StringName("");
-        brain_id = brain != null ? ProgressionDataUtils.to_string_name(brain.brain_id) : "";
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        unit_id = unitState?.unit_id ?? new StringName("");
+        brain_id = brain?.BrainId ?? new StringName("");
         fingerprint = BuildFingerprint(unitState, brain);
     }
 
-    internal void AddStateActions(StringName state_id, IEnumerable<EnemyAiAction> actions)
+    internal void AddStateActions(
+        StringName stateId,
+        IEnumerable<EnemyAiActionDefinition> actions
+    )
     {
-        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(stateId);
         if (normalizedStateId == "")
-        {
             return;
-        }
-        EnsureState(normalizedStateId);
-        List<EnemyAiAction> copiedActions = CopyActionList(actions);
-        foreach (EnemyAiAction action in copiedActions)
+
+        List<BattleAiRuntimeActionEntry> entries = GetOrCreateStateEntries(normalizedStateId);
+        entries.Clear();
+        if (actions == null)
+            return;
+
+        foreach (EnemyAiActionDefinition action in actions)
         {
-            if (!_metadataByInstanceId.ContainsKey(InstanceKey(action)))
-            {
-                SetActionMetadataTyped(
+            if (action == null)
+                continue;
+            entries.Add(
+                new BattleAiRuntimeActionEntry(
                     action,
                     RuntimeActionMetadata.ForAuthoredAction(normalizedStateId, action)
-                );
-            }
+                )
+            );
         }
-        SetStateActions(normalizedStateId, copiedActions);
     }
 
-    internal void AddAction(StringName state_id, EnemyAiAction action, RuntimeActionMetadata metadata = null)
+    internal void AddAction(
+        StringName stateId,
+        EnemyAiActionDefinition action,
+        RuntimeActionMetadata metadata = null
+    )
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (action == null)
-        {
             return;
-        }
-        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
-        if (normalizedStateId == "")
-        {
-            return;
-        }
-        EnsureState(normalizedStateId);
-        List<EnemyAiAction> stateActions = GetStateActions(normalizedStateId);
-        stateActions.Add(action);
 
-        RuntimeActionMetadata actionMetadata =
-            metadata ?? RuntimeActionMetadata.ForAuthoredAction(normalizedStateId, action);
-        actionMetadata.state_id = normalizedStateId;
-        actionMetadata.ApplyActionDefaults(action);
-        SetActionMetadata(action, actionMetadata);
-        if (actionMetadata.generated)
-        {
-            List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
-            generatedActions.Add(action);
-        }
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(stateId);
+        if (normalizedStateId == "")
+            return;
+
+        RuntimeActionMetadata resolvedMetadata =
+            metadata?.Clone() ?? RuntimeActionMetadata.ForAuthoredAction(normalizedStateId, action);
+        resolvedMetadata.state_id = normalizedStateId;
+        resolvedMetadata.ApplyActionDefaults(action);
+        GetOrCreateStateEntries(normalizedStateId)
+            .Add(new BattleAiRuntimeActionEntry(action, resolvedMetadata));
     }
 
-    internal void AddGeneratedActionTyped(
-        StringName state_id,
-        EnemyAiAction action,
-        StringName slot_id,
-        StringName slot_role,
-        StringName skill_id,
-        StringName action_family,
-        StringName source_action_id,
-        string identity_key
+    internal void AddGeneratedAction(
+        StringName stateId,
+        EnemyAiActionDefinition action,
+        StringName slotId,
+        StringName slotRole,
+        StringName skillId,
+        StringName actionFamily,
+        StringName sourceActionId,
+        string identityKey
     )
     {
         if (action == null)
-        {
             return;
-        }
-        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
-        if (normalizedStateId == "")
-        {
-            return;
-        }
-        EnsureState(normalizedStateId);
-        List<EnemyAiAction> stateActions = GetStateActions(normalizedStateId);
-        stateActions.Add(action);
-
-        RuntimeActionMetadata metadata = RuntimeActionMetadata.ForGeneratedAction(
-            normalizedStateId,
+        AddAction(
+            stateId,
             action,
-            slot_id,
-            slot_role,
-            skill_id,
-            action_family,
-            source_action_id,
-            identity_key
+            RuntimeActionMetadata.ForGeneratedAction(
+                stateId,
+                action,
+                slotId,
+                slotRole,
+                skillId,
+                actionFamily,
+                sourceActionId,
+                identityKey
+            )
         );
-        SetActionMetadataTyped(action, metadata);
-        List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
-        generatedActions.Add(action);
     }
 
-    internal IReadOnlyList<EnemyAiAction> GetActions(StringName state_id)
+    internal void Clear()
     {
-        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
-        return _actionsByState.TryGetValue(normalizedStateId, out List<EnemyAiAction> actions)
-            ? actions
-            : System.Array.Empty<EnemyAiAction>();
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ClearBorrowedState();
     }
 
-    internal bool HasActionIdentityKey(EnemyAiAction action, string identityKey)
+    public void Dispose()
     {
-        if (action == null || string.IsNullOrEmpty(identityKey))
+        if (_disposed)
+            return;
+        _disposed = true;
+        ClearBorrowedState();
+    }
+
+    internal IReadOnlyList<EnemyAiActionDefinition> GetActions(StringName stateId)
+    {
+        IReadOnlyList<BattleAiRuntimeActionEntry> entries = GetActionEntries(stateId);
+        if (entries.Count == 0)
+            return Array.Empty<EnemyAiActionDefinition>();
+
+        var actions = new List<EnemyAiActionDefinition>(entries.Count);
+        foreach (BattleAiRuntimeActionEntry entry in entries)
         {
-            return false;
+            if (entry?.Action != null)
+                actions.Add(entry.Action);
         }
-        return _metadataByInstanceId.TryGetValue(
-            InstanceKey(action),
-            out RuntimeActionMetadata metadata
-        ) && metadata.identity_key == identityKey;
+        return actions;
+    }
+
+    internal IReadOnlyList<BattleAiRuntimeActionEntry> GetActionEntries(StringName stateId)
+    {
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(stateId);
+        return _entriesByState.TryGetValue(
+            normalizedStateId,
+            out List<BattleAiRuntimeActionEntry> entries
+        )
+            ? entries
+            : Array.Empty<BattleAiRuntimeActionEntry>();
+    }
+
+    internal bool HasActionIdentityKey(string identityKey)
+    {
+        if (string.IsNullOrEmpty(identityKey))
+            return false;
+        foreach (List<BattleAiRuntimeActionEntry> entries in _entriesByState.Values)
+        {
+            foreach (BattleAiRuntimeActionEntry entry in entries)
+            {
+                if (entry?.Metadata?.identity_key == identityKey)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    internal RuntimeActionMetadata GetActionMetadata(EnemyAiActionDefinition action)
+    {
+        if (action == null)
+            return new RuntimeActionMetadata();
+        foreach (List<BattleAiRuntimeActionEntry> entries in _entriesByState.Values)
+        {
+            foreach (BattleAiRuntimeActionEntry entry in entries)
+            {
+                if (ReferenceEquals(entry?.Action, action))
+                    return entry.Metadata?.Clone() ?? new RuntimeActionMetadata();
+            }
+        }
+        return new RuntimeActionMetadata();
     }
 
     internal bool TryGetSkillAffordances(
-        StringName skill_id,
+        StringName skillId,
         out IReadOnlyList<StringName> affordances
     )
     {
-        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
         if (
-            normalizedSkillId != ""
-            && _skillAffordanceRecordsBySkillId.TryGetValue(
-                normalizedSkillId,
+            TryGetSkillAffordanceRecordTyped(
+                skillId,
                 out BattleAiSkillAffordanceRecord record
             )
         )
@@ -147,94 +191,41 @@ internal sealed class BattleAiRuntimeActionPlan
             affordances = record.affordances;
             return true;
         }
-        affordances = System.Array.Empty<StringName>();
+        affordances = Array.Empty<StringName>();
         return false;
     }
 
-    public bool HasState(StringName state_id)
-    {
-        return _actionsByState.ContainsKey(ProgressionDataUtils.to_string_name(state_id));
-    }
+    public bool HasState(StringName stateId) =>
+        _entriesByState.ContainsKey(ProgressionDataUtils.to_string_name(stateId));
 
-    public bool IsEmptyState(StringName state_id)
-    {
-        return HasState(state_id) && GetActions(state_id).Count == 0;
-    }
+    public bool IsEmptyState(StringName stateId) =>
+        HasState(stateId) && GetActionEntries(stateId).Count == 0;
 
-    internal void SetActionMetadata(EnemyAiAction action, RuntimeActionMetadata metadata)
-    {
-        SetActionMetadataTyped(action, metadata);
-    }
-
-    private RuntimeActionMetadata SetActionMetadataTyped(
-        EnemyAiAction action,
-        RuntimeActionMetadata metadata
+    internal void SetSkillAffordanceRecord(
+        StringName skillId,
+        BattleAiSkillAffordanceRecord record
     )
     {
-        if (action == null)
-        {
-            return new RuntimeActionMetadata();
-        }
-        long instanceId = InstanceKey(action);
-        RuntimeActionMetadata resolvedMetadata =
-            metadata ?? RuntimeActionMetadata.ForAuthoredAction("", action);
-        resolvedMetadata.ApplyActionDefaults(action);
-        _metadataByInstanceId[instanceId] = resolvedMetadata;
-        return resolvedMetadata;
-    }
-
-    internal RuntimeActionMetadata GetActionMetadata(EnemyAiAction action)
-    {
-        if (action == null)
-        {
-            return new RuntimeActionMetadata();
-        }
-        long instanceId = InstanceKey(action);
-        if (!_metadataByInstanceId.TryGetValue(instanceId, out RuntimeActionMetadata metadata))
-        {
-            return new RuntimeActionMetadata();
-        }
-        return metadata.Clone();
-    }
-
-    internal void SetSkillAffordanceRecord(StringName skill_id, BattleAiSkillAffordanceRecord record)
-    {
-        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
-        if (normalizedSkillId == "")
-        {
-            return;
-        }
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         BattleAiSkillAffordanceRecord storedRecord = record?.Clone();
-        if (storedRecord == null)
-        {
+        if (normalizedSkillId == "" || storedRecord == null)
             return;
-        }
         storedRecord.skill_id = normalizedSkillId;
         _skillAffordanceRecordsBySkillId[normalizedSkillId] = storedRecord;
     }
 
     internal void SetSkillAffordanceRecordTyped(BattleAiSkillAffordanceRecord record)
     {
-        if (record == null)
-        {
-            return;
-        }
-        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(record.skill_id);
-        if (normalizedSkillId == "")
-        {
-            return;
-        }
-        BattleAiSkillAffordanceRecord storedRecord = record.Clone();
-        storedRecord.skill_id = normalizedSkillId;
-        _skillAffordanceRecordsBySkillId[normalizedSkillId] = storedRecord;
+        if (record != null)
+            SetSkillAffordanceRecord(record.skill_id, record);
     }
 
     internal bool TryGetSkillAffordanceRecordTyped(
-        StringName skill_id,
+        StringName skillId,
         out BattleAiSkillAffordanceRecord record
     )
     {
-        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (
             normalizedSkillId != ""
             && _skillAffordanceRecordsBySkillId.TryGetValue(
@@ -254,207 +245,204 @@ internal sealed class BattleAiRuntimeActionPlan
     {
         var validationErrors = new List<string>();
         if (unit_id == "")
-        {
             validationErrors.Add("Runtime action plan is missing unit_id.");
-        }
         if (brain_id == "")
-        {
             validationErrors.Add("Runtime action plan is missing brain_id.");
-        }
-        foreach (StringName stateId in _actionsByState.Keys)
+
+        foreach ((StringName stateId, List<BattleAiRuntimeActionEntry> stateEntries) in _entriesByState)
         {
-            if (!_actionsByState.TryGetValue(stateId, out List<EnemyAiAction> stateActions))
+            foreach (BattleAiRuntimeActionEntry entry in stateEntries)
             {
-                validationErrors.Add(
-                    $"Runtime action plan state {stateId} actions payload is invalid."
-                );
-                continue;
-            }
-            foreach (EnemyAiAction action in stateActions)
-            {
-                if (action == null)
+                if (entry == null)
                 {
                     validationErrors.Add(
                         $"Runtime action plan state {stateId} contains null action."
                     );
                     continue;
                 }
-                if (!_metadataByInstanceId.ContainsKey(InstanceKey(action)))
-                {
+                if (entry.Action == null)
                     validationErrors.Add(
-                        $"Runtime action plan action {ProgressionDataUtils.to_string_name(action.action_id)} is missing metadata."
+                        $"Runtime action plan state {stateId} contains null action definition."
                     );
-                }
+                if (entry.Metadata == null)
+                    validationErrors.Add(
+                        $"Runtime action plan action {entry.ActionId} is missing metadata."
+                    );
             }
         }
         errors = new List<string>(validationErrors);
         return validationErrors;
     }
 
-    public bool IsStaleFor(BattleUnitState unitState, EnemyAiBrainDef brain)
-    {
-        return fingerprint != BuildFingerprint(unitState, brain);
-    }
+    public bool IsStaleFor(BattleUnitState unitState, EnemyAiBrainDefinition brain) =>
+        fingerprint != BuildFingerprint(unitState, brain);
 
-    public static string BuildFingerprint(BattleUnitState unitState, EnemyAiBrainDef brain)
+    public static string BuildFingerprint(
+        BattleUnitState unitState,
+        EnemyAiBrainDefinition brain
+    )
     {
         var parts = new List<string>
         {
-            $"unit={(unitState != null ? unitState.unit_id.ToString() : "")}",
-            $"brain={(brain != null ? ProgressionDataUtils.to_string_name(brain.brain_id).ToString() : "")}",
+            $"unit={unitState?.unit_id.ToString() ?? ""}",
+            $"brain={brain?.BrainId.ToString() ?? ""}",
             $"skills={BuildSkillSignature(unitState)}",
             $"brain_shape={BuildBrainShapeSignature(brain)}",
         };
         return string.Join("|", parts);
     }
 
-    private void EnsureState(StringName stateId)
+    private void ClearBorrowedState()
     {
-        if (!_actionsByState.ContainsKey(stateId))
-        {
-            _actionsByState[stateId] = new List<EnemyAiAction>();
-        }
+        _entriesByState.Clear();
+        _skillAffordanceRecordsBySkillId.Clear();
+        warnings.Clear();
+        errors.Clear();
+        unit_id = "";
+        brain_id = "";
+        fingerprint = "";
     }
 
-    private List<EnemyAiAction> GetStateActions(StringName stateId)
+    private List<BattleAiRuntimeActionEntry> GetOrCreateStateEntries(StringName stateId)
     {
-        if (!_actionsByState.TryGetValue(stateId, out List<EnemyAiAction> actions))
+        if (!_entriesByState.TryGetValue(stateId, out List<BattleAiRuntimeActionEntry> entries))
         {
-            actions = new List<EnemyAiAction>();
-            _actionsByState[stateId] = actions;
+            entries = new List<BattleAiRuntimeActionEntry>();
+            _entriesByState[stateId] = entries;
         }
-        return actions;
-    }
-
-    private List<EnemyAiAction> GetGeneratedActions(StringName stateId)
-    {
-        if (!_generatedActionsByState.TryGetValue(stateId, out List<EnemyAiAction> actions))
-        {
-            actions = new List<EnemyAiAction>();
-            _generatedActionsByState[stateId] = actions;
-        }
-        return actions;
-    }
-
-    private void SetStateActions(StringName stateId, List<EnemyAiAction> actions)
-    {
-        _actionsByState[stateId] = actions ?? new List<EnemyAiAction>();
-    }
-
-    private static List<EnemyAiAction> CopyActionList(IEnumerable<EnemyAiAction> actions)
-    {
-        var result = new List<EnemyAiAction>();
-        if (actions == null)
-        {
-            return result;
-        }
-        foreach (EnemyAiAction action in actions)
-        {
-            if (action != null)
-            {
-                result.Add(action);
-            }
-        }
-        return result;
+        return entries;
     }
 
     private static string BuildSkillSignature(BattleUnitState unitState)
     {
         if (unitState == null)
-        {
             return "";
-        }
+
         var entries = new List<string>();
-        foreach (StringName rawSkillId in unitState.known_active_skill_ids)
-        {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (skillId == "")
+        BattleSkillAvailabilityView availabilityView = new BattleSkillAvailabilityService(
+            (IReadOnlyDictionary<StringName, SkillDefinition>)null
+        ).BuildView(
+            new BattleSkillAvailabilityQuery
             {
-                continue;
+                User = unitState,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
             }
-            int level = GetKnownSkillLevel(unitState, skillId);
-            entries.Add($"{skillId}:{level}");
+        );
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+        {
+            StringName entryId = ProgressionDataUtils.to_string_name(
+                entry.EntryRef.SkillEntryId
+            );
+            StringName skillId = ProgressionDataUtils.to_string_name(entry.EntryRef.SkillId);
+            if (entryId != "" && skillId != "")
+                entries.Add($"{entryId}:{skillId}:{entry.SkillLevel}");
         }
-        entries.Sort(System.StringComparer.Ordinal);
+        entries.Sort(StringComparer.Ordinal);
         return string.Join(",", entries);
     }
 
-    private static int GetKnownSkillLevel(BattleUnitState unitState, StringName skillId)
-    {
-        if (unitState == null)
-        {
-            return 1;
-        }
-        return unitState.GetKnownSkillLevelTyped(skillId);
-    }
-
-    private static string BuildBrainShapeSignature(EnemyAiBrainDef brain)
+    private static string BuildBrainShapeSignature(EnemyAiBrainDefinition brain)
     {
         if (brain == null)
-        {
             return "";
-        }
+
         var stateEntries = new List<string>();
-        foreach (EnemyAiStateDef stateDef in brain.GetResolvedStates())
+        foreach (EnemyAiStateDefinition state in brain.StateOrder)
         {
-            if (stateDef == null)
-            {
+            if (state == null)
                 continue;
-            }
             var actionEntries = new List<string>();
-            foreach (EnemyAiAction action in stateDef.GetTypedActions())
+            foreach (EnemyAiActionDefinition action in state.Actions)
             {
+                if (action == null)
+                    continue;
                 var declaredSkillIds = new List<string>();
-                foreach (StringName skillId in action.GetDeclaredSkillIds())
-                {
+                foreach (StringName skillId in action.DeclaredSkillIds)
                     declaredSkillIds.Add(skillId.ToString());
-                }
-                declaredSkillIds.Sort(System.StringComparer.Ordinal);
-                string scriptPath = "";
-                Resource scriptResource = action.GetScript().As<Resource>();
-                if (scriptResource != null)
-                {
-                    scriptPath = scriptResource.ResourcePath;
-                }
+                declaredSkillIds.Sort(StringComparer.Ordinal);
                 actionEntries.Add(
-                    string.Format(
-                        "{0}:{1}:{2}:{3}",
-                        ProgressionDataUtils.to_string_name(action.action_id),
-                        scriptPath,
-                        ProgressionDataUtils.to_string_name(action.score_bucket_id),
-                        string.Join(",", declaredSkillIds)
-                    )
+                    $"{action.ActionId}:{GetAuthoredActionScriptPath(action.Kind)}:{action.ScoreBucketId}:{string.Join(",", declaredSkillIds)}"
                 );
             }
 
             var slotEntries = new List<string>();
-            foreach (
-                EnemyAiGenerationSlotDef slot in stateDef.GetTypedGenerationSlots()
-            )
+            foreach (EnemyAiGenerationSlotDefinition slot in state.GenerationSlots)
             {
-                slotEntries.Add(slot.BuildSignature());
+                if (slot != null)
+                    slotEntries.Add(slot.BuildSignature());
             }
             stateEntries.Add(
-                $"{stateDef.state_id}{{actions=[{string.Join(";", actionEntries)}];slots=[{string.Join(";", slotEntries)}]}}"
+                $"{state.StateId}{{actions=[{string.Join(";", actionEntries)}];slots=[{string.Join(";", slotEntries)}]}}"
             );
         }
 
         var transitionEntries = new List<string>();
-        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
+        foreach (EnemyAiTransitionRuleDefinition rule in brain.TransitionRules)
         {
             if (rule != null)
-            {
-                transitionEntries.Add(rule.ToSignature());
-            }
+                transitionEntries.Add(BuildTransitionSignature(rule));
         }
-        transitionEntries.Sort(System.StringComparer.Ordinal);
+        transitionEntries.Sort(StringComparer.Ordinal);
         return $"states={string.Join("||", stateEntries)}|transitions={string.Join("||", transitionEntries)}";
     }
 
-    private static long InstanceKey(EnemyAiAction action)
+    private static string BuildTransitionSignature(EnemyAiTransitionRuleDefinition rule)
     {
-        return unchecked((long)action.GetInstanceId());
+        var fromStateIds = new List<string>();
+        foreach (StringName stateId in rule.FromStateIds)
+            fromStateIds.Add(stateId.ToString());
+        var conditions = new List<string>();
+        foreach (EnemyAiTransitionConditionDefinition condition in rule.Conditions)
+        {
+            if (condition != null)
+                conditions.Add(BuildTransitionConditionSignature(condition));
+        }
+        return $"{rule.Order}:{rule.RuleId}:{rule.TargetStateId}:from=[{string.Join(",", fromStateIds)}]:conditions=[{string.Join(";", conditions)}]";
     }
+
+    private static string BuildTransitionConditionSignature(
+        EnemyAiTransitionConditionDefinition condition
+    )
+    {
+        var stateIds = new List<string>();
+        foreach (StringName stateId in condition.StateIds)
+            stateIds.Add(stateId.ToString());
+        var affordances = new List<string>();
+        foreach (StringName affordance in condition.Affordances)
+            affordances.Add(affordance.ToString());
+        return $"{condition.Predicate}(bp={condition.BasisPoints},dist={condition.MaxDistance},states={string.Join(",", stateIds)},affordances={string.Join(",", affordances)})";
+    }
+
+    private static string GetAuthoredActionScriptPath(EnemyAiActionKind kind) =>
+        kind switch
+        {
+            EnemyAiActionKind.UseUnitSkill =>
+                "res://scripts/enemies/actions/UseUnitSkillAction.cs",
+            EnemyAiActionKind.UseGroundSkill =>
+                "res://scripts/enemies/actions/UseGroundSkillAction.cs",
+            EnemyAiActionKind.UseMultiUnitSkill =>
+                "res://scripts/enemies/actions/UseMultiUnitSkillAction.cs",
+            EnemyAiActionKind.MoveToMultiUnitSkillPosition =>
+                "res://scripts/enemies/actions/MoveToMultiUnitSkillPositionAction.cs",
+            EnemyAiActionKind.UseRandomChainSkill =>
+                "res://scripts/enemies/actions/UseRandomChainSkillAction.cs",
+            EnemyAiActionKind.UseCharge =>
+                "res://scripts/enemies/actions/UseChargeAction.cs",
+            EnemyAiActionKind.UseChargePathAoe =>
+                "res://scripts/enemies/actions/UseChargePathAoeAction.cs",
+            EnemyAiActionKind.MoveToRange =>
+                "res://scripts/enemies/actions/MoveToRangeAction.cs",
+            EnemyAiActionKind.MoveToAdvantagePosition =>
+                "res://scripts/enemies/actions/MoveToAdvantagePositionAction.cs",
+            EnemyAiActionKind.UseGroundRepositionSkill =>
+                "res://scripts/enemies/actions/UseGroundRepositionSkillAction.cs",
+            EnemyAiActionKind.Retreat => "res://scripts/enemies/actions/RetreatAction.cs",
+            EnemyAiActionKind.Wait => "res://scripts/enemies/actions/WaitAction.cs",
+            _ => "",
+        };
 
     internal sealed class RuntimeActionMetadata
     {
@@ -469,11 +457,11 @@ internal sealed class BattleAiRuntimeActionPlan
         public StringName score_bucket_id = "";
         public StringName action_id = "";
         public string identity_key = "";
+        public bool force_candidate_request_evaluation;
         public RuntimeActionExportMetadata runtime_action_metadata = new();
 
-        public RuntimeActionMetadata Clone()
-        {
-            return new RuntimeActionMetadata
+        public RuntimeActionMetadata Clone() =>
+            new()
             {
                 generated = generated,
                 state_id = state_id,
@@ -486,23 +474,23 @@ internal sealed class BattleAiRuntimeActionPlan
                 score_bucket_id = score_bucket_id,
                 action_id = action_id,
                 identity_key = identity_key ?? "",
-                runtime_action_metadata = runtime_action_metadata?.Clone() ?? new RuntimeActionExportMetadata(),
+                force_candidate_request_evaluation = force_candidate_request_evaluation,
+                runtime_action_metadata =
+                    runtime_action_metadata?.Clone() ?? new RuntimeActionExportMetadata(),
             };
-        }
 
         public static RuntimeActionMetadata ForAuthoredAction(
             StringName stateId,
-            EnemyAiAction action
+            EnemyAiActionDefinition action
         )
         {
             var result = new RuntimeActionMetadata
             {
                 generated = false,
                 state_id = ProgressionDataUtils.to_string_name(stateId),
-                score_bucket_id =
-                    action != null ? ProgressionDataUtils.to_string_name(action.score_bucket_id) : "",
-                action_id =
-                    action != null ? ProgressionDataUtils.to_string_name(action.action_id) : "",
+                score_bucket_id = action?.ScoreBucketId ?? new StringName(""),
+                action_id = action?.ActionId ?? new StringName(""),
+                force_candidate_request_evaluation = ShouldForceCandidateRequest(action),
             };
             result.ApplyActionDefaults(action);
             return result;
@@ -510,7 +498,7 @@ internal sealed class BattleAiRuntimeActionPlan
 
         public static RuntimeActionMetadata ForGeneratedAction(
             StringName stateId,
-            EnemyAiAction action,
+            EnemyAiActionDefinition action,
             StringName slotId,
             StringName slotRole,
             StringName skillId,
@@ -529,11 +517,10 @@ internal sealed class BattleAiRuntimeActionPlan
                 variant_id = "",
                 action_family = ProgressionDataUtils.to_string_name(actionFamily),
                 source_action_id = ProgressionDataUtils.to_string_name(sourceActionId),
-                score_bucket_id =
-                    action != null ? ProgressionDataUtils.to_string_name(action.score_bucket_id) : "",
-                action_id =
-                    action != null ? ProgressionDataUtils.to_string_name(action.action_id) : "",
+                score_bucket_id = action?.ScoreBucketId ?? new StringName(""),
+                action_id = action?.ActionId ?? new StringName(""),
                 identity_key = identityKey ?? "",
+                force_candidate_request_evaluation = true,
                 runtime_action_metadata = RuntimeActionExportMetadata.ForGeneratedAction(
                     stateId,
                     slotId,
@@ -548,18 +535,17 @@ internal sealed class BattleAiRuntimeActionPlan
             return result;
         }
 
-        public void ApplyActionDefaults(EnemyAiAction action)
+        public void ApplyActionDefaults(EnemyAiActionDefinition action)
         {
             if (action_id == "" && action != null)
-            {
-                action_id = ProgressionDataUtils.to_string_name(action.action_id);
-            }
+                action_id = action.ActionId;
             if (score_bucket_id == "" && action != null)
-            {
-                score_bucket_id = ProgressionDataUtils.to_string_name(action.score_bucket_id);
-            }
+                score_bucket_id = action.ScoreBucketId;
         }
 
+        private static bool ShouldForceCandidateRequest(EnemyAiActionDefinition action) =>
+            action is MoveToRangeActionDefinition moveToRange
+            && moveToRange.ScreeningMode == (StringName)"none";
     }
 
     internal sealed class RuntimeActionExportMetadata
@@ -574,9 +560,8 @@ internal sealed class BattleAiRuntimeActionPlan
         public StringName source_action_id = "";
         public string identity_key = "";
 
-        public RuntimeActionExportMetadata Clone()
-        {
-            return new RuntimeActionExportMetadata
+        public RuntimeActionExportMetadata Clone() =>
+            new()
             {
                 generated = generated,
                 state_id = state_id,
@@ -588,7 +573,6 @@ internal sealed class BattleAiRuntimeActionPlan
                 source_action_id = source_action_id,
                 identity_key = identity_key ?? "",
             };
-        }
 
         public static RuntimeActionExportMetadata ForGeneratedAction(
             StringName stateId,
@@ -598,9 +582,8 @@ internal sealed class BattleAiRuntimeActionPlan
             StringName actionFamily,
             StringName sourceActionId,
             string identityKey
-        )
-        {
-            return new RuntimeActionExportMetadata
+        ) =>
+            new()
             {
                 generated = true,
                 state_id = ProgressionDataUtils.to_string_name(stateId),
@@ -612,21 +595,16 @@ internal sealed class BattleAiRuntimeActionPlan
                 source_action_id = ProgressionDataUtils.to_string_name(sourceActionId),
                 identity_key = identityKey ?? "",
             };
-        }
 
-        public bool IsEmpty()
-        {
-            return !generated
-                && state_id == ""
-                && slot_id == ""
-                && slot_role == ""
-                && skill_id == ""
-                && variant_id == ""
-                && action_family == ""
-                && source_action_id == ""
-                && string.IsNullOrEmpty(identity_key);
-        }
-
+        public bool IsEmpty() =>
+            !generated
+            && state_id == ""
+            && slot_id == ""
+            && slot_role == ""
+            && skill_id == ""
+            && variant_id == ""
+            && action_family == ""
+            && source_action_id == ""
+            && string.IsNullOrEmpty(identity_key);
     }
-
 }

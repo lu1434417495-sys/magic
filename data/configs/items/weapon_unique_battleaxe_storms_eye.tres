@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 1
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_axe_storms_eye_091"
+base_item_id = &"weapon_type_battleaxe_base"
+display_name = "风暴之眼"
+description = "一柄仿佛由风暴云眼凝成的战斧。命中时引雷入刃，暴击时爆发雷鸣；装备者可施展裂云重劈，将敌人震退，推不动时追加雷鸣震击。"
+is_stackable = false
+base_price = 50000
+buy_price = 50000
+sell_price = 25000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"storms_eye", &"thunder", &"lightning"])
+trait_ids = Array[StringName]([&"weapon.axe.storms_eye.lightning_edge", &"weapon.axe.storms_eye.thunder_rift", &"weapon.axe.storms_eye.cloudsplitter_heavy_chop"])
+weapon_profile = SubResource("Resource_weapon_profile")

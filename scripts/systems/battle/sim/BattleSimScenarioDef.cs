@@ -52,17 +52,7 @@ public partial class BattleSimScenarioDef : Resource
     [Export]
     public int[] seeds { get; set; } = { 101 };
 
-    public Godot.Collections.Array<int> ResolveSeeds()
-    {
-        var r = new Godot.Collections.Array<int>();
-        foreach (int s in seeds)
-            r.Add(s);
-        if (r.Count == 0)
-            r.Add(101);
-        return r;
-    }
-
-    internal Godot.Collections.Dictionary BuildStartContext()
+    internal BattleSimScenarioDefinition ToDefinition()
     {
         List<BattleSimScenarioUnitEntry> allyEntries = BuildUnitEntries(
             ally_units,
@@ -76,27 +66,40 @@ public partial class BattleSimScenarioDef : Resource
             "hostile",
             "ai"
         );
-        var ctx = new Godot.Collections.Dictionary
+        var resolvedSeeds = new List<int>();
+        if (seeds != null)
         {
-            { "battle_party", ProjectUnitPayloads(allyEntries) },
-            { "enemy_units", ProjectUnitPayloads(enemyEntries) },
-            { "tu_per_tick", tu_per_tick },
-            { "battle_terrain_profile", terrain_profile_id },
-            { "world_coord", world_coord },
-        };
-
-        if (use_formal_terrain_generation)
-        {
-            if (map_size != Vector2I.Zero)
-                ctx["battle_map_size"] = map_size;
-            return ctx;
+            foreach (int seed in seeds)
+                resolvedSeeds.Add(seed);
         }
+        if (resolvedSeeds.Count == 0)
+            resolvedSeeds.Add(101);
 
-        ctx["ally_spawns"] = ProjectSpawnCoords(allyEntries);
-        ctx["enemy_spawns"] = ProjectSpawnCoords(enemyEntries);
-        ctx["map_size"] = map_size;
-        ctx["cells"] = _build_cells();
-        return ctx;
+        IReadOnlyDictionary<Vector2I, IReadOnlyDictionary<string, object>> cells =
+            use_formal_terrain_generation
+                ? new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>()
+                : BuildCellsPlain();
+
+        return new BattleSimScenarioDefinition(
+            scenario_id,
+            display_name,
+            description,
+            map_size,
+            terrain_profile_id,
+            use_formal_terrain_generation,
+            world_coord,
+            allyEntries,
+            enemyEntries,
+            ally_units?.Count ?? 0,
+            enemy_units?.Count ?? 0,
+            cells,
+            timeline_ticks_per_step,
+            tu_per_tick,
+            max_iterations,
+            manual_policy,
+            trace_enabled,
+            resolvedSeeds
+        );
     }
 
     private static List<BattleSimScenarioUnitEntry> BuildUnitEntries(
@@ -126,41 +129,9 @@ public partial class BattleSimScenarioDef : Resource
         return entries;
     }
 
-    private static Godot.Collections.Array ProjectUnitPayloads(
-        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
-    )
+    private Dictionary<Vector2I, IReadOnlyDictionary<string, object>> BuildCellsPlain()
     {
-        var payloads = new Godot.Collections.Array();
-        if (unitEntries == null)
-            return payloads;
-        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
-        {
-            if (entry?.UnitState == null)
-                continue;
-            payloads.Add(entry.UnitState.ToDictionary());
-        }
-        return payloads;
-    }
-
-    private static Godot.Collections.Array<Vector2I> ProjectSpawnCoords(
-        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
-    )
-    {
-        var coords = new Godot.Collections.Array<Vector2I>();
-        if (unitEntries == null)
-            return coords;
-        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
-        {
-            if (entry == null)
-                continue;
-            coords.Add(entry.Coord);
-        }
-        return coords;
-    }
-
-    private Godot.Collections.Dictionary _build_cells()
-    {
-        var cells = new Godot.Collections.Dictionary();
+        var cells = new Dictionary<Vector2I, BattleCellState>();
 
         for (int y = 0; y < map_size.Y; y++)
         for (int x = 0; x < map_size.X; x++)
@@ -178,16 +149,23 @@ public partial class BattleSimScenarioDef : Resource
             var coord = _resolve_override_coord(oe);
             if (coord == new Vector2I(-1, -1))
                 continue;
-            var cs = cells.ContainsKey(coord)
-                ? cells[coord].AsGodotObject() as BattleCellState
-                : new BattleCellState();
+            BattleCellState cs = null;
+            cells.TryGetValue(coord, out cs);
+            cs ??= new BattleCellState();
             cs.SetCoord(coord);
             _apply_cell_override(cs, oe);
             cs.RecalculateRuntimeValues();
             cells[coord] = cs;
         }
 
-        return cells;
+        var snapshots =
+            new Dictionary<Vector2I, IReadOnlyDictionary<string, object>>();
+        foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
+            snapshots[entry.Key] = ContentValueNormalizer.NormalizeDictionary(
+                RuntimePlainPayload.CloneDictionary(entry.Value.BuildSnapshotPlain()),
+                $"BattleSimScenarioDef[{scenario_id}].cells[{entry.Key}]"
+            );
+        return snapshots;
     }
 
     private static Vector2I _resolve_override_coord(Godot.Collections.Dictionary oe)

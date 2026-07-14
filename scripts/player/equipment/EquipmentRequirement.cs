@@ -12,7 +12,9 @@ public readonly struct EquipmentRequirementCheckResult
     )
     {
         Allowed = allowed;
-        Blockers = blockers != null ? new List<string>(blockers) : new List<string>();
+        Blockers = (
+            blockers != null ? new List<string>(blockers) : new List<string>()
+        ).AsReadOnly();
     }
 
 }
@@ -29,28 +31,15 @@ public partial class EquipmentRequirement : Resource
     [Export(PropertyHint.Range, "0,99,1")]
     public int max_body_size;
 
-    public EquipmentRequirementCheckResult CheckResult(PartyMemberState member_state)
-    {
-        var blockers = new List<string>();
-        if (required_profession_ids.Count > 0)
-        {
-            bool has_profession = false;
-            foreach (string raw_id in required_profession_ids)
-            {
-                var prof_id = ProgressionDataUtils.to_string_name(raw_id);
-                if (member_state?.progression?.GetProfessionProgress(prof_id) != null)
-                {
-                    has_profession = true;
-                    break;
-                }
-            }
-            if (!has_profession)
-                blockers.Add("missing_profession");
-        }
-        if (min_body_size > 0 && (member_state == null || member_state.body_size < min_body_size))
-            blockers.Add("body_size_too_small");
-        if (max_body_size > 0 && (member_state == null || member_state.body_size > max_body_size))
-            blockers.Add("body_size_too_large");
-        return new EquipmentRequirementCheckResult(blockers.Count == 0, blockers);
-    }
+    [Export]
+    public Godot.Collections.Array<EquipmentAttributeRequirementDef> attribute_requirements = new();
+
+    internal Godot.Collections.Array<string> RequiredProfessionIdsProjectionBorrowed =>
+        required_profession_ids;
+
+    internal Godot.Collections.Array<EquipmentAttributeRequirementDef> AttributeRequirementsProjectionBorrowed =>
+        attribute_requirements;
+
+    internal EquipmentRequirementDefinition ToDefinition() =>
+        EquipmentRequirementDefinition.FromResource(this);
 }

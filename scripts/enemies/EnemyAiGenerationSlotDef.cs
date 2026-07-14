@@ -258,6 +258,22 @@ public partial class EnemyAiGenerationSlotDef : Resource
             }
         );
 
+    internal EnemyAiGenerationSlotDefinition ToDefinition() =>
+        new(
+            slot_id,
+            slot_role,
+            order,
+            new List<StringName>(allowed_affordances),
+            new List<StringName>(action_families),
+            style_template_action_id,
+            score_bucket_id,
+            target_selector,
+            desired_min_distance,
+            desired_max_distance,
+            distance_reference,
+            suppression_policy
+        );
+
     public GArray ValidateSchema(
         string context_label = "Enemy AI generation slot",
         GEnemyAiActionArray state_actions = null

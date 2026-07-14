@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_encounter_anchor_schema_regression : SceneTree
+public partial class run_encounter_anchor_schema_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -21,8 +21,7 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
         TestEmptyRequiredIdentityFieldsAreRejected();
         TestInvalidEncounterKindIsRejected();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Encounter anchor schema regression"));
+        RequestTestExit(_test.Finish("Encounter anchor schema regression"));
     }
 
     private void TestValidRoundtripPreservesCurrentSchema()
@@ -43,17 +42,19 @@ public partial class run_encounter_anchor_schema_regression : SceneTree
             suppressed_until_step = 11,
         };
 
-        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(
-            WorldMapDataProjection.Project(encounterAnchor)
-        );
+        using GodotProjectionLease<GDictionary> sourceLease =
+            WorldMapDataProjection.ProjectLease(encounterAnchor);
+        EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(sourceLease.Value);
         _test.True(restoredAnchor != null, "valid projection payload should deserialize.");
         if (restoredAnchor == null)
         {
             return;
         }
+        using GodotProjectionLease<GDictionary> restoredLease =
+            WorldMapDataProjection.ProjectLease(restoredAnchor);
         AssertDictionaryEq(
-            WorldMapDataProjection.Project(restoredAnchor),
-            WorldMapDataProjection.Project(encounterAnchor),
+            restoredLease.Value,
+            sourceLease.Value,
             "valid roundtrip should preserve all serialized fields."
         );
     }

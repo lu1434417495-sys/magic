@@ -1,14 +1,11 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class run_character_management_identity_stage_regression : SceneTree
+public partial class run_character_management_identity_stage_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -17,19 +14,11 @@ public partial class run_character_management_identity_stage_regression : SceneT
 
     private void Run()
     {
-        try
-        {
-            TestAgeStageResolverNoLongerRequiresGodotRegistration();
-            TestStageAdvancementRefreshesEffectiveAgeStage();
-            TestAscensionReplacesEffectiveAgeStage();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestAgeStageResolverNoLongerRequiresGodotRegistration();
+        TestStageAdvancementRefreshesEffectiveAgeStage();
+        TestAscensionReplacesEffectiveAgeStage();
 
-        Quit(_test.Finish("Character management identity stage regression"));
+        RequestTestExit(_test.Finish("Character management identity stage regression"));
     }
 
     private void TestAgeStageResolverNoLongerRequiresGodotRegistration()
@@ -40,13 +29,13 @@ public partial class run_character_management_identity_stage_regression : SceneT
     private void TestStageAdvancementRefreshesEffectiveAgeStage()
     {
         AgeProfileDef ageProfile = MakeAgeProfile();
-        StageAdvancementModifier modifier = TrackOwned(new StageAdvancementModifier
+        StageAdvancementModifier modifier = new()
         {
             modifier_id = "advance_one_stage",
             display_name = "Advance one stage",
             target_axis = StageAdvancementModifier.ToStringName(StageAdvancementTargetAxis.Full),
             stage_offset = 1,
-        });
+        };
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(
             party,
@@ -107,19 +96,19 @@ public partial class run_character_management_identity_stage_regression : SceneT
     private void TestAscensionReplacesEffectiveAgeStage()
     {
         AgeProfileDef ageProfile = MakeAgeProfile();
-        AscensionDef ascension = TrackOwned(new AscensionDef
+        AscensionDef ascension = new()
         {
             ascension_id = "divine_body",
             display_name = "Divine Body",
             replaces_age_growth = true,
-        });
+        };
         ascension.stage_ids.Add("divine_age");
-        AscensionStageDef stage = TrackOwned(new AscensionStageDef
+        AscensionStageDef stage = new()
         {
             stage_id = "divine_age",
             ascension_id = ascension.ascension_id,
             display_name = "Divine Age",
-        });
+        };
         PartyState party = BuildPartyWithMember("hero");
         CharacterManagementModule manager = BuildManager(
             party,
@@ -161,19 +150,19 @@ public partial class run_character_management_identity_stage_regression : SceneT
         );
     }
 
-    private CharacterManagementModule BuildManager(
+    private static CharacterManagementModule BuildManager(
         PartyState party,
         ProgressionIdentityCatalogData identityCatalog
     )
     {
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule manager = new();
         manager.setup(
             party,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Dictionary<StringName, SkillDefinition>(),
+            new Dictionary<StringName, ProfessionDefinition>(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            new Dictionary<StringName, ItemDefinition>(),
+            new Dictionary<StringName, QuestDefinition>(),
             null,
             identityCatalog
         );
@@ -188,20 +177,28 @@ public partial class run_character_management_identity_stage_regression : SceneT
     )
     {
         return new ProgressionIdentityCatalogData(
-            new Dictionary<StringName, RaceDef>(),
-            new Dictionary<StringName, SubraceDef>(),
-            ageProfileDefs,
-            new Dictionary<StringName, BloodlineDef>(),
-            new Dictionary<StringName, BloodlineStageDef>(),
-            ascensionDefs,
-            ascensionStageDefs,
-            stageAdvancementDefs
+            new Dictionary<StringName, RaceDefinition>(),
+            new Dictionary<StringName, SubraceDefinition>(),
+            ageProfileDefs != null
+                ? TestProgressionDefinitionProjection.AgeProfiles(ageProfileDefs)
+                : new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            ascensionDefs != null
+                ? TestProgressionDefinitionProjection.Ascensions(ascensionDefs)
+                : new Dictionary<StringName, AscensionDefinition>(),
+            ascensionStageDefs != null
+                ? TestProgressionDefinitionProjection.AscensionStages(ascensionStageDefs)
+                : new Dictionary<StringName, AscensionStageDefinition>(),
+            stageAdvancementDefs != null
+                ? TestProgressionDefinitionProjection.StageAdvancements(stageAdvancementDefs)
+                : new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 
-    private PartyState BuildPartyWithMember(string memberId)
+    private static PartyState BuildPartyWithMember(string memberId)
     {
-        PartyState party = TrackOwned(new PartyState());
+        PartyState party = new();
         PartyMemberState member = new()
         {
             member_id = memberId,
@@ -215,13 +212,13 @@ public partial class run_character_management_identity_stage_regression : SceneT
         return party;
     }
 
-    private AgeProfileDef MakeAgeProfile()
+    private static AgeProfileDef MakeAgeProfile()
     {
-        AgeProfileDef ageProfile = TrackOwned(new AgeProfileDef
+        AgeProfileDef ageProfile = new()
         {
             profile_id = "test_age_profile",
             race_id = "human",
-        });
+        };
         ageProfile.stage_rules.Add(MakeAgeStageRule("adult", "Adult"));
         ageProfile.stage_rules.Add(MakeAgeStageRule("middle_age", "Middle Age"));
         ageProfile.stage_rules.Add(MakeAgeStageRule("old", "Old"));
@@ -247,48 +244,6 @@ public partial class run_character_management_identity_stage_regression : SceneT
             Variant.Type.StringName => value.AsStringName().ToString(),
             _ => "",
         };
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
     }
 
 

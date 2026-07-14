@@ -4,36 +4,36 @@ using Godot;
 
 public sealed class ProgressionIdentityCatalogData
 {
-    public IReadOnlyDictionary<StringName, RaceDef> RaceDefs { get; }
-    public IReadOnlyDictionary<StringName, SubraceDef> SubraceDefs { get; }
-    public IReadOnlyDictionary<StringName, AgeProfileDef> AgeProfileDefs { get; }
-    public IReadOnlyDictionary<StringName, BloodlineDef> BloodlineDefs { get; }
-    public IReadOnlyDictionary<StringName, BloodlineStageDef> BloodlineStageDefs { get; }
-    public IReadOnlyDictionary<StringName, AscensionDef> AscensionDefs { get; }
-    public IReadOnlyDictionary<StringName, AscensionStageDef> AscensionStageDefs { get; }
-    public IReadOnlyDictionary<StringName, StageAdvancementModifier> StageAdvancementDefs { get; }
+    public IReadOnlyDictionary<StringName, RaceDefinition> RaceDefs { get; }
+    public IReadOnlyDictionary<StringName, SubraceDefinition> SubraceDefs { get; }
+    public IReadOnlyDictionary<StringName, AgeProfileDefinition> AgeProfileDefs { get; }
+    public IReadOnlyDictionary<StringName, BloodlineDefinition> BloodlineDefs { get; }
+    public IReadOnlyDictionary<StringName, BloodlineStageDefinition> BloodlineStageDefs { get; }
+    public IReadOnlyDictionary<StringName, AscensionDefinition> AscensionDefs { get; }
+    public IReadOnlyDictionary<StringName, AscensionStageDefinition> AscensionStageDefs { get; }
+    public IReadOnlyDictionary<StringName, StageAdvancementDefinition> StageAdvancementDefs { get; }
 
     public ProgressionIdentityCatalogData()
         : this(
-            new Dictionary<StringName, RaceDef>(),
-            new Dictionary<StringName, SubraceDef>(),
-            new Dictionary<StringName, AgeProfileDef>(),
-            new Dictionary<StringName, BloodlineDef>(),
-            new Dictionary<StringName, BloodlineStageDef>(),
-            new Dictionary<StringName, AscensionDef>(),
-            new Dictionary<StringName, AscensionStageDef>(),
-            new Dictionary<StringName, StageAdvancementModifier>()
+            new Dictionary<StringName, RaceDefinition>(),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>(),
+            new Dictionary<StringName, AscensionStageDefinition>(),
+            new Dictionary<StringName, StageAdvancementDefinition>()
         ) { }
 
     public ProgressionIdentityCatalogData(
-        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
-        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
-        IReadOnlyDictionary<StringName, AgeProfileDef> ageProfileDefs,
-        IReadOnlyDictionary<StringName, BloodlineDef> bloodlineDefs,
-        IReadOnlyDictionary<StringName, BloodlineStageDef> bloodlineStageDefs,
-        IReadOnlyDictionary<StringName, AscensionDef> ascensionDefs,
-        IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs,
-        IReadOnlyDictionary<StringName, StageAdvancementModifier> stageAdvancementDefs
+        IReadOnlyDictionary<StringName, RaceDefinition> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDefinition> subraceDefs,
+        IReadOnlyDictionary<StringName, AgeProfileDefinition> ageProfileDefs,
+        IReadOnlyDictionary<StringName, BloodlineDefinition> bloodlineDefs,
+        IReadOnlyDictionary<StringName, BloodlineStageDefinition> bloodlineStageDefs,
+        IReadOnlyDictionary<StringName, AscensionDefinition> ascensionDefs,
+        IReadOnlyDictionary<StringName, AscensionStageDefinition> ascensionStageDefs,
+        IReadOnlyDictionary<StringName, StageAdvancementDefinition> stageAdvancementDefs
     )
     {
         RaceDefs = Clone(raceDefs);

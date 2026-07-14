@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -6,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_party_equipment_regression : SceneTree
+public partial class run_party_equipment_regression : LifecycleTestSceneTree
 {
     private sealed class WeaponProfileExpectation
     {
@@ -52,8 +51,6 @@ public partial class run_party_equipment_regression : SceneTree
     };
 
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
@@ -62,54 +59,48 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestItemRegistryAcceptsEquipmentSeedData();
-            TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment();
-            TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag();
-            TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots();
-            TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip();
-            TestEquipmentStateRequiresCanonicalPayload();
-            TestEquipmentEntryRejectsBadSchema();
-            TestTwoHandedWeaponOccupiesBothSlots();
-            TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
-            TestTwoHandedWeaponAttributeNotDoubleCounted();
-            TestAtomicRollbackWhenWarehouseFull();
-            TestPreviewEquipReturnsDisplacedEntries();
-            TestArmorMaxDexBonusCapsPositiveAgilityAc();
-            TestRequirementProfessionCheck();
-            TestEquipCreatesInstanceIdInSlot();
-            TestInstanceIdPreservedThroughUnequipAndReequip();
-            TestTwoItemsOfSameTypeGetDifferentInstanceIds();
-            TestWeaponProfileEquipmentEntryRoundTrip();
-            TestEquippedInstanceFieldsSurviveRoundTripAndUnequip();
-            TestEquipmentInstanceRarityRoundTripAndStrictSchema();
-            TestDuplicateSameItemInstanceIdSelection();
-            TestPartyStateRejectsDuplicateEquipmentInstanceIds();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestItemRegistryAcceptsEquipmentSeedData();
+        TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment();
+        TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag();
+        TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots();
+        TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip();
+        TestEquipmentStateRequiresCanonicalPayload();
+        TestEquipmentEntryRejectsBadSchema();
+        TestTwoHandedWeaponOccupiesBothSlots();
+        TestTwoHandedWeaponDisplacesExistingMainAndOffHand();
+        TestTwoHandedWeaponAttributeNotDoubleCounted();
+        TestAtomicRollbackWhenWarehouseFull();
+        TestPreviewEquipReturnsDisplacedEntries();
+        TestArmorMaxDexBonusCapsPositiveAgilityAc();
+        TestRequirementProfessionCheck();
+        TestEquipCreatesInstanceIdInSlot();
+        TestInstanceIdPreservedThroughUnequipAndReequip();
+        TestTwoItemsOfSameTypeGetDifferentInstanceIds();
+        TestWeaponProfileEquipmentEntryRoundTrip();
+        TestEquippedInstanceFieldsSurviveRoundTripAndUnequip();
+        TestEquipmentInstanceRarityRoundTripAndStrictSchema();
+        TestEquipmentAbilityPersistentStateRoundTripAndDuplicate();
+        TestEquipmentAbilityPersistentStateStrictSchema();
+        TestDuplicateSameItemInstanceIdSelection();
+        TestPartyStateRejectsDuplicateEquipmentInstanceIds();
 
-        Quit(_test.Finish("Party equipment regression"));
+        RequestTestExit(_test.Finish("Party equipment regression"));
     }
 
     private void TestItemRegistryAcceptsEquipmentSeedData()
     {
-        using var registry = new ItemContentRegistry();
+        ItemContentRegistry registry = new(new TestContentResourceLoader());
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
-        GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
-        ItemDef bronzeSword = GetItemDef(itemDefs, "bronze_sword");
-        ItemDef leatherCap = GetItemDef(itemDefs, "leather_cap");
-        ItemDef leatherJerkin = GetItemDef(itemDefs, "leather_jerkin");
-        ItemDef ironScaleMail = GetItemDef(itemDefs, "iron_scale_mail");
-        ItemDef scoutCharm = GetItemDef(itemDefs, "scout_charm");
-        ItemDef ironGreatsword = GetItemDef(itemDefs, "iron_greatsword");
-        ItemDef militiaAxe = GetItemDef(itemDefs, "militia_axe");
-        ItemDef watchmanMace = GetItemDef(itemDefs, "watchman_mace");
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = registry.GetItemDefsTyped();
+        ItemDefinition bronzeSword = GetItemDef(itemDefs, "bronze_sword");
+        ItemDefinition leatherCap = GetItemDef(itemDefs, "leather_cap");
+        ItemDefinition leatherJerkin = GetItemDef(itemDefs, "leather_jerkin");
+        ItemDefinition ironScaleMail = GetItemDef(itemDefs, "iron_scale_mail");
+        ItemDefinition scoutCharm = GetItemDef(itemDefs, "scout_charm");
+        ItemDefinition ironGreatsword = GetItemDef(itemDefs, "iron_greatsword");
+        ItemDefinition militiaAxe = GetItemDef(itemDefs, "militia_axe");
+        ItemDefinition watchmanMace = GetItemDef(itemDefs, "watchman_mace");
 
         _test.True(bronzeSword != null && bronzeSword.IsEquipment(), "bronze_sword should be equipment.");
         _test.True(leatherCap != null && leatherCap.IsEquipment(), "leather_cap should be equipment.");
@@ -168,9 +159,8 @@ public partial class run_party_equipment_regression : SceneTree
 
         var oneHandedWeaponClasses = new HashSet<StringName>();
         var coveredEquipmentSlots = new HashSet<StringName>();
-        foreach (Variant itemDefValue in itemDefs.Values)
+        foreach (ItemDefinition itemDef in itemDefs.Values)
         {
-            ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
             if (itemDef == null)
                 continue;
             if (itemDef.IsEquipment())
@@ -194,11 +184,11 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestAllBg3WeaponTypesAreRegisteredAsWeaponEquipment()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         _test.Eq(Bg3WeaponSeedItems.Count, 31, "BG3 weapon seed count should remain 31.");
         foreach ((StringName weaponTypeId, StringName itemId) in Bg3WeaponSeedItems)
         {
-            ItemDef itemDef = GetItemDef(itemDefs, itemId);
+            ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
             _test.True(itemDef != null, $"{itemId} should exist for weapon type {weaponTypeId}.");
             if (itemDef == null)
                 continue;
@@ -207,20 +197,20 @@ public partial class run_party_equipment_regression : SceneTree
             AssertStringNameSeqEq(itemDef.GetEquipmentSlotIdsTyped(), Names("main_hand"), $"{itemId} should equip in main hand.");
             _test.True(itemDef.GetWeaponAttackRange() >= 1, $"{itemId} should project weapon range.");
             _test.True(
-                ItemDef.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
+                ItemDefinition.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
                     != WeaponPhysicalDamageTagKind.Unknown,
                 $"{itemId} should project a valid damage tag."
             );
-            WeaponProfileDef profile = itemDef.weapon_profile as WeaponProfileDef;
-            _test.True(profile != null, $"{itemId} should have a WeaponProfileDef.");
+            WeaponProfileDefinition profile = itemDef.WeaponProfile;
+            _test.True(profile != null, $"{itemId} should have a WeaponProfileDefinition.");
             if (profile != null)
-                AssertStringNameEq(profile.weapon_type_id, weaponTypeId.ToString(), $"{itemId} should map to BG3 weapon type.");
+                AssertStringNameEq(profile.WeaponTypeId, weaponTypeId.ToString(), $"{itemId} should map to BG3 weapon type.");
         }
     }
 
     private void TestMeleeWeaponsDeclareExactlyOnePhysicalDamageTag()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         var expectedWeaponTags = new Dictionary<StringName, StringName>
         {
             ["bronze_sword"] = "physical_pierce",
@@ -256,34 +246,33 @@ public partial class run_party_equipment_regression : SceneTree
         };
 
         int coveredMeleeWeaponCount = 0;
-        foreach (Variant itemDefValue in itemDefs.Values)
+        foreach (ItemDefinition itemDef in itemDefs.Values)
         {
-            ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
             if (itemDef == null || !itemDef.IsWeapon() || !itemDef.GetTagsTyped().Contains(new StringName("melee")))
                 continue;
             coveredMeleeWeaponCount++;
             _test.True(
-                ItemDef.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
+                ItemDefinition.ToWeaponPhysicalDamageTagKind(itemDef.GetWeaponPhysicalDamageTag())
                     != WeaponPhysicalDamageTagKind.Unknown,
-                $"Melee weapon {itemDef.item_id} should declare one valid physical damage tag."
+                $"Melee weapon {itemDef.ItemId} should declare one valid physical damage tag."
             );
         }
 
         foreach ((StringName itemId, StringName expectedTag) in expectedWeaponTags)
         {
-            ItemDef itemDef = GetItemDef(itemDefs, itemId);
+            ItemDefinition itemDef = GetItemDef(itemDefs, itemId);
             _test.True(itemDef != null, $"{itemId} should exist.");
             if (itemDef == null)
                 continue;
             AssertStringNameEq(itemDef.GetWeaponPhysicalDamageTag(), expectedTag.ToString(), $"{itemId} damage tag.");
-            WeaponProfileDef profile = itemDef.weapon_profile as WeaponProfileDef;
-            _test.True(profile != null, $"{itemId} should have a WeaponProfileDef.");
+            WeaponProfileDefinition profile = itemDef.WeaponProfile;
+            _test.True(profile != null, $"{itemId} should have a WeaponProfileDefinition.");
             if (profile == null)
                 continue;
             WeaponProfileExpectation expectation = expectedProfiles[itemId];
-            AssertStringNameEq(profile.weapon_type_id, expectation.WeaponTypeId.ToString(), $"{itemId} profile type.");
-            AssertIntSeqEq(DiceToList(profile.one_handed_dice), expectation.OneHandedDice, $"{itemId} one-handed dice.");
-            AssertIntSeqEq(DiceToList(profile.two_handed_dice), expectation.TwoHandedDice, $"{itemId} two-handed dice.");
+            AssertStringNameEq(profile.WeaponTypeId, expectation.WeaponTypeId.ToString(), $"{itemId} profile type.");
+            AssertIntSeqEq(DiceToList(profile.OneHandedDice), expectation.OneHandedDice, $"{itemId} one-handed dice.");
+            AssertIntSeqEq(DiceToList(profile.TwoHandedDice), expectation.TwoHandedDice, $"{itemId} two-handed dice.");
             AssertStringNameSeqEq(profile.GetPropertiesTyped(), expectation.Properties, $"{itemId} weapon properties.");
         }
 
@@ -292,7 +281,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquipmentServiceMovesItemsBetweenWarehouseAndSlots()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -333,21 +322,19 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip()
     {
-        GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
-        CharacterManagementModule baselineManager = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule baselineManager = new();
         baselineManager.setup(
             partyState,
-            SkillDefs(progressionRegistry),
-            ProfessionDefs(progressionRegistry),
-            AchievementDefs(progressionRegistry),
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
             itemDefs
         );
-        AttributeSnapshot beforeSnapshot = TrackOwned(
-            baselineManager.GetMemberAttributeSnapshot("hero")
-        );
+        AttributeSnapshot beforeSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
 
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("bronze_sword", 1);
@@ -358,15 +345,15 @@ public partial class run_party_equipment_regression : SceneTree
         equipmentService.EquipItemTyped("hero", "leather_cap");
         equipmentService.EquipItemTyped("hero", "leather_jerkin");
 
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
+        CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            SkillDefs(progressionRegistry),
-            ProfessionDefs(progressionRegistry),
-            AchievementDefs(progressionRegistry),
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
             itemDefs
         );
-        AttributeSnapshot afterSnapshot = TrackOwned(manager.GetMemberAttributeSnapshot("hero"));
+        AttributeSnapshot afterSnapshot = manager.GetMemberAttributeSnapshot("hero");
 
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)), 2, "bronze_sword should add attack bonus.");
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)), 3, "Armor pieces should add armor AC.");
@@ -374,7 +361,9 @@ public partial class run_party_equipment_regression : SceneTree
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 0, "leather_jerkin should not add HP.");
         _test.Eq(afterSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)) - beforeSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.DodgeBonus)), 1, "leather_cap should add dodge.");
 
-        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripEquippedItems");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         EquipmentState restoredEquipmentState = restoredPartyState.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("main_hand"), "bronze_sword", "Round-trip should preserve main hand.");
         AssertStringNameEq(restoredEquipmentState.GetEquippedItemId("head"), "leather_cap", "Round-trip should preserve head.");
@@ -392,7 +381,7 @@ public partial class run_party_equipment_regression : SceneTree
         );
         _test.True(legacyState == null, "Legacy bare equipment_state dictionary should be rejected.");
 
-        EquipmentState validState = TrackOwned(EquipmentState.FromDictionary(
+        EquipmentState validState = EquipmentState.FromDictionary(
             new GDictionary
             {
                 ["equipped_slots"] = new GDictionary
@@ -400,7 +389,7 @@ public partial class run_party_equipment_regression : SceneTree
                     ["main_hand"] = MakeEquipmentEntryPayload("bronze_sword", "eq_schema_valid_bronze_sword", new GArray { "main_hand" }),
                 },
             }
-        ));
+        );
         _test.True(validState != null, "Current equipped_slots payload should parse.");
 
         _test.True(
@@ -440,17 +429,10 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquipmentEntryRejectsBadSchema()
     {
-        EquipmentEntryState validEntry = EquipmentEntryState.FromDictionary(
-            MakeEquipmentEntryPayload("bronze_sword", "eq_schema_entry_valid", new GArray { "main_hand" })
+        _test.True(
+            EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_entry_valid", new GArray { "main_hand" })) != null,
+            "Current equipment entry payload should parse."
         );
-        try
-        {
-            _test.True(validEntry != null, "Current equipment entry payload should parse.");
-        }
-        finally
-        {
-            DisposeEquipmentEntryState(validEntry);
-        }
 
         GDictionary missingInstancePayload = MakeEquipmentEntryPayload("bronze_sword", "eq_schema_missing_instance", new GArray { "main_hand" });
         missingInstancePayload.Remove("equipment_instance");
@@ -466,14 +448,9 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(EquipmentEntryState.FromDictionary(MakeEquipmentEntryPayload("bronze_sword", "eq_schema_string_name_slot", new GArray { new StringName("main_hand") })) == null, "StringName slot id should reject entry.");
     }
 
-    private static void DisposeEquipmentEntryState(EquipmentEntryState entry)
-    {
-        GodotRefCountedDisposer.DisposeIfValid(entry?.GetEquipmentInstance());
-    }
-
     private void TestTwoHandedWeaponOccupiesBothSlots()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -489,7 +466,9 @@ public partial class run_party_equipment_regression : SceneTree
         _test.Eq(equipmentState.GetEquippedCount(), 1, "Two-handed weapon should count as one equipment entry.");
         _test.Eq(equipmentState.GetFilledSlotIdsTyped().Count, 2, "Two-handed weapon should fill two slots.");
 
-        PartyState restored = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripTwoHandedWeapon");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         EquipmentState restoredEquipment = restored.GetMemberState("hero").equipment_state;
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("main_hand"), "iron_greatsword", "Round-trip should preserve main hand greatsword.");
         AssertStringNameEq(restoredEquipment.GetEquippedItemId("off_hand"), "iron_greatsword", "Round-trip should preserve off hand occupancy.");
@@ -498,27 +477,15 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestTwoHandedWeaponDisplacesExistingMainAndOffHand()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
         PartyMemberState heroState = partyState.GetMemberState("hero");
         EquipmentState equipmentState = heroState.equipment_state ?? new EquipmentState();
         heroState.equipment_state = equipmentState;
-        SetEquippedEntryWithOwnedInstance(
-            equipmentState,
-            "main_hand",
-            "bronze_sword",
-            Names("main_hand"),
-            "eq_fixture_bronze_sword"
-        );
-        SetEquippedEntryWithOwnedInstance(
-            equipmentState,
-            "off_hand",
-            "scout_charm",
-            Names("off_hand"),
-            "eq_fixture_scout_charm"
-        );
+        equipmentState.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_fixture_bronze_sword"));
+        equipmentState.SetEquippedEntry("off_hand", "scout_charm", Names("off_hand"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_fixture_scout_charm"));
 
         AssertStringNameEq(equipmentState.GetEquippedItemId("main_hand"), "bronze_sword", "Precondition: main hand should have sword.");
         AssertStringNameEq(equipmentState.GetEquippedItemId("off_hand"), "scout_charm", "Precondition: off hand should have charm.");
@@ -534,22 +501,34 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestTwoHandedWeaponAttributeNotDoubleCounted()
     {
-        GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
         equipmentService.EquipItemTyped("hero", "iron_greatsword");
 
-        CharacterManagementModule manager = TrackDisposable(new CharacterManagementModule());
-        manager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
-        AttributeSnapshot snapshot = TrackOwned(manager.GetMemberAttributeSnapshot("hero"));
+        CharacterManagementModule manager = new();
+        manager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            itemDefs
+        );
+        AttributeSnapshot snapshot = manager.GetMemberAttributeSnapshot("hero");
 
         PartyState emptyParty = BuildPartyWithMember("blank", "Blank", 8);
-        CharacterManagementModule emptyManager = TrackDisposable(new CharacterManagementModule());
-        emptyManager.setup(emptyParty, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), new GDictionary(), itemDefs);
-        AttributeSnapshot emptySnapshot = TrackOwned(emptyManager.GetMemberAttributeSnapshot("blank"));
+        CharacterManagementModule emptyManager = new();
+        emptyManager.setup(
+            emptyParty,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDefinition>(),
+            itemDefs
+        );
+        AttributeSnapshot emptySnapshot = emptyManager.GetMemberAttributeSnapshot("blank");
 
         _test.Eq(
             snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)) - emptySnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus)),
@@ -560,7 +539,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestAtomicRollbackWhenWarehouseFull()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 1);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
@@ -580,7 +559,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestPreviewEquipReturnsDisplacedEntries()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -606,16 +585,20 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
-        GDictionary itemDefs = ItemDefs();
-        ProgressionContentRegistry progressionRegistry = TrackOwned(new ProgressionContentRegistry());
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
 
-        CharacterManagementModule baselineManager = TrackDisposable(new CharacterManagementModule());
-        baselineManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot baselineSnapshot = TrackOwned(
-            baselineManager.GetMemberAttributeSnapshot("hero")
+        CharacterManagementModule baselineManager = new();
+        baselineManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            itemDefs
         );
+        AttributeSnapshot baselineSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 12, "Agility 18 without armor should produce AC 12.");
         _test.Eq(baselineSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), -1, "No armor should leave max dex at -1.");
 
@@ -626,34 +609,51 @@ public partial class run_party_equipment_regression : SceneTree
 
         var leatherResult = equipmentService.EquipItemTyped("hero", "leather_jerkin");
         _test.True(leatherResult.Success, "leather_jerkin should equip.");
-        CharacterManagementModule leatherManager = TrackDisposable(new CharacterManagementModule());
-        leatherManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot leatherSnapshot = TrackOwned(leatherManager.GetMemberAttributeSnapshot("hero"));
+        CharacterManagementModule leatherManager = new();
+        leatherManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            itemDefs
+        );
+        AttributeSnapshot leatherSnapshot = leatherManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 6, "leather_jerkin max dex.");
         _test.Eq(leatherSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 14, "leather_jerkin should not cap agility 18.");
 
         var scaleResult = equipmentService.EquipItemTyped("hero", "iron_scale_mail");
         _test.True(scaleResult.Success, "iron_scale_mail should replace body armor.");
-        CharacterManagementModule scaleManager = TrackDisposable(new CharacterManagementModule());
-        scaleManager.setup(partyState, SkillDefs(progressionRegistry), ProfessionDefs(progressionRegistry), AchievementDefs(progressionRegistry), itemDefs);
-        AttributeSnapshot scaleSnapshot = TrackOwned(scaleManager.GetMemberAttributeSnapshot("hero"));
+        CharacterManagementModule scaleManager = new();
+        scaleManager.setup(
+            partyState,
+            progressionRegistry.GetSkillDefinitionsTyped(),
+            progressionRegistry.GetProfessionDefsTyped(),
+            progressionRegistry.GetAchievementDefsTyped(),
+            itemDefs
+        );
+        AttributeSnapshot scaleSnapshot = scaleManager.GetMemberAttributeSnapshot("hero");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus)), 3, "iron_scale_mail max dex.");
         _test.Eq(scaleSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)), 15, "iron_scale_mail should cap agility AC to +3.");
     }
 
     private void TestRequirementProfessionCheck()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
-        ItemDef swordDef = TrackOwned(GetItemDef(itemDefs, "bronze_sword")?.Duplicate(true) as ItemDef);
-        EquipmentRequirement requirement = new()
-        {
-            required_profession_ids = new GStringArray { "warrior" },
-        };
-        swordDef.equip_requirement = requirement;
+        ItemDefinition swordDef = WithEquipRequirement(
+            GetItemDef(itemDefs, "bronze_sword"),
+            new EquipmentRequirementDefinition(
+                new[] { "warrior" },
+                0,
+                0,
+                System.Array.Empty<EquipmentAttributeRequirementDefinition>()
+            )
+        );
 
-        GDictionary patchedDefs = itemDefs.Duplicate();
+        Dictionary<StringName, ItemDefinition> patchedDefs = new();
+        foreach ((StringName itemId, ItemDefinition itemDef) in itemDefs)
+            patchedDefs[itemId] = itemDef;
         patchedDefs["bronze_sword"] = swordDef;
         PartyWarehouseService patchedWarehouse = BuildWarehouseService(partyState, patchedDefs);
         PartyEquipmentService patchedEquipmentService = BuildEquipmentService(partyState, patchedDefs, patchedWarehouse);
@@ -675,7 +675,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquipCreatesInstanceIdInSlot()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -688,13 +688,15 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(instanceId.ToString().StartsWith("eq_"), "Instance id should start with eq_.");
         _test.Eq(warehouseService.CountItem("bronze_sword"), 0, "Warehouse should no longer contain equipped sword.");
 
-        PartyState restored = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripEquipmentInstanceId");
+        PartyState restored = PartyState.FromDictionary(partyPayloadLease.Value);
         AssertStringNameEq(restored.GetMemberState("hero").equipment_state.GetEquippedInstanceId("main_hand"), instanceId.ToString(), "Round-trip should preserve instance id.");
     }
 
     private void TestInstanceIdPreservedThroughUnequipAndReequip()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -715,7 +717,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestTwoItemsOfSameTypeGetDifferentInstanceIds()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -731,12 +733,12 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestWeaponProfileEquipmentEntryRoundTrip()
     {
-        GDictionary itemDefs = ItemDefs();
-        ItemDef bronzeSword = GetItemDef(itemDefs, "bronze_sword");
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        ItemDefinition bronzeSword = GetItemDef(itemDefs, "bronze_sword");
         _test.True(bronzeSword != null, "bronze_sword should load.");
         if (bronzeSword == null)
             return;
-        _test.True(bronzeSword.weapon_profile is WeaponProfileDef, "bronze_sword should have weapon_profile.");
+        _test.True(bronzeSword.WeaponProfile != null, "bronze_sword should have weapon_profile.");
         _test.Eq(bronzeSword.GetWeaponAttackRange(), 1, "weapon_profile should provide attack range.");
         AssertStringNameEq(bronzeSword.GetWeaponPhysicalDamageTag(), "physical_pierce", "weapon_profile should provide damage tag.");
 
@@ -762,7 +764,9 @@ public partial class run_party_equipment_regression : SceneTree
         _test.False(slotPayload.ContainsKey("weapon_attack_range"), "Entry payload should not serialize legacy weapon_attack_range.");
         _test.False(slotPayload.ContainsKey("weapon_physical_damage_tag"), "Entry payload should not serialize legacy damage tag.");
 
-        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripWeaponProfile");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "weapon_profile weapon PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -789,7 +793,7 @@ public partial class run_party_equipment_regression : SceneTree
 
     private void TestEquippedInstanceFieldsSurviveRoundTripAndUnequip()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -806,14 +810,16 @@ public partial class run_party_equipment_regression : SceneTree
                 rollValues: TraitTestData.RollValues(TraitTestData.IntRoll("amount", 4))
             )
         );
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { epicInstance };
 
         var equipResult = equipmentService.EquipItemTyped("hero", "bronze_sword");
         _test.True(equipResult.Success, "Equipment with full instance fields should equip.");
         EquipmentState equipmentState = partyState.GetMemberState("hero").equipment_state;
         AssertEquipmentInstanceFields(equipmentState.GetEquippedInstance("main_hand"), "eq_epic_equipped_bronze_sword", (int)EquipmentInstanceState.RarityTier.EPIC, 17, "Equipped slot");
 
-        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripFullInstanceFields");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Full equipment instance fields should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -849,9 +855,11 @@ public partial class run_party_equipment_regression : SceneTree
         EquipmentInstanceState epicInstance = EquipmentInstanceState.CreateInstance("bronze_sword", "eq_epic_bronze_sword");
         epicInstance.rarity = (int)EquipmentInstanceState.RarityTier.EPIC;
         epicInstance.current_durability = DefaultCurrentDurabilityForRarity(epicInstance.rarity);
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState> { epicInstance };
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { epicInstance };
 
-        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripRarity");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Rarity PartyState round-trip should parse.");
         if (restoredPartyState == null)
             return;
@@ -912,9 +920,126 @@ public partial class run_party_equipment_regression : SceneTree
         AssertEquipmentInstanceValidationError(zeroDurabilityPayload, "Zero durability should be rejected.");
     }
 
+    private void TestEquipmentAbilityPersistentStateRoundTripAndDuplicate()
+    {
+        PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
+        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance("bronze_sword", "eq_ability_state_bronze_sword");
+        instance.ability_usage_periods.Add(
+            new EquipmentAbilityUsagePeriodState
+            {
+                AbilityId = "blade_flash",
+                PeriodKind = "per_world_day",
+                PeriodIndex = 12,
+                UsedCount = 1,
+            }
+        );
+        instance.ability_usage_periods.Add(
+            new EquipmentAbilityUsagePeriodState
+            {
+                AbilityId = "moon_guard",
+                PeriodKind = "per_world_month",
+                PeriodIndex = 2,
+                UsedCount = 3,
+            }
+        );
+        instance.ability_persistent_counters.Add(
+            new EquipmentAbilityPersistentCounterState
+            {
+                CounterId = "kill_count",
+                Value = 9,
+            }
+        );
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState> { instance };
+
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripAbilityState");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
+        _test.True(restoredPartyState != null, "Equipment ability state should round-trip through PartyState.");
+        if (restoredPartyState == null)
+            return;
+
+        var restoredInstances = restoredPartyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped();
+        _test.Eq(restoredInstances.Count, 1, "Ability state round-trip should preserve one equipment instance.");
+        if (restoredInstances.Count > 0)
+        {
+            EquipmentInstanceState restoredInstance = restoredInstances[0];
+            _test.Eq(restoredInstance.ability_usage_periods.Count, 2, "Ability usage periods should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].AbilityId, "blade_flash", "Daily usage ability id should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].PeriodKind, "per_world_day", "Daily usage period kind should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].PeriodIndex, 12, "Daily usage period index should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[0].UsedCount, 1, "Daily usage used count should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].AbilityId, "moon_guard", "Monthly usage ability id should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].PeriodKind, "per_world_month", "Monthly usage period kind should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].PeriodIndex, 2, "Monthly usage period index should round-trip.");
+            _test.Eq(restoredInstance.ability_usage_periods[1].UsedCount, 3, "Monthly usage used count should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters.Count, 1, "Persistent counters should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters[0].CounterId, "kill_count", "Counter id should round-trip.");
+            _test.Eq(restoredInstance.ability_persistent_counters[0].Value, 9L, "Counter value should round-trip.");
+        }
+
+        EquipmentInstanceState duplicate = instance.DuplicateState();
+        _test.False(object.ReferenceEquals(instance.ability_usage_periods, duplicate.ability_usage_periods), "DuplicateState should copy usage period list.");
+        _test.False(object.ReferenceEquals(instance.ability_usage_periods[0], duplicate.ability_usage_periods[0]), "DuplicateState should deep-copy usage period entries.");
+        _test.False(object.ReferenceEquals(instance.ability_persistent_counters, duplicate.ability_persistent_counters), "DuplicateState should copy counter list.");
+        _test.False(object.ReferenceEquals(instance.ability_persistent_counters[0], duplicate.ability_persistent_counters[0]), "DuplicateState should deep-copy counter entries.");
+
+        instance.ability_usage_periods[0].UsedCount = 7;
+        instance.ability_persistent_counters[0].Value = 21;
+        _test.Eq(duplicate.ability_usage_periods[0].UsedCount, 1, "Duplicate usage state should not share mutable entries.");
+        _test.Eq(duplicate.ability_persistent_counters[0].Value, 9L, "Duplicate counter state should not share mutable entries.");
+    }
+
+    private void TestEquipmentAbilityPersistentStateStrictSchema()
+    {
+        GDictionary validPayload = MakeEquipmentInstancePayload("eq_ability_schema_valid");
+        DictArray(validPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload());
+        DictArray(validPayload, "ability_persistent_counters").Add(MakePersistentCounterPayload());
+        string validError = EquipmentInstanceState.GetPayloadValidationError(validPayload, false);
+        AssertStringEq(validError, "", "Current equipment ability state schema should validate.");
+
+        GDictionary oldFiveFieldPayload = MakeOldFiveFieldEquipmentInstancePayload("eq_old_five_field");
+        AssertEquipmentInstanceValidationError(oldFiveFieldPayload, "Old five-field equipment instance payload should be rejected.");
+
+        GDictionary extraUsageFieldPayload = MakeEquipmentInstancePayload("eq_schema_extra_usage_field");
+        GDictionary extraUsage = MakeUsagePeriodPayload();
+        extraUsage["unsupported"] = 1;
+        DictArray(extraUsageFieldPayload, "ability_usage_periods").Add(extraUsage);
+        AssertEquipmentInstanceValidationError(extraUsageFieldPayload, "Unsupported usage record field should be rejected.");
+
+        GDictionary extraCounterFieldPayload = MakeEquipmentInstancePayload("eq_schema_extra_counter_field");
+        GDictionary extraCounter = MakePersistentCounterPayload();
+        extraCounter["unsupported"] = 1;
+        DictArray(extraCounterFieldPayload, "ability_persistent_counters").Add(extraCounter);
+        AssertEquipmentInstanceValidationError(extraCounterFieldPayload, "Unsupported counter record field should be rejected.");
+
+        GDictionary emptyAbilityIdPayload = MakeEquipmentInstancePayload("eq_schema_empty_ability_id");
+        DictArray(emptyAbilityIdPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(abilityId: ""));
+        AssertEquipmentInstanceValidationError(emptyAbilityIdPayload, "Empty usage ability id should be rejected.");
+
+        GDictionary invalidPeriodKindPayload = MakeEquipmentInstancePayload("eq_schema_invalid_period_kind");
+        DictArray(invalidPeriodKindPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(periodKind: "per_rest"));
+        AssertEquipmentInstanceValidationError(invalidPeriodKindPayload, "Invalid period kind should be rejected.");
+
+        GDictionary negativePeriodIndexPayload = MakeEquipmentInstancePayload("eq_schema_negative_period_index");
+        DictArray(negativePeriodIndexPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(periodIndex: -1));
+        AssertEquipmentInstanceValidationError(negativePeriodIndexPayload, "Negative period index should be rejected.");
+
+        GDictionary negativeUsedCountPayload = MakeEquipmentInstancePayload("eq_schema_negative_used_count");
+        DictArray(negativeUsedCountPayload, "ability_usage_periods").Add(MakeUsagePeriodPayload(usedCount: -1));
+        AssertEquipmentInstanceValidationError(negativeUsedCountPayload, "Negative used count should be rejected.");
+
+        GDictionary emptyCounterIdPayload = MakeEquipmentInstancePayload("eq_schema_empty_counter_id");
+        DictArray(emptyCounterIdPayload, "ability_persistent_counters").Add(MakePersistentCounterPayload(counterId: ""));
+        AssertEquipmentInstanceValidationError(emptyCounterIdPayload, "Empty counter id should be rejected.");
+
+        GDictionary negativeCounterValuePayload = MakeEquipmentInstancePayload("eq_schema_negative_counter_value");
+        DictArray(negativeCounterValuePayload, "ability_persistent_counters").Add(MakePersistentCounterPayload(value: -1));
+        AssertEquipmentInstanceValidationError(negativeCounterValuePayload, "Negative counter value should be rejected.");
+    }
+
     private void TestDuplicateSameItemInstanceIdSelection()
     {
-        GDictionary itemDefs = ItemDefs();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         PartyEquipmentService equipmentService = BuildEquipmentService(partyState, itemDefs, warehouseService);
@@ -926,7 +1051,7 @@ public partial class run_party_equipment_regression : SceneTree
         rareInstance.rarity = (int)EquipmentInstanceState.RarityTier.RARE;
         rareInstance.current_durability = 23;
         EquipmentInstanceState mismatchInstance = EquipmentInstanceState.CreateInstance("scout_charm", "eq_duplicate_wrong_item");
-        partyState.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        partyState.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             commonInstance,
             rareInstance,
@@ -952,7 +1077,9 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(warehouseService.HasEquipmentInstance("eq_duplicate_common_sword", "bronze_sword"), "Unselected common instance should remain in warehouse.");
         _test.False(warehouseService.HasEquipmentInstance("eq_duplicate_rare_sword", "bronze_sword"), "Equipped rare instance should leave warehouse.");
 
-        PartyState restoredPartyState = TrackOwned(PartyState.FromDictionary(partyState.ToDictionary()));
+        using GodotProjectionLease<GDictionary> partyPayloadLease =
+            partyState.ToDictionaryLease("PartyEquipment.RoundTripExplicitDuplicateInstance");
+        PartyState restoredPartyState = PartyState.FromDictionary(partyPayloadLease.Value);
         _test.True(restoredPartyState != null, "Explicit duplicate instance equip should round-trip.");
         if (restoredPartyState == null)
             return;
@@ -969,44 +1096,37 @@ public partial class run_party_equipment_regression : SceneTree
     private void TestPartyStateRejectsDuplicateEquipmentInstanceIds()
     {
         PartyState warehouseDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
-        warehouseDuplicateParty.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        warehouseDuplicateParty.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_duplicate"),
             EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_duplicate"),
         };
-        _test.True(TrackOwned(PartyState.FromDictionary(warehouseDuplicateParty.ToDictionary())) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> warehouseDuplicateLease =
+            warehouseDuplicateParty.ToDictionaryLease("PartyEquipment.RejectWarehouseDuplicate");
+        _test.True(PartyState.FromDictionary(warehouseDuplicateLease.Value) == null, "Duplicate warehouse instance ids should reject PartyState payload.");
 
         PartyState warehouseAndEquippedParty = BuildPartyWithMember("hero", "Hero", 8);
-        warehouseAndEquippedParty.warehouse_state.equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>
+        warehouseAndEquippedParty.warehouse_state.equipment_instances = new List<EquipmentInstanceState>
         {
             EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared"),
         };
-        SetEquippedEntryWithOwnedInstance(
-            warehouseAndEquippedParty.GetMemberState("hero").equipment_state,
+        warehouseAndEquippedParty.GetMemberState("hero").equipment_state.SetEquippedEntry(
             "main_hand",
             "bronze_sword",
             Names("main_hand"),
-            "eq_party_shared"
+            EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_shared")
         );
-        _test.True(TrackOwned(PartyState.FromDictionary(warehouseAndEquippedParty.ToDictionary())) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
+        using GodotProjectionLease<GDictionary> warehouseAndEquippedLease =
+            warehouseAndEquippedParty.ToDictionaryLease("PartyEquipment.RejectWarehouseAndEquippedDuplicate");
+        _test.True(PartyState.FromDictionary(warehouseAndEquippedLease.Value) == null, "Instance id shared by warehouse and equipment should reject PartyState payload.");
 
         PartyState sameMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         EquipmentState sameMemberEquipment = sameMemberDuplicateParty.GetMemberState("hero").equipment_state;
-        SetEquippedEntryWithOwnedInstance(
-            sameMemberEquipment,
-            "main_hand",
-            "bronze_sword",
-            Names("main_hand"),
-            "eq_party_same_member"
-        );
-        SetEquippedEntryWithOwnedInstance(
-            sameMemberEquipment,
-            "necklace",
-            "scout_charm",
-            Names("necklace"),
-            "eq_party_same_member"
-        );
-        _test.True(TrackOwned(PartyState.FromDictionary(sameMemberDuplicateParty.ToDictionary())) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
+        sameMemberEquipment.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_same_member"));
+        sameMemberEquipment.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_same_member"));
+        using GodotProjectionLease<GDictionary> sameMemberDuplicateLease =
+            sameMemberDuplicateParty.ToDictionaryLease("PartyEquipment.RejectSameMemberDuplicate");
+        _test.True(PartyState.FromDictionary(sameMemberDuplicateLease.Value) == null, "Same member duplicate equipped instance id should reject PartyState payload.");
 
         PartyState crossMemberDuplicateParty = BuildPartyWithMember("hero", "Hero", 8);
         PartyMemberState ally = new()
@@ -1019,26 +1139,16 @@ public partial class run_party_equipment_regression : SceneTree
         ally.progression.display_name = ally.display_name;
         crossMemberDuplicateParty.SetMemberState(ally);
         crossMemberDuplicateParty.reserve_member_ids = Names("ally");
-        SetEquippedEntryWithOwnedInstance(
-            crossMemberDuplicateParty.GetMemberState("hero").equipment_state,
-            "main_hand",
-            "bronze_sword",
-            Names("main_hand"),
-            "eq_party_cross_member"
-        );
-        SetEquippedEntryWithOwnedInstance(
-            crossMemberDuplicateParty.GetMemberState("ally").equipment_state,
-            "necklace",
-            "scout_charm",
-            Names("necklace"),
-            "eq_party_cross_member"
-        );
-        _test.True(TrackOwned(PartyState.FromDictionary(crossMemberDuplicateParty.ToDictionary())) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
+        crossMemberDuplicateParty.GetMemberState("hero").equipment_state.SetEquippedEntry("main_hand", "bronze_sword", Names("main_hand"), EquipmentInstanceState.CreateInstance("bronze_sword", "eq_party_cross_member"));
+        crossMemberDuplicateParty.GetMemberState("ally").equipment_state.SetEquippedEntry("necklace", "scout_charm", Names("necklace"), EquipmentInstanceState.CreateInstance("scout_charm", "eq_party_cross_member"));
+        using GodotProjectionLease<GDictionary> crossMemberDuplicateLease =
+            crossMemberDuplicateParty.ToDictionaryLease("PartyEquipment.RejectCrossMemberDuplicate");
+        _test.True(PartyState.FromDictionary(crossMemberDuplicateLease.Value) == null, "Cross-member duplicate equipped instance id should reject PartyState payload.");
     }
 
-    private PartyState BuildPartyWithMember(StringName memberId, string displayName, int storageSpace)
+    private static PartyState BuildPartyWithMember(StringName memberId, string displayName, int storageSpace)
     {
-        PartyState partyState = TrackOwned(new PartyState());
+        PartyState partyState = new();
         PartyMemberState memberState = new()
         {
             member_id = memberId,
@@ -1075,6 +1185,43 @@ public partial class run_party_equipment_regression : SceneTree
             ["item_id"] = itemId,
             ["rarity"] = (int)EquipmentInstanceState.RarityTier.COMMON,
             ["current_durability"] = DefaultCurrentDurabilityForRarity((int)EquipmentInstanceState.RarityTier.COMMON),
+            ["trait_instances"] = new GArray(),
+            ["ability_usage_periods"] = new GArray(),
+            ["ability_persistent_counters"] = new GArray(),
+        };
+
+    private static GDictionary MakeOldFiveFieldEquipmentInstancePayload(string instanceId, string itemId = "bronze_sword") =>
+        new()
+        {
+            ["instance_id"] = instanceId,
+            ["item_id"] = itemId,
+            ["rarity"] = (int)EquipmentInstanceState.RarityTier.COMMON,
+            ["current_durability"] = DefaultCurrentDurabilityForRarity((int)EquipmentInstanceState.RarityTier.COMMON),
+            ["trait_instances"] = new GArray(),
+        };
+
+    private static GDictionary MakeUsagePeriodPayload(
+        string abilityId = "blade_flash",
+        string periodKind = "per_world_day",
+        int periodIndex = 12,
+        int usedCount = 1
+    ) =>
+        new()
+        {
+            ["ability_id"] = abilityId,
+            ["period_kind"] = periodKind,
+            ["period_index"] = periodIndex,
+            ["used_count"] = usedCount,
+        };
+
+    private static GDictionary MakePersistentCounterPayload(
+        string counterId = "kill_count",
+        long value = 9
+    ) =>
+        new()
+        {
+            ["counter_id"] = counterId,
+            ["value"] = value,
         };
 
     private static GDictionary MakeEquipmentEntryPayload(
@@ -1084,18 +1231,11 @@ public partial class run_party_equipment_regression : SceneTree
     )
     {
         EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(itemId, instanceId);
-        try
+        return new GDictionary
         {
-            return new GDictionary
-            {
-                ["occupied_slot_ids"] = occupiedSlotIds,
-                ["equipment_instance"] = instance.ToDictionary(),
-            };
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(instance);
-        }
+            ["occupied_slot_ids"] = occupiedSlotIds,
+            ["equipment_instance"] = instance.ToDictionary(),
+        };
     }
 
     private static int DefaultCurrentDurabilityForRarity(int rarity)
@@ -1111,11 +1251,11 @@ public partial class run_party_equipment_regression : SceneTree
         return 56;
     }
 
-    private static int[] DiceToList(WeaponDamageDiceDef diceResource)
+    private static int[] DiceToList(WeaponDamageDiceDefinition diceResource)
     {
         if (diceResource == null)
             return System.Array.Empty<int>();
-        return new[] { diceResource.dice_count, diceResource.dice_sides, diceResource.flat_bonus };
+        return new[] { diceResource.DiceCount, diceResource.DiceSides, diceResource.FlatBonus };
     }
 
     private static List<string> GetInstanceIdsForItem(PartyState partyState, StringName itemId)
@@ -1163,118 +1303,73 @@ public partial class run_party_equipment_regression : SceneTree
         _test.True(!string.IsNullOrEmpty(validationError), message);
     }
 
-    private static GDictionary ItemDefs()
+    private static IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions() =>
+        new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
+
+    private static ItemDefinition GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        StringName itemId
+    )
     {
-        using var registry = new ItemContentRegistry();
-        return ProjectItemDefs(new Dictionary<StringName, ItemDef>(registry.GetItemDefsTyped()));
+        return itemDefs != null && itemDefs.TryGetValue(itemId, out ItemDefinition itemDef)
+            ? itemDef
+            : null;
     }
 
-    private static GDictionary SkillDefs(ProgressionContentRegistry registry) =>
-        ProjectSkillDefs(registry.GetSkillDefsTyped());
-
-    private static GDictionary ProfessionDefs(ProgressionContentRegistry registry) =>
-        ProjectProfessionDefs(registry.GetProfessionDefsTyped());
-
-    private static GDictionary AchievementDefs(ProgressionContentRegistry registry) =>
-        ProjectAchievementDefs(registry.GetAchievementDefsTyped());
-
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    private static PartyWarehouseService BuildWarehouseService(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+    )
     {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
-        {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectSkillDefs(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
-    {
-        GDictionary result = new();
-        if (skillDefs == null)
-            return result;
-        foreach ((StringName skillId, SkillDef skillDef) in skillDefs)
-        {
-            if (skillId == "" || skillDef == null)
-                continue;
-            result[skillId] = skillDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectProfessionDefs(IReadOnlyDictionary<StringName, ProfessionDef> professionDefs)
-    {
-        GDictionary result = new();
-        if (professionDefs == null)
-            return result;
-        foreach ((StringName professionId, ProfessionDef professionDef) in professionDefs)
-        {
-            if (professionId == "" || professionDef == null)
-                continue;
-            result[professionId] = professionDef;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectAchievementDefs(IReadOnlyDictionary<StringName, AchievementDef> achievementDefs)
-    {
-        GDictionary result = new();
-        if (achievementDefs == null)
-            return result;
-        foreach ((StringName achievementId, AchievementDef achievementDef) in achievementDefs)
-        {
-            if (achievementId == "" || achievementDef == null)
-                continue;
-            result[achievementId] = achievementDef;
-        }
-        return result;
-    }
-
-    private static ItemDef GetItemDef(GDictionary itemDefs, StringName itemId)
-    {
-        if (itemDefs == null || !itemDefs.ContainsKey(itemId))
-            return null;
-        return itemDefs[itemId].AsGodotObject() as ItemDef;
-    }
-
-    private PartyWarehouseService BuildWarehouseService(PartyState partyState, GDictionary itemDefs)
-    {
-        PartyWarehouseService warehouseService = TrackDisposable(new PartyWarehouseService());
-        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
+        PartyWarehouseService warehouseService = new();
+        warehouseService.Setup(partyState, itemDefs);
         return warehouseService;
     }
 
-    private PartyEquipmentService BuildEquipmentService(
+    private static PartyEquipmentService BuildEquipmentService(
         PartyState partyState,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         PartyWarehouseService warehouseService
     )
     {
-        PartyEquipmentService equipmentService = TrackEquipmentService(new PartyEquipmentService());
-        equipmentService.Setup(partyState, BuildItemDefIndex(itemDefs), warehouseService);
+        PartyEquipmentService equipmentService = new();
+        equipmentService.Setup(partyState, itemDefs, warehouseService);
         return equipmentService;
     }
 
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    private static ItemDefinition WithEquipRequirement(
+        ItemDefinition source,
+        EquipmentRequirementDefinition equipRequirement
+    )
     {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
+        System.ArgumentNullException.ThrowIfNull(source);
+        return new ItemDefinition(
+            source.ItemId,
+            source.BaseItemId,
+            source.DisplayName,
+            source.Description,
+            source.Icon,
+            source.IsStackable,
+            source.BasePrice,
+            source.BuyPrice,
+            source.SellPrice,
+            source.Sellable,
+            source.MaxStack,
+            source.ItemCategory,
+            source.Tags,
+            source.CraftingGroups,
+            source.QuestGroups,
+            source.TraitIds,
+            source.TraitRollGroups,
+            source.EquipmentSlotIds,
+            source.AttributeModifiers,
+            source.GrantedSkillId,
+            source.OccupiedSlotIds,
+            equipRequirement,
+            source.EquipmentTypeId,
+            source.WeaponProfile,
+            source.MaxDexBonus
+        );
     }
 
     private static GStringNameArray Names(params string[] values)
@@ -1283,25 +1378,6 @@ public partial class run_party_equipment_regression : SceneTree
         foreach (string value in values)
             result.Add(value);
         return result;
-    }
-
-    private static bool SetEquippedEntryWithOwnedInstance(
-        EquipmentState equipmentState,
-        StringName entrySlotId,
-        StringName itemId,
-        IEnumerable<StringName> occupied,
-        StringName instanceId
-    )
-    {
-        EquipmentInstanceState instance = EquipmentInstanceState.CreateInstance(itemId, instanceId);
-        try
-        {
-            return equipmentState.SetEquippedEntry(entrySlotId, itemId, occupied, instance);
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(instance);
-        }
     }
 
     private static bool StringNameSeqEquals(IEnumerable<StringName> actual, IReadOnlyList<StringName> expected)
@@ -1380,73 +1456,6 @@ public partial class run_party_equipment_regression : SceneTree
         if (value is IEnumerable<string> strings)
             return $"[{string.Join(", ", strings)}]";
         return value?.ToString() ?? "<null>";
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private PartyEquipmentService TrackEquipmentService(PartyEquipmentService value)
-    {
-        if (value != null)
-            _ownedDisposables.Add(new DisposableAction(value.Dispose));
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            DisposeOwnedGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
-    }
-
-    private static void DisposeOwnedGodotObject(GodotObject ownedObject)
-    {
-        switch (ownedObject)
-        {
-            case null:
-                return;
-            case PartyState party:
-                GodotRefCountedDisposer.DisposeIfValid(party);
-                return;
-            case ProgressionContentRegistry registry:
-                GodotRefCountedDisposer.DisposeIfValid(registry);
-                return;
-            default:
-                BattleTestFixture.DisposeFixtureObject(ownedObject);
-                return;
-        }
-    }
-
-    private sealed class DisposableAction : IDisposable
-    {
-        private readonly Action _dispose;
-
-        public DisposableAction(Action dispose)
-        {
-            _dispose = dispose;
-        }
-
-        public void Dispose()
-        {
-            _dispose?.Invoke();
-        }
     }
 
 }

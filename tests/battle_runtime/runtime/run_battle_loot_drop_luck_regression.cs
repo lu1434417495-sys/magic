@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 
-public partial class run_battle_loot_drop_luck_regression : SceneTree
+public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
         "res://data/configs/world_map/test_world_map_config.tres";
@@ -21,8 +21,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         TestPerKillRandomEquipmentOverflowIsLostInSettlementCommit();
         TestPerKillAttackEquipmentIsNotImplicitLoot();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle loot drop luck regression"));
+        RequestTestExit(_test.Finish("Battle loot drop luck regression"));
     }
 
     private void TestPerKillLootUsesKillerLuckAndCommitsFixedItem()
@@ -53,7 +52,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             SetMemberLuck(killerMember, -6, 0);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            using SpyEquipmentDropService dropService = new();
+            SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,
@@ -187,7 +186,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             SetMemberLuck(mainMember, 2, 5);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            using SpyEquipmentDropService dropService = new();
+            SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,
@@ -268,7 +267,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             facade.GetPartyWarehouseService().AddItemTyped("bronze_sword", 1);
             facade.GetCharacterManagement().SetPartyState(partyState);
 
-            using SpyEquipmentDropService dropService = new();
+            SpyEquipmentDropService dropService = new();
             InjectDropServices(facade, dropService);
             InjectEnemyTemplate(
                 facade,
@@ -380,7 +379,7 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
         _test.True(
             createError == Error.Ok,
@@ -412,16 +411,16 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         facade.GetBattleRuntime()
             ?.setup(
                 facade.GetCharacterManagement(),
-                facade.GetSkillDefsTyped(),
-                catalog?.GetEnemyTemplatesTyped(),
-                catalog?.GetEnemyAiBrainsTyped(),
+                catalog?.GetSkillDefinitionsTyped(),
+                catalog?.GetEnemyTemplateDefinitions(),
+                catalog?.GetEnemyAiBrainDefinitions(),
                 null,
                 dropService,
                 facade.GetItemDefsTyped(),
                 null,
                 facade.GetEquipmentInstanceIdAllocator(),
-                catalog?.GetBattleSpecialProfileRegistrySnapshot(),
-                facade.GetSkillCatalogTyped()
+                facade.GetSkillCatalogTyped(),
+                catalog?.GetBattleSpecialProfileView()
             );
     }
 
@@ -431,9 +430,11 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
             return;
         battleRuntime.ReplaceEnemyTemplatesTyped(
-            new Dictionary<StringName, EnemyTemplateDef>
+            new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate,
+                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
+                    facade.GetItemDefsTyped()
+                ),
             }
         );
     }
@@ -445,12 +446,14 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
         string message
     )
     {
-        EnemyTemplateDef runtimeTemplate = facade?.GetBattleRuntime()?.GetEnemyTemplateTyped(templateId);
+        EnemyTemplateDefinition runtimeTemplate = facade
+            ?.GetBattleRuntime()
+            ?.GetEnemyTemplateTyped(templateId);
         _test.True(runtimeTemplate != null, message);
         if (runtimeTemplate == null)
             return;
         _test.Eq(
-            runtimeTemplate.drop_entries.Count,
+            runtimeTemplate.DropEntries.Count,
             expectedDropEntryCount,
             $"{message} drop_entries count 应与测试注入一致。"
         );
@@ -469,10 +472,8 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             return;
 
         bool firstMemberAssigned = false;
-        foreach (object memberOption in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
-            if (!TryAsPartyMemberState(memberOption, out PartyMemberState memberState))
-                continue;
             UnitBaseAttributes attributes = memberState
                 .progression
                 ?.unit_base_attributes;
@@ -620,28 +621,6 @@ public partial class run_battle_loot_drop_luck_regression : SceneTree
             totalQuantity += stack.quantity;
         }
         return totalQuantity;
-    }
-
-    private static bool TryAsPartyMemberState(object rawValue, out PartyMemberState value)
-    {
-        if (rawValue is PartyMemberState typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-
-        try
-        {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.As<PartyMemberState>();
-            return value != null;
-        }
-        catch
-        {
-        }
-
-        value = null;
-        return false;
     }
 
     private readonly record struct DropCall(StringName ItemId, int Quantity, int DropLuck);

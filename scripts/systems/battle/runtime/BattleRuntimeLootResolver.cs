@@ -69,10 +69,12 @@ internal class BattleRuntimeLootResolver
 
     internal void CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null,
+        BattleKillProvenance killProvenance = default
     )
     {
-        _CollectDefeatedUnitLoot(unitState, killerUnit);
+        _CollectDefeatedUnitLoot(unitState, killerUnit, batch, killProvenance);
     }
 
     internal BattleResolutionResult BuildBattleResolutionResult()
@@ -86,7 +88,9 @@ internal class BattleRuntimeLootResolver
 
     private void _CollectDefeatedUnitLoot(
         BattleUnitState unitState,
-        BattleUnitState killerUnit = null
+        BattleUnitState killerUnit = null,
+        BattleEventBatch batch = null,
+        BattleKillProvenance killProvenance = default
     )
     {
         if (unitState == null || unitState.is_alive || unitState.faction_id == "player")
@@ -98,23 +102,40 @@ internal class BattleRuntimeLootResolver
         if (lootedIds.Contains(defeatedUnitId))
             return;
         lootedIds.Add(defeatedUnitId);
+        BattleEquipmentAbilityOnKillResult onKillResult = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = killerUnit,
+                    DefeatedUnit = unitState,
+                    BattleState = _runtime?.GetState(),
+                    Batch = batch,
+                    KillProvenance = killProvenance,
+                }
+            );
         var enemyTemplate = _ResolveEnemyTemplateForUnit(unitState);
         if (enemyTemplate == null)
             return;
         var dropLuck = _ResolveDropLuckForKillerUnit(killerUnit);
+        List<BattleLootEntry> lootEntries = _BuildDefeatedUnitLootEntries(
+            unitState,
+            enemyTemplate,
+            dropLuck
+        );
+        lootEntries = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ApplyLootQuantityMultipliers(lootEntries, onKillResult)
+            ?? lootEntries;
         foreach (
-            BattleLootEntry lootEntry in _BuildDefeatedUnitLootEntries(
-                unitState,
-                enemyTemplate,
-                dropLuck
-            )
+            BattleLootEntry lootEntry in lootEntries
         )
         {
             _runtime._active_loot_entries.Add(lootEntry.Duplicate());
         }
     }
 
-    private EnemyTemplateDef _ResolveEnemyTemplateForUnit(BattleUnitState unitState)
+    private EnemyTemplateDefinition _ResolveEnemyTemplateForUnit(BattleUnitState unitState)
     {
         if (unitState == null || _runtime == null)
             return null;
@@ -126,7 +147,7 @@ internal class BattleRuntimeLootResolver
 
     private List<BattleLootEntry> _BuildDefeatedUnitLootEntries(
         BattleUnitState unitState,
-        EnemyTemplateDef enemyTemplate,
+        EnemyTemplateDefinition enemyTemplate,
         int dropLuck
     )
     {
@@ -137,7 +158,7 @@ internal class BattleRuntimeLootResolver
             ? unitState.display_name
             : unitState.unit_id.ToString();
         var normalizedDropLuck = Mathf.Clamp(dropLuck, -6, 5);
-        foreach (DropEntryDef dropEntry in enemyTemplate.drop_entries)
+        foreach (DropEntryDefinition dropEntry in enemyTemplate.DropEntries)
         {
             ParsedDropDefinition parsedDropEntry = _ParseDropDefinition(dropEntry);
             if (!parsedDropEntry.IsValid)
@@ -199,19 +220,19 @@ internal class BattleRuntimeLootResolver
         return lootEntries;
     }
 
-    private ParsedDropDefinition _ParseDropDefinition(DropEntryDef entryData)
+    private ParsedDropDefinition _ParseDropDefinition(DropEntryDefinition entryData)
     {
         if (entryData == null)
             return default;
-        StringName dropEntryId = ProgressionDataUtils.to_string_name(entryData.drop_entry_id);
-        StringName dropType = ProgressionDataUtils.to_string_name(entryData.drop_type);
-        StringName itemId = ProgressionDataUtils.to_string_name(entryData.item_id);
+        StringName dropEntryId = ProgressionDataUtils.to_string_name(entryData.DropEntryId);
+        StringName dropType = ProgressionDataUtils.to_string_name(entryData.DropType);
+        StringName itemId = ProgressionDataUtils.to_string_name(entryData.ItemId);
         if (dropEntryId == "" || itemId == "")
             return default;
         BattleLootDropKind dropKind = BattleLootIds.ToDropKind(dropType);
         if (dropKind != BattleLootDropKind.Item && dropKind != BattleLootDropKind.RandomEquipment)
             return default;
-        int quantity = entryData.quantity;
+        int quantity = entryData.Quantity;
         if (quantity <= 0)
             return default;
         return new ParsedDropDefinition(dropEntryId, dropKind, dropType, itemId, quantity);
@@ -340,9 +361,8 @@ internal class BattleRuntimeLootResolver
     private List<BattleLootEntry> _BuildStatusRewardLootEntries()
     {
         var lootEntries = new List<BattleLootEntry>();
-        foreach (var defeatedUnitValue in _GetDefeatedEnemyUnits())
+        foreach (BattleUnitState defeatedUnit in _GetDefeatedEnemyUnits())
         {
-            var defeatedUnit = defeatedUnitValue.As<BattleUnitState>();
             if (_ShouldGrantStatusCalamityShard(defeatedUnit))
             {
                 lootEntries.Add(
@@ -428,18 +448,17 @@ internal class BattleRuntimeLootResolver
     private int _GetDoomSentenceRefundCalamityTotal()
     {
         var refundTotal = 0;
-        foreach (var defeatedUnitValue in _GetDefeatedEnemyUnits())
+        foreach (BattleUnitState defeatedUnit in _GetDefeatedEnemyUnits())
         {
-            var defeatedUnit = defeatedUnitValue.As<BattleUnitState>();
             if (_ShouldGrantBlackCrownCore(defeatedUnit))
                 refundTotal += DoomSentenceRefundCalamity;
         }
         return refundTotal;
     }
 
-    private Godot.Collections.Array _GetDefeatedEnemyUnits()
+    private List<BattleUnitState> _GetDefeatedEnemyUnits()
     {
-        var defeatedUnits = new Godot.Collections.Array();
+        var defeatedUnits = new List<BattleUnitState>();
         if (_runtime == null)
             return defeatedUnits;
         var state = _runtime._state;

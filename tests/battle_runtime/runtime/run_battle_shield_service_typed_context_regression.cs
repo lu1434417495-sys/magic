@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 
-public partial class run_battle_shield_service_typed_context_regression : SceneTree
+public partial class run_battle_shield_service_typed_context_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -14,15 +14,14 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         TestTypedApplyPathUsesSharedContext();
         TestApplyResultPublicApiStaysTyped();
         TestApplyResultProjectsInternalBoundary();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Battle shield service typed context regression"));
+        RequestTestExit(_test.Finish("Battle shield service typed context regression"));
     }
 
     private void TestTypedRollContextCachesShieldHp()
     {
         var service = new BattleShieldService();
         BattleUnitState source = BuildUnit("typed_context_source");
-        CombatEffectDef effect = BuildAttributeScaledShieldEffect();
+        CombatEffectDefinition effect = BuildAttributeScaledShieldEffect();
         long cacheKey = service._get_shield_roll_cache_key(effect);
         var rollContext = new Dictionary<long, int>();
 
@@ -44,7 +43,7 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
     {
         var service = new BattleShieldService();
         BattleUnitState source = BuildUnit("godot_context_source");
-        CombatEffectDef effect = BuildAttributeScaledShieldEffect();
+        CombatEffectDefinition effect = BuildAttributeScaledShieldEffect();
         long cacheKey = service._get_shield_roll_cache_key(effect);
         var godotContext = new Godot.Collections.Dictionary();
 
@@ -95,15 +94,15 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         var service = new BattleShieldService();
         BattleUnitState source = BuildUnit("typed_apply_source");
         BattleUnitState target = BuildUnit("typed_apply_target");
-        var skillDef = new SkillDef { skill_id = "typed_shield_skill" };
-        CombatEffectDef effect = BuildAttributeScaledShieldEffect();
+        SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill("typed_shield_skill");
+        CombatEffectDefinition effectDefinition = BuildAttributeScaledShieldEffect();
         var rollContext = new Dictionary<long, int>();
 
         BattleShieldApplyResult result = service.ApplyUnitShieldEffectsResult(
             source,
             target,
-            skillDef,
-            new[] { effect },
+            skillDefinition,
+            new[] { effectDefinition },
             rollContext
         );
 
@@ -111,7 +110,7 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         _test.Eq(target.current_shield_hp, 7, "typed apply path 应写入解析后的 shield hp。");
         _test.Eq(result.CurrentShieldHp, 7, "typed apply result 应返回当前 shield hp。");
         _test.True(
-            rollContext.ContainsKey(service._get_shield_roll_cache_key(effect)),
+            rollContext.ContainsKey(service._get_shield_roll_cache_key(effectDefinition)),
             "typed apply path 应复用传入的 roll context。"
         );
     }
@@ -130,19 +129,16 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         return unit;
     }
 
-    private static CombatEffectDef BuildAttributeScaledShieldEffect()
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "shield",
-            dice_count = 2,
-            dice_sides_base = 4,
-            dice_sides_per_constitution_mod = 1,
-            dice_sides_per_willpower_mod = 1,
-            dice_bonus = 5,
-            duration_tu = 60,
-        };
-    }
+    private static CombatEffectDefinition BuildAttributeScaledShieldEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            diceCount: 2,
+            diceSidesBase: 4,
+            diceSidesPerConstitutionMod: 1,
+            diceSidesPerWillpowerMod: 1,
+            diceBonus: 5,
+            durationTu: 60
+        );
 
     private static int ReadInt(Godot.Collections.Dictionary source, long key)
     {

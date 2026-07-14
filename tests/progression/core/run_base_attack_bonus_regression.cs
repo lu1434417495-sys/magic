@@ -2,10 +2,9 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_base_attack_bonus_regression : SceneTree
+public partial class run_base_attack_bonus_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
 
     public override void _Initialize()
     {
@@ -14,26 +13,18 @@ public partial class run_base_attack_bonus_regression : SceneTree
 
     private void Run()
     {
-        try
-        {
-            TestSingleClassFullBabTable();
-            TestSingleClassThreeQuarterBabTable();
-            TestSingleClassHalfBabTable();
-            TestMultiClassAccumulatesNumeratorBeforeFloor();
-            TestTotalRankCappedAtTwentyKeepsBabAtOrBelowTen();
-            TestUnknownProgressionContributesNoBab();
-            TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
-            TestAttributeServiceExcludesInactiveAndHiddenProfessions();
-            TestAttributeServiceMultiClassMatchesStaticCalculation();
-            TestAttributeServiceProtectedCustomStatSourceMapping();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        TestSingleClassFullBabTable();
+        TestSingleClassThreeQuarterBabTable();
+        TestSingleClassHalfBabTable();
+        TestMultiClassAccumulatesNumeratorBeforeFloor();
+        TestTotalRankCappedAtTwentyKeepsBabAtOrBelowTen();
+        TestUnknownProgressionContributesNoBab();
+        TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
+        TestAttributeServiceExcludesInactiveAndHiddenProfessions();
+        TestAttributeServiceMultiClassMatchesStaticCalculation();
+        TestAttributeServiceProtectedCustomStatSourceMapping();
 
-        Quit(_test.Finish("Base attack bonus regression"));
+        RequestTestExit(_test.Finish("Base attack bonus regression"));
     }
 
     private void TestSingleClassFullBabTable()
@@ -272,7 +263,7 @@ public partial class run_base_attack_bonus_regression : SceneTree
         return result;
     }
 
-    private AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDef> professionDefs)
+    private static AttributeSnapshot BuildSnapshot(UnitProgress progress, IEnumerable<ProfessionDef> professionDefs)
     {
         AttributeService service = new();
         Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
@@ -284,25 +275,27 @@ public partial class run_base_attack_bonus_regression : SceneTree
             new AttributeSourceContext
             {
                 unit_progress = progress,
-                profession_defs = indexedProfessionDefs,
+                profession_defs = TestProgressionDefinitionProjection.Professions(
+                    indexedProfessionDefs
+                ),
             }
         );
-        return TrackOwned(service.GetSnapshot());
+        return service.GetSnapshot();
     }
 
-    private ProfessionDef MakeProfession(
+    private static ProfessionDef MakeProfession(
         StringName professionId,
         ProfessionBaseAttackProgression progression
     )
     {
-        return TrackOwned(new ProfessionDef
+        return new ProfessionDef
         {
             profession_id = professionId,
             display_name = professionId.ToString(),
             description = "Fixture profession.",
             max_rank = 20,
             BabProgressionKind = progression,
-        });
+        };
     }
 
     private static UnitProfessionProgress MakeProfessionProgress(
@@ -321,13 +314,13 @@ public partial class run_base_attack_bonus_regression : SceneTree
         };
     }
 
-    private UnitProgress MakeProgress(StringName unitId)
+    private static UnitProgress MakeProgress(StringName unitId)
     {
-        UnitProgress progress = TrackOwned(new UnitProgress
+        UnitProgress progress = new()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
-        });
+        };
         foreach (StringName attributeId in new[]
         {
             UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
@@ -341,24 +334,6 @@ public partial class run_base_attack_bonus_regression : SceneTree
             progress.unit_base_attributes.SetAttributeValue(attributeId, 10);
         }
         return progress;
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            if (_ownedGodotObjects[index] is RefCounted refCounted)
-                GodotRefCountedDisposer.DisposeIfValid(refCounted);
-            else
-                GodotSharpCleanup.DisposeGodotObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
     }
 
 

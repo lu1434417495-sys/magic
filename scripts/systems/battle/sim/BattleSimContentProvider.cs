@@ -4,29 +4,43 @@ using Godot;
 
 public sealed class BattleSimContentProvider : IDisposable
 {
-    private ProgressionContentRegistry _progression_content_registry = new();
-    private EnemyContentRegistry _enemy_content_registry = new();
+    private ContentSnapshot _snapshot;
+
+    internal BattleSimContentProvider(ContentSnapshot snapshot)
+    {
+        _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+    }
 
     public void Dispose()
     {
-        _progression_content_registry?.Dispose();
-        _enemy_content_registry?.Dispose();
-        _progression_content_registry = null;
-        _enemy_content_registry = null;
+        _snapshot = null;
     }
 
-    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefsTyped()
+    internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        return _progression_content_registry.GetSkillDefsTyped();
+        return RequireSnapshot().Skills;
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyTemplateDef> GetEnemyTemplatesTyped()
+    internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> GetBarrierProfileDefinitionsTyped()
     {
-        return _enemy_content_registry.GetEnemyTemplatesTyped();
+        return RequireSnapshot().BarrierProfiles;
     }
 
-    internal IReadOnlyDictionary<StringName, EnemyAiBrainDef> GetEnemyAiBrainsTyped()
+    internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplatesTyped()
     {
-        return _enemy_content_registry.GetEnemyAiBrainsTyped();
+        return RequireSnapshot().EnemyTemplates;
     }
+
+    internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> GetEnemyAiBrainsTyped()
+    {
+        return RequireSnapshot().EnemyBrains;
+    }
+
+    internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> GetBattleSimProfilesTyped()
+    {
+        return RequireSnapshot().BattleSimProfiles;
+    }
+
+    private ContentSnapshot RequireSnapshot() =>
+        _snapshot ?? throw new ObjectDisposedException(nameof(BattleSimContentProvider));
 }

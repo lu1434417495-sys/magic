@@ -1,8 +1,8 @@
+using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_quest_content_validator_typed_regression : SceneTree
+public partial class run_quest_content_validator_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,30 +15,34 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
     {
         TestOfficialQuestValidationTypedBoundary();
         TestMissingReferenceErrorsUseTypedBoundary();
+        TestNpcProviderAcceptsNonServiceInteractionId();
+        TestProviderKindValidationNegativeBoundary();
+        TestListingChannelValidationNegativeBoundary();
+        TestAcceptRequirementValidation();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Quest content validator typed regression"));
+        RequestTestExit(_test.Finish("Quest content validator typed regression"));
     }
 
     private void TestOfficialQuestValidationTypedBoundary()
     {
-        using ProgressionContentRegistry progressionRegistry = new();
-        using ItemContentRegistry itemRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
+        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
 
-        IReadOnlyDictionary<StringName, QuestDef> questDefs =
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
             progressionRegistry.GetQuestDefsTyped();
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
-        Dictionary<StringName, SkillDef> skillDefs = new(progressionRegistry.GetSkillDefsTyped());
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            progressionRegistry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
         IReadOnlyList<string> registrationErrors =
             progressionRegistry.GetQuestRegistrationErrorsTyped();
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             questDefs,
             itemDefs,
-            skillDefs,
+            skillDefinitions,
             enemyTemplates,
             registrationErrors
         );
@@ -51,22 +55,26 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
 
     private void TestMissingReferenceErrorsUseTypedBoundary()
     {
-        using ItemContentRegistry itemRegistry = new();
-        using SkillContentRegistry skillRegistry = new();
-        using EnemyContentRegistry enemyRegistry = new();
-        using QuestDef invalidQuest = BuildInvalidQuestDef();
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
+        QuestDefinition invalidQuest = BuildInvalidQuestDefinition();
 
-        Dictionary<StringName, QuestDef> typedQuestDefs = new() { [invalidQuest.quest_id] = invalidQuest };
-        Dictionary<StringName, ItemDef> itemDefs = new(itemRegistry.GetItemDefsTyped());
-        Dictionary<StringName, SkillDef> skillDefs = new(skillRegistry.GetSkillDefsTyped());
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates =
-            enemyRegistry.GetEnemyTemplatesTyped();
+        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
+        {
+            [invalidQuest.QuestId] = invalidQuest,
+        };
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skillRegistry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
         List<string> registrationErrors = new() { "typed registration error" };
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             typedQuestDefs,
             itemDefs,
-            skillDefs,
+            skillDefinitions,
             enemyTemplates,
             registrationErrors
         );
@@ -76,50 +84,297 @@ public partial class run_quest_content_validator_typed_regression : SceneTree
         );
     }
 
-    private static QuestDef BuildInvalidQuestDef()
+    private void TestNpcProviderAcceptsNonServiceInteractionId()
     {
-        return new QuestDef
+        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
+        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
+        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
+        QuestDefinition npcQuest = BuildQuestDefinition(
+            "npc_regression_quest",
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: [new StringName("npc_offer")]
+        );
+
+        Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
         {
-            quest_id = "typed_missing_reference_quest",
-            display_name = "Typed Missing Reference Quest",
-            description = "Regression quest for typed quest validation boundary.",
-            provider_interaction_id = "quest_board",
-            objective_defs = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["objective_id"] = "deliver_missing_relic",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
-                    ["target_id"] = "missing_relic",
-                    ["target_value"] = 1,
-                },
-                new GDictionary
-                {
-                    ["objective_id"] = "defeat_missing_enemy",
-                    ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
-                    ["target_id"] = "missing_enemy_template",
-                    ["target_value"] = 1,
-                },
-            },
-            reward_entries = new Godot.Collections.Array<GDictionary>
-            {
-                new GDictionary
-                {
-                    ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.PendingCharacterReward),
-                    ["member_id"] = "hero",
-                    ["entries"] = new Godot.Collections.Array
-                    {
-                        new GDictionary
-                        {
-                            ["entry_type"] = PendingCharacterRewardContentRules.ToStringName(PendingCharacterRewardEntryKind.SkillUnlock),
-                            ["target_id"] = "missing_skill_reward",
-                            ["amount"] = 1,
-                        },
-                    },
-                },
-            },
+            [npcQuest.QuestId] = npcQuest,
         };
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skillRegistry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
+
+        List<string> typedErrors = QuestContentValidator.ValidateTyped(
+            typedQuestDefs,
+            itemDefs,
+            skillDefinitions,
+            enemyTemplates
+        );
+        _test.Eq(
+            typedErrors.Count,
+            0,
+            $"NPC provider quest 应通过 provider_interaction_id 白名单校验: {FormatErrors(typedErrors)}"
+        );
     }
+
+    private void TestProviderKindValidationNegativeBoundary()
+    {
+        // Unknown provider_kind.
+        QuestDefinition unknownKindQuest = BuildQuestDefinition(
+            "unknown_provider_kind_quest",
+            providerKind: "unknown_kind",
+            providerInteractionId: "service_contract_board"
+        );
+        List<string> unknownKindErrors = new();
+        QuestContentValidator.AppendProviderKindErrors(unknownKindErrors, unknownKindQuest);
+        _test.Eq(
+            unknownKindErrors.Count,
+            1,
+            $"未知 provider_kind 应产生一条错误: {FormatErrors(unknownKindErrors)}"
+        );
+        _test.True(
+            unknownKindErrors[0].Contains("未知 provider_kind"),
+            $"未知 provider_kind 错误消息应包含提示。 actual={unknownKindErrors[0]}"
+        );
+
+        // Service provider_kind with mismatched provider_interaction_id.
+        QuestDefinition mismatchedServiceQuest = BuildQuestDefinition(
+            "mismatched_service_quest",
+            providerKind: "service_contract_board",
+            providerInteractionId: "service_bounty_registry"
+        );
+        List<string> mismatchedErrors = new();
+        QuestContentValidator.AppendProviderKindErrors(mismatchedErrors, mismatchedServiceQuest);
+        _test.Eq(
+            mismatchedErrors.Count,
+            1,
+            $"service provider_kind 与 provider_interaction_id 不匹配时应产生一条错误: {FormatErrors(mismatchedErrors)}"
+        );
+        _test.True(
+            mismatchedErrors[0].Contains("要求 provider_interaction_id"),
+            $"不匹配错误消息应包含提示。 actual={mismatchedErrors[0]}"
+        );
+
+        // NPC provider_kind with empty provider_interaction_id.
+        QuestDefinition npcEmptyInteractionQuest = BuildQuestDefinition(
+            "npc_empty_interaction_quest",
+            providerKind: "npc",
+            providerInteractionId: ""
+        );
+        List<string> npcEmptyErrors = new();
+        QuestContentValidator.AppendProviderKindErrors(npcEmptyErrors, npcEmptyInteractionQuest);
+        _test.Eq(
+            npcEmptyErrors.Count,
+            1,
+            $"npc provider_kind 空 provider_interaction_id 应产生一条错误: {FormatErrors(npcEmptyErrors)}"
+        );
+        _test.True(
+            npcEmptyErrors[0].Contains("需要非空的 provider_interaction_id"),
+            $"NPC 空 interaction id 错误消息应包含提示。 actual={npcEmptyErrors[0]}"
+        );
+    }
+
+    private void TestListingChannelValidationNegativeBoundary()
+    {
+        // Empty listing_channels.
+        QuestDefinition emptyChannelsQuest = BuildQuestDefinition(
+            "empty_channels_quest",
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: Array.Empty<StringName>()
+        );
+        List<string> emptyChannelErrors = new();
+        QuestContentValidator.AppendListingChannelErrors(emptyChannelErrors, emptyChannelsQuest);
+        _test.Eq(
+            emptyChannelErrors.Count,
+            1,
+            $"空 listing_channels 应产生一条错误: {FormatErrors(emptyChannelErrors)}"
+        );
+        _test.True(
+            emptyChannelErrors[0].Contains("listing_channels 不能为空"),
+            $"空 listing_channels 错误消息应包含提示。 actual={emptyChannelErrors[0]}"
+        );
+
+        // Unknown listing_channels.
+        QuestDefinition unknownChannelQuest = BuildQuestDefinition(
+            "unknown_channel_quest",
+            providerKind: "npc",
+            providerInteractionId: "npc_blacksmith_hrothgar",
+            listingChannels: [new StringName("tavern_board")]
+        );
+        List<string> unknownChannelErrors = new();
+        QuestContentValidator.AppendListingChannelErrors(unknownChannelErrors, unknownChannelQuest);
+        _test.Eq(
+            unknownChannelErrors.Count,
+            1,
+            $"未知 listing_channels 应产生一条错误: {FormatErrors(unknownChannelErrors)}"
+        );
+        _test.True(
+            unknownChannelErrors[0].Contains("listing_channels 包含未知渠道"),
+            $"未知 listing_channels 错误消息应包含提示。 actual={unknownChannelErrors[0]}"
+        );
+    }
+
+    private void TestAcceptRequirementValidation()
+    {
+        QuestDefinition validTargetQuest = BuildQuestDefinition(
+            "accept_req_target",
+            acceptRequirements:
+            [
+                new QuestAcceptRequirementDefinition(
+                    "quest_completed",
+                    "accept_req_prereq"
+                ),
+            ]
+        );
+        QuestDefinition validPrereqQuest = BuildQuestDefinition("accept_req_prereq");
+
+        var questDefs = new Dictionary<StringName, QuestDefinition>
+        {
+            [validTargetQuest.QuestId] = validTargetQuest,
+            [validPrereqQuest.QuestId] = validPrereqQuest,
+        };
+
+        List<string> validErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(validErrors, validTargetQuest, questDefs);
+        _test.Eq(validErrors.Count, 0, "有效的 accept_requirements 引用不应报错。");
+
+        QuestDefinition unknownTypeQuest = BuildQuestDefinition(
+            "unknown_req_type",
+            acceptRequirements:
+            [new QuestAcceptRequirementDefinition("gold_min", "accept_req_prereq")]
+        );
+        List<string> unknownTypeErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(unknownTypeErrors, unknownTypeQuest, questDefs);
+        _test.Eq(unknownTypeErrors.Count, 1, "不支持的 requirement_type 应产生一条错误。");
+        _test.True(
+            unknownTypeErrors[0].Contains("不支持的 requirement_type"),
+            $"错误消息应提示不支持的类型。 actual={unknownTypeErrors[0]}"
+        );
+
+        QuestDefinition missingIdQuest = BuildQuestDefinition(
+            "missing_req_id",
+            acceptRequirements:
+            [new QuestAcceptRequirementDefinition("quest_completed", "")]
+        );
+        List<string> missingIdErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(missingIdErrors, missingIdQuest, questDefs);
+        _test.Eq(missingIdErrors.Count, 1, "缺少 quest_id 的 requirement 应产生一条错误。");
+        _test.True(
+            missingIdErrors[0].Contains("缺少 quest_id"),
+            $"错误消息应提示缺少 quest_id。 actual={missingIdErrors[0]}"
+        );
+
+        QuestDefinition danglingRefQuest = BuildQuestDefinition(
+            "dangling_req_ref",
+            acceptRequirements:
+            [
+                new QuestAcceptRequirementDefinition(
+                    "quest_completed",
+                    "non_existent_quest"
+                ),
+            ]
+        );
+        List<string> danglingErrors = new();
+        QuestContentValidator.AppendAcceptRequirementErrors(danglingErrors, danglingRefQuest, questDefs);
+        _test.Eq(danglingErrors.Count, 1, "引用不存在 quest_id 的 requirement 应产生一条错误。");
+        _test.True(
+            danglingErrors[0].Contains("不存在的 quest_id"),
+            $"错误消息应提示引用不存在。 actual={danglingErrors[0]}"
+        );
+    }
+
+    private static QuestDefinition BuildQuestDefinition(
+        StringName questId,
+        string providerKind = null,
+        string providerInteractionId = null,
+        IReadOnlyList<StringName> listingChannels = null,
+        IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null,
+        IReadOnlyList<QuestObjectiveDefinition> objectives = null,
+        IReadOnlyList<QuestRewardDefinition> rewards = null
+    )
+    {
+        IReadOnlyList<QuestObjectiveDefinition> resolvedObjectives = objectives
+            ??
+            [
+                new QuestObjectiveDefinition(
+                    "complete_once",
+                    "settlement_action",
+                    "service:training",
+                    1
+                ),
+            ];
+        IReadOnlyList<QuestRewardDefinition> resolvedRewards = rewards
+            ??
+            [
+                new QuestRewardDefinition(
+                    "gold",
+                    10,
+                    "",
+                    0,
+                    "",
+                    Array.Empty<QuestPendingRewardEntryDefinition>()
+                ),
+            ];
+        return new QuestDefinition(
+            questId,
+            "Valid Quest",
+            "A valid quest.",
+            new StringName(providerInteractionId ?? "service_contract_board"),
+            Array.Empty<StringName>(),
+            acceptRequirements ?? Array.Empty<QuestAcceptRequirementDefinition>(),
+            resolvedObjectives,
+            resolvedRewards,
+            false,
+            new StringName(providerKind ?? "service_contract_board"),
+            listingChannels ?? [new StringName("contract_board")],
+            "",
+            "",
+            "",
+            ""
+        );
+    }
+
+    private static QuestDefinition BuildInvalidQuestDefinition() =>
+        BuildQuestDefinition(
+            "typed_missing_reference_quest",
+            objectives:
+            [
+                new QuestObjectiveDefinition(
+                    "deliver_missing_relic",
+                    "submit_item",
+                    "missing_relic",
+                    1
+                ),
+                new QuestObjectiveDefinition(
+                    "defeat_missing_enemy",
+                    "defeat_enemy",
+                    "missing_enemy_template",
+                    1
+                ),
+            ],
+            rewards:
+            [
+                new QuestRewardDefinition(
+                    "pending_character_reward",
+                    0,
+                    "",
+                    0,
+                    "hero",
+                    [
+                        new QuestPendingRewardEntryDefinition(
+                            PendingCharacterRewardContentRules.ToStringName(
+                                PendingCharacterRewardEntryKind.SkillUnlock
+                            ),
+                            "missing_skill_reward",
+                            1
+                        ),
+                    ]
+                ),
+            ]
+        );
 
     private static string FormatErrors(IEnumerable<string> errors)
     {

@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 internal enum QuestStatusKind
 {
@@ -11,8 +12,7 @@ internal enum QuestStatusKind
     Failed,
 }
 
-[GlobalClass]
-public partial class QuestState : RefCounted
+public class QuestState
 {
     private static readonly StringName StatusInactive = "inactive";
 
@@ -24,7 +24,7 @@ public partial class QuestState : RefCounted
 
     private static readonly StringName StatusFailed = "failed";
 
-    private static readonly Godot.Collections.Array REQUIRED_SERIALIZED_FIELDS = new()
+    private static readonly string[] REQUIRED_SERIALIZED_FIELDS =
     {
         "quest_id",
         "status_id",
@@ -125,26 +125,18 @@ public partial class QuestState : RefCounted
         return IsObjectiveComplete(objectiveId, 0);
     }
 
-    public bool HasCompletedAllObjectives(QuestDef questDef)
+    public bool HasCompletedAllObjectives(QuestDefinition questDef)
     {
         if (questDef == null)
             return false;
 
-        foreach (var objData in questDef.objective_defs)
+        foreach (QuestObjectiveDefinition objective in questDef.Objectives)
         {
-            var objId = ProgressionDataUtils.to_string_name(
-                objData.ContainsKey("objective_id") ? objData["objective_id"] : default
-            );
-
             if (
-                !objData.ContainsKey("target_value")
-                || objData["target_value"].VariantType != Variant.Type.Int
+                objective == null
+                || objective.ObjectiveId == ""
+                || !IsObjectiveComplete(objective.ObjectiveId, objective.TargetValue)
             )
-                return false;
-
-            int target = objData["target_value"].AsInt32();
-
-            if (objId == "" || !IsObjectiveComplete(objId, target))
                 return false;
         }
 
@@ -210,6 +202,56 @@ public partial class QuestState : RefCounted
             { "completed_at_world_step", completed_at_world_step },
             { "reward_claimed_at_world_step", reward_claimed_at_world_step },
             { "last_progress_context", last_progress_context.ToDictionary() },
+        };
+    }
+
+    internal Dictionary<string, object> BuildSnapshotPlain()
+    {
+        var objectiveProgress = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (objective_progress != null)
+        {
+            var entries = new List<KeyValuePair<StringName, int>>(
+                objective_progress.ValuesTyped
+            );
+            entries.Sort(
+                (left, right) =>
+                    string.CompareOrdinal(left.Key.ToString(), right.Key.ToString())
+            );
+            foreach ((StringName objectiveId, int value) in entries)
+                objectiveProgress[objectiveId.ToString()] = value;
+        }
+
+        var progressContext = new Dictionary<string, object>(StringComparer.Ordinal);
+        QuestProgressContext context = last_progress_context;
+        if (context != null)
+        {
+            if (context.MemberId != "")
+                progressContext["member_id"] = context.MemberId.ToString();
+            if (!string.IsNullOrEmpty(context.ActionId))
+                progressContext["action_id"] = context.ActionId;
+            if (context.EnemyTemplateId != "")
+                progressContext["enemy_template_id"] = context.EnemyTemplateId.ToString();
+            if (!string.IsNullOrEmpty(context.SettlementId))
+                progressContext["settlement_id"] = context.SettlementId;
+            if (context.SourceType != "")
+                progressContext["source_type"] = context.SourceType.ToString();
+            if (context.SourceId != "")
+                progressContext["source_id"] = context.SourceId.ToString();
+            if (context.ItemId != "")
+                progressContext["item_id"] = context.ItemId.ToString();
+            if (context.SubmittedQuantity > 0)
+                progressContext["submitted_quantity"] = context.SubmittedQuantity;
+        }
+
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["quest_id"] = quest_id.ToString(),
+            ["status_id"] = status_id.ToString(),
+            ["objective_progress"] = objectiveProgress,
+            ["accepted_at_world_step"] = accepted_at_world_step,
+            ["completed_at_world_step"] = completed_at_world_step,
+            ["reward_claimed_at_world_step"] = reward_claimed_at_world_step,
+            ["last_progress_context"] = progressContext,
         };
     }
 
@@ -309,9 +351,9 @@ public partial class QuestState : RefCounted
 
     private static bool _has_exact_serialized_fields(Godot.Collections.Dictionary payload)
     {
-        if (payload.Count != REQUIRED_SERIALIZED_FIELDS.Count)
+        if (payload.Count != REQUIRED_SERIALIZED_FIELDS.Length)
             return false;
-        foreach (var fn in REQUIRED_SERIALIZED_FIELDS)
+        foreach (string fn in REQUIRED_SERIALIZED_FIELDS)
         {
             if (!payload.ContainsKey(fn))
                 return false;

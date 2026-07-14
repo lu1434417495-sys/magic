@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+[ext_resource type="Script" path="res://scripts/player/equipment/EquipmentRequirement.cs" id="4_requirement"]
+[ext_resource type="Script" path="res://scripts/player/equipment/EquipmentAttributeRequirementDef.cs" id="5_attribute_requirement"]
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 2
+dice_sides = 8
+flat_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+weapon_type_id = &"greataxe"
+training_group = &"martial"
+range_type = &"melee"
+family = &"axe"
+damage_tag = &"physical_slash"
+attack_range = 2
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"two_handed", &"heavy", &"reach"])
+
+[sub_resource type="Resource" id="Resource_strength_requirement"]
+script = ExtResource("5_attribute_requirement")
+attribute_id = &"strength"
+min_value = 20
+
+[sub_resource type="Resource" id="Resource_equip_requirement"]
+script = ExtResource("4_requirement")
+attribute_requirements = Array[Resource]([SubResource("Resource_strength_requirement")])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_greataxe_mountainbreaker"
+base_item_id = &"weapon_type_greataxe_base"
+display_name = "裂山者"
+description = "一柄需要泰坦之握才能稳定挥动的巨斧。它先把敌人压入地面，再把地脉本身撕成难以通行的断层。"
+is_stackable = false
+base_price = 65000
+buy_price = 65000
+sell_price = 32500
+sellable = true
+max_stack = 1
+item_category = &"equipment"
+tags = Array[StringName]([&"mountainbreaker", &"heavy", &"two_handed", &"reach"])
+trait_ids = Array[StringName]([&"weapon.axe.mountainbreaker.mountain_splitting_blade", &"weapon.axe.mountainbreaker.titan_grip", &"weapon.axe.mountainbreaker.faultline_followup", &"weapon.axe.mountainbreaker.mountain_collapse", &"weapon.axe.mountainbreaker.leyline_anchor"])
+equipment_slot_ids = Array[String](["main_hand"])
+occupied_slot_ids = Array[String](["main_hand", "off_hand"])
+equip_requirement = SubResource("Resource_equip_requirement")
+equipment_type_id = &"weapon"
+weapon_profile = SubResource("Resource_weapon_profile")

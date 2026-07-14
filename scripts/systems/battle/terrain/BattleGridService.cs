@@ -4,7 +4,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal readonly record struct BattleHeightDeltaResult(
     bool Changed,
@@ -79,9 +78,9 @@ public sealed class BattleGridService : IDisposable
         return coord.X >= 0 && coord.Y >= 0 && coord.X < mapSize.X && coord.Y < mapSize.Y;
     }
 
-    internal GVector2IArray GetNeighbors4(BattleState state, Vector2I coord)
+    internal List<Vector2I> GetNeighbors4(BattleState state, Vector2I coord)
     {
-        var neighbors = new GVector2IArray();
+        var neighbors = new List<Vector2I>();
         AddNeighborIfInside(state, neighbors, coord + Vector2I.Left);
         AddNeighborIfInside(state, neighbors, coord + Vector2I.Right);
         AddNeighborIfInside(state, neighbors, coord + Vector2I.Up);
@@ -89,9 +88,9 @@ public sealed class BattleGridService : IDisposable
         return neighbors;
     }
 
-    internal GVector2IArray GetFootprintCoords(Vector2I anchor_coord, Vector2I footprint_size)
+    internal List<Vector2I> GetFootprintCoords(Vector2I anchor_coord, Vector2I footprint_size)
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         Vector2I normalizedSize = new(Math.Max(footprint_size.X, 1), Math.Max(footprint_size.Y, 1));
         for (int y = 0; y < normalizedSize.Y; y++)
         {
@@ -103,11 +102,11 @@ public sealed class BattleGridService : IDisposable
         return coords;
     }
 
-    internal GVector2IArray GetUnitTargetCoords(BattleUnitState unit_state, Vector2I anchor_coord)
+    internal List<Vector2I> GetUnitTargetCoords(BattleUnitState unit_state, Vector2I anchor_coord)
     {
         if (unit_state == null)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
         Vector2I footprintSize = unit_state.footprint_size;
         if (footprintSize == Vector2I.Zero)
@@ -117,16 +116,16 @@ public sealed class BattleGridService : IDisposable
         return GetFootprintCoords(anchor_coord, footprintSize);
     }
 
-    internal GVector2IArray GetUnitTargetCoords(
+    internal List<Vector2I> GetUnitTargetCoords(
         BattleUnitReadView unitView,
         Vector2I anchor_coord
     )
     {
         if (!unitView.IsValid)
         {
-            return new GVector2IArray();
+            return new List<Vector2I>();
         }
-        var result = new GVector2IArray();
+        var result = new List<Vector2I>();
         foreach (Vector2I coord in unitView.GetTargetCoords(anchor_coord))
             result.Add(coord);
         return result;
@@ -137,7 +136,7 @@ public sealed class BattleGridService : IDisposable
         return Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y);
     }
 
-    internal GVector2IArray GetAreaCoords(
+    internal List<Vector2I> GetAreaCoords(
         BattleState state,
         Vector2I center_coord,
         StringName area_pattern,
@@ -147,7 +146,7 @@ public sealed class BattleGridService : IDisposable
         return GetAreaCoords(state, center_coord, area_pattern, area_value, Vector2I.Zero);
     }
 
-    internal GVector2IArray GetAreaCoords(
+    internal List<Vector2I> GetAreaCoords(
         BattleState state,
         Vector2I center_coord,
         StringName area_pattern,
@@ -155,7 +154,7 @@ public sealed class BattleGridService : IDisposable
         Vector2I facing_direction
     )
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         if (state == null || !IsInside(state, center_coord))
         {
             return coords;
@@ -257,14 +256,14 @@ public sealed class BattleGridService : IDisposable
         return SortUniqueCoords(coords);
     }
 
-    private GVector2IArray BuildLineCoords(
+    private List<Vector2I> BuildLineCoords(
         BattleState state,
         Vector2I center_coord,
         int radius,
         Vector2I facing_direction
     )
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         if (radius <= 0)
         {
             coords.Add(center_coord);
@@ -295,14 +294,14 @@ public sealed class BattleGridService : IDisposable
         return SortUniqueCoords(coords);
     }
 
-    private GVector2IArray BuildConeCoords(
+    private List<Vector2I> BuildConeCoords(
         BattleState state,
         Vector2I center_coord,
         int radius,
         Vector2I facing_direction
     )
     {
-        var coords = new GVector2IArray { center_coord };
+        var coords = new List<Vector2I> { center_coord };
         if (radius <= 0)
         {
             return coords;
@@ -318,14 +317,14 @@ public sealed class BattleGridService : IDisposable
         return SortUniqueCoords(coords);
     }
 
-    private GVector2IArray BuildNarrowConeCoords(
+    private List<Vector2I> BuildNarrowConeCoords(
         BattleState state,
         Vector2I center_coord,
         int radius,
         Vector2I facing_direction
     )
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         if (radius <= 0)
         {
             coords.Add(center_coord);
@@ -342,14 +341,14 @@ public sealed class BattleGridService : IDisposable
         return SortUniqueCoords(coords);
     }
 
-    private GVector2IArray BuildFrontArcCoords(
+    private List<Vector2I> BuildFrontArcCoords(
         BattleState state,
         Vector2I center_coord,
         int radius,
         Vector2I facing_direction
     )
     {
-        var coords = new GVector2IArray();
+        var coords = new List<Vector2I>();
         int arcRadius = Math.Max(radius, 0);
         Vector2I direction = ResolveAreaDirection(state, center_coord, facing_direction);
         if (direction == Vector2I.Zero)
@@ -460,13 +459,13 @@ public sealed class BattleGridService : IDisposable
         return Vector2I.Zero;
     }
 
-    private GVector2IArray SortUniqueCoords(GVector2IArray coords)
+    private List<Vector2I> SortUniqueCoords(IEnumerable<Vector2I> coords)
     {
-        if (coords == null || coords.Count == 0)
+        if (coords == null)
         {
-            return coords ?? new GVector2IArray();
+            return new List<Vector2I>();
         }
-        var uniqueCoords = new GVector2IArray();
+        var uniqueCoords = new List<Vector2I>();
         var seen = new HashSet<Vector2I>();
         foreach (Vector2I coord in coords)
         {
@@ -1160,23 +1159,23 @@ public sealed class BattleGridService : IDisposable
     {
         if (state == null)
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "战斗状态不可用。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "战斗状态不可用。");
         }
         if (!unitView.IsValid)
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "当前单位数据不可用。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "当前单位数据不可用。");
         }
         if (!IsInside(state, from_coord))
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "当前单位不在有效战斗格上。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "当前单位不在有效战斗格上。");
         }
         if (!IsInside(state, to_coord))
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "已到达战斗地图边界。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "已到达战斗地图边界。");
         }
         if (from_coord == to_coord)
         {
-            return MovePathResult(true, 0, new GVector2IArray { from_coord }, "可移动。");
+            return MovePathResult(true, 0, new[] { from_coord }, "可移动。");
         }
 
         int sanitizedMaxMovePoints = Math.Max(max_move_points, 0);
@@ -1267,26 +1266,26 @@ public sealed class BattleGridService : IDisposable
                 )
             )
             {
-                return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+                return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标区域不可放置当前单位。");
             }
             if (GetDistance(from_coord, to_coord) == 1)
             {
                 return MovePathResult(
                     false,
                     GetUnitMoveCost(state, unitView, to_coord),
-                    new GVector2IArray(),
+                    System.Array.Empty<Vector2I>(),
                     CanUnitStepBetweenAnchors(state, unitView, from_coord, to_coord)
                         ? "移动力不足，无法移动。"
                         : "目标区域不可放置当前单位。"
                 );
             }
-            return MovePathResult(false, 0, new GVector2IArray(), "目标地格当前不可到达。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标地格当前不可到达。");
         }
 
         int finalCost = bestCosts.TryGetValue(to_coord, out int resolvedCost)
             ? resolvedCost
             : InfiniteCost;
-        GVector2IArray anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
+        List<Vector2I> anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
         if (finalCost > sanitizedMaxMovePoints)
         {
             return MovePathResult(false, finalCost, anchorPath, "移动力不足，无法移动。");
@@ -1305,23 +1304,23 @@ public sealed class BattleGridService : IDisposable
     {
         if (state == null)
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "战斗状态不可用。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "战斗状态不可用。");
         }
         if (unit_state == null)
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "当前单位数据不可用。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "当前单位数据不可用。");
         }
         if (!IsInside(state, from_coord))
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "当前单位不在有效战斗格上。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "当前单位不在有效战斗格上。");
         }
         if (!IsInside(state, to_coord))
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "已到达战斗地图边界。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "已到达战斗地图边界。");
         }
         if (from_coord == to_coord)
         {
-            return MovePathResult(true, 0, new GVector2IArray { from_coord }, "可移动。");
+            return MovePathResult(true, 0, new[] { from_coord }, "可移动。");
         }
 
         int sanitizedMaxMovePoints = Math.Max(max_move_points, 0);
@@ -1412,7 +1411,7 @@ public sealed class BattleGridService : IDisposable
                 )
             )
             {
-                return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+                return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标区域不可放置当前单位。");
             }
             if (GetDistance(from_coord, to_coord) == 1)
             {
@@ -1425,17 +1424,17 @@ public sealed class BattleGridService : IDisposable
                 return MovePathResult(
                     false,
                     directResult.Cost,
-                    new GVector2IArray(),
+                    System.Array.Empty<Vector2I>(),
                     directResult.Message
                 );
             }
-            return MovePathResult(false, 0, new GVector2IArray(), "目标地格当前不可到达。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标地格当前不可到达。");
         }
 
         int finalCost = bestCosts.TryGetValue(to_coord, out int resolvedCost)
             ? resolvedCost
             : InfiniteCost;
-        GVector2IArray anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
+        List<Vector2I> anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
         if (finalCost > sanitizedMaxMovePoints)
         {
             return MovePathResult(false, finalCost, anchorPath, "移动力不足，无法移动。");
@@ -1461,7 +1460,7 @@ public sealed class BattleGridService : IDisposable
             )
         )
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标区域不可放置当前单位。");
         }
 
         if (GetDistance(from_coord, to_coord) == 1)
@@ -1477,20 +1476,20 @@ public sealed class BattleGridService : IDisposable
                 return MovePathResult(
                     false,
                     directResult.Cost,
-                    new GVector2IArray(),
+                    System.Array.Empty<Vector2I>(),
                     directResult.Message
                 );
             }
             return MovePathResult(
                 false,
                 directResult.Cost,
-                new GVector2IArray { from_coord, to_coord },
+                new[] { from_coord, to_coord },
                 "移动力不足，无法移动。"
             );
         }
 
         int exceededCost = maxMovePoints < InfiniteCost ? maxMovePoints + 1 : InfiniteCost;
-        return MovePathResult(false, exceededCost, new GVector2IArray(), "移动力不足，无法移动。");
+        return MovePathResult(false, exceededCost, System.Array.Empty<Vector2I>(), "移动力不足，无法移动。");
     }
 
     private BattleMovePathResult MovePathBudgetExceededResult(
@@ -1511,7 +1510,7 @@ public sealed class BattleGridService : IDisposable
             )
         )
         {
-            return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
+            return MovePathResult(false, 0, System.Array.Empty<Vector2I>(), "目标区域不可放置当前单位。");
         }
 
         if (GetDistance(from_coord, to_coord) == 1)
@@ -1522,20 +1521,20 @@ public sealed class BattleGridService : IDisposable
                 return MovePathResult(
                     false,
                     directCost,
-                    new GVector2IArray(),
+                    System.Array.Empty<Vector2I>(),
                     "目标区域不可放置当前单位。"
                 );
             }
             return MovePathResult(
                 false,
                 directCost,
-                new GVector2IArray { from_coord, to_coord },
+                new[] { from_coord, to_coord },
                 "移动力不足，无法移动。"
             );
         }
 
         int exceededCost = maxMovePoints < InfiniteCost ? maxMovePoints + 1 : InfiniteCost;
-        return MovePathResult(false, exceededCost, new GVector2IArray(), "移动力不足，无法移动。");
+        return MovePathResult(false, exceededCost, System.Array.Empty<Vector2I>(), "移动力不足，无法移动。");
     }
 
     internal BattleMovePathTreeResult BuildUnitMovePathTreeTyped(
@@ -1726,7 +1725,7 @@ public sealed class BattleGridService : IDisposable
         }
         else
         {
-            state.PutCellColumnPayload(
+            state.PutCellColumn(
                 coord,
                 BattleCellState.BuildStackedCellsFromSurfaceCell(surfaceCell)
             );
@@ -1812,7 +1811,7 @@ public sealed class BattleGridService : IDisposable
 
     internal bool ClearEdgeFeature(BattleState state, Vector2I coord, Vector2I direction)
     {
-        return SetEdgeFeature(state, coord, direction, BattleEdgeFeatureState.MakeNone());
+        return SetEdgeFeature(state, coord, direction, null);
     }
 
     internal BattleHeightDeltaResult ApplyHeightDeltaResult(
@@ -2026,11 +2025,6 @@ public sealed class BattleGridService : IDisposable
         return top;
     }
 
-    private GVector2IArray ReconstructMovePathLegacy(GDictionary previous, Vector2I start, Vector2I end)
-    {
-        return ReconstructMovePath(previous, start, end);
-    }
-
     private static int GetHeapPriority(GArray heap, int index)
     {
         if (index < 0 || index >= heap.Count)
@@ -2046,42 +2040,48 @@ public sealed class BattleGridService : IDisposable
         return Math.Max(Math.Abs(to_coord.X - from_coord.X), Math.Abs(to_coord.Y - from_coord.Y));
     }
 
-    private GDictionary ComputeJumpParams(BattleUnitState unit_state, CombatEffectDef effect_def)
+    private GDictionary ComputeJumpParams(
+        BattleUnitState unit_state,
+        CombatEffectDefinition effectDefinition
+    )
     {
-        if (unit_state == null || effect_def == null)
+        if (unit_state == null || effectDefinition == null)
         {
             return new GDictionary();
         }
         int jumpStr = GetJumpEffectiveStr(unit_state);
-        return ComputeJumpParams(jumpStr, effect_def);
+        return ComputeJumpParams(jumpStr, effectDefinition);
     }
 
-    private GDictionary ComputeJumpParams(BattleUnitReadView unitView, CombatEffectDef effect_def)
+    private GDictionary ComputeJumpParams(
+        BattleUnitReadView unitView,
+        CombatEffectDefinition effectDefinition
+    )
     {
-        if (!unitView.IsValid || effect_def == null)
+        if (!unitView.IsValid || effectDefinition == null)
         {
             return new GDictionary();
         }
         int jumpStr = GetJumpEffectiveStr(unitView);
-        return ComputeJumpParams(jumpStr, effect_def);
+        return ComputeJumpParams(jumpStr, effectDefinition);
     }
 
-    private GDictionary ComputeJumpParams(int jumpStr, CombatEffectDef effect_def)
+    private GDictionary ComputeJumpParams(int jumpStr, CombatEffectDefinition effectDefinition)
     {
-        if (effect_def == null)
+        if (effectDefinition == null)
         {
             return new GDictionary();
         }
         double budget =
-            effect_def.jump_base_budget
-            + effect_def.jump_str_scale * jumpStr;
-        double arcRatioRaw = effect_def.jump_arc_ratio;
+            effectDefinition.JumpBaseBudget
+            + effectDefinition.JumpStrScale * jumpStr;
+        double arcRatioRaw = effectDefinition.JumpArcRatio;
         double arcRatio = Math.Clamp(arcRatioRaw, MinJumpArcRatio, 1.0);
-        int rangeMultiplier = Math.Max(effect_def.jump_range_multiplier, 1);
+        int rangeMultiplier = Math.Max(effectDefinition.JumpRangeMultiplier, 1);
         int minArc = Math.Max(1, RoundToInt(budget * arcRatio));
         double rangeBudget = Math.Max(0.0, budget * (1.0 - arcRatio));
         int maxRange = Math.Max(1, RoundToInt(rangeBudget * rangeMultiplier));
-        int forcedMoveDistance = effect_def.forced_move_distance;
+        int forcedMoveDistance = effectDefinition.ForcedMoveDistance;
         if (forcedMoveDistance > 0)
         {
             maxRange = Math.Min(maxRange, forcedMoveDistance);
@@ -2115,10 +2115,10 @@ public sealed class BattleGridService : IDisposable
         BattleState state,
         BattleUnitState unit_state,
         Vector2I target_coord,
-        CombatEffectDef effect_def
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (state == null || unit_state == null || effect_def == null)
+        if (state == null || unit_state == null || effectDefinition == null)
         {
             return false;
         }
@@ -2126,7 +2126,7 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        GDictionary parameters = ComputeJumpParams(unit_state, effect_def);
+        GDictionary parameters = ComputeJumpParams(unit_state, effectDefinition);
         if (parameters.Count == 0)
         {
             return false;
@@ -2151,7 +2151,7 @@ public sealed class BattleGridService : IDisposable
         int h0 = fromCell.current_height;
         int h1 = toCell.current_height;
         double apex = Math.Max(h0, h1) + arcHeight;
-        GVector2IArray path = SupercoverJumpPath(unit_state.coord, target_coord);
+        List<Vector2I> path = SupercoverJumpPath(unit_state.coord, target_coord);
         int pathN = path.Count - 1;
         if (pathN <= 1)
         {
@@ -2188,10 +2188,10 @@ public sealed class BattleGridService : IDisposable
         BattleState state,
         BattleUnitReadView unitView,
         Vector2I target_coord,
-        CombatEffectDef effect_def
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (state == null || !unitView.IsValid || effect_def == null)
+        if (state == null || !unitView.IsValid || effectDefinition == null)
         {
             return false;
         }
@@ -2199,7 +2199,7 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        GDictionary parameters = ComputeJumpParams(unitView, effect_def);
+        GDictionary parameters = ComputeJumpParams(unitView, effectDefinition);
         if (parameters.Count == 0)
         {
             return false;
@@ -2224,7 +2224,7 @@ public sealed class BattleGridService : IDisposable
         int h0 = fromCell.current_height;
         int h1 = toCell.current_height;
         double apex = Math.Max(h0, h1) + arcHeight;
-        GVector2IArray path = SupercoverJumpPath(unitView.Coord, target_coord);
+        List<Vector2I> path = SupercoverJumpPath(unitView.Coord, target_coord);
         int pathN = path.Count - 1;
         if (pathN <= 1)
         {
@@ -2261,10 +2261,10 @@ public sealed class BattleGridService : IDisposable
         BattleState state,
         BattleUnitState unit_state,
         Vector2I target_coord,
-        CombatEffectDef effect_def
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (state == null || unit_state == null || effect_def == null)
+        if (state == null || unit_state == null || effectDefinition == null)
         {
             return false;
         }
@@ -2272,7 +2272,7 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        int maxRange = effect_def.forced_move_distance;
+        int maxRange = effectDefinition.ForcedMoveDistance;
         int actualRange = GetChebyshevDistance(unit_state.coord, target_coord);
         if (maxRange > 0 && actualRange > maxRange)
         {
@@ -2285,10 +2285,10 @@ public sealed class BattleGridService : IDisposable
         BattleState state,
         BattleUnitReadView unitView,
         Vector2I target_coord,
-        CombatEffectDef effect_def
+        CombatEffectDefinition effectDefinition
     )
     {
-        if (state == null || !unitView.IsValid || effect_def == null)
+        if (state == null || !unitView.IsValid || effectDefinition == null)
         {
             return false;
         }
@@ -2296,7 +2296,7 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        int maxRange = effect_def.forced_move_distance;
+        int maxRange = effectDefinition.ForcedMoveDistance;
         int actualRange = GetChebyshevDistance(unitView.Coord, target_coord);
         if (maxRange > 0 && actualRange > maxRange)
         {
@@ -2305,9 +2305,9 @@ public sealed class BattleGridService : IDisposable
         return actualRange >= 1 && CanPlaceUnit(state, unitView, target_coord, true);
     }
 
-    private GVector2IArray SupercoverJumpPath(Vector2I from_coord, Vector2I to_coord)
+    private List<Vector2I> SupercoverJumpPath(Vector2I from_coord, Vector2I to_coord)
     {
-        var path = new GVector2IArray();
+        var path = new List<Vector2I>();
         int dx = to_coord.X - from_coord.X;
         int dy = to_coord.Y - from_coord.Y;
         int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
@@ -2452,7 +2452,7 @@ public sealed class BattleGridService : IDisposable
         return state?.GetUnit(unitId);
     }
 
-    private void AddNeighborIfInside(BattleState state, GVector2IArray neighbors, Vector2I coord)
+    private void AddNeighborIfInside(BattleState state, List<Vector2I> neighbors, Vector2I coord)
     {
         if (IsInside(state, coord))
         {
@@ -2462,7 +2462,7 @@ public sealed class BattleGridService : IDisposable
 
     private void AddConeCoords(
         BattleState state,
-        GVector2IArray coords,
+        List<Vector2I> coords,
         Vector2I centerCoord,
         int radius,
         Vector2I direction,
@@ -2533,7 +2533,7 @@ public sealed class BattleGridService : IDisposable
 
     private void AddAxisConeStep(
         BattleState state,
-        GVector2IArray coords,
+        List<Vector2I> coords,
         int baseX,
         int baseY,
         int halfWidth,
@@ -2624,7 +2624,7 @@ public sealed class BattleGridService : IDisposable
         return top;
     }
 
-    private static GVector2IArray ReconstructMovePath(
+    private static List<Vector2I> ReconstructMovePath(
         Dictionary<Vector2I, Vector2I> previous,
         Vector2I start,
         Vector2I end
@@ -2637,40 +2637,13 @@ public sealed class BattleGridService : IDisposable
             reversedPath.Add(current);
             if (!previous.TryGetValue(current, out Vector2I previousCoord))
             {
-                return new GVector2IArray();
+                return new List<Vector2I>();
             }
             current = previousCoord;
         }
         reversedPath.Add(start);
         reversedPath.Reverse();
-        return ToTypedVector2IArray(reversedPath);
-    }
-
-    private static GVector2IArray ReconstructMovePath(
-        GDictionary previous,
-        Vector2I start,
-        Vector2I end
-    )
-    {
-        var reversedPath = new List<Vector2I>();
-        Vector2I current = end;
-        while (current != start)
-        {
-            reversedPath.Add(current);
-            if (!previous.ContainsKey(current))
-            {
-                return new GVector2IArray();
-            }
-            var previousValue = previous[current];
-            if (previousValue.VariantType != Variant.Type.Vector2I)
-            {
-                return new GVector2IArray();
-            }
-            current = previousValue.AsVector2I();
-        }
-        reversedPath.Add(start);
-        reversedPath.Reverse();
-        return ToTypedVector2IArray(reversedPath);
+        return reversedPath;
     }
 
     private static BattleMovePathResult MovePathResult(
@@ -2705,30 +2678,6 @@ public sealed class BattleGridService : IDisposable
         foreach ((Vector2I key, Vector2I value) in source)
         {
             result[key] = value;
-        }
-        return result;
-    }
-
-    private static GVector2IArray ToTypedVector2IArray(List<Vector2I> coords)
-    {
-        var result = new GVector2IArray();
-        foreach (Vector2I coord in coords)
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
-
-    private static GArray ToUntypedArray(GVector2IArray source)
-    {
-        var result = new GArray();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coord in source)
-        {
-            result.Add(coord);
         }
         return result;
     }

@@ -25,7 +25,7 @@ public static class SkillPassiveResolver
     public static void ApplyToUnit(
         BattleUnitState unitState,
         PassiveSourceContext context,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         if (unitState == null)
@@ -33,11 +33,11 @@ public static class SkillPassiveResolver
 
         var progressionState = context?.unit_progress;
 
-        SyncVajraBodyStatus(unitState, progressionState, skillDefs);
+        SyncVajraBodyStatus(unitState, progressionState, skillDefinitions);
 
-        SyncLastStandStatus(unitState, progressionState, skillDefs);
+        SyncLastStandStatus(unitState, progressionState, skillDefinitions);
 
-        SyncShootingSpecializationStatus(unitState, progressionState, skillDefs);
+        SyncShootingSpecializationStatus(unitState, progressionState, skillDefinitions);
     }
 
     private static UnitSkillProgress GetSkillProgress(
@@ -51,7 +51,7 @@ public static class SkillPassiveResolver
     private static void SyncVajraBodyStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var skillProgress = GetSkillProgress(progressionState, VajraBodySkillId);
@@ -63,7 +63,7 @@ public static class SkillPassiveResolver
             return;
         }
 
-        var skillLevel = ResolveVajraBodyEffectiveLevel(skillProgress, progressionState, skillDefs);
+        var skillLevel = ResolveVajraBodyEffectiveLevel(skillProgress, progressionState, skillDefinitions);
 
         var passiveReduction = Mathf.FloorToInt((float)(skillLevel + 1) / 2.0f) + 1;
 
@@ -92,17 +92,17 @@ public static class SkillPassiveResolver
     private static int ResolveVajraBodyEffectiveLevel(
         UnitSkillProgress skillProgress,
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var rawLevel = Mathf.Max(skillProgress.skill_level, 0);
 
-        var skillDef = GetSkillDef(skillDefs, VajraBodySkillId);
+        var skillDefinition = GetSkillDefinition(skillDefinitions, VajraBodySkillId);
 
-        if (skillDef != null)
+        if (skillDefinition != null)
         {
             var effectiveMax = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(
-                skillDef,
+                skillDefinition,
                 skillProgress,
                 progressionState
             );
@@ -118,7 +118,7 @@ public static class SkillPassiveResolver
     private static void SyncShootingSpecializationStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         var skillProgress = GetSkillProgress(progressionState, ShootingSpecializationSkillId);
@@ -140,17 +140,16 @@ public static class SkillPassiveResolver
 
         var statusPower = 1;
         var statusRangeBonus = 1;
-        GDictionary statusParams = null;
+        IReadOnlyDictionary<string, object> statusParams = null;
 
-        var skillDef = GetSkillDef(skillDefs, ShootingSpecializationSkillId);
+        var skillDefinition = GetSkillDefinition(skillDefinitions, ShootingSpecializationSkillId);
 
-        if (skillDef != null && skillDef.combat_profile != null)
+        if (skillDefinition?.CombatProfile != null)
         {
-            var combatProfile = skillDef.combat_profile as CombatSkillDef;
-
+            var combatProfile = skillDefinition.CombatProfile;
             if (combatProfile != null)
             {
-                foreach (var effectDef in combatProfile.passive_effect_defs)
+                foreach (var effectDef in combatProfile.PassiveEffectDefinitions)
                 {
                     if (effectDef == null)
                         continue;
@@ -167,14 +166,14 @@ public static class SkillPassiveResolver
                     )
                         continue;
 
-                    if (effectDef.status_id == "")
+                    if (effectDef.StatusId == "")
                         continue;
 
-                    statusId = effectDef.status_id;
+                    statusId = effectDef.StatusId;
 
-                    statusPower = effectDef.power;
-                    statusRangeBonus = effectDef.range_bonus > 0 ? effectDef.range_bonus : 1;
-                    statusParams = effectDef.@params;
+                    statusPower = effectDef.Power;
+                    statusRangeBonus = effectDef.RangeBonus > 0 ? effectDef.RangeBonus : 1;
+                    statusParams = effectDef.Parameters;
 
                     break;
                 }
@@ -224,7 +223,7 @@ public static class SkillPassiveResolver
     private static void SyncLastStandStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         if (unitState.death_ward_consumed_this_battle)
@@ -247,15 +246,14 @@ public static class SkillPassiveResolver
             maxStatusLevel
         );
 
-        var skillDef = GetSkillDef(skillDefs, LastStandSkillId);
+        var skillDefinition = GetSkillDefinition(skillDefinitions, LastStandSkillId);
 
-        if (skillDef != null && skillDef.combat_profile != null)
+        if (skillDefinition?.CombatProfile != null)
         {
-            var combatProfile = skillDef.combat_profile as CombatSkillDef;
-
+            var combatProfile = skillDefinition.CombatProfile;
             if (combatProfile != null)
             {
-                foreach (var effectDef in combatProfile.passive_effect_defs)
+                foreach (var effectDef in combatProfile.PassiveEffectDefinitions)
                 {
                     if (effectDef == null)
                         continue;
@@ -266,9 +264,9 @@ public static class SkillPassiveResolver
                     )
                         continue;
 
-                    var minLevel = Mathf.Max(effectDef.min_skill_level, 0);
+                    var minLevel = Mathf.Max(effectDef.MinSkillLevel, 0);
 
-                    var maxLevel = effectDef.max_skill_level;
+                    var maxLevel = effectDef.MaxSkillLevel;
 
                     if (skillLevel < minLevel)
                         continue;
@@ -281,17 +279,17 @@ public static class SkillPassiveResolver
                         || effectDef.EffectKind == BattleEffectKind.ApplyStatus
                     )
                     {
-                        if (effectDef.status_id == "")
+                        if (effectDef.StatusId == "")
                             continue;
 
                         var configuredStatus = BuildPassiveSkillStatus(
                             unitState,
-                            effectDef.status_id,
-                            effectDef.power,
+                            effectDef.StatusId,
+                            effectDef.Power,
                             -1,
                             LastStandSkillId,
                             skillLevel,
-                            effectDef.@params
+                            effectDef.Parameters
                         );
 
                         unitState.SetStatusEffect(configuredStatus);
@@ -321,11 +319,18 @@ public static class SkillPassiveResolver
         int durationTu,
         StringName sourceSkillId,
         int sourceSkillLevel,
-        GDictionary statusParams = null
+        IReadOnlyDictionary<string, object> statusParams = null
     )
     {
+        using GodotProjectionLease<GDictionary> parametersProjection =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                statusParams,
+                "skill-passive-status-parameters",
+                LifetimeDomain.Battle,
+                "SkillPassiveResolver.status_parameters"
+            );
         BattleStatusEffectParams typedStatusParams =
-            BattleStatusEffectParams.FromDictionary(statusParams);
+            BattleStatusEffectParams.FromDictionary(parametersProjection.Value);
         var statusEntry = new BattleStatusEffectState
         {
             status_id = statusId,
@@ -333,22 +338,24 @@ public static class SkillPassiveResolver
             power = power,
             stacks = 1,
             duration = durationTu,
-            @params = typedStatusParams.ResidualSavePayload,
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
+        statusEntry.SetParamsTyped(typedStatusParams.ResidualSavePayload);
         typedStatusParams.ApplyTo(statusEntry);
         return statusEntry;
     }
 
-    private static SkillDef GetSkillDef(
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+    private static SkillDefinition GetSkillDefinition(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         StringName skillId
     )
     {
-        if (skillDefs == null)
+        if (skillDefinitions == null)
             return null;
 
-        return skillDefs.TryGetValue(skillId, out var skillDef) ? skillDef : null;
+        return skillDefinitions.TryGetValue(skillId, out var skillDefinition)
+            ? skillDefinition
+            : null;
     }
 }

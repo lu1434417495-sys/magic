@@ -1,40 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-internal static class HeadlessGameTestSessionRegressionGcGuard
-{
-    private const long StartupNoGcRegionSizeBytes = 512L * 1024L * 1024L;
-
-    // This runner loads enough C# script-backed resources before _Initialize that
-    // Mono finalizers can run during Godot script loading and touch released handles.
-#pragma warning disable CA2255
-    [ModuleInitializer]
-#pragma warning restore CA2255
-    internal static void Start()
-    {
-        foreach (string arg in System.Environment.GetCommandLineArgs())
-        {
-            if (
-                !string.IsNullOrEmpty(arg)
-                && arg.Contains(
-                    "run_headless_game_test_session_regression",
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                GC.TryStartNoGCRegion(StartupNoGcRegionSizeBytes);
-                return;
-            }
-        }
-    }
-}
-
-public partial class run_headless_game_test_session_regression : SceneTree
+public partial class run_headless_game_test_session_regression : LifecycleTestSceneTree
 {
     private const string SaveIndexPath = "user://saves/index.dat";
 
@@ -47,14 +18,91 @@ public partial class run_headless_game_test_session_regression : SceneTree
 
     private async void RunAsync()
     {
-        GodotSharpCleanup.CollectPendingFinalizers();
+        await TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession();
         await TestDisposeClearsBattleSaveLockOnSharedGameSession();
         await TestOwnedGameSessionDisposeRemovesLogSink();
         await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
-        TestTypedEnemyCatalogRejectsStringKeyOnlyEntries();
-        await TestFacadeBattleSetupUsesTypedEnemyCatalogs();
+        TestSyntheticEnemyDefinitionsUseTypedKeys();
+        await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
 
-        Quit(_test.Finish("Headless game test session regression"));
+        RequestTestExit(_test.Finish("Headless game test session regression"));
+    }
+
+    private async Task TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession()
+    {
+        ApplicationLifetimeCoordinator coordinator =
+            Root.GetNodeOrNull<ApplicationLifetimeCoordinator>(
+                "ApplicationLifetimeCoordinator"
+            );
+        GameSession canonicalGameSession = Root.GetNodeOrNull<GameSession>("GameSession");
+        _test.True(
+            coordinator != null && canonicalGameSession != null,
+            "Coordinator-less headless 回归前置：autoload owners 应存在。"
+        );
+        if (coordinator == null || canonicalGameSession == null)
+            return;
+
+        StringName originalCoordinatorName = coordinator.Name;
+        StringName originalGameSessionName = canonicalGameSession.Name;
+        var session = new HeadlessGameTestSession();
+        GameSession ownedGameSession = GameSessionTestFactory.CreateSynthetic(
+            session,
+            null
+        );
+        try
+        {
+            coordinator.Name = "ApplicationLifetimeCoordinatorHiddenForHeadlessRegression";
+            canonicalGameSession.Name = "CanonicalGameSessionHiddenForHeadlessRegression";
+
+            bool initialized = true;
+            try
+            {
+                session.initialize();
+            }
+            catch (Exception exception)
+            {
+                initialized = false;
+                _test.Fail(
+                    $"Coordinator-less headless host 应能初始化 owned GameSession。exception={exception}"
+                );
+            }
+
+            ownedGameSession = session.GetGameSessionTyped();
+            _test.True(initialized, "Coordinator-less headless host 初始化不应抛异常。");
+            _test.True(
+                ownedGameSession != null && GodotObject.IsInstanceValid(ownedGameSession),
+                "Coordinator-less headless host 应创建有效的 owned GameSession。"
+            );
+            if (ownedGameSession != null && GodotObject.IsInstanceValid(ownedGameSession))
+            {
+                _test.True(
+                    !ReferenceEquals(ownedGameSession, canonicalGameSession),
+                    "Coordinator-less headless host 应使用显式绑定的 owned GameSession。"
+                );
+                _test.True(
+                    ownedGameSession.Name != "GameSession",
+                    "显式 owned GameSession 必须保持 noncanonical identity。"
+                );
+                _test.True(
+                    Root.GetNodeOrNull<GameSession>("GameSession") == null,
+                    "Coordinator-less owned GameSession 不应占用 canonical root path。"
+                );
+            }
+        }
+        finally
+        {
+            session.Dispose(false);
+            if (GodotObject.IsInstanceValid(coordinator))
+                coordinator.Name = originalCoordinatorName;
+            if (GodotObject.IsInstanceValid(canonicalGameSession))
+                canonicalGameSession.Name = originalGameSessionName;
+            await WaitFrame();
+        }
+
+        _test.True(
+            ownedGameSession == null || !GodotObject.IsInstanceValid(ownedGameSession),
+            "Coordinator-less owned GameSession 应由 headless host dispose。"
+        );
     }
 
     private async Task TestDisposeClearsBattleSaveLockOnSharedGameSession()
@@ -70,6 +118,8 @@ public partial class run_headless_game_test_session_regression : SceneTree
         sharedGameSession.ClearPersistedGame();
         await WaitFrame();
 
+        LifecycleAuditSnapshot sessionLifecycleBaseline =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
         HeadlessGameTestSession session = new();
         session.initialize();
 
@@ -86,6 +136,105 @@ public partial class run_headless_game_test_session_regression : SceneTree
             return;
         }
 
+        BattleRuntimeModule battleRuntime = session
+            .GetRuntimeFacadeTyped()
+            ?.GetBattleRuntime();
+        _test.True(battleRuntime != null, "borrowed context 回归前置：battle runtime 应存在。");
+        if (battleRuntime == null)
+        {
+            session.Dispose(true);
+            await CleanupSharedGameSession(sharedGameSession);
+            return;
+        }
+
+        LifecycleAuditSnapshot borrowedFailureBaseline =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        var invalidContext = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["battle_party"] = 1,
+        };
+        bool borrowedFailureThrown;
+        using (
+            GodotProjectionLease<GDictionary> invalidContextLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    invalidContext,
+                    "headless-battle-start-invalid-context",
+                    LifetimeDomain.Request,
+                    "run_headless_game_test_session_regression.invalid_context"
+                )
+        )
+        {
+            LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            _test.Eq(
+                active.ActiveOwnerCount,
+                borrowedFailureBaseline.ActiveOwnerCount + 1,
+                "malformed borrowed context lease 应精确拥有一个 root container。"
+            );
+            _test.Eq(
+                active.ActiveLeaseCount,
+                borrowedFailureBaseline.ActiveLeaseCount + 1,
+                "malformed borrowed context 应只登记一个 caller lease。"
+            );
+            _test.Eq(
+                active.ActiveScopeCount,
+                borrowedFailureBaseline.ActiveScopeCount,
+                "malformed borrowed context 不应登记额外 native scope。"
+            );
+            _test.Eq(
+                active.ActiveContentBorrowerCount,
+                borrowedFailureBaseline.ActiveContentBorrowerCount,
+                "malformed borrowed context 不应登记 content borrower。"
+            );
+            borrowedFailureThrown = Throws<InvalidOperationException>(
+                () =>
+                    battleRuntime.StartBattleBorrowingContext(
+                        null,
+                        1,
+                        invalidContextLease.Value
+                    )
+            );
+            LifecycleAuditSnapshot afterThrow =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            _test.Eq(
+                afterThrow.ActiveOwnerCount,
+                active.ActiveOwnerCount,
+                "borrowed context 抛错后 caller lease 应在 using 内保持唯一 owner。"
+            );
+            _test.Eq(
+                afterThrow.ActiveLeaseCount,
+                active.ActiveLeaseCount,
+                "borrowed context 抛错后 caller lease 应在 using 内保持 active。"
+            );
+        }
+        _test.True(
+            borrowedFailureThrown,
+            "非空 malformed borrowed battle context 应在进入 runtime 后稳定拒绝。"
+        );
+        AssertAuditBaseline(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context throw"
+        );
+        AssertSafetyCounters(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context throw",
+            includeKnownSuppressBaseline: true
+        );
+        _test.True(
+            Throws<ArgumentNullException>(
+                () => battleRuntime.StartBattleBorrowingContext(null, 1, null)
+            ),
+            "borrowed battle context 入口应独立拒绝 null。"
+        );
+        AssertAuditBaseline(
+            borrowedFailureBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context null guard"
+        );
+
+        LifecycleAuditSnapshot borrowedSuccessBaseline =
+            LifecycleAuditRegistry.Shared.CaptureSnapshot();
         HeadlessGameTestSession.SessionCommandOutcome battleResult = session.StartBattleByKindTyped(
             EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
         );
@@ -99,6 +248,17 @@ public partial class run_headless_game_test_session_regression : SceneTree
             await CleanupSharedGameSession(sharedGameSession);
             return;
         }
+        AssertBattleRuntimeScopesDrained(
+            borrowedSuccessBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context return"
+        );
+        AssertSafetyCounters(
+            borrowedSuccessBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "borrowed battle context return",
+            includeKnownSuppressBaseline: false
+        );
 
         _test.True(
             sharedGameSession.IsBattleSaveLocked(),
@@ -116,6 +276,11 @@ public partial class run_headless_game_test_session_regression : SceneTree
             session.GetRuntimeFacade() == null,
             "Headless session dispose 后不应继续保留 runtime facade。"
         );
+        AssertAuditBaseline(
+            sessionLifecycleBaseline,
+            LifecycleAuditRegistry.Shared.CaptureSnapshot(),
+            "headless session dispose"
+        );
 
         await CleanupSharedGameSession(sharedGameSession);
     }
@@ -123,7 +288,9 @@ public partial class run_headless_game_test_session_regression : SceneTree
     private async Task TestOwnedGameSessionDisposeRemovesLogSink()
     {
         int sinkCountBefore = GetGameLogSinkCount();
-        GameSession ownedGameSession = new() { Name = "OwnedHeadlessGameSessionForDisposeRegression" };
+        GameSession ownedGameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot(
+            "OwnedHeadlessGameSessionForDisposeRegression"
+        );
         Root.AddChild(ownedGameSession);
         await WaitFrame();
 
@@ -155,7 +322,7 @@ public partial class run_headless_game_test_session_regression : SceneTree
         finally
         {
             if (GodotObject.IsInstanceValid(ownedGameSession))
-                ownedGameSession.Dispose();
+                ownedGameSession.QueueFree();
         }
     }
 
@@ -194,7 +361,8 @@ public partial class run_headless_game_test_session_regression : SceneTree
             "Headless snapshot 只读回归前置：index.dat 应已被删除。"
         );
 
-        GDictionary snapshot = session.BuildSnapshot();
+        using GodotProjectionLease<GDictionary> snapshotLease = session.BuildSnapshotLease();
+        GDictionary snapshot = snapshotLease.Value;
         _test.True(
             snapshot.TryGetValue("session", out Variant sessionValue)
                 && sessionValue.VariantType == Variant.Type.Dictionary,
@@ -204,7 +372,9 @@ public partial class run_headless_game_test_session_regression : SceneTree
         snapshot["status"] = mutatedStatus;
         GDictionary mutatedSession = snapshot["session"].AsGodotDictionary();
         mutatedSession["world_loaded"] = false;
-        GDictionary secondSnapshot = session.BuildSnapshot();
+        using GodotProjectionLease<GDictionary> secondSnapshotLease =
+            session.BuildSnapshotLease();
+        GDictionary secondSnapshot = secondSnapshotLease.Value;
         _test.True(
             DictString(secondSnapshot["status"].AsGodotDictionary(), "view", "")
                 != "mutated",
@@ -224,139 +394,128 @@ public partial class run_headless_game_test_session_regression : SceneTree
         await CleanupSharedGameSession(sharedGameSession);
     }
 
-    private void TestTypedEnemyCatalogRejectsStringKeyOnlyEntries()
+    private void TestSyntheticEnemyDefinitionsUseTypedKeys()
     {
-        GameSession sharedGameSession = Root.GetNodeOrNull<GameSession>("GameSession");
-        _test.True(
-            sharedGameSession != null,
-            "Headless enemy typed catalog 回归前置：SceneTree 应提供共享 GameSession。"
-        );
-        if (sharedGameSession == null)
-            return;
-
-        StringName templateId = "headless_string_key_enemy_template";
-        StringName rosterId = "headless_string_key_enemy_roster";
-        EnemyTemplateDef template = new()
-        {
-            template_id = templateId,
-            display_name = "String Key Enemy",
-            brain_id = "melee_aggressor",
-        };
-        WildEncounterRosterDef roster = new()
-        {
-            profile_id = rosterId,
-            display_name = "String Key Roster",
-            initial_stage = 0,
-            growth_step_interval = 1,
-            stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
+        StringName templateId = "headless_synthetic_enemy_template";
+        StringName rosterId = "headless_synthetic_enemy_roster";
+        EnemyTemplateDef template = TestResourceOwnership.Own(
+            new EnemyTemplateDef
             {
-                new WildEncounterRosterStageDef
+                template_id = templateId,
+                display_name = "Synthetic Enemy",
+                brain_id = "melee_aggressor",
+            },
+            "headless.synthetic_legacy.template"
+        );
+        WildEncounterRosterDef roster = TestResourceOwnership.Own(
+            new WildEncounterRosterDef
+            {
+                profile_id = rosterId,
+                display_name = "Synthetic Roster",
+                initial_stage = 0,
+                growth_step_interval = 1,
+                stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
                 {
-                    stage = 0,
-                    unit_entries = new Godot.Collections.Array<WildEncounterRosterUnitEntryDef>
+                    new WildEncounterRosterStageDef
                     {
-                        new WildEncounterRosterUnitEntryDef { template_id = templateId, count = 1 }
-                    }
-                }
+                        stage = 0,
+                        unit_entries = new Godot.Collections.Array<WildEncounterRosterUnitEntryDef>
+                        {
+                            new WildEncounterRosterUnitEntryDef
+                            {
+                                template_id = templateId,
+                                count = 1,
+                            },
+                        },
+                    },
+                },
+            },
+            "headless.synthetic_legacy.roster"
+        );
+        ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
+            processSnapshot.Items
+        );
+        WildEncounterRosterDefinition rosterDefinition = roster.ToDefinition();
+        using GameSession session = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
+            seed =>
+            {
+                seed.Quests = new Dictionary<StringName, QuestDefinition>();
+                seed.WorldGenerations = new Dictionary<string, WorldGenerationDefinition>(
+                    StringComparer.Ordinal
+                );
+                seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+                    seed.EnemyTemplates
+                )
+                {
+                    [templateId] = templateDefinition,
+                };
+                seed.EncounterRosters =
+                    new Dictionary<StringName, WildEncounterRosterDefinition>(
+                        seed.EncounterRosters
+                    )
+                    {
+                        [rosterId] = rosterDefinition,
+                    };
             }
-        };
-
-        _test.True(
-            sharedGameSession.InstallTestContentDefStringKey(
-                "enemy_template",
-                templateId.ToString(),
-                template
-            ) == (int)Error.Ok,
-            "String-key-only enemy template fixture 应能注入 shared GameSession。"
-        );
-        _test.True(
-            sharedGameSession.InstallTestContentDefStringKey(
-                "wild_encounter_roster",
-                rosterId.ToString(),
-                roster
-            ) == (int)Error.Ok,
-            "String-key-only wild encounter roster fixture 应能注入 shared GameSession。"
         );
 
         _test.True(
-            !sharedGameSession.GetEnemyTemplatesTyped().ContainsKey(templateId),
-            "typed enemy template catalog 不应恢复 string-key-only template。"
+            session.GetEnemyTemplateDefinitions().ContainsKey(templateId),
+            "synthetic enemy template definition 应通过 typed StringName key 暴露。"
         );
         _test.True(
-            !sharedGameSession.GetWildEncounterRostersTyped().ContainsKey(rosterId),
-            "typed wild encounter roster catalog 不应恢复 string-key-only roster。"
+            session.GetEncounterRosterDefinitions().ContainsKey(rosterId),
+            "synthetic encounter roster definition 应通过 typed StringName key 暴露。"
         );
     }
 
-    private async Task TestFacadeBattleSetupUsesTypedEnemyCatalogs()
+    private async Task TestFacadeBattleSetupUsesSyntheticEnemyDefinitions()
     {
-        GameSession sharedGameSession = Root.GetNodeOrNull<GameSession>("GameSession");
-        _test.True(
-            sharedGameSession != null,
-            "battle runtime facade regression 前置：SceneTree 应提供共享 GameSession。"
-        );
-        if (sharedGameSession == null)
-            return;
-
-        sharedGameSession.ClearPersistedGame();
-        await WaitFrame();
-
-        StringName templateId = "string_key_facade_template";
-        StringName brainId = "string_key_facade_brain";
-        StringName itemId = "string_key_facade_item";
-        EnemyAiBrainDef brain = new()
+        StringName templateId = "synthetic_facade_template";
+        StringName brainId = "synthetic_facade_brain";
+        EnemyAiBrainDef brain = TestResourceOwnership.Own(new EnemyAiBrainDef
         {
             brain_id = brainId,
             default_state_id = "engage",
             states = new Godot.Collections.Array<EnemyAiStateDef>
             {
                 new EnemyAiStateDef { state_id = "engage" }
-            }
-        };
-        EnemyTemplateDef template = new()
+            },
+        }, "headless.synthetic_facade.brain");
+        EnemyTemplateDef template = TestResourceOwnership.Own(new EnemyTemplateDef
         {
             template_id = templateId,
-            display_name = "String Key Enemy",
+            display_name = "Synthetic Enemy",
             brain_id = brainId,
             enemy_count = 1,
-        };
-        ItemDef item = new() { item_id = itemId, display_name = "String Key Item" };
+        }, "headless.synthetic_facade.template");
 
-        _test.True(
-            sharedGameSession.InstallTestContentDefStringKey(
-                "enemy_ai_brain",
-                brainId.ToString(),
-                brain
-            ) == (int)Error.Ok,
-            "应能注入 string-key-only enemy_ai_brain fixture。"
-        );
-        _test.True(
-            sharedGameSession.InstallTestContentDefStringKey(
-                "enemy_template",
-                templateId.ToString(),
-                template
-            ) == (int)Error.Ok,
-            "应能注入 string-key-only enemy_template fixture。"
-        );
-        _test.True(
-            sharedGameSession.InstallTestContentDefStringKey("item", itemId.ToString(), item)
-                == (int)Error.Ok,
-            "应能注入 string-key-only item fixture。"
-        );
-        _test.True(
-            !sharedGameSession.GetEnemyAiBrainsTyped().ContainsKey(brainId),
-            "typed enemy_ai_brains getter 应过滤 string-key-only fixture。"
-        );
-        _test.True(
-            !sharedGameSession.GetEnemyTemplatesTyped().ContainsKey(templateId),
-            "typed enemy_templates getter 应过滤 string-key-only fixture。"
-        );
-        _test.True(
-            !sharedGameSession.GetItemDefsTyped().ContainsKey(itemId),
-            "typed item_defs getter 应过滤 string-key-only fixture。"
+        ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        EnemyAiBrainDefinition brainDefinition = brain.ToDefinition();
+        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
+            processSnapshot.Items
         );
 
         HeadlessGameTestSession session = new();
+        GameSessionTestFactory.CreateSynthetic(
+            session,
+            seed =>
+            {
+                seed.EnemyBrains = new Dictionary<StringName, EnemyAiBrainDefinition>(
+                    seed.EnemyBrains
+                )
+                {
+                    [brainId] = brainDefinition,
+                };
+                seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
+                    seed.EnemyTemplates
+                )
+                {
+                    [templateId] = templateDefinition,
+                };
+            }
+        );
         session.initialize();
         try
         {
@@ -383,26 +542,18 @@ public partial class run_headless_game_test_session_regression : SceneTree
                 "BattleRuntimeModule typed brain index 应继续保留正式 brain。"
             );
             _test.True(
-                !runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey(templateId),
-                "GameRuntimeFacade.setup 不应把 string-key-only enemy template 恢复进 battle runtime typed index。"
+                runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey(templateId),
+                "GameRuntimeFacade.setup 应消费 synthetic enemy template definition index。"
             );
             _test.True(
-                !runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
-                "GameRuntimeFacade.setup 不应把 string-key-only enemy brain 恢复进 battle runtime typed index。"
-            );
-            _test.True(
-                !runtime._battle_runtime.BuildItemDefIndexSnapshotTyped().ContainsKey(itemId),
-                "GameRuntimeFacade.setup 不应把 string-key-only item 恢复进 battle runtime typed item index。"
-            );
-            _test.True(
-                !runtime._battle_runtime.BuildItemDefIndexSnapshotTyped().ContainsKey(itemId),
-                "GameRuntimeFacade.setup 不应把 string-key-only item 投影进 battle runtime typed item index。"
+                runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
+                "GameRuntimeFacade.setup 应消费 synthetic enemy brain definition index。"
             );
         }
         finally
         {
             session.Dispose(true);
-            await CleanupSharedGameSession(sharedGameSession);
+            await WaitFrame();
         }
     }
 
@@ -431,6 +582,81 @@ public partial class run_headless_game_test_session_regression : SceneTree
 
     private static string DictString(GDictionary dictionary, string key, string fallback) =>
         dictionary != null && dictionary.ContainsKey(key) ? dictionary[key].AsString() : fallback;
+
+    private void AssertAuditBaseline(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.ActiveOwnerCount, expected.ActiveOwnerCount, $"{label}: owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: lease baseline");
+        _test.Eq(actual.ActiveScopeCount, expected.ActiveScopeCount, $"{label}: scope baseline");
+        _test.Eq(
+            actual.ActiveContentBorrowerCount,
+            expected.ActiveContentBorrowerCount,
+            $"{label}: borrower baseline"
+        );
+    }
+
+    private void AssertBattleRuntimeScopesDrained(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.ActiveOwnerCount, expected.ActiveOwnerCount, $"{label}: owner baseline");
+        _test.Eq(actual.ActiveLeaseCount, expected.ActiveLeaseCount, $"{label}: lease baseline");
+        _test.Eq(
+            actual.ActiveScopeCount,
+            expected.ActiveScopeCount,
+            $"{label}: typed AI action plans retain no native battle scopes"
+        );
+        _test.Eq(
+            actual.ActiveContentBorrowerCount,
+            expected.ActiveContentBorrowerCount,
+            $"{label}: borrower baseline"
+        );
+    }
+
+    private void AssertSafetyCounters(
+        LifecycleAuditSnapshot expected,
+        LifecycleAuditSnapshot actual,
+        string label,
+        bool includeKnownSuppressBaseline
+    )
+    {
+        _test.Eq(actual.EscapedCount, expected.EscapedCount, $"{label}: escaped baseline");
+        _test.Eq(actual.UnknownCount, expected.UnknownCount, $"{label}: unknown baseline");
+        _test.Eq(actual.ViolationCount, expected.ViolationCount, $"{label}: violation baseline");
+        _test.Eq(
+            actual.QuarantineCount,
+            expected.QuarantineCount,
+            $"{label}: quarantine baseline"
+        );
+        if (includeKnownSuppressBaseline)
+        {
+            _test.Eq(
+                actual.NormalPhaseSuppressCount,
+                expected.NormalPhaseSuppressCount,
+                $"{label}: normal-phase suppress baseline"
+            );
+        }
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
 
     private static int GetGameLogSinkCount()
     {

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -24,19 +25,44 @@ internal static class QuestCommandResultProjection
         };
     }
 
-    public static GDictionary Project(QuestClaimResultData result)
+    internal static GodotProjectionLease<GDictionary> ProjectLease(
+        QuestClaimResultData result
+    )
     {
-        if (result == null)
-            return new GDictionary();
+        IReadOnlyDictionary<string, object> plain = result != null
+            ? new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
+            {
+                ["ok"] = result.Ok,
+                ["error_code"] = result.ErrorCode,
+                ["gold_delta"] = result.GoldDelta,
+                ["item_rewards"] = result.CloneItemRewardsPlain(),
+                ["pending_character_rewards"] = result.ClonePendingCharacterRewardsPlain(),
+                ["unsupported_reward_types"] = BuildStringList(
+                    result.CloneUnsupportedRewardTypes()
+                ),
+            }
+            : new System.Collections.Generic.Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            );
+        return RuntimePlainPayload.ProjectDictionaryLease(
+            plain,
+            "QuestCommandResultProjection.claim_result",
+            LifetimeDomain.Request,
+            "QuestCommandResultProjection.claim_result"
+        );
+    }
 
-        return new GDictionary
-        {
-            ["ok"] = result.Ok,
-            ["error_code"] = result.ErrorCode,
-            ["gold_delta"] = result.GoldDelta,
-            ["item_rewards"] = result.CloneItemRewards(),
-            ["pending_character_rewards"] = result.ClonePendingCharacterRewards(),
-            ["unsupported_reward_types"] = result.CloneUnsupportedRewardTypes(),
-        };
+    private static System.Collections.Generic.List<object> BuildStringList(
+        System.Collections.Generic.IEnumerable<StringName> values
+    )
+    {
+        var result = new System.Collections.Generic.List<object>();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value.ToString());
+        return result;
     }
 }

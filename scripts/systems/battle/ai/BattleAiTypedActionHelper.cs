@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleAiTypedActionHelper
 {
@@ -25,49 +24,109 @@ internal sealed class BattleAiTypedActionHelper
 
     public List<StringName> ResolveKnownSkillIds(
         BattleAiContext context,
-        GStringNameArray preferredSkillIds
+        IEnumerable<StringName> preferredSkillIds
     )
     {
         var results = new List<StringName>();
-        BattleUnitState unitState = context?.unit_state;
-        if (unitState == null)
-            return results;
-
-        var seen = new HashSet<StringName>();
-        GStringNameArray sourceIds =
-            preferredSkillIds != null && preferredSkillIds.Count > 0
-                ? preferredSkillIds
-                : unitState.known_active_skill_ids;
-        foreach (StringName rawSkillId in sourceIds)
+        foreach (BattleAvailableSkillEntry entry in ResolveAvailableSkillEntries(context, preferredSkillIds))
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (IsEmpty(skillId) || seen.Contains(skillId))
-                continue;
-            seen.Add(skillId);
-            if (unitState.known_active_skill_ids.Contains(skillId))
+            StringName skillId = entry.EntryRef.SkillId;
+            if (!IsEmpty(skillId))
                 results.Add(skillId);
         }
         return results;
     }
 
-    public SkillDef GetSkillDef(BattleAiContext context, StringName skillId)
+    internal List<BattleAvailableSkillEntry> ResolveAvailableSkillEntries(
+        BattleAiContext context,
+        IEnumerable<StringName> preferredSkillIds
+    )
     {
-        return context?.GetSkillDefTyped(skillId);
+        var results = new List<BattleAvailableSkillEntry>();
+        BattleUnitState unitState = context?.unit_state;
+        if (unitState == null)
+            return results;
+
+        BattleSkillAvailabilityService availabilityService = new(
+            context?.skill_catalog,
+            context?.GetSkillDefinitionIndexTyped()
+        );
+        BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unitState,
+                Consumer = BattleSkillAvailabilityConsumer.AiPlanning,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = false,
+                IncludeScopedAutoCast = false,
+            }
+        );
+
+        List<StringName> preferred = CopyStringNameList(preferredSkillIds);
+        if (preferred.Count == 0)
+        {
+            results.AddRange(availabilityView.SkillEntries);
+            return results;
+        }
+
+        var seen = new HashSet<StringName>();
+        foreach (StringName rawSkillId in preferred)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+            if (IsEmpty(skillId) || seen.Contains(skillId))
+                continue;
+            seen.Add(skillId);
+            foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+            {
+                if (entry?.EntryRef.SkillId == skillId)
+                {
+                    results.Add(entry);
+                    break;
+                }
+            }
+        }
+        return results;
+    }
+
+    public SkillDefinition GetSkillDefinition(BattleAiContext context, StringName skillId)
+    {
+        return context?.GetSkillDefinitionTyped(skillId);
+    }
+
+    public SkillDefinition GetSkillDefinition(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry
+    )
+    {
+        return entry?.SkillDefinition ?? GetSkillDefinition(context, entry?.EntryRef.SkillId ?? "");
+    }
+
+    private static List<StringName> CopyStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+        {
+            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalizedValue))
+            {
+                result.Add(normalizedValue);
+            }
+        }
+        return result;
     }
 
     public BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
         BattleAiContext context,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
         BattleUnitState unitState = context?.unit_state;
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
-        if (unitState == null || skillDef == null || combatProfile == null)
+        if (unitState == null || skillDefinition?.CombatProfile == null)
             return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
 
         return context.skill_cast_block_reason_callback == null
             ? BattleSkillCastBlockReasonKind.SkillCastCheckUnbound
-            : context.skill_cast_block_reason_callback.Invoke(unitState, skillDef);
+            : context.skill_cast_block_reason_callback.Invoke(unitState, skillDefinition);
     }
 
     public List<BattleUnitState> SortTargetUnits(
@@ -118,31 +177,40 @@ internal sealed class BattleAiTypedActionHelper
         return sorted;
     }
 
-    public List<CombatCastVariantDef> GetUnitCastVariants(BattleAiContext context, SkillDef skillDef)
+    public List<CombatCastVariantDefinition> GetUnitCastVariantDefinitions(
+        BattleAiContext context,
+        SkillDefinition skillDefinition
+    )
     {
-        var options = new List<CombatCastVariantDef>();
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        BattleUnitState actor = context?.unit_state;
+        int skillLevel = actor != null ? GetSkillLevel(actor, skillDefinition?.SkillId ?? "") : 0;
+        return GetUnitCastVariantDefinitions(context, skillDefinition, skillLevel);
+    }
+
+    public List<CombatCastVariantDefinition> GetUnitCastVariantDefinitions(
+        BattleAiContext context,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        var options = new List<CombatCastVariantDefinition>();
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
             return options;
-        if (combatProfile.cast_variants.Count == 0)
+        if (combatProfile.CastVariants.Count == 0)
         {
             options.Add(null);
             return options;
         }
 
-        BattleUnitState actor = context?.unit_state;
-        int skillLevel = actor != null ? GetSkillLevel(actor, skillDef.skill_id) : 0;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                context?.skill_catalog,
-                skillDef,
-                skillLevel
-            );
-        foreach (CombatCastVariantDef castVariant in effectiveProfile.UnlockedCastVariants)
+        SkillEffectiveCombatDefinition effectiveDefinition =
+            context?.skill_catalog?.GetEffectiveCombatDefinition(skillDefinition.SkillId, skillLevel)
+            ?? SkillEffectiveCombatDefinition.BuildUncached(skillDefinition, skillLevel);
+        foreach (CombatCastVariantDefinition castVariant in effectiveDefinition.UnlockedCastVariants)
         {
             if (
                 castVariant != null
-                && GetCastVariantTargetModeKind(skillDef, castVariant) == BattleTargetMode.Unit
+                && GetCastVariantTargetModeKind(combatProfile, castVariant) == BattleTargetMode.Unit
             )
                 options.Add(castVariant);
         }
@@ -150,13 +218,17 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     public Dictionary<string, object> BuildPositionMetadata(
-        UseUnitSkillAction action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
         BattleUnitState targetUnit,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        Dictionary<string, object> metadata = ResolveDesiredDistanceContract(action, context, skillDef);
+        Dictionary<string, object> metadata = ResolveDesiredDistanceContract(
+            action,
+            context,
+            skillDefinition
+        );
         if (action.DistanceReferenceKind == EnemyAiDistanceReference.TargetUnit)
         {
             metadata["position_target_unit_id"] = targetUnit?.unit_id ?? EmptyStringName;
@@ -176,29 +248,63 @@ internal sealed class BattleAiTypedActionHelper
         return metadata;
     }
 
-    public List<CombatEffectDef> CollectUnitSkillEffectDefs(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant,
+    public List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
         BattleUnitState activeUnit
     )
     {
-        var effectDefs = new List<CombatEffectDef>();
-        int skillLevel = activeUnit != null ? GetSkillLevel(activeUnit, skillDef?.skill_id ?? "") : 0;
-        if (skillDef?.combat_profile != null)
-            AddUnlockedEffectDefs(effectDefs, skillDef.combat_profile.effect_defs, skillLevel, activeUnit != null);
+        int skillLevel =
+            activeUnit != null ? GetSkillLevel(activeUnit, skillDefinition?.SkillId ?? "") : 0;
+        return CollectUnitSkillEffectDefinitions(skillDefinition, castVariant, skillLevel, activeUnit != null);
+    }
+
+    public List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        int skillLevel
+    ) => CollectUnitSkillEffectDefinitions(skillDefinition, castVariant, skillLevel, true);
+
+    private List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        int skillLevel,
+        bool shouldFilter
+    )
+    {
+        var effectDefinitions = new List<CombatEffectDefinition>();
+        if (skillDefinition?.CombatProfile != null)
+        {
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                skillDefinition.CombatProfile.EffectDefinitions,
+                skillLevel,
+                shouldFilter
+            );
+        }
         if (castVariant != null)
-            AddUnlockedEffectDefs(effectDefs, castVariant.effect_defs, skillLevel, activeUnit != null);
-        return effectDefs;
+        {
+            AddUnlockedEffectDefinitions(
+                effectDefinitions,
+                castVariant.EffectDefinitions,
+                skillLevel,
+                shouldFilter
+            );
+        }
+        return effectDefinitions;
     }
 
     public BattleTargetMode GetCastVariantTargetModeKind(
-        SkillDef skillDef,
-        CombatCastVariantDef castVariant
+        CombatSkillDefinition combatProfile,
+        CombatCastVariantDefinition castVariant
     )
     {
         if (castVariant == null)
             return BattleTargetMode.Unknown;
-        return castVariant.TargetModeKind;
+        BattleTargetMode targetMode = castVariant.TargetModeKind;
+        return targetMode != BattleTargetMode.Unknown
+            ? targetMode
+            : combatProfile?.TargetModeKind ?? BattleTargetMode.Unknown;
     }
 
     public BattleCommand BuildUnitSkillCommand(
@@ -206,16 +312,41 @@ internal sealed class BattleAiTypedActionHelper
         StringName skillId,
         BattleUnitState targetUnit,
         StringName skillVariantId
+    ) => BuildUnitSkillCommand(
+        context,
+        new BattleSkillEntryRef(
+            BattleSkillEntryIds.KnownSkill(skillId),
+            ProgressionDataUtils.to_string_name(skillId),
+            BattleSkillEntrySourceKind.KnownSkill,
+            ""
+        ),
+        targetUnit,
+        skillVariantId
+    );
+
+    public BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleAvailableSkillEntry entry,
+        BattleUnitState targetUnit,
+        StringName skillVariantId
+    ) => BuildUnitSkillCommand(context, entry?.EntryRef ?? default, targetUnit, skillVariantId);
+
+    public BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        BattleSkillEntryRef entryRef,
+        BattleUnitState targetUnit,
+        StringName skillVariantId
     )
     {
         BattleUnitState actor = context?.unit_state;
-        if (actor == null || targetUnit == null)
+        if (actor == null || targetUnit == null || IsEmpty(entryRef.SkillId))
             return null;
         return new BattleCommand
         {
             CommandKind = BattleCommandKind.Skill,
             unit_id = actor.unit_id,
-            skill_id = skillId,
+            skill_entry_id = entryRef.SkillEntryId,
+            skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.coord,
@@ -223,7 +354,7 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     public BattleAiDecision CreateDecision(
-        UseUnitSkillAction action,
+        UseUnitSkillActionDefinition action,
         BattleCommand command,
         string reasonText
     )
@@ -231,14 +362,14 @@ internal sealed class BattleAiTypedActionHelper
         return new BattleAiDecision
         {
             command = command,
-            action_id = action?.action_id ?? EmptyStringName,
+            action_id = action?.ActionId ?? EmptyStringName,
             reason_text = reasonText,
-            score_bucket_id = action?.score_bucket_id ?? EmptyStringName,
+            score_bucket_id = action?.ScoreBucketId ?? EmptyStringName,
         };
     }
 
     public BattleAiDecision CreateScoredDecision(
-        UseUnitSkillAction action,
+        UseUnitSkillActionDefinition action,
         BattleCommand command,
         BattleAiScoreInput scoreInput,
         string reasonText
@@ -364,13 +495,16 @@ internal sealed class BattleAiTypedActionHelper
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
                 continue;
-            SkillDef skillDef = GetSkillDef(context, skillId);
-            if (!IsHostileThreatSkill(skillDef))
+            SkillDefinition skillDefinition = GetSkillDefinition(context, skillId);
+            if (!IsHostileThreatSkill(skillDefinition))
                 continue;
-            if (!SkillHasTag(skillDef, "melee") && !SkillHasTag(skillDef, "weapon"))
+            if (!SkillHasTag(skillDefinition, "melee") && !SkillHasTag(skillDefinition, "weapon"))
                 continue;
-            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(threatUnit, skillDef);
-            if (effectiveRange <= 0 && SkillHasTag(skillDef, "melee"))
+            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+                threatUnit,
+                skillDefinition
+            );
+            if (effectiveRange <= 0 && SkillHasTag(skillDefinition, "melee"))
                 effectiveRange = 1;
             if (effectiveRange > RoleThreatMaxContactRange)
                 continue;
@@ -393,12 +527,12 @@ internal sealed class BattleAiTypedActionHelper
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
                 continue;
-            SkillDef skillDef = GetSkillDef(context, skillId);
-            if (!IsHostileThreatSkill(skillDef))
+            SkillDefinition skillDefinition = GetSkillDefinition(context, skillId);
+            if (!IsHostileThreatSkill(skillDefinition))
                 continue;
             bestRange = Math.Max(
                 bestRange,
-                BattleRangeService.GetEffectiveSkillThreatRange(threatUnit, skillDef)
+                BattleRangeService.GetEffectiveSkillThreatRange(threatUnit, skillDefinition)
             );
         }
         if (bestRange < 0)
@@ -407,14 +541,14 @@ internal sealed class BattleAiTypedActionHelper
     }
 
     private static Dictionary<string, object> ResolveDesiredDistanceContract(
-        UseUnitSkillAction action,
+        UseUnitSkillActionDefinition action,
         BattleAiContext context,
-        SkillDef skillDef
+        SkillDefinition skillDefinition
     )
     {
-        int configuredMin = action?.desired_min_distance ?? 0;
-        int configuredMax = action?.desired_max_distance ?? 0;
-        int effectiveAttackRange = ResolveEffectiveAttackRange(context, skillDef);
+        int configuredMin = action?.DesiredMinDistance ?? 0;
+        int configuredMax = action?.DesiredMaxDistance ?? 0;
+        int effectiveAttackRange = ResolveEffectiveAttackRange(context, skillDefinition);
         int resolvedMax = configuredMax;
         if (effectiveAttackRange >= 0)
             resolvedMax = effectiveAttackRange;
@@ -431,12 +565,15 @@ internal sealed class BattleAiTypedActionHelper
         };
     }
 
-    private static int ResolveEffectiveAttackRange(BattleAiContext context, SkillDef skillDef)
+    private static int ResolveEffectiveAttackRange(
+        BattleAiContext context,
+        SkillDefinition skillDefinition
+    )
     {
         BattleUnitState actor = context?.unit_state;
-        if (actor == null || skillDef == null)
+        if (actor == null || skillDefinition == null)
             return -1;
-        return BattleRangeService.GetEffectiveSkillThreatRange(actor, skillDef);
+        return BattleRangeService.GetEffectiveSkillThreatRange(actor, skillDefinition);
     }
 
     private BattleUnitState ResolveEnemyFrontlineUnit(BattleAiContext context)
@@ -449,9 +586,9 @@ internal sealed class BattleAiTypedActionHelper
         return targets.Count > 0 ? targets[0] : null;
     }
 
-    private static bool IsHostileThreatSkill(SkillDef skillDef)
+    internal static bool IsHostileThreatSkill(SkillDefinition skillDefinition)
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
             return false;
         if (
@@ -462,38 +599,43 @@ internal sealed class BattleAiTypedActionHelper
             return false;
         }
         if (
-            SkillHasTag(skillDef, "output")
-            || SkillHasTag(skillDef, "melee")
-            || SkillHasTag(skillDef, "bow")
-            || SkillHasTag(skillDef, "weapon")
+            SkillHasTag(skillDefinition, "output")
+            || SkillHasTag(skillDefinition, "melee")
+            || SkillHasTag(skillDefinition, "bow")
+            || SkillHasTag(skillDefinition, "weapon")
         )
         {
             return true;
         }
-        if (EffectListHasHostileThreat(combatProfile.effect_defs))
+        if (EffectListHasHostileThreat(combatProfile.EffectDefinitions))
             return true;
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
         {
-            if (castVariant != null && EffectListHasHostileThreat(castVariant.effect_defs))
+            if (castVariant != null && EffectListHasHostileThreat(castVariant.EffectDefinitions))
                 return true;
         }
         return false;
     }
 
-    private static bool EffectListHasHostileThreat(Godot.Collections.Array<CombatEffectDef> effectDefs)
+    private static bool EffectListHasHostileThreat(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
     {
-        foreach (CombatEffectDef effectDef in effectDefs)
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (effectDef == null)
+            if (effectDefinition == null)
                 continue;
             if (
-                effectDef.EffectKind == BattleEffectKind.Damage
-                || effectDef.EffectKind == BattleEffectKind.ChainDamage
-                || effectDef.EffectKind == BattleEffectKind.Execute
-                || effectDef.EffectKind == BattleEffectKind.Charge
-                || effectDef.EffectKind == BattleEffectKind.ForcedMove
-                || effectDef.EffectKind == BattleEffectKind.PathStepAoe
-                || effectDef.EffectKind == BattleEffectKind.Status
+                effectDefinition.EffectKind == BattleEffectKind.Damage
+                || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
+                || effectDefinition.EffectKind == BattleEffectKind.Execute
+                || effectDefinition.EffectKind == BattleEffectKind.Charge
+                || effectDefinition.EffectKind == BattleEffectKind.ForcedMove
+                || effectDefinition.EffectKind == BattleEffectKind.PathStepAoe
+                || effectDefinition.EffectKind == BattleEffectKind.Status
             )
             {
                 return true;
@@ -502,37 +644,40 @@ internal sealed class BattleAiTypedActionHelper
         return false;
     }
 
-    private static bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
+    private static bool SkillHasTag(SkillDefinition skillDefinition, StringName expectedTag)
     {
-        return skillDef != null && !IsEmpty(expectedTag) && skillDef.HasTag(expectedTag);
+        return skillDefinition != null && !IsEmpty(expectedTag) && skillDefinition.HasTag(expectedTag);
     }
 
-    private static void AddUnlockedEffectDefs(
-        List<CombatEffectDef> target,
-        Godot.Collections.Array<CombatEffectDef> source,
+    private static void AddUnlockedEffectDefinitions(
+        List<CombatEffectDefinition> target,
+        IEnumerable<CombatEffectDefinition> source,
         int skillLevel,
         bool shouldFilter
     )
     {
-        foreach (CombatEffectDef effectDef in source)
+        foreach (
+            CombatEffectDefinition effectDefinition in source
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
         {
-            if (IsEffectUnlockedForSkillLevel(effectDef, skillLevel, shouldFilter))
-                target.Add(effectDef);
+            if (IsEffectUnlockedForSkillLevel(effectDefinition, skillLevel, shouldFilter))
+                target.Add(effectDefinition);
         }
     }
 
     private static bool IsEffectUnlockedForSkillLevel(
-        CombatEffectDef effectDef,
+        CombatEffectDefinition effectDefinition,
         int skillLevel,
         bool shouldFilter
     )
     {
-        if (effectDef == null)
+        if (effectDefinition == null)
             return false;
         if (!shouldFilter)
             return true;
-        int minLevel = Math.Max(effectDef.min_skill_level, 0);
-        int maxLevel = effectDef.max_skill_level;
+        int minLevel = Math.Max(effectDefinition.MinSkillLevel, 0);
+        int maxLevel = effectDefinition.MaxSkillLevel;
         return skillLevel >= minLevel && (maxLevel < 0 || skillLevel <= maxLevel);
     }
 

@@ -7,7 +7,7 @@ internal sealed class MeteorSwarmTargetOutcome
     public Vector2I target_coord { get; set; } = new(-1, -1);
     public StringName target_faction_id { get; set; } = "";
     public int distance_from_anchor { get; set; } = 0;
-    public List<MeteorSwarmImpactComponent> components { get; set; } = new();
+    public List<MeteorSwarmImpactComponentData> components { get; set; } = new();
     public List<DamageEventResult> damage_events { get; set; } = new();
     public List<StringName> status_effect_ids { get; set; } = new();
     public List<StringName> terrain_effect_ids { get; set; } = new();
@@ -18,7 +18,7 @@ internal sealed class MeteorSwarmTargetOutcome
     public int total_healing { get; set; } = 0;
     public bool defeated { get; set; } = false;
 
-    internal void AddComponent(MeteorSwarmImpactComponent component)
+    internal void AddComponent(MeteorSwarmImpactComponentData component)
     {
         if (component != null)
             components.Add(component);

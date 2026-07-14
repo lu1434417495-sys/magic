@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_system_surface_regression : SceneTree
+public partial class run_world_map_system_surface_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -24,16 +24,14 @@ public partial class run_world_map_system_surface_regression : SceneTree
         try
         {
             TestStagecoachModalAcceptsOnlyFormalTargetPayload();
-            GodotSharpCleanup.CollectPendingFinalizers();
             TestPartyWarehouseUseRequestDelegatesToTypedRuntimeBoundary();
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
         catch (System.Exception ex)
         {
             _test.Fail($"未捕获异常：{ex}");
         }
 
-        Quit(_test.Finish("World map system surface regression"));
+        RequestTestExit(_test.Finish("World map system surface regression"));
     }
 
     private void TestStagecoachModalAcceptsOnlyFormalTargetPayload()
@@ -49,38 +47,22 @@ public partial class run_world_map_system_surface_regression : SceneTree
         try
         {
             runtime.UpdateStatus("unchanged");
-            GDictionary legacyPayload = new() { ["settlement_id"] = "legacy_destination" };
-            try
-            {
-                system._on_stagecoach_service_modal_action_requested(
-                    "spring_village_01",
-                    "service:stagecoach",
-                    legacyPayload
-                );
-            }
-            finally
-            {
-                legacyPayload.Dispose();
-            }
+            system._on_stagecoach_service_modal_action_requested(
+                "spring_village_01",
+                "service:stagecoach",
+                new GDictionary { ["settlement_id"] = "legacy_destination" }
+            );
             _test.Eq(
                 runtime._current_status_message,
                 "unchanged",
                 "Stagecoach modal payload 只有 settlement_id 时不应触发旅行命令。"
             );
 
-            GDictionary formalPayload = new() { ["target_settlement_id"] = "north_outpost" };
-            try
-            {
-                system._on_stagecoach_service_modal_action_requested(
-                    "spring_village_01",
-                    "service:stagecoach",
-                    formalPayload
-                );
-            }
-            finally
-            {
-                formalPayload.Dispose();
-            }
+            system._on_stagecoach_service_modal_action_requested(
+                "spring_village_01",
+                "service:stagecoach",
+                new GDictionary { ["target_settlement_id"] = "north_outpost" }
+            );
             _test.Eq(
                 runtime._current_status_message,
                 "当前没有打开驿站路线窗口。",
@@ -91,7 +73,7 @@ public partial class run_world_map_system_surface_regression : SceneTree
         {
             proxy.Dispose();
             runtime.Dispose();
-            GodotSharpCleanup.DisposeGodotObject(system);
+            system.Free();
         }
     }
 
@@ -173,13 +155,12 @@ public partial class run_world_map_system_surface_regression : SceneTree
             finally
             {
                 proxy.Dispose();
-                GodotSharpCleanup.DisposeGodotObject(system);
+                system.Free();
             }
         }
         finally
         {
             runner.Dispose(true);
-            GodotSharpCleanup.CollectPendingFinalizers();
         }
     }
 
@@ -201,15 +182,19 @@ public partial class run_world_map_system_surface_regression : SceneTree
         if (memberState?.progression == null)
             return new BookSkillPickData();
 
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = gameSession.GetSkillDefsTyped();
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs = gameSession.GetItemDefsTyped();
-        var sortedSkillIds = new List<StringName>(skillDefs.Keys);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            gameSession.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
+        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
         sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
         foreach (StringName skillId in sortedSkillIds)
         {
-            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef) || skillDef == null)
+            if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
                 continue;
-            if (skillDef.learn_source != "book")
+            if (skillDefinition.LearnSource != "book")
                 continue;
             UnitSkillProgress skillProgress = memberState.progression.GetSkillProgress(skillId);
             if (skillProgress != null && skillProgress.is_learned)

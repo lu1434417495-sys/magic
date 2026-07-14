@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleDamagePreviewSaveEstimate
 {
@@ -197,8 +196,8 @@ public sealed class BattleDamagePreviewResult
         bool stableLethal = false,
         int lethalProbabilityBasisPoints = 0,
         string errorCode = "",
-        GDictionary damageOutcome = null,
-        GDictionary damageResult = null,
+        IReadOnlyDictionary<string, object> damageOutcome = null,
+        IReadOnlyDictionary<string, object> damageResult = null,
         BattleDamagePreviewSaveEstimate saveEstimate = null,
         IReadOnlyList<BattleDamagePreviewSaveEstimate> saveEstimates = null,
         IReadOnlyList<object> damageEvents = null,
@@ -224,8 +223,8 @@ public sealed class BattleDamagePreviewResult
             StableLethal = stableLethal,
             LethalProbabilityBasisPoints = Math.Max(lethalProbabilityBasisPoints, 0),
             ErrorCode = errorCode ?? "",
-            DamageOutcome = CloneTraceDictionary(TraceDictionaryProjection.FromDictionary(damageOutcome)),
-            DamageResult = CloneTraceDictionary(TraceDictionaryProjection.FromDictionary(damageResult)),
+            DamageOutcome = CloneTraceDictionary(damageOutcome),
+            DamageResult = CloneTraceDictionary(damageResult),
             SaveEstimate = saveEstimate ?? BattleDamagePreviewSaveEstimate.None(preSaveDamage),
             SaveEstimates = saveEstimates ?? Array.Empty<BattleDamagePreviewSaveEstimate>(),
             DamageEvents = CloneTraceObjectList(damageEvents),

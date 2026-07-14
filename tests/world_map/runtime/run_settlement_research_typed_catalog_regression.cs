@@ -1,16 +1,15 @@
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_settlement_research_typed_catalog_regression : SceneTree
+public partial class run_settlement_research_typed_catalog_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         TestUnknownRewardKindFailsCatalogValidation();
-        Quit(_test.Finish("Settlement research typed catalog regression"));
+        RequestTestExit(_test.Finish("Settlement research typed catalog regression"));
     }
 
     private void TestUnknownRewardKindFailsCatalogValidation()
@@ -19,23 +18,16 @@ public partial class run_settlement_research_typed_catalog_regression : SceneTre
         candidate["entry_type"] = "mystery_unlock";
         var service = new TestSettlementResearchCatalogOverrideService();
         service.setup(new GArray { candidate });
-        PartyState party = BuildParty();
-        try
-        {
-            GDictionary result = SettlementServiceResultProjection.Project(
-                service.ExecuteTyped(ValidSettlement(), ValidPayload(), party)
-            );
 
-            _test.False(DictBool(result, "success", true), "未知 research reward kind 应失败。");
-            _test.True(
-                DictString(result, "message", "").Contains("entry_type"),
-                "未知 research reward kind 应作为 catalog schema error 返回，而不是静默跳过。"
-            );
-        }
-        finally
-        {
-            GodotRefCountedDisposer.DisposeIfValid(party);
-        }
+        GDictionary result = SettlementServiceResultProjection.Project(
+            service.ExecuteTyped(ValidSettlement(), ValidPayload(), BuildParty())
+        );
+
+        _test.False(DictBool(result, "success", true), "未知 research reward kind 应失败。");
+        _test.True(
+            DictString(result, "message", "").Contains("entry_type"),
+            "未知 research reward kind 应作为 catalog schema error 返回，而不是静默跳过。"
+        );
     }
 
     private static PartyState BuildParty()
@@ -43,7 +35,7 @@ public partial class run_settlement_research_typed_catalog_regression : SceneTre
         var party = new PartyState();
         party.SetGold(250);
         party.leader_member_id = "hero";
-        party.active_member_ids = new GStringNameArray { "hero" };
+        party.active_member_ids = new StringNameList { "hero" };
         party.SetMemberState(
             new PartyMemberState
             {

@@ -1,19 +1,17 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 {
     public PartyState PartyState { get; set; }
     public RuntimeModalKind ActiveModalKind { get; set; } = RuntimeModalKind.None;
-    public GDictionary ContractBoardWindowData { get; set; } = new();
-    public GDictionary ForgeWindowData { get; set; } = new();
-    public GDictionary ActiveShopContext { get; set; } = new();
-    public GDictionary WarehouseWindowData { get; set; } = new();
-    public GDictionary LastBattleLootSnapshot { get; set; } = new();
-    public GDictionary GameOverContext { get; set; } = new();
+    public Dictionary<string, object> ContractBoardWindowData { get; set; } = new();
+    public Dictionary<string, object> NpcQuestOfferWindowData { get; set; } = new();
+    public Dictionary<string, object> ForgeWindowData { get; set; } = new();
+    public Dictionary<string, object> ActiveShopContext { get; set; } = new();
+    public Dictionary<string, object> WarehouseWindowData { get; set; } = new();
+    public Dictionary<string, object> LastBattleLootSnapshot { get; set; } = new();
+    public Dictionary<string, object> GameOverContext { get; set; } = new();
     public BattleState BattleState { get; set; }
     public BattleRuntimeModule BattleRuntime { get; set; }
     public Vector2I BattleSelectedCoord { get; set; } = Vector2I.Zero;
@@ -28,19 +26,25 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public RuntimeModalKind GetActiveModalKind() => ActiveModalKind;
 
-    public GDictionary GetLogSnapshot(int limit) => new();
+    public System.Collections.Generic.IReadOnlyDictionary<string, object> GetLogSnapshotPlain(
+        int limit
+    ) => new System.Collections.Generic.Dictionary<string, object>();
 
-    public GDictionary GetSelectedSettlement() => new();
+    public WorldMapSettlementData GetSelectedSettlementData() => null;
 
-    public GDictionary GetSelectedWorldNpc() => new();
+    public WorldMapNpcData GetSelectedWorldNpcData() => null;
 
     public EncounterAnchorData GetSelectedEncounterAnchor() => null;
 
-    public GDictionary GetSelectedWorldEvent() => new();
+    public WorldMapEventData GetSelectedWorldEventData() => null;
 
-    public GArray GetNearbyEncounterEntries(int limit) => new();
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyEncounterEntriesSnapshotPlain(
+        int limit
+    ) => System.Array.Empty<IReadOnlyDictionary<string, object>>();
 
-    public GArray GetNearbyWorldEventEntries(int limit) => new();
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetNearbyWorldEventEntriesSnapshotPlain(
+        int limit
+    ) => System.Array.Empty<IReadOnlyDictionary<string, object>>();
 
     public string GetActiveMapId() => "";
 
@@ -56,11 +60,13 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public Vector2I GetSelectedCoord() => Vector2I.Zero;
 
-    public GDictionary GetPendingSubmapPrompt() => new();
+    public IReadOnlyDictionary<string, object> GetPendingSubmapPromptSnapshotPlain() =>
+        new Dictionary<string, object>();
 
     public string GetSubmapReturnHintText() => "";
 
-    public GDictionary GetGameOverContext() => GameOverContext.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetGameOverContextSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(GameOverContext);
 
     public PartyState GetPartyState() => PartyState;
 
@@ -68,11 +74,15 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public int GetPendingRewardCount() => 0;
 
-    public GDictionary GetMemberAchievementSummary(StringName member_id) => new();
+    public IReadOnlyDictionary<string, object> GetMemberAchievementSummarySnapshotPlain(
+        StringName member_id
+    ) => new Dictionary<string, object>();
 
     public AttributeSnapshot GetMemberAttributeSnapshot(StringName member_id) => null;
 
-    public GArray GetMemberEquippedEntries(StringName member_id) => new();
+    public IReadOnlyList<IReadOnlyDictionary<string, object>> GetMemberEquippedEntriesSnapshotPlain(
+        StringName member_id
+    ) => System.Array.Empty<IReadOnlyDictionary<string, object>>();
 
     public string GetMemberDisplayName(StringName member_id)
     {
@@ -82,35 +92,47 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public string GetResolvedSettlementId() => "";
 
-    public GDictionary GetSettlementWindowData(string settlement_id) => new();
+    public IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
+        string settlement_id
+    ) => new Dictionary<string, object>();
 
     public string GetSettlementFeedbackText() => "";
 
-    public GDictionary GetShopWindowData() => new();
+    public IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
+        new Dictionary<string, object>();
 
-    public GDictionary GetContractBoardWindowData() =>
-        ContractBoardWindowData.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(ContractBoardWindowData);
 
-    public GDictionary GetActiveContractBoardContext() =>
-        ContractBoardWindowData.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(NpcQuestOfferWindowData);
 
-    public GDictionary GetActiveShopContext() => ActiveShopContext.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
+        ForgeWindowData.Count > 0
+            ? RuntimePlainPayload.CloneDictionary(ForgeWindowData)
+            : ForgeFallbackPlain();
 
-    public GDictionary GetForgeWindowData() => ForgeWindowData.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
+        new Dictionary<string, object>();
 
-    public GDictionary GetStagecoachWindowData() => new();
-
-    public GDictionary GetCharacterInfoContext() => new();
+    public IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain() =>
+        new Dictionary<string, object>();
 
     public string GetActiveWarehouseEntryLabel() => "";
 
-    public GDictionary GetWarehouseWindowData() => WarehouseWindowData.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetWarehouseWindowDataSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(WarehouseWindowData);
+
+    public ContingencySetupMutationResult GetLastContingencyCommandResultTyped() =>
+        ContingencySetupMutationResult.Failure("", "", "");
 
     public BattleState GetBattleState() => BattleState;
 
     public BattleRuntimeModule GetBattleRuntime() => BattleRuntime;
 
     public Vector2I GetBattleSelectedCoord() => BattleSelectedCoord;
+
+    public StringName GetSelectedBattleSkillEntryId() => "";
 
     public StringName GetSelectedBattleSkillId() => "";
 
@@ -120,9 +142,11 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public string GetSelectedBattleSkillVariantName() => "";
 
-    public GVector2IArray GetSelectedBattleSkillTargetCoords() => new();
+    public System.Collections.Generic.IReadOnlyList<Vector2I> GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
+        System.Array.Empty<Vector2I>();
 
-    public GStringNameArray GetSelectedBattleSkillTargetUnitIds() => new();
+    public System.Collections.Generic.IReadOnlyList<StringName> GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
+        System.Array.Empty<StringName>();
 
     public int GetSelectedBattleSkillRequiredCoordCount() => 0;
 
@@ -141,16 +165,31 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
         return activeUnit != null ? activeUnit.display_name : "";
     }
 
-    public GDictionary GetPendingBattleStartPrompt() => new();
+    public IReadOnlyDictionary<string, object> GetPendingBattleStartPromptSnapshotPlain() =>
+        new Dictionary<string, object>();
 
-    public GDictionary GetBattleTerrainCounts() => new();
+    public IReadOnlyDictionary<string, int> GetBattleTerrainCountsSnapshotTyped() =>
+        new Dictionary<string, int>();
 
     public PendingCharacterReward GetSnapshotReward() => null;
 
-    public GDictionary GetLastBattleLootSnapshot() =>
-        LastBattleLootSnapshot.Duplicate(true);
+    public IReadOnlyDictionary<string, object> GetLastBattleLootSnapshotPlain() =>
+        RuntimePlainPayload.CloneDictionary(LastBattleLootSnapshot);
 
-    public GDictionary GetCurrentPromotionPrompt() => new();
+    public IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain() =>
+        new Dictionary<string, object>();
 
     public GameSession GetGameSession() => null;
+
+    private IReadOnlyDictionary<string, object> ForgeFallbackPlain()
+    {
+        Dictionary<string, object> context = RuntimePlainPayload.CloneDictionary(
+            ActiveShopContext
+        );
+        return context.TryGetValue("panel_kind", out object panelKind)
+            && panelKind is string panelKindText
+            && panelKindText == SettlementPanelKinds.ToPayloadValue(SettlementPanelKind.Forge)
+                ? context
+                : new Dictionary<string, object>();
+    }
 }

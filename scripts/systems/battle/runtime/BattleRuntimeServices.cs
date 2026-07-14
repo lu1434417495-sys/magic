@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Godot;
 
 internal readonly struct BattleAiDecisionContextSetup
@@ -8,17 +9,18 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly BattleUnitState UnitState;
     internal readonly BattleGridService GridService;
     internal readonly BattleAiRuntimeActionPlan ActionPlan;
-    internal readonly IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+    internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
     internal readonly Func<BattleCommand, BattlePreview> PreviewCommandCallback;
     internal readonly Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > SkillScoreInputCallback;
@@ -32,7 +34,7 @@ internal readonly struct BattleAiDecisionContextSetup
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > ActionScoreInputCallback;
-    internal readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+    internal readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         SkillCastBlockReasonCallback;
 
     internal BattleAiDecisionContextSetup(
@@ -40,17 +42,18 @@ internal readonly struct BattleAiDecisionContextSetup
         BattleUnitState unitState,
         BattleGridService gridService,
         BattleAiRuntimeActionPlan actionPlan,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
         Func<BattleCommand, BattlePreview> previewCommandCallback,
         Func<
             BattleAiContext,
-            SkillDef,
+            SkillDefinition,
             BattleCommand,
             BattlePreview,
-            IReadOnlyList<CombatEffectDef>,
+            IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > skillScoreInputCallback,
@@ -64,7 +67,7 @@ internal readonly struct BattleAiDecisionContextSetup
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > actionScoreInputCallback,
-        Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
             skillCastBlockReasonCallback
     )
     {
@@ -72,7 +75,8 @@ internal readonly struct BattleAiDecisionContextSetup
         UnitState = unitState;
         GridService = gridService;
         ActionPlan = actionPlan;
-        SkillDefs = skillDefs;
+        SkillDefinitions = skillDefinitions;
+        BarrierProfileDefinitions = barrierProfileDefinitions;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -88,7 +92,8 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly BattleState State;
     internal readonly BattleGridService GridService;
     internal readonly BattleUnitState UnitState;
-    internal readonly IReadOnlyDictionary<StringName, SkillDef> SkillDefs;
+    internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -107,10 +112,10 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly Func<BattleCommand, BattlePreview> PreviewCommandCallback;
     internal readonly Func<
         BattleAiContext,
-        SkillDef,
+        SkillDefinition,
         BattleCommand,
         BattlePreview,
-        IReadOnlyList<CombatEffectDef>,
+        IReadOnlyList<CombatEffectDefinition>,
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > SkillScoreInputCallback;
@@ -124,14 +129,15 @@ internal readonly struct BattleAiHelperBindingContext
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > ActionScoreInputCallback;
-    internal readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+    internal readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         SkillCastBlockReasonCallback;
 
     internal BattleAiHelperBindingContext(
         BattleState state,
         BattleGridService gridService,
         BattleUnitState unitState,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -150,10 +156,10 @@ internal readonly struct BattleAiHelperBindingContext
         Func<BattleCommand, BattlePreview> previewCommandCallback,
         Func<
             BattleAiContext,
-            SkillDef,
+            SkillDefinition,
             BattleCommand,
             BattlePreview,
-            IReadOnlyList<CombatEffectDef>,
+            IReadOnlyList<CombatEffectDefinition>,
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > skillScoreInputCallback,
@@ -167,14 +173,15 @@ internal readonly struct BattleAiHelperBindingContext
             IReadOnlyDictionary<string, object>,
             BattleAiScoreInput
         > actionScoreInputCallback,
-        Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
             skillCastBlockReasonCallback
     )
     {
         State = state;
         GridService = gridService;
         UnitState = unitState;
-        SkillDefs = skillDefs;
+        SkillDefinitions = skillDefinitions;
+        BarrierProfileDefinitions = barrierProfileDefinitions;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -198,26 +205,62 @@ internal sealed class BattleRuntimeServices : IDisposable
     internal BattleAiQueryService AiQuery { get; } = new();
     internal BattleAiCandidateEvaluationService AiCandidateEvaluation { get; } = new();
     internal BattleAiContext AiDecisionContext { get; } = new();
+    internal BattleContingencySystem Contingencies { get; } = new();
 
     private bool _disposed;
+    private bool _runtimeSidecarsBound;
+    private bool _aiHelperBindingsActive;
+    private long _battleEpoch = long.MinValue;
+
+    internal bool HasAiRuntimeBindings =>
+        _aiHelperBindingsActive || AiDecisionContext.HasRuntimeBindings;
+
+    internal bool HasRuntimeSidecarBindings => _runtimeSidecarsBound;
+
+    internal void BeginBattle(long battleEpoch)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_battleEpoch == battleEpoch)
+        {
+            return;
+        }
+
+        ClearRuntimeBindings();
+        AiMovementQuery.BeginBattle(battleEpoch);
+        _battleEpoch = battleEpoch;
+    }
+
+    internal void EndBattle()
+    {
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.EndBattle);
+        _battleEpoch = long.MinValue;
+        Rethrow(firstFailure);
+    }
 
     internal void SetupRuntimeSidecars(BattleRuntimeModule runtime)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         GroundEffects.Setup(runtime);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
+        Contingencies.Setup(runtime);
+        _runtimeSidecarsBound = runtime != null;
     }
 
     internal BattleAiContext PrepareAiContextForDecision(BattleAiDecisionContextSetup context)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         AiDecisionContext.ResetForDecision(
             context.State,
             context.UnitState,
             context.GridService,
             context.ActionPlan,
-            context.SkillDefs,
+            context.SkillDefinitions,
             context.TraceEnabled,
-            context.SkillCatalog
+            context.SkillCatalog,
+            context.BarrierProfileDefinitions
         );
         BindContextCallbacks(AiDecisionContext, context);
         return AiDecisionContext;
@@ -228,6 +271,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         BattleAiContext aiContext
     )
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (
             context.UnitState == null
             || aiContext == null
@@ -237,47 +281,60 @@ internal sealed class BattleRuntimeServices : IDisposable
         {
             return;
         }
+        if (_battleEpoch == long.MinValue)
+        {
+            throw new InvalidOperationException(
+                "AI helper services cannot bind before the battle cache epoch is initialized."
+            );
+        }
 
         BindContextCallbacks(aiContext, context);
 
-        AiTraceRecorder.Enter("bind_ai_helpers:movement_query_setup");
-        AiMovementQuery.Setup(
-            context.State,
-            context.GridService,
-            context.MoveQueryCostCallback
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:movement_query_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:movement_query_setup"))
+        {
+            AiMovementQuery.Setup(
+                _battleEpoch,
+                context.State,
+                context.GridService,
+                context.MoveQueryCostCallback
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:score_adapter_setup");
-        AiScoreContextAdapter.Setup(
-            context.ScoreService,
-            context.State,
-            context.UnitState,
-            context.GridService,
-            context.SkillDefs,
-            context.SkillCatalog
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:score_adapter_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:score_adapter_setup"))
+        {
+            AiScoreContextAdapter.Setup(
+                context.ScoreService,
+                context.State,
+                context.UnitState,
+                context.GridService,
+                context.SkillCatalog,
+                context.SkillDefinitions,
+                context.BarrierProfileDefinitions
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:query_setup");
-        AiQuery.Setup(
-            context.State,
-            context.GridService,
-            context.UnitState.unit_id,
-            context.SkillDefs,
-            context.QueryActionScoreInputCallback,
-            AiMovementQuery,
-            context.MovementBlockedCallback,
-            context.SkillCatalog
-        );
-        AiTraceRecorder.Exit("bind_ai_helpers:query_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:query_setup"))
+        {
+            AiQuery.Setup(
+                context.State,
+                context.GridService,
+                context.UnitState.unit_id,
+                context.SkillDefinitions,
+                context.QueryActionScoreInputCallback,
+                AiMovementQuery,
+                context.MovementBlockedCallback,
+                context.SkillCatalog
+            );
+        }
 
-        AiTraceRecorder.Enter("bind_ai_helpers:candidate_setup");
-        AiCandidateEvaluation.Setup(context.ScoreService);
-        AiTraceRecorder.Exit("bind_ai_helpers:candidate_setup");
+        using (new BattleAiTraceSpan("bind_ai_helpers:candidate_setup"))
+        {
+            AiCandidateEvaluation.Setup(context.ScoreService);
+        }
 
         aiContext.ai_query_service = AiQuery;
         aiContext.candidate_evaluator = AiCandidateEvaluation;
+        _aiHelperBindingsActive = true;
     }
 
     internal BattleAiScoreInput BuildActionScoreInput(
@@ -303,10 +360,15 @@ internal sealed class BattleRuntimeServices : IDisposable
 
     internal void ClearRuntimeBindings()
     {
-        AiMovementQuery.ClearRuntimeBindings();
-        AiScoreContextAdapter.ClearRuntimeBindings();
-        AiQuery.ClearRuntimeBindings();
-        AiDecisionContext.ClearRuntimeBindings();
+        // Clear in reverse borrower order. Movement query topology/path caches are plain
+        // battle-lifetime values; only its decision-scoped state/grid/callback bindings end here.
+        _aiHelperBindingsActive = false;
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, AiDecisionContext.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiQuery.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiScoreContextAdapter.ClearRuntimeBindings);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.ClearRuntimeBindings);
+        Rethrow(firstFailure);
     }
 
     public void Dispose()
@@ -316,11 +378,35 @@ internal sealed class BattleRuntimeServices : IDisposable
             return;
         }
         _disposed = true;
-        ClearRuntimeBindings();
-        GroundEffects.Dispose();
-        SpecialSkills.Dispose();
-        Movement.Dispose();
-        AiMovementQuery.Dispose();
+        _runtimeSidecarsBound = false;
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, EndBattle);
+        RunTeardownStep(ref firstFailure, Contingencies.Dispose);
+        RunTeardownStep(ref firstFailure, GroundEffects.Dispose);
+        RunTeardownStep(ref firstFailure, SpecialSkills.Dispose);
+        RunTeardownStep(ref firstFailure, Movement.Dispose);
+        RunTeardownStep(ref firstFailure, AiMovementQuery.Dispose);
+        Rethrow(firstFailure);
+    }
+
+    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    {
+        try
+        {
+            action?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            firstFailure ??= exception;
+        }
+    }
+
+    private static void Rethrow(Exception failure)
+    {
+        if (failure != null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     private static void BindContextCallbacks(

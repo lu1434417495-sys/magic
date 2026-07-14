@@ -1,5 +1,6 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class SaveListWindow : SelectableListWindow
@@ -10,12 +11,12 @@ public partial class SaveListWindow : SelectableListWindow
     [Signal]
     public delegate void closedEventHandler();
 
-    protected override string _format_item_label(GDictionary item)
+    protected override string _format_item_label(IReadOnlyDictionary<string, object> item)
     {
         return $"{DictString(item, "display_name", "")}  |  {DictString(item, "world_preset_name", "世界")}  |  {FormatUnixTime(DictInt(item, "updated_at_unix_time", 0))}";
     }
 
-    protected override string _format_detail_text(GDictionary item)
+    protected override string _format_detail_text(IReadOnlyDictionary<string, object> item)
     {
         string sizeLabel = FormatWorldSize(item, "world_size_cells");
         return string.Join(
@@ -33,7 +34,7 @@ public partial class SaveListWindow : SelectableListWindow
 
     protected override string _format_empty_detail() => "当前没有可读取的存档。";
 
-    protected override StringName _get_item_id(GDictionary item)
+    protected override StringName _get_item_id(IReadOnlyDictionary<string, object> item)
     {
         return new StringName(DictString(item, "save_id", ""));
     }
@@ -52,51 +53,62 @@ public partial class SaveListWindow : SelectableListWindow
     {
         if (unixTime <= 0)
             return "未知";
-        GDictionary datetime = Time.GetDatetimeDictFromUnixTime(unixTime);
+        DateTime datetime = DateTimeOffset.FromUnixTimeSeconds(unixTime).UtcDateTime;
         return string.Format(
             "{0:D4}-{1:D2}-{2:D2} {3:D2}:{4:D2}:{5:D2}",
-            DictInt(datetime, "year", 1970),
-            DictInt(datetime, "month", 1),
-            DictInt(datetime, "day", 1),
-            DictInt(datetime, "hour", 0),
-            DictInt(datetime, "minute", 0),
-            DictInt(datetime, "second", 0)
+            datetime.Year,
+            datetime.Month,
+            datetime.Day,
+            datetime.Hour,
+            datetime.Minute,
+            datetime.Second
         );
     }
 
-    private static string FormatWorldSize(GDictionary dict, string key)
+    private static string FormatWorldSize(
+        IReadOnlyDictionary<string, object> values,
+        string key
+    )
     {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Vector2I)
+        if (
+            values == null
+            || !values.TryGetValue(key, out object value)
+            || value is not Vector2I worldSize
+        )
             return "未知尺寸";
-        Vector2I worldSize = value.AsVector2I();
         return $"{worldSize.X} x {worldSize.Y}";
     }
 
-    private static string DictString(GDictionary dict, string key, string defaultValue)
+    private static string DictString(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        string defaultValue
+    )
     {
-        if (!TryRead(dict, key, out Variant value))
+        if (values == null || !values.TryGetValue(key, out object value))
             return defaultValue;
-        return value.VariantType switch
+        return value switch
         {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
             _ => defaultValue,
         };
     }
 
-    private static int DictInt(GDictionary dict, string key, int defaultValue)
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> values,
+        string key,
+        int defaultValue
+    )
     {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
+        if (values == null || !values.TryGetValue(key, out object value))
             return defaultValue;
-        return value.AsInt32();
-    }
-
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
-    {
-        value = default;
-        if (dict == null || !dict.ContainsKey(key))
-            return false;
-        value = dict[key];
-        return value.VariantType != Variant.Type.Nil;
+        return value switch
+        {
+            int intValue => intValue,
+            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
+                (int)longValue,
+            _ => defaultValue,
+        };
     }
 }

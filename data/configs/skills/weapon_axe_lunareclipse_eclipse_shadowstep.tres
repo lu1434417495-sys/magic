@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_shadowstep_blink"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"blink"
+forced_move_distance = 3
+
+[sub_resource type="Resource" id="Effect_shadowstep_dodge"]
+script = ExtResource("1_effect")
+effect_type = &"status"
+effect_target_team_filter = &"self"
+power = 2
+status_id = &"dodge_bonus_up"
+duration_tu = 60
+
+[sub_resource type="Resource" id="Combat_shadowstep"]
+script = ExtResource("2_combat")
+skill_id = &"weapon_axe_lunareclipse_eclipse_shadowstep"
+target_mode = &"ground"
+target_team_filter = &"ally"
+range_value = 3
+ap_cost = 1
+stamina_cost = 45
+cooldown_tu = 120
+mastery_trigger_mode = &"effect_applied"
+required_weapon_families = Array[StringName]([&"axe"])
+ai_tags = Array[StringName]([&"mobility", &"equipment"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_shadowstep_blink"), SubResource("Effect_shadowstep_dodge")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"weapon_axe_lunareclipse_eclipse_shadowstep"
+display_name = "月蚀影步"
+icon_id = &"weapon_axe_lunareclipse_eclipse_shadowstep"
+description = "装备技能。未穿重甲时，闪现至 3 格内地面格，并获得闪避 AC +4，持续 60TU；消耗 1AP/45 体力，冷却 120TU。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"lunareclipse", &"weapon", &"mobility", &"dodge"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_shadowstep")

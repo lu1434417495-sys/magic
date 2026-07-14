@@ -6,7 +6,7 @@ public static class PassiveStatusOrchestrator
     public static void ApplyToUnit(
         BattleUnitState unitState,
         PassiveSourceContext context = null,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null
     )
     {
         if (unitState == null)
@@ -19,21 +19,22 @@ public static class PassiveStatusOrchestrator
         SkillPassiveResolver.ApplyToUnit(
             unitState,
             resolvedContext,
-            skillDefs
+            skillDefinitions
         );
     }
 
     private static void _clear_identity_projection(BattleUnitState unitState)
     {
-        unitState.vision_tags = new Godot.Collections.Array<StringName>();
-        unitState.proficiency_tags = new Godot.Collections.Array<StringName>();
-        unitState.save_advantage_tags = new Godot.Collections.Array<StringName>();
+        unitState.vision_tags = new StringNameList();
+        unitState.proficiency_tags = new StringNameList();
+        unitState.save_advantage_tags = new StringNameList();
         unitState.damage_resistances = new BattleStringNameMap();
+        unitState.save_bonus_by_ability = new BattleStringNameIntMap();
     }
 
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)
     {
         return context?.ascension_def != null
-            && context.ascension_def.suppresses_original_race_traits;
+            && context.ascension_def.SuppressesOriginalRaceTraits;
     }
 }

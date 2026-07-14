@@ -22,10 +22,9 @@ public sealed class QuestProgressService
 
     private PartyState _party_state = new();
     private bool _has_quest_def_catalog;
-    private Dictionary<StringName, QuestDef> _quest_def_index = new();
+    private Dictionary<StringName, QuestDefinition> _quest_def_index = new();
     private Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> _objective_defs_by_quest_id =
         new();
-    private bool _ownsPartyState = true;
 
     internal static StringName ToStringName(QuestProgressEventKind kind)
     {
@@ -51,16 +50,16 @@ public sealed class QuestProgressService
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDef> questDefs
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     ) => Setup(partyState, questDefs, questDefs != null && questDefs.Count > 0);
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDef> questDefs,
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs,
         bool hasQuestDefCatalog
     )
     {
-        ReplacePartyState(partyState);
+        _party_state = partyState ?? new PartyState();
         _has_quest_def_catalog = hasQuestDefCatalog;
         _quest_def_index = CloneQuestDefIndex(questDefs);
         _objective_defs_by_quest_id = BuildObjectiveDefIndex(_quest_def_index);
@@ -68,7 +67,7 @@ public sealed class QuestProgressService
 
     public void SetPartyState(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, QuestDef> questDefs
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
         Setup(
@@ -80,31 +79,10 @@ public sealed class QuestProgressService
 
     public void Dispose()
     {
-        ReleaseOwnedPartyState();
+        _party_state = null;
         _has_quest_def_catalog = false;
         _quest_def_index.Clear();
         _objective_defs_by_quest_id.Clear();
-    }
-
-    private void ReplacePartyState(PartyState partyState)
-    {
-        ReleaseOwnedPartyState();
-        if (partyState != null)
-        {
-            _party_state = partyState;
-            _ownsPartyState = false;
-            return;
-        }
-        _party_state = new PartyState();
-        _ownsPartyState = true;
-    }
-
-    private void ReleaseOwnedPartyState()
-    {
-        if (_ownsPartyState)
-            GodotRefCountedDisposer.DisposeIfValid(_party_state);
-        _party_state = null;
-        _ownsPartyState = false;
     }
 
     public PartyState GetPartyState() => _party_state;
@@ -184,7 +162,7 @@ public sealed class QuestProgressService
             return false;
 
         questState.RecordObjectiveProgress(objectiveId, delta, resolvedTarget, context);
-        QuestDef questDef = GetQuestDefObject(questId);
+        QuestDefinition questDef = GetQuestDefObject(questId);
         if (questDef != null && questState.HasCompletedAllObjectives(questDef))
             questState.MarkCompleted(GetWorldStep());
         return true;
@@ -456,7 +434,7 @@ public sealed class QuestProgressService
         foreach (StringName questId in progressedQuestIds)
         {
             QuestState questState = _party_state.GetActiveQuestState(questId);
-            QuestDef questDef = GetQuestDefObject(questId);
+            QuestDefinition questDef = GetQuestDefObject(questId);
             if (questState == null || questDef == null)
                 continue;
             if (
@@ -475,24 +453,24 @@ public sealed class QuestProgressService
         target.Add(value);
     }
 
-    private QuestDef GetQuestDefObject(StringName questId)
+    private QuestDefinition GetQuestDefObject(StringName questId)
     {
-        return questId != "" && _quest_def_index.TryGetValue(questId, out QuestDef questDef)
+        return questId != "" && _quest_def_index.TryGetValue(questId, out QuestDefinition questDef)
             ? questDef
             : null;
     }
 
-    private static Dictionary<StringName, QuestDef> CloneQuestDefIndex(
-        IReadOnlyDictionary<StringName, QuestDef> questDefs
+    private static Dictionary<StringName, QuestDefinition> CloneQuestDefIndex(
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
-        Dictionary<StringName, QuestDef> questDefIndex = new();
+        Dictionary<StringName, QuestDefinition> questDefIndex = new();
         if (questDefs == null)
             return questDefIndex;
 
-        foreach ((StringName questId, QuestDef questDef) in questDefs)
+        foreach ((StringName questId, QuestDefinition questDef) in questDefs)
         {
-            if (questId == "" || questDef == null || questDef.quest_id == "")
+            if (questId == "" || questDef == null || questDef.QuestId == "")
                 continue;
             questDefIndex[questId] = questDef;
         }
@@ -500,27 +478,27 @@ public sealed class QuestProgressService
     }
 
     private static Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> BuildObjectiveDefIndex(
-        IReadOnlyDictionary<StringName, QuestDef> questDefIndex
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefIndex
     )
     {
         Dictionary<StringName, IReadOnlyList<QuestObjectiveDefData>> result = new();
         if (questDefIndex == null)
             return result;
 
-        foreach ((StringName questId, QuestDef questDef) in questDefIndex)
+        foreach ((StringName questId, QuestDefinition questDef) in questDefIndex)
             result[questId] = CollectObjectiveDefs(questDef);
         return result;
     }
 
-    private static IReadOnlyList<QuestObjectiveDefData> CollectObjectiveDefs(QuestDef questDef)
+    private static IReadOnlyList<QuestObjectiveDefData> CollectObjectiveDefs(QuestDefinition questDef)
     {
         if (questDef == null)
             return EmptyObjectiveDefs;
 
         List<QuestObjectiveDefData> result = new();
-        foreach (QuestDef.ObjectiveEntryData entry in questDef.GetObjectiveEntriesTyped())
+        foreach (QuestObjectiveDefinition entry in questDef.Objectives)
         {
-            QuestObjectiveDefData objectiveDef = QuestObjectiveDefData.FromQuestObjectiveEntry(entry);
+            QuestObjectiveDefData objectiveDef = QuestObjectiveDefData.FromDefinition(entry);
             if (objectiveDef.Exists)
                 result.Add(objectiveDef);
         }
@@ -878,9 +856,7 @@ public sealed class QuestProgressService
             );
         }
 
-        public static QuestObjectiveDefData FromQuestObjectiveEntry(
-            QuestDef.ObjectiveEntryData entry
-        )
+        public static QuestObjectiveDefData FromDefinition(QuestObjectiveDefinition entry)
         {
             if (entry == null)
                 return Empty;
@@ -889,7 +865,7 @@ public sealed class QuestProgressService
                 entry.ObjectiveId,
                 entry.ObjectiveType,
                 entry.TargetId,
-                entry.HasStrictTargetValue ? entry.TargetValue : 0
+                entry.TargetValue
             );
         }
     }
@@ -1004,10 +980,10 @@ public sealed class QuestProgressService
 
 internal sealed class QuestProgressApplyResultData
 {
-    private readonly GStringNameArray _acceptedQuestIds = new();
-    private readonly GStringNameArray _progressedQuestIds = new();
-    private readonly GStringNameArray _claimableQuestIds = new();
-    private readonly GStringNameArray _completedQuestIds = new();
+    private readonly List<StringName> _acceptedQuestIds = new();
+    private readonly List<StringName> _progressedQuestIds = new();
+    private readonly List<StringName> _claimableQuestIds = new();
+    private readonly List<StringName> _completedQuestIds = new();
 
     public bool ContainsProgressedQuest(StringName questId) =>
         questId != "" && _progressedQuestIds.Contains(questId);
@@ -1023,19 +999,29 @@ internal sealed class QuestProgressApplyResultData
     public void AppendCompletedQuestId(StringName questId) =>
         AppendUnique(_completedQuestIds, questId);
 
-    public GStringNameArray CloneAcceptedQuestIds() => _acceptedQuestIds.Duplicate();
+    public GStringNameArray CloneAcceptedQuestIds() => ToStringNameArray(_acceptedQuestIds);
 
-    public GStringNameArray CloneProgressedQuestIds() => _progressedQuestIds.Duplicate();
+    public GStringNameArray CloneProgressedQuestIds() => ToStringNameArray(_progressedQuestIds);
 
-    public GStringNameArray CloneClaimableQuestIds() => _claimableQuestIds.Duplicate();
+    public GStringNameArray CloneClaimableQuestIds() => ToStringNameArray(_claimableQuestIds);
 
-    public GStringNameArray CloneCompletedQuestIds() => _completedQuestIds.Duplicate();
+    public GStringNameArray CloneCompletedQuestIds() => ToStringNameArray(_completedQuestIds);
 
-    private static void AppendUnique(GStringNameArray target, StringName questId)
+    private static void AppendUnique(List<StringName> target, StringName questId)
     {
         if (target == null || questId == "" || target.Contains(questId))
             return;
         target.Add(questId);
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    {
+        GStringNameArray result = new();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
     }
 }
 

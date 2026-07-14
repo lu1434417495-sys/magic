@@ -17,4 +17,7 @@ public partial class DropEntryDef : Resource
 
     public DropEntryDef() { }
 
+    internal DropEntryDefinition ToDefinition() =>
+        new(drop_entry_id, drop_type, item_id, quantity);
+
 }

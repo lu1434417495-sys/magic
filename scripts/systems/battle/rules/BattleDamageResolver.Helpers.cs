@@ -9,57 +9,34 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // 从主文件按职责拆出，不改逻辑。
 public partial class BattleDamageResolver
 {
-    private static GArray CoerceEffectDefs(GArray effectDefs)
+    private static IEnumerable<Variant> EnumerateEffectDefs(GArray effectDefs)
     {
-        return effectDefs ?? new GArray();
+        if (effectDefs == null)
+        {
+            yield break;
+        }
+        foreach (Variant effectValue in effectDefs)
+        {
+            yield return effectValue;
+        }
     }
 
-    internal static GArray ToValueArray(Godot.Collections.Array<CombatEffectDef> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (CombatEffectDef value in values)
-        {
-            if (value != null)
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
 
-    internal static GArray ToValueArray(IEnumerable<CombatEffectDef> values)
-    {
-        var result = new GArray();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (CombatEffectDef value in values)
-        {
-            if (value != null)
-            {
-                result.Add(value);
-            }
-        }
-        return result;
-    }
 
     private static GDictionary DuplicateDictionary(GDictionary source, bool deep = true)
     {
         return source != null ? source.Duplicate(deep) : new GDictionary();
     }
 
-    private SkillDef GetSkillDefTyped(StringName skillId)
+    private SkillDefinition GetSkillDefinitionTyped(StringName skillId)
     {
         if (skillId == null || skillId == "")
         {
             return null;
         }
-        return _skillDefIndex.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
+        return _skillDefinitionIndex.TryGetValue(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private static bool TryGet(GDictionary source, object key, out Variant value)

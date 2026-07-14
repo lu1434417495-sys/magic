@@ -4,21 +4,19 @@ using Godot;
 public sealed class BattleSimScenarioUnitEntry
 {
     private BattleSimScenarioUnitEntry(
-        BattleSimUnitSpec spec,
-        BattleUnitState unitState,
-        Vector2I coord
+        BattleSimUnitDefinition unitDefinition
     )
     {
-        Spec = spec;
-        UnitState = unitState;
-        Coord = coord;
+        UnitDefinition = unitDefinition
+            ?? throw new ArgumentNullException(nameof(unitDefinition));
     }
 
-    public BattleSimUnitSpec Spec { get; }
+    internal BattleSimUnitDefinition UnitDefinition { get; }
 
-    public BattleUnitState UnitState { get; }
+    public Vector2I Coord => UnitDefinition.Coord;
 
-    public Vector2I Coord { get; }
+    internal BattleSimScenarioUnitEntry DeepClone(string sourceLabel) =>
+        new(UnitDefinition.DeepClone(sourceLabel));
 
     internal static BattleSimScenarioUnitEntry FromVariant(
         Variant value,
@@ -31,6 +29,16 @@ public sealed class BattleSimScenarioUnitEntry
         {
             return null;
         }
+        if (value.VariantType == Variant.Type.Dictionary)
+        {
+            BattleUnitState unitState = BattleUnitState.FromDictionary(value.AsGodotDictionary());
+            if (unitState != null)
+            {
+                return new BattleSimScenarioUnitEntry(
+                    BattleSimUnitDefinition.FromProjectedState(unitState, sourceLabel)
+                );
+            }
+        }
         if (value.VariantType != Variant.Type.Object)
         {
             throw new InvalidOperationException(
@@ -41,14 +49,8 @@ public sealed class BattleSimScenarioUnitEntry
         if (rawObject is BattleSimUnitSpec spec)
         {
             return new BattleSimScenarioUnitEntry(
-                spec,
-                spec.ToBattleUnitState(defaultFaction, defaultControlMode),
-                spec.coord
+                spec.ToDefinition(defaultFaction, defaultControlMode)
             );
-        }
-        if (rawObject is BattleUnitState unitState)
-        {
-            return new BattleSimScenarioUnitEntry(null, unitState, unitState.coord);
         }
         throw new InvalidOperationException(
             $"{sourceLabel} 必须是 BattleSimUnitSpec 或 BattleUnitState。"

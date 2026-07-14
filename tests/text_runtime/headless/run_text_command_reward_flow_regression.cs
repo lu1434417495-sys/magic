@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_text_command_reward_flow_regression : SceneTree
+public partial class run_text_command_reward_flow_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -16,14 +14,13 @@ public partial class run_text_command_reward_flow_regression : SceneTree
     {
         TestTextCommandsUseTypedRewardFlowBoundary();
 
-        Quit(_test.Finish("Text command reward flow regression"));
+        RequestTestExit(_test.Finish("Text command reward flow regression"));
     }
 
     private void TestTextCommandsUseTypedRewardFlowBoundary()
     {
         GameTextCommandRunner runner = new();
         runner.initialize();
-        PendingCharacterReward pendingReward = null;
         try
         {
             AssertCommandOk(runner.ExecuteLine("game new test"), "game new test 应成功。");
@@ -39,7 +36,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             GameTextCommandResult partyOpenResult = runner.ExecuteLine("party open");
             AssertCommandOk(partyOpenResult, "party open 应成功。");
             _test.Eq(
-                SnapshotString(partyOpenResult.snapshot, "modal", "id"),
+                SnapshotString(partyOpenResult.SnapshotTyped, "modal", "id"),
                 "party",
                 "party open 后应进入 party modal。"
             );
@@ -47,16 +44,16 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             GameTextCommandResult partyCloseResult = runner.ExecuteLine("close");
             AssertCommandOk(partyCloseResult, "close 应通过 typed reward-flow 路由关闭 party modal。");
             _test.Eq(
-                SnapshotString(partyCloseResult.snapshot, "modal", "id"),
+                SnapshotString(partyCloseResult.SnapshotTyped, "modal", "id"),
                 "",
                 "close party 后应清空 modal。"
             );
 
-            runtime.SetPendingWorldPromotionPromptState(
-                new GDictionary
+            runtime.SetPendingWorldPromotionPromptStatePlain(
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
                 {
                     ["member_id"] = "player_sword_01",
-                    ["choices"] = new GArray(),
+                    ["choices"] = new List<object>(),
                 }
             );
             _test.True(
@@ -75,7 +72,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
                 "promotion choose 缺失职业选项时应返回 InvalidState code。"
             );
             _test.Eq(
-                SnapshotString(promotionResult.snapshot, "modal", "id"),
+                SnapshotString(promotionResult.SnapshotTyped, "modal", "id"),
                 "promotion",
                 "promotion choose 失败后应仍停留在 promotion modal。"
             );
@@ -83,8 +80,7 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
 
-            pendingReward = BuildPendingReward();
-            gameSession.GetPartyState().pending_character_rewards.Add(pendingReward);
+            gameSession.GetPartyState().pending_character_rewards.Add(BuildPendingReward());
             _test.True(
                 runtime.PresentPendingRewardIfReady(),
                 "存在待领奖励时应进入 reward modal。"
@@ -101,29 +97,30 @@ public partial class run_text_command_reward_flow_regression : SceneTree
                 "reward modal close 应返回 InvalidState code。"
             );
             _test.Eq(
-                SnapshotString(blockedCloseResult.snapshot, "modal", "id"),
+                SnapshotString(blockedCloseResult.SnapshotTyped, "modal", "id"),
                 "reward",
                 "reward modal close 失败后应仍停留在 reward modal。"
             );
 
             GameTextCommandResult rewardConfirmResult = runner.ExecuteLine("reward confirm");
-            GodotRefCountedDisposer.DisposeIfValid(pendingReward);
-            pendingReward = null;
             AssertCommandOk(rewardConfirmResult, "reward confirm 应成功。");
             _test.Eq(
-                SnapshotString(rewardConfirmResult.snapshot, "modal", "id"),
+                SnapshotString(rewardConfirmResult.SnapshotTyped, "modal", "id"),
                 "",
                 "reward confirm 后应清空 modal。"
             );
             _test.Eq(
-                SnapshotInt(rewardConfirmResult.snapshot, "party", "pending_reward_count"),
+                SnapshotInt(
+                    rewardConfirmResult.SnapshotTyped,
+                    "party",
+                    "pending_reward_count"
+                ),
                 0,
                 "reward confirm 后待处理奖励数量应归零。"
             );
         }
         finally
         {
-            GodotRefCountedDisposer.DisposeIfValid(pendingReward);
             runner.Dispose(true);
         }
     }
@@ -147,30 +144,65 @@ public partial class run_text_command_reward_flow_regression : SceneTree
             source_id = "text_reward",
             source_label = "文本奖励",
             summary_text = "文本奖励",
-            entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry },
+            entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
 
-    private static string SnapshotString(GDictionary snapshot, string topLevelKey, string nestedKey) =>
+    private static string SnapshotString(
+        IReadOnlyDictionary<string, object> snapshot,
+        string topLevelKey,
+        string nestedKey
+    ) =>
         DictString(Dict(snapshot, topLevelKey), nestedKey, "");
 
-    private static int SnapshotInt(GDictionary snapshot, string topLevelKey, string nestedKey) =>
+    private static int SnapshotInt(
+        IReadOnlyDictionary<string, object> snapshot,
+        string topLevelKey,
+        string nestedKey
+    ) =>
         DictInt(Dict(snapshot, topLevelKey), nestedKey, 0);
 
-    private static GDictionary Dict(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
+    private static IReadOnlyDictionary<string, object> Dict(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key
+    ) =>
+        dictionary != null
+        && dictionary.TryGetValue(key, out object rawValue)
+        && rawValue is IReadOnlyDictionary<string, object> nested
+            ? nested
+            : new Dictionary<string, object>(System.StringComparer.Ordinal);
 
-    private static string DictString(GDictionary dictionary, string key, string fallback) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsString()
-            : fallback;
+    private static string DictString(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        string fallback
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue.ToString(),
+            _ => fallback,
+        };
+    }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
-            : fallback;
+    private static int DictInt(
+        IReadOnlyDictionary<string, object> dictionary,
+        string key,
+        int fallback
+    )
+    {
+        if (dictionary == null || !dictionary.TryGetValue(key, out object rawValue))
+            return fallback;
+        return rawValue switch
+        {
+            int intValue => intValue,
+            long longValue => (int)longValue,
+            _ => fallback,
+        };
+    }
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {

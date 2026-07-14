@@ -84,6 +84,8 @@
 
 - `damage_tag = &"psychic"`
 - `bypass_shield = true`
+- `death_source = &"phantasmal_kill_execute"`
+- `death_source_priority = 300`，低于单体死亡律令的 900；这是群体处决攻击，普通免死未必能挡，但同级或更高权威的 death_ward / last stand 可以挡
 - `min_hp_after_damage = 0`
 - 保留 `death_ward`、last stand、fatal trait、伤害事件记录和后续 `BattleGroundEffectService` 击杀提交链
 

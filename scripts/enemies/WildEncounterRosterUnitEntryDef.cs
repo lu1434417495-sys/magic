@@ -12,4 +12,7 @@ public partial class WildEncounterRosterUnitEntryDef : Resource
 
     [Export]
     public string display_name { get; set; } = "";
+
+    internal WildEncounterRosterUnitEntryDefinition ToDefinition() =>
+        new(template_id, count, display_name);
 }

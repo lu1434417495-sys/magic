@@ -98,7 +98,7 @@ generation_slots = Array[Resource]([SubResource("Slot_engage_charge_path"), SubR
 [sub_resource type="Resource" id="Action_pressure_bash"]
 script = ExtResource("4_unit")
 action_id = &"vanguard_shield_bash"
-skill_ids = Array[StringName]([&"warrior_shield_bash", &"basic_attack"])
+skill_ids = Array[StringName]([&"warrior_shield_bash", &"warrior_heavy_strike", &"basic_attack"])
 target_selector = &"nearest_enemy"
 desired_min_distance = 1
 desired_max_distance = 1

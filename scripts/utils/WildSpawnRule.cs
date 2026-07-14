@@ -27,4 +27,9 @@ public partial class WildSpawnRule : Resource
 
     [Export]
     public Array<Vector2I> chunk_coords = new();
+
+    internal Array<Vector2I> ChunkCoordsProjectionBorrowed => chunk_coords;
+
+    internal WildSpawnRuleDefinition ToDefinition(string path) =>
+        WildSpawnRuleDefinition.FromResource(this, path);
 }

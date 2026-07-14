@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class GameRuntimePendingBattleGenerationRequest
 {
-    private readonly List<GameRuntimePayloadEntry> _context = new();
+    private readonly Dictionary<string, object> _context = new(System.StringComparer.Ordinal);
 
     public EncounterAnchorData EncounterAnchor { get; private set; }
 
@@ -19,13 +19,8 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
         ReplaceContext(context);
     }
 
-    internal GDictionary CloneContext()
-    {
-        var result = new GDictionary();
-        foreach (GameRuntimePayloadEntry entry in _context)
-            result[entry.Key] = entry.Value;
-        return result;
-    }
+    internal Dictionary<string, object> CloneContextPlain() =>
+        RuntimePlainPayload.CloneDictionary(_context);
 
     internal void Clear()
     {
@@ -39,50 +34,17 @@ internal sealed class GameRuntimePendingBattleGenerationRequest
         ClearContextEntries();
         if (context == null)
             return;
-        foreach (Variant key in context.Keys)
-            _context.Add(new GameRuntimePayloadEntry(key, context[key]));
+        Dictionary<string, object> normalized =
+            RuntimePlainPayload.NormalizeDictionary(
+                context,
+                "GameRuntimePendingBattleGenerationRequest.context"
+            );
+        foreach (KeyValuePair<string, object> entry in normalized)
+            _context[entry.Key] = entry.Value;
     }
 
     private void ClearContextEntries()
     {
-        foreach (GameRuntimePayloadEntry entry in _context)
-            entry.Dispose();
         _context.Clear();
-    }
-}
-
-internal readonly struct GameRuntimePayloadEntry
-{
-    internal readonly Variant Key;
-    private readonly Variant _value;
-
-    internal GameRuntimePayloadEntry(Variant key, Variant value)
-    {
-        Key = key;
-        _value = DuplicateVariant(value);
-    }
-
-    internal Variant Value => DuplicateVariant(_value);
-
-    internal void Dispose()
-    {
-        Key.Dispose();
-        _value.Dispose();
-    }
-
-    internal void KeepBorrowedResourcesAlive()
-    {
-        GodotRefCountedDisposer.KeepBorrowedVariantAlive(Key);
-        GodotRefCountedDisposer.KeepBorrowedVariantAlive(_value);
-    }
-
-    private static Variant DuplicateVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary => Variant.From(value.AsGodotDictionary().Duplicate(true)),
-            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
-            _ => value,
-        };
     }
 }

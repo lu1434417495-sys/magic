@@ -3,7 +3,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_world_map_settlement_entry_regression : SceneTree
+public partial class run_world_map_settlement_entry_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -18,7 +18,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
     {
         TestEnteringSettlementHidesPlayerUntilClose();
 
-        Quit(_test.Finish("World map settlement entry regression"));
+        RequestTestExit(_test.Finish("World map settlement entry regression"));
     }
 
     private void TestEnteringSettlementHidesPlayerUntilClose()
@@ -53,7 +53,9 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
             _test.Eq(context.Facade.GetSelectedCoord(), probe.TargetCoord, "据点窗口打开时选中格应保持在目标据点格。");
             _test.False(context.Facade.IsPlayerVisibleOnWorldMap(), "据点窗口打开时世界地图上不应绘制玩家。");
 
-            GDictionary openSnapshot = context.Facade.BuildHeadlessSnapshot();
+            using GodotProjectionLease<GDictionary> openSnapshotLease =
+                context.Facade.BuildHeadlessSnapshotLease();
+            GDictionary openSnapshot = openSnapshotLease.Value;
             GDictionary worldSnapshot = Dict(openSnapshot, "world");
             _test.False(DictBool(worldSnapshot, "player_visible_on_map", true), "据点窗口打开时 world snapshot 应暴露隐藏玩家状态。");
             _test.True(
@@ -77,7 +79,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
 
     private RuntimeContext CreateRuntimeContext()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "测试世界应能成功创建新存档。");
         if (createError != (int)Error.Ok)
@@ -93,7 +95,8 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
 
     private static SettlementEntryProbe FindAdjacentSettlementProbe(GameRuntimeFacade facade)
     {
-        GArray settlements = ArrayValue(facade.GetWorldData(), "settlements");
+        using GodotProjectionLease<GDictionary> worldDataLease = facade.GetWorldDataLease();
+        GArray settlements = ArrayValue(worldDataLease.Value, "settlements");
         WorldMapGridSystem gridSystem = facade.GetGridSystem();
         foreach (Variant settlementValue in settlements)
         {
@@ -231,7 +234,7 @@ public partial class run_world_map_settlement_entry_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 
     private sealed class RuntimeContext

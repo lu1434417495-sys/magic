@@ -6,22 +6,17 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_weapon_dice_regression : SceneTree
+public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<BattleRuntimeModule> _ownedRuntimes = new();
-    private readonly List<BattleState> _ownedStates = new();
-    private readonly List<BattleUnitState> _ownedUnits = new();
-    private readonly List<GodotObject> _ownedObjects = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        TestResult exitCode = Run();
+        RequestTestExit(exitCode);
     }
 
-    private int Run()
+    private TestResult Run()
     {
         RunCase("TestAddWeaponDiceExplicitFormula", TestAddWeaponDiceExplicitFormula);
         RunCase("TestLegacySkillDiceAliasesAreNotUsed", TestLegacySkillDiceAliasesAreNotUsed);
@@ -42,15 +37,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void RunCase(string name, Action test)
     {
-        try
-        {
-            test.Invoke();
-        }
-        finally
-        {
-            DisposeOwnedFixtures();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        test.Invoke();
     }
 
     private void TestAddWeaponDiceExplicitFormula()
@@ -59,9 +46,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("weapon_formula_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("weapon_formula_target");
-        CombatEffectDef effect = BuildDamageEffect(5, true, 2, 4, 3);
+        CombatEffectDefinition effect = BuildDamageEffect(5, true, 2, 4, 3);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -100,12 +96,27 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 6, 6, 6 });
         BattleUnitState source = BuildUnit("legacy_dice_alias_user");
         BattleUnitState target = BuildUnit("legacy_dice_alias_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false);
-        effect.@params["damage_dice_count"] = 3;
-        effect.@params["damage_dice_sides"] = 6;
-        effect.@params["damage_dice_bonus"] = 9;
+        CombatEffectDefinition effect = BuildDamageEffect(
+            5,
+            false,
+            parameters: new Dictionary<string, object>
+            {
+                ["damage_dice_count"] = 3,
+                ["damage_dice_sides"] = 6,
+                ["damage_dice_bonus"] = 9,
+            }
+        );
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -135,9 +146,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("physical_default_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("physical_default_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
+        CombatEffectDefinition effect = BuildDamageEffect(5, false, 1, 4, 1, "physical_slash");
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
@@ -161,14 +181,16 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("critical_weapon_user");
         ApplyWeapon(source, 1, 6, 2);
         BattleUnitState target = BuildUnit("critical_weapon_target");
-        CombatEffectDef effect = BuildDamageEffect(7, true, 1, 4, 3);
+        CombatEffectDefinition effect = BuildDamageEffect(7, true, 1, 4, 3);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary { ["critical_hit"] = true }
+            new[] { effect },
+            DamageResolutionContext.FromDictionary(new GDictionary { ["critical_hit"] = true })
         ));
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             DictBool(damageEvent, "critical_hit", false),
@@ -246,15 +268,17 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("multi_weapon_user");
         ApplyWeapon(source, 1, 6, 0);
         BattleUnitState target = BuildUnit("multi_weapon_target");
-        CombatEffectDef firstEffect = BuildDamageEffect(0, true);
-        CombatEffectDef secondEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition firstEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition secondEffect = BuildDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { firstEffect, secondEffect },
-            new GDictionary()
+            new[] { firstEffect, secondEffect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "多段 damage effect 应各自产生 damage event。");
         if (events.Count >= 2)
@@ -318,9 +342,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             }
         );
         BattleUnitState target = BuildUnit("two_handed_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.Eq(
             DictInt(damageEvent, "weapon_damage_dice_count", 0),
@@ -344,15 +377,17 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 5, 2, 4 });
         BattleUnitState source = BuildUnit("versatile_user");
         BattleUnitState target = BuildUnit("versatile_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
         ApplyVersatileWeapon(source, false);
-        GDictionary oneHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> oneHandedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary oneHandedResult = oneHandedResultLease.Value;
         GDictionary oneHandedEvent = FirstDamageEvent(oneHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -373,12 +408,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         _test.Eq(DictInt(oneHandedEvent, "base_damage", 0), 5, "versatile 单手应只掷 1D8。");
 
         ApplyVersatileWeapon(source, true);
-        GDictionary twoHandedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> twoHandedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary twoHandedResult = twoHandedResultLease.Value;
         GDictionary twoHandedEvent = FirstDamageEvent(twoHandedResult);
         _test.Eq(
             source.weapon_current_grip.ToString(),
@@ -404,7 +441,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 4, 6 });
         BattleUnitState source = BuildUnit("innate_weapon_user");
         BattleUnitState target = BuildUnit("innate_weapon_target");
-        CombatEffectDef effect = BuildDamageEffect(0, true);
+        CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
         source.SetUnarmedWeaponProjectionTyped(
             "physical_blunt",
@@ -416,12 +453,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             1
         );
-        GDictionary unarmedResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> unarmedResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary unarmedResult = unarmedResultLease.Value;
         GDictionary unarmedEvent = FirstDamageEvent(unarmedResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -452,12 +491,14 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             ""
         );
-        GDictionary naturalResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> naturalResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { effect },
-            new GDictionary()
+            new[] { effect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary naturalResult = naturalResultLease.Value;
         GDictionary naturalEvent = FirstDamageEvent(naturalResult);
         _test.Eq(
             source.weapon_profile_kind.ToString(),
@@ -483,19 +524,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void TestRequiresWeaponGateAcceptsEquippedOnly()
     {
-        SkillDef skill = BuildRuntimeDamageSkill("requires_weapon_contract", 1, true, false);
+        SkillDefinition skill = BuildRuntimeDamageSkill("requires_weapon_contract", 1, true, false);
         var runtime = new BattleRuntimeModule();
-        _ownedRuntimes.Add(runtime);
         runtime.setup(
             null,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         runtime.ConfigureDamageResolverForTests(
             BuildFixedRollDamageResolver(new[] { 1 }, new[] { 10 })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
-        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.skill_id);
+        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.SkillId);
         BattleUnitState attacker = fixture.Attacker;
         BattleUnitState target = fixture.Target;
         BattleCommand command = fixture.Command;
@@ -511,7 +551,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             1
         );
         int targetHpBefore = target.current_hp;
-        BattleEventBatch unarmedBatch = TrackOwned(runtime.IssueCommand(command));
+        BattleEventBatch unarmedBatch = runtime.IssueCommand(command);
         _test.True(
             unarmedBatch != null && unarmedBatch.log_lines.Count > 0,
             $"空手攻击不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(unarmedBatch?.log_lines)}"
@@ -531,7 +571,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             },
             ""
         );
-        BattleEventBatch naturalBatch = TrackOwned(runtime.IssueCommand(command));
+        BattleEventBatch naturalBatch = runtime.IssueCommand(command);
         _test.True(
             naturalBatch != null && naturalBatch.log_lines.Count > 0,
             $"天生武器不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(naturalBatch?.log_lines)}"
@@ -540,10 +580,10 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         _test.Eq(target.current_hp, targetHpBefore, "天生武器被 requires_weapon 阻断时不应结算伤害。");
 
         ApplyWeapon(attacker, 1, 6, 0);
-        BattleEventBatch equippedBatch = TrackOwned(runtime.IssueCommand(command));
+        BattleEventBatch equippedBatch = runtime.IssueCommand(command);
         _test.True(
             equippedBatch.changed_unit_ids.Contains(attacker.unit_id),
-            "装备武器应满足 requires_weapon 并正常结算施法者。"
+            $"装备武器应满足 requires_weapon 并正常结算施法者。 log={FormatLogs(equippedBatch?.log_lines)}"
         );
         _test.Eq(attacker.current_ap, 1, "装备武器满足 requires_weapon 后应正常扣除 AP。");
         _test.True(target.current_hp < targetHpBefore, "装备武器满足 requires_weapon 后应造成伤害。");
@@ -552,19 +592,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
     private void TestNaturalWeaponDiceDoNotTriggerSkillMastery()
     {
         var gateway = new MasteryGatewayStub();
-        SkillDef skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
+        SkillDefinition skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
         var runtime = new BattleRuntimeModule();
-        _ownedRuntimes.Add(runtime);
         runtime.setup(
             gateway,
-            new Dictionary<StringName, SkillDef> { [skill.skill_id] = skill }
+            new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
         runtime.ConfigureDamageResolverForTests(
             BuildFixedRollDamageResolver(new[] { 1 }, new[] { 10 })
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
-        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.skill_id);
+        RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.SkillId);
         BattleUnitState attacker = fixture.Attacker;
         BattleCommand command = fixture.Command;
         attacker.source_member_id = "hero";
@@ -581,10 +620,10 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             ""
         );
 
-        BattleEventBatch batch = TrackOwned(runtime.IssueCommand(command));
+        BattleEventBatch batch = runtime.IssueCommand(command);
         _test.True(
             batch.changed_unit_ids.Contains(attacker.unit_id),
-            "天生武器骰技能应正常完成一次主动技能结算。"
+            $"天生武器骰技能应正常完成一次主动技能结算。 log={FormatLogs(batch?.log_lines)}"
         );
         _test.Eq(gateway.SkillUsedEvents, 1, "天生武器骰技能成功后仍应记录技能使用事件。");
         _test.Eq(gateway.Grants.Count, 0, "天生武器骰满值不应触发主动技能熟练度 / 精通入账。");
@@ -596,15 +635,17 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         BattleUnitState source = BuildUnit("dice_event_split_user");
         ApplyWeapon(source, 1, 6, 0);
         BattleUnitState target = BuildUnit("dice_event_split_target");
-        CombatEffectDef weaponOnlyEffect = BuildDamageEffect(0, true);
-        CombatEffectDef skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
+        CombatEffectDefinition weaponOnlyEffect = BuildDamageEffect(0, true);
+        CombatEffectDefinition skillOnlyEffect = BuildDamageEffect(0, false, 1, 4);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             target,
-            new GArray { weaponOnlyEffect, skillOnlyEffect },
-            new GDictionary()
+            new[] { weaponOnlyEffect, skillOnlyEffect },
+            DamageResolutionContext.Empty()
         ));
+        GDictionary result = resultLease.Value;
         GArray events = GetArray(result, "damage_events");
         _test.Eq(events.Count, 2, "拆分骰子事件回归应产生两段 damage event。");
         _test.True(
@@ -689,9 +730,18 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         var resolver = BuildFixedRollDamageResolver(new[] { 6 });
         BattleUnitState source = BuildUnit("no_dice_event_user");
         BattleUnitState target = BuildUnit("no_dice_event_target");
-        CombatEffectDef effect = BuildDamageEffect(5, false);
+        CombatEffectDefinition effect = BuildDamageEffect(5, false);
 
-        GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary()));
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
+            );
+        GDictionary result = resultLease.Value;
         GDictionary damageEvent = FirstDamageEvent(result);
         _test.True(
             !DictBool(damageEvent, "damage_dice_high_total_roll", true),
@@ -736,15 +786,15 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
     private void TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate()
     {
-        using var registry = new ProgressionContentRegistry();
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs =
-            new Dictionary<StringName, SkillDef>(registry.GetSkillDefsTyped());
-        skillDefs.TryGetValue("warrior_heavy_strike", out SkillDef skillDef);
+        using var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            registry.GetSkillDefinitionsTyped();
+        skillDefinitions.TryGetValue("warrior_heavy_strike", out SkillDefinition skillDefinition);
         _test.True(
-            skillDef?.combat_profile != null,
+            skillDefinition?.CombatProfile != null,
             "重击技能配置应可加载。"
         );
-        if (skillDef?.combat_profile == null)
+        if (skillDefinition?.CombatProfile == null)
         {
             return;
         }
@@ -756,10 +806,10 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             new ExpectedDamageProfile(3, 4, 1, 8),
             new ExpectedDamageProfile(5, -1, 2, 5),
         };
-        var damageEffects = new Godot.Collections.Array<CombatEffectDef>();
-        foreach (CombatEffectDef effect in skillDef.combat_profile.effect_defs)
+        var damageEffects = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
         {
-            if (effect == null || effect.effect_type != "damage")
+            if (effect == null || effect.EffectType != "damage")
             {
                 continue;
             }
@@ -774,41 +824,45 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         int count = Math.Min(damageEffects.Count, expectedProfiles.Length);
         for (int i = 0; i < count; i++)
         {
-            CombatEffectDef effect = damageEffects[i];
+            CombatEffectDefinition effect = damageEffects[i];
             ExpectedDamageProfile expected = expectedProfiles[i];
-            _test.True(effect.add_weapon_dice, "重击每段伤害样板都应显式 add_weapon_dice。");
-            _test.True(effect.requires_weapon, "重击仍应要求装备武器。");
-            _test.True(effect.use_weapon_physical_damage_tag, "重击每段伤害应使用当前武器物理伤害标签。");
+            _test.True(effect.AddWeaponDice, "重击每段伤害样板都应显式 add_weapon_dice。");
+            _test.True(effect.RequiresWeapon, "重击仍应要求装备武器。");
+            _test.True(
+                effect.UseWeaponPhysicalDamageTag,
+                "重击每段伤害应使用当前武器物理伤害标签。"
+            );
             _test.Eq(
-                effect.min_skill_level,
+                effect.MinSkillLevel,
                 expected.MinSkillLevel,
                 "重击技能骰分段 min_skill_level 应匹配当前样板。"
             );
             _test.Eq(
-                effect.max_skill_level,
+                effect.MaxSkillLevel,
                 expected.MaxSkillLevel,
                 "重击技能骰分段 max_skill_level 应匹配当前样板。"
             );
             _test.Eq(
-                effect.dice_count,
+                effect.DiceCount,
                 expected.DiceCount,
                 "重击技能骰数量应按等级样板递进。"
             );
             _test.Eq(
-                effect.dice_sides,
+                effect.DiceSides,
                 expected.DiceSides,
                 "重击技能骰骰面应按等级样板递进。"
             );
         }
     }
 
-    private CombatEffectDef BuildDamageEffect(
+    private static CombatEffectDefinition BuildDamageEffect(
         int power,
         bool addWeaponDice,
         int diceCount = 0,
         int diceSides = 0,
         int diceBonus = 0,
-        StringName damageTag = default
+        StringName damageTag = default,
+        IReadOnlyDictionary<string, object> parameters = null
     )
     {
         if (damageTag == default || damageTag == (StringName)"")
@@ -816,27 +870,19 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             damageTag = "physical_blunt";
         }
 
-        var effect = TrackOwned(new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = power,
-            damage_tag = damageTag,
-            @params = new GDictionary(),
-        });
-        if (addWeaponDice)
-        {
-            effect.add_weapon_dice = true;
-        }
-        if (diceCount > 0 && diceSides > 0)
-        {
-            effect.dice_count = diceCount;
-            effect.dice_sides = diceSides;
-            effect.dice_bonus = diceBonus;
-        }
-        return effect;
+        return TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: power,
+            damageTag: damageTag,
+            addWeaponDice: addWeaponDice,
+            diceCount: diceCount,
+            diceSides: diceSides,
+            diceBonus: diceBonus,
+            parameters: parameters
+        );
     }
 
-    private SkillDef BuildRuntimeDamageSkill(
+    private static SkillDefinition BuildRuntimeDamageSkill(
         StringName skillId,
         int power,
         bool requiresWeapon,
@@ -845,39 +891,31 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         int diceSides = 0
     )
     {
-        CombatEffectDef damageEffect = BuildDamageEffect(
-            power,
-            addWeaponDice,
-            diceCount,
-            diceSides
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: power,
+            damageTag: "physical_blunt",
+            requiresWeapon: requiresWeapon,
+            addWeaponDice: addWeaponDice,
+            useWeaponPhysicalDamageTag: requiresWeapon,
+            diceCount: diceCount,
+            diceSides: diceSides
         );
-        damageEffect.effect_target_team_filter = "enemy";
-        if (requiresWeapon)
-        {
-            damageEffect.requires_weapon = true;
-            damageEffect.use_weapon_physical_damage_tag = true;
-        }
 
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            target_mode = "unit",
-            target_team_filter = "enemy",
-            range_value = 1,
-            ap_cost = 1,
-        };
-        combatProfile.effect_defs = new Godot.Collections.Array<CombatEffectDef>
-        {
-            damageEffect,
-        };
-
-        return TrackOwned(new SkillDef
-        {
-            skill_id = skillId,
-            display_name = skillId.ToString(),
-            tags = new GStringNameArray { "warrior", "melee" },
-            combat_profile = combatProfile,
-        });
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            tags: new[] { new StringName("warrior"), new StringName("melee") },
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { damageEffect },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 1,
+                apCost: 1
+            )
+        );
     }
 
     private RuntimeDuelFixture BuildRuntimeDuelFixture(BattleRuntimeModule runtime, StringName skillId)
@@ -904,18 +942,19 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         );
         runtime.SetupStateForTests(state);
 
-        var command = TrackOwned(new BattleCommand
+        var command = new BattleCommand
         {
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = attacker.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             target_unit_id = target.unit_id,
             target_coord = target.coord,
-        });
+        };
         return new RuntimeDuelFixture(state, attacker, target, command);
     }
 
-    private BattleState BuildSkillTestState(Vector2I mapSize)
+    private static BattleState BuildSkillTestState(Vector2I mapSize)
     {
         var state = new BattleState
         {
@@ -934,7 +973,6 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             }
         }
         state.RebuildCellColumns();
-        _ownedStates.Add(state);
         return state;
     }
 
@@ -951,7 +989,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         return cell;
     }
 
-    private BattleUnitState BuildUnit(
+    private static BattleUnitState BuildUnit(
         StringName unitId,
         Vector2I coord = default,
         int currentAp = 1
@@ -968,53 +1006,16 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         };
         unit.attribute_snapshot.SetValue("hp_max", 100);
         unit.SetAnchorCoord(coord);
-        _ownedUnits.Add(unit);
         return unit;
     }
 
-    private BattleUnitState BuildEnemyUnit(StringName unitId, Vector2I coord)
+    private static BattleUnitState BuildEnemyUnit(StringName unitId, Vector2I coord)
     {
         BattleUnitState unit = BuildUnit(unitId, coord);
         unit.faction_id = "enemy";
         unit.current_hp = 30;
         unit.attribute_snapshot.SetValue("hp_max", 30);
         return unit;
-    }
-
-    private T TrackOwned<T>(T ownedObject)
-        where T : GodotObject
-    {
-        if (ownedObject != null)
-            _ownedObjects.Add(ownedObject);
-        return ownedObject;
-    }
-
-    private void DisposeOwnedFixtures()
-    {
-        var disposedStates = new HashSet<BattleState>();
-        foreach (BattleRuntimeModule runtime in _ownedRuntimes)
-        {
-            BattleState state = runtime?._state;
-            if (state != null)
-                disposedStates.Add(state);
-            BattleTestFixture.DisposeBattleFixture(runtime, state);
-        }
-        _ownedRuntimes.Clear();
-
-        foreach (BattleState state in _ownedStates)
-        {
-            if (!disposedStates.Contains(state))
-                BattleTestFixture.DisposeBattleState(state);
-        }
-        _ownedStates.Clear();
-
-        foreach (BattleUnitState unit in _ownedUnits)
-            BattleTestFixture.DisposeFixtureObject(unit);
-        _ownedUnits.Clear();
-
-        for (int index = _ownedObjects.Count - 1; index >= 0; index--)
-            BattleTestFixture.DisposeFixtureObject(_ownedObjects[index]);
-        _ownedObjects.Clear();
     }
 
     private static void ApplyWeapon(BattleUnitState unit, int diceCount, int diceSides, int flatBonus)
@@ -1134,7 +1135,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
         return dictionary[key].AsString();
     }
 
-    private static string FormatLogs(GStringArray logLines)
+    private static string FormatLogs(IEnumerable<string> logLines)
     {
         if (logLines == null)
         {
@@ -1192,12 +1193,12 @@ public partial class run_battle_weapon_dice_regression : SceneTree
 
         public PartyState GetPartyState() => null;
 
-        public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() =>
-            new Dictionary<StringName, ItemDef>();
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
+            new Dictionary<StringName, ItemDefinition>();
 
         public bool HasItemDefCatalog() => false;
 
-        public ItemDef GetItemDef(StringName item_id) => null;
+        public ItemDefinition GetItemDef(StringName item_id) => null;
 
         public PartyMemberState GetMemberState(StringName member_id) => null;
 
@@ -1227,12 +1228,30 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             PromotionSelectionData selection
         ) => new() { member_id = member_id };
 
-        public void CommitBattleResources(
+        public BattleResourceCommitResult CommitBattleResources(
             StringName member_id,
             int current_hp,
             int current_mp,
             int current_aura
-        ) { }
+        ) => BattleResourceCommitResult.Success(member_id);
+
+        public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
+
+        public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(
+            StringName member_id,
+            IReadOnlyCollection<StringName> consumed_setup_ids
+        ) =>
+            ContingencyConsumedCommitResult.Success(
+                member_id,
+                consumed_setup_ids?.Count ?? 0
+            );
 
         public void CommitBattleDeath(StringName member_id) { }
 
@@ -1290,10 +1309,7 @@ public partial class run_battle_weapon_dice_regression : SceneTree
             string source_label,
             IEnumerable<PendingCharacterRewardEntry> entry_options,
             string summary_text
-        )
-        {
-            return null;
-        }
+        ) => null;
 
         private CharacterProgressionDelta RecordGrant(
             StringName memberId,

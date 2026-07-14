@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"ashen_lantern_road"
+display_name = "提灯之路"
+description = "在灰烬交界，没有光就意味着死亡。收集足够的提灯材料，照亮通往深处的道路。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([&"ashen_intersection", &"main_story"])
+accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"ashen_embers"}])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"gather_lanterns", &"objective_type": &"submit_item", &"target_id": &"dead_road_lantern", &"target_value": 2}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 200}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"attribute_progress", &"target_id": &"willpower", &"amount": 15}])}])
+is_repeatable = false

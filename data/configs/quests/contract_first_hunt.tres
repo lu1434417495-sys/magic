@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="QuestDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/QuestDef.cs" id="1_questdef"]
+
+[resource]
+script = ExtResource("1_questdef")
+quest_id = &"contract_first_hunt"
+display_name = "首轮狩猎"
+description = "击败任意一组敌对遭遇，证明队伍已具备外出作战能力。"
+provider_kind = &"service_contract_board"
+provider_interaction_id = &"service_contract_board"
+listing_channels = Array[StringName]([&"contract_board"])
+tags = Array[StringName]([])
+accept_requirements = Array[Dictionary]([])
+accept_dialogue_text = ""
+accept_feedback_success = ""
+accept_feedback_failure = ""
+accept_confirmation_text = ""
+objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_enemy_once", &"objective_type": &"defeat_enemy", &"target_id": &"", &"target_value": 1}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 80}])
+is_repeatable = false

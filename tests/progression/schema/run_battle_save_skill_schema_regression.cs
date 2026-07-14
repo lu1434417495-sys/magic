@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_save_skill_schema_regression : SceneTree
+public partial class run_battle_save_skill_schema_regression : LifecycleTestSceneTree
 {
     private const string TempSkillDirectory = "user://skill_level_override_schema_regression";
     private const string TempSkillPath =
@@ -19,16 +19,17 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
     private void Run()
     {
         TestSkillSchemaAcceptsValidSaveFields();
+        TestDamageSaveCanApplyFailureStatus();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
         TestLevelOverridesRejectNonIntFields();
 
-        Quit(_test.Finish("Battle save skill schema regression"));
+        RequestTestExit(_test.Finish("Battle save skill schema regression"));
     }
 
     private void TestSkillSchemaAcceptsValidSaveFields()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -73,9 +74,38 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
         );
     }
 
+    private void TestDamageSaveCanApplyFailureStatus()
+    {
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using CombatEffectDef damageEffect = new()
+        {
+            effect_type = "damage",
+            damage_tag = "thunder",
+            dice_count = 2,
+            dice_sides = 6,
+            save_dc = 14,
+            save_ability = "constitution",
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+            save_partial_on_success = true,
+            save_failure_status_id = "prone",
+            duration_tu = 50,
+        };
+        GStringArray errors = new();
+        registry.AppendEffectValidationErrors(
+            errors,
+            "damage_save_failure_status",
+            damageEffect,
+            "test_effect"
+        );
+        _test.True(
+            errors.Count == 0,
+            $"damage effect should support save_failure_status_id using the same save result. errors={string.Join(" | ", errors)}"
+        );
+    }
+
     private void TestSkillSchemaAcceptsDynamicCasterSpellSaveDc()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -125,7 +155,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
 
     private void TestSkillSchemaRejectsInvalidSaveFields()
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         using CombatEffectDef invalidEffect = new()
         {
             effect_type = "status",
@@ -198,7 +228,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             "应能写入 skill override schema 测试资源。"
         );
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectory(TempSkillDirectory);
         GStringArray errors = registry.Validate();
         string formattedErrors = string.Join(" | ", errors);
@@ -226,35 +256,38 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
     private static SkillDef BuildSkillWithInvalidLevelOverrides()
     {
         const string skillId = "invalid_level_override_types_skill";
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = "Invalid Level Override Types",
-            icon_id = skillId,
-            skill_type = "active",
-            max_level = 1,
-            mastery_curve = new[] { 1 },
-            combat_profile = new CombatSkillDef
+        return TestResourceOwnership.Own(
+            new SkillDef
             {
                 skill_id = skillId,
-                target_mode = "unit",
-                target_team_filter = "enemy",
-                target_selection_mode = "single_unit",
-                selection_order_mode = "stable",
-                range_value = 1,
-                max_target_count = 1,
-                level_overrides = new GDictionary
+                display_name = "Invalid Level Override Types",
+                icon_id = skillId,
+                skill_type = "active",
+                max_level = 1,
+                mastery_curve = new[] { 1 },
+                combat_profile = new CombatSkillDef
                 {
-                    [1] = new GDictionary
+                    skill_id = skillId,
+                    target_mode = "unit",
+                    target_team_filter = "enemy",
+                    target_selection_mode = "single_unit",
+                    selection_order_mode = "stable",
+                    range_value = 1,
+                    max_target_count = 1,
+                    level_overrides = new GDictionary
                     {
-                        ["range_value"] = "3",
-                        ["attack_roll_bonus"] = true,
-                        ["area_value"] = 1.5,
-                        ["max_target_count"] = "two",
+                        [1] = new GDictionary
+                        {
+                            ["range_value"] = "3",
+                            ["attack_roll_bonus"] = true,
+                            ["area_value"] = 1.5,
+                            ["max_target_count"] = "two",
+                        },
                     },
                 },
             },
-        };
+            "BattleSaveSkillSchema.BuildSkillWithInvalidLevelOverrides"
+        );
     }
 
     private static void CleanupTempSkillDirectory()

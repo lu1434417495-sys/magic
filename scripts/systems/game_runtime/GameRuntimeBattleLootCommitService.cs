@@ -49,7 +49,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         internal string ErrorCode { get; private set; } = "";
         internal string BlockedItemId { get; private set; } = "";
         internal int CommittedItemCount { get; private set; }
-        internal GArray OverflowEntries { get; private set; } = new();
+        private readonly List<BattleLootEntry> _overflowEntries = new();
+        internal IReadOnlyList<BattleLootEntry> OverflowEntries => _overflowEntries;
         internal int OverflowEntryCount { get; private set; }
 
         internal static BattleLootCommitResult Create(
@@ -61,22 +62,30 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             int overflowEntryCount
         )
         {
-            var normalizedOverflowEntries = BattleLootEntryPayload.ProjectEntries(
-                overflowEntries
-            );
-            return new BattleLootCommitResult
+            var result = new BattleLootCommitResult
             {
                 Ok = ok,
                 ErrorCode = errorCode ?? "",
                 BlockedItemId = blockedItemId ?? "",
                 CommittedItemCount = Mathf.Max(committedItemCount, 0),
-                OverflowEntries = normalizedOverflowEntries,
-                OverflowEntryCount = Mathf.Max(overflowEntryCount, normalizedOverflowEntries.Count),
+                OverflowEntryCount = Mathf.Max(overflowEntryCount, 0),
             };
+            foreach (BattleLootEntry entry in overflowEntries ?? System.Array.Empty<BattleLootEntry>())
+            {
+                BattleLootEntry duplicate = entry?.Duplicate();
+                if (duplicate == null || duplicate.IsEmpty)
+                    continue;
+                result._overflowEntries.Add(duplicate);
+            }
+            result.OverflowEntryCount = Mathf.Max(result.OverflowEntryCount, result._overflowEntries.Count);
+            return result;
         }
 
         internal static BattleLootCommitResult Success() =>
             Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>(), 0);
+
+        internal GArray ProjectOverflowEntries() =>
+            BattleLootEntryPayload.ProjectEntries(_overflowEntries);
 
     }
 
@@ -183,9 +192,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         if (warehouseState != null)
             warehouseStateBefore = warehouseState.DuplicateState();
 
-        var fateRunFlagsBefore = new Dictionary();
-        if (partyState != null)
-            fateRunFlagsBefore = partyState.CaptureFateRunFlags().Duplicate(true);
+        var fateRunFlagsBefore = partyState?.CaptureFateRunFlagsTyped()
+            ?? new System.Collections.Generic.Dictionary<StringName, bool>();
 
         var overflowEntries = new List<BattleLootEntry>();
         var committedItemCount = 0;
@@ -200,7 +208,9 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 continue;
 
             WarehouseState entryWarehouseStateBefore = partyState.warehouse_state?.DuplicateState();
-            var entryFateRunFlagsBefore = partyState.CaptureFateRunFlags().Duplicate(true);
+            System.Collections.Generic.Dictionary<StringName, bool> entryFateRunFlagsBefore =
+                partyState?.CaptureFateRunFlagsTyped()
+                ?? new System.Collections.Generic.Dictionary<StringName, bool>();
 
             if (lootEntry.DropKind == BattleLootDropKind.EquipmentInstance)
             {
@@ -383,7 +393,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             return ItemCommitResult.Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>());
         var gameSession = _runtime._game_session;
         var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDef itemDef);
+        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
         if (itemDef == null)
             return ItemCommitResult.Create(
                 false,
@@ -470,7 +480,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             );
         var gameSession = _runtime._game_session;
         var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDef itemDef);
+        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
         if (itemDef == null)
             return ItemCommitResult.Create(
                 false,
@@ -528,15 +538,15 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
     private void RestoreLootCommitState(
         PartyState partyState,
         PartyWarehouseService partyWarehouseService,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         WarehouseState warehouseStateBefore,
-        Godot.Collections.Dictionary fateRunFlagsBefore
+        IReadOnlyDictionary<StringName, bool> fateRunFlagsBefore
     )
     {
         if (partyState == null)
             return;
         partyState.warehouse_state = warehouseStateBefore?.DuplicateState();
-        partyState.ApplyFateRunFlags(fateRunFlagsBefore?.Duplicate(true) ?? new Dictionary());
+        partyState.ApplyFateRunFlagsTyped(fateRunFlagsBefore);
         _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
     }
 

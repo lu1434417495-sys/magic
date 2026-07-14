@@ -3,7 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public partial class run_battle_permadeath_regression : SceneTree
+public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -19,7 +19,7 @@ public partial class run_battle_permadeath_regression : SceneTree
         TestNonMainCharacterBattleDeathPersistsAsRealDeath();
         TestMainCharacterBattleDeathTriggersGameOver();
 
-        Quit(_test.Finish("Battle permadeath regression"));
+        RequestTestExit(_test.Finish("Battle permadeath regression"));
     }
 
     private void TestNonMainCharacterBattleDeathPersistsAsRealDeath()
@@ -94,7 +94,7 @@ public partial class run_battle_permadeath_regression : SceneTree
                 "只有主角死亡时才应进入 GameOver。"
             );
 
-            reloadedSession = new GameSession();
+            reloadedSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             int loadError = reloadedSession.LoadSave(gameSession.GetActiveSaveId());
             _test.Eq(loadError, (int)Error.Ok, "真实死亡结果应能通过存档重新加载。");
             if (loadError == (int)Error.Ok)
@@ -158,8 +158,10 @@ public partial class run_battle_permadeath_regression : SceneTree
             );
             _test.Eq(partyState.active_member_ids.Count, 0, "主角死亡后，active roster 应为空。");
             _test.Eq(facade.GetActiveModalId(), "game_over", "主角死亡后运行时应直接切到 GameOver modal。");
+            using GodotProjectionLease<GDictionary> gameOverContextLease =
+                facade.GetGameOverContextLease();
             _test.True(
-                DictBool(facade.GetGameOverContext(), "main_character_dead", false),
+                DictBool(gameOverContextLease.Value, "main_character_dead", false),
                 "GameOver 上下文应标记主角死亡。"
             );
             _test.False(string.IsNullOrEmpty(facade.GetStatusText()), "GameOver 后应写入稳定状态文本。");
@@ -206,7 +208,7 @@ public partial class run_battle_permadeath_regression : SceneTree
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         gameSession.ClearPersistedGame();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "测试会话应能创建测试世界存档。");
@@ -225,7 +227,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             return;
         }
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 
     private static void PrepareBattleResolutionContext(
@@ -243,7 +245,7 @@ public partial class run_battle_permadeath_regression : SceneTree
             battleState.ally_unit_ids.Add(allyUnit.unit_id);
             battleState.SetUnit(allyUnit);
         }
-        using EncounterAnchorData encounterAnchor = new()
+        EncounterAnchorData encounterAnchor = new()
         {
             entity_id = "test_encounter",
             display_name = "真实死亡测试",

@@ -6,22 +6,71 @@ using Godot;
 /// Default state: instance == null, so enter() / exit() reduce to a single
 /// static-variable read plus a null check. Production code can safely call
 /// them on the hot path with negligible overhead.
-[GlobalClass]
-public partial class AiTraceRecorder : RefCounted
+public class AiTraceRecorder
 {
+    private sealed class TraceEventData
+    {
+        public string Name { get; init; } = "";
+        public string Category { get; init; } = "ai";
+        public string Phase { get; init; } = "";
+        public ulong TimestampUsec { get; init; }
+        public int Pid { get; init; }
+        public int Tid { get; init; }
+
+        public Godot.Collections.Dictionary ToDictionary() =>
+            new()
+            {
+                { "name", Name },
+                { "cat", Category },
+                { "ph", Phase },
+                { "ts", TimestampUsec },
+                { "pid", Pid },
+                { "tid", Tid },
+            };
+    }
+
+    private sealed class TraceFrameData
+    {
+        public StringName Name { get; init; } = "";
+        public ulong EnteredAtUsec { get; init; }
+        public ulong ChildUsec { get; set; }
+    }
+
+    private sealed class FuncStatsData
+    {
+        public long NCalls { get; set; }
+        public long SelfUsec { get; set; }
+        public long TotalUsec { get; set; }
+        public long MaxUsec { get; set; }
+
+        public Godot.Collections.Dictionary ToDictionary(List<long> samples = null)
+        {
+            var result = new Godot.Collections.Dictionary
+            {
+                { "ncalls", NCalls },
+                { "self_usec", SelfUsec },
+                { "total_usec", TotalUsec },
+                { "max_usec", MaxUsec },
+            };
+            if (samples != null)
+                result["samples"] = samples.ToArray();
+            return result;
+        }
+    }
+
     private const string _EVENT_BEGIN = "B";
 
     private const string _EVENT_END = "E";
 
     private static AiTraceRecorder _instance;
 
-    private Godot.Collections.Array<Godot.Collections.Dictionary> _events = new();
+    private List<TraceEventData> _events = new();
 
-    private Godot.Collections.Dictionary _funcStats = new();
+    private Dictionary<StringName, FuncStatsData> _funcStats = new();
 
     private Dictionary<StringName, List<long>> _funcSamples = new();
 
-    private Godot.Collections.Array<Godot.Collections.Dictionary> _callStack = new();
+    private List<TraceFrameData> _callStack = new();
 
     private ulong _startTsUsec;
 
@@ -110,14 +159,13 @@ public partial class AiTraceRecorder : RefCounted
             if (_events.Count < _maxEvents)
             {
                 _events.Add(
-                    new Godot.Collections.Dictionary
+                    new TraceEventData
                     {
-                        { "name", (string)name },
-                        { "cat", "ai" },
-                        { "ph", _EVENT_BEGIN },
-                        { "ts", ts - _startTsUsec },
-                        { "pid", _pid },
-                        { "tid", _tid },
+                        Name = name.ToString(),
+                        Phase = _EVENT_BEGIN,
+                        TimestampUsec = ts - _startTsUsec,
+                        Pid = _pid,
+                        Tid = _tid,
                     }
                 );
             }
@@ -128,11 +176,11 @@ public partial class AiTraceRecorder : RefCounted
         }
 
         _callStack.Add(
-            new Godot.Collections.Dictionary
+            new TraceFrameData
             {
-                { "name", name },
-                { "t_enter", ts },
-                { "child_usec", (ulong)0 },
+                Name = name,
+                EnteredAtUsec = ts,
+                ChildUsec = 0,
             }
         );
     }
@@ -148,9 +196,9 @@ public partial class AiTraceRecorder : RefCounted
             return;
         }
 
-        var frame = _callStack[^1];
+        TraceFrameData frame = _callStack[^1];
 
-        var frameName = frame["name"].AsStringName();
+        StringName frameName = frame.Name;
 
         if (frameName != name)
         {
@@ -166,14 +214,13 @@ public partial class AiTraceRecorder : RefCounted
             if (_events.Count < _maxEvents)
             {
                 _events.Add(
-                    new Godot.Collections.Dictionary
+                    new TraceEventData
                     {
-                        { "name", (string)frameName },
-                        { "cat", "ai" },
-                        { "ph", _EVENT_END },
-                        { "ts", ts - _startTsUsec },
-                        { "pid", _pid },
-                        { "tid", _tid },
+                        Name = frameName.ToString(),
+                        Phase = _EVENT_END,
+                        TimestampUsec = ts - _startTsUsec,
+                        Pid = _pid,
+                        Tid = _tid,
                     }
                 );
             }
@@ -183,44 +230,31 @@ public partial class AiTraceRecorder : RefCounted
             }
         }
 
-        ulong tEnter = (ulong)(long)frame["t_enter"];
+        ulong tEnter = frame.EnteredAtUsec;
 
         long ownUsec = (long)(ts - tEnter);
 
-        long childUsec = (long)(ulong)frame["child_usec"];
+        long childUsec = (long)frame.ChildUsec;
 
         long selfUsec = ownUsec - childUsec;
 
         if (selfUsec < 0)
             selfUsec = 0;
 
-        Godot.Collections.Dictionary stats;
-
-        if (_funcStats.ContainsKey(frameName))
+        if (!_funcStats.TryGetValue(frameName, out FuncStatsData stats))
         {
-            stats = (Godot.Collections.Dictionary)_funcStats[frameName];
-        }
-        else
-        {
-            stats = new Godot.Collections.Dictionary
-            {
-                { "ncalls", 0 },
-                { "self_usec", (long)0 },
-                { "total_usec", (long)0 },
-                { "max_usec", (long)0 },
-            };
+            stats = new FuncStatsData();
+            _funcStats[frameName] = stats;
         }
 
-        stats["ncalls"] = (long)stats["ncalls"] + 1;
+        stats.NCalls += 1;
 
-        stats["self_usec"] = (long)stats["self_usec"] + selfUsec;
+        stats.SelfUsec += selfUsec;
 
-        stats["total_usec"] = (long)stats["total_usec"] + ownUsec;
+        stats.TotalUsec += ownUsec;
 
-        if (ownUsec > (long)stats["max_usec"])
-            stats["max_usec"] = ownUsec;
-
-        _funcStats[frameName] = stats;
+        if (ownUsec > stats.MaxUsec)
+            stats.MaxUsec = ownUsec;
         if (_collectSamples)
         {
             if (!_funcSamples.TryGetValue(frameName, out List<long> samples))
@@ -233,45 +267,69 @@ public partial class AiTraceRecorder : RefCounted
 
         if (_callStack.Count > 0)
         {
-            var parent = _callStack[^1];
-
-            parent["child_usec"] = (ulong)parent["child_usec"] + (ulong)ownUsec;
-
-            _callStack[^1] = parent;
+            _callStack[^1].ChildUsec += (ulong)ownUsec;
         }
     }
 
-    public Godot.Collections.Dictionary GetFuncStats()
+    internal GodotProjectionLease<Godot.Collections.Dictionary> GetFuncStatsLease()
     {
-        if (_collectSamples)
+        var root = new Godot.Collections.Dictionary();
+        GodotProjectionLease<Godot.Collections.Dictionary> lease =
+            GodotProjectionLease<Godot.Collections.Dictionary>.CreateOwnedRoot(
+                root,
+                "ai-trace-func-stats",
+                LifetimeDomain.Request,
+                "AiTraceRecorder.GetFuncStatsLease"
+            );
+        try
         {
-            foreach (KeyValuePair<StringName, List<long>> entry in _funcSamples)
+            foreach (KeyValuePair<StringName, FuncStatsData> entry in _funcStats)
             {
-                Godot.Collections.Dictionary stats;
-                if (_funcStats.ContainsKey(entry.Key))
-                {
-                    stats = (Godot.Collections.Dictionary)_funcStats[entry.Key];
-                }
-                else
-                {
-                    stats = new Godot.Collections.Dictionary
-                    {
-                        { "ncalls", 0 },
-                        { "self_usec", (long)0 },
-                        { "total_usec", (long)0 },
-                        { "max_usec", (long)0 },
-                    };
-                }
-                stats["samples"] = entry.Value.ToArray();
-                _funcStats[entry.Key] = stats;
+                _funcSamples.TryGetValue(entry.Key, out List<long> samples);
+                root[entry.Key] = lease.Own(
+                    entry.Value.ToDictionary(_collectSamples ? samples : null),
+                    $"AiTraceRecorder.GetFuncStatsLease.{entry.Key}"
+                );
             }
+            return lease;
         }
-        return _funcStats;
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> GetEvents()
+    internal GodotProjectionLease<Godot.Collections.Array> GetEventsLease()
     {
-        return _events;
+        var root = new Godot.Collections.Array();
+        GodotProjectionLease<Godot.Collections.Array> lease =
+            GodotProjectionLease<Godot.Collections.Array>.CreateOwnedRoot(
+                root,
+                "ai-trace-events",
+                LifetimeDomain.Request,
+                "AiTraceRecorder.GetEventsLease"
+            );
+        try
+        {
+            int index = 0;
+            foreach (TraceEventData entry in _events)
+            {
+                root.Add(
+                    lease.Own(
+                        entry.ToDictionary(),
+                        $"AiTraceRecorder.GetEventsLease[{index}]"
+                    )
+                );
+                index++;
+            }
+            return lease;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
     }
 
     public bool IsTruncated()
@@ -281,12 +339,27 @@ public partial class AiTraceRecorder : RefCounted
 
     public bool DumpTraceJson(string path, Godot.Collections.Dictionary metadata = null)
     {
-        var doc = new Godot.Collections.Dictionary
-        {
-            { "traceEvents", _events },
-            { "displayTimeUnit", "us" },
-            { "metadata", metadata ?? new Godot.Collections.Dictionary() },
-        };
+        using GodotProjectionLease<Godot.Collections.Array> eventsLease = GetEventsLease();
+        using NativeLeaseScope requestScope = new(
+            "ai-trace-json",
+            LifetimeDomain.Request
+        );
+        Godot.Collections.Dictionary doc = requestScope.Own(
+            new Godot.Collections.Dictionary
+            {
+                { "traceEvents", eventsLease.Value },
+                { "displayTimeUnit", "us" },
+                {
+                    "metadata",
+                    metadata
+                        ?? requestScope.Own(
+                            new Godot.Collections.Dictionary(),
+                            "AiTraceRecorder.DumpTraceJson.metadata"
+                        )
+                },
+            },
+            "AiTraceRecorder.DumpTraceJson.document"
+        );
 
         var dirPath = path.GetBaseDir();
 
@@ -315,9 +388,9 @@ public partial class AiTraceRecorder : RefCounted
 
         int ends = 0;
 
-        foreach (var ev in _events)
+        foreach (TraceEventData ev in _events)
         {
-            string ph = (string)ev["ph"];
+            string ph = ev.Phase;
 
             if (ph == _EVENT_BEGIN)
                 begins += 1;

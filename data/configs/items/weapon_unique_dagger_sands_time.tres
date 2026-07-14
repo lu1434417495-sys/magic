@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 4
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+training_group = &"martial"
+family = &"exotic"
+one_handed_dice = SubResource("Resource_one_handed_dice")
+properties_mode = 1
+properties = Array[StringName]([&"finesse", &"light"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_sands_time_480"
+base_item_id = &"weapon_type_dagger_base"
+display_name = "时间之沙"
+description = "一柄金色沙漏形匕首，刃内流动的细沙会扰乱持有者与敌人的时间节律。"
+is_stackable = false
+base_price = 85000
+buy_price = 85000
+sell_price = 42500
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"sands_time", &"time", &"exotic"])
+trait_ids = Array[StringName]([&"weapon.exotic.sands_time.time_acceleration", &"weapon.exotic.sands_time.time_deceleration", &"weapon.exotic.sands_time.time_dislocation"])
+weapon_profile = SubResource("Resource_weapon_profile")

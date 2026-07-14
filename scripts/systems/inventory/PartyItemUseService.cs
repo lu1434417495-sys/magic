@@ -4,11 +4,10 @@ using Godot;
 public class PartyItemUseService
 {
     private PartyState _party_state = new();
-    private Dictionary<StringName, ItemDef> _item_defs = new();
-    private Dictionary<StringName, SkillDef> _skill_defs = new();
+    private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
+    private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private PartyWarehouseService _warehouse_service;
     private CharacterManagementModule _character_management;
-    private bool _ownsPartyState = true;
 
     internal sealed class PartyItemUseOptions
     {
@@ -80,51 +79,30 @@ public class PartyItemUseService
 
     public void Setup(
         PartyState partyState,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         PartyWarehouseService warehouseService,
         CharacterManagementModule characterManagement
     )
     {
-        ReplacePartyState(partyState);
-        _item_defs = itemDefs != null
-            ? new Dictionary<StringName, ItemDef>(itemDefs)
-            : new Dictionary<StringName, ItemDef>();
-        _skill_defs = skillDefs != null
-            ? new Dictionary<StringName, SkillDef>(skillDefs)
-            : new Dictionary<StringName, SkillDef>();
+        _party_state = partyState ?? new PartyState();
+        _itemDefinitions = itemDefinitions != null
+            ? new Dictionary<StringName, ItemDefinition>(itemDefinitions)
+            : new Dictionary<StringName, ItemDefinition>();
+        _skill_definitions = skillDefinitions != null
+            ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
+            : new Dictionary<StringName, SkillDefinition>();
         _warehouse_service = warehouseService;
         _character_management = characterManagement;
     }
 
     public void Dispose()
     {
-        ReleaseOwnedPartyState();
-        _item_defs.Clear();
-        _skill_defs.Clear();
+        _party_state = null;
+        _itemDefinitions.Clear();
+        _skill_definitions.Clear();
         _warehouse_service = null;
         _character_management = null;
-    }
-
-    private void ReplacePartyState(PartyState partyState)
-    {
-        ReleaseOwnedPartyState();
-        if (partyState != null)
-        {
-            _party_state = partyState;
-            _ownsPartyState = false;
-            return;
-        }
-        _party_state = new PartyState();
-        _ownsPartyState = true;
-    }
-
-    private void ReleaseOwnedPartyState()
-    {
-        if (_ownsPartyState)
-            GodotRefCountedDisposer.DisposeIfValid(_party_state);
-        _party_state = null;
-        _ownsPartyState = false;
     }
 
     internal PartyItemUseResult UseItemTyped(
@@ -153,9 +131,9 @@ public class PartyItemUseService
         if (_warehouse_service.CountItem(normalizedItemId) <= 0)
             return result.WithReason("missing_inventory");
 
-        var skillId = itemDef.granted_skill_id;
+        var skillId = itemDef.GrantedSkillId;
         result.WithSkill(skillId);
-        if (!TryGetSkillDef(skillId, out _))
+        if (!TryGetSkillDefinition(skillId, out _))
             return result.WithReason("missing_skill_def");
 
         options ??= new PartyItemUseOptions();
@@ -175,21 +153,21 @@ public class PartyItemUseService
         return result.WithSuccess(removeResult.RemovedQuantity);
     }
 
-    private bool TryGetItemDef(StringName itemId, out ItemDef itemDef)
+    private bool TryGetItemDef(StringName itemId, out ItemDefinition itemDefinition)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         if (normalizedItemId != "")
-            return _item_defs.TryGetValue(normalizedItemId, out itemDef);
-        itemDef = null;
+            return _itemDefinitions.TryGetValue(normalizedItemId, out itemDefinition);
+        itemDefinition = null;
         return false;
     }
 
-    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    private bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (normalizedSkillId != "")
-            return _skill_defs.TryGetValue(normalizedSkillId, out skillDef);
-        skillDef = null;
+            return _skill_definitions.TryGetValue(normalizedSkillId, out skillDefinition);
+        skillDefinition = null;
         return false;
     }
 

@@ -2,7 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-public partial class run_shared_test_fixture_regression : SceneTree
+public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -12,7 +12,7 @@ public partial class run_shared_test_fixture_regression : SceneTree
         TestStubRngRollsAreClampedAndCounted();
         TestLocalBattleFixtureBuildsStateAndUnits();
         TestFixedResolversUseInjectedRolls();
-        Quit(_test.Finish("Shared test fixture regression"));
+        RequestTestExit(_test.Finish("Shared test fixture regression"));
     }
 
     private void TestHarnessRecordsFailures()
@@ -47,20 +47,14 @@ public partial class run_shared_test_fixture_regression : SceneTree
             new[] { player },
             new[] { enemy }
         );
-        try
-        {
-            BattleState state = fixture.State;
+        BattleState state = fixture.State;
 
-            _test.Eq(state.CellCount, 2, "C# fixture 应按地图尺寸生成格子。");
-            _test.Eq(state.active_unit_id, new StringName("hero"), "C# fixture 应默认首个友军为 active unit。");
-            _test.Eq(player.current_ap, 3, "C# fixture 应应用 unit options。");
-            _test.Eq(enemy.faction_id, new StringName("enemy"), "C# fixture enemy helper 应设置敌方阵营。");
-            _test.True(fixture.Runtime.GetState() == state, "C# fixture 应能安装 runtime battle state。");
-        }
-        finally
-        {
-            fixture.Dispose();
-        }
+        _test.Eq(state.CellCount, 2, "C# fixture 应按地图尺寸生成格子。");
+        _test.Eq(state.active_unit_id, new StringName("hero"), "C# fixture 应默认首个友军为 active unit。");
+        _test.Eq(player.current_ap, 3, "C# fixture 应应用 unit options。");
+        _test.Eq(enemy.faction_id, new StringName("enemy"), "C# fixture enemy helper 应设置敌方阵营。");
+        _test.True(fixture.Runtime.GetState() == state, "C# fixture 应能安装 runtime battle state。");
+        fixture.Dispose();
     }
 
     private void TestFixedResolversUseInjectedRolls()
@@ -70,40 +64,33 @@ public partial class run_shared_test_fixture_regression : SceneTree
 
         BattleUnitState source = BattleTestFixture.BuildUnit("source", "player", Vector2I.Zero);
         BattleUnitState target = BattleTestFixture.BuildUnit("target", "enemy", Vector2I.Right);
-        CombatEffectDef effect = null;
-        BattleState hitState = null;
-        try
-        {
-            effect = new CombatEffectDef
-            {
-                effect_type = "damage",
-                damage_tag = "physical_slash",
-                power = 1,
-                dice_count = 1,
-                dice_sides = 6,
-            };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            damageTag: "physical_slash",
+            power: 1,
+            diceCount: 1,
+            diceSides: 6
+        );
 
-            GDictionary result = AttackEffectResolutionResultReader.BuildGodotPayload(
-                resolver.ResolveEffects(source, target, new GArray { effect }, new GDictionary())
+        using GodotProjectionLease<GDictionary> resultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(
+                resolver.ResolveEffects(
+                    source,
+                    target,
+                    new[] { effect },
+                    DamageResolutionContext.Empty()
+                )
             );
-            _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
+        GDictionary result = resultLease.Value;
+        _test.Eq(DictInt(result, "damage"), 3, "FixedRollDamageResolver 应使用注入 damage roll。");
 
-            var hitResolver = new FixedHitResolver(17);
-            hitState = new BattleState();
-            AttackRollResult hit = hitResolver.RollAttackCheck(
-                hitState,
-                new AttackCheckInput(requiredRoll: 10)
-            );
-            _test.True(hit.Success, "FixedHitResolver 应返回命中。");
-            _test.Eq(hit.Roll, 17, "FixedHitResolver 应使用注入命中骰。");
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleState(hitState);
-            BattleTestFixture.DisposeFixtureObject(effect);
-            BattleTestFixture.DisposeFixtureObject(target);
-            BattleTestFixture.DisposeFixtureObject(source);
-        }
+        var hitResolver = new FixedHitResolver(17);
+        AttackRollResult hit = hitResolver.RollAttackCheck(
+            new BattleState(),
+            new AttackCheckInput(requiredRoll: 10)
+        );
+        _test.True(hit.Success, "FixedHitResolver 应返回命中。");
+        _test.Eq(hit.Roll, 17, "FixedHitResolver 应使用注入命中骰。");
     }
 
     private static int DictInt(GDictionary dictionary, string key)

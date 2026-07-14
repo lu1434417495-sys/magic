@@ -1,0 +1,137 @@
+[gd_scene load_steps=3 format=3]
+; Scene purpose: Compact chain contingency setup command window.
+; Review focus: UI emits intent only; runtime owns all setup mutation.
+
+[ext_resource type="Script" path="res://scripts/ui/ContingencySetupWindow.cs" id="1_contingency"]
+[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
+
+[node name="ContingencySetupWindow" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_contingency")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0196078, 0.027451, 0.0588235, 0.56)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(560, 460)
+layout_mode = 2
+theme_override_styles/panel = ExtResource("2_panel_default")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "触发术配置"
+
+[node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 34)
+layout_mode = 2
+text = "关闭"
+
+[node name="MemberStatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.803922, 0.87451, 0.964706, 1)
+text = "member_id="
+
+[node name="SetupStatusLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
+text = "hp_mirror_self"
+
+[node name="TriggerSelector" type="OptionButton" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ReleaseModeSelector" type="OptionButton" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="StoredSpellList" type="ItemList" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+
+[node name="TargetResolverSelector" type="OptionButton" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MatrixPreviewLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.905882, 0.933333, 0.984314, 1)
+text = "matrix_load=3 | reserved_mp_max=0"
+
+[node name="MaterialPreviewLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.905882, 0.933333, 0.984314, 1)
+text = "special_contingency_gem:0"
+
+[node name="ClearChargeConfirmationLabel" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.721569, 0.501961, 1)
+autowrap_mode = 3
+text = ""
+
+[node name="Actions" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SaveButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 36)
+layout_mode = 2
+text = "保存"
+
+[node name="ChargeButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 36)
+layout_mode = 2
+text = "充能"
+
+[node name="ClearChargeButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 36)
+layout_mode = 2
+text = "清除充能"

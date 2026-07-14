@@ -1,0 +1,187 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=38 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="12_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DealDamageActionPayloadDef.cs" id="13_deal_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/HealActionPayloadDef.cs" id="14_heal"]
+
+[sub_resource type="Resource" id="Literal_one"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Literal_two"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 2
+
+[sub_resource type="Resource" id="Fact_skill_damaged_target_count"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"skill_damaged_target_count"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_skill_damaged_gte_one"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_skill_damaged_target_count")
+compare = &"gte"
+right = SubResource("Literal_one")
+
+[sub_resource type="Resource" id="Condition_skill_damaged_gte_one"]
+script = ExtResource("6_condition")
+condition_id = &"condition.double_edged.twin_attack.damaged_target"
+kind = &"compare_fact"
+payload = SubResource("Compare_skill_damaged_gte_one")
+
+[sub_resource type="Resource" id="Condition_group_skill_damaged"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_skill_damaged_gte_one")])
+
+[sub_resource type="Resource" id="Fact_skill_killed_target_count"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"skill_killed_target_count"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Compare_skill_killed_gte_two"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_skill_killed_target_count")
+compare = &"gte"
+right = SubResource("Literal_two")
+
+[sub_resource type="Resource" id="Condition_skill_killed_gte_two"]
+script = ExtResource("6_condition")
+condition_id = &"condition.double_edged.paradox_dance.two_kills"
+kind = &"compare_fact"
+payload = SubResource("Compare_skill_killed_gte_two")
+
+[sub_resource type="Resource" id="Condition_group_skill_killed"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_skill_killed_gte_two")])
+
+[sub_resource type="Resource" id="Grant_twin_attack_skill"]
+script = ExtResource("12_grant")
+granted_action_id = &"grant.double_edged.twin_attack.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_double_edged_twin_attack"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Grant_single_edge_skill"]
+script = ExtResource("12_grant")
+granted_action_id = &"grant.double_edged.single_edge.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_double_edged_single_edge"
+skill_level = 1
+display_category = &"equipment"
+display_priority = 101
+
+[sub_resource type="Resource" id="Dice_flat_8_recoil"]
+script = ExtResource("9_dice")
+flat_bonus = 8
+
+[sub_resource type="Resource" id="Action_twin_recoil_payload"]
+script = ExtResource("13_deal_damage")
+target_selector = &"source"
+dice = SubResource("Dice_flat_8_recoil")
+damage_type = &"physical_slash"
+damage_tags = Array[StringName]([&"physical_slash"])
+
+[sub_resource type="Resource" id="Action_twin_recoil"]
+script = ExtResource("11_action")
+action_id = &"action.double_edged.twin_attack.fixed_recoil"
+kind = &"deal_damage"
+payload = SubResource("Action_twin_recoil_payload")
+condition_group = SubResource("Condition_group_skill_damaged")
+
+[sub_resource type="Resource" id="Dice_term_2d8_heal"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 8
+
+[sub_resource type="Resource" id="Dice_2d8_heal"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d8_heal")])
+
+[sub_resource type="Resource" id="Action_paradox_heal_payload"]
+script = ExtResource("14_heal")
+target_selector = &"source"
+dice = SubResource("Dice_2d8_heal")
+
+[sub_resource type="Resource" id="Action_paradox_heal"]
+script = ExtResource("11_action")
+action_id = &"action.double_edged.paradox_dance.double_kill_heal"
+kind = &"heal"
+payload = SubResource("Action_paradox_heal_payload")
+condition_group = SubResource("Condition_group_skill_killed")
+
+[sub_resource type="Resource" id="Reaction_twin_after_skill"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.double_edged.twin_attack.after_skill"
+trigger = &"on_granted_skill_used"
+timing = &"after_skill"
+actions = Array[Resource]([SubResource("Action_twin_recoil"), SubResource("Action_paradox_heal")])
+
+[sub_resource type="Resource" id="Binding_twin_attack"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.double_edged.twin_attack"
+trait_id = &"weapon.sword.double_edged.twin_attack"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"double_edged"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_twin_after_skill")])
+granted_actions = Array[Resource]([SubResource("Grant_twin_attack_skill")])
+
+[sub_resource type="Resource" id="Binding_no_guard"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.double_edged.no_guard"
+trait_id = &"weapon.sword.double_edged.no_guard"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"double_edged"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+
+[sub_resource type="Resource" id="Binding_paradox_dance"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.double_edged.paradox_dance"
+trait_id = &"weapon.sword.double_edged.paradox_dance"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"double_edged"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+
+[sub_resource type="Resource" id="Binding_single_edge"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.double_edged.single_edge"
+trait_id = &"weapon.sword.double_edged.single_edge"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"double_edged"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_single_edge_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.double_edged"
+schema_version = 1
+load_order = 157
+bindings = Array[Resource]([SubResource("Binding_twin_attack"), SubResource("Binding_no_guard"), SubResource("Binding_paradox_dance"), SubResource("Binding_single_edge")])

@@ -1,42 +1,26 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_status_modifier_rules_regression : SceneTree
+public partial class run_battle_status_modifier_rules_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
-    private readonly List<GodotObject> _ownedGodotObjects = new();
-    private readonly List<System.IDisposable> _ownedDisposables = new();
 
     public override void _Initialize()
     {
-        RunCase(TestLegacyStatusParamsNoLongerDriveTypedMultipliers);
-        RunCase(TestHealAndShieldMultipliersUseTypedStatusFields);
-        RunCase(TestMissingTypedUnitKeepsDefaultMultiplier);
-        RunCase(TestPositiveMultiplierKeepsPositiveAmount);
-        RunCase(TestHealAndShieldApplicationConsumeStatusModifiers);
+        TestLegacyStatusParamsNoLongerDriveTypedMultipliers();
+        TestHealAndShieldMultipliersUseTypedStatusFields();
+        TestMissingTypedUnitKeepsDefaultMultiplier();
+        TestPositiveMultiplierKeepsPositiveAmount();
+        TestHealAndShieldApplicationConsumeStatusModifiers();
 
-        Quit(_test.Finish("Battle status modifier rules regression"));
-    }
-
-    private void RunCase(System.Action testCase)
-    {
-        try
-        {
-            testCase();
-        }
-        finally
-        {
-            DisposeOwned();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
+        RequestTestExit(_test.Finish("Battle status modifier rules regression"));
     }
 
     private void TestLegacyStatusParamsNoLongerDriveTypedMultipliers()
     {
-        var unit = TrackOwned(new BattleUnitState());
+        var unit = new BattleUnitState();
         unit.SetStatusEffect(
             new BattleStatusEffectState
             {
@@ -63,7 +47,7 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
 
     private void TestHealAndShieldMultipliersUseTypedStatusFields()
     {
-        var unit = TrackOwned(new BattleUnitState());
+        var unit = new BattleUnitState();
         unit.SetStatusEffect(
             new BattleStatusEffectState
             {
@@ -106,7 +90,7 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
 
     private void TestPositiveMultiplierKeepsPositiveAmount()
     {
-        var unit = TrackOwned(new BattleUnitState());
+        var unit = new BattleUnitState();
         unit.SetStatusEffect(MakeModifierStatus("partial_suppression", 25, 25));
 
         _test.Eq(
@@ -127,17 +111,18 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         BattleUnitState healTarget = MakeUnit("heal_target", 5, 20);
         healTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
 
-        var resolver = TrackDisposable(new BattleDamageResolver());
-        var healEffect = TrackOwned(new CombatEffectDef
-        {
-            effect_type = "heal",
-            power = 10,
-        });
-        GDictionary healResult = AttackEffectResolutionResultReader.BuildGodotPayload(resolver.ResolveEffects(
+        var resolver = new BattleDamageResolver();
+        CombatEffectDefinition healEffect = TestSkillDefinitionProjection.BuildEffect(
+            "heal",
+            power: 10
+        );
+        using GodotProjectionLease<GDictionary> healResultLease =
+            AttackEffectResolutionResultReader.BuildGodotPayloadLease(resolver.ResolveEffects(
             source,
             healTarget,
-            new GArray { healEffect }
+            new[] { healEffect }
         ));
+        GDictionary healResult = healResultLease.Value;
 
         _test.Eq(
             ReadInt(healResult, "healing"),
@@ -149,12 +134,11 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         BattleUnitState shieldTarget = MakeUnit("shield_target", 20, 20);
         shieldTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
         var shieldService = new BattleShieldService();
-        var shieldEffect = TrackOwned(new CombatEffectDef
-        {
-            effect_type = "shield",
-            power = 10,
-            duration_tu = 60,
-        });
+        CombatEffectDefinition shieldEffect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            power: 10,
+            durationTu: 60
+        );
 
         BattleShieldApplyResult shieldResult = shieldService.ApplyShieldEffectToTargetResult(
             source,
@@ -168,7 +152,7 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         _test.Eq(shieldTarget.current_shield_hp, 5, "护盾写回应使用倍率后的数值。");
     }
 
-    private BattleStatusEffectState MakeModifierStatus(
+    private static BattleStatusEffectState MakeModifierStatus(
         StringName statusId,
         int healMultiplierPercent,
         int shieldGainMultiplierPercent
@@ -182,43 +166,16 @@ public partial class run_battle_status_modifier_rules_regression : SceneTree
         };
     }
 
-    private BattleUnitState MakeUnit(StringName unitId, int currentHp, int hpMax)
+    private static BattleUnitState MakeUnit(StringName unitId, int currentHp, int hpMax)
     {
-        var unit = TrackOwned(new BattleUnitState
+        var unit = new BattleUnitState
         {
             unit_id = unitId,
             current_hp = currentHp,
             is_alive = currentHp > 0,
-        });
+        };
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
         return unit;
-    }
-
-    private T TrackOwned<T>(T value)
-        where T : GodotObject
-    {
-        if (value != null)
-            _ownedGodotObjects.Add(value);
-        return value;
-    }
-
-    private T TrackDisposable<T>(T value)
-        where T : System.IDisposable
-    {
-        if (value != null)
-            _ownedDisposables.Add(value);
-        return value;
-    }
-
-    private void DisposeOwned()
-    {
-        for (int index = _ownedDisposables.Count - 1; index >= 0; index--)
-            _ownedDisposables[index]?.Dispose();
-        _ownedDisposables.Clear();
-
-        for (int index = _ownedGodotObjects.Count - 1; index >= 0; index--)
-            BattleTestFixture.DisposeFixtureObject(_ownedGodotObjects[index]);
-        _ownedGodotObjects.Clear();
     }
 
     private static int ReadInt(GDictionary source, string key)

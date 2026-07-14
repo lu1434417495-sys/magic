@@ -1,22 +1,14 @@
 using Godot;
 
-public partial class run_battle_ai_action_intent_safety_gate_regression : SceneTree
+public partial class run_battle_ai_action_intent_safety_gate_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        try
-        {
-            TestIntentValidationAndSlotRoleDefaults();
-            TestSafetyGateRejectionReasons();
-        }
-        finally
-        {
-            _test.DisposeTrackedGodotObjects();
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
-        Quit(_test.Finish("Battle AI action intent safety gate regression"));
+        TestIntentValidationAndSlotRoleDefaults();
+        TestSafetyGateRejectionReasons();
+        RequestTestExit(_test.Finish("Battle AI action intent safety gate regression"));
     }
 
     private void TestIntentValidationAndSlotRoleDefaults()
@@ -111,7 +103,7 @@ public partial class run_battle_ai_action_intent_safety_gate_regression : SceneT
         _test.Eq(BattleAiSafetyGate.GetRejectionReason(ScoreInput("legacy_intent")), "unknown_action_intent", "未知 intent 应拒绝。");
     }
 
-    private BattleAiScoreInput ScoreInput(
+    private static BattleAiScoreInput ScoreInput(
         StringName intent,
         bool hasProjection = false,
         bool preLethal = false,
@@ -119,7 +111,7 @@ public partial class run_battle_ai_action_intent_safety_gate_regression : SceneT
         int preDamage = 0,
         int postDamage = 0
     ) =>
-        new BattleAiScoreInput
+        new()
         {
             action_intent = intent,
             has_post_action_threat_projection = hasProjection,

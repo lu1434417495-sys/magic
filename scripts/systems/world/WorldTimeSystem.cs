@@ -3,10 +3,27 @@ using System;
 public sealed class WorldTimeSystem
 {
     private const int StepsPerDay = 15;
+    private const int DaysPerMonth = 30;
 
     public static int StepToDay(int world_step)
     {
         return world_step < 0 ? -1 : world_step / StepsPerDay;
+    }
+
+    public static int StepToMonth(int world_step)
+    {
+        return world_step < 0 ? -1 : world_step / (StepsPerDay * DaysPerMonth);
+    }
+
+    public static int StepToDayStep(int world_step)
+    {
+        return world_step < 0 ? -1 : world_step % StepsPerDay;
+    }
+
+    public static bool IsNightStep(int world_step)
+    {
+        int dayStep = StepToDayStep(world_step);
+        return dayStep == 12 || dayStep == 13 || dayStep == 14 || dayStep == 0 || dayStep == 1;
     }
 
     internal static WorldTimeAdvanceResult AdvanceWorldStep(int oldStep, int deltaSteps)

@@ -8,6 +8,7 @@ internal enum SettlementSubmissionSource
     ContractBoard,
     Forge,
     Stagecoach,
+    NpcQuestOffer,
 }
 
 internal static class SettlementSubmissionSources
@@ -34,6 +35,9 @@ internal static class SettlementSubmissionSources
             case "stagecoach":
                 source = SettlementSubmissionSource.Stagecoach;
                 return true;
+            case "npc_quest_offer":
+                source = SettlementSubmissionSource.NpcQuestOffer;
+                return true;
             default:
                 return false;
         }
@@ -57,6 +61,7 @@ internal static class SettlementSubmissionSources
             SettlementSubmissionSource.ContractBoard => "contract_board",
             SettlementSubmissionSource.Forge => "forge",
             SettlementSubmissionSource.Stagecoach => "stagecoach",
+            SettlementSubmissionSource.NpcQuestOffer => "npc_quest_offer",
             _ => "",
         };
 }

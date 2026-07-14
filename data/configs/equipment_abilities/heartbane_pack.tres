@@ -1,0 +1,216 @@
+[gd_resource type="Resource" script_class="EquipmentAbilityContentPackDef" load_steps=41 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityContentPackDef.cs" id="1_pack"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityBindingDef.cs" id="2_binding"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityReactionDef.cs" id="4_reaction"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionGroupDef.cs" id="5_condition_group"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityConditionDef.cs" id="6_condition"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/CompareFactConditionPayloadDef.cs" id="7_compare_payload"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityFactQueryDef.cs" id="8_fact_query"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionDef.cs" id="9_dice"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/DiceExpressionTermDef.cs" id="10_dice_term"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentAbilityActionDef.cs" id="11_action"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AddDamageDiceActionPayloadDef.cs" id="12_add_damage"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/AttackRollBonusActionPayloadDef.cs" id="13_attack_roll_bonus"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/ApplyStatusActionPayloadDef.cs" id="14_apply_status"]
+[ext_resource type="Script" path="res://scripts/player/progression/equipment_abilities/EquipmentGrantedActionDef.cs" id="15_grant"]
+
+[sub_resource type="Resource" id="Fact_critical_hit"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"critical_hit"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Literal_true_int"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 1
+
+[sub_resource type="Resource" id="Compare_critical_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_critical_hit")
+compare = &"eq"
+right = SubResource("Literal_true_int")
+
+[sub_resource type="Resource" id="Condition_critical_hit"]
+script = ExtResource("6_condition")
+condition_id = &"condition.heartbane.heartbreak_sting.critical_hit"
+kind = &"compare_fact"
+payload = SubResource("Compare_critical_payload")
+
+[sub_resource type="Resource" id="Condition_group_critical_hit"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_critical_hit")])
+
+[sub_resource type="Resource" id="Dice_term_2d6_psychic"]
+script = ExtResource("10_dice_term")
+dice_count = 2
+dice_sides = 6
+
+[sub_resource type="Resource" id="Dice_2d6_psychic"]
+script = ExtResource("9_dice")
+terms = Array[Resource]([SubResource("Dice_term_2d6_psychic")])
+
+[sub_resource type="Resource" id="Action_sting_payload"]
+script = ExtResource("12_add_damage")
+target_selector = &"attack_target"
+dice = SubResource("Dice_2d6_psychic")
+damage_type = &"psychic"
+damage_tags = Array[StringName]([&"psychic"])
+
+[sub_resource type="Resource" id="Action_sting"]
+script = ExtResource("11_action")
+action_id = &"action.heartbane.heartbreak_sting.add_psychic_damage"
+kind = &"add_damage_dice"
+payload = SubResource("Action_sting_payload")
+
+[sub_resource type="Resource" id="Reaction_sting"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.heartbane.heartbreak_sting.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+condition_group = SubResource("Condition_group_critical_hit")
+actions = Array[Resource]([SubResource("Action_sting")])
+
+[sub_resource type="Resource" id="Binding_sting"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.heartbane.heartbreak_sting"
+trait_id = &"weapon.sword.heartbane.heartbreak_sting"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"heartbane"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_sting")])
+
+[sub_resource type="Resource" id="Action_rend_payload"]
+script = ExtResource("14_apply_status")
+target_selector = &"attack_target"
+status_id = &"heartbane_emotional_rend"
+duration_tu = 60
+stack_delta = 1
+stack_behavior = &"add"
+stack_limit = 3
+display_label = "情感撕裂"
+source_bound_attack_roll_penalty = 2
+source_bound_attack_roll_penalty_min_stacks = 3
+counts_as_debuff_override = true
+counts_as_debuff = true
+dispellable_harmful_magic = true
+
+[sub_resource type="Resource" id="Action_rend"]
+script = ExtResource("11_action")
+action_id = &"action.heartbane.emotional_rend.apply_status"
+kind = &"apply_status"
+payload = SubResource("Action_rend_payload")
+
+[sub_resource type="Resource" id="Reaction_rend"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.heartbane.emotional_rend.after_hit"
+trigger = &"on_hit"
+timing = &"after_hit"
+actions = Array[Resource]([SubResource("Action_rend")])
+
+[sub_resource type="Resource" id="Binding_rend"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.heartbane.emotional_rend"
+trait_id = &"weapon.sword.heartbane.emotional_rend"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"heartbane"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_rend")])
+
+[sub_resource type="Resource" id="Fact_target_hp_percent"]
+script = ExtResource("8_fact_query")
+query_kind = &"fact"
+fact_id = &"hp_percent_bp"
+subject = &"target"
+value_kind = &"int"
+
+[sub_resource type="Resource" id="Literal_hp_30_percent"]
+script = ExtResource("8_fact_query")
+query_kind = &"literal"
+value_kind = &"int"
+int_literal = 3000
+
+[sub_resource type="Resource" id="Compare_craving_hp_payload"]
+script = ExtResource("7_compare_payload")
+left = SubResource("Fact_target_hp_percent")
+compare = &"lte"
+right = SubResource("Literal_hp_30_percent")
+
+[sub_resource type="Resource" id="Condition_craving_hp"]
+script = ExtResource("6_condition")
+condition_id = &"condition.heartbane.heart_craving.target_at_30_percent_hp"
+kind = &"compare_fact"
+payload = SubResource("Compare_craving_hp_payload")
+
+[sub_resource type="Resource" id="Condition_group_craving_hp"]
+script = ExtResource("5_condition_group")
+mode = &"all"
+conditions = Array[Resource]([SubResource("Condition_craving_hp")])
+
+[sub_resource type="Resource" id="Action_craving_payload"]
+script = ExtResource("13_attack_roll_bonus")
+target_selector = &"attack_target"
+bonus = 3
+stack_mode = &"max"
+label = "心脏渴求"
+
+[sub_resource type="Resource" id="Action_craving"]
+script = ExtResource("11_action")
+action_id = &"action.heartbane.heart_craving.attack_roll_bonus"
+kind = &"attack_roll_bonus"
+payload = SubResource("Action_craving_payload")
+
+[sub_resource type="Resource" id="Reaction_craving"]
+script = ExtResource("4_reaction")
+reaction_id = &"reaction.heartbane.heart_craving.before_hit"
+trigger = &"on_hit"
+timing = &"before_hit"
+condition_group = SubResource("Condition_group_craving_hp")
+actions = Array[Resource]([SubResource("Action_craving")])
+
+[sub_resource type="Resource" id="Binding_craving"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.heartbane.heart_craving"
+trait_id = &"weapon.sword.heartbane.heart_craving"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"heartbane"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+reactions = Array[Resource]([SubResource("Reaction_craving")])
+
+[sub_resource type="Resource" id="Grant_burst_skill"]
+script = ExtResource("15_grant")
+granted_action_id = &"grant.heartbane.heartbreak_burst.skill"
+granted_kind = &"skill"
+skill_id = &"weapon_sword_heartbane_heartbreak_burst"
+skill_level = 1
+usage_period_kind = &"per_battle"
+max_uses_per_period = 1
+display_category = &"equipment"
+display_priority = 100
+
+[sub_resource type="Resource" id="Binding_burst"]
+script = ExtResource("2_binding")
+binding_id = &"binding.weapon.sword.heartbane.heartbreak_burst"
+trait_id = &"weapon.sword.heartbane.heartbreak_burst"
+override_mode = &"add"
+allowed_source_kinds = Array[StringName]([&"equipment_fixed"])
+required_trait_categories = Array[StringName]([&"weapon_feat"])
+required_item_tags = Array[StringName]([&"heartbane"])
+supported_equipment_type_ids = Array[StringName]([&"weapon"])
+granted_actions = Array[Resource]([SubResource("Grant_burst_skill")])
+
+[resource]
+script = ExtResource("1_pack")
+pack_id = &"equipment_ability.weapon.sword.heartbane"
+schema_version = 1
+load_order = 160
+bindings = Array[Resource]([SubResource("Binding_sting"), SubResource("Binding_rend"), SubResource("Binding_craving"), SubResource("Binding_burst")])

@@ -1,6 +1,6 @@
 using Godot;
 
-public partial class run_fate_calamity_drop_regression : SceneTree
+public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
 
@@ -13,14 +13,18 @@ public partial class run_fate_calamity_drop_regression : SceneTree
 
     public override void _Initialize()
     {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
         TestOrdinaryBattleCalamityConversionRespectsChapterCap();
         TestEliteBossLootPathsBypassOrdinaryChapterCap();
         TestBrandedEliteGrantsFixedCalamityShard();
         TestBossTargetWithoutFortuneMarkCountsAsEliteOrBoss();
         TestDoomSentenceBossDefeatReturnsCalamityAndCore();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Fate calamity drop regression"));
+        RequestTestExit(_test.Finish("Fate calamity drop regression"));
     }
 
     private void TestOrdinaryBattleCalamityConversionRespectsChapterCap()
@@ -183,7 +187,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+            runtime.dispose();
         }
     }
 
@@ -215,7 +219,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+            runtime.dispose();
         }
     }
 
@@ -262,7 +266,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            BattleTestFixture.DisposeBattleFixture(runtime, runtime?._state);
+            runtime.dispose();
         }
     }
 
@@ -325,7 +329,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
 
     private GameSession CreateTestSession()
     {
-        GameSession gameSession = new();
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         int createError = gameSession.CreateNewSave(TestWorldConfig);
         _test.Eq(createError, (int)Error.Ok, "GameSession 应能为灾厄掉落回归创建测试存档。");
         if (createError == (int)Error.Ok)
@@ -339,7 +343,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         if (gameSession == null)
             return;
         gameSession.ClearPersistedGame();
-        gameSession.Dispose();
+        gameSession.Free();
     }
 
     private static void ResetPartyWarehouse(PartyState partyState)

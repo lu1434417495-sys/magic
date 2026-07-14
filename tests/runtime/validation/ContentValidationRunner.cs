@@ -19,7 +19,7 @@ internal sealed class ValidationRunReport
         Array.Empty<ValidationDomainResult>();
 }
 
-internal sealed record QuestValidationEntry(string Source, QuestDef QuestDef);
+internal sealed record QuestValidationEntry(string Source, QuestDefinition QuestDefinition);
 
 internal static class ContentValidationRunner
 {
@@ -81,16 +81,32 @@ internal static class ContentValidationRunner
         bool includeProgressionSkillChecks = false
     )
     {
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectory(directoryPath);
         List<string> errors = ToStringList(registry.Validate());
         if (includeProgressionSkillChecks)
         {
-            using ProgressionContentRegistry progressionRegistry = new();
-            progressionRegistry.ReplaceValidationSources(
-                new GDictionary { ["skill_defs"] = ProjectSkillDefs(registry.GetSkillDefsTyped()) }
-            );
-            AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
+            using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
+            try
+            {
+                progressionRegistry.ReplaceDefinitionsForValidation(
+                    new ProgressionDefinitionSources
+                    {
+                        SkillDefinitions = registry.GetSkillDefinitionsTyped(),
+                    }
+                );
+                progressionRegistry.ReplaceSkillAuthoringResourcesForValidation(
+                    registry.DuplicateSkillResourceBucketForProgressionRegistry()
+                );
+                AppendUniqueErrors(errors, progressionRegistry.CollectValidationErrors());
+            }
+            catch (System.IO.InvalidDataException exception)
+            {
+                AppendUniqueErrors(
+                    errors,
+                    new[] { $"Skill projection rejected content: {exception.Message}" }
+                );
+            }
         }
         return BuildDomainResult("skill", directoryPath, errors);
     }
@@ -100,8 +116,8 @@ internal static class ContentValidationRunner
         GDictionary skillDefs
     )
     {
-        using ProfessionContentRegistry registry = new();
-        registry.Setup(skillDefs);
+        using ProfessionContentRegistry registry = new(new TestContentResourceLoader());
+        registry.Setup(ProjectSkillDefinitions(skillDefs));
         registry.LoadFromDirectory(directoryPath);
         return BuildDomainResult("profession", directoryPath, registry.Validate());
     }
@@ -156,7 +172,7 @@ internal static class ContentValidationRunner
         AppendUniqueErrors(errors, ascensionRegistry.Validate());
         AppendUniqueErrors(errors, stageAdvancementRegistry.Validate());
 
-        using ProgressionContentRegistry progressionRegistry = new();
+        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PrepareIdentityPhase2Registry(
             progressionRegistry,
             skillDefs ?? new GDictionary(),
@@ -176,12 +192,12 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateOfficialItemContent()
     {
-        using TraitContentRegistry traitRegistry = new();
+        using TraitContentRegistry traitRegistry = new(new TestContentResourceLoader());
         return ValidateItemDirectories(
             "official_items",
             ["res://data/configs/items"],
             ["res://data/configs/items_templates"],
-            traitDefs: ProjectTraitDefs(traitRegistry.GetTraitDefsTyped())
+            traitDefinitions: traitRegistry.GetTraitDefsTyped()
         );
     }
 
@@ -190,10 +206,11 @@ internal static class ContentValidationRunner
         string[] itemDirectories,
         string[] templateDirectories = null,
         GDictionary skillDefs = null,
-        GDictionary traitDefs = null
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions = null
     )
     {
-        using ItemContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry registry = new(loader);
         registry.RebuildFromDirectories(
             ToGodotArray(itemDirectories),
             ToGodotArray(templateDirectories ?? Array.Empty<string>())
@@ -202,15 +219,15 @@ internal static class ContentValidationRunner
         if (skillDefs != null && skillDefs.Count > 0)
             AppendUniqueErrors(
                 combinedErrors,
-                ValidateSkillBookItems(ProjectItemDefs(registry.GetItemDefsTyped()), skillDefs)
+                ValidateSkillBookItems(registry.GetItemDefsTyped(), skillDefs)
             );
-        if (traitDefs != null && traitDefs.Count > 0)
+        if (traitDefinitions != null && traitDefinitions.Count > 0)
         {
             AppendUniqueErrors(
                 combinedErrors,
                 ItemTraitContentValidator.Validate(
                     registry.GetItemDefsTyped(),
-                    BuildTraitDefIndex(traitDefs),
+                    traitDefinitions,
                     label
                 )
             );
@@ -220,18 +237,20 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateRecipeDirectory(
         string directoryPath,
-        GDictionary itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        using RecipeContentRegistry registry = new();
-        registry.Setup(BuildItemDefIndex(itemDefs));
+        using TestContentResourceLoader loader = new();
+        using RecipeContentRegistry registry = new(loader);
+        registry.Setup(itemDefinitions);
         registry.LoadFromDirectory(directoryPath);
         return BuildDomainResult("recipe", directoryPath, registry.Validate());
     }
 
     public static ValidationDomainResult ValidateEnemySeed(string seedResourcePath)
     {
-        using EnemyContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using EnemyContentRegistry registry = new(loader);
         registry.ConfigureSeedResource(seedResourcePath, true, false);
         return BuildDomainResult("enemy", seedResourcePath, registry.Validate());
     }
@@ -243,7 +262,8 @@ internal static class ContentValidationRunner
         string rosterDirectory
     )
     {
-        using EnemyContentRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using EnemyContentRegistry registry = new(loader);
         registry.ConfigureDirectories(templateDirectory, brainDirectory, rosterDirectory, false);
         registry.ConfigureSeedResource(seedResourcePath, true, true);
         return BuildDomainResult("enemy", seedResourcePath, registry.Validate());
@@ -251,49 +271,80 @@ internal static class ContentValidationRunner
 
     public static ValidationDomainResult ValidateBattleSpecialProfileRegistry(
         string label,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         string manifestDirectory = ""
     )
     {
-        using BattleSpecialProfileRegistry registry = new();
+        using TestContentResourceLoader loader = new();
+        using BattleSpecialProfileRegistry registry = new(loader);
         if (!string.IsNullOrEmpty(manifestDirectory))
             registry.SetManifestDirectory(manifestDirectory);
-        registry.Rebuild(skillDefs);
+        registry.Rebuild(skillDefinitions);
         return BuildDomainResult("battle_special_profile", label, registry.Validate());
     }
 
     public static ValidationDomainResult ValidateWorldPresets(
-        GDictionary enemyTemplates = null,
-        GDictionary wildEncounterRosters = null
+        IEnumerable<StringName> enemyTemplateIds = null,
+        IEnumerable<StringName> wildEncounterRosterIds = null
     )
     {
+        using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
+        var errors = new List<string>();
+        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
+        {
+            string resourcePath = preset?.GenerationConfigPath ?? "";
+            try
+            {
+                string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+                WorldMapGenerationConfig source = loader.LoadCanonical<WorldMapGenerationConfig>(
+                    canonicalPath
+                );
+                WorldGenerationDefinition definition = source.ToDefinition(canonicalPath, loader);
+                AppendUniqueErrors(
+                    errors,
+                    validator.ValidateGenerationConfigTyped(
+                        definition,
+                        canonicalPath,
+                        enemyTemplateIds,
+                        wildEncounterRosterIds
+                    )
+                );
+            }
+            catch (Exception exception)
+            {
+                AppendUniqueErrors(
+                    errors,
+                    new[]
+                    {
+                        $"World preset {resourcePath} projection failed: {exception.Message}",
+                    }
+                );
+            }
+        }
         return BuildDomainResult(
             "world",
             "world_presets",
-            validator.ValidateWorldPresets(
-                enemyTemplates ?? new GDictionary(),
-                wildEncounterRosters ?? new GDictionary()
-            )
+            errors
         );
     }
 
     public static ValidationDomainResult ValidateWorldGenerationConfig(
         string label,
-        WorldMapGenerationConfig generationConfig,
-        GDictionary enemyTemplates = null,
-        GDictionary wildEncounterRosters = null
+        WorldGenerationDefinition generationDefinition,
+        IEnumerable<StringName> enemyTemplateIds = null,
+        IEnumerable<StringName> wildEncounterRosterIds = null
     )
     {
         WorldMapContentValidator validator = new();
         return BuildDomainResult(
             "world",
             label,
-            validator.ValidateGenerationConfig(
-                generationConfig,
+            validator.ValidateGenerationConfigTyped(
+                generationDefinition,
                 label,
-                enemyTemplates ?? new GDictionary(),
-                wildEncounterRosters ?? new GDictionary()
+                enemyTemplateIds,
+                wildEncounterRosterIds
             )
         );
     }
@@ -301,45 +352,45 @@ internal static class ContentValidationRunner
     public static ValidationDomainResult ValidateQuestEntries(
         string label,
         IReadOnlyList<QuestValidationEntry> questEntries,
-        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
-        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> enemyTemplates
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
         List<string> errors = new();
-        Dictionary<StringName, QuestDef> questDefs = new();
+        Dictionary<StringName, QuestDefinition> questDefs = new();
         HashSet<StringName> seenQuestIds = new();
         if (questEntries != null)
         {
             foreach (QuestValidationEntry entry in questEntries)
             {
                 string sourceLabel = string.IsNullOrEmpty(entry.Source) ? label : entry.Source;
-                QuestDef questDef = entry.QuestDef;
+                QuestDefinition questDef = entry.QuestDefinition;
                 if (questDef == null)
                 {
-                    errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDef.");
+                    errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDefinition.");
                     continue;
                 }
-                if (questDef.quest_id == "")
+                if (questDef.QuestId == "")
                 {
                     errors.Add($"Quest entry {sourceLabel} is missing quest_id.");
                     continue;
                 }
-                if (!seenQuestIds.Add(questDef.quest_id))
+                if (!seenQuestIds.Add(questDef.QuestId))
                 {
-                    errors.Add($"Duplicate quest_id registered: {questDef.quest_id}");
+                    errors.Add($"Duplicate quest_id registered: {questDef.QuestId}");
                     continue;
                 }
-                questDefs[questDef.quest_id] = questDef;
+                questDefs[questDef.QuestId] = questDef;
             }
         }
 
         errors.AddRange(
             QuestContentValidator.ValidateTyped(
                 questDefs,
-                itemDefs ?? new Dictionary<StringName, ItemDef>(),
-                skillDefs ?? new Dictionary<StringName, SkillDef>(),
-                enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDef>(),
+                itemDefinitions ?? new Dictionary<StringName, ItemDefinition>(),
+                skillDefinitions ?? new Dictionary<StringName, SkillDefinition>(),
+                enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>(),
                 Array.Empty<string>()
             )
         );
@@ -348,42 +399,42 @@ internal static class ContentValidationRunner
 
     private static RaceContentRegistry BuildRaceRegistry(string[] directoryPaths)
     {
-        RaceContentRegistry registry = new();
+        RaceContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
 
     private static SubraceContentRegistry BuildSubraceRegistry(string[] directoryPaths)
     {
-        SubraceContentRegistry registry = new();
+        SubraceContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
 
     private static TraitContentRegistry BuildTraitRegistry(string[] directoryPaths)
     {
-        TraitContentRegistry registry = new();
+        TraitContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
 
     private static AgeContentRegistry BuildAgeRegistry(string[] directoryPaths)
     {
-        AgeContentRegistry registry = new();
+        AgeContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
 
     private static BloodlineContentRegistry BuildBloodlineRegistry(string[] directoryPaths)
     {
-        BloodlineContentRegistry registry = new();
+        BloodlineContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
 
     private static AscensionContentRegistry BuildAscensionRegistry(string[] directoryPaths)
     {
-        AscensionContentRegistry registry = new();
+        AscensionContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
@@ -392,7 +443,7 @@ internal static class ContentValidationRunner
         string[] directoryPaths
     )
     {
-        StageAdvancementContentRegistry registry = new();
+        StageAdvancementContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectories(ToGodotStringArray(directoryPaths));
         return registry;
     }
@@ -409,85 +460,66 @@ internal static class ContentValidationRunner
         StageAdvancementContentRegistry stageAdvancementRegistry
     )
     {
-            progressionRegistry.ReplaceValidationSources(
-            new GDictionary
+        progressionRegistry.ReplaceDefinitionsForValidation(
+            new ProgressionDefinitionSources
             {
-                ["skill_defs"] = skillDefs?.Duplicate() ?? new GDictionary(),
-                ["race_defs"] = ProjectDefs(raceRegistry.GetRaceDefsTyped()),
-                ["subrace_defs"] = ProjectDefs(subraceRegistry.GetSubraceDefsTyped()),
-                ["trait_defs"] = ProjectTraitDefs(traitRegistry.GetTraitDefsTyped()),
-                ["age_profile_defs"] = ProjectDefs(ageRegistry.GetAgeProfileDefsTyped()),
-                ["bloodline_defs"] = ProjectDefs(bloodlineRegistry.GetBloodlineDefsTyped()),
-                ["bloodline_stage_defs"] = ProjectDefs(
-                    bloodlineRegistry.GetBloodlineStageDefsTyped()
-                ),
-                ["ascension_defs"] = ProjectDefs(ascensionRegistry.GetAscensionDefsTyped()),
-                ["ascension_stage_defs"] = ProjectDefs(
-                    ascensionRegistry.GetAscensionStageDefsTyped()
-                ),
-                ["stage_advancement_defs"] = ProjectDefs(
-                    stageAdvancementRegistry.GetStageAdvancementDefsTyped()
-                ),
+                SkillDefinitions = ProjectSkillDefinitions(skillDefs),
+                RaceDefinitions = raceRegistry.GetRaceDefsTyped(),
+                SubraceDefinitions = subraceRegistry.GetSubraceDefsTyped(),
+                TraitDefinitions = traitRegistry.GetTraitDefsTyped(),
+                AgeProfileDefinitions = ageRegistry.GetAgeProfileDefsTyped(),
+                BloodlineDefinitions = bloodlineRegistry.GetBloodlineDefsTyped(),
+                BloodlineStageDefinitions = bloodlineRegistry.GetBloodlineStageDefsTyped(),
+                AscensionDefinitions = ascensionRegistry.GetAscensionDefsTyped(),
+                AscensionStageDefinitions = ascensionRegistry.GetAscensionStageDefsTyped(),
+                StageAdvancementDefinitions =
+                    stageAdvancementRegistry.GetStageAdvancementDefsTyped(),
             }
         );
     }
 
-    private static GDictionary ProjectDefs<T>(IReadOnlyDictionary<StringName, T> defs)
-        where T : GodotObject
-    {
-        GDictionary result = new();
-        if (defs == null)
-            return result;
-        foreach ((StringName id, T def) in defs)
-        {
-            if (id == "" || def == null)
-                continue;
-            result[id] = def;
-        }
-        return result;
-    }
-
-    private static GDictionary ProjectTraitDefs(IReadOnlyList<TraitDef> defs)
-    {
-        GDictionary result = new();
-        if (defs == null)
-            return result;
-        foreach (TraitDef def in defs)
-        {
-            if (def == null || def.trait_id == "")
-                continue;
-            result[def.trait_id] = def;
-        }
-        return result;
-    }
-
-    private static List<string> ValidateSkillBookItems(GDictionary itemDefs, GDictionary skillDefs)
+    private static List<string> ValidateSkillBookItems(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        GDictionary skillDefs
+    )
     {
         List<string> errors = new();
-        foreach (string itemKey in SortedStringKeys(itemDefs))
+        itemDefinitions ??= new Dictionary<StringName, ItemDefinition>();
+        var sortedItemIds = new List<StringName>(itemDefinitions.Keys);
+        sortedItemIds.Sort(
+            (left, right) => string.CompareOrdinal(left.ToString(), right.ToString())
+        );
+        foreach (StringName itemId in sortedItemIds)
         {
-            ItemDef itemDef = DictGetByStringName<ItemDef>(itemDefs, itemKey);
-            if (itemDef == null)
+            if (
+                !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
+                || itemDefinition == null
+            )
                 continue;
-            if (string.CompareOrdinal(itemDef.GetItemCategoryNormalized(), "skill_book") != 0)
+            if (
+                string.CompareOrdinal(
+                    itemDefinition.GetItemCategoryNormalized(),
+                    "skill_book"
+                ) != 0
+            )
                 continue;
-            if (itemDef.granted_skill_id == "")
+            if (itemDefinition.GrantedSkillId == "")
                 continue;
             SkillDef skillDef = DictGetByStringName<SkillDef>(
                 skillDefs,
-                itemDef.granted_skill_id.ToString()
+                itemDefinition.GrantedSkillId.ToString()
             );
             if (skillDef == null)
             {
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} references missing skill {itemDef.granted_skill_id}."
+                    $"Skill book item {itemDefinition.ItemId} references missing skill {itemDefinition.GrantedSkillId}."
                 );
                 continue;
             }
             if (skillDef.LearnSourceKind != SkillLearnSourceKind.Book)
             {
                 errors.Add(
-                    $"Skill book item {itemDef.item_id} granted_skill_id {itemDef.granted_skill_id} learn_source must be book, got {skillDef.learn_source}."
+                    $"Skill book item {itemDefinition.ItemId} granted_skill_id {itemDefinition.GrantedSkillId} learn_source must be book, got {skillDef.learn_source}."
                 );
             }
         }
@@ -501,9 +533,9 @@ internal static class ContentValidationRunner
             )
                 continue;
             StringName canonicalItemId = BuildSkillBookItemId(skillDef.skill_id);
-            ItemDef occupyingItem = DictGetByStringName<ItemDef>(
-                itemDefs,
-                canonicalItemId.ToString()
+            itemDefinitions.TryGetValue(
+                canonicalItemId,
+                out ItemDefinition occupyingItem
             );
             if (occupyingItem == null)
                 continue;
@@ -514,10 +546,10 @@ internal static class ContentValidationRunner
                 );
                 continue;
             }
-            if (occupyingItem.granted_skill_id != skillDef.skill_id)
+            if (occupyingItem.GrantedSkillId != skillDef.skill_id)
             {
                 errors.Add(
-                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.skill_id} but grants {occupyingItem.granted_skill_id}."
+                    $"Skill book item {canonicalItemId} occupies generated skill book id for skill {skillDef.skill_id} but grants {occupyingItem.GrantedSkillId}."
                 );
             }
         }
@@ -538,54 +570,22 @@ internal static class ContentValidationRunner
         return result;
     }
 
-    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    private static IReadOnlyDictionary<StringName, SkillDefinition> ProjectSkillDefinitions(
+        GDictionary skillDefs
+    )
     {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDef itemDef) in itemDefs)
+        var resources = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null)
+            return SkillDefinition.ProjectIndex(resources);
+        foreach (Variant rawKey in skillDefs.Keys)
         {
-            if (itemId == "" || itemDef == null)
+            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
+            if (skillId == "")
                 continue;
-            result[itemId] = itemDef;
+            if (skillDefs[rawKey].AsGodotObject() is SkillDef skillDef)
+                resources[skillId] = skillDef;
         }
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDef> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef;
-        }
-        return result;
-    }
-
-    private static Dictionary<StringName, TraitDef> BuildTraitDefIndex(GDictionary traitDefs)
-    {
-        Dictionary<StringName, TraitDef> result = new();
-        if (traitDefs == null)
-            return result;
-        foreach (Variant rawKey in traitDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName traitId = rawKey.AsStringName();
-            if (traitId == "")
-                continue;
-            if (traitDefs[rawKey].AsGodotObject() is TraitDef traitDef)
-                result[traitId] = traitDef;
-        }
-        return result;
+        return SkillDefinition.ProjectIndex(resources);
     }
 
     private static T DictGetByStringName<T>(GDictionary source, string key)

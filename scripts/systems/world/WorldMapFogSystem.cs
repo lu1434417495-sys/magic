@@ -21,6 +21,9 @@ public sealed class WorldMapFogSystem
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, HashSet<Vector2I>> _revealedByFaction =
         new(StringComparer.Ordinal);
+    private long _persistentRevision;
+
+    internal long PersistentRevision => _persistentRevision;
 
     public void Setup(Vector2I world_size_cells)
     {
@@ -35,7 +38,9 @@ public sealed class WorldMapFogSystem
         if (persistent_state != null && persistent_state.Count > 0)
         {
             LoadPersistentState(persistent_state);
+            return;
         }
+        MarkPersistentStateChanged();
     }
 
     public Vector2I GetWorldSizeCells() => _world_size_cells;
@@ -52,6 +57,7 @@ public sealed class WorldMapFogSystem
             return;
         }
 
+        bool persistentStateChanged = false;
         foreach (VisionSourceData source in sources)
         {
             if (source == null || source.faction_id != factionId)
@@ -71,18 +77,21 @@ public sealed class WorldMapFogSystem
                     Vector2I coord = center + new Vector2I(offsetX, offsetY);
                     if (IsInsideWorld(coord))
                     {
-                        factionState.MarkVisible(coord);
+                        persistentStateChanged |= factionState.MarkVisible(coord);
                     }
                 }
             }
         }
+        if (persistentStateChanged)
+            MarkPersistentStateChanged();
     }
 
     public void MarkExplored(Vector2I coord, string faction_id)
     {
         if (IsInsideWorld(coord))
         {
-            GetOrCreateState(faction_id).MarkExplored(coord);
+            if (GetOrCreateState(faction_id).MarkExplored(coord))
+                MarkPersistentStateChanged();
         }
     }
 
@@ -96,6 +105,7 @@ public sealed class WorldMapFogSystem
         int radius = Math.Max(revealRange, 0);
         WorldMapFogFactionState factionState = GetOrCreateState(factionId);
         HashSet<Vector2I> revealedState = GetRevealedState(factionId);
+        bool persistentStateChanged = false;
         for (int offsetY = -radius; offsetY <= radius; offsetY += 1)
         {
             for (int offsetX = -radius; offsetX <= radius; offsetX += 1)
@@ -109,11 +119,13 @@ public sealed class WorldMapFogSystem
                 {
                     continue;
                 }
-                factionState.MarkExplored(coord);
-                revealedState.Add(coord);
+                persistentStateChanged |= factionState.MarkExplored(coord);
+                persistentStateChanged |= revealedState.Add(coord);
                 revealedCoords.Add(coord);
             }
         }
+        if (persistentStateChanged)
+            MarkPersistentStateChanged();
         return revealedCoords;
     }
 
@@ -147,26 +159,33 @@ public sealed class WorldMapFogSystem
         };
     }
 
-    public GDictionary ExportPersistentState()
+    internal Dictionary<string, object> BuildPersistentStatePlain()
     {
-        var factions = new GDictionary();
+        var factions = new Dictionary<string, object>(StringComparer.Ordinal);
         var factionIds = CollectFactionIds();
         factionIds.Sort();
         foreach (string factionId in factionIds)
         {
-            factions[factionId] = new GDictionary
+            factions[factionId] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["explored"] = SerializeCoordKeys(GetOrCreateState(factionId).ExploredCoords),
-                ["revealed"] = SerializeCoordKeys(GetRevealedState(factionId)),
+                ["explored"] = SerializeCoordKeysPlain(
+                    GetOrCreateState(factionId).ExploredCoords
+                ),
+                ["revealed"] = SerializeCoordKeysPlain(GetRevealedState(factionId)),
             };
         }
-        return new GDictionary { ["version"] = PersistentStateVersion, ["factions"] = factions };
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["version"] = PersistentStateVersion,
+            ["factions"] = factions,
+        };
     }
 
     public bool LoadPersistentState(GDictionary persistent_state)
     {
         _statesByFaction.Clear();
         _revealedByFaction.Clear();
+        MarkPersistentStateChanged();
         if (persistent_state == null || persistent_state.Count == 0)
         {
             return true;
@@ -199,9 +218,10 @@ public sealed class WorldMapFogSystem
 
         var nextStates = new Dictionary<string, WorldMapFogFactionState>(StringComparer.Ordinal);
         var nextRevealed = new Dictionary<string, HashSet<Vector2I>>(StringComparer.Ordinal);
-        GDictionary factions = persistent_state["factions"].AsGodotDictionary();
-        foreach (var factionKey in factions.Keys)
+        using GDictionary factions = persistent_state["factions"].AsGodotDictionary();
+        foreach (KeyValuePair<Variant, Variant> factionEntry in factions)
         {
+            Variant factionKey = factionEntry.Key;
             if (
                 factionKey.VariantType != Variant.Type.String
                 && factionKey.VariantType != Variant.Type.StringName
@@ -216,46 +236,49 @@ public sealed class WorldMapFogSystem
                 GameLog.Error("Invalid world fog state: faction id must be non-empty.", "world.fog.empty_faction_id", "world");
                 return false;
             }
-            var factionPayloadValue = factions[factionKey];
+            Variant factionPayloadValue = factionEntry.Value;
             if (!factionPayloadValue.TryAsDictionary(out GDictionary factionPayload))
             {
                 GameLog.Error("Invalid world fog state: faction payload must be a Dictionary.", "world.fog.invalid_faction_payload", "world");
                 return false;
             }
-            if (!factionPayload.ContainsKey("explored") || !factionPayload.ContainsKey("revealed"))
+            using (factionPayload)
             {
-                GameLog.Error(
-                    "Invalid world fog state: faction payload requires explored and revealed arrays.",
-                    "world.fog.missing_arrays",
-                    "world"
-                );
-                return false;
-            }
-            CoordParseResult exploredResult = ParseCoordArray(factionPayload, "explored");
-            CoordParseResult revealedResult = ParseCoordArray(factionPayload, "revealed");
-            if (!exploredResult.Ok || !revealedResult.Ok)
-            {
-                GameLog.Error(
-                    "Invalid world fog state: explored/revealed must contain current coordinate payloads.",
-                    "world.fog.invalid_coord_payload",
-                    "world"
-                );
-                return false;
-            }
+                if (!factionPayload.ContainsKey("explored") || !factionPayload.ContainsKey("revealed"))
+                {
+                    GameLog.Error(
+                        "Invalid world fog state: faction payload requires explored and revealed arrays.",
+                        "world.fog.missing_arrays",
+                        "world"
+                    );
+                    return false;
+                }
+                CoordParseResult exploredResult = ParseCoordArray(factionPayload, "explored");
+                CoordParseResult revealedResult = ParseCoordArray(factionPayload, "revealed");
+                if (!exploredResult.Ok || !revealedResult.Ok)
+                {
+                    GameLog.Error(
+                        "Invalid world fog state: explored/revealed must contain current coordinate payloads.",
+                        "world.fog.invalid_coord_payload",
+                        "world"
+                    );
+                    return false;
+                }
 
-            var factionState = new WorldMapFogFactionState();
-            foreach (Vector2I coord in exploredResult.Coords)
-            {
-                factionState.MarkExplored(coord);
+                var factionState = new WorldMapFogFactionState();
+                foreach (Vector2I coord in exploredResult.Coords)
+                {
+                    factionState.MarkExplored(coord);
+                }
+                var revealedState = new HashSet<Vector2I>();
+                foreach (Vector2I coord in revealedResult.Coords)
+                {
+                    factionState.MarkExplored(coord);
+                    revealedState.Add(coord);
+                }
+                nextStates[factionId] = factionState;
+                nextRevealed[factionId] = revealedState;
             }
-            var revealedState = new HashSet<Vector2I>();
-            foreach (Vector2I coord in revealedResult.Coords)
-            {
-                factionState.MarkExplored(coord);
-                revealedState.Add(coord);
-            }
-            nextStates[factionId] = factionState;
-            nextRevealed[factionId] = revealedState;
         }
         _statesByFaction.Clear();
         foreach (var entry in nextStates)
@@ -279,6 +302,7 @@ public sealed class WorldMapFogSystem
         }
         state = new WorldMapFogFactionState();
         _statesByFaction[normalized] = state;
+        MarkPersistentStateChanged();
         return state;
     }
 
@@ -291,7 +315,16 @@ public sealed class WorldMapFogSystem
         }
         state = new HashSet<Vector2I>();
         _revealedByFaction[normalized] = state;
+        MarkPersistentStateChanged();
         return state;
+    }
+
+    private void MarkPersistentStateChanged()
+    {
+        unchecked
+        {
+            _persistentRevision += 1;
+        }
     }
 
     private List<string> CollectFactionIds()
@@ -310,7 +343,7 @@ public sealed class WorldMapFogSystem
         return orderedIds;
     }
 
-    private GArray SerializeCoordKeys(IEnumerable<Vector2I> coordSet)
+    private List<object> SerializeCoordKeysPlain(IEnumerable<Vector2I> coordSet)
     {
         var coords = new List<Vector2I>();
         foreach (Vector2I coord in coordSet)
@@ -321,10 +354,16 @@ public sealed class WorldMapFogSystem
             }
         }
         coords.Sort(CompareCoords);
-        var serialized = new GArray();
+        var serialized = new List<object>();
         foreach (Vector2I coord in coords)
         {
-            serialized.Add(new GDictionary { ["x"] = coord.X, ["y"] = coord.Y });
+            serialized.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["x"] = coord.X,
+                    ["y"] = coord.Y,
+                }
+            );
         }
         return serialized;
     }
@@ -341,31 +380,35 @@ public sealed class WorldMapFogSystem
         {
             return CoordParseResult.Fail();
         }
-        foreach (var coordValue in payload[key].AsGodotArray())
+        using GArray coordValues = payload[key].AsGodotArray();
+        foreach (var coordValue in coordValues)
         {
             if (!coordValue.TryAsDictionary(out GDictionary coordPayload))
             {
                 return CoordParseResult.Fail();
             }
-            if (!coordPayload.ContainsKey("x") || !coordPayload.ContainsKey("y"))
+            using (coordPayload)
             {
-                return CoordParseResult.Fail();
-            }
-            if (
-                coordPayload["x"].VariantType != Variant.Type.Int
-                || coordPayload["y"].VariantType != Variant.Type.Int
-            )
-            {
-                return CoordParseResult.Fail();
-            }
-            Vector2I coord = new(coordPayload["x"].AsInt32(), coordPayload["y"].AsInt32());
-            if (!IsInsideWorld(coord))
-            {
-                return CoordParseResult.Fail();
-            }
-            if (seen.Add(coord))
-            {
-                coords.Add(coord);
+                if (!coordPayload.ContainsKey("x") || !coordPayload.ContainsKey("y"))
+                {
+                    return CoordParseResult.Fail();
+                }
+                if (
+                    coordPayload["x"].VariantType != Variant.Type.Int
+                    || coordPayload["y"].VariantType != Variant.Type.Int
+                )
+                {
+                    return CoordParseResult.Fail();
+                }
+                Vector2I coord = new(coordPayload["x"].AsInt32(), coordPayload["y"].AsInt32());
+                if (!IsInsideWorld(coord))
+                {
+                    return CoordParseResult.Fail();
+                }
+                if (seen.Add(coord))
+                {
+                    coords.Add(coord);
+                }
             }
         }
         return CoordParseResult.Success(coords);

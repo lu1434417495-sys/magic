@@ -3,7 +3,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_power_word_kill_execute_schema_regression : SceneTree
+public partial class run_power_word_kill_execute_schema_regression : LifecycleTestSceneTree
 {
     private const string TempSkillDirectory = "user://power_word_kill_execute_schema_regression";
     private readonly TestHarness _test = new();
@@ -19,11 +19,11 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         TestFormalPwkShapePasses();
         TestExecuteRejectsWrongSaveAndTargeting();
         TestExecuteRejectsSiblingPassiveSpecialAndGroundShapes();
+        TestExecuteSoulFractureDurationBoundary();
         TestExecuteRejectsOldFieldsAndHiddenSiblings();
         TestFormalResourceLoadsAndValidates();
 
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(_test.Finish("Power Word Kill execute schema regression"));
+        RequestTestExit(_test.Finish("Power Word Kill execute schema regression"));
     }
 
     private void TestFormalPwkShapePasses()
@@ -45,12 +45,12 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         skill.combat_profile.area_value = 2;
         CombatEffectDef effect = skill.combat_profile.effect_defs[0];
         effect.effect_target_team_filter = "ally";
-        effect.save_dc_mode = "static";
-        effect.save_dc = 12;
+        effect.save_dc_mode = "fortune";
+        effect.save_dc = -1;
         effect.save_dc_source_ability = "fortune";
-        effect.save_ability = "constitution";
+        effect.save_ability = "fortune";
         effect.save_tag = "magic";
-        effect.damage_tag = "fire";
+        effect.damage_tag = "void";
         effect.save_partial_on_success = true;
 
         string errors = FormatErrors(ValidateSkill(skill));
@@ -64,12 +64,12 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         AssertContains(errors, "combat_profile.area_pattern", "execute should require single area pattern.");
         AssertContains(errors, "combat_profile.area_value", "execute should require zero area value.");
         AssertContains(errors, "effect_target_team_filter", "execute effect should target enemies.");
-        AssertContains(errors, "save_dc_mode", "execute should use caster_spell save DC mode.");
-        AssertContains(errors, "save_dc", "execute should not set static save_dc.");
-        AssertContains(errors, "save_dc_source_ability", "execute should use intelligence as save source.");
-        AssertContains(errors, "save_ability", "execute should save against willpower.");
+        AssertContains(errors, "save_dc_mode", "execute should reject unknown save DC mode.");
+        AssertContains(errors, "save_dc", "execute should reject invalid static save_dc.");
+        AssertContains(errors, "save_dc_source_ability", "execute should validate save source mode.");
+        AssertContains(errors, "save_ability", "execute should validate save ability.");
         AssertContains(errors, "save_tag", "execute should use execute save tag.");
-        AssertContains(errors, "damage_tag", "execute should use negative energy.");
+        AssertContains(errors, "damage_tag", "execute should reject unsupported damage tags.");
         AssertContains(errors, "save_partial_on_success", "execute should not use partial save.");
     }
 
@@ -77,22 +77,32 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
     {
         SkillDef skill = FormalPwkSkill();
         skill.combat_profile.special_resolution_profile_id = "meteor_swarm";
-        skill.combat_profile.effect_defs.Add(new CombatEffectDef
-        {
-            effect_type = "damage",
-            power = 1,
-            damage_tag = "fire",
-        });
+        skill.combat_profile.effect_defs.Add(
+            TestResourceOwnership.Own(
+                new CombatEffectDef
+                {
+                    effect_type = "damage",
+                    power = 1,
+                    damage_tag = "fire",
+                },
+                "PowerWordKillExecuteSchema.sibling-damage-effect"
+            )
+        );
         skill.combat_profile.passive_effect_defs.Add(FormalExecuteEffect());
-        skill.combat_profile.cast_variants.Add(new CombatCastVariantDef
-        {
-            variant_id = "ground_execute",
-            target_mode = "ground",
-            effect_defs = new Godot.Collections.Array<CombatEffectDef>
-            {
-                FormalExecuteEffect(),
-            },
-        });
+        skill.combat_profile.cast_variants.Add(
+            TestResourceOwnership.Own(
+                new CombatCastVariantDef
+                {
+                    variant_id = "ground_execute",
+                    target_mode = "ground",
+                    effect_defs = new Godot.Collections.Array<CombatEffectDef>
+                    {
+                        FormalExecuteEffect(),
+                    },
+                },
+                "PowerWordKillExecuteSchema.ground-cast-variant"
+            )
+        );
 
         string errors = FormatErrors(ValidateSkill(skill));
 
@@ -122,12 +132,33 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         string errors = FormatErrors(ValidateSkill(skill));
 
         AssertContains(errors, "threshold_cap_max_hp_ratio_percent", "execute cap should be >= threshold ratio.");
-        AssertContains(errors, "soul_fracture_duration_tu", "soul fracture duration should be positive TU granularity.");
+        AssertContains(errors, "soul_fracture_duration_tu", "soul fracture duration should use non-negative TU granularity.");
         AssertContains(errors, "heal_multiplier_percent", "heal multiplier should be clamped by schema.");
         AssertContains(errors, "shield_gain_multiplier_percent", "shield multiplier should be clamped by schema.");
         AssertContains(errors, "trigger_event", "execute should not carry hidden trigger event.");
         AssertContains(errors, "trigger_condition", "execute should not carry hidden trigger condition.");
         AssertContains(errors, "must not use params payload", "execute should reject old params payload.");
+    }
+
+    private void TestExecuteSoulFractureDurationBoundary()
+    {
+        SkillDef disabledSoulFracture = FormalPwkSkill();
+        disabledSoulFracture.combat_profile.effect_defs[0].soul_fracture_duration_tu = 0;
+        GStringArray disabledErrors = ValidateSkill(disabledSoulFracture);
+        _test.Eq(
+            disabledErrors.Count,
+            0,
+            $"zero soul fracture duration should explicitly disable the status. errors={FormatErrors(disabledErrors)}"
+        );
+
+        SkillDef negativeSoulFracture = FormalPwkSkill();
+        negativeSoulFracture.combat_profile.effect_defs[0].soul_fracture_duration_tu = -5;
+        string negativeErrors = FormatErrors(ValidateSkill(negativeSoulFracture));
+        AssertContains(
+            negativeErrors,
+            "soul_fracture_duration_tu",
+            "negative soul fracture duration should be rejected."
+        );
     }
 
     private void TestFormalResourceLoadsAndValidates()
@@ -208,7 +239,7 @@ public partial class run_power_word_kill_execute_schema_regression : SceneTree
         string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
         _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
 
-        using SkillContentRegistry registry = new();
+        using SkillContentRegistry registry = new(new TestContentResourceLoader());
         registry.LoadFromDirectory(TempSkillDirectory);
         return registry.Validate();
     }

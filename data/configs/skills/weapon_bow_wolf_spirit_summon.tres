@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
+
+[sub_resource type="Resource" id="Combat_wolf_spirit_summon"]
+script = ExtResource("1_combat")
+skill_id = &"weapon_bow_wolf_spirit_summon"
+target_mode = &"unit"
+target_team_filter = &"ally"
+range_value = 6
+ap_cost = 1
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"equipment", &"weapon", &"summon", &"wolf"])
+
+[resource]
+script = ExtResource("2_skill")
+skill_id = &"weapon_bow_wolf_spirit_summon"
+display_name = "狼灵召唤"
+icon_id = &"weapon_bow_wolf_spirit_summon"
+description = "装备技能。选择6格内盟友或自身作为锚点，召唤一只幽灵狼，持续60TU。狼牙之弓来源每世界日1次。"
+skill_type = &"active"
+max_level = 1
+non_core_max_level = 1
+mastery_curve = PackedInt32Array(20)
+tags = Array[StringName]([&"equipment", &"wolf_bow", &"weapon", &"summon", &"wolf"])
+learn_source = &"innate"
+combat_profile = SubResource("Combat_wolf_spirit_summon")

@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponProfileDef.cs" id="2_profile"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/WeaponDamageDiceDef.cs" id="3_dice"]
+
+[sub_resource type="Resource" id="Resource_one_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 8
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_two_handed_dice"]
+script = ExtResource("3_dice")
+dice_count = 1
+dice_sides = 10
+flat_bonus = 2
+
+[sub_resource type="Resource" id="Resource_weapon_profile"]
+script = ExtResource("2_profile")
+one_handed_dice = SubResource("Resource_one_handed_dice")
+two_handed_dice = SubResource("Resource_two_handed_dice")
+properties_mode = 2
+properties = Array[StringName]([&"versatile"])
+
+[resource]
+script = ExtResource("1_item")
+item_id = &"weapon_unique_longsword_smiths_regret"
+base_item_id = &"weapon_type_longsword_base"
+display_name = "铁匠的悔恨"
+description = "一柄被大师亲手留下裂纹的长剑。每一道不完美都像锻炉余烬，偶尔在命中时暴露出寒冷、火焰、麻痹或毒性的悔恨。"
+is_stackable = false
+base_price = 52000
+buy_price = 52000
+sell_price = 26000
+sellable = true
+max_stack = 1
+tags = Array[StringName]([&"versatile", &"smiths_regret", &"longsword", &"flawed_forging"])
+trait_ids = Array[StringName]([&"weapon.sword.smiths_regret.flawed_beauty", &"weapon.sword.smiths_regret.imperfect_resonance", &"weapon.sword.smiths_regret.elemental_overload", &"weapon.sword.smiths_regret.moradin_forgiveness"])
+weapon_profile = SubResource("Resource_weapon_profile")

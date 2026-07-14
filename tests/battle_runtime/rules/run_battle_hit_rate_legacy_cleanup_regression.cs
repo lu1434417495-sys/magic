@@ -4,7 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
+public partial class run_battle_hit_rate_legacy_cleanup_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -15,7 +15,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
         TestHudBadgeRequiresSuccessRate();
         TestAiScoreServiceRequiresSuccessRate();
 
-        Quit(_test.Finish("Battle hit_rate legacy cleanup regression"));
+        RequestTestExit(_test.Finish("Battle hit_rate legacy cleanup regression"));
     }
 
     private void TestHitResolverPreviewRequiresSuccessRate()
@@ -150,7 +150,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
 
     private void TestAiScoreServiceRequiresSuccessRate()
     {
-        var scoreService = new BattleAiScoreService();
+        using var scoreService = new BattleAiScoreService();
         _test.Eq(
             scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(new AttackPreviewData { HitRatePercent = 87 })

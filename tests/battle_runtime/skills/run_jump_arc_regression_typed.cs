@@ -2,16 +2,14 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public partial class run_jump_arc_regression_typed : SceneTree
+public partial class run_jump_arc_regression_typed : LifecycleTestSceneTree
 {
     public override void _Initialize()
     {
-        int exitCode = RunForWrapper();
-        GodotSharpCleanup.CollectPendingFinalizers();
-        Quit(exitCode);
+        RequestTestExit(RunForWrapper());
     }
 
-    public static int RunForWrapper() => JumpArcRegressionRunner.RunAll();
+    internal static TestResult RunForWrapper() => JumpArcRegressionRunner.RunAll();
 }
 
 internal sealed class JumpArcRegressionRunner
@@ -19,13 +17,13 @@ internal sealed class JumpArcRegressionRunner
     private readonly TestHarness _test = new();
     private BattleGridService _gridService = null!;
 
-    public static int RunAll()
+    public static TestResult RunAll()
     {
-        JumpArcRegressionRunner runner = new();
+        var runner = new JumpArcRegressionRunner();
         return runner.Run();
     }
 
-    private int Run()
+    private TestResult Run()
     {
         _gridService = new BattleGridService();
 
@@ -51,7 +49,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "平地跳 (1,1)->(3,1) 距离 2 弧高足够，应该成功。");
     }
@@ -63,7 +61,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "跳上高 2 的台阶，弧高足够，应该成功。");
     }
@@ -75,7 +73,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "从高 4 跳下到地面，应该成功。");
     }
@@ -87,7 +85,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "跳过中间高 1 的低障碍，弧顶应足够。");
     }
@@ -99,7 +97,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(!ok, "中间格高 8 远超弧顶，应该撞墙失败。");
     }
@@ -114,7 +112,7 @@ internal sealed class JumpArcRegressionRunner
         blocker.unit_id = "blocker";
         state.SetUnit(blocker);
         RegisterUnitOnCells(state, blocker);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(!ok, "落点已被其他单位占用，应该失败。");
     }
@@ -125,7 +123,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 4, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(8, 1), effect);
         _test.True(!ok, "目标距离 7 远超 max_range，应该失败。");
     }
@@ -142,7 +140,7 @@ internal sealed class JumpArcRegressionRunner
         ally.faction_id = unit.faction_id;
         state.SetUnit(ally);
         RegisterUnitOnCells(state, ally);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(!ok, "友军站在 3 格高地上 (含 presence_height=4)，应被阻挡。");
     }
@@ -153,7 +151,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 4, BattleUnitState.BodySizeSmall);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "小体型 +1 STR 加成应让 STR=4 角色跳出 2 格。");
     }
@@ -164,7 +162,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeHuge);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(8, 1), effect);
         _test.True(!ok, "Huge 体型扣 10 STR 后远距离应失败。");
     }
@@ -176,7 +174,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 22, BattleUnitState.BodySizeLarge);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, new Vector2I(3, 1), effect);
         _test.True(ok, "短距离 (距离 2) 跳跃配合短跳红利应能跨过高 3 障碍。");
     }
@@ -187,7 +185,7 @@ internal sealed class JumpArcRegressionRunner
         BattleUnitState unit = BuildJumper(new Vector2I(1, 1), 12, BattleUnitState.BodySizeMedium);
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
-        CombatEffectDef effect = BuildJumpEffect();
+        CombatEffectDefinition effect = BuildJumpEffect();
         bool ok = _gridService.CanJumpArc(state, unit, unit.coord, effect);
         _test.True(!ok, "目标即为起点（距离 0）应该被拒绝。");
     }
@@ -252,18 +250,15 @@ internal sealed class JumpArcRegressionRunner
         }
     }
 
-    private static CombatEffectDef BuildJumpEffect()
-    {
-        return new CombatEffectDef
-        {
-            effect_type = "forced_move",
-            forced_move_mode = "jump",
-            forced_move_distance = 4,
-            jump_base_budget = 2,
-            jump_str_scale = 0.3,
-            jump_arc_ratio = 0.4,
-            jump_range_multiplier = 1,
-        };
-    }
+    private static CombatEffectDefinition BuildJumpEffect() =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "forced_move",
+            forcedMoveMode: "jump",
+            forcedMoveDistance: 4,
+            jumpBaseBudget: 2,
+            jumpStrScale: 0.3,
+            jumpArcRatio: 0.4,
+            jumpRangeMultiplier: 1
+        );
 
 }

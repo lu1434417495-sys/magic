@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -28,7 +29,7 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (!HasGenerationConfig())
+        if (!HasGenerationDefinition())
             return CommandErrorTyped("世界地图尚未初始化。");
         if (IsBattleActive())
             return CommandErrorTyped("当前处于战斗中，不能打开队伍管理。");
@@ -275,8 +276,8 @@ public sealed class GameRuntimePartyCommandHandler
     }
 
     public void OnPartyRosterChangeRequested(
-        Array<StringName> activeMemberIds,
-        Array<StringName> reserveMemberIds
+        IEnumerable<StringName> activeMemberIds,
+        IEnumerable<StringName> reserveMemberIds
     )
     {
         var partyState = GetPartyState();
@@ -361,8 +362,8 @@ public sealed class GameRuntimePartyCommandHandler
     }
 
     private string ValidateMainCharacterRoster(
-        Array<StringName> activeMemberIds,
-        Array<StringName> reserveMemberIds,
+        IEnumerable<StringName> activeMemberIds,
+        IEnumerable<StringName> reserveMemberIds,
         PartyState partyState
     )
     {
@@ -374,7 +375,7 @@ public sealed class GameRuntimePartyCommandHandler
         return "";
     }
 
-    private static bool HasMemberId(Array<StringName> memberIds, StringName memberId)
+    private static bool HasMemberId(IEnumerable<StringName> memberIds, StringName memberId)
     {
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (memberIds == null || normalizedMemberId == "")
@@ -390,9 +391,9 @@ public sealed class GameRuntimePartyCommandHandler
         return false;
     }
 
-    private static Array<StringName> NormalizeMemberIds(Array<StringName> memberIds)
+    private static StringNameList NormalizeMemberIds(IEnumerable<StringName> memberIds)
     {
-        var result = new Array<StringName>();
+        var result = new StringNameList();
         if (memberIds == null)
             return result;
         foreach (var rawMemberId in memberIds)
@@ -404,12 +405,12 @@ public sealed class GameRuntimePartyCommandHandler
         return result;
     }
 
-    private static Array<StringName> WithoutMemberId(
-        Array<StringName> memberIds,
+    private static StringNameList WithoutMemberId(
+        IEnumerable<StringName> memberIds,
         StringName memberId
     )
     {
-        var result = new Array<StringName>();
+        var result = new StringNameList();
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (memberIds == null)
             return result;
@@ -431,15 +432,9 @@ public sealed class GameRuntimePartyCommandHandler
 
     private string GetSkillDisplayName(StringName skillId)
     {
-        var gameSession = GetGameSession();
-        if (gameSession == null)
+        if (!HasRuntime())
             return skillId.ToString();
-        var skillDefs = gameSession.GetSkillDefsTyped();
-        if (skillDefs.TryGetValue(skillId, out SkillDef skillDef)
-            && skillDef != null
-            && !string.IsNullOrEmpty(skillDef.display_name))
-            return skillDef.display_name;
-        return skillId.ToString();
+        return _runtime.GetSkillDisplayName(skillId);
     }
 
     private string BuildEquipmentErrorMessage(
@@ -509,6 +504,12 @@ public sealed class GameRuntimePartyCommandHandler
                     GetMemberDisplayName(memberId),
                     GetItemDisplayName(itemId)
                 );
+            case "attribute_too_low":
+                return string.Format(
+                    "{0} 属性不足，无法装备 {1}。",
+                    GetMemberDisplayName(memberId),
+                    GetItemDisplayName(itemId)
+                );
             case "requirement_failed":
                 return string.Format("{0} 不满足装备要求。", GetItemDisplayName(itemId));
             default:
@@ -566,11 +567,11 @@ public sealed class GameRuntimePartyCommandHandler
         );
     }
 
-    private bool HasGenerationConfig()
+    private bool HasGenerationDefinition()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.GetGenerationConfig() != null;
+        return _runtime.GetGenerationDefinition() != null;
     }
 
     private bool IsBattleActive()

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -6,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public partial class run_battle_board_regression : SceneTree
+public partial class run_battle_board_regression : LifecycleTestSceneTree
 {
     private static readonly PackedScene BattleBoardScene = GD.Load<PackedScene>(
         "res://scenes/ui/battle_board_2d.tscn"
@@ -14,6 +15,7 @@ public partial class run_battle_board_regression : SceneTree
 
     private static readonly Vector2 ViewportSize = new(1280.0f, 720.0f);
     private static readonly Vector2I TestMapSize = new(19, 11);
+    private static readonly Vector2I ExplicitMapSize = new(21, 13);
     private static readonly Vector2I TestWorldCoord = new(7, 11);
     private const int TestSeed = 424242;
     private const int MaxReadyFrames = 24;
@@ -25,38 +27,111 @@ public partial class run_battle_board_regression : SceneTree
     {
         Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
         TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
+        TestCanyonMapSizeInputContract();
         TestRenderProfileFormalSourceSpecs();
         await TestBoardSceneRendersGeneratedCanyon();
-        Quit(_test.Finish("Battle board regression"));
+        RequestTestExit(_test.Finish("Battle board regression"));
     }
 
     private void TestCanyonGenerationUsesTypedColumnsAndSupportedProps()
     {
-        GDictionary first = BuildLayout("canyon", TestSeed);
-        GDictionary second = BuildLayout("canyon", TestSeed);
+        using GodotProjectionLease<GDictionary> firstLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        using GodotProjectionLease<GDictionary> secondLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        GDictionary first = firstLease.Value;
+        GDictionary second = secondLease.Value;
+        _test.Eq(
+            string.Join("\n", CaptureLayoutSignature(first)),
+            string.Join("\n", CaptureLayoutSignature(second)),
+            "canyon terrain generation should remain deterministic for a fixed seed."
+        );
+        _test.Eq(DictStringName(first, "terrain_profile_id"), new StringName("canyon"), "生成结果应回写正式 terrain_profile_id。");
+        _test.True(DictVector2I(first, "map_size") == TestMapSize, "测试上下文应能固定 canyon battle_map_size。");
+        _test.True(DictDict(first, "cells").Count > 0, "canyon 生成结果应包含 cells。");
+        _test.True(DictDict(first, "cell_columns").Count > 0, "canyon 生成结果应包含 typed cell_columns。");
+        _test.True(CountProp(first, "objective_marker") >= 1, "canyon 应生成 objective marker prop。");
+        _test.True(CountProp(first, "tent") >= 2, "canyon 应保留双方 tent prop。");
+        _test.True(CountProp(first, "torch") >= 2, "canyon 应保留 torch prop。");
+        AssertColumnsMatchSurfaceCells(first);
+        AssertSpawnCoordsAvoidWater(first, "canyon");
+        AssertLayoutUsesSupportedProps(first);
+    }
+
+    private void TestCanyonMapSizeInputContract()
+    {
+        using var generator = new BattleTerrainGenerator();
+        EncounterAnchorData encounterAnchor = BuildEncounterAnchor(
+            "battle_board_map_size_contract",
+            "battle board map size contract",
+            "canyon"
+        );
+        using GDictionary missingSizeContext = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+        };
+        using GodotProjectionLease<GDictionary> missingSizeLease = generator.GenerateLease(
+            encounterAnchor,
+            TestSeed,
+            missingSizeContext,
+            LifetimeDomain.Request
+        );
+        _test.Eq(
+            DictVector2I(missingSizeLease.Value, "map_size"),
+            TestMapSize,
+            "未提供 battle_map_size 时应选择 canyon 正式缺省尺寸。"
+        );
+
+        using GDictionary explicitSizeContext = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = TestSeed,
+            ["battle_terrain_profile"] = "canyon",
+            ["battle_map_size"] = ExplicitMapSize,
+        };
+        using GodotProjectionLease<GDictionary> explicitSizeLease = generator.GenerateLease(
+            encounterAnchor,
+            TestSeed,
+            explicitSizeContext,
+            LifetimeDomain.Request
+        );
+        _test.Eq(
+            DictVector2I(explicitSizeLease.Value, "map_size"),
+            ExplicitMapSize,
+            "显式正 battle_map_size 应原样进入 canyon layout。"
+        );
+
+        bool rejectedZeroSize = false;
         try
         {
-            _test.Eq(
-                string.Join("\n", CaptureLayoutSignature(first)),
-                string.Join("\n", CaptureLayoutSignature(second)),
-                "canyon terrain generation should remain deterministic for a fixed seed."
+            using GDictionary zeroSizeContext = new()
+            {
+                ["world_coord"] = TestWorldCoord,
+                ["world_seed"] = TestSeed,
+                ["battle_terrain_profile"] = "canyon",
+                ["battle_map_size"] = Vector2I.Zero,
+            };
+            using GodotProjectionLease<GDictionary> _ = generator.GenerateLease(
+                encounterAnchor,
+                TestSeed,
+                zeroSizeContext,
+                LifetimeDomain.Request
             );
-            _test.Eq(DictStringName(first, "terrain_profile_id"), new StringName("canyon"), "生成结果应回写正式 terrain_profile_id。");
-            _test.True(DictVector2I(first, "map_size") == TestMapSize, "测试上下文应能固定 canyon battle_map_size。");
-            _test.True(DictDict(first, "cells").Count > 0, "canyon 生成结果应包含 cells。");
-            _test.True(DictDict(first, "cell_columns").Count > 0, "canyon 生成结果应包含 typed cell_columns。");
-            _test.True(CountProp(first, "objective_marker") >= 1, "canyon 应生成 objective marker prop。");
-            _test.True(CountProp(first, "tent") >= 2, "canyon 应保留双方 tent prop。");
-            _test.True(CountProp(first, "torch") >= 2, "canyon 应保留 torch prop。");
-            AssertColumnsMatchSurfaceCells(first);
-            AssertSpawnCoordsAvoidWater(first, "canyon");
-            AssertLayoutUsesSupportedProps(first);
         }
-        finally
+        catch (ArgumentOutOfRangeException exception)
         {
-            BattleTestFixture.DisposeBattleLayout(first);
-            BattleTestFixture.DisposeBattleLayout(second);
+            rejectedZeroSize = exception.ParamName == "battle_map_size";
         }
+        _test.True(
+            rejectedZeroSize,
+            "显式零 battle_map_size 必须被拒绝，不能冒充缺省尺寸。"
+        );
     }
 
     private void TestRenderProfileFormalSourceSpecs()
@@ -84,16 +159,15 @@ public partial class run_battle_board_regression : SceneTree
         }
 
         BattleBoardRenderProfile canyon = BattleBoardRenderProfile.ForTerrainProfileId("canyon");
-        foreach (GDictionary sourceSpec in canyon.GetSourceSpecs())
+        foreach (BattleBoardTileSourceSpec sourceSpec in canyon.GetSourceSpecs())
         {
-            _test.True(sourceSpec.ContainsKey("key"), "source spec 应包含 key。");
-            _test.True(sourceSpec.ContainsKey("files"), "source spec 应包含 files。");
-            _test.True(sourceSpec.ContainsKey("layer_role"), "source spec 应包含 layer_role。");
-            _test.True(sourceSpec.ContainsKey("atlas_region_size"), "source spec 应包含 atlas_region_size。");
-            GArray files = DictArray(sourceSpec, "files");
-            foreach (Variant fileNameValue in files)
+            _test.True(sourceSpec.Key != "", "source spec 应包含 key。");
+            _test.True(sourceSpec.Files != null, "source spec 应包含 files。");
+            _test.True(sourceSpec.LayerRole != "", "source spec 应包含 layer_role。");
+            _test.True(sourceSpec.AtlasRegionSize != Vector2I.Zero, "source spec 应包含 atlas_region_size。");
+            foreach (string fileName in sourceSpec.Files)
             {
-                string path = $"{canyon.asset_dir}/{fileNameValue.AsString()}";
+                string path = $"{canyon.asset_dir}/{fileName}";
                 _test.True(FileAccess.FileExists(path), $"source spec 贴图必须存在：{path}");
             }
         }
@@ -101,71 +175,56 @@ public partial class run_battle_board_regression : SceneTree
 
     private async Task TestBoardSceneRendersGeneratedCanyon()
     {
-        GDictionary layout = BuildLayout("canyon", TestSeed);
+        using GodotProjectionLease<GDictionary> layoutLease = BuildLayout(
+            "canyon",
+            TestSeed
+        );
+        GDictionary layout = layoutLease.Value;
         BattleState state = BuildState(layout);
         BattleBoard2D board = BattleBoardScene.Instantiate<BattleBoard2D>();
-        try
-        {
-            Root.AddChild(board);
-            await ProcessFrames(1);
+        Root.AddChild(board);
+        await ProcessFrames(1);
 
-            Vector2I selectedCoord = DictVector2I(layout, "player_coord");
-            board.SetViewportSize(ViewportSize);
-            board.Configure(
-                state,
-                selectedCoord,
-                new GVector2IArray(),
-                CollectAllCoords(state),
-                "single_unit",
-                1,
-                1,
-                new GDictionary()
-            );
+        Vector2I selectedCoord = DictVector2I(layout, "player_coord");
+        board.SetViewportSize(ViewportSize);
+        board.Configure(
+            state,
+            selectedCoord,
+            new GVector2IArray(),
+            CollectAllCoords(state),
+            "single_unit",
+            1,
+            1,
+            new Dictionary<Vector2I, string>()
+        );
 
-            bool ready = await WaitForBoardRenderReady(board);
-            _test.True(ready, "BattleBoard2D Configure 后应在有限帧内完成渲染内容。");
-            _test.True(HasAnyUsedLayer(board, "TopH", 0, 8), "BattleBoard2D 应渲染至少一个 top tile。");
-            _test.True(board.prop_layer != null && board.prop_layer.GetChildCount() > 0, "BattleBoard2D 应渲染地形 prop。");
-            _test.Eq(board.unit_layer?.GetChildCount() ?? 0, 2, "BattleBoard2D 应渲染测试双方单位 token。");
-            _test.Eq(board._render_profile?.terrain_profile_id ?? new StringName(""), new StringName("canyon"), "BattleBoard2D 应按 battle state 绑定 terrain render profile。");
+        bool ready = await WaitForBoardRenderReady(board);
+        _test.True(ready, "BattleBoard2D Configure 后应在有限帧内完成渲染内容。");
+        _test.True(HasAnyUsedLayer(board, "TopH", 0, 8), "BattleBoard2D 应渲染至少一个 top tile。");
+        _test.True(board.prop_layer != null && board.prop_layer.GetChildCount() > 0, "BattleBoard2D 应渲染地形 prop。");
+        _test.Eq(board.unit_layer?.GetChildCount() ?? 0, 2, "BattleBoard2D 应渲染测试双方单位 token。");
+        _test.Eq(board._render_profile?.terrain_profile_id ?? new StringName(""), new StringName("canyon"), "BattleBoard2D 应按 battle state 绑定 terrain render profile。");
 
-            board.QueueFree();
-            await ProcessFrames(1);
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleState(state);
-            BattleTestFixture.DisposeBattleLayout(layout);
-        }
+        board.QueueFree();
+        await ProcessFrames(1);
     }
 
-    private GDictionary BuildLayout(string profileId, int seed)
+    private GodotProjectionLease<GDictionary> BuildLayout(string profileId, int seed)
     {
-        var generator = new BattleTerrainGenerator();
-        EncounterAnchorData anchor = BuildEncounterAnchor(
-            "battle_board_regression",
-            "battle board regression",
-            profileId
+        using var generator = new BattleTerrainGenerator();
+        using GDictionary context = new()
+        {
+            ["world_coord"] = TestWorldCoord,
+            ["world_seed"] = seed,
+            ["battle_terrain_profile"] = profileId,
+            ["battle_map_size"] = TestMapSize,
+        };
+        return generator.GenerateLease(
+            BuildEncounterAnchor("battle_board_regression", "battle board regression", profileId),
+            seed,
+            context,
+            LifetimeDomain.Request
         );
-        try
-        {
-            return generator.GenerateTyped(
-                anchor,
-                seed,
-                new GDictionary
-                {
-                    ["world_coord"] = TestWorldCoord,
-                    ["world_seed"] = seed,
-                    ["battle_terrain_profile"] = profileId,
-                    ["battle_map_size"] = TestMapSize,
-                }
-            );
-        }
-        finally
-        {
-            generator.Dispose();
-            GodotRefCountedDisposer.DisposeIfValid(anchor);
-        }
     }
 
     private static EncounterAnchorData BuildEncounterAnchor(
@@ -195,7 +254,8 @@ public partial class run_battle_board_regression : SceneTree
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        state.SetCellsFromDictionary(CloneCells(DictDict(layout, "cells")));
+        using (GDictionary cells = DictDict(layout, "cells"))
+            state.SetCellsFromDictionary(cells, duplicateCells: true);
         BattleUnitState ally = BuildUnit("ally_board", "队员", "player", 160);
         BattleUnitState enemy = BuildUnit("enemy_board", "敌人", "hostile", 120);
         RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
@@ -250,20 +310,6 @@ public partial class run_battle_board_regression : SceneTree
         _test.True(_gridService.PlaceUnit(state, unit, coord, true), $"测试单位应可放置到 {coord}：{unit.unit_id}");
     }
 
-    private static GDictionary CloneCells(GDictionary cells)
-    {
-        var cloned = new GDictionary();
-        foreach (Variant coordValue in cells.Keys)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            BattleCellState cell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (cell != null)
-                cloned[coordValue.AsVector2I()] = cell.DuplicateCell();
-        }
-        return cloned;
-    }
-
     private static GVector2IArray CollectAllCoords(BattleState state)
     {
         var coords = new GVector2IArray();
@@ -316,8 +362,8 @@ public partial class run_battle_board_regression : SceneTree
         bool foundStackedColumn = false;
         foreach (Variant coordValue in cells.Keys)
         {
-            BattleCellState surfaceCell = cells[coordValue].AsGodotObject() as BattleCellState;
-            if (surfaceCell == null)
+            if (!BattleCellState.TryReadCellPayload(cells[coordValue], out BattleCellState surfaceCell)
+                || surfaceCell == null)
                 continue;
             _test.True(columns.ContainsKey(coordValue), $"cell_columns 应包含 surface cell 坐标：{coordValue}");
             if (!columns.ContainsKey(coordValue) || columns[coordValue].VariantType != Variant.Type.Array)
@@ -334,7 +380,7 @@ public partial class run_battle_board_regression : SceneTree
     {
         foreach (Vector2I coord in CollectSpawnCoords(layout))
         {
-            BattleCellState cell = DictDict(layout, "cells")[coord].AsGodotObject() as BattleCellState;
+            BattleCellState.TryReadCellPayload(DictDict(layout, "cells")[coord], out BattleCellState cell);
             _test.True(cell != null, $"{label} spawn 应指向有效 battle cell：{coord}");
             if (cell != null)
                 _test.False(BattleTerrainRules.IsWaterTerrain(cell.base_terrain), $"{label} spawn 不应落在水域：{coord}");
@@ -363,8 +409,7 @@ public partial class run_battle_board_regression : SceneTree
     {
         foreach (Variant cellValue in DictDict(layout, "cells").Values)
         {
-            BattleCellState cell = cellValue.AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cellValue, out BattleCellState cell) || cell == null)
                 continue;
             foreach (StringName propId in cell.prop_ids)
                 _test.True(BattleBoardPropCatalog.IsSupported(propId), $"显式 prop_id 必须来自正式 prop catalog：{propId}");
@@ -376,8 +421,7 @@ public partial class run_battle_board_regression : SceneTree
         int count = 0;
         foreach (Variant cellValue in DictDict(layout, "cells").Values)
         {
-            BattleCellState cell = cellValue.AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cellValue, out BattleCellState cell) || cell == null)
                 continue;
             foreach (StringName cellPropId in cell.prop_ids)
             {
@@ -401,8 +445,7 @@ public partial class run_battle_board_regression : SceneTree
         coords.Sort((left, right) => left.Y == right.Y ? left.X.CompareTo(right.X) : left.Y.CompareTo(right.Y));
         foreach (Vector2I coord in coords)
         {
-            BattleCellState cell = cells[coord].AsGodotObject() as BattleCellState;
-            if (cell == null)
+            if (!BattleCellState.TryReadCellPayload(cells[coord], out BattleCellState cell) || cell == null)
                 continue;
             lines.Add(
                 $"{coord.X},{coord.Y}|{cell.base_terrain}|{cell.current_height}|{string.Join(",", StringifyProps(cell.prop_ids))}"
@@ -411,7 +454,7 @@ public partial class run_battle_board_regression : SceneTree
         return lines;
     }
 
-    private static List<string> StringifyProps(GStringNameArray propIds)
+    private static List<string> StringifyProps(IEnumerable<StringName> propIds)
     {
         var values = new List<string>();
         foreach (StringName propId in propIds)

@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
-public partial class run_battle_ai_score_input_metrics_regression : SceneTree
+public partial class run_battle_ai_score_input_metrics_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
 
@@ -17,24 +15,21 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             TestGroundSkillScoreInputExposesMetrics();
             TestRepeatAttackScoreUsesStageSuccessRate();
             TestChainSkillScoresFriendlyBounceRisk();
+            TestLayeredBarrierProjectionTracksLayersAndLifetime();
+            TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat();
         }
         catch (Exception exception)
         {
             _test.Fail($"Unhandled exception: {exception}");
         }
-        finally
-        {
-            GodotSharpCleanup.CollectPendingFinalizers();
-        }
 
-        Quit(_test.Finish("Battle AI score input metrics regression"));
+        RequestTestExit(_test.Finish("Battle AI score input metrics regression"));
     }
 
     private void TestGroundSkillEffectiveTargetsExcludeFriendlyFire()
     {
         using Fixture fixture = BuildFixture("score_input_ground_effective_targets", new Vector2I(8, 6));
-        using var scoreOwner = new ScoreInputOwner();
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "friendly_fire_fireball_probe",
             "Friendly Fire Fireball Probe",
             BuildDamageEffect(10, "any")
@@ -48,14 +43,12 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(target);
         fixture.AddUnit(ally);
 
-        scoreOwner.Command = BuildCommand(caster, skill.skill_id, target.coord);
-        scoreOwner.Preview = BuildPreview(target, ally);
-        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            scoreOwner.Command,
-            scoreOwner.Preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            BuildCommand(caster, skill.SkillId, target.coord),
+            BuildPreview(target, ally),
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 4, 5)
         );
 
@@ -72,8 +65,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestEmptyGroundControlCellsStaySeparateFromUnitTargets()
     {
         using Fixture fixture = BuildFixture("score_input_empty_ground_control", new Vector2I(6, 5));
-        using var scoreOwner = new ScoreInputOwner();
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "ai_empty_ground_control_score_probe",
             "Empty Ground Control Probe",
             BuildTerrainEffect("mist_pool")
@@ -83,14 +75,12 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleUnitState caster = BuildUnit("empty_ground_control_scorer", "hostile", new Vector2I(1, 2));
         fixture.AddUnit(caster);
         Vector2I targetCoord = new(3, 2);
-        scoreOwner.Command = BuildCommand(caster, skill.skill_id, targetCoord);
-        scoreOwner.Preview = BuildGroundPreview(targetCoord);
-        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            scoreOwner.Command,
-            scoreOwner.Preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            BuildCommand(caster, skill.SkillId, targetCoord),
+            BuildGroundPreview(targetCoord),
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 0, 5)
         );
 
@@ -109,15 +99,14 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestGroundSkillScoreInputExposesMetrics()
     {
         using Fixture fixture = BuildFixture("score_input_ground_metrics", new Vector2I(7, 5));
-        using var scoreOwner = new ScoreInputOwner();
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "archer_suppressive_fire_probe",
             "Suppressive Fire Probe",
-            BuildDamageEffect(8, "enemy")
+            effects: new[] { BuildDamageEffect(8, "enemy") },
+            apCost: 2,
+            staminaCost: 2,
+            cooldownTu: 15
         );
-        skill.combat_profile.ap_cost = 2;
-        skill.combat_profile.stamina_cost = 2;
-        skill.combat_profile.cooldown_tu = 15;
         fixture.AddSkill(skill);
 
         BattleUnitState harrier = BuildUnit("mist_harrier_score", "hostile", new Vector2I(1, 2));
@@ -127,14 +116,12 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(playerA);
         fixture.AddUnit(playerB);
 
-        scoreOwner.Command = BuildCommand(harrier, skill.skill_id, playerA.coord);
-        scoreOwner.Preview = BuildPreview(playerA, playerB);
-        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(harrier),
             skill,
-            scoreOwner.Command,
-            scoreOwner.Preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            BuildCommand(harrier, skill.SkillId, playerA.coord),
+            BuildPreview(playerA, playerB),
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 0, 6)
         );
 
@@ -157,8 +144,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestRepeatAttackScoreUsesStageSuccessRate()
     {
         using Fixture fixture = BuildFixture("score_input_fate_aware_hit_rate", new Vector2I(5, 3));
-        using var scoreOwner = new ScoreInputOwner();
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "ai_fate_preview_combo_probe",
             "Fate Preview Combo Probe",
             BuildDamageEffect(10, "enemy")
@@ -169,8 +155,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         BattleUnitState target = BuildUnit("fate_score_target", "player", new Vector2I(2, 1));
         fixture.AddUnit(scorer);
         fixture.AddUnit(target);
-        scoreOwner.Preview = BuildPreview(target);
-        BattlePreview preview = scoreOwner.Preview;
+        BattlePreview preview = BuildPreview(target);
         preview.hit_preview = new AttackPreviewData
         {
             Stages = new List<AttackPreviewStage>
@@ -182,13 +167,12 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             BaseHitRatePercent = 10,
         };
 
-        scoreOwner.Command = BuildCommand(scorer, skill.skill_id, target.coord, target);
-        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(scorer),
             skill,
-            scoreOwner.Command,
+            BuildCommand(scorer, skill.SkillId, target.coord, target),
             preview,
-            new[] { skill.combat_profile.effect_defs[0] },
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target, 1, 1)
         );
 
@@ -205,8 +189,7 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
     private void TestChainSkillScoresFriendlyBounceRisk()
     {
         using Fixture fixture = BuildFixture("score_input_chain_friendly_bounce", new Vector2I(8, 6));
-        using var scoreOwner = new ScoreInputOwner();
-        SkillDef skill = BuildSkill(
+        SkillDefinition skill = BuildSkill(
             "mage_chain_lightning_probe",
             "Chain Lightning Probe",
             BuildChainDamageEffect(1),
@@ -221,14 +204,12 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         fixture.AddUnit(target);
         fixture.AddUnit(ally);
 
-        scoreOwner.Command = BuildCommand(mage, skill.skill_id, target.coord, target);
-        scoreOwner.Preview = BuildPreview(target);
-        BattleAiScoreInput score = scoreOwner.Score = fixture.ScoreService.BuildSkillScoreInput(
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(mage),
             skill,
-            scoreOwner.Command,
-            scoreOwner.Preview,
-            new[] { skill.combat_profile.effect_defs[0], skill.combat_profile.effect_defs[1] },
+            BuildCommand(mage, skill.SkillId, target.coord, target),
+            BuildPreview(target),
+            new[] { skill.CombatProfile.EffectDefinitions[0], skill.CombatProfile.EffectDefinitions[1] },
             BuildPositionMetadata(target, 4, 5)
         );
 
@@ -239,6 +220,71 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         }
         _test.True(score.estimated_chain_ally_target_count >= 1, "链闪评分应预估会弹射到友军。");
         _test.True(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。");
+    }
+
+    private void TestLayeredBarrierProjectionTracksLayersAndLifetime()
+    {
+        using Fixture fixture = BuildFixture("score_input_layered_barrier", new Vector2I(8, 5));
+        StringName profileId = "ai_layered_barrier_probe";
+        SkillDefinition skill = BuildLayeredBarrierSkill("ai_layered_barrier_skill", profileId);
+        fixture.AddSkill(skill);
+        fixture.AddBarrierProfile(BuildLayeredBarrierProfile(profileId));
+
+        BattleUnitState caster = BuildUnit("barrier_scorer", "hostile", new Vector2I(2, 2));
+        BattleUnitState enemy = BuildUnit("barrier_boundary_enemy", "player", new Vector2I(5, 2));
+        fixture.AddUnit(caster);
+        fixture.AddUnit(enemy);
+
+        BattleAiScoreInput freshScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(freshScore?.layered_barrier_projection != null, "屏障评分应输出 typed 战术投影。");
+        if (freshScore?.layered_barrier_projection == null)
+            return;
+        _test.Eq(freshScore.layered_barrier_projection.utility_control_count, 1, "边界外存在近敌时，新法球应提供控场收益。");
+        _test.Eq(freshScore.layered_barrier_projection.reason, "tactical_boundary", "新法球应记录边界战术原因。");
+        _test.True(freshScore.hit_payoff_score > 0, "有效法球应贡献正向命中收益。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, false, false));
+        BattleAiScoreInput redundantScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(redundantScore.layered_barrier_projection.redundant_same_anchor, "同锚点完整法球且寿命充足时应判定重复。");
+        _test.Eq(redundantScore.layered_barrier_projection.utility_control_count, 0, "重复法球不应再次贡献控场收益。");
+        _test.Eq(redundantScore.hit_payoff_score, 0, "重复法球的效果收益应为零。");
+        _test.Eq(redundantScore.low_value_penalty_reason, "layered_barrier:redundant_same_anchor", "重复原因应进入评分输入。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, true, false));
+        BattleAiScoreInput brokenLayerScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.False(brokenLayerScore.layered_barrier_projection.redundant_same_anchor, "已有破层时，重建完整法球不应判定重复。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_active_layer_count, 1, "投影应读取现存有效层数。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_broken_layer_count, 1, "投影应读取现存破层数。");
+        _test.Eq(brokenLayerScore.layered_barrier_projection.utility_control_count, 1, "破层法球允许重建控场价值。");
+
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 10, false, false));
+        BattleAiScoreInput expiringScore = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.Eq(expiringScore.layered_barrier_projection.replacement_threshold_tu, 30, "替换阈值应由投影持续时间稳定导出。");
+        _test.False(expiringScore.layered_barrier_projection.redundant_same_anchor, "完整但即将过期的法球允许提前替换。");
+        _test.Eq(expiringScore.layered_barrier_projection.utility_control_count, 1, "低剩余 TU 法球应保留续场价值。");
+    }
+
+    private void TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat()
+    {
+        using Fixture fixture = BuildFixture("score_input_layered_barrier_no_threat", new Vector2I(10, 5));
+        StringName profileId = "ai_layered_barrier_no_threat_probe";
+        SkillDefinition skill = BuildLayeredBarrierSkill("ai_layered_barrier_no_threat_skill", profileId);
+        fixture.AddSkill(skill);
+        fixture.AddBarrierProfile(BuildLayeredBarrierProfile(profileId));
+
+        BattleUnitState caster = BuildUnit("barrier_idle_scorer", "hostile", new Vector2I(1, 2));
+        BattleUnitState distantEnemy = BuildUnit("barrier_distant_enemy", "player", new Vector2I(8, 2));
+        fixture.AddUnit(caster);
+        fixture.AddUnit(distantEnemy);
+
+        BattleAiScoreInput score = ScoreLayeredBarrier(fixture, caster, skill);
+        _test.True(score?.layered_barrier_projection != null, "无近敌局面仍应输出可解释投影。");
+        if (score?.layered_barrier_projection == null)
+            return;
+        _test.Eq(score.layered_barrier_projection.nearby_outside_enemy_count, 0, "远敌不应伪装成法球边界威胁。");
+        _test.Eq(score.layered_barrier_projection.utility_control_count, 0, "没有近距离边界威胁时不应奖励施放法球。");
+        _test.Eq(score.layered_barrier_projection.reason, "no_nearby_outside_enemy", "投影应解释无收益原因。");
+        _test.Eq(score.hit_payoff_score, 0, "无边界威胁时法球效果收益应为零。");
     }
 
     private static Fixture BuildFixture(string battleId, Vector2I mapSize) =>
@@ -302,55 +348,177 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         return unit;
     }
 
-    private static SkillDef BuildSkill(StringName skillId, string displayName, params CombatEffectDef[] effects)
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        params CombatEffectDefinition[] effects
+    ) =>
+        BuildSkill(
+            skillId,
+            displayName,
+            effects: effects,
+            apCost: 0,
+            staminaCost: 0,
+            cooldownTu: 0
+        );
+
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        string displayName,
+        IReadOnlyList<CombatEffectDefinition> effects,
+        int apCost,
+        int staminaCost,
+        int cooldownTu
+    )
     {
-        var combatProfile = new CombatSkillDef
-        {
-            skill_id = skillId,
-            range_value = 5,
-            ap_cost = 0,
-            mp_cost = 0,
-            stamina_cost = 0,
-            cooldown_tu = 0,
-        };
-        foreach (CombatEffectDef effect in effects ?? Array.Empty<CombatEffectDef>())
-        {
-            if (effect != null)
-            {
-                combatProfile.effect_defs.Add(effect);
-            }
-        }
-        return new SkillDef
-        {
-            skill_id = skillId,
-            display_name = displayName,
-            combat_profile = combatProfile,
-        };
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName,
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: effects ?? Array.Empty<CombatEffectDefinition>(),
+                rangeValue: 5,
+                apCost: apCost,
+                staminaCost: staminaCost,
+                cooldownTu: cooldownTu
+            )
+        );
     }
 
-    private static CombatEffectDef BuildDamageEffect(int power, StringName targetFilter) =>
-        new()
-        {
-            effect_type = "damage",
-            effect_target_team_filter = targetFilter,
-            power = power,
-        };
+    private static CombatEffectDefinition BuildDamageEffect(int power, StringName targetFilter) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: targetFilter,
+            power: power
+        );
 
-    private static CombatEffectDef BuildTerrainEffect(StringName terrainEffectId) =>
-        new()
-        {
-            effect_type = "terrain_effect",
-            terrain_effect_id = terrainEffectId,
-        };
+    private static CombatEffectDefinition BuildTerrainEffect(StringName terrainEffectId) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "terrain_effect",
+            terrainEffectId: terrainEffectId
+        );
 
-    private static CombatEffectDef BuildChainDamageEffect(int radius) =>
-        new()
+    private static CombatEffectDefinition BuildChainDamageEffect(int radius) =>
+        TestSkillDefinitionProjection.BuildEffect(
+            "chain_damage",
+            effectTargetTeamFilter: "any",
+            preventRepeatTarget: true,
+            parameters: new Dictionary<string, object> { ["base_chain_radius"] = radius }
+        );
+
+    private static SkillDefinition BuildLayeredBarrierSkill(
+        StringName skillId,
+        StringName profileId
+    )
+    {
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "layered_barrier",
+            effectTargetTeamFilter: "self",
+            durationTu: 120,
+            parameters: new Dictionary<string, object>
+            {
+                ["profile_id"] = profileId,
+                ["radius_cells"] = 2L,
+                ["area_pattern"] = new StringName("diamond"),
+            }
+        );
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            "Layered Barrier AI Probe",
+            TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                effects: new[] { effect },
+                targetMode: "unit",
+                targetTeamFilter: "self",
+                rangeValue: 0,
+                areaPattern: "self"
+            )
+        );
+    }
+
+    private static BarrierProfileDefinition BuildLayeredBarrierProfile(StringName profileId) =>
+        new(
+            profileId,
+            "Layered Barrier AI Probe",
+            "fixed",
+            "diamond",
+            2,
+            120,
+            true,
+            new[]
+            {
+                new BarrierLayerDefinition(
+                    "red",
+                    "Red",
+                    1,
+                    Array.Empty<StringName>(),
+                    Array.Empty<StringName>(),
+                    Array.Empty<BarrierOutcomeDefinition>()
+                ),
+                new BarrierLayerDefinition(
+                    "orange",
+                    "Orange",
+                    2,
+                    Array.Empty<StringName>(),
+                    Array.Empty<StringName>(),
+                    Array.Empty<BarrierOutcomeDefinition>()
+                ),
+            }
+        );
+
+    private static BattleBarrierInstanceState BuildLayeredBarrierState(
+        StringName profileId,
+        Vector2I anchorCoord,
+        int remainingTu,
+        bool redBroken,
+        bool orangeBroken
+    )
+    {
+        var barrier = new BattleBarrierInstanceState
         {
-            effect_type = "chain_damage",
-            effect_target_team_filter = "any",
-            prevent_repeat_target = true,
-            @params = new GDictionary { ["base_chain_radius"] = radius },
+            BarrierInstanceId = "ai_layered_barrier_instance",
+            ProfileId = profileId,
+            DisplayName = "Layered Barrier AI Probe",
+            AnchorCoord = anchorCoord,
+            RadiusCells = 2,
+            AreaPattern = "diamond",
+            RemainingTu = remainingTu,
         };
+        barrier.SetLayers(
+            new[]
+            {
+                new BattleBarrierLayerState
+                {
+                    LayerId = "red",
+                    DisplayName = "Red",
+                    Order = 1,
+                    Broken = redBroken,
+                },
+                new BattleBarrierLayerState
+                {
+                    LayerId = "orange",
+                    DisplayName = "Orange",
+                    Order = 2,
+                    Broken = orangeBroken,
+                },
+            }
+        );
+        return barrier;
+    }
+
+    private static BattleAiScoreInput ScoreLayeredBarrier(
+        Fixture fixture,
+        BattleUnitState caster,
+        SkillDefinition skill
+    ) =>
+        fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, caster.coord, caster),
+            BuildPreview(caster),
+            new[] { skill.CombatProfile.EffectDefinitions[0] },
+            BuildPositionMetadata(caster, 0, 0)
+        );
 
     private static BattleCommand BuildCommand(
         BattleUnitState actor,
@@ -429,20 +597,26 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
-        private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+        private readonly Dictionary<StringName, SkillDefinition> _skillDefinitions = new();
+        private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfiles = new();
 
         public Fixture(string battleId, Vector2I mapSize)
         {
             State = BuildFlatState(battleId, mapSize);
         }
 
-        public void AddSkill(SkillDef skillDef)
+        public void Dispose()
         {
-            if (skillDef == null || skillDef.skill_id == "")
+            ScoreService.Dispose();
+        }
+
+        public void AddSkill(SkillDefinition skillDefinition)
+        {
+            if (skillDefinition == null || skillDefinition.SkillId == "")
             {
                 return;
             }
-            _skillDefs[skillDef.skill_id] = skillDef;
+            _skillDefinitions[skillDefinition.SkillId] = skillDefinition;
         }
 
         public void AddUnit(BattleUnitState unit)
@@ -467,6 +641,20 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
             }
         }
 
+        public void AddBarrierProfile(BarrierProfileDefinition profile)
+        {
+            if (profile == null || profile.ProfileId == "")
+                return;
+            _barrierProfiles[profile.ProfileId] = profile;
+        }
+
+        public void PutBarrier(BattleBarrierInstanceState barrier)
+        {
+            if (barrier == null || barrier.BarrierInstanceId == "")
+                return;
+            State.LayeredBarrierStore.Put(barrier.BarrierInstanceId, barrier);
+        }
+
         public BattleAiContext BuildContext(BattleUnitState actor)
         {
             var context = new BattleAiContext
@@ -475,40 +663,9 @@ public partial class run_battle_ai_score_input_metrics_regression : SceneTree
                 unit_state = actor,
                 grid_service = GridService,
             };
-            context.SetSkillDefs(_skillDefs);
+            context.SetSkillDefinitions(_skillDefinitions);
+            context.SetBarrierProfileDefinitions(_barrierProfiles);
             return context;
-        }
-
-        public void Dispose()
-        {
-            ScoreService.Dispose();
-            foreach (SkillDef skillDef in _skillDefs.Values)
-                BattleTestFixture.DisposeSkill(skillDef);
-            _skillDefs.Clear();
-            BattleTestFixture.DisposeBattleState(State);
-        }
-    }
-
-    private sealed class ScoreInputOwner : IDisposable
-    {
-        public BattleAiScoreInput Score;
-        public BattleCommand Command;
-        public BattlePreview Preview;
-
-        public void Dispose()
-        {
-            if (Score != null)
-            {
-                BattleTestFixture.DisposeBattleAiScoreInput(Score);
-            }
-            else
-            {
-                BattleTestFixture.DisposeBattlePreview(Preview);
-                GodotSharpCleanup.DisposeGodotObject(Command);
-            }
-            Score = null;
-            Command = null;
-            Preview = null;
         }
     }
 }
