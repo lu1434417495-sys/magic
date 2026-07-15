@@ -34,6 +34,8 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 - **C3 伤害预扣段**：`BattleHoverPreviewOverlay` 的目标 HP 条改为双层叠放（`TargetHpStack`：下层预警色按当前 HP 填充，上层 HP 色按"受击后剩余"填充，露出的色带即预计伤害段），HP 文本追加"→ 受击后 X~Y"。回归：`run_battle_hover_hp_predict_regression.cs`。注：预扣段落在 hover 浮层（钉在地图左侧的事实目标预览卡）而非 UnitCard——UnitCard 显示的是焦点单位而非受击目标。
 - **D1 副资源条偏窄**：Stamina/MP/Aura 由 14px 升到 18px（`battle_map_panel.tscn` + `BattleUiTheme.PROGRESS_BAR_HEIGHT_SECONDARY`），hover 浮层 HP 条同步升到 18px。
 - **C1 header 开发占位**：缺 `encounter_display_name` 时的回落文案由开发占位"战斗地图"改为通用的"遭遇战"（`BattleHudAdapter` + `BattleMapPanel` 占位态 + 场景默认文本三处同步）。
+- **B3 命运徽章上移**（同日第三批）：`FateBadgeRow` 从 SkillHeader 移到 `TopBar/TopLayoutVbox` 第三行（tscn 移动节点，unique name 不变，空态自动收起不占高）。
+- **C5 视口操作可见性**（同日第三批）：TopBar 右格新增 `ZoomChip`（`×2.0` 倍率随缩放/平移实时刷新，tooltip 说明滚轮/中键操作）+ `ResetViewButton`（`BattleBoard2D.ResetViewportCamera`：清除手动缩放覆盖、回到适配缩放并重新聚焦焦点格）。摄像机操作为纯本地视口行为，不走命令通道。回归并入 `run_battle_map_panel_schema_regression.cs`。
 - **B4 Buff / Debuff 指示位**（同日第二批）：`BattleHudAdapter.BuildStatusEffectSnapshots` 把 `BattleUnitState.GetStatusEffectsTyped()` 投影为 `status_effects`（label 取 `display_label` → 语义表 → status_id 三级回落，减益判定走 `BattleStatusSemanticTable.IsHarmfulStatusEntry`，含 override 通道），挂在 `focus_unit` 与 hover `target_unit` 两个快照上。渲染：UnitCard InfoColumn 代码内建 `StatusBadgeRow`（减益红 / 增益青，文本 `标签×层数 剩余TU`）+ hover 浮层 `TargetStatusRow`；headless 文本快照新增 `hud_status` 行（无状态时不输出，保持既有快照文本不变）。回归：`run_battle_status_badge_regression.cs` + schema / typed projection 基线更新。
 
 ## A. 结构性硬伤（数据产生了但没地方显示）
@@ -64,9 +66,7 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
     - `ModeValueLabel`（文本“手动”）仍是只读 Label。
     - AI / 暂停 / 加速等运行时控制缺按钮入口。
     - 2026-06-27 决定：ModeButton **不做**——战中缺少切换 `control_mode` 的运行时命令通道，做它需要新增 `CommandBattleToggleControlMode`（涉 AI 回合 / mutation guard），不属于纯渲染层补齐。
-5. **视口操作无视觉指示**
-    - `_on_map_viewport_container_gui_input` 支持缩放 / 平移 / 中键拖拽。
-    - 界面上没有当前缩放级别、没有“重置视角”按钮，新玩家难以察觉这些操作存在。
+5. ~~视口操作无视觉指示~~（2026-07-16 已落地 TopBar ZoomChip + ResetViewButton，见核对增量。）
 
 ## D. 视觉 / 可读性
 
@@ -91,12 +91,10 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 
 ### 应做（提升体验）
 
-- 命运徽章上移到 TopBar 下方独立条。 → B3
 - 治疗预览（预扣血段的反向：预回血段）。 → C3 残留
 
 ### 可选
 
 - RuntimeLogDock 增加拖动 / 自定义停靠（折叠 + 透明度已完成）。 → E1
 - 全局键位说明面板。 → C2
-- 视口缩放级别指示 / 重置视角按钮。 → C5
 - ModeButton：需先新增 `CommandBattleToggleControlMode` 运行时命令，2026-06-27 决定暂不做。 → C4

@@ -131,6 +131,13 @@ size_flags_horizontal = 3
 alignment = 1
 theme_override_constants/separation = 4
 
+[node name="FateBadgeRow" type="HFlowContainer" parent="HudRoot/TopBar/TopLayoutVbox" unique_id=418070993]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
 [node name="BottomPanel" type="PanelContainer" parent="HudRoot" unique_id=812677194]
 unique_name_in_owner = true
 layout_mode = 1
@@ -283,13 +290,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "等待战斗数据"
 autowrap_mode = 3
-
-[node name="FateBadgeRow" type="HFlowContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout/SkillHeader" unique_id=418070993]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 8
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
 
 [node name="SkillGrid" type="GridContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=1485002171]
 unique_name_in_owner = true

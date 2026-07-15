@@ -221,6 +221,16 @@ public partial class BattleBoard2D : Node2D
         return true;
     }
 
+    public float GetCameraZoom() => _camera_zoom;
+
+    // 重置视角：清除手动缩放覆盖，回到水平适配缩放并重新聚焦当前焦点格。
+    public bool ResetViewportCamera()
+    {
+        _has_manual_zoom_override = false;
+        _fit_to_viewport(true);
+        return true;
+    }
+
     public bool PanViewportDirection(Vector2I direction)
     {
         if (direction == Vector2I.Zero)
