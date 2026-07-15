@@ -41,8 +41,8 @@ Prefer existing project fixtures:
 
 1. Place the test beside its domain: `tests/warehouse`, `tests/equipment`, `tests/progression`, `tests/runtime`, `tests/world_map`, `tests/text_runtime`, or `tests/battle_runtime`.
 2. Name C# runners `run_<behavior>_regression.cs`. Do not manually create or edit `.uid` files.
-3. Use a `public partial class run_<behavior>_regression : SceneTree` with a private `TestHarness`.
-4. In `_Initialize()`, use `CallDeferred(nameof(Run))` when the test needs autoloads, scene tree readiness, async waits, or Godot resources that should settle before assertions. Direct `Run()` is acceptable for isolated pure logic runners.
+3. Use a `public partial class run_<behavior>_regression : LifecycleTestSceneTree` with a private `TestHarness`.
+4. In `_Initialize()`, use `RunAfterProcessStartup(Run)` when the test needs autoloads, scene tree readiness, the process `ContentSnapshot`, async waits, or Godot resources that should settle before assertions. Direct `Run()` is acceptable for isolated pure logic runners. Do not use string-based `CallDeferred(nameof(...))` dispatch.
 5. Split assertions into small private methods named for the contract being protected.
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
 7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers, but do not run a local forced-GC/finalizer drain there.
