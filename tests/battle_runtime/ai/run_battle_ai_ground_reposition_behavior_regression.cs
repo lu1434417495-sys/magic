@@ -8,7 +8,7 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

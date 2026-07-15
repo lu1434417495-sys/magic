@@ -9,7 +9,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

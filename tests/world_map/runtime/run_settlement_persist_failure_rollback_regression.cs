@@ -14,7 +14,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()

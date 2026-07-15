@@ -10,7 +10,7 @@ public partial class run_battle_timeline_state_schema_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

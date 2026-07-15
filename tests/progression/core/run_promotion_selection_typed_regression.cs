@@ -9,7 +9,7 @@ public partial class run_promotion_selection_typed_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

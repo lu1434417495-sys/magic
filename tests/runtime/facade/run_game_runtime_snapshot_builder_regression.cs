@@ -15,7 +15,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()

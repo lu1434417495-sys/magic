@@ -9,7 +9,7 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -9,7 +9,7 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

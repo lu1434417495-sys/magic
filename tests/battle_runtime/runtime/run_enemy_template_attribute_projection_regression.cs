@@ -9,7 +9,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

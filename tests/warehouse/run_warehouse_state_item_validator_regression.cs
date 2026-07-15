@@ -7,7 +7,7 @@ public partial class run_warehouse_state_item_validator_regression : LifecycleTe
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -6,7 +6,7 @@ public partial class run_content_snapshot_session_recreate_regression : Lifecycl
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private async void Run()
     {

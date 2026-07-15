@@ -8,7 +8,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

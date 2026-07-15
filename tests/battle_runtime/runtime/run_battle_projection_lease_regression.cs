@@ -10,7 +10,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {

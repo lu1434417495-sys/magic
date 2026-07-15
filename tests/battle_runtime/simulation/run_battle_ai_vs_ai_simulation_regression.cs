@@ -11,7 +11,7 @@ public partial class run_battle_ai_vs_ai_simulation_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()

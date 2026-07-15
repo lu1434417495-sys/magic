@@ -10,7 +10,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

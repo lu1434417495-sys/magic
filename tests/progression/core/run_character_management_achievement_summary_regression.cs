@@ -10,7 +10,7 @@ public partial class run_character_management_achievement_summary_regression : L
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

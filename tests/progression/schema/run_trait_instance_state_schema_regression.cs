@@ -7,7 +7,7 @@ public partial class run_trait_instance_state_schema_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

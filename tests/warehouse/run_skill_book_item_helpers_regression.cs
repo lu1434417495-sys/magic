@@ -7,7 +7,7 @@ public partial class run_skill_book_item_helpers_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

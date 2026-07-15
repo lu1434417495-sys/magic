@@ -8,7 +8,7 @@ public partial class run_battle_sim_definition_patch_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

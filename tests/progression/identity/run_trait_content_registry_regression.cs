@@ -7,7 +7,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

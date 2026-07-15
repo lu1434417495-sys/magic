@@ -11,7 +11,7 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
 
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private async void Run()
     {

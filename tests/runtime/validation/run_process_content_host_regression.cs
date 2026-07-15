@@ -7,7 +7,7 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {

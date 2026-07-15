@@ -15,7 +15,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -8,7 +8,7 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

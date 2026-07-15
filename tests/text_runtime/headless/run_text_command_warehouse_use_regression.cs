@@ -13,7 +13,7 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

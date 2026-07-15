@@ -15,7 +15,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

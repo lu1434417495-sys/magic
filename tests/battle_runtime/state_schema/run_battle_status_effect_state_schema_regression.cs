@@ -10,7 +10,7 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

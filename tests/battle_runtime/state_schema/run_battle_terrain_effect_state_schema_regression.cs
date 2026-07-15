@@ -8,7 +8,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

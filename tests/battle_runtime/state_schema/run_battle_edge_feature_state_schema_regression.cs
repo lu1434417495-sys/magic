@@ -7,7 +7,7 @@ public partial class run_battle_edge_feature_state_schema_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -14,7 +14,7 @@ public partial class run_content_snapshot_query_soak_regression : LifecycleTestS
 
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private async void Run()
     {

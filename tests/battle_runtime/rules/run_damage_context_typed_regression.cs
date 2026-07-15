@@ -8,7 +8,7 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

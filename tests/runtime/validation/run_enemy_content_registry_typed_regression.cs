@@ -14,7 +14,7 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

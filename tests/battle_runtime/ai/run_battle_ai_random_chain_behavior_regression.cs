@@ -8,7 +8,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

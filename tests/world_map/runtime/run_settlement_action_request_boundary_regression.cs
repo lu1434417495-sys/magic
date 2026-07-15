@@ -12,7 +12,7 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()

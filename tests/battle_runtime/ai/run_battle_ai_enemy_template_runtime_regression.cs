@@ -15,7 +15,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

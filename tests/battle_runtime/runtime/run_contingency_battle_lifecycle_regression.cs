@@ -13,7 +13,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()

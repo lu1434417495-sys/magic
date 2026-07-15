@@ -9,7 +9,7 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

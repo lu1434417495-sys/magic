@@ -7,7 +7,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

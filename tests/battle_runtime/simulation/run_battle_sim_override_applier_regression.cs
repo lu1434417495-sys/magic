@@ -10,7 +10,7 @@ public partial class run_battle_sim_override_applier_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()

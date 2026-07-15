@@ -15,7 +15,7 @@ public partial class run_skill_definition_plain_value_graph_regression : Lifecyc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

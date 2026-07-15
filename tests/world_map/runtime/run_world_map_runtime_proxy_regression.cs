@@ -31,7 +31,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
