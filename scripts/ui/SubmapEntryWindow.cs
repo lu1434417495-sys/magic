@@ -2,13 +2,18 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class SubmapEntryWindow : Control
+public partial class SubmapEntryWindow : ModalWindowShell
 {
     [Signal]
     public delegate void confirmedEventHandler();
 
     [Signal]
     public delegate void cancelledEventHandler();
+
+    // 遮罩点击与 Esc 共用 prompt 的 dismiss_on_shade 开关（强制确认的提示两者都关）。
+    protected override bool DismissOnShade => _dismiss_on_shade;
+
+    protected override bool DismissOnEscape => _dismiss_on_shade;
 
     public ColorRect shade;
     public Label title_label;
@@ -60,11 +65,17 @@ public partial class SubmapEntryWindow : Control
 
         _cache_default_metrics();
         HideWindow();
-        shade.GuiInput += _on_shade_gui_input;
         confirm_button.Pressed += _on_confirm_button_pressed;
         cancel_button.Pressed += _on_cancel_button_pressed;
         confirm_button.FocusMode = FocusModeEnum.All;
         cancel_button.FocusMode = FocusModeEnum.All;
+        base._Ready();
+    }
+
+    protected override void _on_modal_close_requested()
+    {
+        HideWindow();
+        EmitSignal(SignalName.cancelled);
     }
 
     public void ShowPrompt(GDictionary prompt)
@@ -102,6 +113,7 @@ public partial class SubmapEntryWindow : Control
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        base._UnhandledInput(@event);
         if (!Visible || !_accept_input_enabled || @event == null)
             return;
         if (@event.IsActionPressed("ui_accept"))
@@ -123,17 +135,6 @@ public partial class SubmapEntryWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.cancelled);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (!Visible || !_dismiss_on_shade)
-            return;
-        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
-        {
-            HideWindow();
-            EmitSignal(SignalName.cancelled);
-        }
     }
 
     private void _cache_default_metrics()

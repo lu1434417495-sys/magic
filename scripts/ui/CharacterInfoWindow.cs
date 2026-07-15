@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class CharacterInfoWindow : Control
+public partial class CharacterInfoWindow : ModalWindowShell
 {
     [Signal]
     public delegate void closedEventHandler();
@@ -77,9 +77,11 @@ public partial class CharacterInfoWindow : Control
         );
 
         HideWindow();
-        shade.GuiInput += _on_shade_gui_input;
         close_button.Pressed += _close_window;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _close_window();
 
     public void ShowCharacter(GDictionary window_data)
     {
@@ -116,18 +118,6 @@ public partial class CharacterInfoWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        _close_window();
     }
 
     private void _rebuild_sections(List<CharacterInfoSection> sections)
