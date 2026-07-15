@@ -910,13 +910,13 @@ public partial class RunQuestAcceptRequirementEvaluatorRegression : Node
         if (!result2.CanAccept)
             Fail("Should accept when pre-req completed");
 
-        GD.Print("QuestAcceptRequirementEvaluator regression PASSED");
+        ConsoleProcessOutput.WriteStandard("QuestAcceptRequirementEvaluator regression PASSED");
         GetTree().Quit(0);
     }
 
     private static void Fail(string message)
     {
-        GD.PrintErr($"FAILED: {message}");
+        ConsoleProcessOutput.WriteFailure($"FAILED: {message}");
         // throw or quit with non-zero
     }
 }
