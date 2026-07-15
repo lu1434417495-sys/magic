@@ -1755,6 +1755,7 @@ public partial class BattleMapPanel : Control
             AllowReselect = true,
             FixedIconSize = Vector2I.Zero,
         };
+        UiListTheme.Apply(_battle_equipment_backpack_list);
         _battle_equipment_backpack_list.ItemSelected += index =>
             _on_battle_equipment_backpack_selected((int)index);
         backpackLayout.AddChild(_battle_equipment_backpack_list);

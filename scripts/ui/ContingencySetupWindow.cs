@@ -82,6 +82,7 @@ public partial class ContingencySetupWindow : Control
         trigger_selector = GetNode<OptionButton>("%TriggerSelector");
         release_mode_selector = GetNode<OptionButton>("%ReleaseModeSelector");
         stored_spell_list = GetNode<ItemList>("%StoredSpellList");
+        UiListTheme.Apply(stored_spell_list);
         target_resolver_selector = GetNode<OptionButton>("%TargetResolverSelector");
         matrix_preview_label = GetNode<Label>("%MatrixPreviewLabel");
         material_preview_label = GetNode<Label>("%MaterialPreviewLabel");

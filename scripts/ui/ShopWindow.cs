@@ -65,6 +65,7 @@ public partial class ShopWindow : Control
         entry_list = GetNode<ItemList>(
             "CenterContainer/Panel/MarginContainer/Content/Body/EntryColumn/EntryList"
         );
+        UiListTheme.Apply(entry_list);
         details_label = GetNode<RichTextLabel>(
             "CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/DetailsLabel"
         );

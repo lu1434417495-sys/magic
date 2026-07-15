@@ -6,18 +6,6 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class SelectableListWindow : Control
 {
-    private static readonly Color ListItemHoverBg = new(0.40f, 0.50f, 0.66f, 0.18f);
-    private static readonly Color ListItemSelectedBg = new(0.22f, 0.18f, 0.10f, 0.95f);
-    private static readonly Color ListItemSelectedBorder = new(0.95f, 0.78f, 0.32f, 1.0f);
-    private static readonly Color ListItemCursorBorder = new(0.40f, 0.50f, 0.66f, 0.55f);
-    private static readonly Color ListFontNormal = new(0.85f, 0.92f, 1.0f, 0.92f);
-    private static readonly Color ListFontHover = new(0.98f, 0.94f, 0.78f, 1.0f);
-    private static readonly Color ListFontSelected = new(0.98f, 0.86f, 0.46f, 1.0f);
-
-    private const int ListItemCornerRadius = 6;
-    private const int ListItemPadX = 12;
-    private const int ListItemPadY = 8;
-
     private ColorRect _shade;
     private ItemList _itemList;
     private Label _detailLabel;
@@ -37,7 +25,7 @@ public partial class SelectableListWindow : Control
         _cancelButton = GetNode<Button>("%CancelButton");
         _footerCancelButton = GetNode<Button>("%FooterCancelButton");
 
-        ApplyItemListTheme(_itemList);
+        UiListTheme.Apply(_itemList);
         HideWindow();
         _shade.GuiInput += OnShadeGuiInput;
         _itemList.ItemSelected += OnItemSelected;
@@ -241,57 +229,6 @@ public partial class SelectableListWindow : Control
         )
             return;
         EmitCancel();
-    }
-
-    private static void ApplyItemListTheme(ItemList list)
-    {
-        if (list == null)
-            return;
-
-        var transparentBg = new StyleBoxEmpty();
-        list.AddThemeStyleboxOverride("panel", transparentBg);
-        list.AddThemeStyleboxOverride("focus", transparentBg);
-
-        var selectedStyle = MakeItemStyle(ListItemSelectedBg, ListItemSelectedBorder, 3);
-        list.AddThemeStyleboxOverride("selected", selectedStyle);
-        list.AddThemeStyleboxOverride("selected_focus", selectedStyle);
-        list.AddThemeStyleboxOverride("hovered_selected", selectedStyle);
-        list.AddThemeStyleboxOverride("hovered_selected_focus", selectedStyle);
-
-        var hoverStyle = MakeItemStyle(ListItemHoverBg, new Color(0, 0, 0, 0), 0);
-        list.AddThemeStyleboxOverride("hovered", hoverStyle);
-
-        var cursorStyle = MakeItemStyle(new Color(0, 0, 0, 0), ListItemCursorBorder, 2);
-        list.AddThemeStyleboxOverride("cursor", cursorStyle);
-        list.AddThemeStyleboxOverride("cursor_unfocused", cursorStyle);
-
-        list.AddThemeColorOverride("font_color", ListFontNormal);
-        list.AddThemeColorOverride("font_hovered_color", ListFontHover);
-        list.AddThemeColorOverride("font_selected_color", ListFontSelected);
-        list.AddThemeColorOverride("font_hovered_selected_color", ListFontSelected);
-        list.AddThemeConstantOverride("v_separation", 4);
-    }
-
-    private static StyleBoxFlat MakeItemStyle(Color bg, Color border, int borderWidthLeft)
-    {
-        var style = new StyleBoxFlat
-        {
-            BgColor = bg,
-            CornerRadiusTopLeft = ListItemCornerRadius,
-            CornerRadiusTopRight = ListItemCornerRadius,
-            CornerRadiusBottomRight = ListItemCornerRadius,
-            CornerRadiusBottomLeft = ListItemCornerRadius,
-            ContentMarginLeft = ListItemPadX,
-            ContentMarginRight = ListItemPadX - 2,
-            ContentMarginTop = ListItemPadY,
-            ContentMarginBottom = ListItemPadY,
-        };
-        if (borderWidthLeft > 0)
-        {
-            style.BorderColor = border;
-            style.BorderWidthLeft = borderWidthLeft;
-        }
-        return style;
     }
 
 }
