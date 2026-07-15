@@ -409,6 +409,8 @@ public sealed class BattleHudAdapter : IDisposable
         bool isEnemy =
             battleState != null && battleState.enemy_unit_ids.Contains(unitState.unit_id);
         bool isSelf = battleState != null && unitState.unit_id == battleState.active_unit_id;
+        IReadOnlyList<BattleHudStatusEffectSnapshot> statusEffects =
+            BuildStatusEffectSnapshots(unitState);
         return new BattleHoverTargetUnitSnapshot(
             UnitId: unitState.unit_id,
             Name: FormatUnitName(unitState, "单位"),
@@ -432,8 +434,49 @@ public sealed class BattleHudAdapter : IDisposable
             ApCurrent: unitState.current_ap,
             ApMax: Mathf.Max(apMax, 1),
             IsEnemy: isEnemy,
-            IsSelf: isSelf
+            IsSelf: isSelf,
+            StatusEffects: statusEffects
         );
+    }
+
+    internal static IReadOnlyList<BattleHudStatusEffectSnapshot> BuildStatusEffectSnapshots(
+        BattleUnitState unitState
+    )
+    {
+        var results = new List<BattleHudStatusEffectSnapshot>();
+        if (unitState == null)
+            return results.AsReadOnly();
+        foreach (BattleStatusEffectState status in unitState.GetStatusEffectsTyped())
+        {
+            if (status == null || status.IsEmpty())
+                continue;
+            string label = BattleStatusSemanticTable.GetDisplayLabel(status);
+            bool isDebuff = BattleStatusSemanticTable.IsHarmfulStatusEntry(status);
+            results.Add(
+                new BattleHudStatusEffectSnapshot(
+                    status.status_id.ToString(),
+                    label,
+                    Mathf.Max(status.stacks, 0),
+                    status.duration,
+                    isDebuff,
+                    BuildStatusEffectTooltip(label, status, isDebuff)
+                )
+            );
+        }
+        return results.AsReadOnly();
+    }
+
+    private static string BuildStatusEffectTooltip(
+        string label,
+        BattleStatusEffectState status,
+        bool isDebuff
+    )
+    {
+        var parts = new List<string> { label, isDebuff ? "减益" : "增益" };
+        if (status.stacks > 1)
+            parts.Add($"层数 {status.stacks}");
+        parts.Add(status.HasDuration() ? $"剩余 {status.duration} TU" : "持续到战斗结束或被解除");
+        return string.Join(" · ", parts);
     }
 
     private static BattleHoverSnapshot EmptyHover(
@@ -619,7 +662,8 @@ public sealed class BattleHudAdapter : IDisposable
             unitState.current_ap,
             Mathf.Max(apMax, 1),
             unitState.current_move_points,
-            moveMax
+            moveMax,
+            BuildStatusEffectSnapshots(unitState)
         );
     }
 

@@ -193,6 +193,26 @@ internal sealed class BattleHudResourceInfoSnapshot : IBattlePresentationSnapsho
         );
 }
 
+internal sealed record BattleHudStatusEffectSnapshot(
+    string StatusId,
+    string Label,
+    int Stacks,
+    int RemainingTu,
+    bool IsDebuff,
+    string TooltipText
+) : IBattlePresentationSnapshotValue
+{
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("status_id", StatusId ?? ""),
+            ("label", Label ?? ""),
+            ("stacks", Stacks),
+            ("remaining_tu", RemainingTu),
+            ("is_debuff", IsDebuff),
+            ("tooltip_text", TooltipText ?? "")
+        );
+}
+
 internal sealed record BattleHudFocusUnitSnapshot(
     string Name,
     string RoleText,
@@ -213,7 +233,8 @@ internal sealed record BattleHudFocusUnitSnapshot(
     int ApCurrent,
     int ApMax,
     int MoveCurrent,
-    int MoveMax
+    int MoveMax,
+    IReadOnlyList<BattleHudStatusEffectSnapshot> StatusEffects = null
 ) : IBattlePresentationSnapshotValue
 {
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
@@ -237,7 +258,11 @@ internal sealed record BattleHudFocusUnitSnapshot(
             ("ap_current", ApCurrent),
             ("ap_max", ApMax),
             ("move_current", MoveCurrent),
-            ("move_max", MoveMax)
+            ("move_max", MoveMax),
+            (
+                "status_effects",
+                (object)StatusEffects ?? Array.Empty<BattleHudStatusEffectSnapshot>()
+            )
         );
 }
 

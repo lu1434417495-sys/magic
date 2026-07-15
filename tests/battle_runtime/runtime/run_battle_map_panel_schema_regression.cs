@@ -84,7 +84,16 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
                     0,
                     2,
                     3,
-                    5
+                    5,
+                    StatusEffects: new[]
+                    {
+                        new BattleHudStatusEffectSnapshot(
+                            "poisoned", "中毒", 2, 30, true, "中毒 · 减益 · 层数 2 · 剩余 30 TU"
+                        ),
+                        new BattleHudStatusEffectSnapshot(
+                            "attack_up", "攻击提升", 1, -1, false, "攻击提升 · 增益"
+                        ),
+                    }
                 ),
                 skillSubtitle: "预计命中率 75%",
                 tooltipText: "需要掷出 6+"
@@ -97,6 +106,19 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         _test.Eq((int)panel.hp_bar.MaxValue, 30, "BattleMapPanel 应应用 formal focus_unit.hp_max。");
         _test.Eq((int)panel.mp_bar.Value, 6, "BattleMapPanel 应应用 formal focus_unit.mp_current。");
         _test.Eq((int)panel.mp_bar.MaxValue, 10, "BattleMapPanel 应应用 formal focus_unit.mp_max。");
+
+        var statusRow = panel.GetNodeOrNull<HFlowContainer>(
+            "HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/StatusBadgeRow"
+        );
+        _test.True(statusRow != null, "UnitCard InfoColumn 内应存在 StatusBadgeRow。");
+        _test.True(statusRow.Visible, "focus_unit 有状态效果时 StatusBadgeRow 应可见。");
+        _test.Eq(statusRow.GetChildCount(), 2, "StatusBadgeRow 应为每个状态效果渲染一个徽章。");
+        var firstBadgeLabel = statusRow.GetChild(0).GetChild(0).GetChild<Label>(0);
+        _test.Eq(firstBadgeLabel.Text, "中毒×2 30TU", "状态徽章应拼接 label×层数 + 剩余TU。");
+
+        panel._apply_snapshot(BuildSnapshot(roundBadge: new BattleHudRoundBadgeSnapshot("TU 13", "READY 1")));
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.False(statusRow.Visible, "focus_unit 无状态效果时 StatusBadgeRow 应隐藏。");
 
         panel.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);

@@ -15,7 +15,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string SkillSlotKeys =
         "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason";
     private const string FocusUnitKeys =
-        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max";
+        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|status_effects";
     private const string EquipmentPanelKeys =
         "title|meta|active_unit_id|active_unit_name|ap_cost|can_change_equipment|disabled_reason|slots|backpack_entries|summary_text";
     private const string EquipmentSlotKeys =
@@ -25,7 +25,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string BarrierKeys =
         "barrier_instance_id|profile_id|display_name|source_unit_id|source_skill_id|anchor_coord|radius_cells|area_pattern|remaining_tu|current_layer_id|current_layer_name|active_layer_count|broken_layer_count|total_layer_count|broken_layer_names|summary_text";
     private const string HoverTargetKeys =
-        "unit_id|name|glyph|portrait_key|primary_color|edge_color|hp_current|hp_max|mp_current|mp_max|mp_visible|stamina_current|stamina_max|aura_current|aura_max|aura_visible|ap_current|ap_max|is_enemy|is_self";
+        "unit_id|name|glyph|portrait_key|primary_color|edge_color|hp_current|hp_max|mp_current|mp_max|mp_visible|stamina_current|stamina_max|aura_current|aura_max|aura_visible|ap_current|ap_max|is_enemy|is_self|status_effects";
 
     private readonly TestHarness _test = new();
 

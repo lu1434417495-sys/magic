@@ -107,6 +107,7 @@ public partial class BattleMapPanel : Control
     private readonly List<StringName> _battle_equipment_slot_ids_by_index = new();
     private Button _battle_equipment_button;
     private Control _battle_equipment_overlay;
+    private HFlowContainer _status_badge_row;
     public Label _battle_equipment_title_label;
     public Label _battle_equipment_meta_label;
     public Label _battle_equipment_summary_label;
@@ -218,6 +219,7 @@ public partial class BattleMapPanel : Control
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
         _create_command_dock();
+        _create_status_badge_row();
         _ensure_battle_board();
         map_viewport_container.GuiInput += _on_map_viewport_container_gui_input;
         _apply_static_skin();
@@ -285,6 +287,7 @@ public partial class BattleMapPanel : Control
         _battle_equipment_slot_selector = null;
         _battle_equipment_equip_button = null;
         _battle_equipment_close_button = null;
+        _status_badge_row = null;
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -1206,6 +1209,7 @@ public partial class BattleMapPanel : Control
             barrier_status_label.Visible = false;
         }
         _rebuild_fate_badges(Array.Empty<BattleHudFateBadgeSnapshot>());
+        _rebuild_status_badges(Array.Empty<BattleHudStatusEffectSnapshot>());
         _rebuild_skill_grid(Array.Empty<BattleHudSkillSlotSnapshot>());
         _rebuild_timeline_row(Array.Empty<BattleHudQueueEntrySnapshot>());
         _apply_command_dock(BattleHudSnapshot.Empty);
@@ -1447,6 +1451,7 @@ public partial class BattleMapPanel : Control
             focusUnit?.MoveCurrent ?? 0,
             focusUnit?.MoveMax ?? 2
         );
+        _rebuild_status_badges(focusUnit?.StatusEffects);
         _set_resource_row_visible(mp_bar, mp_value_label, resourceInfo?.Mp?.Visible ?? true);
         _set_resource_row_visible(
             aura_bar,
@@ -2371,6 +2376,58 @@ public partial class BattleMapPanel : Control
         {
             fate_badge_row.AddChild(_create_fate_badge(badge));
         }
+    }
+
+    // 状态徽章行挂在 UnitCard 的 InfoColumn（姓名 / 角色行之下），随焦点单位快照
+    // 重建。节点在代码里构建，与指令区同一约定：面板保持纯渲染层。
+    private void _create_status_badge_row()
+    {
+        if (unit_role_label?.GetParent() is not VBoxContainer infoColumn)
+            return;
+        _status_badge_row = new HFlowContainer
+        {
+            Name = "StatusBadgeRow",
+            Visible = false,
+        };
+        _status_badge_row.AddThemeConstantOverride("h_separation", 6);
+        _status_badge_row.AddThemeConstantOverride("v_separation", 4);
+        infoColumn.AddChild(_status_badge_row);
+        infoColumn.MoveChild(_status_badge_row, unit_role_label.GetIndex() + 1);
+    }
+
+    private void _rebuild_status_badges(IReadOnlyList<BattleHudStatusEffectSnapshot> statuses)
+    {
+        if (_status_badge_row == null)
+            return;
+        _clear_container(_status_badge_row);
+        int badgeCount = statuses?.Count ?? 0;
+        _status_badge_row.Visible = badgeCount > 0;
+        if (badgeCount == 0)
+            return;
+        foreach (BattleHudStatusEffectSnapshot status in statuses)
+        {
+            if (status == null)
+                continue;
+            _status_badge_row.AddChild(
+                _create_fate_badge(
+                    new BattleHudFateBadgeSnapshot(
+                        FormatStatusBadgeText(status),
+                        new StringName(status.IsDebuff ? "danger" : "calm"),
+                        status.TooltipText
+                    )
+                )
+            );
+        }
+    }
+
+    internal static string FormatStatusBadgeText(BattleHudStatusEffectSnapshot status)
+    {
+        string text = string.IsNullOrEmpty(status.Label) ? status.StatusId : status.Label;
+        if (status.Stacks > 1)
+            text += $"×{status.Stacks}";
+        if (status.RemainingTu >= 0)
+            text += $" {status.RemainingTu}TU";
+        return text;
     }
 
     private void _rebuild_timeline_row(IReadOnlyList<BattleHudQueueEntrySnapshot> entries)

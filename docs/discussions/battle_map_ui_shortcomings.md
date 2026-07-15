@@ -34,6 +34,7 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 - **C3 伤害预扣段**：`BattleHoverPreviewOverlay` 的目标 HP 条改为双层叠放（`TargetHpStack`：下层预警色按当前 HP 填充，上层 HP 色按"受击后剩余"填充，露出的色带即预计伤害段），HP 文本追加"→ 受击后 X~Y"。回归：`run_battle_hover_hp_predict_regression.cs`。注：预扣段落在 hover 浮层（钉在地图左侧的事实目标预览卡）而非 UnitCard——UnitCard 显示的是焦点单位而非受击目标。
 - **D1 副资源条偏窄**：Stamina/MP/Aura 由 14px 升到 18px（`battle_map_panel.tscn` + `BattleUiTheme.PROGRESS_BAR_HEIGHT_SECONDARY`），hover 浮层 HP 条同步升到 18px。
 - **C1 header 开发占位**：缺 `encounter_display_name` 时的回落文案由开发占位"战斗地图"改为通用的"遭遇战"（`BattleHudAdapter` + `BattleMapPanel` 占位态 + 场景默认文本三处同步）。
+- **B4 Buff / Debuff 指示位**（同日第二批）：`BattleHudAdapter.BuildStatusEffectSnapshots` 把 `BattleUnitState.GetStatusEffectsTyped()` 投影为 `status_effects`（label 取 `display_label` → 语义表 → status_id 三级回落，减益判定走 `BattleStatusSemanticTable.IsHarmfulStatusEntry`，含 override 通道），挂在 `focus_unit` 与 hover `target_unit` 两个快照上。渲染：UnitCard InfoColumn 代码内建 `StatusBadgeRow`（减益红 / 增益青，文本 `标签×层数 剩余TU`）+ hover 浮层 `TargetStatusRow`；headless 文本快照新增 `hud_status` 行（无状态时不输出，保持既有快照文本不变）。回归：`run_battle_status_badge_regression.cs` + schema / typed projection 基线更新。
 
 ## A. 结构性硬伤（数据产生了但没地方显示）
 
@@ -50,8 +51,7 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 3. **命运徽章埋在技能区**
     - FateBadgeRow 位于 SkillHeader 内（`battle_map_panel.tscn:287`，SkillHeader 在 `tscn:275`）。
     - 这是全局命运状态，应更突出（独立条或紧贴 TopBar）。
-4. **没有 Buff / Debuff / 状态效果指示**
-    - 选中单位的增益 / 减益、持续回合、异常状态都没有显示位置。
+4. ~~没有 Buff / Debuff / 状态效果指示~~（2026-07-16 已落地 UnitCard `StatusBadgeRow` + hover `TargetStatusRow`，见核对增量。）
 
 ## C. 交互与反馈
 
@@ -91,7 +91,6 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 
 ### 应做（提升体验）
 
-- Buff / Debuff / 状态效果指示位。 → B4
 - 命运徽章上移到 TopBar 下方独立条。 → B3
 - 治疗预览（预扣血段的反向：预回血段）。 → C3 残留
 
