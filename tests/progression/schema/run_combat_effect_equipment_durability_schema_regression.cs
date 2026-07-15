@@ -8,7 +8,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -84,7 +84,10 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
 
     private void TestSkillContentValidationUsesTypedSlotWeights()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
         using CombatEffectDef valid = BuildDurabilityEffectResource();
         valid.equipment_durability_slot_weights =
             new Godot.Collections.Array<CombatEffectSlotWeightDef>

@@ -9,10 +9,17 @@ public class RaceContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, RaceDefinition> _race_defs = new();
 
     internal RaceContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal RaceContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "RaceContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(RACE_CONFIG_DIRECTORY);

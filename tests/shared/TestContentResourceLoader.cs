@@ -13,6 +13,8 @@ internal sealed class TestContentResourceLoader : IContentResourceLoader, IDispo
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, Resource> _syntheticResources =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _canonicalLoadCounts =
+        new(StringComparer.Ordinal);
     private bool _disposed;
 
     internal TestContentResourceLoader RegisterCanonical<T>(string resourcePath, T resource)
@@ -53,6 +55,8 @@ internal sealed class TestContentResourceLoader : IContentResourceLoader, IDispo
     {
         ThrowIfDisposed();
         string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        _canonicalLoadCounts.TryGetValue(canonicalPath, out int loadCount);
+        _canonicalLoadCounts[canonicalPath] = loadCount + 1;
         if (_syntheticResources.TryGetValue(canonicalPath, out Resource synthetic))
         {
             return synthetic is T typedSynthetic
@@ -87,6 +91,36 @@ internal sealed class TestContentResourceLoader : IContentResourceLoader, IDispo
         return loaded;
     }
 
+    internal int CountLoadedPathsUnder(string contentPrefix)
+    {
+        ThrowIfDisposed();
+        int count = 0;
+        foreach (string path in _canonicalLoadCounts.Keys)
+        {
+            if (path.StartsWith(contentPrefix, StringComparison.Ordinal))
+                count++;
+        }
+        return count;
+    }
+
+    internal IReadOnlyList<string> GetDuplicateLoadsUnder(string contentPrefix)
+    {
+        ThrowIfDisposed();
+        var duplicates = new List<string>();
+        foreach ((string path, int loadCount) in _canonicalLoadCounts)
+        {
+            if (
+                loadCount > 1
+                && path.StartsWith(contentPrefix, StringComparison.Ordinal)
+            )
+            {
+                duplicates.Add($"{path} x{loadCount}");
+            }
+        }
+        duplicates.Sort(StringComparer.Ordinal);
+        return duplicates;
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -94,6 +128,7 @@ internal sealed class TestContentResourceLoader : IContentResourceLoader, IDispo
         _disposed = true;
         _borrowedResources.Clear();
         _syntheticResources.Clear();
+        _canonicalLoadCounts.Clear();
     }
 
     private void ThrowIfDisposed()

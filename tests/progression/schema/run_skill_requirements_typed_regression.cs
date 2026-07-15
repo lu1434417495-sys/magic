@@ -9,7 +9,7 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -142,7 +142,10 @@ public partial class run_skill_requirements_typed_regression : LifecycleTestScen
                 indexedSkillDefs[skillDef.skill_id] = skillDef;
         }
 
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
         registry.ReplaceSkillAuthoringResourcesForValidation(indexedSkillDefs);
         return registry.CollectValidationErrors();
     }

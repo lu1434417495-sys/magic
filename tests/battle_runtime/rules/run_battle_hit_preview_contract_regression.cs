@@ -14,13 +14,21 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
     private readonly TestHarness _test = new();
     private bool _ownsInstalledGameSession;
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(_Run));
+        ProcessFrame += RunOnFirstProcessFrame;
     }
 
-    private async void _Run()
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        RunAsync();
+    }
+
+    private async void RunAsync()
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
@@ -29,9 +37,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
     private void _TestForceHitSkillRuntimePreviewIsGuaranteed()
     {
-        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            registry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
         skillDefinitions.TryGetValue(
             BLACK_CONTRACT_PUSH_SKILL_ID,
             out SkillDefinition skillDefinition
@@ -41,10 +47,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             "黑契推进预览前置：技能定义应存在。"
         );
         if (skillDefinition == null || skillDefinition.CombatProfile == null)
-        {
-            registry.Dispose();
             return;
-        }
 
         var runtime = new BattleRuntimeModule();
         BattleState state = null;
@@ -106,15 +109,12 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
         finally
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, caster, target);
-            registry.Dispose();
         }
     }
 
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
-        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            registry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
         skillDefinitions.TryGetValue(
             WARRIOR_HEAVY_STRIKE_SKILL_ID,
             out SkillDefinition skillDefinition
@@ -124,17 +124,11 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             "重击 HUD 预览前置：技能定义应存在。"
         );
         if (skillDefinition == null || skillDefinition.CombatProfile == null)
-        {
-            registry.Dispose();
             return;
-        }
 
         GameSession gameSession = await _InstallTestGameSession();
         if (gameSession == null)
-        {
-            registry.Dispose();
             return;
-        }
         var runtime = new BattleRuntimeModule();
         BattleHudAdapter adapter = null;
         BattleState state = null;
@@ -324,7 +318,6 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state, command, preview, critLockedPreview, attacker, target);
             adapter?.Dispose();
-            registry.Dispose();
             if (gameSession != null)
             {
                 if (GodotObject.IsInstanceValid(gameSession))

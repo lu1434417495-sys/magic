@@ -10,10 +10,17 @@ public class BloodlineContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, BloodlineStageDefinition> _bloodline_stage_defs = new();
 
     internal BloodlineContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal BloodlineContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "BloodlineContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(BloodlineConfigDirectoryPath);

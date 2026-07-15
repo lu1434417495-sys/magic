@@ -12,9 +12,18 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
 {
     private readonly TestHarness _test = new();
     private GDictionary _skillDefsProviderPayload = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestMeteorNumericSummaryRoundTripsFormalSaveSourcePayload();
         TestPreviewHudAndAiShareTypedFacts();
         RequestTestExit(_test.Finish("Meteor swarm preview surface contract regression"));
@@ -180,19 +189,15 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
-            progressionRegistry.GetSkillDefinitionsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry(new TestContentResourceLoader());
-        specialRegistry.Rebuild(typedSkillDefinitions);
-        _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 preview surface fixture。");
+            _contentSnapshot.Skills;
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             skill_definitions: typedSkillDefinitions,
             enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
             enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
-            battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
+            battle_special_profile_view: _contentSnapshot.BattleSpecialProfiles
         );
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
@@ -230,8 +235,6 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
             Runtime = runtime,
             State = state,
             Caster = caster,
-            ProgressionRegistry = progressionRegistry,
-            SpecialRegistry = specialRegistry,
             SkillDefinitionIndex = typedSkillDefinitions,
         };
     }
@@ -364,20 +367,14 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Life
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public ProgressionContentRegistry ProgressionRegistry;
-        public BattleSpecialProfileRegistry SpecialRegistry;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
-            SpecialRegistry?.Dispose();
-            ProgressionRegistry?.Dispose();
             Runtime = null;
             State = null;
             Caster = null;
-            ProgressionRegistry = null;
-            SpecialRegistry = null;
             SkillDefinitionIndex = null;
         }
     }

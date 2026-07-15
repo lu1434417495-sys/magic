@@ -10,7 +10,13 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
     }
 
     private void Run()
@@ -438,7 +444,10 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
 
     private static ProgressionContentRegistry MakeRegistry(GDictionary bundle)
     {
-        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        ProgressionContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
         registry.ReplaceDefinitionsForValidation(
             new ProgressionDefinitionSources
             {

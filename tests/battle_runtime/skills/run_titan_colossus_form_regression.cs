@@ -10,10 +10,18 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
     private static readonly StringName TitanColossusChargeKey = "racial_skill_titan_colossus_form";
 
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        Run();
     }
 
     private void Run()
@@ -157,17 +165,15 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
         runtime.Dispose();
     }
 
-    private static BattleRuntimeModule BuildRuntime()
+    private BattleRuntimeModule BuildRuntime()
     {
-        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleRuntimeModule runtime = new();
         runtime.setup(
             null,
-            registry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             new Dictionary<StringName, EnemyTemplateDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDefinition>()
         );
-        registry.Dispose();
         return runtime;
     }
 

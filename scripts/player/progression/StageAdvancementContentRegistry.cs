@@ -10,10 +10,17 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, StageAdvancementDefinition> _stage_advancement_defs = new();
 
     internal StageAdvancementContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal StageAdvancementContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "StageAdvancementContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(StageAdvancementConfigDirectoryPath);

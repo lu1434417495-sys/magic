@@ -108,24 +108,58 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
     }
 
     internal ProgressionContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal ProgressionContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
     {
         _resourceLoader = resourceLoader
             ?? throw new System.ArgumentNullException(nameof(resourceLoader));
-        _skillContentRegistry = new SkillContentRegistry(_resourceLoader);
-        _professionContentRegistry = new ProfessionContentRegistry(_resourceLoader);
-        _raceContentRegistry = new RaceContentRegistry(_resourceLoader);
-        _subraceContentRegistry = new SubraceContentRegistry(_resourceLoader);
-        _traitContentRegistry = new TraitContentRegistry(_resourceLoader);
-        _ageContentRegistry = new AgeContentRegistry(_resourceLoader);
-        _bloodlineContentRegistry = new BloodlineContentRegistry(_resourceLoader);
-        _ascensionContentRegistry = new AscensionContentRegistry(_resourceLoader);
-        _stageAdvancementContentRegistry = new StageAdvancementContentRegistry(_resourceLoader);
+        _skillContentRegistry = new SkillContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _professionContentRegistry = new ProfessionContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _raceContentRegistry = new RaceContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _subraceContentRegistry = new SubraceContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _traitContentRegistry = new TraitContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _ageContentRegistry = new AgeContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _bloodlineContentRegistry = new BloodlineContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _ascensionContentRegistry = new AscensionContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
+        _stageAdvancementContentRegistry = new StageAdvancementContentRegistry(
+            _resourceLoader,
+            loadDefaultContent: false
+        );
         _questContentRegistry = new QuestContentRegistry(_resourceLoader);
         _contingencyTemplateContentRegistry = new ContingencyTemplateContentRegistry(
             _resourceLoader
         );
         _equipmentAbilityContentRegistry = new EquipmentAbilityContentRegistry(_resourceLoader);
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Dispose()

@@ -12,6 +12,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        RunAfterProcessStartup(Run);
+    }
+
+    private void Run()
+    {
         TestResult exitCode = null;
         try
         {

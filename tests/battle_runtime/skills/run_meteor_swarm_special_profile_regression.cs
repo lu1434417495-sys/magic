@@ -10,11 +10,10 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        TestResult exitCode = Run();
-        RequestTestExit(exitCode);
+        RunAfterProcessStartup(Run);
     }
 
-    private TestResult Run()
+    private void Run()
     {
         TestTypedProfileViewReturnsDeepReadOnlyCopies();
         TestTargetPlanUsesSquare7x7AndEdgeClipping();
@@ -24,7 +23,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         TestMeteorSwarmDriftChangesFinalAnchorAndTerrain();
         TestMeteorSwarmExplicitlyBypassesPrismaticSphere();
 
-        return _test.Finish("Meteor swarm special profile regression");
+        RequestTestExit(_test.Finish("Meteor swarm special profile regression"));
     }
 
     private void TestTypedProfileViewReturnsDeepReadOnlyCopies()

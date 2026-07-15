@@ -9,10 +9,17 @@ public class AgeContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, AgeProfileDefinition> _age_profile_defs = new();
 
     internal AgeContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal AgeContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "AgeContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(AgeProfileConfigDirectoryPath);

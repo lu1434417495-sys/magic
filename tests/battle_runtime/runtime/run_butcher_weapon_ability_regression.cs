@@ -24,6 +24,17 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestButcherProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
@@ -527,24 +538,22 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
 
     private sealed class ButcherFixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
 
         private ButcherFixture(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
-            BattleRuntimeModule runtime
+            BattleRuntimeModule runtime,
+            ContentSnapshot snapshot
         )
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
-            ItemDefs = itemRegistry.GetItemDefsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -554,10 +563,8 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
 
         internal static ButcherFixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
-                itemRegistry.GetItemDefsTyped();
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = snapshot.Items;
             Dictionary<StringName, EnemyTemplateDefinition> enemyTemplates = new()
             {
                 ["butcher_loot_beast"] = BuildEnemyTemplate("butcher_loot_beast")
@@ -571,12 +578,12 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(
                 partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
                 itemDefs,
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
@@ -584,17 +591,17 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
+                snapshot.Skills,
                 enemy_templates: enemyTemplates,
                 item_defs: itemDefs,
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             runtime.ConfigureDamageResolverForTests(
                 new FixedRollDamageResolver(damageRolls ?? new GArray { 3, 4 })
             );
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new ButcherFixture(itemRegistry, progressionRegistry, partyState, runtime);
+            return new ButcherFixture(characterManagement, partyState, runtime, snapshot);
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -624,8 +631,7 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
         public void Dispose()
         {
             Runtime?.dispose();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _characterManagement?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)

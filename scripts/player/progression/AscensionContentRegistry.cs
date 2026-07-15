@@ -10,10 +10,17 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, AscensionStageDefinition> _ascension_stage_defs = new();
 
     internal AscensionContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal AscensionContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "AscensionContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(AscensionConfigDirectoryPath);

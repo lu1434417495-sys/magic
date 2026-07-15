@@ -19,6 +19,17 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestThunderHalberdContentLoadsAndProjects();
@@ -323,24 +334,22 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
     private sealed class ThunderHalberdFixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
 
         private ThunderHalberdFixture(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
-            BattleRuntimeModule runtime
+            BattleRuntimeModule runtime,
+            ContentSnapshot snapshot
         )
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
-            ItemDefs = itemRegistry.GetItemDefsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -350,18 +359,17 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
         internal static ThunderHalberdFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(
                 partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
+                snapshot.Items,
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
@@ -369,14 +377,14 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                snapshot.Skills,
+                item_defs: snapshot.Items,
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new ThunderHalberdFixture(itemRegistry, progressionRegistry, partyState, runtime);
+            return new ThunderHalberdFixture(characterManagement, partyState, runtime, snapshot);
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -409,8 +417,7 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
         public void Dispose()
         {
             Runtime?.dispose();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _characterManagement?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)

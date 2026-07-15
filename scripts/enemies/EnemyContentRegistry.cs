@@ -8,6 +8,23 @@ internal sealed record EnemyContentDefinitionGraph(
     IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters
 );
 
+internal sealed class EnemyContentValidationContext
+{
+    internal EnemyContentValidationContext(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+    )
+    {
+        ItemDefinitions = itemDefinitions
+            ?? throw new System.ArgumentNullException(nameof(itemDefinitions));
+        SkillDefinitions = skillDefinitions
+            ?? throw new System.ArgumentNullException(nameof(skillDefinitions));
+    }
+
+    internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; }
+    internal IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; }
+}
+
 public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 {
     private const string ENEMY_CONTENT_SEED_RESOURCE_PATH =
@@ -39,9 +56,13 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
     private bool _disposed;
 
     internal EnemyContentRegistry(IContentResourceLoader loader)
+        : this(loader, loadDefaultContent: true) { }
+
+    internal EnemyContentRegistry(IContentResourceLoader loader, bool loadDefaultContent)
     {
         _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Dispose()
@@ -101,6 +122,17 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     public void Rebuild()
     {
+        RebuildCore(validationContext: null);
+    }
+
+    internal void Rebuild(EnemyContentValidationContext validationContext)
+    {
+        System.ArgumentNullException.ThrowIfNull(validationContext);
+        RebuildCore(validationContext);
+    }
+
+    private void RebuildCore(EnemyContentValidationContext validationContext)
+    {
         _enemy_templates.Clear();
         _enemy_ai_brains.Clear();
         _wild_encounter_rosters.Clear();
@@ -110,7 +142,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         _seed_wild_encounter_roster_paths.Clear();
         if (_enemy_content_seed_resource_path.Length > 0)
         {
-            _register_seed_resource(_enemy_content_seed_resource_path);
+            _register_seed_resource(_enemy_content_seed_resource_path, validationContext);
             if (_validate_seed_directory_completeness)
                 foreach (var e in _collect_seed_directory_completeness_errors())
                     _validation_errors.Add(e);
@@ -124,7 +156,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
             );
             _scan_directory(
                 _enemy_template_directory,
-                (p) => _register_template_resource(p),
+                (p) => _register_template_resource(p, validationContext),
                 "EnemyContentRegistry template scan"
             );
             _scan_directory(
@@ -133,7 +165,7 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
                 "EnemyContentRegistry roster scan"
             );
         }
-        foreach (var e in _collect_validation_errors())
+        foreach (var e in _collect_validation_errors(validationContext))
             _validation_errors.Add(e);
     }
 
@@ -197,7 +229,10 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
 
     public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 
-    private void _register_seed_resource(string resourcePath)
+    private void _register_seed_resource(
+        string resourcePath,
+        EnemyContentValidationContext validationContext
+    )
     {
         var r = _loader.LoadCanonical<Resource>(resourcePath);
         if (r == null)
@@ -220,7 +255,11 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         foreach (var t in seed.enemy_templates)
         {
             _remember_seed_resource_path(_seed_enemy_template_paths, t);
-            _register_template_entry(t, $"{resourcePath}::enemy_templates");
+            _register_template_entry(
+                t,
+                $"{resourcePath}::enemy_templates",
+                validationContext
+            );
         }
         foreach (var w in seed.wild_encounter_rosters)
         {
@@ -371,10 +410,13 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         _register_brain_entry(r, rp);
     }
 
-    private void _register_template_resource(string rp)
+    private void _register_template_resource(
+        string rp,
+        EnemyContentValidationContext validationContext
+    )
     {
         var r = _loader.LoadCanonical<Resource>(rp);
-        _register_template_entry(r, rp);
+        _register_template_entry(r, rp, validationContext);
     }
 
     private void _register_wild_encounter_roster_resource(string rp)
@@ -403,7 +445,11 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         _enemy_ai_brains[brain.brain_id] = brain;
     }
 
-    private void _register_template_entry(Resource r, string sourceLabel)
+    private void _register_template_entry(
+        Resource r,
+        string sourceLabel,
+        EnemyContentValidationContext validationContext
+    )
     {
         if (r == null)
         {
@@ -420,8 +466,10 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         if (tmpl.template_id == "")
         {
             var knownBrains = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
-            var itemDefs = _get_item_defs_for_validation_typed();
-            var skillDefinitions = _get_skill_definitions_for_validation_typed();
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
+                ResolveItemDefinitions(validationContext);
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                ResolveSkillDefinitions(validationContext);
             foreach (
                 var error in tmpl.ValidateSchemaTyped(knownBrains, itemDefs, skillDefinitions)
             )
@@ -460,10 +508,13 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         _wild_encounter_rosters[roster.profile_id] = roster;
     }
 
-    private Godot.Collections.Array<string> _collect_validation_errors()
+    private Godot.Collections.Array<string> _collect_validation_errors(
+        EnemyContentValidationContext validationContext
+    )
     {
         var e = new Godot.Collections.Array<string>();
-        var skillDefinitionIndex = _get_skill_definitions_for_validation_typed();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex =
+            ResolveSkillDefinitions(validationContext);
         foreach (StringName brainId in SortedKeys(_enemy_ai_brains.Keys))
         {
             if (_enemy_ai_brains.TryGetValue(brainId, out EnemyAiBrainDef brain) && brain != null)
@@ -474,7 +525,8 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
                 }
             }
         }
-        var itemDefIndex = _get_item_defs_for_validation_typed();
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex =
+            ResolveItemDefinitions(validationContext);
         var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>(_enemy_ai_brains);
         foreach (StringName templateId in SortedKeys(_enemy_templates.Keys))
         {
@@ -511,6 +563,17 @@ public class EnemyContentRegistry : IValidatableRegistry, System.IDisposable
         }
         return e;
     }
+
+    private IReadOnlyDictionary<StringName, ItemDefinition> ResolveItemDefinitions(
+        EnemyContentValidationContext validationContext
+    ) =>
+        validationContext?.ItemDefinitions ?? _get_item_defs_for_validation_typed();
+
+    private IReadOnlyDictionary<StringName, SkillDefinition> ResolveSkillDefinitions(
+        EnemyContentValidationContext validationContext
+    ) =>
+        validationContext?.SkillDefinitions
+        ?? _get_skill_definitions_for_validation_typed();
 
     private IReadOnlyDictionary<StringName, ItemDefinition> _get_item_defs_for_validation_typed()
     {

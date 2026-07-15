@@ -9,9 +9,18 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestMeteorSwarmAiUsesSpecialScoreFields();
         TestMeteorSwarmUseCasesAndHighPriorityTrace();
         TestMeteorSwarmFriendlyFireSoftAndProtectedPaths();
@@ -246,12 +255,8 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
 
     private Fixture BuildRuntimeFixture(Vector2I mapSize, BattleUnitState[] extraUnits)
     {
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
-            progressionRegistry.GetSkillDefinitionsTyped();
-        var specialRegistry = new BattleSpecialProfileRegistry(new TestContentResourceLoader());
-        specialRegistry.Rebuild(typedSkillDefinitions);
-        _test.True(specialRegistry.Validate().Count == 0, "正式 special profile registry 应可用于 meteor AI fixture。");
+            _contentSnapshot.Skills;
 
         var runtime = new BattleRuntimeModule();
         runtime.setup(
@@ -259,7 +264,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
             enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
             enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
-            battle_special_profile_view: specialRegistry.BuildRuntimeProfileView()
+            battle_special_profile_view: _contentSnapshot.BattleSpecialProfiles
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
 
@@ -309,8 +314,6 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
             Runtime = runtime,
             State = state,
             Caster = caster,
-            ProgressionRegistry = progressionRegistry,
-            SpecialRegistry = specialRegistry,
             SkillDefinitionIndex = typedSkillDefinitions,
         };
     }
@@ -502,20 +505,14 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public ProgressionContentRegistry ProgressionRegistry;
-        public BattleSpecialProfileRegistry SpecialRegistry;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public void Dispose()
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, State);
-            SpecialRegistry?.Dispose();
-            ProgressionRegistry?.Dispose();
             Runtime = null;
             State = null;
             Caster = null;
-            ProgressionRegistry = null;
-            SpecialRegistry = null;
             SkillDefinitionIndex = null;
         }
     }

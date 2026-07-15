@@ -13,7 +13,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -29,7 +29,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaAcceptsValidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -76,7 +76,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestDamageSaveCanApplyFailureStatus()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -105,7 +105,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaAcceptsDynamicCasterSpellSaveDc()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -155,7 +155,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaRejectsInvalidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef invalidEffect = new()
         {
             effect_type = "status",
@@ -228,7 +228,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             "应能写入 skill override schema 测试资源。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         registry.LoadFromDirectory(TempSkillDirectory);
         GStringArray errors = registry.Validate();
         string formattedErrors = string.Join(" | ", errors);

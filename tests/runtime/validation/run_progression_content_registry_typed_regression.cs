@@ -5,11 +5,30 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_progression_content_registry_typed_regression : LifecycleTestSceneTree
 {
+    private static readonly string[] AggregatedRegistryContentPrefixes =
+    {
+        "res://data/configs/skills/",
+        "res://data/configs/professions/",
+        "res://data/configs/races/",
+        "res://data/configs/subraces/",
+        "res://data/configs/traits/",
+        "res://data/configs/age_profiles/",
+        "res://data/configs/bloodlines/",
+        "res://data/configs/ascensions/",
+        "res://data/configs/stage_advancements/",
+    };
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
     }
 
     private void Run()
@@ -25,7 +44,8 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ProgressionContentRegistry registry = new(loader);
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -48,12 +68,39 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             registry.GetContingencySetupTemplatesTyped().Count > 0,
             "contingency getter 应暴露 Definition snapshot。"
         );
+
+        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
+        {
+            _test.True(
+                loader.CountLoadedPathsUnder(contentPrefix) > 0,
+                $"聚合 registry 应加载 {contentPrefix} 下的正式内容。"
+            );
+            IReadOnlyList<string> duplicateLoads = loader.GetDuplicateLoadsUnder(contentPrefix);
+            _test.Eq(
+                duplicateLoads.Count,
+                0,
+                $"聚合 registry 构造期间每个内容路径只能加载一次: {FormatErrors(duplicateLoads)}"
+            );
+        }
     }
 
     private void TestPureDefinitionReplacementFeedsTypedValidation()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ProgressionContentRegistry registry = new(
+            loader,
+            loadDefaultContent: false
+        );
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
+
+        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
+        {
+            _test.Eq(
+                loader.CountLoadedPathsUnder(contentPrefix),
+                0,
+                $"pure definition validation 不应加载正式内容目录 {contentPrefix}。"
+            );
+        }
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -112,7 +159,11 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestDefinitionReplacementProducesDefensiveSnapshots()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ProgressionContentRegistry registry = new(
+            loader,
+            loadDefaultContent: false
+        );
         ProgressionDefinitionSources sources = BuildCustomDefinitionSources();
         registry.ReplaceDefinitionsForValidation(sources);
 
@@ -143,7 +194,11 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestTraitDefinitionReplacementFeedsIdentityValidation()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ProgressionContentRegistry registry = new(
+            loader,
+            loadDefaultContent: false
+        );
         TraitDefinition customTrait = BuildIdentityTrait("custom_identity_trait");
         RaceDefinition customRace = BuildRace(
             "custom_race",
@@ -177,7 +232,11 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestIdentityCatalogUsesDefinitionIndexes()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ProgressionContentRegistry registry = new(
+            loader,
+            loadDefaultContent: false
+        );
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
@@ -410,4 +469,5 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
         }
         return count;
     }
+
 }

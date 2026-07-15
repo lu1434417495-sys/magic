@@ -14,7 +14,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()
@@ -46,8 +46,8 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private void TestMasterReforgeServiceSuccess()
     {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
-        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = GetItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = GetRecipeDefs();
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
@@ -111,8 +111,8 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private void TestMasterReforgeServiceMissingMaterials()
     {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = LoadItemDefs();
-        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = LoadRecipeDefs(itemDefs);
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = GetItemDefs();
+        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs = GetRecipeDefs();
         PartyState partyState = BuildPartyState(6);
         var warehouseService = new PartyWarehouseService();
         warehouseService.Setup(partyState, itemDefs);
@@ -598,20 +598,11 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
         }
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDefinition> LoadItemDefs()
-    {
-        using ItemContentRegistry registry = new(new TestContentResourceLoader());
-        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
-    }
+    private static IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefs() =>
+        GameSessionTestFactory.GetProcessSnapshot().Items;
 
-    private static IReadOnlyDictionary<StringName, RecipeDefinition> LoadRecipeDefs(
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
-    )
-    {
-        using RecipeContentRegistry registry = new(new TestContentResourceLoader());
-        registry.Setup(itemDefs);
-        return new Dictionary<StringName, RecipeDefinition>(registry.GetRecipeDefsTyped());
-    }
+    private static IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefs() =>
+        GameSessionTestFactory.GetProcessSnapshot().Recipes;
 
     private static GDictionary FindServiceEntry(GArray services, string interactionScriptId)
     {

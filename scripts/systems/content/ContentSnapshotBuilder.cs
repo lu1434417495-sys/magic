@@ -32,7 +32,7 @@ internal sealed class ContentSnapshotBuilder
         using var items = new ItemContentRegistry(_loader);
         using var recipes = new RecipeContentRegistry(_loader);
         using var specialProfiles = new BattleSpecialProfileRegistry(_loader);
-        using var enemies = new EnemyContentRegistry(_loader);
+        using var enemies = new EnemyContentRegistry(_loader, loadDefaultContent: false);
         var faith = new FaithContentRegistry(_loader);
 
         items.Rebuild();
@@ -58,6 +58,9 @@ internal sealed class ContentSnapshotBuilder
         }
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
             new ReadOnlyDictionary<StringName, ItemDefinition>(itemDefinitionIndex);
+        enemies.Rebuild(
+            new EnemyContentValidationContext(itemDefinitions, skillDefinitions)
+        );
         EnemyContentDefinitionGraph enemyDefinitions = enemies.ProjectDefinitions(
             itemDefinitions
         );

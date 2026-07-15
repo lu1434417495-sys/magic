@@ -115,6 +115,31 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         );
     }
 
+    internal void SetupContent(ContentSnapshot snapshot)
+    {
+        SetupContent(snapshot, null);
+    }
+
+    internal void SetupContent(
+        ContentSnapshot snapshot,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionsOverride
+    )
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skillDefinitionsOverride != null && skillDefinitionsOverride.Count > 0
+                ? new Dictionary<StringName, SkillDefinition>(skillDefinitionsOverride)
+                : snapshot.Skills;
+        _apply_content_catalogs(
+            skillDefinitions,
+            snapshot.Professions,
+            snapshot.Achievements,
+            snapshot.Items,
+            snapshot.Traits,
+            snapshot.IdentityCatalog
+        );
+    }
+
     public bool BuildRoster(StringName roster_id, BattleSimFormalRosterOptionsData options)
     {
         _reset_roster();

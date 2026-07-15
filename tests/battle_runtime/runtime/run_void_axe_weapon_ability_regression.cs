@@ -19,6 +19,17 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestVoidAxeProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
@@ -339,8 +350,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
     private sealed class Fixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _management;
         private readonly PartyState _party;
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
@@ -348,49 +358,47 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
         private Fixture(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule management,
             PartyState party,
-            BattleRuntimeModule runtime
+            BattleRuntimeModule runtime,
+            ContentSnapshot snapshot
         )
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
+            _management = management;
             _party = party;
             Runtime = runtime;
-            ItemDefs = itemRegistry.GetItemDefsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal static Fixture Build(GArray damageRolls)
         {
-            ItemContentRegistry items = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progression = new(new TestContentResourceLoader());
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
             PartyState party = BuildPartyState("hero");
             CharacterManagementModule management = new();
             management.setup(
                 party,
-                progression.GetSkillDefinitionsTyped(),
-                progression.GetProfessionDefsTyped(),
-                progression.GetAchievementDefsTyped(),
-                items.GetItemDefsTyped(),
-                progression.GetQuestDefsTyped(),
-                progression.GetTraitDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
+                snapshot.Items,
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 management,
-                progression.GetSkillDefinitionsTyped(),
-                item_defs: items.GetItemDefsTyped(),
-                trait_defs: progression.GetTraitDefsTyped(),
-                equipment_ability_bindings: progression.GetEquipmentAbilityBindingDefinitionsTyped()
+                snapshot.Skills,
+                item_defs: snapshot.Items,
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(damageRolls));
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new Fixture(items, progression, party, runtime);
+            return new Fixture(management, party, runtime, snapshot);
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(string label)
@@ -429,8 +437,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
         public void Dispose()
         {
             Runtime?.dispose();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _management?.Dispose();
         }
     }
 }

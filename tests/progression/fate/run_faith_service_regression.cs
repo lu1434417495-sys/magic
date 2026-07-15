@@ -18,9 +18,16 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
     private static readonly StringName CalamityCapacityBonusStatId = "calamity_capacity_bonus";
 
     private readonly TestHarness _test = new();
+    private IReadOnlyDictionary<StringName, FaithDeityDefinition> _faithDefinitions;
 
     public override void _Initialize()
     {
+        RunAfterProcessStartup(RunOnFirstProcessFrame);
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        _faithDefinitions = GameSessionTestFactory.GetProcessSnapshot().FaithDeities;
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
     }
@@ -38,11 +45,10 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private void TestFortunaConfigMatchesStoryAcceptance()
     {
-        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
-        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        var faithService = new FaithService(_faithDefinitions);
         _test.True(
-            faithRegistry.GetValidationErrors().Count == 0,
-            "FaithService 默认配置应能通过基础校验。"
+            _faithDefinitions.Count > 0,
+            "FaithService 应借用已通过进程内容构建校验的默认配置。"
         );
 
         FaithDeityDefinition fortunaDef = faithService.GetFaithDeityDef(FortunaDeityId);
@@ -108,8 +114,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
         manager.setup(partyState);
-        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
-        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        var faithService = new FaithService(_faithDefinitions);
 
         for (int targetRank = 1; targetRank <= 5; targetRank++)
         {
@@ -167,8 +172,7 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
 
     private void TestMisfortuneConfigMatchesStoryAcceptance()
     {
-        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
-        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        var faithService = new FaithService(_faithDefinitions);
         FaithDeityDefinition misfortuneDef = faithService.GetFaithDeityDef(MisfortuneDeityId);
         _test.True(misfortuneDef != null, "应能加载 Misfortune FaithDeityDef。");
         if (misfortuneDef == null)
@@ -244,11 +248,10 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         PartyState partyState = BuildPartyState();
         var manager = new CharacterManagementModule();
         manager.setup(partyState);
-        FaithContentRegistry faithRegistry = BuildFaithContentRegistry();
-        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        var faithService = new FaithService(_faithDefinitions);
         _test.True(
             faithService.GetFaithDeityDef(MisfortuneDeityId) != null,
-            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))} validation={string.Join(" | ", faithRegistry.GetValidationErrors())}"
+            $"Misfortune FaithService lookup 应在 manager setup 后仍可用。 registered={string.Join(",", faithService.GetFaithDeityDefs().Keys.Select(key => key.ToString()))}"
         );
         var expectedKnowledgeUnlocks = new Dictionary<int, StringName>
         {
@@ -416,13 +419,6 @@ public partial class run_faith_service_regression : LifecycleTestSceneTree
         }
 
         return memberState;
-    }
-
-    private static FaithContentRegistry BuildFaithContentRegistry()
-    {
-        var registry = new FaithContentRegistry(new TestContentResourceLoader());
-        registry.Rebuild();
-        return registry;
     }
 
     private static bool HasRewardEntry(

@@ -9,10 +9,17 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, SubraceDefinition> _subrace_defs = new();
 
     internal SubraceContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal SubraceContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "SubraceContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(SUBRACE_CONFIG_DIRECTORY);

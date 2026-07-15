@@ -51,10 +51,18 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     };
 
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        Run();
     }
 
     private void Run()
@@ -89,7 +97,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
 
     private void TestItemRegistryAcceptsEquipmentSeedData()
     {
-        ItemContentRegistry registry = new(new TestContentResourceLoader());
+        using TestContentResourceLoader loader = new();
+        using ItemContentRegistry registry = new(loader);
         _test.Eq(registry.Validate().Count, 0, "Equipment seed item definitions should validate.");
 
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = registry.GetItemDefsTyped();
@@ -323,15 +332,14 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestEquipmentModifiersChangeAttributeSnapshotAndRoundTrip()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
 
         CharacterManagementModule baselineManager = new();
         baselineManager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
             itemDefs
         );
         AttributeSnapshot beforeSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
@@ -348,9 +356,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
             itemDefs
         );
         AttributeSnapshot afterSnapshot = manager.GetMemberAttributeSnapshot("hero");
@@ -502,7 +510,6 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestTwoHandedWeaponAttributeNotDoubleCounted()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
         warehouseService.AddItemTyped("iron_greatsword", 1);
@@ -512,8 +519,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         CharacterManagementModule manager = new();
         manager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             itemDefs
         );
@@ -523,8 +530,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         CharacterManagementModule emptyManager = new();
         emptyManager.setup(
             emptyParty,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             itemDefs
         );
@@ -586,16 +593,15 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private void TestArmorMaxDexBonusCapsPositiveAgilityAc()
     {
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
-        ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         PartyState partyState = BuildPartyWithMember("hero", "Hero", 8);
         partyState.GetMemberState("hero").progression.unit_base_attributes.SetAttributeValue("agility", 18);
 
         CharacterManagementModule baselineManager = new();
         baselineManager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
             itemDefs
         );
         AttributeSnapshot baselineSnapshot = baselineManager.GetMemberAttributeSnapshot("hero");
@@ -612,9 +618,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         CharacterManagementModule leatherManager = new();
         leatherManager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
             itemDefs
         );
         AttributeSnapshot leatherSnapshot = leatherManager.GetMemberAttributeSnapshot("hero");
@@ -626,9 +632,9 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         CharacterManagementModule scaleManager = new();
         scaleManager.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
             itemDefs
         );
         AttributeSnapshot scaleSnapshot = scaleManager.GetMemberAttributeSnapshot("hero");
@@ -1303,8 +1309,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.True(!string.IsNullOrEmpty(validationError), message);
     }
 
-    private static IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions() =>
-        new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
+    private IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions() =>
+        _contentSnapshot.Items;
 
     private static ItemDefinition GetItemDef(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,

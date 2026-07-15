@@ -54,7 +54,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
 
     private void TestSkillSchemaRejectsPromotedExecuteParamsInLegacyPayload()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "execute",
