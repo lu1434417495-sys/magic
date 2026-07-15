@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -10,7 +9,7 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -196,23 +195,7 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
         GameRuntimeFacade runtime,
         WildEncounterRosterDefinition roster
     )
-    {
-        FieldInfo field = typeof(GameRuntimeFacade).GetField(
-            "_wild_encounter_roster_definitions",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (
-            field?.GetValue(runtime)
-            is not Dictionary<StringName, WildEncounterRosterDefinition> rosters
-        )
-        {
-            _test.Fail(
-                "GameRuntimeFacade typed wild-encounter roster definition store should be available."
-            );
-            return;
-        }
-        rosters[roster.ProfileId] = roster;
-    }
+        => runtime.SetWildEncounterRosterDefinitionForTests(roster);
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)
     {

@@ -73,6 +73,12 @@ public sealed class PartyWarehouseService : IDisposable
     private int _local_equipment_instance_serial = 1;
     private bool _disposed;
 
+    internal void SetLocalEquipmentInstanceSerialForTests(int value) =>
+        _local_equipment_instance_serial = value;
+
+    internal int GetLocalEquipmentInstanceSerialForTests() =>
+        _local_equipment_instance_serial;
+
     public void Setup(
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,

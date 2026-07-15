@@ -1,4 +1,3 @@
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -14,7 +13,7 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -235,17 +234,10 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
         GameRuntimeFacade runtime,
         BattleUnitState activeUnit
     )
-    {
-        MethodInfo method = typeof(GameRuntimeBattleSelection).GetMethod(
-            "BuildSelectedSkillPreviewCommand",
-            BindingFlags.Instance | BindingFlags.NonPublic
+        => runtime._battle_selection.BuildSelectedSkillPreviewCommand(
+            activeUnit,
+            activeUnit.coord
         );
-        _test.True(method != null, "应能定位已选技能 command 构造方法。");
-        if (method == null)
-            return null;
-        return method.Invoke(runtime._battle_selection, new object[] { activeUnit, activeUnit.coord })
-            as BattleCommand;
-    }
 
     private void AdvanceUntilBattleActive(GameTextCommandRunner runner, int maxTicks = 64)
     {

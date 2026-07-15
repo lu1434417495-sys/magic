@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -29,19 +28,19 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
 
     private void TestCombatEffectDefExposesLockGuardTypedField()
     {
-        PropertyInfo property = typeof(CombatEffectDef).GetProperty(
-            "lock_guard",
-            BindingFlags.Instance | BindingFlags.Public
-        );
+        using CombatEffectDef effect = new() { lock_guard = true };
         _test.True(
-            property != null && property.PropertyType == typeof(bool),
+            effect.lock_guard,
             "CombatEffectDef.lock_guard should be a public bool typed field."
         );
     }
 
     private void TestEffectSchemaRejectsLegacyLockGuardParam()
     {
-        var registry = new SkillContentRegistry(new TestContentResourceLoader());
+        using var registry = new SkillContentRegistry(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
         var errors = new GStringArray();
         var effectDef = TestResourceOwnership.Own(
             new CombatEffectDef
@@ -65,7 +64,6 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             && ContainsFragment(errors, "CombatEffectDef.lock_guard"),
             $"params.lock_guard should be rejected in favor of CombatEffectDef.lock_guard. errors={FormatErrors(errors)}"
         );
-        registry.Dispose();
     }
 
     private void TestStatusParamsNoLongerDriveTypedStatusSemantics()
@@ -90,7 +88,7 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             new GDictionary { ["lock_guard"] = true }
         );
         _test.False(
-            HasGuardLockStatus(resolver, guardLockUnit),
+            resolver.HasGuardLockStatus(guardLockUnit),
             "status params.lock_guard must not drive typed guard locks."
         );
 
@@ -172,7 +170,7 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             lockGuard: true
         );
         _test.True(
-            HasGuardLockStatus(resolver, guardLockUnit),
+            resolver.HasGuardLockStatus(guardLockUnit),
             "typed lock_guard must drive guard locks."
         );
 
@@ -242,10 +240,11 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             source_unit_id = "source_unit",
             power = 1,
             stacks = 1,
+            lock_guard = true,
             @params = new GDictionary { ["legacy_marker"] = true },
         };
         _test.True(
-            SetBoolStatusProperty(effect, "lock_guard", true),
+            effect.lock_guard,
             "BattleStatusEffectState.lock_guard should be settable as a typed field."
         );
 
@@ -265,7 +264,7 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
 
         BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
         _test.True(
-            ReadBoolStatusProperty(restored, "lock_guard"),
+            restored?.lock_guard == true,
             "BattleStatusEffectState.FromDictionary() should preserve top-level lock_guard."
         );
     }
@@ -634,20 +633,19 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
         BattleUnitState unit = BuildUnit("runtime_lock_guard_wrapper_unit");
         try
         {
-            bool invoked = InvokeSetRuntimeStatusEffectWithLockGuard(
-                runtime,
-                unit,
-                "runtime_lock_guard_status"
-            );
-            _test.True(
-                invoked,
-                "BattleRuntimeModule._set_runtime_status_effect should expose a lock_guard argument."
+            runtime._set_runtime_status_effect(
+                unit_state: unit,
+                status_id: "runtime_lock_guard_status",
+                duration_tu: 10,
+                source_unit_id: "runtime_source_unit",
+                power: 1,
+                lock_guard: true
             );
 
             BattleStatusEffectState status = unit.GetStatusEffect("runtime_lock_guard_status");
             _test.True(status != null, "runtime wrapper should create the lock_guard status effect.");
             _test.True(
-                ReadBoolStatusProperty(status, "lock_guard"),
+                status?.lock_guard == true,
                 "runtime wrapper should forward typed lock_guard field."
             );
             _test.True(
@@ -832,7 +830,7 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
         BattleStatusEffectState statusEntry = unit.GetStatusEffect(statusId);
         if (statusEntry != null && lockGuard)
         {
-            SetBoolStatusProperty(statusEntry, "lock_guard", true);
+            statusEntry.lock_guard = true;
             unit.SetStatusEffect(statusEntry);
         }
     }
@@ -843,116 +841,6 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
         {
             BattleTestFixture.DisposeBattleUnit(unit);
         }
-    }
-
-    private static bool HasGuardLockStatus(
-        BattleRuntimeSkillTurnResolver resolver,
-        BattleUnitState unit
-    )
-    {
-        MethodInfo method = typeof(BattleRuntimeSkillTurnResolver).GetMethod(
-            "HasGuardLockStatus",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            null,
-            new[] { typeof(BattleUnitState) },
-            null
-        );
-        if (method == null)
-            return false;
-        object result = method.Invoke(resolver, new object[] { unit });
-        return result is bool value && value;
-    }
-
-    private static bool SetBoolStatusProperty(
-        BattleStatusEffectState statusEntry,
-        string propertyName,
-        bool value
-    )
-    {
-        PropertyInfo property = typeof(BattleStatusEffectState).GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public
-        );
-        if (statusEntry == null || property == null || property.PropertyType != typeof(bool))
-            return false;
-        property.SetValue(statusEntry, value);
-        return true;
-    }
-
-    private static bool ReadBoolStatusProperty(
-        BattleStatusEffectState statusEntry,
-        string propertyName
-    )
-    {
-        PropertyInfo property = typeof(BattleStatusEffectState).GetProperty(
-            propertyName,
-            BindingFlags.Instance | BindingFlags.Public
-        );
-        if (statusEntry == null || property == null || property.PropertyType != typeof(bool))
-            return false;
-        return property.GetValue(statusEntry) is bool value && value;
-    }
-
-    private static bool InvokeSetRuntimeStatusEffectWithLockGuard(
-        BattleRuntimeModule runtime,
-        BattleUnitState unit,
-        StringName statusId
-    )
-    {
-        MethodInfo method = typeof(BattleRuntimeModule).GetMethod(
-            "_set_runtime_status_effect",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (method == null)
-            return false;
-        ParameterInfo[] parameters = method.GetParameters();
-        int lockGuardIndex = -1;
-        object[] args = new object[parameters.Length];
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            ParameterInfo parameter = parameters[i];
-            args[i] = DefaultValueFor(parameter);
-            if (parameter.Name == "unit_state")
-                args[i] = unit;
-            else if (parameter.Name == "status_id")
-                args[i] = statusId;
-            else if (parameter.Name == "duration_tu")
-                args[i] = 10;
-            else if (parameter.Name == "source_unit_id")
-                args[i] = new StringName("runtime_source_unit");
-            else if (parameter.Name == "power")
-                args[i] = 1;
-            else if (parameter.Name == "lock_guard")
-            {
-                lockGuardIndex = i;
-                args[i] = true;
-            }
-        }
-        if (lockGuardIndex < 0)
-            return false;
-        try
-        {
-            method.Invoke(runtime, args);
-            return true;
-        }
-        catch (System.Exception)
-        {
-            return false;
-        }
-    }
-
-    private static object DefaultValueFor(ParameterInfo parameter)
-    {
-        if (
-            parameter.HasDefaultValue
-            && parameter.DefaultValue != System.DBNull.Value
-            && parameter.DefaultValue != System.Type.Missing
-        )
-            return parameter.DefaultValue;
-        System.Type parameterType = parameter.ParameterType;
-        if (System.Nullable.GetUnderlyingType(parameterType) != null || !parameterType.IsValueType)
-            return null;
-        return System.Activator.CreateInstance(parameterType);
     }
 
     private static bool ContainsFragment(GStringArray values, string fragment)
