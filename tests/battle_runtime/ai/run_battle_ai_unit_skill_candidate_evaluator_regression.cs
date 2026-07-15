@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : LifecycleTestSceneTree
@@ -112,29 +111,11 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             }
         );
 
-        MethodInfo method = typeof(BattleAiTypedActionHelper).GetMethod(
-            "ResolveAvailableSkillEntries",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-        );
-        _test.True(
-            method != null,
-            "BattleAiTypedActionHelper should expose ResolveAvailableSkillEntries for AI planning."
-        );
-        if (method == null)
-            return;
-
-        var entries = method.Invoke(
-            new BattleAiTypedActionHelper(),
-            new object[]
-            {
+        List<BattleAvailableSkillEntry> entries = new BattleAiTypedActionHelper()
+            .ResolveAvailableSkillEntries(
                 context,
-                new List<StringName> { unavailableSkillId, availableSkillId },
-            }
-        ) as List<BattleAvailableSkillEntry>;
-
-        _test.True(entries != null, "ResolveAvailableSkillEntries should return typed entries.");
-        if (entries == null)
-            return;
+                new List<StringName> { unavailableSkillId, availableSkillId }
+            );
 
         _test.Eq(entries.Count, 1, "Unavailable preferred skills should be filtered out.");
         if (entries.Count == 0)

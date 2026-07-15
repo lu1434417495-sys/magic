@@ -255,6 +255,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         set => _battle_selection_state.battle_selected_coord = value;
     }
 
+    internal void SetWildEncounterRosterDefinitionForTests(
+        WildEncounterRosterDefinition roster
+    )
+    {
+        ArgumentNullException.ThrowIfNull(roster);
+        _wild_encounter_roster_definitions[roster.ProfileId] = roster;
+    }
+
     internal StringName _selected_battle_skill_id
     {
         get => _battle_selection_state.selected_skill_id;

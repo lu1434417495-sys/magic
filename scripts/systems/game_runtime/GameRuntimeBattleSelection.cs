@@ -539,7 +539,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         };
     }
 
-    private BattleCommand BuildSelectedSkillPreviewCommand(
+    internal BattleCommand BuildSelectedSkillPreviewCommand(
         BattleUnitState activeUnit,
         Vector2I coord
     )

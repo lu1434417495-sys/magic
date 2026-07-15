@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_warehouse_preview_no_side_effect_regression : LifecycleTestSceneTree
@@ -167,26 +166,10 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
         );
 
     private static void SetLocalSerial(PartyWarehouseService service, int value)
-    {
-        var field = typeof(PartyWarehouseService).GetField(
-            "_local_equipment_instance_serial",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (field == null)
-            throw new Exception("missing warehouse serial field");
-        field.SetValue(service, value);
-    }
+        => service.SetLocalEquipmentInstanceSerialForTests(value);
 
     private static int GetLocalSerial(PartyWarehouseService service)
-    {
-        var field = typeof(PartyWarehouseService).GetField(
-            "_local_equipment_instance_serial",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (field == null)
-            throw new Exception("missing warehouse serial field");
-        return (int)field.GetValue(service);
-    }
+        => service.GetLocalEquipmentInstanceSerialForTests();
 
     private PartyState BuildPartyState(int capacity)
     {
