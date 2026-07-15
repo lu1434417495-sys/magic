@@ -7,7 +7,7 @@ public partial class run_equipment_drop_service_regression : LifecycleTestSceneT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

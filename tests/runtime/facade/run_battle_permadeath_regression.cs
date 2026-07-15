@@ -11,7 +11,7 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -9,7 +9,7 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -9,7 +9,7 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

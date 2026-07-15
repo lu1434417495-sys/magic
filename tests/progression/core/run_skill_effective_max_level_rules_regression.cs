@@ -9,7 +9,7 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

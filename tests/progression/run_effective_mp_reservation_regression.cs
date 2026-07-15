@@ -9,7 +9,7 @@ public partial class run_effective_mp_reservation_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

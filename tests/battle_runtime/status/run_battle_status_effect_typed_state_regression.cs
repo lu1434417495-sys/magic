@@ -8,7 +8,7 @@ public partial class run_battle_status_effect_typed_state_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

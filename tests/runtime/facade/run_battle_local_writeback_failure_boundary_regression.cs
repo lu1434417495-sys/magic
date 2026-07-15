@@ -10,7 +10,7 @@ public partial class run_battle_local_writeback_failure_boundary_regression
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

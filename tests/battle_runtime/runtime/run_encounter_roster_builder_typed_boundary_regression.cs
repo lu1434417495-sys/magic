@@ -10,7 +10,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

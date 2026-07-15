@@ -10,7 +10,7 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

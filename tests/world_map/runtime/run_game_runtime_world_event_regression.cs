@@ -9,7 +9,7 @@ public partial class run_game_runtime_world_event_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

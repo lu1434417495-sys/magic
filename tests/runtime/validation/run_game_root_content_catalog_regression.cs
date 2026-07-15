@@ -14,7 +14,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

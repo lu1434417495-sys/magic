@@ -12,7 +12,7 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

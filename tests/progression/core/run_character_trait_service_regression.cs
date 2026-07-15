@@ -7,7 +7,7 @@ public partial class run_character_trait_service_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

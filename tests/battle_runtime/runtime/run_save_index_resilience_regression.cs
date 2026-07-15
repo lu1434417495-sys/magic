@@ -15,7 +15,7 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

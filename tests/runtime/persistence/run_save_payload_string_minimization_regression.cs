@@ -13,7 +13,7 @@ public partial class run_save_payload_string_minimization_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

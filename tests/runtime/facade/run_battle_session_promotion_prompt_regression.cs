@@ -9,7 +9,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

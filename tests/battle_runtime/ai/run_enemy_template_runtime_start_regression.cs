@@ -12,7 +12,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

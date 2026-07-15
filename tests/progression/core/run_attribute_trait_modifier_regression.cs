@@ -6,7 +6,7 @@ public partial class run_attribute_trait_modifier_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

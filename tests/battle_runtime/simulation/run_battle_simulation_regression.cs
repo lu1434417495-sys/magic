@@ -9,7 +9,7 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()

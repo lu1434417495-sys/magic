@@ -8,7 +8,7 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

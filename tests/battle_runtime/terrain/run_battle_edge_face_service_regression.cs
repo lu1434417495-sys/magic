@@ -6,7 +6,7 @@ public partial class run_battle_edge_face_service_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

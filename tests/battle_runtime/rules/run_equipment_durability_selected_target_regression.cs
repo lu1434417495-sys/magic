@@ -9,7 +9,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

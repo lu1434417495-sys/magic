@@ -11,7 +11,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

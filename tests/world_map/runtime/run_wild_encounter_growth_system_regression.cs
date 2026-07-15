@@ -6,7 +6,7 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

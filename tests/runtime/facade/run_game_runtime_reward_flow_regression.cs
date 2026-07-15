@@ -10,7 +10,7 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

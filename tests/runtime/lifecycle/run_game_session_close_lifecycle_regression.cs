@@ -9,7 +9,7 @@ public partial class run_game_session_close_lifecycle_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private async void Run()

@@ -8,7 +8,7 @@ public partial class run_profession_rule_service_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

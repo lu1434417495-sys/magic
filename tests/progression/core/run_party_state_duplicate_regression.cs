@@ -9,7 +9,7 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

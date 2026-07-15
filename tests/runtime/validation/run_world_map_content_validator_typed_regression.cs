@@ -10,7 +10,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

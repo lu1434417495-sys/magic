@@ -9,7 +9,7 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

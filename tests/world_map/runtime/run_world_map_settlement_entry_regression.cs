@@ -11,7 +11,7 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -6,7 +6,7 @@ public partial class run_lifecycle_audit_activity_snapshot_regression
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {

@@ -9,7 +9,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

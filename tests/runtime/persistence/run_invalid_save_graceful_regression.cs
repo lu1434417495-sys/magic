@@ -12,7 +12,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

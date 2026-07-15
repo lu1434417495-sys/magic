@@ -13,7 +13,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()

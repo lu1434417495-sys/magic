@@ -12,7 +12,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

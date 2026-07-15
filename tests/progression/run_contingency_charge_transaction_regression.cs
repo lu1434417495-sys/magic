@@ -15,7 +15,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
 	private async void RunAsync()

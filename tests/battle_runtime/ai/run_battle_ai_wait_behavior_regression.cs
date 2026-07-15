@@ -8,7 +8,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

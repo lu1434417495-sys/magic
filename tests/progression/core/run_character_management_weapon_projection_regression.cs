@@ -9,7 +9,7 @@ public partial class run_character_management_weapon_projection_regression : Lif
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

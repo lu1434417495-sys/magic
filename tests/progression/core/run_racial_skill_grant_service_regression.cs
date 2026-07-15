@@ -7,7 +7,7 @@ public partial class run_racial_skill_grant_service_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -26,7 +26,7 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
 
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {

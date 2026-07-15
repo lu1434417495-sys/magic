@@ -12,7 +12,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

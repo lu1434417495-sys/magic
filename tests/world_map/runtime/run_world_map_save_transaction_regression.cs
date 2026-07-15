@@ -11,7 +11,7 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

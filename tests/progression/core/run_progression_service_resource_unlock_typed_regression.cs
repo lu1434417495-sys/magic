@@ -8,7 +8,7 @@ public partial class run_progression_service_resource_unlock_typed_regression : 
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

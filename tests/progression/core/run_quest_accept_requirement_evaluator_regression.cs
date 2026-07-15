@@ -8,7 +8,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 
 	public override void _Initialize()
 	{
-		CallDeferred(nameof(Run));
+		RunAfterProcessStartup(Run);
 	}
 
 	private void Run()

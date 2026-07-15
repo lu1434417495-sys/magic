@@ -10,7 +10,7 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

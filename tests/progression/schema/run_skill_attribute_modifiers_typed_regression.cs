@@ -9,7 +9,7 @@ public partial class run_skill_attribute_modifiers_typed_regression : LifecycleT
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

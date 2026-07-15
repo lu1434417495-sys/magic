@@ -10,7 +10,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

@@ -9,7 +9,7 @@ public partial class run_character_management_identity_stage_regression : Lifecy
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

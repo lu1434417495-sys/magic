@@ -8,7 +8,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
