@@ -108,6 +108,9 @@ public partial class BattleMapPanel : Control
     private Button _battle_equipment_button;
     private Control _battle_equipment_overlay;
     private HFlowContainer _status_badge_row;
+    private PanelContainer _zoom_chip;
+    private Label _zoom_value_label;
+    private Button _reset_view_button;
     public Label _battle_equipment_title_label;
     public Label _battle_equipment_meta_label;
     public Label _battle_equipment_summary_label;
@@ -220,7 +223,9 @@ public partial class BattleMapPanel : Control
 
         _create_command_dock();
         _create_status_badge_row();
+        _create_viewport_controls();
         _ensure_battle_board();
+        _update_zoom_chip();
         map_viewport_container.GuiInput += _on_map_viewport_container_gui_input;
         _apply_static_skin();
         _ensure_battle_equipment_ui();
@@ -247,6 +252,8 @@ public partial class BattleMapPanel : Control
             _battle_board.battle_cell_right_clicked -= _on_battle_board_cell_right_clicked;
             _battle_board.battle_cell_hovered -= _on_battle_board_cell_hovered;
         }
+        if (_reset_view_button != null)
+            _reset_view_button.Pressed -= _on_reset_view_pressed;
         if (_battle_equipment_button != null)
             _battle_equipment_button.Pressed -= _open_battle_equipment_panel;
         if (_battle_equipment_close_button != null)
@@ -288,6 +295,9 @@ public partial class BattleMapPanel : Control
         _battle_equipment_equip_button = null;
         _battle_equipment_close_button = null;
         _status_badge_row = null;
+        _zoom_chip = null;
+        _zoom_value_label = null;
+        _reset_view_button = null;
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -1066,6 +1076,7 @@ public partial class BattleMapPanel : Control
 
     private void _request_map_viewport_update()
     {
+        _update_zoom_chip();
         if (_map_subviewport == null)
             return;
         _map_subviewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
@@ -1171,6 +1182,15 @@ public partial class BattleMapPanel : Control
 
         _apply_chip_skin(round_chip, BattleUiTheme.PANEL_EDGE_SOFT());
         _apply_chip_skin(mode_chip, BattleUiTheme.PANEL_EDGE_SOFT());
+        if (_zoom_chip != null)
+        {
+            _apply_chip_skin(_zoom_chip, BattleUiTheme.PANEL_EDGE_SOFT());
+            _style_header_label(
+                _zoom_value_label,
+                BattleUiTheme.FONT_HEADING(),
+                BattleUiTheme.TEXT_SECONDARY()
+            );
+        }
 
         _apply_progress_bar_skin(hp_bar, BattleUiTheme.RESOURCE_HP());
         _apply_progress_bar_skin(stamina_bar, BattleUiTheme.RESOURCE_STAMINA());
@@ -1312,6 +1332,53 @@ public partial class BattleMapPanel : Control
         skillLayout.AddChild(barrier_status_label);
         skillLayout.AddChild(hint_label);
         skillLayout.AddChild(log_label);
+    }
+
+    // 视口控制（C5）：缩放指示 chip + 重置视角按钮，挂在 TopBar 右格。摄像机操作是
+    // 纯本地视口行为，不走命令通道，也不受"技能选择拉慢"约束。
+    private void _create_viewport_controls()
+    {
+        if (mode_chip?.GetParent() is not HBoxContainer rightCell)
+            return;
+        _zoom_chip = new PanelContainer { Name = "ZoomChip" };
+        _zoom_value_label = new Label
+        {
+            Name = "ZoomValueLabel",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TooltipText = "滚轮缩放 · 中键拖拽平移",
+        };
+        _zoom_chip.AddChild(_zoom_value_label);
+        _zoom_chip.MouseFilter = MouseFilterEnum.Stop;
+        _zoom_chip.TooltipText = "滚轮缩放 · 中键拖拽平移";
+        _reset_view_button = new Button
+        {
+            Name = "ResetViewButton",
+            Text = "重置视角",
+            FocusMode = FocusModeEnum.None,
+            TooltipText = "恢复默认缩放并回到当前行动单位",
+        };
+        _reset_view_button.Pressed += _on_reset_view_pressed;
+        rightCell.AddChild(_zoom_chip);
+        rightCell.AddChild(_reset_view_button);
+        rightCell.MoveChild(_zoom_chip, 0);
+        rightCell.MoveChild(_reset_view_button, 1);
+    }
+
+    private void _on_reset_view_pressed()
+    {
+        if (_battle_board == null)
+            return;
+        _battle_board.ResetViewportCamera();
+        _request_map_viewport_update();
+    }
+
+    private void _update_zoom_chip()
+    {
+        if (_zoom_value_label == null)
+            return;
+        _zoom_value_label.Text = _battle_board != null
+            ? $"×{_battle_board.GetCameraZoom():0.0}"
+            : "×-.-";
     }
 
     private static Button _create_dock_button(string name, string text)

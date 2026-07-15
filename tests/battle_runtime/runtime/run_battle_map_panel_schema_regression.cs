@@ -13,7 +13,46 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
     {
         await TestBattleMapPanelAppliesFormalSnapshot();
         await TestBattleMapPanelAppliesCommandDock();
+        await TestBattleMapPanelViewportControlsAndFateRow();
         RequestTestExit(_test.Finish("Battle map panel schema regression"));
+    }
+
+    private async System.Threading.Tasks.Task TestBattleMapPanelViewportControlsAndFateRow()
+    {
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        Root.AddChild(panel);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.Eq(
+            panel.fate_badge_row.GetParent().Name.ToString(),
+            "TopLayoutVbox",
+            "FateBadgeRow 应上移为 TopBar 下的独立条（B3）。"
+        );
+
+        var zoomLabel = panel.GetNodeOrNull<Label>(
+            "HudRoot/TopBar/TopLayoutVbox/TopRow/RightCell/ZoomChip/ZoomValueLabel"
+        );
+        _test.True(zoomLabel != null, "TopBar 右格应有缩放指示 ZoomChip（C5）。");
+        _test.True(
+            zoomLabel.Text.StartsWith("×"),
+            $"缩放指示应显示当前缩放倍率，actual={zoomLabel.Text}"
+        );
+
+        var resetButton = panel.GetNodeOrNull<Button>(
+            "HudRoot/TopBar/TopLayoutVbox/TopRow/RightCell/ResetViewButton"
+        );
+        _test.True(resetButton != null, "TopBar 右格应有重置视角按钮（C5）。");
+        _test.False(resetButton.Disabled, "重置视角按钮应始终可用（本地视口操作）。");
+        resetButton.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.True(
+            zoomLabel.Text.StartsWith("×"),
+            "点击重置视角后缩放指示应仍为倍率格式。"
+        );
+
+        panel.QueueFree();
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
     private async System.Threading.Tasks.Task TestBattleMapPanelAppliesCommandDock()
