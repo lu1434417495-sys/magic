@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
-public partial class PartyManagementWindow : Control
+public partial class PartyManagementWindow : ModalWindowShell
 {
     [Signal]
     public delegate void leader_change_requestedEventHandler(StringName member_id);
@@ -106,7 +106,6 @@ public partial class PartyManagementWindow : Control
         HideWindow();
         Resized += _update_responsive_layout;
         _update_responsive_layout();
-        shade.GuiInput += _on_shade_gui_input;
         close_button.Pressed += _close_window;
         active_list.ItemSelected += index => _on_active_item_selected((int)index);
         reserve_list.ItemSelected += index => _on_reserve_item_selected((int)index);
@@ -115,7 +114,10 @@ public partial class PartyManagementWindow : Control
         move_to_reserve_button.Pressed += _on_move_to_reserve_button_pressed;
         warehouse_button.Pressed += _on_warehouse_button_pressed;
         contingency_setup_button.Pressed += _on_contingency_setup_button_pressed;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _close_window();
 
     public void ShowParty(PartyState party_state)
     {
@@ -1470,18 +1472,6 @@ public partial class PartyManagementWindow : Control
         if (_selected_member_id == (StringName)"")
             return;
         EmitSignal(SignalName.contingency_setup_requested, _selected_member_id);
-    }
-
-    public void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        _close_window();
     }
 
     private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)

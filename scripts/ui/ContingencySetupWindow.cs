@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class ContingencySetupWindow : Control
+public partial class ContingencySetupWindow : ModalWindowShell
 {
     [Signal]
     public delegate void save_requestedEventHandler(StringName member_id, StringName setup_payload_name);
@@ -98,7 +98,10 @@ public partial class ContingencySetupWindow : Control
         close_button.Pressed += CloseWindow;
         trigger_selector.ItemSelected += OnTriggerSelected;
         HideWindow();
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => CloseWindow();
 
     public void ShowForMember(PartyMemberState member, CharacterManagementModule characterManagement)
     {

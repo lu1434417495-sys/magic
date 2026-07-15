@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class SettlementWindow : Control
+public partial class SettlementWindow : ModalWindowShell
 {
     [Signal]
     public delegate void action_requestedEventHandler(
@@ -81,10 +81,12 @@ public partial class SettlementWindow : Control
         );
 
         HideWindow();
-        shade.GuiInput += _on_shade_gui_input;
         close_button.Pressed += _close_from_button;
         member_selector.ItemSelected += index => _on_member_selected((int)index);
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _close_from_button();
 
     public void ShowSettlement(GDictionary window_data)
     {
@@ -413,15 +415,6 @@ public partial class SettlementWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
-            return;
-        if (mouseEvent.ButtonIndex != MouseButton.Left)
-            return;
-        _close_from_button();
     }
 
     private sealed class SettlementWindowData
