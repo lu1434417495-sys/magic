@@ -2,7 +2,7 @@ using Godot;
 using System.Collections.Generic;
 
 [GlobalClass]
-public partial class DisplaySettingsWindow : Control
+public partial class DisplaySettingsWindow : ModalWindowShell
 {
     [Signal]
     public delegate void settings_apply_requestedEventHandler(Vector2I resolution, bool fullscreen);
@@ -10,7 +10,6 @@ public partial class DisplaySettingsWindow : Control
     [Signal]
     public delegate void cancelledEventHandler();
 
-    private ColorRect _shade;
     private OptionButton _resolutionOptionButton;
     private CheckButton _fullscreenCheckButton;
     private Label _hintLabel;
@@ -22,7 +21,6 @@ public partial class DisplaySettingsWindow : Control
 
     public override void _Ready()
     {
-        _shade = GetNode<ColorRect>("Shade");
         _resolutionOptionButton = GetNode<OptionButton>("%ResolutionOptionButton");
         _fullscreenCheckButton = GetNode<CheckButton>("%FullscreenCheckButton");
         _hintLabel = GetNode<Label>("%HintLabel");
@@ -31,31 +29,26 @@ public partial class DisplaySettingsWindow : Control
         _headerCloseButton = GetNode<Button>("%HeaderCloseButton");
 
         HideWindow();
-        _shade.GuiInput += _on_shade_gui_input;
         _fullscreenCheckButton.Toggled += _on_fullscreen_toggled;
         _applyButton.Pressed += _apply;
         _cancelButton.Pressed += _cancel;
         _headerCloseButton.Pressed += _cancel;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _cancel();
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        base._UnhandledInput(@event);
         if (!Visible || @event is not InputEventKey keyEvent)
             return;
         if (!keyEvent.Pressed || keyEvent.Echo)
             return;
-
-        switch (keyEvent.Keycode)
+        if (keyEvent.Keycode is Key.Enter or Key.KpEnter)
         {
-            case Key.Escape:
-                GetViewport().SetInputAsHandled();
-                _cancel();
-                break;
-            case Key.Enter:
-            case Key.KpEnter:
-                GetViewport().SetInputAsHandled();
-                _apply();
-                break;
+            GetViewport().SetInputAsHandled();
+            _apply();
         }
     }
 
@@ -175,20 +168,6 @@ public partial class DisplaySettingsWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.cancelled);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton mouseEvent)
-            return;
-        if (!mouseEvent.Pressed)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        _cancel();
     }
 
 }

@@ -4,7 +4,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class PromotionChoiceWindow : Control
+public partial class PromotionChoiceWindow : ModalWindowShell
 {
     private static readonly string[] PromptKeys =
     {
@@ -33,7 +33,6 @@ public partial class PromotionChoiceWindow : Control
     [Signal]
     public delegate void cancelledEventHandler();
 
-    private ColorRect _shade;
     private Label _titleLabel;
     private Label _metaLabel;
     private HBoxContainer _choiceCards;
@@ -51,7 +50,6 @@ public partial class PromotionChoiceWindow : Control
 
     public override void _Ready()
     {
-        _shade = GetNode<ColorRect>("Shade");
         _titleLabel = GetNode<Label>(
             "CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/TitleLabel"
         );
@@ -74,10 +72,12 @@ public partial class PromotionChoiceWindow : Control
         _cardStyleNormal = SelectionCardBuilder.MakeStyle(false);
         _cardStyleSelected = SelectionCardBuilder.MakeStyle(true);
         HideWindow();
-        _shade.GuiInput += _on_shade_gui_input;
         _confirmButton.Pressed += _on_confirm_button_pressed;
         _cancelButton.Pressed += _on_cancel_button_pressed;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _on_cancel_button_pressed();
 
     public void ShowPromotion(IReadOnlyDictionary<string, object> prompt_data)
     {
@@ -269,20 +269,6 @@ public partial class PromotionChoiceWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.cancelled);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton mouseEvent)
-            return;
-        if (!mouseEvent.Pressed)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        _on_cancel_button_pressed();
     }
 
     private static IReadOnlyList<object> DictArray(

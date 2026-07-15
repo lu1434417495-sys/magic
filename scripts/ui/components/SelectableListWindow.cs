@@ -4,9 +4,8 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class SelectableListWindow : Control
+public partial class SelectableListWindow : ModalWindowShell
 {
-    private ColorRect _shade;
     private ItemList _itemList;
     private Label _detailLabel;
     private Label _emptyLabel;
@@ -17,7 +16,6 @@ public partial class SelectableListWindow : Control
 
     public override void _Ready()
     {
-        _shade = GetNode<ColorRect>("Shade");
         _itemList = GetNode<ItemList>("%List");
         _detailLabel = GetNode<Label>("%DetailLabel");
         _emptyLabel = GetNode<Label>("%EmptyLabel");
@@ -27,32 +25,27 @@ public partial class SelectableListWindow : Control
 
         UiListTheme.Apply(_itemList);
         HideWindow();
-        _shade.GuiInput += OnShadeGuiInput;
         _itemList.ItemSelected += OnItemSelected;
         _itemList.ItemActivated += OnItemActivated;
         _confirmButton.Pressed += EmitSelected;
         _cancelButton.Pressed += EmitCancel;
         _footerCancelButton.Pressed += EmitCancel;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => EmitCancel();
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        base._UnhandledInput(@event);
         if (!Visible || @event is not InputEventKey keyEvent)
             return;
         if (!keyEvent.Pressed || keyEvent.Echo)
             return;
-
-        switch (keyEvent.Keycode)
+        if (keyEvent.Keycode is Key.Enter or Key.KpEnter)
         {
-            case Key.Escape:
-                GetViewport().SetInputAsHandled();
-                EmitCancel();
-                break;
-            case Key.Enter:
-            case Key.KpEnter:
-                GetViewport().SetInputAsHandled();
-                EmitSelected();
-                break;
+            GetViewport().SetInputAsHandled();
+            EmitSelected();
         }
     }
 
@@ -215,20 +208,6 @@ public partial class SelectableListWindow : Control
             return;
         HideWindow();
         _emit_cancelled();
-    }
-
-    private void OnShadeGuiInput(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton mouseEvent)
-            return;
-        if (!mouseEvent.Pressed)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        EmitCancel();
     }
 
 }

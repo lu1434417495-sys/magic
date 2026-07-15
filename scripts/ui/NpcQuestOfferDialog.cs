@@ -17,7 +17,7 @@ using GDictionary = Godot.Collections.Dictionary;
 /// <c>confirm_accept</c>.
 /// </summary>
 [GlobalClass]
-public partial class NpcQuestOfferDialog : Control
+public partial class NpcQuestOfferDialog : ModalWindowShell
 {
     [Signal]
     public delegate void action_requestedEventHandler(
@@ -58,15 +58,16 @@ public partial class NpcQuestOfferDialog : Control
 
         HideDialog();
 
-        if (shade != null)
-            shade.GuiInput += _on_shade_gui_input;
         if (accept_button != null)
             accept_button.Pressed += _on_accept_pressed;
         if (return_button != null)
             return_button.Pressed += _on_return_pressed;
         if (close_button != null)
             close_button.Pressed += _on_return_pressed;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _on_return_pressed();
 
     internal void ShowDialog(NpcQuestOfferWindowData windowData)
     {
@@ -164,14 +165,6 @@ public partial class NpcQuestOfferDialog : Control
     private void _on_return_pressed()
     {
         EmitSignal(SignalName.closed);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is InputEventMouseButton mouseEvent && mouseEvent.Pressed)
-        {
-            _on_return_pressed();
-        }
     }
 
     private NpcQuestOfferEntryData _resolve_selected_entry(NpcQuestOfferWindowData windowData)

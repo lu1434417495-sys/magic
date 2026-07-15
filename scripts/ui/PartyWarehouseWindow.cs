@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class PartyWarehouseWindow : Control
+public partial class PartyWarehouseWindow : ModalWindowShell
 {
     [Signal]
     public delegate void discard_one_requestedEventHandler(
@@ -87,14 +87,16 @@ public partial class PartyWarehouseWindow : Control
         );
 
         HideWindow();
-        shade.GuiInput += _on_shade_gui_input;
         stack_list.ItemSelected += index => _on_stack_selected((int)index);
         discard_one_button.Pressed += _on_discard_one_button_pressed;
         discard_all_button.Pressed += _on_discard_all_button_pressed;
         target_member_selector.ItemSelected += index => _on_target_member_selected((int)index);
         use_button.Pressed += _on_use_button_pressed;
         close_button.Pressed += _close_window;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _close_window();
 
     public void ShowWarehouse(GDictionary window_data)
     {
@@ -431,18 +433,6 @@ public partial class PartyWarehouseWindow : Control
             return;
         HideWindow();
         EmitSignal(SignalName.closed);
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        _close_window();
     }
 
     private sealed class WarehouseWindowData

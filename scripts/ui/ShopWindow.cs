@@ -4,7 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class ShopWindow : Control
+public partial class ShopWindow : ModalWindowShell
 {
     [Signal]
     public delegate void action_requestedEventHandler(
@@ -104,13 +104,15 @@ public partial class ShopWindow : Control
         );
 
         HideWindow();
-        shade.GuiInput += _on_shade_gui_input;
         entry_list.ItemSelected += index => _on_entry_selected((int)index);
         member_selector.ItemSelected += index => _on_member_selected((int)index);
         confirm_button.Pressed += _on_confirm_button_pressed;
         cancel_button.Pressed += _on_cancel_button_pressed;
         close_button.Pressed += _close_window;
+        base._Ready();
     }
+
+    protected override void _on_modal_close_requested() => _on_cancel_button_pressed();
 
     public void ShowShop(GDictionary window_data)
     {
@@ -537,15 +539,6 @@ public partial class ShopWindow : Control
 
     private void _close_window()
     {
-        _on_cancel_button_pressed();
-    }
-
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } mouseEvent)
-            return;
-        if (mouseEvent.ButtonIndex != MouseButton.Left)
-            return;
         _on_cancel_button_pressed();
     }
 
