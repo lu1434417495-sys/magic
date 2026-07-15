@@ -10,7 +10,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -220,13 +220,15 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 fixture.GameSession.GetLogSnapshotPlain(),
                 "entries"
             );
-            _test.True(
-                FindRecentLogEntry(logEntries, "battle.loot_dropped").Count > 0,
-                "缺失 item_def 的战斗掉落应记录 battle.loot_dropped 日志。"
+            _test.Eq(
+                CountRecentLogEntries(logEntries, "battle.loot_dropped"),
+                1,
+                "缺失 item_def 的战斗掉落应只记录一次 battle.loot_dropped 日志。"
             );
-            _test.True(
-                FindRecentLogEntry(logEntries, "battle.pending_reward_dropped").Count > 0,
-                "缺失 skill_def 的战斗角色奖励应记录 battle.pending_reward_dropped 日志。"
+            _test.Eq(
+                CountRecentLogEntries(logEntries, "battle.pending_reward_dropped"),
+                1,
+                "缺失 skill_def 的战斗角色奖励应只记录一次 battle.pending_reward_dropped 日志。"
             );
             _test.True(
                 FindRecentLogEntry(logEntries, "battle.resolved").Count > 0,
@@ -774,6 +776,28 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
                 return entry;
         }
         return new Dictionary<string, object>();
+    }
+
+    private static int CountRecentLogEntries(
+        IReadOnlyList<object> entries,
+        string eventId
+    )
+    {
+        if (entries == null)
+            return 0;
+
+        int count = 0;
+        foreach (object value in entries)
+        {
+            if (
+                value is IReadOnlyDictionary<string, object> entry
+                && PlainString(entry, "event_id") == eventId
+            )
+            {
+                count += 1;
+            }
+        }
+        return count;
     }
 
     private sealed class RuntimeFixture

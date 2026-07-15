@@ -23,6 +23,17 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestContentProjectionAndStrengthRequirement();
@@ -390,55 +401,57 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
 
     private sealed class Fixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _management;
         private readonly PartyState _party;
         internal BattleRuntimeModule Runtime { get; }
         internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
         internal IReadOnlyDictionary<StringName, TraitDefinition> TraitDefs { get; }
         internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> Bindings { get; }
 
-        private Fixture(ItemContentRegistry items, ProgressionContentRegistry progression, PartyState party, BattleRuntimeModule runtime)
+        private Fixture(
+            CharacterManagementModule management,
+            PartyState party,
+            BattleRuntimeModule runtime,
+            ContentSnapshot snapshot
+        )
         {
-            _itemRegistry = items;
-            _progressionRegistry = progression;
+            _management = management;
             _party = party;
             Runtime = runtime;
-            ItemDefs = items.GetItemDefsTyped();
-            TraitDefs = progression.GetTraitDefsTyped();
-            Bindings = progression.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal static Fixture Build(GArray damageRolls = null)
         {
-            ItemContentRegistry items = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progression = new(new TestContentResourceLoader());
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
             PartyState party = BuildPartyState("hero", 20);
             CharacterManagementModule management = new();
             management.setup(
                 party,
-                progression.GetSkillDefinitionsTyped(),
-                progression.GetProfessionDefsTyped(),
-                progression.GetAchievementDefsTyped(),
-                items.GetItemDefsTyped(),
-                progression.GetQuestDefsTyped(),
-                progression.GetTraitDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
+                snapshot.Items,
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 management,
-                progression.GetSkillDefinitionsTyped(),
-                item_defs: items.GetItemDefsTyped(),
-                trait_defs: progression.GetTraitDefsTyped(),
-                equipment_ability_bindings: progression.GetEquipmentAbilityBindingDefinitionsTyped()
+                snapshot.Skills,
+                item_defs: snapshot.Items,
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             runtime.ConfigureDamageResolverForTests(
                 new FixedRollDamageResolver(damageRolls ?? new GArray { 4, 4, 4 })
             );
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-            return new Fixture(items, progression, party, runtime);
+            return new Fixture(management, party, runtime, snapshot);
         }
 
         internal BattleUnitState BuildUnitWithoutWeapon(int strength)
@@ -481,8 +494,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         public void Dispose()
         {
             Runtime?.dispose();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _management?.Dispose();
         }
     }
 }

@@ -7,9 +7,17 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_battle_unit_factory_weapon_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         try
         {
             TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts();
@@ -496,7 +504,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
     {
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
+    private BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
     {
         PartyState partyState = BuildPartyState("hero");
         var typedItemDefs = new Dictionary<StringName, ItemDefinition>();
@@ -509,25 +517,24 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             }
         }
 
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             item_defs: typedItemDefs
         );
 
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             item_defs: typedItemDefs
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithMemberTrait()
+    private BattleRuntimeScope BuildRuntimeWithMemberTrait()
     {
         PartyState partyState = BuildPartyState("hero");
         PartyMemberState member = partyState.GetMemberState("hero");
@@ -540,7 +547,6 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             )
         );
 
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var traitDefs = new Dictionary<StringName, TraitDefinition>
         {
             ["halfling_luck"] = BuildTraitDefinition(
@@ -559,8 +565,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
@@ -572,16 +578,15 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             item_defs: new Dictionary<StringName, ItemDefinition>()
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
         {
@@ -606,8 +611,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             itemDefs,
             new Dictionary<StringName, QuestDefinition>(),
@@ -619,16 +624,15 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             item_defs: itemDefs
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private static BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
-        var progressionRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
         if (itemDef != null)
         {
@@ -666,8 +670,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var characterManagement = new CharacterManagementModule();
         characterManagement.setup(
             partyState,
-            progressionRegistry.GetSkillDefinitionsTyped(),
-            progressionRegistry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             itemDefs,
             new Dictionary<StringName, QuestDefinition>(),
@@ -679,12 +683,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             characterManagement,
-            progressionRegistry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             item_defs: itemDefs,
             trait_defs: traitDefs,
             equipment_ability_bindings: bindings
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
     private static BattleUnitState BuildSingleAllyUnit(
@@ -881,19 +885,27 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, PartyState partyState)
+        internal BattleRuntimeScope(
+            BattleRuntimeModule runtime,
+            PartyState partyState,
+            CharacterManagementModule characterManagement
+        )
         {
             Runtime = runtime;
             PartyState = partyState;
+            CharacterManagement = characterManagement;
         }
 
         internal BattleRuntimeModule Runtime { get; }
 
         internal PartyState PartyState { get; }
 
+        private CharacterManagementModule CharacterManagement { get; }
+
         public void Dispose()
         {
             Runtime?.dispose();
+            CharacterManagement?.Dispose();
         }
     }
 }

@@ -88,7 +88,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed passive_reduction 字段必须驱动正式减伤。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -155,7 +155,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed lock_dodge_bonus 字段必须继续压制 dodge AC 组件。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -238,7 +238,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
     private void TestStatusAttackRollPenaltyUsesFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -301,7 +301,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed dispellable_beneficial_magic 字段应驱动正式 beneficial dispel 语义。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -326,7 +326,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
     private void TestStatusDurationAndTickIntervalUseFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -402,7 +402,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed mitigation_tier 字段必须继续记录到伤害事件。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -468,7 +468,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed control_save_bonus 字段应提高目标二次豁免，阻止同一固定掷骰触发 secondary_hit。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",

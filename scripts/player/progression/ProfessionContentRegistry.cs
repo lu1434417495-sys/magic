@@ -40,9 +40,16 @@ public class ProfessionContentRegistry : System.IDisposable
     private bool _disposed;
 
     internal ProfessionContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal ProfessionContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
     {
         _resourceLoader = resourceLoader ?? throw new ArgumentNullException(nameof(resourceLoader));
-        Setup();
+        if (loadDefaultContent)
+            Setup();
     }
 
     public void Dispose()
@@ -69,8 +76,16 @@ public class ProfessionContentRegistry : System.IDisposable
 
     public void Setup(IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null)
     {
+        Setup(skillDefinitions, ProfessionConfigDirectory);
+    }
+
+    internal void Setup(
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        string directoryPath
+    )
+    {
         _skillDefinitions = SnapshotDefinitions(skillDefinitions);
-        Rebuild();
+        LoadFromDirectory(directoryPath);
     }
 
     public void Rebuild()

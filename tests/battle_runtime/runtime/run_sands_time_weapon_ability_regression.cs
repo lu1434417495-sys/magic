@@ -35,6 +35,17 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestSandsTimeProjectsRealContent();
@@ -449,25 +460,23 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
 
     private sealed class SandsTimeFixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
 
         private SandsTimeFixture(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
-            BattleRuntimeModule runtime
+            BattleRuntimeModule runtime,
+            ContentSnapshot snapshot
         )
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             Runtime = runtime;
-            ItemDefs = itemRegistry.GetItemDefsTyped();
-            SkillDefs = progressionRegistry.GetSkillDefinitionsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            SkillDefs = snapshot.Skills;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -478,18 +487,17 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
 
         internal static SandsTimeFixture Build()
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(
                 partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
-                itemRegistry.GetItemDefsTyped(),
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
+                snapshot.Items,
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
@@ -497,13 +505,13 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                item_defs: itemRegistry.GetItemDefsTyped(),
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                snapshot.Skills,
+                item_defs: snapshot.Items,
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver(new GArray()));
-            return new SandsTimeFixture(itemRegistry, progressionRegistry, partyState, runtime);
+            return new SandsTimeFixture(characterManagement, partyState, runtime, snapshot);
         }
 
         internal BattleUnitState BuildSandsTimeUnit(string label)
@@ -531,8 +539,7 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         public void Dispose()
         {
             Runtime?.dispose();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _characterManagement?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)

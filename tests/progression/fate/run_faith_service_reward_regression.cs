@@ -12,23 +12,22 @@ public partial class run_faith_service_reward_regression : LifecycleTestSceneTre
 
     public override void _Initialize()
     {
-        TestResult exitCode = Run();
-        RequestTestExit(exitCode);
+        RunAfterProcessStartup(Run);
     }
 
-    private TestResult Run()
+    private void Run()
     {
         TestFortunaRankRewardUsesTypedRewardEntryFields();
 
-        return _test.Finish("Faith service reward regression");
+        RequestTestExit(_test.Finish("Faith service reward regression"));
     }
 
     private void TestFortunaRankRewardUsesTypedRewardEntryFields()
     {
         PartyState partyState = BuildPartyState();
-        var faithRegistry = new FaithContentRegistry(new TestContentResourceLoader());
-        faithRegistry.Rebuild();
-        var faithService = new FaithService(faithRegistry.GetFaithDeityDefsTyped());
+        var faithService = new FaithService(
+            GameSessionTestFactory.GetProcessSnapshot().FaithDeities
+        );
 
         FaithDevotionResult result = faithService.ExecuteDevotion(
             partyState,

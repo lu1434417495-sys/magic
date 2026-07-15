@@ -10,6 +10,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
 
     public override void _Initialize()
     {
+        RunAfterProcessStartup(Run);
+    }
+
+    private void Run()
+    {
         TestResult exitCode = null;
         try
         {

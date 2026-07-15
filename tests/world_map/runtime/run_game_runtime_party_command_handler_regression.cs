@@ -11,7 +11,7 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -54,7 +54,8 @@ public partial class run_game_runtime_party_command_handler_regression : Lifecyc
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState, bool addBronzeSword)
     {
-        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped();
+        IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs =
+            GameSessionTestFactory.GetProcessSnapshot().Items;
         int equipmentSerial = 1;
         Func<StringName> equipmentInstanceIdAllocator = () =>
             new StringName($"eq_party_command_{equipmentSerial++:000}");

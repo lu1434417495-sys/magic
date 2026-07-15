@@ -9,7 +9,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -22,7 +22,10 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     private void TestAttributeGrowthSchemaValidation()
     {
-        SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
 
         SkillDef validSkill = BuildGrowthSchemaSkill(
             "valid_growth_schema_skill",

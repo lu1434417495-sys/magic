@@ -25,6 +25,17 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestShieldbreakerProjectsRealContentOntoBattleUnit();
@@ -386,7 +397,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             trait_defs: content.TraitDefs,
             equipment_ability_bindings: content.Bindings
         );
-        return new BattleRuntimeScope(runtime, partyState);
+        return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
     private static PartyState BuildPartyState(StringName memberId)
@@ -412,23 +423,15 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
 
     private sealed class ContentScope : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
-
-        private ContentScope(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry
-        )
+        private ContentScope(ContentSnapshot snapshot)
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
-            ItemDefs = itemRegistry.GetItemDefsTyped();
-            SkillDefs = progressionRegistry.GetSkillDefinitionsTyped();
-            ProfessionDefs = progressionRegistry.GetProfessionDefsTyped();
-            AchievementDefs = progressionRegistry.GetAchievementDefsTyped();
-            QuestDefs = progressionRegistry.GetQuestDefsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            ItemDefs = snapshot.Items;
+            SkillDefs = snapshot.Skills;
+            ProfessionDefs = snapshot.Professions;
+            AchievementDefs = snapshot.Achievements;
+            QuestDefs = snapshot.Quests;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal IReadOnlyDictionary<StringName, ItemDefinition> ItemDefs { get; }
@@ -441,22 +444,25 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
 
         internal static ContentScope Load()
         {
-            return new ContentScope(new ItemContentRegistry(new TestContentResourceLoader()), new ProgressionContentRegistry(new TestContentResourceLoader()));
+            return new ContentScope(GameSessionTestFactory.GetProcessSnapshot());
         }
 
-        public void Dispose()
-        {
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
-        }
+        public void Dispose() { }
     }
 
     private sealed class BattleRuntimeScope : IDisposable
     {
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, PartyState partyState)
+        private readonly CharacterManagementModule _characterManagement;
+
+        internal BattleRuntimeScope(
+            BattleRuntimeModule runtime,
+            PartyState partyState,
+            CharacterManagementModule characterManagement
+        )
         {
             Runtime = runtime;
             PartyState = partyState;
+            _characterManagement = characterManagement;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -465,6 +471,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         public void Dispose()
         {
             Runtime?.dispose();
+            _characterManagement?.Dispose();
         }
     }
 }

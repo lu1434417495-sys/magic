@@ -61,21 +61,23 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
     {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
         using TestContentResourceLoader contentLoader = new();
         using ProgressionContentRegistry progressionRegistry = new(contentLoader);
         using ItemContentRegistry itemRegistry = new(contentLoader);
-        using EnemyContentRegistry enemyRegistry = new(contentLoader);
 
         GDictionary skillDefs = progressionRegistry.DuplicateSkillResourceBucketForValidation();
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
             itemRegistry.GetItemDefsTyped();
-        EnemyContentDefinitionGraph enemyDefinitions = enemyRegistry.ProjectDefinitions(
-            itemDefs
+        EnemyContentDefinitionGraph enemyDefinitions = new(
+            snapshot.EnemyTemplates,
+            snapshot.EnemyBrains,
+            snapshot.EncounterRosters
         );
         HashSet<StringName> enemyTemplateIds = new(enemyDefinitions.EnemyTemplates.Keys);
         HashSet<StringName> wildEncounterRosterIds = new(
@@ -89,7 +91,9 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
 
         ValidationDomainResult officialItemResult = ContentValidationRunner.ValidateOfficialItemContent();
         ValidationDomainResult officialEnemyResult = ContentValidationRunner.ValidateEnemySeed(
-            OFFICIAL_ENEMY_SEED_PATH
+            OFFICIAL_ENEMY_SEED_PATH,
+            typedItemDefs,
+            typedSkillDefinitions
         );
 
         TestItemRegistryDirectoryRebuildClearsTemplateCache();
@@ -180,24 +184,42 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             itemDefs
         );
         ValidationDomainResult enemyMissingResult = ContentValidationRunner.ValidateEnemySeed(
-            ENEMY_MISSING_ID_SEED_PATH
+            ENEMY_MISSING_ID_SEED_PATH,
+            typedItemDefs,
+            typedSkillDefinitions
         );
         ValidationDomainResult enemyDuplicateResult = ContentValidationRunner.ValidateEnemySeed(
-            ENEMY_DUPLICATE_ID_SEED_PATH
+            ENEMY_DUPLICATE_ID_SEED_PATH,
+            typedItemDefs,
+            typedSkillDefinitions
         );
         ValidationDomainResult enemyInvalidReferenceResult =
-            ContentValidationRunner.ValidateEnemySeed(ENEMY_INVALID_REFERENCE_SEED_PATH);
+            ContentValidationRunner.ValidateEnemySeed(
+                ENEMY_INVALID_REFERENCE_SEED_PATH,
+                typedItemDefs,
+                typedSkillDefinitions
+            );
         ValidationDomainResult enemyIncompleteSeedResult =
             ContentValidationRunner.ValidateEnemySeedWithDirectoryCompleteness(
                 ENEMY_INCOMPLETE_SEED_PATH,
                 ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY,
                 ENEMY_INCOMPLETE_BRAIN_DIRECTORY,
-                ENEMY_INCOMPLETE_ROSTER_DIRECTORY
+                ENEMY_INCOMPLETE_ROSTER_DIRECTORY,
+                typedItemDefs,
+                typedSkillDefinitions
             );
         ValidationDomainResult enemyInvalidInitialStageResult =
-            ContentValidationRunner.ValidateEnemySeed(ENEMY_INVALID_INITIAL_STAGE_SEED_PATH);
+            ContentValidationRunner.ValidateEnemySeed(
+                ENEMY_INVALID_INITIAL_STAGE_SEED_PATH,
+                typedItemDefs,
+                typedSkillDefinitions
+            );
         ValidationDomainResult enemyInvalidSkillLevelMapResult =
-            ContentValidationRunner.ValidateEnemySeed(ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH);
+            ContentValidationRunner.ValidateEnemySeed(
+                ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH,
+                typedItemDefs,
+                typedSkillDefinitions
+            );
         ValidationDomainResult battleSpecialMissingManifestResult =
             ContentValidationRunner.ValidateBattleSpecialProfileRegistry(
                 "battle_special_profile_missing_manifest",
@@ -434,7 +456,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         AssertInvalid(questResult, "非法任务 fixture 应保持非法。");
 
         foreach (string reportText in _reports)
-            GD.Print(reportText);
+            ConsoleProcessOutput.WriteStandard(reportText);
 
         RequestTestExit(_test.Finish("Resource validation regression"));
     }

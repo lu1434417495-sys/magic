@@ -13,7 +13,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -43,7 +43,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         {
             _test.True(
                 HasItemDefinition(itemDefinitions, itemId),
-                $"ItemContentRegistry 应加载 {itemId}。"
+                $"正式内容快照应提供 {itemId}。"
             );
             if (!HasItemDefinition(itemDefinitions, itemId))
                 continue;
@@ -319,10 +319,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
     }
 
     private static IReadOnlyDictionary<StringName, ItemDefinition> LoadLowLuckItemDefinitions()
-    {
-        using ItemContentRegistry registry = new(new TestContentResourceLoader());
-        return new Dictionary<StringName, ItemDefinition>(registry.GetItemDefsTyped());
-    }
+        => GameSessionTestFactory.GetProcessSnapshot().Items;
 
     private static bool HasItemDefinition(
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
@@ -347,7 +344,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         );
         partyState.SetMemberState(memberState);
 
-        CharacterManagementModule manager = new();
+        using CharacterManagementModule manager = new();
         manager.setup(partyState, item_defs: itemDefinitions);
         return manager.GetMemberAttributeSnapshot(HeroId);
     }

@@ -13,7 +13,13 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        RunDeferred();
     }
 
     private void RunDeferred()
@@ -36,20 +42,16 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
         if (scenarioResource == null)
         {
-            GD.PushError("[ERROR] Failed to load scenario");
+            ConsoleProcessOutput.WriteFailure("Failed to load scenario");
             return 1;
         }
         BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
         scenarioResource = null;
 
-        var contentLoader = new TestContentResourceLoader();
-        var contentProvider = new BattleSimContentProvider(
-            GameSessionTestFactory.GetProcessSnapshot()
-        );
+        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var contentProvider = new BattleSimContentProvider(contentSnapshot);
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
-        var itemRegistry = new ItemContentRegistry(contentLoader);
 
         try
         {
@@ -98,8 +100,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 var fixture = BuildFormalFixture(
                     scenarioDefinition,
                     overrides,
-                    progressionRegistry,
-                    itemRegistry,
+                    contentSnapshot,
                     rosterOptions
                 );
                 try
@@ -159,7 +160,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                     if (progressEnabled && string.IsNullOrEmpty(outputPath))
                     {
                         double elapsed = (Time.GetTicksMsec() - startTime) / 1000.0;
-                        GD.Print(
+                        ConsoleProcessOutput.WriteStandard(
                             $"[Progress] {runIndex + 1}/{runCount} ({elapsed:F1}s, {(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s)"
                         );
                     }
@@ -222,7 +223,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
 
             if (string.IsNullOrEmpty(outputPath))
             {
-                GD.Print(Json.Stringify(report, "\t"));
+                ConsoleProcessOutput.WriteStandard(Json.Stringify(report, "\t"));
             }
             else
             {
@@ -233,12 +234,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         }
         finally
         {
-            DisposeObjects(
-                itemRegistry,
-                progressionRegistry,
-                terrainGenerator,
-                contentProvider
-            );
+            DisposeObjects(terrainGenerator, contentProvider);
         }
     }
 
@@ -262,17 +258,16 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
     private static BattleSimFormalCombatFixture BuildFormalFixture(
         BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
-        ProgressionContentRegistry progressionRegistry,
-        ItemContentRegistry itemRegistry,
+        ContentSnapshot contentSnapshot,
         BattleSimFormalRosterOptionsData rosterOptions
     )
     {
         var fixture = new BattleSimFormalCombatFixture();
-        fixture.SetupContent(progressionRegistry, itemRegistry, overrides.SkillDefinitions);
+        fixture.SetupContent(contentSnapshot, overrides.SkillDefinitions);
         if (
             !fixture.BuildRoster(scenarioDefinition.ScenarioId, rosterOptions)
         )
-            GD.PushError($"Unsupported formal battle sim roster: {scenarioDefinition.ScenarioId}");
+            ConsoleProcessOutput.WriteFailure($"Unsupported formal battle sim roster: {scenarioDefinition.ScenarioId}");
         return fixture;
     }
 
@@ -391,7 +386,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         using FileAccess file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
         if (file == null)
         {
-            GD.PushError($"[ERROR] Failed to write: {absolutePath}");
+            ConsoleProcessOutput.WriteFailure($"Failed to write: {absolutePath}");
             return;
         }
         file.StoreString(Json.Stringify(report, "\t"));

@@ -32,6 +32,17 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        Run();
+    }
+
+    private void Run()
+    {
         try
         {
             TestLunareclipseProjectsContentAndSkillEntry();
@@ -522,28 +533,26 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
     private sealed class LunareclipseFixture : IDisposable
     {
-        private readonly ItemContentRegistry _itemRegistry;
-        private readonly ProgressionContentRegistry _progressionRegistry;
+        private readonly CharacterManagementModule _characterManagement;
         private readonly PartyState _partyState;
         private readonly Dictionary<StringName, ItemDefinition> _itemDefs;
 
         private LunareclipseFixture(
-            ItemContentRegistry itemRegistry,
-            ProgressionContentRegistry progressionRegistry,
+            CharacterManagementModule characterManagement,
             PartyState partyState,
             BattleRuntimeModule runtime,
-            Dictionary<StringName, ItemDefinition> itemDefs
+            Dictionary<StringName, ItemDefinition> itemDefs,
+            ContentSnapshot snapshot
         )
         {
-            _itemRegistry = itemRegistry;
-            _progressionRegistry = progressionRegistry;
+            _characterManagement = characterManagement;
             _partyState = partyState;
             _itemDefs = itemDefs;
             Runtime = runtime;
             ItemDefs = _itemDefs;
-            SkillDefs = progressionRegistry.GetSkillDefinitionsTyped();
-            TraitDefs = progressionRegistry.GetTraitDefsTyped();
-            Bindings = progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped();
+            SkillDefs = snapshot.Skills;
+            TraitDefs = snapshot.Traits;
+            Bindings = snapshot.EquipmentAbilityBindings;
         }
 
         internal BattleRuntimeModule Runtime { get; }
@@ -554,20 +563,19 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
         internal static LunareclipseFixture Build(GArray damageRolls)
         {
-            ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-            ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-            Dictionary<StringName, ItemDefinition> itemDefs = new(itemRegistry.GetItemDefsTyped());
+            ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+            Dictionary<StringName, ItemDefinition> itemDefs = new(snapshot.Items);
             itemDefs[HeavyArmorItemId] = BuildHeavyArmorItem();
             PartyState partyState = BuildPartyState("hero");
             CharacterManagementModule characterManagement = new();
             characterManagement.setup(
                 partyState,
-                progressionRegistry.GetSkillDefinitionsTyped(),
-                progressionRegistry.GetProfessionDefsTyped(),
-                progressionRegistry.GetAchievementDefsTyped(),
+                snapshot.Skills,
+                snapshot.Professions,
+                snapshot.Achievements,
                 itemDefs,
-                progressionRegistry.GetQuestDefsTyped(),
-                progressionRegistry.GetTraitDefsTyped(),
+                snapshot.Quests,
+                snapshot.Traits,
                 null,
                 new ProgressionIdentityCatalogData()
             );
@@ -575,10 +583,10 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             BattleRuntimeModule runtime = new();
             runtime.setup(
                 characterManagement,
-                progressionRegistry.GetSkillDefinitionsTyped(),
+                snapshot.Skills,
                 item_defs: itemDefs,
-                trait_defs: progressionRegistry.GetTraitDefsTyped(),
-                equipment_ability_bindings: progressionRegistry.GetEquipmentAbilityBindingDefinitionsTyped()
+                trait_defs: snapshot.Traits,
+                equipment_ability_bindings: snapshot.EquipmentAbilityBindings
             );
             BattleTestFixture.ConfigureDamageResolverForTests(
                 runtime,
@@ -586,11 +594,11 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             );
             BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
             return new LunareclipseFixture(
-                itemRegistry,
-                progressionRegistry,
+                characterManagement,
                 partyState,
                 runtime,
-                itemDefs
+                itemDefs,
+                snapshot
             );
         }
 
@@ -632,8 +640,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         {
             BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?.GetState());
             _itemDefs?.Clear();
-            _itemRegistry?.Dispose();
-            _progressionRegistry?.Dispose();
+            _characterManagement?.Dispose();
         }
 
         private BattleUnitState BuildSingleAllyUnit(string label)

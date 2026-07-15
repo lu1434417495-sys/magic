@@ -11,10 +11,17 @@ public class TraitContentRegistry : IdentityContentRegistryBase
     private readonly Dictionary<StringName, TraitDefinition> _traitDefinitions = new();
 
     internal TraitContentRegistry(IContentResourceLoader resourceLoader)
+        : this(resourceLoader, loadDefaultContent: true) { }
+
+    internal TraitContentRegistry(
+        IContentResourceLoader resourceLoader,
+        bool loadDefaultContent
+    )
         : base(resourceLoader)
     {
         _registry_label = "TraitContentRegistry";
-        Rebuild();
+        if (loadDefaultContent)
+            Rebuild();
     }
 
     public void Rebuild() => LoadFromDirectory(TraitConfigDirectoryPath);

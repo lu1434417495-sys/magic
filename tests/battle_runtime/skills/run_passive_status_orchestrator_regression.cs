@@ -6,10 +6,18 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_passive_status_orchestrator_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        Run();
     }
 
     private void Run()
@@ -34,23 +42,22 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
     private void TestFactoryProjectsIdentityPassivesFromCharacterGateway()
     {
-        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         PartyState partyState = MakePartyState(new[] { new StringName("hero") });
         CharacterManagementModule gateway = new();
         gateway.setup(
             partyState,
-            registry.GetSkillDefinitionsTyped(),
-            registry.GetProfessionDefsTyped(),
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
             new Dictionary<StringName, AchievementDefinition>(),
             new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>(),
-            registry.GetTraitDefsTyped(),
+            _contentSnapshot.Traits,
             null,
-            registry.GetIdentityCatalogTyped()
+            _contentSnapshot.IdentityCatalog
         );
 
         BattleRuntimeModule runtime = new();
-        runtime.setup(gateway, registry.GetSkillDefinitionsTyped(), null, null);
+        runtime.setup(gateway, _contentSnapshot.Skills, null, null);
         var units = runtime._unit_factory.BuildAllyUnits(
             partyState,
             new GDictionary()
@@ -75,7 +82,6 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
         runtime.dispose();
         gateway.Dispose();
-        registry.Dispose();
     }
 
     private void TestOrchestratorProjectsRaceAndSubracePassives()
@@ -148,7 +154,6 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
 
     private void TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus()
     {
-        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         BattleUnitState unit = MakeBattleUnit("shooting_specialization_unit");
         PassiveSourceContext context = new()
         {
@@ -177,7 +182,7 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
         PassiveStatusOrchestrator.ApplyToUnit(
             unit,
             context,
-            registry.GetSkillDefinitionsTyped()
+            _contentSnapshot.Skills
         );
 
         BattleStatusEffectState status = unit.GetStatusEffect("archer_shooting_specialization");
@@ -251,8 +256,6 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             5,
             "shooting specialization must not add range for crossbows."
         );
-
-        registry.Dispose();
     }
 
     private static BattleUnitState MakeBattleUnit(StringName unitId)

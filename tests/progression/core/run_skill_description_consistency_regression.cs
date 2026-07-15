@@ -5,10 +5,18 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_skill_description_consistency_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        Run();
     }
 
     private void Run()
@@ -20,9 +28,8 @@ public partial class run_skill_description_consistency_regression : LifecycleTes
 
     private void TestChainLightningDescriptionInputsMatchSaveEnabledEffects()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
         SkillDefinition chainLightningDefinition = GetSkillDefinition(
-            registry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             "mage_chain_lightning"
         );
         _test.True(chainLightningDefinition != null, "链式闪击技能应存在。");

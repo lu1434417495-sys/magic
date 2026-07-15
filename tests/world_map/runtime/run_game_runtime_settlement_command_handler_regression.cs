@@ -12,7 +12,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()
@@ -796,7 +796,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
     {
         var shopService = new SettlementShopService();
         Dictionary<StringName, ItemDefinition> itemDefs = new(
-            new ItemContentRegistry(new TestContentResourceLoader()).GetItemDefsTyped()
+            GameSessionTestFactory.GetProcessSnapshot().Items
         );
         GDictionary settlementRecord = MinimalSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero, new GArray());
         PartyState validParty = BuildPartyState(10, 100);

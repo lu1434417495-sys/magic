@@ -6,9 +6,18 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_battle_validation_result_projection_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor();
         TestUnitSkillValidationProjectsTypedLists();
         TestGroundSkillValidationParsesAndProjectsStringKeyPayload();
@@ -238,9 +247,7 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
     private void TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock()
     {
         var runtime = new BattleRuntimeModule();
-        ProgressionContentRegistry progressionContent = new(new TestContentResourceLoader());
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            progressionContent.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
         runtime.setup(
             null,
             skillDefinitions,
@@ -350,7 +357,6 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             skillDefinition = null;
             skillDefinitions = null;
             BattleTestFixture.DisposeBattleFixture(runtime, state);
-            progressionContent.Dispose();
         }
     }
 

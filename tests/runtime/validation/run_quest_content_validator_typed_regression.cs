@@ -5,14 +5,16 @@ using Godot;
 public partial class run_quest_content_validator_typed_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _snapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
     {
+        _snapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestOfficialQuestValidationTypedBoundary();
         TestMissingReferenceErrorsUseTypedBoundary();
         TestNpcProviderAcceptsNonServiceInteractionId();
@@ -25,26 +27,12 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestOfficialQuestValidationTypedBoundary()
     {
-        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
-        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
-
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs =
-            progressionRegistry.GetQuestDefsTyped();
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            progressionRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
-            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
-        IReadOnlyList<string> registrationErrors =
-            progressionRegistry.GetQuestRegistrationErrorsTyped();
-
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
-            questDefs,
-            itemDefs,
-            skillDefinitions,
-            enemyTemplates,
-            registrationErrors
+            _snapshot.Quests,
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates,
+            Array.Empty<string>()
         );
         _test.Eq(
             typedErrors.Count,
@@ -55,27 +43,19 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestMissingReferenceErrorsUseTypedBoundary()
     {
-        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
-        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
         QuestDefinition invalidQuest = BuildInvalidQuestDefinition();
 
         Dictionary<StringName, QuestDefinition> typedQuestDefs = new()
         {
             [invalidQuest.QuestId] = invalidQuest,
         };
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            skillRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
-            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
         List<string> registrationErrors = new() { "typed registration error" };
 
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             typedQuestDefs,
-            itemDefs,
-            skillDefinitions,
-            enemyTemplates,
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates,
             registrationErrors
         );
         _test.True(
@@ -86,9 +66,6 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
 
     private void TestNpcProviderAcceptsNonServiceInteractionId()
     {
-        using ItemContentRegistry itemRegistry = new(new TestContentResourceLoader());
-        using SkillContentRegistry skillRegistry = new(new TestContentResourceLoader());
-        using EnemyContentRegistry enemyRegistry = new(new TestContentResourceLoader());
         QuestDefinition npcQuest = BuildQuestDefinition(
             "npc_regression_quest",
             providerKind: "npc",
@@ -100,17 +77,11 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         {
             [npcQuest.QuestId] = npcQuest,
         };
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = itemRegistry.GetItemDefsTyped();
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            skillRegistry.GetSkillDefinitionsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
-            enemyRegistry.ProjectDefinitions(itemDefs).EnemyTemplates;
-
         List<string> typedErrors = QuestContentValidator.ValidateTyped(
             typedQuestDefs,
-            itemDefs,
-            skillDefinitions,
-            enemyTemplates
+            _snapshot.Items,
+            _snapshot.Skills,
+            _snapshot.EnemyTemplates
         );
         _test.Eq(
             typedErrors.Count,

@@ -24,9 +24,18 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
     private static readonly StringName FORTUNE_MARK_TARGET_STAT_ID = "fortune_mark_target";
 
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestCrownBreakBrokenFangBlocksCrit();
         TestCrownBreakBrokenHandBlocksCounterattackAndFollowUp();
         TestCrownBreakBlindedEyeBlocksEvasion();
@@ -319,23 +328,15 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
     private BattleRuntimeModule BuildRuntime()
     {
         var runtime = new BattleRuntimeModule();
-        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
-        try
-        {
-            runtime.setup(
-                null,
-                registry.GetSkillDefinitionsTyped(),
-                new Dictionary<StringName, EnemyTemplateDefinition>(),
-                new Dictionary<StringName, EnemyAiBrainDefinition>()
-            );
-            BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
-            var damageResolver = new DeterministicBattleDamageResolver();
-            BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
-        }
-        finally
-        {
-            registry.Dispose();
-        }
+        runtime.setup(
+            null,
+            _contentSnapshot.Skills,
+            new Dictionary<StringName, EnemyTemplateDefinition>(),
+            new Dictionary<StringName, EnemyAiBrainDefinition>()
+        );
+        BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
+        var damageResolver = new DeterministicBattleDamageResolver();
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
         return runtime;
     }
 

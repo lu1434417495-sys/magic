@@ -14,9 +14,18 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
     private static readonly StringName FORTUNE_MARK_TARGET_STAT_ID = "fortune_mark_target";
 
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestDoomSentenceAppliesVerdictAndTeamwideDamageAmp();
         TestDoomSentenceLocksMainSkillOnlyAfterTwoOtherDebuffs();
         TestDoomSentenceIsLimitedToOncePerBattle();
@@ -245,11 +254,10 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
 
     private BattleRuntimeModule BuildRuntime()
     {
-        var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            registry.GetSkillDefinitionsTyped(),
+            _contentSnapshot.Skills,
             new Dictionary<StringName, EnemyTemplateDefinition>(),
             new Dictionary<StringName, EnemyAiBrainDefinition>()
         );

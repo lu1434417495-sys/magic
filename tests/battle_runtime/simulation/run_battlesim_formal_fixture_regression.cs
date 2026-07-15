@@ -17,10 +17,18 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
 
     private readonly TestHarness _test = new();
     private readonly List<BattleSimFormalCombatFixture> _fixtures = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        Run();
     }
 
     private void Run()
@@ -375,14 +383,11 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         BattleSimFormalRosterOptionsData rosterOptions = null
     )
     {
-        var loader = new TestContentResourceLoader();
-        ProgressionContentRegistry progressionRegistry = new(loader);
-        ItemContentRegistry itemRegistry = new(loader);
         BattleSimFormalCombatFixture fixture = new();
         bool keepFixture = false;
         try
         {
-            fixture.SetupContent(progressionRegistry, itemRegistry);
+            fixture.SetupContent(_contentSnapshot);
             if (
                 !fixture.BuildRoster(rosterId, rosterOptions ?? new BattleSimFormalRosterOptionsData())
             )
@@ -395,8 +400,6 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         {
             if (!keepFixture && fixture != null)
                 fixture.Dispose();
-            progressionRegistry.Dispose();
-            itemRegistry.Dispose();
         }
     }
 

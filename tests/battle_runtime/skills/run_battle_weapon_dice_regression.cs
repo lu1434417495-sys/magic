@@ -9,9 +9,17 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
     }
@@ -786,9 +794,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
 
     private void TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate()
     {
-        using var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            registry.GetSkillDefinitionsTyped();
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
         skillDefinitions.TryGetValue("warrior_heavy_strike", out SkillDefinition skillDefinition);
         _test.True(
             skillDefinition?.CombatProfile != null,

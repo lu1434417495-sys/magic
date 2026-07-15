@@ -23,9 +23,17 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
     private static readonly StringName ShadowHalberdId = "shadow_halberd";
 
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
     }
@@ -245,7 +253,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         );
     }
 
-    private static TestContext BuildContext()
+    private TestContext BuildContext()
     {
         GDictionary itemDefs = BuildItemDefs();
         Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefIndex(itemDefs);
@@ -259,12 +267,11 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         partyState.SetMemberState(BuildMemberState());
 
         CharacterManagementModule manager = new();
-        using ProgressionContentRegistry progressionRegistry = new(new TestContentResourceLoader());
         manager.setup(
             partyState,
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
-            progressionRegistry.GetAchievementDefsTyped(),
+            _contentSnapshot.Achievements,
             itemDefIndex,
             new Dictionary<StringName, QuestDefinition>(),
             null,
@@ -278,9 +285,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         MisfortuneGuidanceService guidance = new();
         guidance.Setup(manager, battleRuntime);
 
-        FaithContentRegistry faithRegistry = new(new TestContentResourceLoader());
-        faithRegistry.Rebuild();
-        FaithService faith = new(faithRegistry.GetFaithDeityDefsTyped());
+        FaithService faith = new(_contentSnapshot.FaithDeities);
         return new TestContext(
             partyState,
             manager,

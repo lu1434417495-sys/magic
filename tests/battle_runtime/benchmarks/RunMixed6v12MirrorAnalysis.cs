@@ -14,7 +14,13 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        RunDeferred();
     }
 
     private void RunDeferred()
@@ -80,14 +86,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
         scenarioResource = null;
 
-        var contentLoader = new TestContentResourceLoader();
-        var contentProvider = new BattleSimContentProvider(
-            GameSessionTestFactory.GetProcessSnapshot()
-        );
+        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var contentProvider = new BattleSimContentProvider(contentSnapshot);
         var overrideApplier = new BattleSimOverrideApplier();
         var terrainGenerator = new BattleTerrainGenerator();
-        var progressionRegistry = new ProgressionContentRegistry(contentLoader);
-        var itemRegistry = new ItemContentRegistry(contentLoader);
 
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             contentProvider.GetSkillDefinitionsTyped();
@@ -98,7 +100,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         if (skillDefinitions.Count == 0 || enemyAiBrains.Count == 0)
         {
             GameLog.Error($"Battle sim content provider returned empty content: skills={skillDefinitions.Count}, brains={enemyAiBrains.Count}.", "bench.content.empty", "bench");
-            DisposeObjects(itemRegistry, progressionRegistry, terrainGenerator, overrideApplier, contentProvider);
+            DisposeObjects(terrainGenerator, overrideApplier, contentProvider);
             return 1;
         }
 
@@ -160,8 +162,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             var fixture = BuildFormalFixture(
                 scenario,
                 overrides,
-                progressionRegistry,
-                itemRegistry,
+                contentSnapshot,
                 rosterOptions,
                 seed
             );
@@ -276,8 +277,6 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
         DisposeObjects(
             baseline,
-            itemRegistry,
-            progressionRegistry,
             terrainGenerator,
             overrideApplier,
             contentProvider
@@ -297,16 +296,14 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
     private static BattleSimFormalCombatFixture BuildFormalFixture(
         BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
-        ProgressionContentRegistry progressionRegistry,
-        ItemContentRegistry itemRegistry,
+        ContentSnapshot contentSnapshot,
         BattleSimFormalRosterOptionsData rosterOptions,
         long attributeRollSeed
     )
     {
         var fixture = new BattleSimFormalCombatFixture();
         fixture.SetupContent(
-            progressionRegistry,
-            itemRegistry,
+            contentSnapshot,
             overrides.SkillDefinitions
         );
         BattleSimFormalRosterOptionsData effectiveRosterOptions = new()

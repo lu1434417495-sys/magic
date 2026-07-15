@@ -27,11 +27,18 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
     private const int BLACK_CONTRACT_PUSH_HP_COST = 10;
 
     private readonly TestHarness _test = new();
-    private ProgressionContentRegistry _progressionContentRegistry;
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _skillDefinitions = GameSessionTestFactory.GetProcessSnapshot().Skills;
+
         TestResult exitCode = null;
         try
         {
@@ -44,7 +51,6 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         }
         finally
         {
-            DisposeContentRegistry();
             RequestTestExit(exitCode ?? _test.Finish("FATE_25 regression", 1));
         }
     }
@@ -471,18 +477,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
 
     private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsForTests()
     {
-        if (_skillDefinitions != null)
-            return _skillDefinitions;
-        _progressionContentRegistry = new ProgressionContentRegistry(new TestContentResourceLoader());
-        _skillDefinitions = _progressionContentRegistry.GetSkillDefinitionsTyped();
         return _skillDefinitions;
-    }
-
-    private void DisposeContentRegistry()
-    {
-        _progressionContentRegistry?.Dispose();
-        _skillDefinitions = null;
-        _progressionContentRegistry = null;
     }
 
     private void BeginRuntimeBattle(BattleRuntimeModule runtime)
