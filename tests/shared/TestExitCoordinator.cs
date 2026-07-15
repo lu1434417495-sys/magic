@@ -16,7 +16,7 @@ internal static class TestExitCoordinator
         ArgumentNullException.ThrowIfNull(result);
 
         foreach (string failure in result.Failures)
-            GD.PushError(FormatFailureDiagnostic(result.Label, failure));
+            ConsoleProcessOutput.WriteFailure(FormatFailureDiagnostic(result.Label, failure));
 
         var coordinator = tree.Root.GetNode<ApplicationLifetimeCoordinator>(
             "ApplicationLifetimeCoordinator"

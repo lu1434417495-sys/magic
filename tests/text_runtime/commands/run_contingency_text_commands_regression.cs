@@ -12,7 +12,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -538,7 +538,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             return result;
         if (!result.ok)
         {
-            GD.Print(result.Render());
+            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令失败：{commandText} | {result.message}");
         }
         return result;
@@ -554,7 +554,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
         if (result.ok)
         {
-            GD.Print(result.Render());
+            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令应失败但成功：{commandText}");
         }
         return result;

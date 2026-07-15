@@ -62,7 +62,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         );
         if (!await WaitForBoardRenderReady(board))
         {
-            GD.PushError("Battle board capture did not reach render-ready state before screenshot.");
+            ConsoleProcessOutput.WriteFailure("Battle board capture did not reach render-ready state before screenshot.");
             return 1;
         }
         if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
@@ -75,10 +75,10 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             Error signatureError = SaveHeadlessBoardSignature(board);
             if (signatureError != Error.Ok)
             {
-                GD.PushError("Failed to save battle board headless signature.");
+                ConsoleProcessOutput.WriteFailure("Failed to save battle board headless signature.");
                 return 1;
             }
-            GD.Print(
+            ConsoleProcessOutput.WriteStandard(
                 $"Saved battle board headless signature to {ProjectSettings.GlobalizePath(HeadlessSignatureOutputPath)}"
             );
             return 0;
@@ -89,10 +89,10 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         Error saveError = image.SavePng(outputPath);
         if (saveError != Error.Ok)
         {
-            GD.PushError($"Failed to save battle board capture: {outputPath}");
+            ConsoleProcessOutput.WriteFailure($"Failed to save battle board capture: {outputPath}");
             return 1;
         }
-        GD.Print($"Saved battle board capture to {outputPath}");
+        ConsoleProcessOutput.WriteStandard($"Saved battle board capture to {outputPath}");
         return 0;
     }
 
@@ -209,7 +209,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         BattleUnitState unit = state.GetUnit(unitId);
         if (unit == null || unit.coord != expectedCoord)
         {
-            GD.PushError($"{label} should be anchored at {expectedCoord} before capture.");
+            ConsoleProcessOutput.WriteFailure($"{label} should be anchored at {expectedCoord} before capture.");
             return false;
         }
         BattleCellState cell = state.GetCell(expectedCoord);
@@ -219,7 +219,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
                 : null;
         if (occupant == null || occupant.unit_id != unitId)
         {
-            GD.PushError($"{label} should occupy {expectedCoord} before capture.");
+            ConsoleProcessOutput.WriteFailure($"{label} should occupy {expectedCoord} before capture.");
             return false;
         }
         return true;

@@ -1430,7 +1430,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         if (_has_quest_progress_summary_changes(summary))
         {
             _log_runtime_event(
-                "info",
+                GameLogLevel.Info,
                 source_domain,
                 $"{source_domain}.quest_progress",
                 _format_quest_progress_summary(summary),
@@ -2428,7 +2428,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         if (commitError == (int)Error.Ok)
             return;
         _log_runtime_event(
-            "warn",
+            GameLogLevel.Warning,
             "save",
             "runtime.dispose.commit_failed",
             "运行时释放前保存 pending 状态失败。",

@@ -6,7 +6,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()
@@ -20,7 +20,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         string[] args = OS.GetCmdlineUserArgs();
         if (args.Length == 0)
         {
-            GD.PushError(
+            ConsoleProcessOutput.WriteFailure(
                 "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario.tres> [profile.tres ...]"
             );
             return 1;
@@ -30,7 +30,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
         if (scenarioResource == null)
         {
-            GD.PushError($"Failed to load BattleSimScenarioDef from {args[0]}.");
+            ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimScenarioDef from {args[0]}.");
             return 1;
         }
         BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
@@ -45,7 +45,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
             if (profile == null)
             {
-                GD.PushError($"Failed to load BattleSimProfileDef from {args[index]}.");
+                ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimProfileDef from {args[index]}.");
                 return 1;
             }
             profiles.Add(profile);
@@ -58,7 +58,7 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         runner.SetProgressLogPath("res://battle_sim_progress.log");
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);
 
-        GD.Print(
+        ConsoleProcessOutput.WriteStandard(
             $"[BattleSim] scenario={report.ScenarioId} profiles={report.ProfileEntries.Count} comparisons={report.Comparisons.Count} report_json={report.OutputFiles.ReportJson} traces_jsonl={report.OutputFiles.TurnTraceJsonl}"
         );
         return 0;

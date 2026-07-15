@@ -582,14 +582,6 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             : $"战斗掉落奖励 {blockedItemId} 不合法，已丢弃。";
         string contextText = Json.Stringify(context);
         GameLog.Warning(message, "battle.loot_dropped", "battle", contextText);
-        var runtime = _runtime;
-        runtime?._log_runtime_event(
-            "warn",
-            "battle",
-            "battle.loot_dropped",
-            message,
-            contextText
-        );
     }
 
     private List<BattleLootEntry> ResolveEffectiveBattleLootEntriesForCommit(

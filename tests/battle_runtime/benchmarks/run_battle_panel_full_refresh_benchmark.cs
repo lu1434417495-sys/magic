@@ -27,7 +27,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
         BattleMapPanel panel = BattlePanelScene.Instantiate<BattleMapPanel>();
         if (panel == null)
         {
-            GD.PushError("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
+            ConsoleProcessOutput.WriteFailure("BattlePanelRefreshBenchmark could not instantiate BattleMapPanel.");
             RequestTestExit(_test.Finish("Battle panel full refresh benchmark", 1));
             return;
         }
@@ -89,10 +89,10 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             return;
         }
 
-        GD.Print(FormatResult(fullRefresh));
-        GD.Print(FormatResult(overlayOnly));
-        GD.Print(FormatResult(unitDelta));
-        GD.Print(FormatComparison(fullRefresh, overlayOnly, unitDelta));
+        ConsoleProcessOutput.WriteStandard(FormatResult(fullRefresh));
+        ConsoleProcessOutput.WriteStandard(FormatResult(overlayOnly));
+        ConsoleProcessOutput.WriteStandard(FormatResult(unitDelta));
+        ConsoleProcessOutput.WriteStandard(FormatComparison(fullRefresh, overlayOnly, unitDelta));
         RequestTestExit(_test.Finish("Battle panel full refresh benchmark"));
     }
 

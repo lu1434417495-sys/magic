@@ -36,7 +36,7 @@ public partial class run_text_command_script : LifecycleTestSceneTree
             if (result.skipped)
                 continue;
             executedCount += 1;
-            GD.Print($"LINE {lineIndex + 1}\n{result.Render()}");
+            ConsoleProcessOutput.WriteStandard($"LINE {lineIndex + 1}\n{result.Render()}");
             if (!result.ok)
             {
                 _test.Fail($"Scenario failed at line {lineIndex + 1}: {lines[lineIndex]}");
@@ -46,7 +46,7 @@ public partial class run_text_command_script : LifecycleTestSceneTree
             }
         }
 
-        GD.Print($"Executed {executedCount} command(s)");
+        ConsoleProcessOutput.WriteStandard($"Executed {executedCount} command(s)");
         runner.Dispose();
         RequestTestExit(_test.Finish("Text command script"));
     }

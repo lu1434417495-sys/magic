@@ -691,22 +691,22 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     {
         string callerResult = FormatCallerResult(report);
         if (!string.IsNullOrEmpty(callerResult))
-            GD.Print(callerResult);
+            ConsoleProcessOutput.WriteStandard(callerResult);
 
-        GD.Print(
-            "[lifecycle] shutdown-report ",
-            $"reason={report.FirstRequest.Reason} ",
-            $"requested={report.RequestedExitCode} ",
-            $"effective={report.EffectiveExitCode} ",
-            $"phase={report.FinalPhase} ",
-            $"barrier_skipped={report.FinalizerBarrierSkipped} ",
-            $"duplicates={report.DuplicateRequestDiagnostics.Count} ",
-            $"failures={report.Failures.Count} ",
-            $"legacy_debt={report.LegacyDebt.Count}"
+        ConsoleProcessOutput.WriteStandard(
+            "[lifecycle] shutdown-report "
+                + $"reason={report.FirstRequest.Reason} "
+                + $"requested={report.RequestedExitCode} "
+                + $"effective={report.EffectiveExitCode} "
+                + $"phase={report.FinalPhase} "
+                + $"barrier_skipped={report.FinalizerBarrierSkipped} "
+                + $"duplicates={report.DuplicateRequestDiagnostics.Count} "
+                + $"failures={report.Failures.Count} "
+                + $"legacy_debt={report.LegacyDebt.Count}"
         );
         foreach (ShutdownFailure failure in report.Failures)
         {
-            GD.PushError(
+            ConsoleProcessOutput.WriteFailure(
                 "[lifecycle] shutdown-failure "
                     + $"stage={failure.Stage} type={failure.ExceptionType} "
                     + $"message={failure.Message}"

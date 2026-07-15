@@ -13,7 +13,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunAsync));
+        RunAfterProcessStartup(RunAsync);
     }
 
     private async void RunAsync()
@@ -660,11 +660,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
     private static int GetGameLogSinkCount()
     {
-        FieldInfo field = typeof(GameLog).GetField(
-            "_sinks",
-            BindingFlags.Static | BindingFlags.NonPublic
-        );
-        return field?.GetValue(null) is System.Collections.ICollection sinks ? sinks.Count : -1;
+        return GameLog.SinkCount;
     }
 
     private static void SetPrivateField<T>(T target, string fieldName, object value)

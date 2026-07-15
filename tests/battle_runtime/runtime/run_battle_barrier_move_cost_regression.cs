@@ -10,6 +10,11 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
 
     public override void _Initialize()
     {
+        RunAfterProcessStartup(Run);
+    }
+
+    private void Run()
+    {
         try
         {
             _barrierProfileDefinitions = BarrierDefinitionTestContent.LoadValidated();
@@ -19,7 +24,7 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle barrier move cost regression crashed: {ex}");
+            ConsoleProcessOutput.WriteFailure($"Battle barrier move cost regression crashed: {ex}");
             RequestTestExit(_test.Finish("Battle barrier move cost regression", 1));
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -432,7 +433,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         DisposePartyStateGraph(_party_state);
         _party_state = null;
         DisposeOwnedRuntimeResources();
-        _log_service = null;
+        Volatile.Write(ref _log_service, null);
         RemoveLogSink();
     }
 
@@ -890,20 +891,20 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     public bool IsContentValidationOk() =>
         _contentSnapshot != null && (_contentValidationSnapshotData?.Ok ?? false);
 
-    public void LogEvent(
-        string level,
+    internal void RecordLogEvent(GameLogRecord record)
+    {
+        Volatile.Read(ref _log_service)?.AppendEntry(record);
+    }
+
+    internal void RecordLogEvent(
+        GameLogLevel level,
         string domain,
-        string event_id,
+        string eventId,
         string message,
         string context = ""
     )
     {
-        _log_service?.AppendEntry(level, domain, event_id, message, context);
-    }
-
-    public void LogEvent(string level, string domain, string event_id, string message)
-    {
-        LogEvent(level, domain, event_id, message, "");
+        RecordLogEvent(new GameLogRecord(level, eventId, domain, message, context));
     }
 
     internal void BindGenerationDefinition(
@@ -1986,12 +1987,12 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
     private void LogSessionInfo(string event_id, string message)
     {
-        LogEvent("info", "session", event_id, message, "");
+        RecordLogEvent(GameLogLevel.Info, "session", event_id, message);
     }
 
     private void LogSessionInfo(string event_id, string message, string context)
     {
-        GameLog.Info(message, event_id, "session", context);
+        RecordLogEvent(GameLogLevel.Info, "session", event_id, message, context);
     }
 
     private void PushSessionError(string event_id, string message)

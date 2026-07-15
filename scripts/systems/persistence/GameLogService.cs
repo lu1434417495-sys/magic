@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -11,7 +12,8 @@ internal class GameLogService
     private const int DefaultTailLimit = 50;
     private const bool DefaultFileOutputEnabled = false;
 
-    private readonly List<GameLogEntry> _entries = new();
+    private readonly object _sync = new();
+    private readonly List<StoredGameLogEntry> _entries = new();
     private int _maxEntries = DefaultBufferLimit;
     private int _nextSeq = 1;
     private string _sessionLogVirtualPath = "";
@@ -25,41 +27,49 @@ internal class GameLogService
 
     internal void Setup(int maxEntries, bool fileOutputEnabled)
     {
-        _entries.Clear();
-        _nextSeq = 1;
-        Initialize(maxEntries, fileOutputEnabled);
+        lock (_sync)
+        {
+            _entries.Clear();
+            _nextSeq = 1;
+            Initialize(maxEntries, fileOutputEnabled);
+        }
     }
 
-    internal void AppendEntry(
-        string level,
-        string domain,
-        string event_id,
-        string message,
-        string context = ""
-    )
+    internal void AppendEntry(GameLogRecord record)
     {
-        long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        GameLogEntry entry = new(
-            _nextSeq,
-            timestampMs,
-            FormatUnixTimeMs(timestampMs),
-            string.IsNullOrEmpty(level) ? "info" : level,
-            string.IsNullOrEmpty(domain) ? "runtime" : domain,
-            event_id ?? "",
-            message ?? "",
-            context ?? ""
-        );
-        _nextSeq += 1;
-        _entries.Add(entry);
-        if (_entries.Count > _maxEntries)
+        lock (_sync)
         {
-            _entries.RemoveAt(0);
+            long timestampMs = record.TimestampUnixMs > 0
+                ? record.TimestampUnixMs
+                : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            StoredGameLogEntry entry = new(
+                _nextSeq,
+                timestampMs,
+                FormatUnixTimeMs(timestampMs),
+                record.LevelText,
+                record.Domain,
+                record.EventId,
+                record.Message,
+                record.Context
+            );
+            _nextSeq += 1;
+            _entries.Add(entry);
+            if (_entries.Count > _maxEntries)
+                _entries.RemoveAt(0);
+            AppendToFile(entry);
         }
-        AppendToFile(entry);
     }
 
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> GetRecentEntriesPlain(
         int limit = DefaultTailLimit
+    )
+    {
+        lock (_sync)
+            return BuildRecentEntriesPlainLocked(limit);
+    }
+
+    private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildRecentEntriesPlainLocked(
+        int limit
     )
     {
         int resolvedLimit = Math.Max(limit, 0);
@@ -78,58 +88,72 @@ internal class GameLogService
         int limit = DefaultTailLimit
     )
     {
-        return new ReadOnlyDictionary<string, object>(
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["file_path"] = GetLogPath(),
-                ["virtual_path"] = _sessionLogVirtualPath,
-                ["file_output_enabled"] = _fileOutputEnabled,
-                ["file_write_active"] = _writeEnabled,
-                ["entry_count"] = _entries.Count,
-                ["buffer_limit"] = _maxEntries,
-                ["entries"] = GetRecentEntriesPlain(limit),
-            }
-        );
+        lock (_sync)
+        {
+            return new ReadOnlyDictionary<string, object>(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["file_path"] = BuildLogPathLocked(),
+                    ["virtual_path"] = _sessionLogVirtualPath,
+                    ["file_output_enabled"] = _fileOutputEnabled,
+                    ["file_write_active"] = _writeEnabled,
+                    ["entry_count"] = _entries.Count,
+                    ["buffer_limit"] = _maxEntries,
+                    ["entries"] = BuildRecentEntriesPlainLocked(limit),
+                }
+            );
+        }
     }
 
     internal void StartNewSession()
     {
-        ClearEntries();
-        _nextSeq = 1;
-        StartFileSessionIfEnabled();
+        lock (_sync)
+        {
+            _entries.Clear();
+            _nextSeq = 1;
+            StartFileSessionIfEnabled();
+        }
     }
 
     internal void ClearEntries()
     {
-        _entries.Clear();
+        lock (_sync)
+            _entries.Clear();
     }
 
     internal string GetLogPath()
     {
-        return string.IsNullOrEmpty(_sessionLogVirtualPath)
-            ? ""
-            : ProjectSettings.GlobalizePath(_sessionLogVirtualPath);
+        lock (_sync)
+            return BuildLogPathLocked();
     }
 
     internal string GetVirtualLogPath()
     {
-        return _sessionLogVirtualPath;
+        lock (_sync)
+            return _sessionLogVirtualPath;
     }
 
     internal void SetFileOutputEnabled(bool enabled)
     {
-        if (_fileOutputEnabled == enabled)
+        lock (_sync)
         {
-            return;
+            if (_fileOutputEnabled == enabled)
+                return;
+            _fileOutputEnabled = enabled;
+            StartFileSessionIfEnabled();
         }
-        _fileOutputEnabled = enabled;
-        StartFileSessionIfEnabled();
     }
 
     internal bool IsFileOutputEnabled()
     {
-        return _fileOutputEnabled;
+        lock (_sync)
+            return _fileOutputEnabled;
     }
+
+    private string BuildLogPathLocked() =>
+        string.IsNullOrEmpty(_sessionLogVirtualPath)
+            ? ""
+            : ProjectSettings.GlobalizePath(_sessionLogVirtualPath);
 
     private void Initialize(int maxEntries, bool fileOutputEnabled)
     {
@@ -140,7 +164,7 @@ internal class GameLogService
 
     private static string BuildSessionLogVirtualPath()
     {
-        long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
+        long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         int suffix = TrueRandomSeedService.RandiRange(0, 999999);
         return $"{LogDirectory}/session_{timestampMs}_{suffix:D6}.jsonl";
     }
@@ -191,7 +215,7 @@ internal class GameLogService
         }
     }
 
-    private void AppendToFile(GameLogEntry entry)
+    private void AppendToFile(StoredGameLogEntry entry)
     {
         if (!_writeEnabled || string.IsNullOrEmpty(_sessionLogVirtualPath))
         {
@@ -232,37 +256,15 @@ internal class GameLogService
     private static string FormatUnixTimeMs(long unixTimeMs)
     {
         if (unixTimeMs <= 0)
-        {
             return "";
-        }
-        long unixTimeSeconds = unixTimeMs / 1000;
-        using GDictionary datetime = Time.GetDatetimeDictFromUnixTime(unixTimeSeconds);
-        return string.Format(
-            "{0:D4}-{1:D2}-{2:D2} {3:D2}:{4:D2}:{5:D2}.{6:D3}",
-            GetInt(datetime, "year", 1970),
-            GetInt(datetime, "month", 1),
-            GetInt(datetime, "day", 1),
-            GetInt(datetime, "hour", 0),
-            GetInt(datetime, "minute", 0),
-            GetInt(datetime, "second", 0),
-            MathMod(unixTimeMs, 1000)
-        );
+        return DateTimeOffset
+            .FromUnixTimeMilliseconds(unixTimeMs)
+            .UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture);
     }
 
-    private static int GetInt(GDictionary source, string key, int fallback)
+    private sealed class StoredGameLogEntry
     {
-        return source.ContainsKey(key) ? source[key].AsInt32() : fallback;
-    }
-
-    private static long MathMod(long value, long modulus)
-    {
-        long result = value % modulus;
-        return result < 0 ? result + modulus : result;
-    }
-
-    private sealed class GameLogEntry
-    {
-        public GameLogEntry(
+        public StoredGameLogEntry(
             int seq,
             long timeUnixMs,
             string timeText,

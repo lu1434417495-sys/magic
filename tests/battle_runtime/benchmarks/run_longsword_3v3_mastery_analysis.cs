@@ -15,7 +15,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()
@@ -35,7 +35,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             ResourceLoader.Load<BattleSimScenarioDef>(ScenarioPath);
         if (scenarioResource == null)
         {
-            GD.PushError("[ERROR] Failed to load scenario");
+            ConsoleProcessOutput.WriteFailure("Failed to load scenario");
             return 1;
         }
         BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
@@ -107,7 +107,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 if (progressEnabled && string.IsNullOrEmpty(outputPath) && (runIndex + 1) % 10 == 0)
                 {
                     double elapsed = (Time.GetTicksMsec() - startTime) / 1000.0;
-                    GD.Print(
+                    ConsoleProcessOutput.WriteStandard(
                         $"[Progress] {runIndex + 1}/{runCount} ({elapsed:F1}s, {(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s)"
                     );
                 }
@@ -146,7 +146,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
             if (string.IsNullOrEmpty(outputPath))
             {
-                GD.Print(Json.Stringify(report, "\t"));
+                ConsoleProcessOutput.WriteStandard(Json.Stringify(report, "\t"));
             }
             else
             {
@@ -377,7 +377,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         using FileAccess file = FileAccess.Open(absolutePath, FileAccess.ModeFlags.Write);
         if (file == null)
         {
-            GD.PushError($"[ERROR] Failed to write: {absolutePath}");
+            ConsoleProcessOutput.WriteFailure($"Failed to write: {absolutePath}");
             return;
         }
         file.StoreString(Json.Stringify(report, "\t"));

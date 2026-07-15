@@ -18,7 +18,7 @@ public partial class run_battle_report_formatter_contract_regression : Lifecycle
         }
         catch (Exception exception)
         {
-            GD.PushError($"Battle report formatter contract regression crashed: {exception}");
+            ConsoleProcessOutput.WriteFailure($"Battle report formatter contract regression crashed: {exception}");
             RequestTestExit(_test.Finish("Battle report formatter contract regression", 1));
         }
     }

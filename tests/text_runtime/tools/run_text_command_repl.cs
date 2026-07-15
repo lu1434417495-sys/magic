@@ -10,7 +10,7 @@ public partial class run_text_command_repl : LifecycleTestSceneTree
     {
         var runner = new GameTextCommandRunner();
         runner.initialize();
-        GD.Print("Headless text REPL ready. Type 'help' for commands, 'exit' to quit.");
+        ConsoleProcessOutput.WriteStandard("Headless text REPL ready. Type 'help' for commands, 'exit' to quit.");
 
         while (true)
         {
@@ -24,14 +24,14 @@ public partial class run_text_command_repl : LifecycleTestSceneTree
             string commandText = line.StripEdges();
             if (commandText == "exit" || commandText == "quit")
             {
-                GD.Print("Bye.");
+                ConsoleProcessOutput.WriteStandard("Bye.");
                 runner.Dispose();
                 RequestTestExit(_test.Finish("Text command REPL"));
                 return;
             }
             GameTextCommandResult result = runner.ExecuteLine(commandText);
             if (!result.skipped)
-                GD.Print(result.Render());
+                ConsoleProcessOutput.WriteStandard(result.Render());
         }
     }
 }
