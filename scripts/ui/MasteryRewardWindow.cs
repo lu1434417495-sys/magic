@@ -2,12 +2,16 @@ using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
-public partial class MasteryRewardWindow : Control
+public partial class MasteryRewardWindow : ModalWindowShell
 {
     [Signal]
     public delegate void confirmedEventHandler();
 
-    private ColorRect _shade;
+    // 奖励必须显式确认结算：遮罩点击 / Esc 都不关窗（遮罩点击仍被外壳吞掉）。
+    protected override bool DismissOnShade => false;
+
+    protected override bool DismissOnEscape => false;
+
     private Label _titleLabel;
     private Label _metaLabel;
     private RichTextLabel _detailsLabel;
@@ -17,7 +21,6 @@ public partial class MasteryRewardWindow : Control
 
     public override void _Ready()
     {
-        _shade = GetNode<ColorRect>("Shade");
         _titleLabel = GetNode<Label>(
             "CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/TitleLabel"
         );
@@ -32,8 +35,8 @@ public partial class MasteryRewardWindow : Control
         );
 
         HideWindow();
-        _shade.GuiInput += _on_shade_gui_input;
         _confirmButton.Pressed += _on_confirm_button_pressed;
+        base._Ready();
     }
 
     public void ShowReward(PendingCharacterReward reward)
@@ -152,17 +155,4 @@ public partial class MasteryRewardWindow : Control
         EmitSignal(SignalName.confirmed);
     }
 
-    private void _on_shade_gui_input(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton mouseEvent)
-            return;
-        if (!mouseEvent.Pressed)
-            return;
-        if (
-            mouseEvent.ButtonIndex != MouseButton.Left
-            && mouseEvent.ButtonIndex != MouseButton.Right
-        )
-            return;
-        AcceptEvent();
-    }
 }
