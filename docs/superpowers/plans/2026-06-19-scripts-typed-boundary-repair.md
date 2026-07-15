@@ -105,7 +105,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : SceneTree
         if (command.TargetUnitIdsTyped[0] != new StringName("hero_1") || command.TargetUnitIdsTyped[1] != new StringName("hero_2"))
             throw new Exception("target ids were not preserved in command backing list");
 
-        GD.Print("PASS enemy multi-unit command target ids persist");
+        ConsoleProcessOutput.WriteStandard("PASS enemy multi-unit command target ids persist");
         Quit(0);
     }
 }
@@ -200,7 +200,7 @@ public partial class run_settlement_shop_stock_persistence_regression : SceneTre
         if (quantity != 0)
             throw new Exception($"expected authoritative stock quantity 0, got {quantity}");
 
-        GD.Print("PASS shop stock mutation persists in settlement state");
+        ConsoleProcessOutput.WriteStandard("PASS shop stock mutation persists in settlement state");
         Quit(0);
     }
 }
@@ -312,7 +312,7 @@ public partial class run_warehouse_preview_no_side_effect_regression : SceneTree
         if (party.warehouse_state.GetEquipmentInstancesTyped().Count != 0)
             throw new Exception("preview mutated warehouse equipment instances");
 
-        GD.Print("PASS warehouse preview has no allocator or inventory side effects");
+        ConsoleProcessOutput.WriteStandard("PASS warehouse preview has no allocator or inventory side effects");
         Quit(0);
     }
 }
@@ -532,7 +532,7 @@ public partial class run_character_info_payload_schema_regression : SceneTree
         var normalized = CharacterInfoWindow.NormalizeCharacterPayloadForTest(payload);
         if (normalized == null || normalized.Count == 0)
             throw new Exception("runtime character info payload was rejected");
-        GD.Print("PASS runtime character info payload schema");
+        ConsoleProcessOutput.WriteStandard("PASS runtime character info payload schema");
         Quit(0);
     }
 }
