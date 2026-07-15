@@ -54,6 +54,7 @@ public partial class PartyWarehouseWindow : Control
         stack_list = GetNode<ItemList>(
             "CenterContainer/Panel/MarginContainer/Content/Body/ListColumn/StackList"
         );
+        UiListTheme.Apply(stack_list);
         summary_label = GetNode<Label>(
             "CenterContainer/Panel/MarginContainer/Content/Body/DetailsColumn/SummaryLabel"
         );

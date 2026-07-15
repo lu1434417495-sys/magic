@@ -86,6 +86,8 @@ public partial class PartyManagementWindow : Control
         meta_label = GetNode<Label>("%MetaLabel");
         active_list = GetNode<ItemList>("%ActiveList");
         reserve_list = GetNode<ItemList>("%ReserveList");
+        UiListTheme.Apply(active_list);
+        UiListTheme.Apply(reserve_list);
         lists_column = GetNode<Control>("%Lists");
         set_leader_button = GetNode<Button>("%SetLeaderButton");
         controls_column = GetNode<Control>("%Controls");
