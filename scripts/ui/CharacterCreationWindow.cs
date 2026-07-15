@@ -78,17 +78,19 @@ public partial class CharacterCreationWindow : Control
     public StringName _selected_age_stage_id = "";
     public int _selected_age_years;
     public StringName _selected_versatility_pick = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength);
-    private readonly List<StringName> _raceOptionIds = new();
-    private readonly List<StringName> _subraceOptionIds = new();
-    private readonly List<StringName> _ageStageOptionIds = new();
-    private readonly List<StringName> _versatilityOptionIds = new();
+    private readonly List<PanelContainer> _raceCards = new();
+    private readonly List<StringName> _raceCardIds = new();
+    private readonly List<PanelContainer> _ageStageCards = new();
+    private readonly List<StringName> _ageStageCardIds = new();
+    private StyleBoxFlat _identityCardStyleNormal;
+    private StyleBoxFlat _identityCardStyleSelected;
 
     public VBoxContainer race_phase;
     public VBoxContainer age_phase;
     public VBoxContainer identity_options_phase;
-    public OptionButton race_variant_button;
+    public HFlowContainer race_card_flow;
     public OptionButton subrace_variant_button;
-    public OptionButton age_stage_variant_button;
+    public HFlowContainer age_stage_card_flow;
     public OptionButton versatility_variant_button;
     public Label race_preview_label;
     public Label age_preview_label;
@@ -766,11 +768,14 @@ public partial class CharacterCreationWindow : Control
 
     private void _build_identity_phase_nodes()
     {
+        _identityCardStyleNormal = SelectionCardBuilder.MakeStyle(false);
+        _identityCardStyleSelected = SelectionCardBuilder.MakeStyle(true);
+
         race_phase = _make_phase_container("RaceAndSubracePhase");
         race_phase.AddChild(_make_phase_label("种族与亚种", 20));
-        race_variant_button = _make_variant_button();
+        race_card_flow = _make_identity_card_flow("RaceCardFlow");
         subrace_variant_button = _make_variant_button();
-        race_phase.AddChild(_make_labeled_variant_row("种族", race_variant_button));
+        race_phase.AddChild(race_card_flow);
         race_phase.AddChild(_make_labeled_variant_row("亚种", subrace_variant_button));
         race_preview_label = _make_phase_label("", 14);
         race_phase.AddChild(race_preview_label);
@@ -784,8 +789,8 @@ public partial class CharacterCreationWindow : Control
 
         age_phase = _make_phase_container("AgePhase");
         age_phase.AddChild(_make_phase_label("年龄阶段", 20));
-        age_stage_variant_button = _make_variant_button();
-        age_phase.AddChild(_make_labeled_variant_row("阶段", age_stage_variant_button));
+        age_stage_card_flow = _make_identity_card_flow("AgeStageCardFlow");
+        age_phase.AddChild(age_stage_card_flow);
         age_preview_label = _make_phase_label("", 14);
         age_phase.AddChild(age_preview_label);
         HBoxContainer ageButtons = _make_button_row();
@@ -814,9 +819,7 @@ public partial class CharacterCreationWindow : Control
         identity_options_phase.AddChild(optionsButtons);
         content_root.AddChild(identity_options_phase);
 
-        race_variant_button.ItemSelected += index => _on_race_variant_selected((int)index);
         subrace_variant_button.ItemSelected += index => _on_subrace_variant_selected((int)index);
-        age_stage_variant_button.ItemSelected += index => _on_age_stage_variant_selected((int)index);
         versatility_variant_button.ItemSelected += index =>
             _on_versatility_variant_selected((int)index);
         race_back_button.Pressed += _enter_attribute_phase_from_back;
@@ -1016,121 +1019,157 @@ public partial class CharacterCreationWindow : Control
 
     private void _refresh_race_options()
     {
-        if (race_variant_button == null)
+        if (race_card_flow == null)
             return;
-        race_variant_button.Clear();
-        _raceOptionIds.Clear();
-        foreach (StringName raceId in _raceIds)
-        {
-            RaceDefinition raceDef = _get_race_def(raceId);
-            race_variant_button.AddItem(_identity_label(raceDef, raceId));
-            _raceOptionIds.Add(raceId);
-        }
-        _select_variant_by_metadata(race_variant_button, _selected_race_id);
-        race_variant_button.Disabled = race_variant_button.GetItemCount() <= 1;
+        _rebuild_identity_cards(
+            race_card_flow,
+            _raceCards,
+            _raceCardIds,
+            _raceIds,
+            raceId =>
+            {
+                RaceDefinition raceDef = _get_race_def(raceId);
+                return (_identity_label(raceDef, raceId), raceDef?.Description ?? "");
+            },
+            _select_race_card
+        );
+        _apply_identity_card_selection(_raceCards, _raceCardIds, _selected_race_id);
     }
 
     private void _refresh_subrace_options()
     {
         if (subrace_variant_button == null)
             return;
-        subrace_variant_button.Clear();
-        _subraceOptionIds.Clear();
+        var options = new List<(StringName Id, string Label)>();
         foreach (StringName subraceId in _subraceIds)
         {
             SubraceDefinition subraceDef = _get_subrace_def(subraceId);
-            subrace_variant_button.AddItem(_identity_label(subraceDef, subraceId));
-            _subraceOptionIds.Add(subraceId);
+            options.Add((subraceId, _identity_label(subraceDef, subraceId)));
         }
-        _select_variant_by_metadata(subrace_variant_button, _selected_subrace_id);
-        subrace_variant_button.Disabled = subrace_variant_button.GetItemCount() <= 1;
+        UiOptionButtonUtils.Populate(subrace_variant_button, options, _selected_subrace_id);
+        subrace_variant_button.Disabled = subrace_variant_button.ItemCount <= 1;
     }
 
     private void _refresh_age_stage_options()
     {
-        if (age_stage_variant_button == null)
+        if (age_stage_card_flow == null)
             return;
-        age_stage_variant_button.Clear();
-        _ageStageOptionIds.Clear();
         AgeProfileDefinition ageProfile = _get_selected_age_profile();
-        foreach (StringName stageId in _ageStageIds)
-        {
-            AgeStageRuleDefinition stageRule = _get_age_stage_rule(ageProfile, stageId);
-            age_stage_variant_button.AddItem(_identity_label(stageRule, stageId));
-            _ageStageOptionIds.Add(stageId);
-        }
-        _select_variant_by_metadata(age_stage_variant_button, _selected_age_stage_id);
-        age_stage_variant_button.Disabled = age_stage_variant_button.GetItemCount() <= 1;
+        _rebuild_identity_cards(
+            age_stage_card_flow,
+            _ageStageCards,
+            _ageStageCardIds,
+            _ageStageIds,
+            stageId =>
+            {
+                AgeStageRuleDefinition stageRule = _get_age_stage_rule(ageProfile, stageId);
+                return (_identity_label(stageRule, stageId), stageRule?.Description ?? "");
+            },
+            _select_age_stage_card
+        );
+        _apply_identity_card_selection(_ageStageCards, _ageStageCardIds, _selected_age_stage_id);
     }
 
     private void _refresh_versatility_options()
     {
         if (versatility_variant_button == null)
             return;
-        versatility_variant_button.Clear();
-        _versatilityOptionIds.Clear();
         if (!_selected_identity_has_human_versatility())
         {
-            versatility_variant_button.AddItem("无");
-            _versatilityOptionIds.Add("");
-            versatility_variant_button.Select(0);
+            UiOptionButtonUtils.SetSingle(versatility_variant_button, "无");
             versatility_variant_button.Disabled = true;
             return;
         }
+        var options = new List<(StringName Id, string Label)>();
         foreach (StringName attributeId in AttributeOrder)
-        {
-            versatility_variant_button.AddItem(_attribute_display_name(attributeId));
-            _versatilityOptionIds.Add(attributeId);
-        }
-        _select_variant_by_metadata(versatility_variant_button, _selected_versatility_pick);
+            options.Add((attributeId, _attribute_display_name(attributeId)));
+        UiOptionButtonUtils.Populate(
+            versatility_variant_button,
+            options,
+            _selected_versatility_pick
+        );
         versatility_variant_button.Disabled = false;
     }
 
-    public void _select_variant_by_metadata(OptionButton option_button, StringName target_id)
+    private static HFlowContainer _make_identity_card_flow(string nodeName)
     {
-        int index = _find_variant_index_by_metadata(option_button, target_id);
-        if (index >= 0)
-            option_button.Select(index);
+        var flow = new HFlowContainer { Name = nodeName };
+        flow.AddThemeConstantOverride("h_separation", 12);
+        flow.AddThemeConstantOverride("v_separation", 12);
+        return flow;
     }
 
-    public int _find_variant_index_by_metadata(OptionButton option_button, StringName target_id)
+    // 身份卡片（种族 / 年龄阶段）：复用 SelectionCardBuilder 的卡面与选中态样式，
+    // 点击即选中；选项集合小且离散，卡片比下拉更能承载描述文本。
+    private void _rebuild_identity_cards(
+        HFlowContainer cardFlow,
+        List<PanelContainer> cards,
+        List<StringName> cardIds,
+        IReadOnlyList<StringName> optionIds,
+        System.Func<StringName, (string Title, string Summary)> buildSpec,
+        System.Action<StringName> onSelected
+    )
     {
-        if (option_button == null)
-            return -1;
-        List<StringName> ids = _get_variant_ids(option_button);
-        for (int index = 0; index < ids.Count; index++)
+        foreach (Node child in cardFlow.GetChildren())
         {
-            if (ids[index] == target_id)
-                return index;
+            cardFlow.RemoveChild(child);
+            child.QueueFree();
         }
-        return -1;
+        cards.Clear();
+        cardIds.Clear();
+        foreach (StringName optionId in optionIds)
+        {
+            (string title, string summary) = buildSpec(optionId);
+            using var spec = new GDictionary
+            {
+                ["title"] = title,
+                ["summary"] = summary,
+            };
+            PanelContainer card = SelectionCardBuilder.BuildCard(spec);
+            card.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+            card.SizeFlagsVertical = SizeFlags.ShrinkBegin;
+            card.CustomMinimumSize = new Vector2(230, 120);
+            StringName capturedId = optionId;
+            card.GuiInput += @event => _on_identity_card_gui_input(@event, capturedId, onSelected);
+            cardFlow.AddChild(card);
+            cards.Add(card);
+            cardIds.Add(optionId);
+        }
     }
 
-    private StringName _get_variant_metadata(OptionButton optionButton, int index)
+    private void _on_identity_card_gui_input(
+        InputEvent @event,
+        StringName optionId,
+        System.Action<StringName> onSelected
+    )
     {
-        List<StringName> ids = _get_variant_ids(optionButton);
-        if (index < 0 || index >= ids.Count)
-            return "";
-        return ids[index];
+        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+            onSelected(optionId);
     }
 
-    private List<StringName> _get_variant_ids(OptionButton optionButton)
+    private void _apply_identity_card_selection(
+        List<PanelContainer> cards,
+        List<StringName> cardIds,
+        StringName selectedId
+    )
     {
-        if (optionButton == race_variant_button)
-            return _raceOptionIds;
-        if (optionButton == subrace_variant_button)
-            return _subraceOptionIds;
-        if (optionButton == age_stage_variant_button)
-            return _ageStageOptionIds;
-        if (optionButton == versatility_variant_button)
-            return _versatilityOptionIds;
-        return new List<StringName>();
+        for (int index = 0; index < cards.Count; index++)
+        {
+            if (!GodotObject.IsInstanceValid(cards[index]))
+                continue;
+            cards[index]
+                .AddThemeStyleboxOverride(
+                    "panel",
+                    cardIds[index] == selectedId
+                        ? _identityCardStyleSelected
+                        : _identityCardStyleNormal
+                );
+        }
     }
 
-    public void _on_race_variant_selected(int index)
+    public void _select_race_card(StringName raceId)
     {
-        StringName raceId = _get_variant_metadata(race_variant_button, index);
-        if (raceId == (StringName)"")
+        if (raceId == (StringName)"" || raceId == _selected_race_id)
             return;
         _selected_race_id = raceId;
         _selected_subrace_id = _choose_subrace_id("");
@@ -1142,7 +1181,7 @@ public partial class CharacterCreationWindow : Control
 
     public void _on_subrace_variant_selected(int index)
     {
-        StringName subraceId = _get_variant_metadata(subrace_variant_button, index);
+        StringName subraceId = UiOptionButtonUtils.GetIdAt(subrace_variant_button, index);
         if (subraceId == (StringName)"")
             return;
         _selected_subrace_id = subraceId;
@@ -1150,20 +1189,23 @@ public partial class CharacterCreationWindow : Control
         _refresh_identity_variant_controls();
     }
 
-    public void _on_age_stage_variant_selected(int index)
+    public void _select_age_stage_card(StringName stageId)
     {
-        StringName stageId = _get_variant_metadata(age_stage_variant_button, index);
         if (stageId == (StringName)"")
             return;
         _selected_age_stage_id = stageId;
         _selected_age_years = _resolve_default_age_for_stage(_get_selected_age_profile(), stageId);
+        _apply_identity_card_selection(_ageStageCards, _ageStageCardIds, stageId);
         _refresh_identity_previews();
         _update_button_states();
     }
 
     public void _on_versatility_variant_selected(int index)
     {
-        _selected_versatility_pick = _get_variant_metadata(versatility_variant_button, index);
+        _selected_versatility_pick = UiOptionButtonUtils.GetIdAt(
+            versatility_variant_button,
+            index
+        );
         _refresh_identity_previews();
     }
 

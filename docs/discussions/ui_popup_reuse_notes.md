@@ -22,10 +22,10 @@
 
 3. **`components/SelectableListWindow.cs`** — 列表选择窗基类（列表 + 详情 + 确认/取消 + Enter 确认），子类：SaveListWindow、WorldPresetPickerWindow。
 
-4. **`components/SelectionCardBuilder.cs`** — 卡片式选项构建器，消费方：PromotionChoiceWindow。
+4. **`components/SelectionCardBuilder.cs`** — 卡片式选项构建器，消费方：PromotionChoiceWindow、CharacterCreationWindow（2026-07-16 起种族与年龄阶段选择卡片化，替代原下拉；亚种/适应属性仍为下拉，因其是依赖性次级选项）。
+
+5. **`components/UiOptionButtonUtils.cs`**（2026-07-16）— OptionButton 统一填充/按 id 选中工具，id 存 item metadata，取代各窗口的"平行 id 列表 + AddItem + 循环找下标"。消费方：CharacterCreation（亚种/适应属性）、ContingencySetup（单项锁定选项）、PartyWarehouse / Shop / Settlement（成员选择器）。DisplaySettings 的分辨率下拉是纯下标语义（无 id 概念），有意未迁。
 
 ## 尚未做（候选）
 
-- **OptionButton 填充工具**：CharacterCreation（变体三件套）、ContingencySetup（`SetSingleOption`）、PartyWarehouse（成员选择器）、DisplaySettings（分辨率）各写一遍"Clear + AddItem + 按 metadata 选中"，可合并为静态工具。
-- **SelectionCardBuilder 扩使用面**：评估角色创建的种族/年龄段选择是否卡片化（视觉升级，非纯去重）。
 - **简单确认框归一**：SubmapEntryWindow 已是通用确认模态（进子图/开战/战败返回三流程复用）；新增"标题+正文+确认/取消"需求应直接复用它，不要再开新场景。
