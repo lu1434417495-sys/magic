@@ -763,6 +763,7 @@ public static class GameTextSnapshotRenderer
             ? GetString(hud, "command_text")
             : GetString(hud, "skill_subtitle");
         lines.Add($"hud_command={commandText}");
+        AppendHudStatusLine(lines, GetDictionary(hud, "focus_unit"));
         lines.Add($"hud_hint={GetString(hud, "hint_text")}");
         var commandDock = GetDictionary(hud, "command_dock");
         lines.Add(
@@ -772,6 +773,31 @@ public static class GameTextSnapshotRenderer
             ? FormatArray(GetArray(hud, "recent_battle_log_lines"))
             : GetString(hud, "log_text");
         lines.Add($"hud_log={logText}");
+    }
+
+    // 焦点单位无状态效果时不输出本行，保持既有 headless 快照文本不变。
+    private static void AppendHudStatusLine(List<string> lines, GDictionary focusUnit)
+    {
+        if (IsEmpty(focusUnit))
+            return;
+        var parts = new List<string>();
+        foreach (GDictionary status in Dictionaries(GetArray(focusUnit, "status_effects")))
+        {
+            string label = GetString(status, "label");
+            if (string.IsNullOrEmpty(label))
+                label = GetString(status, "status_id");
+            int stacks = GetInt(status, "stacks");
+            int remainingTu = GetInt(status, "remaining_tu");
+            string text = label;
+            if (stacks > 1)
+                text += $"×{stacks}";
+            if (remainingTu >= 0)
+                text += $" {remainingTu}TU";
+            text += ReadExactBool(status, "is_debuff") == true ? "[减益]" : "[增益]";
+            parts.Add(text);
+        }
+        if (parts.Count > 0)
+            lines.Add($"hud_status={string.Join(" | ", parts)}");
     }
 
     private static void AppendReportLines(List<string> lines, GArray reportEntries)

@@ -22,6 +22,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     private ProgressBar _targetHpLossBar;
     private ProgressBar _targetHpBar;
     private Label _targetHpLabel;
+    private HFlowContainer _targetStatusRow;
     private HBoxContainer _hitStageRow;
     private Label _hitSummaryLabel;
     private HFlowContainer _fateBadgeRow;
@@ -154,6 +155,11 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _targetHpLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         _layout.AddChild(_targetHpLabel);
 
+        _targetStatusRow = new HFlowContainer { Name = "TargetStatusRow" };
+        _targetStatusRow.AddThemeConstantOverride("h_separation", 6);
+        _targetStatusRow.AddThemeConstantOverride("v_separation", 4);
+        _layout.AddChild(_targetStatusRow);
+
         _hitStageRow = new HBoxContainer { Name = "HitStageRow" };
         _hitStageRow.AddThemeConstantOverride("separation", HitStageSegmentSeparation);
         _layout.AddChild(_hitStageRow);
@@ -196,12 +202,14 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             _targetHeader.Visible = false;
             _targetHpStack.Visible = false;
             _targetHpLabel.Visible = false;
+            _refresh_target_statuses(null);
             return;
         }
 
         _targetHeader.Visible = true;
         _targetHpStack.Visible = true;
         _targetHpLabel.Visible = true;
+        _refresh_target_statuses(targetUnit.StatusEffects);
         _targetNameLabel.Text = string.IsNullOrEmpty(targetUnit.Name) ? "单位" : targetUnit.Name;
         _targetFactionLabel.Text =
             targetUnit.IsSelf ? "本单位"
@@ -227,6 +235,31 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             ? remainingWorst.ToString()
             : $"{remainingWorst}~{remainingBest}";
         _targetHpLabel.Text = $"HP {hpCurrent}/{hpMax} → 受击后 {remainingText}";
+    }
+
+    private void _refresh_target_statuses(
+        IReadOnlyList<BattleHudStatusEffectSnapshot> statuses
+    )
+    {
+        ClearChildren(_targetStatusRow);
+        int statusCount = statuses?.Count ?? 0;
+        _targetStatusRow.Visible = statusCount > 0;
+        if (statusCount == 0)
+            return;
+        foreach (BattleHudStatusEffectSnapshot status in statuses)
+        {
+            if (status == null)
+                continue;
+            _targetStatusRow.AddChild(
+                _build_fate_badge(
+                    new BattleHudFateBadgeSnapshot(
+                        BattleMapPanel.FormatStatusBadgeText(status),
+                        new StringName(status.IsDebuff ? "danger" : "calm"),
+                        status.TooltipText
+                    )
+                )
+            );
+        }
     }
 
     private void _refresh_hit_stages(IReadOnlyList<int> stageRates)
