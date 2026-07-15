@@ -33,6 +33,8 @@ internal static class ApplicationLifetimeDiagnostics
                 ? "finalizers-drained"
                 : "incomplete-shutdown";
 
-        Console.Error.WriteLine($"[lifecycle] process-exit phase={phase} status={status}");
+        ConsoleProcessOutput.WriteStandardError(
+            $"[lifecycle] process-exit phase={phase} status={status}"
+        );
     }
 }

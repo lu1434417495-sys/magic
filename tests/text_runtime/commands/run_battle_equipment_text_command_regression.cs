@@ -22,7 +22,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -889,7 +889,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             return result;
         if (!result.ok)
         {
-            GD.Print(result.Render());
+            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令失败：{commandText} | {result.message}");
         }
         return result;
@@ -905,7 +905,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         }
         if (result.ok)
         {
-            GD.Print(result.Render());
+            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令应失败但成功：{commandText}");
         }
         return result;

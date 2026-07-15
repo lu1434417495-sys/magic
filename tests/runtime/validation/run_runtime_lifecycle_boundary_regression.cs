@@ -207,6 +207,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "ApplicationLifetimeCoordinator._shutdownSync",
                 "BattleSimOverridePatchDefinition._value",
                 "GameLog._lock",
+                "GameLogService._sync",
                 "GodotContentOwnership.StaticContentOwner",
                 "GodotObjectOwnershipRegistry.Sync",
                 "GodotWrapperOwnershipRegistry.Sync",
@@ -243,7 +244,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()

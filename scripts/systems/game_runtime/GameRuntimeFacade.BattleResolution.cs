@@ -41,7 +41,7 @@ public sealed partial class GameRuntimeFacade
         string encounterName = _resolve_battle_encounter_display_name(encounter_anchor);
         UpdateStatusInternal($"遭遇 {encounterName}，战斗地图生成中。");
         _log_runtime_event(
-            "info",
+            GameLogLevel.Info,
             "battle",
             "battle.start_loading",
             $"遭遇 {encounterName}，战斗地图生成中。",
@@ -69,7 +69,7 @@ public sealed partial class GameRuntimeFacade
         _battle_selected_coord = new Vector2I(-1, -1);
         UpdateStatusInternal("遭遇战生成失败。");
         _log_runtime_event(
-            "error",
+            GameLogLevel.Error,
             "battle",
             "battle.start_failed",
             "遭遇战生成失败。",
@@ -108,7 +108,7 @@ public sealed partial class GameRuntimeFacade
         _battle_auto_tick_remainder_msec = 0;
         UpdateStatusInternal("战斗地图已载入，请确认开始战斗。");
         _log_runtime_event(
-            "info",
+            GameLogLevel.Info,
             "battle",
             "battle.start_prepared",
             "战斗地图已载入，请确认开始战斗。",
@@ -261,7 +261,7 @@ public sealed partial class GameRuntimeFacade
                     )
                 );
                 _log_runtime_event(
-                    "warn",
+                    GameLogLevel.Warning,
                     "battle",
                     "battle.resolve_failed.loot_commit",
                     _current_status_message,
@@ -292,7 +292,7 @@ public sealed partial class GameRuntimeFacade
                 )
             );
             _log_runtime_event(
-                "warn",
+                GameLogLevel.Warning,
                 "battle",
                 "battle.resolve_failed.writeback",
                 _current_status_message,
@@ -336,7 +336,7 @@ public sealed partial class GameRuntimeFacade
                     )
                 );
                 _log_runtime_event(
-                    "warn",
+                    GameLogLevel.Warning,
                     "battle",
                     "battle.resolve_failed.party_persist",
                     _current_status_message,
@@ -366,7 +366,7 @@ public sealed partial class GameRuntimeFacade
                     )
                 );
                 _log_runtime_event(
-                    "warn",
+                    GameLogLevel.Warning,
                     "battle",
                     "battle.resolve_failed.world_persist",
                     _current_status_message,
@@ -406,7 +406,7 @@ public sealed partial class GameRuntimeFacade
                     )
                 );
                 _log_runtime_event(
-                    "warn",
+                    GameLogLevel.Warning,
                     "battle",
                     "battle.resolve_failed.flush",
                     _current_status_message,
@@ -453,7 +453,7 @@ public sealed partial class GameRuntimeFacade
                 )
             );
             _log_runtime_event(
-                "info",
+                GameLogLevel.Info,
                 "battle",
                 "battle.game_over",
                 _current_status_message,
@@ -489,7 +489,7 @@ public sealed partial class GameRuntimeFacade
             )
         );
         _log_runtime_event(
-            persistedOk ? "info" : "warn",
+            persistedOk ? GameLogLevel.Info : GameLogLevel.Warning,
             "battle",
             "battle.resolved",
             _current_status_message,

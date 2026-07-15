@@ -18,7 +18,7 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
         }
         catch (Exception ex)
         {
-            GD.PushError($"Battle skill resolution rules regression crashed: {ex}");
+            ConsoleProcessOutput.WriteFailure($"Battle skill resolution rules regression crashed: {ex}");
             RequestTestExit(_test.Finish("Battle skill resolution rules regression", 1));
         }
     }

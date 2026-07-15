@@ -8,7 +8,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -283,7 +283,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return result;
-        GD.Print(result.Render());
+        ConsoleProcessOutput.WriteStandard(result.Render());
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
         return result;
     }

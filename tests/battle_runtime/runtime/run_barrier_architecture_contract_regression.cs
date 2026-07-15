@@ -15,7 +15,7 @@ public partial class run_barrier_architecture_contract_regression : LifecycleTes
         }
         catch (Exception ex)
         {
-            GD.PushError($"Barrier architecture contract regression crashed: {ex}");
+            ConsoleProcessOutput.WriteFailure($"Barrier architecture contract regression crashed: {ex}");
             RequestTestExit(_test.Finish("Barrier architecture contract regression", 1));
         }
     }

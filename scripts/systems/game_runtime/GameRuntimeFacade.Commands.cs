@@ -823,11 +823,16 @@ public sealed partial class GameRuntimeFacade
 
     private GDictionary _build_runtime_log_state() => _command_logger.BuildRuntimeLogState();
 
-    internal void _log_runtime_event(string level, string domain, string event_id, string message) =>
+    internal void _log_runtime_event(
+        GameLogLevel level,
+        string domain,
+        string event_id,
+        string message
+    ) =>
         _command_logger.LogRuntimeEvent(level, domain, event_id, message, "");
 
     internal void _log_runtime_event(
-        string level,
+        GameLogLevel level,
         string domain,
         string event_id,
         string message,

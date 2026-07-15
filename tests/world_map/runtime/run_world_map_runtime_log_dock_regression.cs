@@ -41,7 +41,12 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
             return;
         }
 
-        _gameSession.LogEvent("info", "world", "world.runtime_log_dock.test", "世界日志窗口回归。");
+        _gameSession.RecordLogEvent(
+            GameLogLevel.Info,
+            "world",
+            "world.runtime_log_dock.test",
+            "世界日志窗口回归。"
+        );
         worldMap.RenderFromRuntime(false);
         await ProcessFrames(1);
 

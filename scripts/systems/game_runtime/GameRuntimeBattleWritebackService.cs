@@ -546,7 +546,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         );
         _runtime.UpdateStatus(statusMessage);
         _runtime._log_runtime_event(
-            "error",
+            GameLogLevel.Error,
             "battle",
             "battle.local_writeback_inoption_failed",
             _runtime.GetStatusText(),

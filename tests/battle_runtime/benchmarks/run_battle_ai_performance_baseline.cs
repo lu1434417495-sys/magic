@@ -29,7 +29,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(RunDeferred));
+        RunAfterProcessStartup(RunDeferred);
     }
 
     private void RunDeferred()
@@ -94,7 +94,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         List<string> scenarioIds = ResolveScenarioFilter();
         List<string> compareMetrics = ResolveCompareMetrics();
 
-        GD.Print(
+        ConsoleProcessOutput.WriteStandard(
             $"[AiBaseline] config update={updateBaseline} repeat={repeatCount} measured={repeatCount - 1} completion=battle_ended max_iterations={maxIterations} require_completed={requireCompleted} ai_mutation_guard={aiMutationGuardEnabled} ai_mutation_guard_abort_process={aiMutationGuardAbortProcess} tolerance_pct={tolerancePct:F1} absolute_tolerance_usec={absoluteToleranceUsec} min_metric_call_count={minMetricCallCount} min_percentile_call_count={minPercentileCallCount} compare_metrics={string.Join(",", compareMetrics)} output={outputPath}"
         );
 
@@ -103,11 +103,11 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         {
             if (!_scenarios.TryGetValue(scenarioId, out ScenarioSpec spec))
             {
-                GD.Print($"[AiBaseline] WARN scenario '{scenarioId}' is not defined, skipping.");
+                ConsoleProcessOutput.WriteStandard($"[AiBaseline] WARN scenario '{scenarioId}' is not defined, skipping.");
                 continue;
             }
 
-            GD.Print(
+            ConsoleProcessOutput.WriteStandard(
                 $"[AiBaseline] scenario={scenarioId} starting map={spec.MapSize.X}x{spec.MapSize.Y} units={spec.AllyCount}v{spec.EnemyCount}"
             );
             GDictionary scenarioResult = RunScenario(
@@ -119,7 +119,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 aiMutationGuardEnabled
             );
             scenariosDoc[scenarioId] = scenarioResult;
-            GD.Print(FormatScenarioSummary(scenarioId, scenarioResult));
+            ConsoleProcessOutput.WriteStandard(FormatScenarioSummary(scenarioId, scenarioResult));
             if (_test.Failures.Count > 0)
                 break;
         }
@@ -157,10 +157,10 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         {
             if (!AiBaselineDiff.WriteBaseline(outputPath, currentDoc))
             {
-                GD.PushError($"[AiBaseline] failed to write baseline at {outputPath}");
+                ConsoleProcessOutput.WriteFailure($"[AiBaseline] failed to write baseline at {outputPath}");
                 return 1;
             }
-            GD.Print($"[AiBaseline] wrote baseline {outputPath}");
+            ConsoleProcessOutput.WriteStandard($"[AiBaseline] wrote baseline {outputPath}");
             return 0;
         }
 
@@ -186,7 +186,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             currentDoc["baseline_diff"] = diffs;
             currentDoc["baseline_diff_report"] = report;
             currentDoc["baseline_regressions"] = AiBaselineDiff.CountRegressions(diffs);
-            GD.Print(report);
+            ConsoleProcessOutput.WriteStandard(report);
         }
         else
         {
@@ -196,10 +196,10 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 
         if (!AiBaselineDiff.WriteBaseline(outputPath, currentDoc))
         {
-            GD.PushError($"[AiBaseline] failed to write snapshot at {outputPath}");
+            ConsoleProcessOutput.WriteFailure($"[AiBaseline] failed to write snapshot at {outputPath}");
             return 1;
         }
-        GD.Print($"[AiBaseline] wrote snapshot {outputPath}");
+        ConsoleProcessOutput.WriteStandard($"[AiBaseline] wrote snapshot {outputPath}");
         return AiBaselineDiff.CountRegressions(
             currentDoc.ContainsKey("baseline_diff") ? currentDoc["baseline_diff"].AsGodotArray() : new GArray()
         ) > 0
@@ -236,7 +236,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 aiMutationGuardEnabled
             );
             string phase = measured ? "measured" : "warmup";
-            GD.Print(
+            ConsoleProcessOutput.WriteStandard(
                 $"[AiBaseline]   run {runIndex + 1}/{repeatCount} ({phase}): ai_turns={runResult.AiTurns} manual_turns={runResult.ManualTurns} final_tu={runResult.FinalTu} iterations={runResult.Iterations} ended={runResult.BattleEnded} termination={runResult.TerminationReason} winner={runResult.WinnerFactionId} movement_rebuilds={runResult.MovementCacheDiagnostics.SnapshotRebuildCount} path_cache={runResult.MovementCacheDiagnostics.PathTargetCacheHitCount}/{runResult.MovementCacheDiagnostics.PathTargetCacheMissCount} elapsed={runResult.ElapsedSeconds:F2}s"
             );
 

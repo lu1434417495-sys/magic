@@ -200,13 +200,6 @@ public sealed partial class GameRuntimeFacade
             : $"战斗角色奖励 {rewardId} 不合法，已丢弃。";
         string contextText = Json.Stringify(context);
         GameLog.Warning(message, "battle.pending_reward_dropped", "battle", contextText);
-        _log_runtime_event(
-            "warn",
-            "battle",
-            "battle.pending_reward_dropped",
-            message,
-            contextText
-        );
     }
 
     private bool _has_quest_progress_summary_changes(QuestProgressApplyResultData summary)

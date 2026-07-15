@@ -150,7 +150,7 @@ public sealed class GameRuntimeCommandLogger
     }
 
     internal void LogRuntimeEvent(
-        string level,
+        GameLogLevel level,
         string domain,
         string eventId,
         string message,
@@ -263,7 +263,7 @@ public sealed class GameRuntimeCommandLogger
             logContext["battle_changed_units"] = CollectCommandBattleChangedUnits(pendingBatches);
         }
 
-        var eventLevel = ok ? "info" : "warn";
+        GameLogLevel eventLevel = ok ? GameLogLevel.Info : GameLogLevel.Warning;
         var eventDomain = string.IsNullOrEmpty(scopeDomain) ? "runtime" : scopeDomain;
         var eventId = string.IsNullOrEmpty(scope.EventId) ? "runtime.command" : scope.EventId;
         var eventMessage = !string.IsNullOrEmpty(message)
@@ -311,7 +311,7 @@ public sealed class GameRuntimeCommandLogger
     }
 
     private void LogRuntimeEventInternal(
-        string level,
+        GameLogLevel level,
         string domain,
         string eventId,
         string message,
@@ -321,7 +321,7 @@ public sealed class GameRuntimeCommandLogger
         var gameSession = _runtime._game_session;
         if (gameSession == null)
             return;
-        gameSession.LogEvent(level, domain, eventId, message, context);
+        gameSession.RecordLogEvent(level, domain, eventId, message, context);
     }
 
     private void LogBattleBatchEntriesInternal(BattleEventBatch batch)
@@ -353,7 +353,7 @@ public sealed class GameRuntimeCommandLogger
         foreach (string logLine in batch.LogLinesTyped)
         {
             LogRuntimeEventInternal(
-                "info",
+                GameLogLevel.Info,
                 "battle",
                 "battle.log",
                 logLine,

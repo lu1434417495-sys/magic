@@ -21,7 +21,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         }
         catch (Exception exception)
         {
-            GD.PushError($"Battle range service contract regression crashed: {exception}");
+            ConsoleProcessOutput.WriteFailure($"Battle range service contract regression crashed: {exception}");
             RequestTestExit(_test.Finish("Battle range service contract regression", 1));
         }
     }

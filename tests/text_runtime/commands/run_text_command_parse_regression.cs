@@ -7,7 +7,7 @@ public partial class run_text_command_parse_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
@@ -64,7 +64,7 @@ public partial class run_text_command_parse_regression : LifecycleTestSceneTree
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return;
-        GD.Print(result.Render());
+        ConsoleProcessOutput.WriteStandard(result.Render());
         _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
     }
 
@@ -73,7 +73,7 @@ public partial class run_text_command_parse_regression : LifecycleTestSceneTree
         GameTextCommandResult result = runner.ExecuteLine(commandText);
         if (result.skipped)
             return result;
-        GD.Print(result.Render());
+        ConsoleProcessOutput.WriteStandard(result.Render());
         _test.False(result.ok, $"命令本应失败：{commandText}");
         return result;
     }

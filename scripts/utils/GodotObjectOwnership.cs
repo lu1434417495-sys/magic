@@ -638,7 +638,7 @@ internal static class LifecycleViolation
     {
         if (ShouldThrow())
             throw new InvalidOperationException(message);
-        GD.PushError(message);
+        GameLog.Error(message, "lifecycle.ownership.violation", "lifecycle");
     }
 
     private static bool ShouldThrow()

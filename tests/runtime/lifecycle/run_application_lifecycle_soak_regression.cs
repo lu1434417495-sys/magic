@@ -9,7 +9,7 @@ public partial class run_application_lifecycle_soak_regression : LifecycleTestSc
 {
     private readonly TestHarness _test = new();
 
-    public override void _Initialize() => CallDeferred(nameof(Run));
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private async void Run()
     {
@@ -70,14 +70,14 @@ public partial class run_application_lifecycle_soak_regression : LifecycleTestSc
         {
             LifecycleSoakSample sample = await scenario.RunCycleAsync(cycle);
             samples.Add(sample);
-            GD.Print(FormatCycle(sample));
+            ConsoleProcessOutput.WriteStandard(FormatCycle(sample));
         }
 
         LifecycleSoakStatisticsReport report = LifecycleSoakStatistics.Evaluate(samples);
-        GD.Print(FormatSummary(report));
+        ConsoleProcessOutput.WriteStandard(FormatSummary(report));
         foreach (LifecycleSoakFailure failure in report.Failures)
         {
-            GD.Print(
+            ConsoleProcessOutput.WriteStandard(
                 $"[LIFECYCLE-SOAK] failure cycle={failure.Cycle} "
                     + $"counter={failure.CounterName} message={failure.Message}"
             );

@@ -98,7 +98,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private async void Run()
@@ -764,7 +764,7 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
         if (condition)
             return;
 
-        GD.PushError($"[test] Application lifetime coordinator regression: {message}");
+        ConsoleProcessOutput.WriteFailure($"[test] Application lifetime coordinator regression: {message}");
         _ = coordinator.RequestShutdownAsync(
             new ShutdownRequest(
                 1,

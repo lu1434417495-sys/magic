@@ -1,102 +1,78 @@
 using System;
-using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 /// <summary>
-/// GameLog 输出目标接口。实现类注册到 GameLog.AddSink 即可接收日志。
+/// Receives normalized structured diagnostic records published by GameLog.
 /// </summary>
 public interface IGameLogSink
 {
-    void Write(
-        GameLogLevel level,
-        string eventId,
-        string domain,
-        string message,
-        string context
-    );
+    void Write(GameLogRecord record);
 }
 
 /// <summary>
-/// 输出到 Console.Error / Console.Out。已内建于 GameLog，无需手动注册。
+/// Default C# process output. Error and fatal records use stderr; other levels use stdout.
 /// </summary>
-public class ConsoleLogSink : IGameLogSink
+internal sealed class ConsoleLogSink : IGameLogSink
 {
-    public void Write(
-        GameLogLevel level,
-        string eventId,
-        string domain,
-        string message,
-        string context
-    )
+    internal static readonly ConsoleLogSink Instance = new();
+
+    private ConsoleLogSink() { }
+
+    public void Write(GameLogRecord record)
     {
-        // GameLog.Write 已负责 Console 输出，本 Sink 空置以避免重复打印
+        string line = GameLog.FormatForConsole(record);
+        if (record.Level >= GameLogLevel.Error)
+            ConsoleProcessOutput.WriteStandardError(line);
+        else
+            ConsoleProcessOutput.WriteStandard(line);
     }
 }
 
 /// <summary>
-/// 输出到 Godot 编辑器日志（调试用）。可选注册。
+/// Raw C# process-output boundary. Structured application diagnostics must use GameLog;
+/// lifecycle/test protocols use these methods when their exact output is machine-read.
 /// </summary>
-public class GodotEditorLogSink : IGameLogSink
+internal static class ConsoleProcessOutput
 {
-    public void Write(
-        GameLogLevel level,
-        string eventId,
-        string domain,
-        string message,
-        string context
-    )
+    internal static void WriteStandard(params object[] values) =>
+        Console.Out.WriteLine(JoinValues(values));
+
+    internal static void WriteStandardError(params object[] values) =>
+        Console.Error.WriteLine(JoinValues(values));
+
+    internal static void WriteFailure(params object[] values) =>
+        Console.Error.WriteLine($"ERROR: {JoinValues(values)}");
+
+    private static string JoinValues(object[] values)
     {
-        switch (level)
-        {
-            case GameLogLevel.Fatal:
-            case GameLogLevel.Error:
-                GD.PushError($"[{domain}] {message}");
-                break;
-            case GameLogLevel.Warning:
-                GD.PushWarning($"[{domain}] {message}");
-                break;
-            case GameLogLevel.Debug:
-            case GameLogLevel.Info:
-                GD.Print($"[{domain}] {message}");
-                break;
-        }
+        if (values == null || values.Length == 0)
+            return "";
+
+        var result = new System.Text.StringBuilder();
+        foreach (object value in values)
+            result.Append(value?.ToString() ?? "<null>");
+        return result.ToString();
     }
 }
 
 /// <summary>
-/// 输出到 GameSession 的 log_event，接入 GameLogService + RuntimeLogDock 链路。
+/// Copies process-wide diagnostics into the owning GameSession log buffer/file/UI feed.
 /// </summary>
-public class GameSessionLogSink : IGameLogSink
+internal sealed class GameSessionLogSink : IGameLogSink
 {
-    private WeakReference<GameSession> _sessionRef;
+    private readonly WeakReference<GameSession> _sessionRef;
 
-    public GameSessionLogSink(GameSession session)
+    internal GameSessionLogSink(GameSession session)
     {
         _sessionRef = session != null ? new WeakReference<GameSession>(session) : null;
     }
 
-    public void Write(
-        GameLogLevel level,
-        string eventId,
-        string domain,
-        string message,
-        string context
-    )
+    public void Write(GameLogRecord record)
     {
-        if (_sessionRef == null || !_sessionRef.TryGetTarget(out var session))
+        if (_sessionRef == null || !_sessionRef.TryGetTarget(out GameSession session))
             return;
-        if (session == null || !GodotObject.IsInstanceValid(session))
+        if (session == null)
             return;
 
-        string levelStr = level switch
-        {
-            GameLogLevel.Fatal => "fatal",
-            GameLogLevel.Error => "error",
-            GameLogLevel.Warning => "warn",
-            GameLogLevel.Debug => "debug",
-            _ => "info",
-        };
-
-        session.LogEvent(levelStr, domain, eventId, message, context);
+        session.RecordLogEvent(record);
     }
 }

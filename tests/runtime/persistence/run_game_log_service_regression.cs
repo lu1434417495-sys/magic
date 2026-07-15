@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -9,15 +10,17 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
-        CallDeferred(nameof(Run));
+        RunAfterProcessStartup(Run);
     }
 
     private void Run()
     {
         TestGameLogServiceKeepsRingBufferWithoutDefaultFileOutput();
         TestGameLogServiceCanAppendOptInFile();
+        TestGameLogServiceAcceptsConcurrentAppends();
+        TestGameLogDispatcherFiltersAndIsolatesSinks();
 
-        RequestTestExit(_test.Finish("Game log service regression"));
+        RequestTestExit(_test.Finish("Game log module regression"));
     }
 
     private void TestGameLogServiceKeepsRingBufferWithoutDefaultFileOutput()
@@ -82,10 +85,131 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
 
     private static void AppendFourEntries(GameLogService logService)
     {
-        logService.AppendEntry("info", "session", "session.test.first", "first", "{\"step\":1}");
-        logService.AppendEntry("info", "world", "world.test.second", "second", "{\"step\":2}");
-        logService.AppendEntry("warn", "world", "world.test.third", "third", "{\"step\":3}");
-        logService.AppendEntry("error", "battle", "battle.test.fourth", "fourth", "{\"step\":4}");
+        logService.AppendEntry(
+            new GameLogRecord(
+                GameLogLevel.Info,
+                "session.test.first",
+                "session",
+                "first",
+                "{\"step\":1}"
+            )
+        );
+        logService.AppendEntry(
+            new GameLogRecord(
+                GameLogLevel.Info,
+                "world.test.second",
+                "world",
+                "second",
+                "{\"step\":2}"
+            )
+        );
+        logService.AppendEntry(
+            new GameLogRecord(
+                GameLogLevel.Warning,
+                "world.test.third",
+                "world",
+                "third",
+                "{\"step\":3}"
+            )
+        );
+        logService.AppendEntry(
+            new GameLogRecord(
+                GameLogLevel.Error,
+                "battle.test.fourth",
+                "battle",
+                "fourth",
+                "{\"step\":4}"
+            )
+        );
+    }
+
+    private void TestGameLogServiceAcceptsConcurrentAppends()
+    {
+        const int EntryCount = 512;
+        GameLogService logService = new();
+        logService.Setup(EntryCount, false);
+
+        Parallel.For(
+            0,
+            EntryCount,
+            index =>
+                logService.AppendEntry(
+                    new GameLogRecord(
+                        GameLogLevel.Info,
+                        $"concurrent.{index}",
+                        "test",
+                        $"entry-{index}"
+                    )
+                )
+        );
+
+        IReadOnlyList<IReadOnlyDictionary<string, object>> entries =
+            logService.GetRecentEntriesPlain(EntryCount);
+        _test.Eq(entries.Count, EntryCount, "并发日志写入不应丢失内存条目。");
+        if (entries.Count == EntryCount)
+        {
+            _test.Eq(PlainInt(entries[0], "seq", 0), 1, "并发日志序号应从 1 开始。");
+            _test.Eq(
+                PlainInt(entries[^1], "seq", 0),
+                EntryCount,
+                "并发日志序号应保持连续。"
+            );
+        }
+    }
+
+    private void TestGameLogDispatcherFiltersAndIsolatesSinks()
+    {
+        int baselineSinkCount = GameLog.SinkCount;
+        GameLogLevel previousMinimumLevel = GameLog.MinimumLevel;
+        bool previousConsoleOutputEnabled = GameLog.IsConsoleOutputEnabled;
+        var throwingSink = new ThrowingLogSink();
+        var recordingSink = new RecordingLogSink();
+
+        try
+        {
+            GameLog.MinimumLevel = GameLogLevel.Info;
+            GameLog.IsConsoleOutputEnabled = false;
+            GameLog.AddSink(throwingSink);
+            GameLog.AddSink(recordingSink);
+            GameLog.AddSink(recordingSink);
+
+            _test.Eq(
+                GameLog.SinkCount,
+                baselineSinkCount + 2,
+                "重复注册同一个日志 sink 不应产生重复订阅。"
+            );
+
+            GameLog.Debug("filtered", "log.dispatch.debug", "test");
+            GameLog.Warning("dispatch", "log.dispatch.test", "test", "{\"step\":1}");
+
+            _test.Eq(recordingSink.Records.Count, 1, "关闭 debug 时只应派发 warning 记录。");
+            if (recordingSink.Records.Count == 1)
+            {
+                GameLogRecord record = recordingSink.Records[0];
+                _test.Eq(record.Level, GameLogLevel.Warning, "sink 应收到 typed level。");
+                _test.Eq(record.EventId, "log.dispatch.test", "sink 应收到稳定 event_id。");
+                _test.Eq(record.Domain, "test", "sink 应收到 domain。");
+                _test.Eq(record.Context, "{\"step\":1}", "sink 应收到结构化 context 文本。");
+                _test.True(
+                    GameLog
+                        .FormatForConsole(record)
+                        .EndsWith(
+                            "[WARN] [test] [log.dispatch.test] dispatch | context={\"step\":1}",
+                            StringComparison.Ordinal
+                        ),
+                    "C# console 输出应包含 UTC 时间、level、domain、event_id 与 context。"
+                );
+            }
+        }
+        finally
+        {
+            GameLog.RemoveSink(recordingSink);
+            GameLog.RemoveSink(throwingSink);
+            GameLog.MinimumLevel = previousMinimumLevel;
+            GameLog.IsConsoleOutputEnabled = previousConsoleOutputEnabled;
+        }
+
+        _test.Eq(GameLog.SinkCount, baselineSinkCount, "日志回归结束后应恢复 sink 基线。");
     }
 
     private List<string> ReadNonEmptyLines(string virtualPath)
@@ -185,5 +309,23 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
             && value is bool flag
                 ? flag
                 : fallback;
+    }
+
+    private sealed class RecordingLogSink : IGameLogSink
+    {
+        internal List<GameLogRecord> Records { get; } = new();
+
+        public void Write(GameLogRecord record)
+        {
+            Records.Add(record);
+        }
+    }
+
+    private sealed class ThrowingLogSink : IGameLogSink
+    {
+        public void Write(GameLogRecord record)
+        {
+            throw new InvalidOperationException("expected sink failure");
+        }
     }
 }
