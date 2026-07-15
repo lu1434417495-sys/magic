@@ -213,39 +213,23 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private void _rebuild_target_member_selector()
     {
-        target_member_selector.Clear();
         if (_windowData.TargetMembers.Count == 0)
         {
+            target_member_selector.Clear();
             _selectedTargetMemberId = "";
             return;
-        }
-
-        int selectedIndex = 0;
-        for (int index = 0; index < _windowData.TargetMembers.Count; index++)
-        {
-            TargetMember member = _windowData.TargetMembers[index];
-            target_member_selector.AddItem(member.DisplayName);
-            if (member.MemberId == _selectedTargetMemberId)
-                selectedIndex = index;
         }
 
         if (
             _selectedTargetMemberId == (StringName)""
             || !_has_target_member(_selectedTargetMemberId)
         )
-        {
             _selectedTargetMemberId = _resolve_default_target_member_id();
-            for (int index = 0; index < _windowData.TargetMembers.Count; index++)
-            {
-                if (_windowData.TargetMembers[index].MemberId == _selectedTargetMemberId)
-                {
-                    selectedIndex = index;
-                    break;
-                }
-            }
-        }
 
-        target_member_selector.Select(selectedIndex);
+        var options = new List<(StringName Id, string Label)>();
+        foreach (TargetMember member in _windowData.TargetMembers)
+            options.Add((member.MemberId, member.DisplayName));
+        UiOptionButtonUtils.Populate(target_member_selector, options, _selectedTargetMemberId);
     }
 
     private void _refresh_details()
@@ -389,14 +373,7 @@ public partial class PartyWarehouseWindow : ModalWindowShell
 
     private void _on_target_member_selected(int index)
     {
-        if (
-            index < 0
-            || index >= target_member_selector.GetItemCount()
-            || index >= _windowData.TargetMembers.Count
-        )
-            _selectedTargetMemberId = "";
-        else
-            _selectedTargetMemberId = _windowData.TargetMembers[index].MemberId;
+        _selectedTargetMemberId = UiOptionButtonUtils.GetIdAt(target_member_selector, index);
         _refresh_details();
         _refresh_controls();
     }

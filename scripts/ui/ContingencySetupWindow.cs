@@ -134,8 +134,14 @@ public partial class ContingencySetupWindow : ModalWindowShell
                 ? $"{setup.SetupId} | {setup.DisplayName} | charged={(_charged ? "yes" : "no")}"
                 : $"{template.SetupId} | {template.DisplayName} | 未保存";
 
-        SetSingleOption(release_mode_selector, setup?.ReleaseMode.ToString() ?? template.ReleaseMode);
-        SetSingleOption(target_resolver_selector, ResolveTargetResolver(setup) ?? template.TargetResolver);
+        UiOptionButtonUtils.SetSingle(
+            release_mode_selector,
+            setup?.ReleaseMode.ToString() ?? template.ReleaseMode
+        );
+        UiOptionButtonUtils.SetSingle(
+            target_resolver_selector,
+            ResolveTargetResolver(setup) ?? template.TargetResolver
+        );
         stored_spell_list.Clear();
         if (setup != null && setup.SetupId == template.SetupId)
             foreach (ContingencyStoredSpellEntryState spell in setup.StoredSpells)
@@ -238,13 +244,6 @@ public partial class ContingencySetupWindow : ModalWindowShell
             if (cost != null && cost.ItemId == "special_contingency_gem")
                 total += cost.Quantity;
         return total;
-    }
-
-    private static void SetSingleOption(OptionButton selector, string value)
-    {
-        selector.Clear();
-        selector.AddItem(value ?? "");
-        selector.Selected = 0;
     }
 
     private void OnSavePressed()

@@ -38,7 +38,6 @@ public partial class SettlementWindow : ModalWindowShell
     private string _settlementId = "";
     private StringName _selectedMemberId = "";
     private int _selectedServiceIndex = -1;
-    private readonly List<StringName> _memberOptionIds = new();
 
     public override void _Ready()
     {
@@ -198,14 +197,10 @@ public partial class SettlementWindow : ModalWindowShell
 
     private void _rebuild_member_selector()
     {
-        member_selector.Clear();
-        _memberOptionIds.Clear();
-        for (int index = 0; index < _windowData.MemberOptions.Count; index++)
-        {
-            MemberOption option = _windowData.MemberOptions[index];
-            member_selector.AddItem(option.BuildLabel());
-            _memberOptionIds.Add(option.MemberId);
-        }
+        var options = new List<(StringName Id, string Label)>();
+        foreach (MemberOption option in _windowData.MemberOptions)
+            options.Add((option.MemberId, option.BuildLabel()));
+        UiOptionButtonUtils.Populate(member_selector, options, new StringName(""));
 
         member_selector.Visible = _windowData.MemberOptions.Count > 0;
         member_state_label.Visible = true;
@@ -222,15 +217,7 @@ public partial class SettlementWindow : ModalWindowShell
             member_id != (StringName)"" && _windowData.MemberOptionMap.ContainsKey(member_id)
                 ? member_id
                 : "";
-
-        for (int index = 0; index < member_selector.GetItemCount(); index++)
-        {
-            if (index < _memberOptionIds.Count && _memberOptionIds[index] == _selectedMemberId)
-            {
-                member_selector.Select(index);
-                break;
-            }
-        }
+        UiOptionButtonUtils.SelectById(member_selector, _selectedMemberId);
         _refresh_member_state();
     }
 
@@ -400,10 +387,7 @@ public partial class SettlementWindow : ModalWindowShell
 
     public void _on_member_selected(int index)
     {
-        if (index < 0 || index >= _memberOptionIds.Count)
-            _selectedMemberId = "";
-        else
-            _selectedMemberId = _memberOptionIds[index];
+        _selectedMemberId = UiOptionButtonUtils.GetIdAt(member_selector, index);
         _refresh_member_state();
         _rebuild_service_buttons();
         _refresh_service_details();

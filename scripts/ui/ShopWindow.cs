@@ -41,7 +41,6 @@ public partial class ShopWindow : ModalWindowShell
     private string _actionId = "";
     private int _selectedEntryIndex = -1;
     private StringName _selectedMemberId = "";
-    private readonly List<StringName> _memberOptionIds = new();
     private bool _isShowingConfirmation = false;
 
     public override void _Ready()
@@ -228,7 +227,6 @@ public partial class ShopWindow : ModalWindowShell
         if (!_windowData.ShowMemberSelector)
         {
             member_selector.Clear();
-            _memberOptionIds.Clear();
             member_title_label.Visible = false;
             member_selector.Visible = false;
             member_state_label.Visible = false;
@@ -238,14 +236,10 @@ public partial class ShopWindow : ModalWindowShell
         member_title_label.Visible = true;
         member_selector.Visible = true;
         member_state_label.Visible = true;
-        member_selector.Clear();
-        _memberOptionIds.Clear();
-        for (int index = 0; index < _windowData.MemberOptions.Count; index++)
-        {
-            MemberOption option = _windowData.MemberOptions[index];
-            member_selector.AddItem(option.BuildLabel());
-            _memberOptionIds.Add(option.MemberId);
-        }
+        var options = new List<(StringName Id, string Label)>();
+        foreach (MemberOption option in _windowData.MemberOptions)
+            options.Add((option.MemberId, option.BuildLabel()));
+        UiOptionButtonUtils.Populate(member_selector, options, new StringName(""));
 
         member_selector.Visible = _windowData.MemberOptions.Count > 0;
         member_state_label.Visible = true;
@@ -267,15 +261,7 @@ public partial class ShopWindow : ModalWindowShell
             member_id != (StringName)"" && _windowData.MemberOptionMap.ContainsKey(member_id)
                 ? member_id
                 : "";
-
-        for (int index = 0; index < member_selector.GetItemCount(); index++)
-        {
-            if (index < _memberOptionIds.Count && _memberOptionIds[index] == _selectedMemberId)
-            {
-                member_selector.Select(index);
-                break;
-            }
-        }
+        UiOptionButtonUtils.SelectById(member_selector, _selectedMemberId);
     }
 
     private void _refresh_member_state()
@@ -475,10 +461,7 @@ public partial class ShopWindow : ModalWindowShell
 
     private void _on_member_selected(int index)
     {
-        if (index < 0 || index >= _memberOptionIds.Count)
-            _selectedMemberId = "";
-        else
-            _selectedMemberId = _memberOptionIds[index];
+        _selectedMemberId = UiOptionButtonUtils.GetIdAt(member_selector, index);
         _refresh_member_state();
         _refresh_details();
         _refresh_controls();

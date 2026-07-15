@@ -19,6 +19,7 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         {
             TestAgeStageSelectionUsesManagedStorage();
             await TestConfirmationPayloadIncludesRolledAttributesAndIdentity();
+            await TestIdentityCardsPopulate();
         }
         catch (Exception ex)
         {
@@ -88,6 +89,36 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         _test.True(DictStringName(capturedPayload, "race_id") != "", "建卡 payload 应包含 race_id。");
         _test.True(DictStringName(capturedPayload, "subrace_id") != "", "建卡 payload 应包含 subrace_id。");
         _test.True(DictStringName(capturedPayload, "natural_age_stage_id") != "", "建卡 payload 应包含 age stage。");
+
+        window.QueueFree();
+        await ToSignal(this, SignalName.ProcessFrame);
+    }
+
+    private async Task TestIdentityCardsPopulate()
+    {
+        CharacterCreationWindow window = CharacterCreationScene.Instantiate<CharacterCreationWindow>();
+        Root.AddChild(window);
+        await ToSignal(this, SignalName.ProcessFrame);
+
+        GameSession gameSession = Root.GetNodeOrNull<GameSession>("GameSession");
+        GameContentCatalog contentCatalog = gameSession?.GetContentCatalogTyped();
+        if (contentCatalog != null)
+            window.SetContentCatalog(contentCatalog);
+
+        window.ShowWindow();
+        window.name_input.Text = "Card Probe";
+        window._on_name_confirmed();
+        window._enter_race_phase();
+        _test.True(
+            window.race_card_flow.GetChildCount() > 0,
+            "进入种族阶段后应渲染至少一张种族卡片。"
+        );
+
+        window._enter_age_phase();
+        _test.True(
+            window.age_stage_card_flow.GetChildCount() > 0,
+            "进入年龄阶段后应渲染至少一张阶段卡片。"
+        );
 
         window.QueueFree();
         await ToSignal(this, SignalName.ProcessFrame);
