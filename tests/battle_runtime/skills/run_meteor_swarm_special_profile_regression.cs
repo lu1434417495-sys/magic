@@ -7,6 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_meteor_swarm_special_profile_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
@@ -15,6 +16,8 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
 
     private void Run()
     {
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
+
         TestTypedProfileViewReturnsDeepReadOnlyCopies();
         TestTargetPlanUsesSquare7x7AndEdgeClipping();
         TestPreviewAndExecuteUseTypedProfileNotLegacyArea();
@@ -28,17 +31,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
 
     private void TestTypedProfileViewReturnsDeepReadOnlyCopies()
     {
-        MeteorSwarmProfile authoredProfile = GD.Load<MeteorSwarmProfile>(
-            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
-        );
-        _test.True(authoredProfile != null, "陨星雨 immutable view 回归需要正式 profile 资源。");
-        if (authoredProfile == null)
-            return;
-
-        IBattleSpecialProfileView view = BattleSpecialProfileRuntimeView.ForMeteorSwarm(
-            "meteor_swarm",
-            authoredProfile
-        );
+        IBattleSpecialProfileView view = _contentSnapshot.BattleSpecialProfiles;
         _test.True(
             view.TryGetMeteorSwarmProfile(
                 "meteor_swarm",
@@ -526,6 +519,8 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions = null
     )
     {
+        ArgumentNullException.ThrowIfNull(_contentSnapshot);
+
         SkillDefinition meteorSkillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
             "res://data/configs/skills/mage_meteor_swarm.tres",
             "meteor_swarm_special_profile:mage_meteor_swarm"
@@ -543,20 +538,13 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
                 [meteorSkillDefinition?.SkillId ?? new StringName("mage_meteor_swarm")] =
                     meteorSkillDefinition,
             };
-        MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
-            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
-        );
-        _test.True(meteorProfile != null, "陨星雨正式 special profile 资源应可加载。");
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             skill_definitions: typedSkillDefinitions,
             enemy_templates: new Dictionary<StringName, EnemyTemplateDefinition>(),
             enemy_ai_brains: new Dictionary<StringName, EnemyAiBrainDefinition>(),
             item_defs: new Dictionary<StringName, ItemDefinition>(),
-            battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
-                "meteor_swarm",
-                meteorProfile
-            ),
+            battle_special_profile_view: _contentSnapshot.BattleSpecialProfiles,
             barrier_profile_definitions: barrierProfileDefinitions
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
@@ -601,7 +589,6 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             Runtime = runtime,
             State = state,
             Caster = caster,
-            MeteorProfile = meteorProfile,
             SkillDefinitionIndex = typedSkillDefinitions,
         };
     }
@@ -867,7 +854,6 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         public BattleRuntimeModule Runtime;
         public BattleState State;
         public BattleUnitState Caster;
-        public MeteorSwarmProfile MeteorProfile;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitionIndex;
 
         public T Track<T>(T ownedObject)
@@ -894,7 +880,6 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             Runtime = null;
             State = null;
             Caster = null;
-            MeteorProfile = null;
             SkillDefinitionIndex = null;
         }
     }
