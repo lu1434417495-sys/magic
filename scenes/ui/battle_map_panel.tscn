@@ -75,7 +75,7 @@ alignment = 0
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-text = "战斗地图"
+text = "遭遇战"
 
 [node name="CenterCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
@@ -198,7 +198,7 @@ text = "HP 0/1"
 
 [node name="StaminaBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
@@ -209,7 +209,7 @@ text = "体力 0/1"
 
 [node name="MpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=788448658]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
@@ -220,7 +220,7 @@ text = "MP 0/1"
 
 [node name="AuraBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 

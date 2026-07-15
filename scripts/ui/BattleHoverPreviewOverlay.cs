@@ -7,7 +7,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     private const int HitStageSegmentWidth = 50;
     private const int HitStageSegmentHeight = 16;
     private const int HitStageSegmentSeparation = 6;
-    private const int HpBarHeight = 14;
+    private const int HpBarHeight = 18;
     private const int HpBarMinWidth = 280;
 
     // 本地放大字号(仅此 hover 预览浮层,不动全局 BattleUiTheme),目标是一眼看清
@@ -18,6 +18,8 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     private HBoxContainer _targetHeader;
     private Label _targetNameLabel;
     private Label _targetFactionLabel;
+    private Control _targetHpStack;
+    private ProgressBar _targetHpLossBar;
     private ProgressBar _targetHpBar;
     private Label _targetHpLabel;
     private HBoxContainer _hitStageRow;
@@ -61,7 +63,12 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             return;
         }
 
-        _refresh_target_unit(targetUnit);
+        _refresh_target_unit(
+            targetUnit,
+            preview.DamageMin,
+            preview.DamageMax,
+            isValidTarget && preview.DamageMax > 0
+        );
         _refresh_hit_stages(preview.HitStageRates);
         _refresh_fate_badges(preview.FateBadges);
         _refresh_damage_label(
@@ -104,18 +111,43 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _targetFactionLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         _targetHeader.AddChild(_targetFactionLabel);
 
+        // HP 条为双层叠放：下层按当前 HP 填充预扣色，上层按"受击后剩余 HP"填充常规
+        // HP 色；两层之间露出的色带即本次技能的预计伤害段（C3 伤害预扣段）。
+        _targetHpStack = new Control
+        {
+            Name = "TargetHpStack",
+            CustomMinimumSize = new Vector2(HpBarMinWidth, HpBarHeight),
+        };
+        _layout.AddChild(_targetHpStack);
+
+        _targetHpLossBar = new ProgressBar
+        {
+            Name = "TargetHpLossBar",
+            ShowPercentage = false,
+        };
+        _targetHpLossBar.SetAnchorsPreset(LayoutPreset.FullRect);
+        _targetHpLossBar.AddThemeStyleboxOverride(
+            "background",
+            _build_progress_background_style()
+        );
+        _targetHpLossBar.AddThemeStyleboxOverride(
+            "fill",
+            _build_progress_fill_style(BattleUiTheme.FATE_WARNING())
+        );
+        _targetHpStack.AddChild(_targetHpLossBar);
+
         _targetHpBar = new ProgressBar
         {
             Name = "TargetHpBar",
             ShowPercentage = false,
-            CustomMinimumSize = new Vector2(HpBarMinWidth, HpBarHeight),
         };
-        _targetHpBar.AddThemeStyleboxOverride("background", _build_progress_background_style());
+        _targetHpBar.SetAnchorsPreset(LayoutPreset.FullRect);
+        _targetHpBar.AddThemeStyleboxOverride("background", new StyleBoxEmpty());
         _targetHpBar.AddThemeStyleboxOverride(
             "fill",
             _build_progress_fill_style(BattleUiTheme.RESOURCE_HP())
         );
-        _layout.AddChild(_targetHpBar);
+        _targetHpStack.AddChild(_targetHpBar);
 
         _targetHpLabel = new Label { Name = "TargetHpLabel" };
         _targetHpLabel.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
@@ -152,18 +184,23 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _layout.AddChild(_invalidLabel);
     }
 
-    private void _refresh_target_unit(BattleHoverTargetUnitSnapshot targetUnit)
+    private void _refresh_target_unit(
+        BattleHoverTargetUnitSnapshot targetUnit,
+        int damageMin,
+        int damageMax,
+        bool showDamagePredict
+    )
     {
         if (targetUnit == null)
         {
             _targetHeader.Visible = false;
-            _targetHpBar.Visible = false;
+            _targetHpStack.Visible = false;
             _targetHpLabel.Visible = false;
             return;
         }
 
         _targetHeader.Visible = true;
-        _targetHpBar.Visible = true;
+        _targetHpStack.Visible = true;
         _targetHpLabel.Visible = true;
         _targetNameLabel.Text = string.IsNullOrEmpty(targetUnit.Name) ? "单位" : targetUnit.Name;
         _targetFactionLabel.Text =
@@ -171,12 +208,25 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             : targetUnit.IsEnemy ? "敌方"
             : "我方";
 
-        int hpCurrent = targetUnit.HpCurrent;
         int hpMax = Mathf.Max(targetUnit.HpMax, 1);
+        int hpCurrent = Mathf.Clamp(targetUnit.HpCurrent, 0, hpMax);
+        int remainingWorst = Mathf.Clamp(hpCurrent - Mathf.Max(damageMax, 0), 0, hpMax);
+        int remainingBest = Mathf.Clamp(hpCurrent - Mathf.Max(damageMin, 0), 0, hpMax);
+        _targetHpLossBar.MinValue = 0;
+        _targetHpLossBar.MaxValue = hpMax;
+        _targetHpLossBar.Value = hpCurrent;
         _targetHpBar.MinValue = 0;
         _targetHpBar.MaxValue = hpMax;
-        _targetHpBar.Value = Mathf.Clamp(hpCurrent, 0, hpMax);
-        _targetHpLabel.Text = $"HP {hpCurrent}/{hpMax}";
+        _targetHpBar.Value = showDamagePredict ? remainingWorst : hpCurrent;
+        if (!showDamagePredict)
+        {
+            _targetHpLabel.Text = $"HP {hpCurrent}/{hpMax}";
+            return;
+        }
+        string remainingText = remainingWorst == remainingBest
+            ? remainingWorst.ToString()
+            : $"{remainingWorst}~{remainingBest}";
+        _targetHpLabel.Text = $"HP {hpCurrent}/{hpMax} → 受击后 {remainingText}";
     }
 
     private void _refresh_hit_stages(IReadOnlyList<int> stageRates)

@@ -1182,7 +1182,7 @@ public partial class BattleMapPanel : Control
         _battle_equipment_feedback_text = "";
         _selected_backpack_instance_id = "";
         _selected_backpack_slot_id = "";
-        header_title_label.Text = "战斗地图";
+        header_title_label.Text = "遭遇战";
         tu_label.Text = "TU --";
         ready_label.Text = "READY 0";
         mode_value_label.Text = "手动";
@@ -1221,7 +1221,7 @@ public partial class BattleMapPanel : Control
         }
         _battleEquipmentSnapshot = snapshot.EquipmentPanel;
         header_title_label.Text = string.IsNullOrEmpty(snapshot.HeaderTitle)
-            ? "战斗地图"
+            ? "遭遇战"
             : snapshot.HeaderTitle;
         tu_label.Text = snapshot.RoundBadge?.TuText ?? "TU --";
         ready_label.Text = snapshot.RoundBadge?.ReadyText ?? "READY 0";
