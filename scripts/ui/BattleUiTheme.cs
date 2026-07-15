@@ -109,7 +109,7 @@ public static class BattleUiTheme
 
     public static int PROGRESS_BAR_HEIGHT_PRIMARY() => 18;
 
-    public static int PROGRESS_BAR_HEIGHT_SECONDARY() => 14;
+    public static int PROGRESS_BAR_HEIGHT_SECONDARY() => 18;
 
     public static int TIMELINE_ENTRY_SIZE() => 26;
 

@@ -1,7 +1,7 @@
 # 战斗地图 UI 不足分析
 
 初次记录：`2026-04-25`
-最近核对：`2026-06-17`
+最近核对：`2026-07-16`
 
 ## 状态
 
@@ -28,18 +28,16 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 
 2026-06-17 的核对中再增：全文路径 / 行号 / 类名从 `.gd` 同步到 C# 实现；A1 残留与 A2 缺失两项硬伤已在 C# 代码中复核仍然成立（见各条更新后的引用），其余条目坐标已刷新，结论未变。
 
+2026-07-16 的核对中清除以下已落地条目：
+
+- **A1 残留 + A2 指令区**：已由 2026-06 下旬的指令区重建落地（`BattleMapPanel._create_command_dock` 代码内建节点；`confirm_ready` 挂结算按钮高亮 `_set_resolve_highlight`；hint/log/variant 信息位齐备）。回归：`run_battle_command_dock_snapshot_regression.cs`（数据层）+ `run_battle_map_panel_schema_regression.cs`（面板渲染）。C4 ModeButton 决定不做——战中没有切换 `control_mode` 的运行时命令通道，`ModeValueLabel` 保持只读（详见该决定的会话纪要）。
+- **C3 伤害预扣段**：`BattleHoverPreviewOverlay` 的目标 HP 条改为双层叠放（`TargetHpStack`：下层预警色按当前 HP 填充，上层 HP 色按"受击后剩余"填充，露出的色带即预计伤害段），HP 文本追加"→ 受击后 X~Y"。回归：`run_battle_hover_hp_predict_regression.cs`。注：预扣段落在 hover 浮层（钉在地图左侧的事实目标预览卡）而非 UnitCard——UnitCard 显示的是焦点单位而非受击目标。
+- **D1 副资源条偏窄**：Stamina/MP/Aura 由 14px 升到 18px（`battle_map_panel.tscn` + `BattleUiTheme.PROGRESS_BAR_HEIGHT_SECONDARY`），hover 浮层 HP 条同步升到 18px。
+- **C1 header 开发占位**：缺 `encounter_display_name` 时的回落文案由开发占位"战斗地图"改为通用的"遭遇战"（`BattleHudAdapter` + `BattleMapPanel` 占位态 + 场景默认文本三处同步）。
+
 ## A. 结构性硬伤（数据产生了但没地方显示）
 
-1. **`confirm_ready` / `auto_cast_ready` 仍无渲染入口（A1 残留）**
-    - hover 浮层已经接管 `hit_stage_rates` / `fate_badges` / `damage_text` 的渲染（见 2026-05-16 清理）。
-    - 这两个字段由 `BattleHudAdapter.cs:137-138` 写入 snapshot，但在 `BattleMapPanel.cs` 和 `BattleHoverPreviewOverlay.cs` 里都搜不到读取（2026-06-17 复核仍为 0 引用）——snapshot 产出后没有任何 UI 位消费，技能确认是否就绪、是否会自动施法对玩家不可见。
-    - 落地建议：要么在 hover 浮层加 confirm 徽标行；要么放到将来的指令区（A2），与"确认结算"按钮联动显示就绪态。
-    - 详细方案：[`battle_command_dock_rebuild_plan.html`](battle_command_dock_rebuild_plan.html) §1 已把本残留收编为「confirm_ready / auto_cast_ready 挂结算按钮高亮态」。
-2. **指令区按钮 / 反馈位仍缺失**
-    - 历史上引用过的 `%ResolveBattleButton`、`%ResetMovementButton`、`%PrevVariantButton`、`%NextVariantButton`、`%ClearSkillButton`、`%CommandDock`、`%CommandSummaryLabel`、`%HintLabel`、`%LogLabel`、`%UnitDetailLabel` 等节点都已经从脚本中清除（`get_node_or_null` 不再允许），但**对应的 UI 功能位也消失了**。
-    - 业务命令仍走 `command_battle_cycle_variant` / `command_battle_clear_skill` 等通道（`scripts/systems/game_runtime/BattleSessionFacade.cs` / `GameRuntimeFacade.cs`），世界系统键盘、文本命令、回归测试都可用；玩家在面板上没有可见的“确认结算 / 重置移动 / 切换变体 / 提示 / 战报回显”入口。
-    - 后续补 UI 时需要重新设计节点和信号，避免再出现“snapshot 已经产出但没有渲染位”的情况。
-    - 详细方案：[`battle_command_dock_rebuild_plan.html`](battle_command_dock_rebuild_plan.html)（2026-05-16，源自本条；2026-06-17 已复核与 C# 实现一致）。要点：纯渲染层补齐、不新增命令；技能槽取消 1-9 键绑定改纯鼠标；**砍掉 ResetMovementButton**（`ResetBattleFocus` 实为聚焦单位、移动点即时扣减无撤销）；附带记录 KEY_R 双路径冲突待清。
+（本节两项已于 2026-07-16 核对确认全部落地并清除，见上方核对增量。）
 
 ## B. 信息架构 / 布局
 
@@ -57,27 +55,22 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 
 ## C. 交互与反馈
 
-1. **header 标题在缺 encounter_display_name 时回落到“战斗地图”**
-    - `BattleHudAdapter.cs:90-92` 已经改成“若 encounter 名非空则用 encounter 名，否则 fallback 到‘战斗地图’”。
-    - 但在 fixture / 早期 reveal / 缺 callback 的场景下仍会显示开发占位“战斗地图”，应明确：要么保证 encounter name 始终可解析，要么改成更通用的回落（如关卡 / 章节名）。
+1. ~~header 标题回落到“战斗地图”~~（2026-07-16 已改为通用回落“遭遇战”，见核对增量。）
 2. **技能快捷键提示只在槽位上**
     - `_create_skill_slot` 给每个技能槽渲染了 hotkey label（`BattleMapPanel.cs:2278-2285`），玩家能看到“1/2/3…”这类字符。
     - 但场景里没有专门的键位说明面板 / 帮助提示位，缺少“按 Esc 取消选中”“Tab 切换变体”这类全局键位提示。
-3. **没有伤害 / 治疗预览**
-    - 选中目标时，目标 HP 条应显示“预扣血段”。
-    - 当前 `hp_bar` 只是单色进度条，无分段反馈；脚本里也搜索不到 `damage_preview` 相关逻辑。
+3. ~~没有伤害 / 治疗预览~~（2026-07-16 已在 hover 浮层目标 HP 条落地预扣血段，见核对增量。治疗预览仍未做。）
 4. **模式切换无交互**
     - `ModeValueLabel`（文本“手动”）仍是只读 Label。
     - AI / 暂停 / 加速等运行时控制缺按钮入口。
+    - 2026-06-27 决定：ModeButton **不做**——战中缺少切换 `control_mode` 的运行时命令通道，做它需要新增 `CommandBattleToggleControlMode`（涉 AI 回合 / mutation guard），不属于纯渲染层补齐。
 5. **视口操作无视觉指示**
     - `_on_map_viewport_container_gui_input` 支持缩放 / 平移 / 中键拖拽。
     - 界面上没有当前缩放级别、没有“重置视角”按钮，新玩家难以察觉这些操作存在。
 
 ## D. 视觉 / 可读性
 
-1. **副资源进度条仍偏窄**
-    - HP 已经升到 18px（`BattleUiTheme.PROGRESS_BAR_HEIGHT_PRIMARY`），但 Stamina/MP/Aura 三条还保持 14px（`PROGRESS_BAR_HEIGHT_SECONDARY`）。
-    - 14px 在小分辨率下细节仍偏弱；伤害预览段（C4）落地时需要顺手评估是否一并加高。
+（D1 副资源条已于 2026-07-16 升到 18px 并清除，见核对增量。）
 
 ## E. 与 RuntimeLogDock 协同
 
@@ -90,21 +83,21 @@ A1 行动队列渲染（`_rebuild_timeline_row` + 场景 `TimelineRow`）、A3 �
 
 ## 优先级建议
 
+（2026-07-16 更新：原“必做”清单中 A1/A2/C1 已落地，C3/D1 应做项已落地，均见核对增量。）
+
 ### 必做（修正硬伤）
 
-- 把 `selected_skill_confirm_ready` / `selected_skill_auto_cast_ready` 渲染到可见位置（hover 浮层加一行确认徽标，或挂到指令区按钮的就绪态）。命中分段 + 命运摘要已由 hover 浮层接管。 → A1 残留
-- 重建“指令区”：技能确认 / 切换变体 / 战报回显按钮 + 信息位，与现有 facade 命令通道挂钩（详见 [`battle_command_dock_rebuild_plan.html`](battle_command_dock_rebuild_plan.html)；该方案已论证移除「重置移动」按钮）。 → A2、C2、C4、E2
-- 处理 fixture / 早期 reveal 路径下 header 仍会显示开发占位“战斗地图”的情况。 → C1
-- 拆分 BottomPanel：UnitCard 左 / 技能面板中 / 目标预览卡右。 → B1、B2
+- 拆分 BottomPanel：UnitCard 左 / 技能面板中 / 目标预览卡右。hover 浮层已承担“目标预览卡”大部分职责（钉在地图左侧、含预扣血段），本条降级为“评估是否仍需要 BottomPanel 内的常驻目标卡”。 → B1、B2
 
 ### 应做（提升体验）
 
-- Stamina/MP/Aura 进度条升到 18px，并为 HP 条增加伤害预览分段。 → C3、D1
-- TopBar 右端放“模式按钮 + 结算按钮”，给玩家可操作入口。 → C4
+- Buff / Debuff / 状态效果指示位。 → B4
 - 命运徽章上移到 TopBar 下方独立条。 → B3
+- 治疗预览（预扣血段的反向：预回血段）。 → C3 残留
 
 ### 可选
 
 - RuntimeLogDock 增加拖动 / 自定义停靠（折叠 + 透明度已完成）。 → E1
-- Buff / Debuff 条。 → B4
-- 全局键位说明面板（已在技能槽上显示快捷键）。 → C2
+- 全局键位说明面板。 → C2
+- 视口缩放级别指示 / 重置视角按钮。 → C5
+- ModeButton：需先新增 `CommandBattleToggleControlMode` 运行时命令，2026-06-27 决定暂不做。 → C4

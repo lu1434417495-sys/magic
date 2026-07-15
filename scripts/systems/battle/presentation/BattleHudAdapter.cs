@@ -150,7 +150,7 @@ public sealed class BattleHudAdapter : IDisposable
         );
         string headerTitle = !string.IsNullOrWhiteSpace(encounter_display_name)
             ? encounter_display_name
-            : "战斗地图";
+            : "遭遇战";
         IReadOnlyList<BattleHudBarrierSnapshot> barrierSnapshots = BuildBarrierSnapshots(
             battle_state
         );
