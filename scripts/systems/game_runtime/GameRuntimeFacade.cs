@@ -226,6 +226,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal readonly Dictionary<string, object> _active_contract_board_context =
         new(StringComparer.Ordinal);
     internal NpcQuestOfferWindowData _active_npc_quest_offer_data;
+    internal BountyBoardWindowData _active_bounty_board_data;
     internal readonly Dictionary<string, object> _active_shop_context = new(StringComparer.Ordinal);
     internal readonly Dictionary<string, object> _active_forge_context = new(StringComparer.Ordinal);
     internal readonly Dictionary<string, object> _active_stagecoach_context =
@@ -398,6 +399,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _ClearSettlementEntryContext();
         _active_contract_board_context.Clear();
         _active_npc_quest_offer_data = null;
+        _active_bounty_board_data = null;
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
@@ -508,6 +510,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _active_game_over_context.Clear();
         _active_contract_board_context.Clear();
         _active_npc_quest_offer_data = null;
+        _active_bounty_board_data = null;
         _active_shop_context.Clear();
         _active_forge_context.Clear();
         _active_stagecoach_context.Clear();
@@ -972,6 +975,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     public IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
         _settlement_command_handler.GetNpcQuestOfferWindowDataSnapshotPlain();
 
+    public IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain() =>
+        _settlement_command_handler.GetBountyBoardWindowDataSnapshotPlain();
+
     internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
         _settlement_command_handler.GetForgeWindowDataLease();
 
@@ -991,6 +997,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal NpcQuestOfferWindowData GetActiveNpcQuestOfferData() =>
         _active_npc_quest_offer_data;
 
+    internal void SetActiveBountyBoardContext(BountyBoardWindowData data) =>
+        _active_bounty_board_data = data;
+
+    internal BountyBoardWindowData GetActiveBountyBoardData() =>
+        _active_bounty_board_data;
+
     internal void SetActiveShopContext(GDictionary context) =>
         ReplacePlainPayload(_active_shop_context, context, "GameRuntimeFacade.active_shop_context");
 
@@ -1004,6 +1016,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal void ClearActiveContractBoardContext() => _active_contract_board_context.Clear();
 
     internal void ClearActiveNpcQuestOfferContext() => _active_npc_quest_offer_data = null;
+
+    internal void ClearActiveBountyBoardContext() => _active_bounty_board_data = null;
 
     internal void ClearActiveShopContext() => _active_shop_context.Clear();
 
@@ -1229,6 +1243,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void CloseNpcQuestOfferModal() =>
         _settlement_command_handler.OnNpcQuestOfferWindowClosed();
+
+    internal void CloseBountyBoardModal() =>
+        _settlement_command_handler.OnBountyBoardWindowClosed();
 
     internal string FormatCoord(Vector2I coord) => FormatCoordInternal(coord);
 

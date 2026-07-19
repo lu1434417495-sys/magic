@@ -537,6 +537,25 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 }
                 _test.True(seenNames.Add(displayName), "small 世界里的据点实例展示名不应重复。");
 
+                if (tier > 0)
+                {
+                    bool hasGuildHall = false;
+                    foreach (Variant facilityValue in ArrayValue(settlement, "facilities"))
+                    {
+                        if (
+                            TryAsDictionary(facilityValue, out GDictionary facility)
+                            && DictString(facility, "template_id", "") == "guild_hall"
+                        )
+                        {
+                            hasGuildHall = true;
+                        }
+                    }
+                    _test.True(
+                        hasGuildHall,
+                        $"非村庄据点实例必须生成行会大厅（悬赏板入口）。settlement={displayName} tier={tier}"
+                    );
+                }
+
                 if (tier == 1)
                 {
                     foundTownInstance = true;

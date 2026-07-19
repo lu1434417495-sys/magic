@@ -5,6 +5,7 @@ internal enum SettlementPanelKind
     None = 0,
     Shop,
     ContractBoard,
+    BountyBoard,
     Forge,
     Stagecoach,
 }
@@ -24,6 +25,9 @@ internal static class SettlementPanelKinds
             case "contract_board":
                 panelKind = SettlementPanelKind.ContractBoard;
                 return true;
+            case "bounty_board":
+                panelKind = SettlementPanelKind.BountyBoard;
+                return true;
             case "forge":
                 panelKind = SettlementPanelKind.Forge;
                 return true;
@@ -40,6 +44,7 @@ internal static class SettlementPanelKinds
         {
             SettlementPanelKind.Shop => "shop",
             SettlementPanelKind.ContractBoard => "contract_board",
+            SettlementPanelKind.BountyBoard => "bounty_board",
             SettlementPanelKind.Forge => "forge",
             SettlementPanelKind.Stagecoach => "stagecoach",
             _ => "",

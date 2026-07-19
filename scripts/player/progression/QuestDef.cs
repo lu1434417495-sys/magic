@@ -35,11 +35,13 @@ public partial class QuestDef : Resource
         "provider_kind",
         "provider_interaction_id",
         "listing_channels",
+        "listing_settlement_ids",
         "tags",
         "accept_requirements",
         "objective_defs",
         "reward_entries",
         "is_repeatable",
+        "danger_tier_override",
         "accept_dialogue_text",
         "accept_feedback_success",
         "accept_feedback_failure",
@@ -120,11 +122,20 @@ public partial class QuestDef : Resource
     [Export]
     public bool is_repeatable { get; set; }
 
+    // 0 = 自动推导危险度；1..5 = 作者显式覆盖星级。派生结果只用于投影，不进存档。
+    [Export(PropertyHint.Range, "0,5")]
+    public int danger_tier_override { get; set; }
+
     [Export]
     public StringName provider_kind { get; set; } = "";
 
     [Export]
     public Godot.Collections.Array<StringName> listing_channels { get; set; } = new();
+
+    // 值为 SettlementConfig.settlement_id（运行时据点 record 的 template_id）。
+    // 悬赏板任务必须绑定至少一个据点；其它渠道当前不消费该字段，配置即报错。
+    [Export]
+    public Godot.Collections.Array<StringName> listing_settlement_ids { get; set; } = new();
 
     [Export(PropertyHint.MultilineText)]
     public string accept_dialogue_text { get; set; } = "";
@@ -146,6 +157,8 @@ public partial class QuestDef : Resource
     internal Godot.Collections.Array<Godot.Collections.Dictionary> RewardEntriesBorrowed =>
         reward_entries;
     internal Godot.Collections.Array<StringName> ListingChannelsBorrowed => listing_channels;
+    internal Godot.Collections.Array<StringName> ListingSettlementIdsBorrowed =>
+        listing_settlement_ids;
 
     internal sealed class AcceptRequirementEntryData
     {
@@ -320,8 +333,19 @@ public partial class QuestDef : Resource
             if (channel == "")
                 errors.Add($"QuestDef {(string)quest_id} 的 listing_channels 包含空值。");
         }
+        foreach (StringName settlementId in listing_settlement_ids)
+        {
+            if (settlementId == "")
+                errors.Add(
+                    $"QuestDef {(string)quest_id} 的 listing_settlement_ids 包含空值。"
+                );
+        }
         if (objective_defs.Count == 0)
             errors.Add($"QuestDef {(string)quest_id} 至少需要一个 objective_def。");
+        if (danger_tier_override < 0 || danger_tier_override > 5)
+            errors.Add(
+                $"QuestDef {(string)quest_id} 的 danger_tier_override 必须在 0..5 之间（0 表示自动推导）。"
+            );
 
         var seenObjectiveIds = new System.Collections.Generic.HashSet<StringName>();
         foreach (ObjectiveEntryData objective in GetObjectiveEntriesTyped())
@@ -498,6 +522,8 @@ public partial class QuestDef : Resource
             return null;
         if (!TryReadBoolField(payload, "is_repeatable", out bool isRepeatableValue))
             return null;
+        if (!TryGetStrictInt(payload, "danger_tier_override", out int dangerTierOverrideValue))
+            return null;
 
         var questDef = new QuestDef
         {
@@ -510,8 +536,10 @@ public partial class QuestDef : Resource
             objective_defs = objectiveDefValues,
             reward_entries = rewardEntryValues,
             is_repeatable = isRepeatableValue,
+            danger_tier_override = dangerTierOverrideValue,
             provider_kind = ReadStringName(payload, "provider_kind"),
             listing_channels = ReadStringNameArray(payload, "listing_channels"),
+            listing_settlement_ids = ReadStringNameArray(payload, "listing_settlement_ids"),
             accept_dialogue_text = ReadString(payload, "accept_dialogue_text"),
             accept_feedback_success = ReadString(payload, "accept_feedback_success"),
             accept_feedback_failure = ReadString(payload, "accept_feedback_failure"),

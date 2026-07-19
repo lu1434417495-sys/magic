@@ -11,15 +11,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 // runtime 强耦合：绝大多数状态/动作委托 GameRuntimeFacade；子服务为 C# 实例直接调用。
 public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 {
-    private const int REST_FULL_COST = 50;
-    private const int INTEL_NETWORK_COST = 50;
-    private const int STAGECOACH_COST_PER_STEP = 10;
+    internal const int REST_FULL_COST = 50;
+    internal const int INTEL_NETWORK_COST = 50;
+    internal const int STAGECOACH_COST_PER_STEP = 10;
     private const int VILLAGE_RUMOR_RANGE = 5;
     private const int INTEL_NETWORK_RANGE = 8;
     private const string PERSIST_FAILURE_ROLLBACK_MESSAGE = "存档提交失败，操作已回滚。";
-    private static readonly StringName NPC_OFFER_LISTING_CHANNEL = "npc_offer";
+    internal static readonly StringName NPC_OFFER_LISTING_CHANNEL = "npc_offer";
 
-    private static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
+    internal static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
     {
         "service_basic_supply",
         "service_local_trade",
@@ -28,13 +28,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         "service_grand_auction",
     };
 
-    private static readonly HashSet<string> STAGECOACH_INTERACTION_IDS = new()
+    internal static readonly HashSet<string> STAGECOACH_INTERACTION_IDS = new()
     {
         "service_stagecoach",
         "service_world_gate_travel",
     };
 
-    private static readonly HashSet<string> UNIMPLEMENTED_INTERACTION_IDS = new()
+    internal static readonly HashSet<string> UNIMPLEMENTED_INTERACTION_IDS = new()
     {
         "service_join_guild",
         "service_identify_relic",
@@ -53,16 +53,28 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GameRuntimeFacade Runtime
+    internal GameRuntimeFacade Runtime
     {
         get => ResolveWeakRef(_runtimeRef);
         set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    private SettlementShopService _shop_service = new();
-    private SettlementForgeService _forge_service = new();
-    private SettlementResearchService _research_service = new();
-    private readonly QuestAcceptRequirementEvaluator _quest_accept_evaluator = new();
+    internal SettlementShopService _shop_service = new();
+    internal SettlementForgeService _forge_service = new();
+    internal SettlementResearchService _research_service = new();
+    internal readonly QuestAcceptRequirementEvaluator _quest_accept_evaluator = new();
+    private readonly GameRuntimeContractBoardCommandHandler _contractBoardHandler = new();
+    private readonly GameRuntimeNpcQuestOfferCommandHandler _npcQuestOfferHandler = new();
+    private readonly GameRuntimeServiceWindowCommandHandler _serviceWindowHandler = new();
+    private readonly GameRuntimeSettlementWindowDataBuilder _windowDataBuilder = new();
+
+    public GameRuntimeSettlementCommandHandler()
+    {
+        _contractBoardHandler.Setup(this, _npcQuestOfferHandler, _windowDataBuilder);
+        _npcQuestOfferHandler.Setup(this, _contractBoardHandler);
+        _serviceWindowHandler.Setup(this, _windowDataBuilder, _contractBoardHandler);
+        _windowDataBuilder.Setup(this, _serviceWindowHandler);
+    }
 
     private sealed class SettlementActionValidationResult
     {
@@ -92,46 +104,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
         internal static SettlementActionValidationResult Failure(string message) =>
             new(false, message);
-    }
-
-    private sealed class ContractBoardQuestData
-    {
-        public QuestDefinition QuestDefinition { get; }
-        public StringName QuestId { get; }
-        public string DisplayName { get; }
-        public string Description { get; }
-        public string ProviderInteractionId { get; }
-        public IReadOnlyList<QuestObjectiveDefinition> ObjectiveEntries { get; }
-        public IReadOnlyList<QuestRewardDefinition> RewardEntries { get; }
-        public bool IsRepeatable { get; }
-        public string AcceptDialogueText { get; }
-        public string AcceptFeedbackSuccess { get; }
-        public string AcceptFeedbackFailure { get; }
-        public string AcceptConfirmationText { get; }
-
-        internal ContractBoardQuestData(
-            QuestDefinition questDefinition,
-            string displayName,
-            string description,
-            string providerInteractionId,
-            IReadOnlyList<QuestObjectiveDefinition> objectiveEntries,
-            IReadOnlyList<QuestRewardDefinition> rewardEntries
-        )
-        {
-            QuestDefinition = questDefinition;
-            QuestId = questDefinition?.QuestId ?? "";
-            DisplayName = displayName ?? "";
-            Description = description ?? "";
-            ProviderInteractionId = providerInteractionId ?? "";
-            ObjectiveEntries =
-                objectiveEntries ?? System.Array.Empty<QuestObjectiveDefinition>();
-            RewardEntries = rewardEntries ?? System.Array.Empty<QuestRewardDefinition>();
-            IsRepeatable = questDefinition?.IsRepeatable ?? false;
-            AcceptDialogueText = questDefinition?.AcceptDialogueText ?? "";
-            AcceptFeedbackSuccess = questDefinition?.AcceptFeedbackSuccess ?? "";
-            AcceptFeedbackFailure = questDefinition?.AcceptFeedbackFailure ?? "";
-            AcceptConfirmationText = questDefinition?.AcceptConfirmationText ?? "";
-        }
     }
 
     private sealed class SettlementServiceEntryResolution
@@ -171,41 +143,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             );
     }
 
-    private sealed class StagecoachDestinationData
-    {
-        public string SettlementId { get; }
-        public string DisplayName { get; }
-        public string TierName { get; }
-        public int TravelCost { get; }
-        public bool CanTravel { get; }
-        public string DisabledReason { get; }
-        public Vector2I Coord { get; }
-        public string InteractionScriptId { get; }
-
-        internal StagecoachDestinationData(
-            string settlementId,
-            string displayName,
-            string tierName,
-            int travelCost,
-            bool canTravel,
-            string disabledReason,
-            Vector2I coord,
-            string interactionScriptId
-        )
-        {
-            SettlementId = settlementId ?? "";
-            DisplayName = displayName ?? "";
-            TierName = tierName ?? "";
-            TravelCost = travelCost;
-            CanTravel = canTravel;
-            DisabledReason = disabledReason ?? "";
-            Coord = coord;
-            InteractionScriptId = interactionScriptId ?? "";
-        }
-
-    }
-
-    private readonly struct SettlementPersistResult
+    internal readonly struct SettlementPersistResult
     {
         public readonly bool Ok;
         public readonly int PartyError;
@@ -225,7 +163,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     }
 
-    private sealed class SettlementCommandRollbackSnapshot
+    internal sealed class SettlementCommandRollbackSnapshot
     {
         private readonly Dictionary<string, object> _activeShopContext =
             new(StringComparer.Ordinal);
@@ -236,6 +174,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         private readonly Dictionary<string, object> _activeStagecoachContext =
             new(StringComparer.Ordinal);
         private NpcQuestOfferWindowData _activeNpcQuestOfferContext;
+        private BountyBoardWindowData _activeBountyBoardContext;
         public RuntimeTransactionRollbackState RuntimeState { get; }
         public RuntimeModalKind ActiveModalKind { get; }
         public string ActiveSettlementId { get; }
@@ -253,6 +192,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         internal IReadOnlyDictionary<string, object> ActiveStagecoachContextPlain =>
             RuntimePlainPayload.CloneDictionary(_activeStagecoachContext);
         internal NpcQuestOfferWindowData ActiveNpcQuestOfferContext => _activeNpcQuestOfferContext;
+        internal BountyBoardWindowData ActiveBountyBoardContext => _activeBountyBoardContext;
 
         internal SettlementCommandRollbackSnapshot(
             RuntimeTransactionRollbackState runtimeState,
@@ -267,7 +207,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             IReadOnlyDictionary<string, object> activeContractBoardContext,
             IReadOnlyDictionary<string, object> activeForgeContext,
             IReadOnlyDictionary<string, object> activeStagecoachContext,
-            NpcQuestOfferWindowData activeNpcQuestOfferContext
+            NpcQuestOfferWindowData activeNpcQuestOfferContext,
+            BountyBoardWindowData activeBountyBoardContext
         )
         {
             RuntimeState = runtimeState;
@@ -295,6 +236,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 activeStagecoachContext
             );
             _activeNpcQuestOfferContext = activeNpcQuestOfferContext;
+            _activeBountyBoardContext = activeBountyBoardContext;
         }
     }
 
@@ -341,7 +283,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         DisposeServiceInstances(recreate: true);
     }
 
-    private QuestAcceptContext _build_quest_accept_context()
+    internal QuestAcceptContext _build_quest_accept_context()
     {
         return new QuestAcceptContext
         {
@@ -368,171 +310,71 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return ReadInt(settlement, "tier", 0);
     }
 
-    internal GDictionary GetSettlementWindowData(string settlement_id = "")
-    {
-        if (!_has_runtime())
-        {
-            return new GDictionary();
-        }
-        string targetId = !string.IsNullOrEmpty(settlement_id)
-            ? settlement_id
-            : ResolveCommandSettlementId();
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(targetId);
-        GDictionary settlement = settlementLease.Value;
-        if (settlement.Count == 0)
-        {
-            return new GDictionary();
-        }
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _get_or_create_settlement_state(targetId);
-        GDictionary settlementState = settlementStateLease.Value;
-        return new GDictionary
-        {
-            ["settlement_id"] = ReadString(settlement, "settlement_id"),
-            ["display_name"] = ReadString(settlement, "display_name"),
-            ["tier_name"] = ReadString(settlement, "tier_name"),
-            ["footprint_size"] = ReadVariant(settlement, "footprint_size"),
-            ["faction_id"] = ReadString(settlement, "faction_id"),
-            ["facilities"] = ReadVariant(settlement, "facilities"),
-            ["available_services"] = _build_service_entries(settlement, settlementState),
-            ["service_npcs"] = ReadVariant(settlement, "service_npcs"),
-            ["member_options"] = _build_member_options(),
-            ["default_member_id"] = ResolveDefaultSettlementMemberId().ToString(),
-            ["state_summary_text"] = _build_settlement_state_summary(settlementState),
-            ["feedback_text"] = _build_settlement_window_feedback_text(),
-        };
-    }
-
-    internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
-        string settlementId
-    )
-    {
-        if (!_has_runtime())
-            return EmptyPlainDictionary();
-
-        string targetId = settlementId ?? "";
-        if (string.IsNullOrEmpty(targetId))
-            return EmptyPlainDictionary();
-        IReadOnlyDictionary<string, object> settlement = GetSettlementRecordSnapshotPlain(
-            targetId
-        );
-        if (settlement.Count == 0)
-            return EmptyPlainDictionary();
-
-        return new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["settlement_id"] = ReadPlainString(settlement, "settlement_id"),
-            ["display_name"] = ReadPlainString(settlement, "display_name"),
-            ["tier_name"] = ReadPlainString(settlement, "tier_name"),
-            ["faction_id"] = ReadPlainString(settlement, "faction_id"),
-            ["services"] = BuildSettlementServiceIdentityFactsPlain(settlement),
-        };
-    }
-
     internal GodotProjectionLease<GDictionary> GetShopWindowDataLease() =>
         ProjectWindowDataLease(GetShopWindowDataSnapshotPlain(), "shop");
-
-    internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = CloneActiveShopContextPlain();
-        if (context.Count == 0)
-            return context;
-
-        var entries = new List<object>();
-        AppendWindowEntriesPlain(entries, context, "buy_entries");
-        AppendWindowEntriesPlain(entries, context, "sell_entries");
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{ReadPlainInt(context, "gold")}";
-        context["state_summary_text"] = ReadPlainString(context, "feedback_text");
-        context["action_id"] = "shop:trade";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-            SettlementPanelKind.Shop
-        );
-        context["show_member_selector"] = true;
-        context.Remove("party_state");
-        context["member_options"] = BuildMemberOptionsSnapshotPlain();
-        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
-        return context;
-    }
 
     internal GodotProjectionLease<GDictionary> GetContractBoardWindowDataLease() =>
         ProjectWindowDataLease(GetContractBoardWindowDataSnapshotPlain(), "contract-board");
 
-    internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = CloneActiveContractBoardContextPlain();
-        context.Remove("party_state");
-        return context;
-    }
-
-    internal IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain()
-    {
-        NpcQuestOfferWindowData data = GetActiveNpcQuestOfferContextTyped();
-        return data?.BuildSnapshotPlain() ?? EmptyPlainDictionary();
-    }
-
-    internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped()
-    {
-        return _has_runtime() ? Runtime.GetActiveNpcQuestOfferData() : null;
-    }
-
     internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
         ProjectWindowDataLease(GetForgeWindowDataSnapshotPlain(), "forge");
-
-    internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = CloneActiveForgeContextPlain();
-        if (context.Count == 0)
-        {
-            Dictionary<string, object> shopContext = CloneActiveShopContextPlain();
-            if (WindowDataMatchesPanelKindPlain(shopContext, SettlementPanelKind.Forge))
-                context = shopContext;
-        }
-        context.Remove("party_state");
-        return context;
-    }
 
     internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
         ProjectWindowDataLease(GetStagecoachWindowDataSnapshotPlain(), "stagecoach");
 
-    internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = CloneActiveStagecoachContextPlain();
-        if (context.Count == 0)
-            return context;
+    internal GDictionary GetSettlementWindowData(string settlement_id = "") =>
+        _windowDataBuilder.GetSettlementWindowData(settlement_id);
 
-        var entries = new List<object>();
-        AppendWindowEntriesPlain(entries, context, "destinations");
-        int gold = ReadPlainInt(context, "gold");
-        context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{gold}";
-        context["state_summary_text"] = ReadPlainString(context, "feedback_text");
-        context["action_id"] = "stagecoach:travel";
-        context["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-            SettlementPanelKind.Stagecoach
-        );
-        context["meta"] =
-            $"驿站：{ReadPlainString(context, "origin_name")}  |  金币：{gold}";
-        context["confirm_label"] = "确认出发";
-        context["cancel_label"] = "返回据点";
-        context["show_member_selector"] = true;
-        context["entry_title"] = "可选路线";
-        context["summary_title"] = "行程概况";
-        context["state_title"] = "行程状态";
-        context["cost_title"] = "行程费用";
-        context["details_title"] = "行程说明";
-        context["member_title"] = "出发成员";
-        context["empty_state_label"] = "状态：暂无路线";
-        context["empty_cost_label"] = "费用：暂无路线";
-        context["empty_details_text"] = "当前没有可用路线。";
-        context.Remove("party_state");
-        context["member_options"] = BuildMemberOptionsSnapshotPlain();
-        context["default_member_id"] = ResolveDefaultSettlementMemberId().ToString();
-        return context;
-    }
+    internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
+        string settlementId
+    ) => _windowDataBuilder.GetSettlementHeadlessFactsPlain(settlementId);
 
-    private static GodotProjectionLease<GDictionary> ProjectWindowDataLease(
+    internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
+        _contractBoardHandler.GetContractBoardWindowDataSnapshotPlain();
+
+    internal IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
+        _npcQuestOfferHandler.GetNpcQuestOfferWindowDataSnapshotPlain();
+
+    internal NpcQuestOfferWindowData GetActiveNpcQuestOfferContextTyped() =>
+        _npcQuestOfferHandler.GetActiveNpcQuestOfferContextTyped();
+
+    internal IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain() =>
+        _serviceWindowHandler.GetShopWindowDataSnapshotPlain();
+
+    internal IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
+        _serviceWindowHandler.GetForgeWindowDataSnapshotPlain();
+
+    internal IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain() =>
+        _serviceWindowHandler.GetStagecoachWindowDataSnapshotPlain();
+
+    internal IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain() =>
+        _contractBoardHandler.GetBountyBoardWindowDataSnapshotPlain();
+
+    internal BountyBoardWindowData GetActiveBountyBoardContextTyped() =>
+        _contractBoardHandler.GetActiveBountyBoardContextTyped();
+
+    internal void SetActiveBountyBoardContext(BountyBoardWindowData data) =>
+        _contractBoardHandler.SetActiveBountyBoardContext(data);
+
+    internal void ClearActiveBountyBoardContext() =>
+        _contractBoardHandler.ClearActiveBountyBoardContext();
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandShopBuyTyped(
+        StringName item_id,
+        int quantity
+    ) => _serviceWindowHandler.CommandShopBuyTyped(item_id, quantity);
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandShopSellTyped(
+        StringName item_id,
+        int quantity,
+        StringName instance_id = null
+    ) => _serviceWindowHandler.CommandShopSellTyped(item_id, quantity, instance_id);
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandStagecoachTravelTyped(
+        string settlement_id
+    ) => _serviceWindowHandler.CommandStagecoachTravelTyped(settlement_id);
+
+    internal static GodotProjectionLease<GDictionary> ProjectWindowDataLease(
         IReadOnlyDictionary<string, object> snapshot,
         string windowId
     ) =>
@@ -552,6 +394,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SettlementSubmissionSource source = ReadSubmissionSource(payloadData);
         if (
             source == SettlementSubmissionSource.ContractBoard
+            || source == SettlementSubmissionSource.BountyBoard
             || source == SettlementSubmissionSource.Forge
             || source == SettlementSubmissionSource.NpcQuestOffer
         )
@@ -695,202 +538,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopBuyTyped(
-        StringName item_id,
-        int quantity
-    )
-    {
-        if (GetActiveModalKind() != RuntimeModalKind.Shop)
-        {
-            return RuntimeCommandError("当前没有打开据点商店。");
-        }
-        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return RuntimeCommandError("当前商店上下文缺失。");
-        }
-        string settlementId = ReadString(context, "settlement_id");
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
-            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
-        );
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlementId);
-        SettlementShopTradeResult result = _shop_service.BuyTyped(
-            ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _GetItemDefsTyped(),
-            GetPartyWarehouseService(),
-            GetPartyState(),
-            item_id,
-            quantity
-        );
-        if (!result.Success)
-        {
-            _refresh_active_shop_context();
-            return RuntimeCommandError(
-                string.IsNullOrEmpty(result.Message) ? "购买失败。" : result.Message
-            );
-        }
-        SetActiveSettlementState(settlementId, settlementState);
-        SettlementPersistResult persistResult = PersistChangesTyped(
-            true,
-            true,
-            false,
-            rollbackSnapshot
-        );
-        string message = string.IsNullOrEmpty(result.Message) ? "购买成功。" : result.Message;
-        if (!persistResult.Ok)
-            return RuntimeCommandPersistFailure();
-        _refresh_active_shop_context();
-        UpdateStatus(message);
-        return RuntimeCommandOk(message);
-    }
-
-    internal GameRuntimeFacade.RuntimeCommandResult CommandShopSellTyped(
-        StringName item_id,
-        int quantity,
-        StringName instance_id = null
-    )
-    {
-        instance_id ??= new StringName("");
-        if (GetActiveModalKind() != RuntimeModalKind.Shop)
-        {
-            return RuntimeCommandError("当前没有打开据点商店。");
-        }
-        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return RuntimeCommandError("当前商店上下文缺失。");
-        }
-        string settlementId = ReadString(context, "settlement_id");
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
-            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
-        );
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlementId);
-        SettlementShopTradeResult result = _shop_service.SellTyped(
-            ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _GetItemDefsTyped(),
-            GetPartyWarehouseService(),
-            GetPartyState(),
-            item_id,
-            quantity,
-            instance_id
-        );
-        if (!result.Success)
-        {
-            _refresh_active_shop_context();
-            return RuntimeCommandError(
-                string.IsNullOrEmpty(result.Message) ? "出售失败。" : result.Message
-            );
-        }
-        SetActiveSettlementState(settlementId, settlementState);
-        SettlementPersistResult persistResult = PersistChangesTyped(
-            true,
-            true,
-            false,
-            rollbackSnapshot
-        );
-        string message = string.IsNullOrEmpty(result.Message) ? "出售成功。" : result.Message;
-        if (!persistResult.Ok)
-            return RuntimeCommandPersistFailure();
-        _refresh_active_shop_context();
-        UpdateStatus(message);
-        return RuntimeCommandOk(message);
-    }
-
-    internal GameRuntimeFacade.RuntimeCommandResult CommandStagecoachTravelTyped(
-        string settlement_id
-    )
-    {
-        if (GetActiveModalKind() != RuntimeModalKind.Stagecoach)
-        {
-            return RuntimeCommandError("当前没有打开驿站路线窗口。");
-        }
-        using GodotProjectionLease<GDictionary> contextLease =
-            GetActiveStagecoachContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return RuntimeCommandError("当前没有可用的驿站路线。");
-        }
-        StagecoachDestinationData destination = ResolveStagecoachDestinationTyped(
-            context,
-            settlement_id
-        );
-        if (destination == null)
-        {
-            return RuntimeCommandError("当前驿站路线中不存在该目的地。");
-        }
-        if (!destination.CanTravel)
-        {
-            return RuntimeCommandError(
-                !string.IsNullOrEmpty(destination.DisabledReason)
-                    ? destination.DisabledReason
-                    : "当前无法前往该据点。"
-            );
-        }
-        PartyState partyState = GetPartyState();
-        if (partyState == null)
-        {
-            return RuntimeCommandError("当前不存在队伍数据。");
-        }
-        SettlementCommandRollbackSnapshot rollbackSnapshot = CaptureRollbackSnapshot(
-            new RuntimeTransaction()
-                .MarkPartyChanged()
-                .MarkWorldChanged()
-                .MarkPlayerCoordChanged()
-        );
-        int travelCost = destination.TravelCost;
-        if (!partyState.SpendGold(travelCost))
-        {
-            return RuntimeCommandError("金币不足，无法启程。");
-        }
-        string destinationId = destination.SettlementId;
-        using GodotProjectionLease<GDictionary> destinationRecordLease =
-            GetSettlementRecordLease(destinationId);
-        GDictionary destinationRecord = destinationRecordLease.Value;
-        if (destinationRecord.Count == 0)
-        {
-            return RuntimeCommandError("未找到目标据点。");
-        }
-        Vector2I destinationCoord = destination.Coord;
-        ClearSettlementEntryContext(false);
-        SetPlayerCoord(destinationCoord);
-        SetSelectedCoord(destinationCoord);
-        _mark_settlement_visited(destinationId);
-        ClearActiveStagecoachContext();
-        SetActiveModalKind(RuntimeModalKind.Settlement);
-        SetActiveSettlementId(destinationId);
-        SetSettlementFeedbackText(
-            $"驿队将你送到了 {ReadString(destinationRecord, "display_name", destinationId)}。"
-        );
-        RefreshWorldVisibility();
-        SettlementPersistResult persistResult = PersistChangesTyped(
-            true,
-            true,
-            true,
-            rollbackSnapshot
-        );
-        string message =
-            $"已从 {ReadString(context, "origin_name", "当前据点")} 抵达 {ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
-        if (!persistResult.Ok)
-            return RuntimeCommandPersistFailure();
-        UpdateStatus(message);
-        return RuntimeCommandOk(message);
-    }
-
     internal void OnSettlementActionRequested(
         string settlement_id,
         string action_id,
@@ -1001,42 +648,53 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         // branch so that `provider_kind == "npc"` quests are handled by NpcQuestOfferDialog rather than
         // swallowed by the contract-board modal. `npc` is intentionally absent from
         // QuestProviderContentRules.SupportedProviderIds().
-        if (_try_open_npc_quest_offer(settlement_id, action_id, payload, out GDictionary npcResult))
+        if (_npcQuestOfferHandler._try_open_npc_quest_offer(settlement_id, action_id, payload, out GDictionary npcResult))
         {
             return npcResult;
         }
-        if (_is_npc_quest_offer_modal_submission(payload))
+        if (_npcQuestOfferHandler._is_npc_quest_offer_modal_submission(payload))
         {
-            return _submit_npc_quest_offer_action(settlement_id, action_id, payload);
+            return _npcQuestOfferHandler._submit_npc_quest_offer_action(settlement_id, action_id, payload);
+        }
+        if (interactionScriptId == "service_bounty_registry")
+        {
+            if (_contractBoardHandler._is_bounty_board_modal_submission(payload))
+            {
+                return _contractBoardHandler._submit_bounty_board_quest_action(settlement_id, action_id, payload);
+            }
+            _contractBoardHandler._open_bounty_board_modal(settlement_id, payload);
+            return CommandOk(
+                $"已打开 {ReadString(payload, "facility_name", "悬赏板")} 的悬赏板。"
+            );
         }
         if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
         {
-            if (_is_contract_board_modal_submission(payload))
+            if (_contractBoardHandler._is_contract_board_modal_submission(payload))
             {
-                return _submit_contract_board_quest_action(settlement_id, action_id, payload);
+                return _contractBoardHandler._submit_contract_board_quest_action(settlement_id, action_id, payload);
             }
-            _open_contract_board_modal(settlement_id, payload);
+            _contractBoardHandler._open_contract_board_modal(settlement_id, payload);
             return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
             );
         }
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            _open_shop_modal(settlement_id, payload);
+            _serviceWindowHandler._open_shop_modal(settlement_id, payload);
             return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
             );
         }
-        if (_is_forge_interaction(interactionScriptId) && !_is_forge_modal_submission(payload))
+        if (_serviceWindowHandler._is_forge_interaction(interactionScriptId) && !_serviceWindowHandler._is_forge_modal_submission(payload))
         {
-            _open_forge_modal(settlement_id, payload);
+            _serviceWindowHandler._open_forge_modal(settlement_id, payload);
             return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "锻造设施")} 的锻造界面。"
             );
         }
         if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            _open_stagecoach_modal(settlement_id, payload);
+            _serviceWindowHandler._open_stagecoach_modal(settlement_id, payload);
             return CommandOk(
                 $"已打开 {ReadString(payload, "facility_name", "驿站")} 的驿站路线。"
             );
@@ -1052,9 +710,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         string message = serviceResult?.Message ?? "交互已完成。";
         SetSettlementFeedbackText(message);
         bool actionSucceeded = serviceResult?.Success ?? false;
-        if (_is_forge_interaction(interactionScriptId))
+        if (_serviceWindowHandler._is_forge_interaction(interactionScriptId))
         {
-            _refresh_active_forge_context(message);
+            _serviceWindowHandler._refresh_active_forge_context(message);
             if (actionSucceeded)
             {
                 SettlementPersistResult forgePersistResult = FinalizeSuccessfulActionTyped(
@@ -1102,6 +760,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetActiveSettlementId("");
         SetSettlementFeedbackText("");
         ClearActiveContractBoardContext();
+        ClearActiveBountyBoardContext();
         ClearActiveShopContext();
         ClearActiveForgeContext();
         ClearActiveStagecoachContext();
@@ -1125,6 +784,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         UpdateStatus("已关闭任务板，返回据点服务。");
     }
 
+    internal void OnBountyBoardWindowClosed()
+    {
+        ClearActiveBountyBoardContext();
+        SetActiveModalKind(RuntimeModalKind.Settlement);
+        UpdateStatus("已关闭悬赏板，返回据点服务。");
+    }
+
     internal void OnNpcQuestOfferWindowClosed()
     {
         ClearActiveNpcQuestOfferContext();
@@ -1136,7 +802,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     {
         using GodotProjectionLease<GDictionary> contextLease = GetActiveForgeContextLease();
         GDictionary context = contextLease.Value;
-        string forgeLabel = _resolve_forge_service_label(context);
+        string forgeLabel = _serviceWindowHandler._resolve_forge_service_label(context);
         ClearActiveForgeContext();
         SetActiveModalKind(RuntimeModalKind.Settlement);
         UpdateStatus($"已关闭{forgeLabel}，返回据点服务。");
@@ -1209,6 +875,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SettlementSubmissionSource source = ReadSubmissionSource(overrides);
         if (
             source != SettlementSubmissionSource.ContractBoard
+            && source != SettlementSubmissionSource.BountyBoard
             && source != SettlementSubmissionSource.Forge
             && source != SettlementSubmissionSource.NpcQuestOffer
         )
@@ -1230,6 +897,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             CopyIfPresent(payload, overrides, "quest_id");
             CopyIfPresent(payload, overrides, "provider_interaction_id");
             CopyIfPresent(payload, overrides, "confirm_accept");
+        }
+        else if (source == SettlementSubmissionSource.BountyBoard)
+        {
+            // 悬赏板不做逐项确认，payload 不携带 confirm_accept。
+            CopyIfPresent(payload, overrides, "quest_id");
+            CopyIfPresent(payload, overrides, "provider_interaction_id");
         }
         else if (source == SettlementSubmissionSource.Forge)
         {
@@ -1417,7 +1090,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         GDictionary payload
     )
     {
-        if (_is_contract_board_modal_submission(payload))
+        if (_contractBoardHandler._is_contract_board_modal_submission(payload))
         {
             if (GetActiveModalKind() != RuntimeModalKind.ContractBoard)
             {
@@ -1436,7 +1109,24 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             }
             return SettlementActionValidationResult.Success();
         }
-        if (_is_forge_modal_submission(payload))
+        if (_contractBoardHandler._is_bounty_board_modal_submission(payload))
+        {
+            if (GetActiveModalKind() != RuntimeModalKind.BountyBoard)
+            {
+                return SettlementActionValidationResult.Failure("当前没有打开对应的悬赏板。");
+            }
+            BountyBoardWindowData bountyContext = GetActiveBountyBoardContextTyped();
+            if (bountyContext == null || bountyContext.SettlementId.Trim() != settlement_id)
+            {
+                return SettlementActionValidationResult.Failure("当前悬赏板与请求的据点不一致。");
+            }
+            if (bountyContext.ActionId.Trim() != action_id)
+            {
+                return SettlementActionValidationResult.Failure("当前悬赏板与请求的服务入口不一致。");
+            }
+            return SettlementActionValidationResult.Success();
+        }
+        if (_serviceWindowHandler._is_forge_modal_submission(payload))
         {
             if (GetActiveModalKind() != RuntimeModalKind.Forge)
             {
@@ -1455,7 +1145,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             }
             return SettlementActionValidationResult.Success();
         }
-        if (_is_npc_quest_offer_modal_submission(payload))
+        if (_npcQuestOfferHandler._is_npc_quest_offer_modal_submission(payload))
         {
             if (GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer)
             {
@@ -1465,6 +1155,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             if (npcContext == null || npcContext.SettlementId.Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前 NPC 委托面板与请求的据点不一致。");
+            }
+            if (npcContext.ActionId.Trim() != action_id)
+            {
+                return SettlementActionValidationResult.Failure(
+                    "当前 NPC 委托面板与请求的服务入口不一致。"
+                );
             }
             return SettlementActionValidationResult.Success();
         }
@@ -1500,9 +1196,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private bool _settlement_action_requires_enabled_service(GDictionary payload)
     {
-        return !_is_contract_board_modal_submission(payload)
-            && !_is_forge_modal_submission(payload)
-            && !_is_npc_quest_offer_modal_submission(payload);
+        return !_contractBoardHandler._is_contract_board_modal_submission(payload)
+            && !_contractBoardHandler._is_bounty_board_modal_submission(payload)
+            && !_serviceWindowHandler._is_forge_modal_submission(payload)
+            && !_npcQuestOfferHandler._is_npc_quest_offer_modal_submission(payload);
     }
 
     private SettlementServiceEntryResolution ResolveSettlementServiceEntryTyped(
@@ -1532,19 +1229,19 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             {
                 continue;
             }
-            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
+            SettlementServiceMetadata metadata = _windowDataBuilder.BuildServiceMetadataTyped(
                 settlement,
                 serviceData,
                 settlementState
             );
             SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["state_label"] = _build_service_state_label(
+            serviceData["state_label"] = _windowDataBuilder._build_service_state_label(
                 metadata.IsEnabled,
                 disabledReason
             );
-            serviceData["summary_text"] = _build_service_summary_text(serviceData);
-            SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
+            serviceData["summary_text"] = _windowDataBuilder._build_service_summary_text(serviceData);
+            SettlementPanelKind panelKind = _windowDataBuilder._resolve_service_panel_kind(serviceData);
             string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
             if (!string.IsNullOrEmpty(panelKindText))
             {
@@ -1587,7 +1284,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return $"{serviceLabel} 当前不可用：{disabledReason}。";
     }
 
-    private StringName ResolveDefaultSettlementMemberId()
+    internal StringName ResolveDefaultSettlementMemberId()
     {
         PartyState partyState = GetPartyState();
         if (partyState == null)
@@ -1659,7 +1356,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 "情报网更新了周边的行路信息。"
             );
         }
-        if (_is_forge_interaction(interactionScriptId))
+        if (_serviceWindowHandler._is_forge_interaction(interactionScriptId))
         {
             return _forge_service.ExecuteRecipeResultTyped(
                 settlement,
@@ -1671,7 +1368,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 _extract_quest_progress_events(payload, action_id, settlement_id)
             );
         }
-        if (_is_research_interaction(interactionScriptId))
+        if (_serviceWindowHandler._is_research_interaction(interactionScriptId))
         {
             return _research_service.ExecuteTyped(
                 settlement,
@@ -2070,392 +1767,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    private GDictArray _build_service_entries(GDictionary settlement, GDictionary settlement_state)
-    {
-        var entries = new GDictArray();
-        foreach (
-            GDictionary sourceService in Dictionaries(
-                ReadArray(settlement, "available_services")
-            )
-        )
-        {
-            GDictionary serviceData = sourceService;
-            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
-                settlement,
-                serviceData,
-                settlement_state
-            );
-            SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
-            bool isEnabled = metadata.IsEnabled;
-            string disabledReason = metadata.DisabledReason.Trim();
-            serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
-            serviceData["summary_text"] = _build_service_summary_text(serviceData);
-            SettlementPanelKind panelKind = _resolve_service_panel_kind(serviceData);
-            string panelKindText = SettlementPanelKinds.ToPayloadValue(panelKind);
-            if (!string.IsNullOrEmpty(panelKindText))
-            {
-                serviceData["panel_kind"] = panelKindText;
-            }
-            entries.Add(serviceData);
-        }
-        return entries;
-    }
-
-    private string _build_service_state_label(bool is_enabled, string disabled_reason)
-    {
-        if (is_enabled)
-        {
-            return "状态：可用";
-        }
-        if (!string.IsNullOrEmpty(disabled_reason))
-        {
-            return $"状态：{disabled_reason}";
-        }
-        return "状态：不可用";
-    }
-
-    private string _build_service_summary_text(GDictionary service_data)
-    {
-        return $"{ReadString(service_data, "facility_name").Trim()} · {ReadString(service_data, "npc_name").Trim()} · {ReadString(service_data, "service_type").Trim()}";
-    }
-
-    private SettlementPanelKind _resolve_service_panel_kind(GDictionary service_data)
-    {
-        string interactionScriptId = ReadString(service_data, "interaction_script_id").Trim();
-        if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
-        {
-            return SettlementPanelKind.Shop;
-        }
-        if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
-        {
-            return SettlementPanelKind.Stagecoach;
-        }
-        if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
-        {
-            return SettlementPanelKind.ContractBoard;
-        }
-        if (_is_forge_interaction(interactionScriptId))
-        {
-            return SettlementPanelKind.Forge;
-        }
-        return SettlementPanelKind.None;
-    }
-
-    private SettlementServiceMetadata BuildServiceMetadataTyped(
-        GDictionary settlement,
-        GDictionary service_data,
-        GDictionary settlement_state
-    )
-    {
-        string interactionScriptId = ReadString(service_data, "interaction_script_id");
-        PartyState typedPartyState = GetPartyState();
-        if (interactionScriptId == "party_warehouse")
-        {
-            return new SettlementServiceMetadata("免费", true);
-        }
-        if (interactionScriptId == "service_rest_basic")
-        {
-            return new SettlementServiceMetadata("免费", true);
-        }
-        if (interactionScriptId == "service_rest_full")
-        {
-            bool canAffordRest =
-                typedPartyState != null && typedPartyState.CanAfford(REST_FULL_COST);
-            return new SettlementServiceMetadata(
-                $"{REST_FULL_COST} 金",
-                canAffordRest,
-                canAffordRest ? "" : "金币不足"
-            );
-        }
-        if (interactionScriptId == "service_village_rumor")
-        {
-            return new SettlementServiceMetadata("免费", true);
-        }
-        if (interactionScriptId == "service_intel_network")
-        {
-            bool canAffordIntel =
-                typedPartyState != null && typedPartyState.CanAfford(INTEL_NETWORK_COST);
-            return new SettlementServiceMetadata(
-                $"{INTEL_NETWORK_COST} 金",
-                canAffordIntel,
-                canAffordIntel ? "" : "金币不足"
-            );
-        }
-        if (QuestProviderContentRules.IsSupportedProviderId(interactionScriptId))
-        {
-            return new SettlementServiceMetadata("查看任务", true);
-        }
-        if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
-        {
-            return new SettlementServiceMetadata("按商品计价", true);
-        }
-        if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
-        {
-            List<StagecoachDestinationData> destinations = BuildStagecoachDestinationData(
-                settlement,
-                interactionScriptId
-            );
-            bool hasDestinations = destinations.Count != 0;
-            return new SettlementServiceMetadata(
-                $"{STAGECOACH_COST_PER_STEP} 金/格",
-                hasDestinations,
-                hasDestinations ? "" : "暂无已访问路线"
-            );
-        }
-        if (_is_forge_interaction(interactionScriptId))
-        {
-            bool hasRecipe = _forge_service.HasAvailableRecipeTyped(
-                settlement,
-                service_data,
-                _GetItemDefsTyped(),
-                GetRecipeDefsTyped()
-            );
-            return new SettlementServiceMetadata(
-                "按配方材料",
-                hasRecipe,
-                hasRecipe ? "" : _build_forge_unavailable_reason(interactionScriptId)
-            );
-        }
-        if (_is_research_interaction(interactionScriptId))
-        {
-            return _research_service.BuildServiceMetadataTyped(typedPartyState);
-        }
-        if (UNIMPLEMENTED_INTERACTION_IDS.Contains(interactionScriptId))
-        {
-            return new SettlementServiceMetadata("未开放", false, "系统未开放");
-        }
-        return new SettlementServiceMetadata("", true);
-    }
-
-    private string _build_settlement_state_summary(GDictionary settlement_state)
-    {
-        WorldMapSettlementStateData stateData =
-            WorldMapSettlementStateData.FromDictionary(settlement_state);
-        IReadOnlyList<string> conditionStrings = stateData.ActiveConditions;
-        return string.Join(
-            "\n",
-            new[]
-            {
-                $"访问：{(stateData.Visited ? "是" : "否")}",
-                $"声望：{stateData.Reputation}",
-                $"活跃条件：{(conditionStrings.Count != 0 ? string.Join("、", conditionStrings) : "无")}",
-            }
-        );
-    }
-
-    private string _build_settlement_window_feedback_text()
-    {
-        string feedbackText = GetSettlementFeedbackText().Trim();
-        if (!string.IsNullOrEmpty(feedbackText))
-        {
-            return feedbackText;
-        }
-        return "点击服务继续，或切换成员后再操作。";
-    }
-
-    private GDictArray _build_member_options()
-    {
-        var options = new GDictArray();
-        PartyState partyState = GetPartyState();
-        if (partyState == null)
-        {
-            return options;
-        }
-        var seenMemberIds = new GDictionary();
-        foreach (StringName memberId in partyState.active_member_ids)
-        {
-            if (
-                memberId == ""
-                || seenMemberIds.ContainsKey(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            seenMemberIds[memberId] = true;
-            options.Add(_build_member_option(partyState, memberId, "上阵"));
-        }
-        foreach (StringName memberId in partyState.reserve_member_ids)
-        {
-            if (
-                memberId == ""
-                || seenMemberIds.ContainsKey(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            seenMemberIds[memberId] = true;
-            options.Add(_build_member_option(partyState, memberId, "替补"));
-        }
-        return options;
-    }
-
-    private GDictionary _build_member_option(
-        PartyState party_state,
-        StringName member_id,
-        string roster_role
-    )
-    {
-        PartyMemberState memberState = party_state.GetMemberState(member_id);
-        if (memberState == null)
-        {
-            return new GDictionary();
-        }
-        return new GDictionary
-        {
-            ["member_id"] = member_id.ToString(),
-            ["display_name"] = GetMemberDisplayName(member_id),
-            ["roster_role"] = roster_role,
-            ["is_leader"] = party_state.leader_member_id == member_id,
-            ["current_hp"] = memberState.current_hp,
-            ["current_mp"] = memberState.current_mp,
-        };
-    }
-
-    private IReadOnlyDictionary<string, object> GetSettlementRecordSnapshotPlain(
-        string settlementId
-    )
-    {
-        WorldRuntimeData worldData = Runtime?.GetActiveWorldRuntimeData();
-        if (worldData == null || string.IsNullOrEmpty(settlementId))
-            return EmptyPlainDictionary();
-        foreach (WorldMapSettlementRecordData settlement in worldData.Settlements)
-        {
-            if (settlement != null && settlement.SettlementId == settlementId)
-                return settlement.BuildSaveSnapshotPlain();
-        }
-        return EmptyPlainDictionary();
-    }
-
-    private static IReadOnlyList<object> BuildSettlementServiceIdentityFactsPlain(
-        IReadOnlyDictionary<string, object> settlement
-    )
-    {
-        var entries = new List<object>();
-        foreach (object rawEntry in ReadPlainList(settlement, "available_services"))
-        {
-            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
-                continue;
-            entries.Add(
-                new Dictionary<string, object>(StringComparer.Ordinal)
-                {
-                    ["action_id"] = ReadPlainString(entry, "action_id"),
-                    ["facility_name"] = ReadPlainString(entry, "facility_name"),
-                    ["npc_name"] = ReadPlainString(entry, "npc_name"),
-                    ["service_type"] = ReadPlainString(entry, "service_type"),
-                    ["interaction_script_id"] = ReadPlainString(
-                        entry,
-                        "interaction_script_id"
-                    ),
-                }
-            );
-        }
-        return entries;
-    }
-
-    private IReadOnlyList<object> BuildMemberOptionsSnapshotPlain()
-    {
-        var options = new List<object>();
-        PartyState partyState = GetPartyState();
-        if (partyState == null)
-            return options;
-
-        var seenMemberIds = new HashSet<StringName>();
-        foreach (StringName memberId in partyState.active_member_ids)
-        {
-            if (
-                memberId == ""
-                || !seenMemberIds.Add(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "上阵"));
-        }
-        foreach (StringName memberId in partyState.reserve_member_ids)
-        {
-            if (
-                memberId == ""
-                || !seenMemberIds.Add(memberId)
-                || partyState.GetMemberState(memberId) == null
-            )
-            {
-                continue;
-            }
-            options.Add(BuildMemberOptionSnapshotPlain(partyState, memberId, "替补"));
-        }
-        return options;
-    }
-
-    private IReadOnlyDictionary<string, object> BuildMemberOptionSnapshotPlain(
-        PartyState partyState,
-        StringName memberId,
-        string rosterRole
-    )
-    {
-        PartyMemberState memberState = partyState.GetMemberState(memberId);
-        if (memberState == null)
-            return EmptyPlainDictionary();
-        return new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["member_id"] = memberId.ToString(),
-            ["display_name"] = GetMemberDisplayName(memberId),
-            ["roster_role"] = rosterRole,
-            ["is_leader"] = partyState.leader_member_id == memberId,
-            ["current_hp"] = memberState.current_hp,
-            ["current_mp"] = memberState.current_mp,
-        };
-    }
-
-    private static void AppendWindowEntriesPlain(
-        List<object> target,
-        IReadOnlyDictionary<string, object> context,
-        string key
-    )
-    {
-        foreach (object rawEntry in ReadPlainList(context, key))
-        {
-            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
-                continue;
-            Dictionary<string, object> copy = RuntimePlainPayload.CloneDictionary(entry);
-            if (!copy.ContainsKey("is_enabled"))
-                copy["is_enabled"] = false;
-            target.Add(copy);
-        }
-    }
-
-    private Dictionary<string, object> CloneActiveShopContextPlain() =>
-        _has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveShopContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    private Dictionary<string, object> CloneActiveContractBoardContextPlain() =>
-        _has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveContractBoardContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    private Dictionary<string, object> CloneActiveForgeContextPlain() =>
-        _has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveForgeContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    private Dictionary<string, object> CloneActiveStagecoachContextPlain() =>
-        _has_runtime()
-            ? RuntimePlainPayload.CloneDictionary(Runtime.GetActiveStagecoachContextPlain())
-            : new Dictionary<string, object>(StringComparer.Ordinal);
-
-    private static bool WindowDataMatchesPanelKindPlain(
-        IReadOnlyDictionary<string, object> context,
-        SettlementPanelKind panelKind
-    )
-    {
-        return ReadPlainString(context, "panel_kind")
-            == SettlementPanelKinds.ToPayloadValue(panelKind);
-    }
-
-    private static IReadOnlyList<object> ReadPlainList(
+    internal static IReadOnlyList<object> ReadPlainList(
         IReadOnlyDictionary<string, object> values,
         string key
     )
@@ -2467,7 +1779,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 : Array.Empty<object>();
     }
 
-    private static string ReadPlainString(
+    internal static string ReadPlainString(
         IReadOnlyDictionary<string, object> values,
         string key,
         string fallback = ""
@@ -2483,7 +1795,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
-    private static int ReadPlainInt(
+    internal static int ReadPlainInt(
         IReadOnlyDictionary<string, object> values,
         string key,
         int fallback = 0
@@ -2501,879 +1813,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
-    private static Dictionary<string, object> EmptyPlainDictionary() =>
+    internal static Dictionary<string, object> EmptyPlainDictionary() =>
         new(StringComparer.Ordinal);
-
-    private void _open_contract_board_modal(string settlement_id, GDictionary payload)
-    {
-        GDictionary windowData = _build_contract_board_window_data(settlement_id, payload);
-        SetActiveContractBoardContext(windowData);
-        SetActiveModalKind(RuntimeModalKind.ContractBoard);
-        UpdateStatus(
-            $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
-        );
-    }
-
-    private GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
-    {
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlement_id);
-        GDictionary settlement = settlementLease.Value;
-        string providerInteractionId = ReadString(payload, "interaction_script_id").Trim();
-        GDictArray entries = _build_contract_board_entries(providerInteractionId);
-        string summaryText = ReadString(payload, "feedback_text").Trim();
-        if (string.IsNullOrEmpty(summaryText))
-        {
-            summaryText =
-                "选择契约后会按当前状态执行接取或领奖；重复接取、待领奖励和可重复任务都会返回明确反馈。";
-        }
-        string feedbackText = ReadString(payload, "feedback_text", "");
-        string stateSummaryText = !string.IsNullOrEmpty(feedbackText)
-            ? feedbackText
-            : _build_contract_board_state_summary(entries);
-        return new GDictionary
-        {
-            ["title"] =
-                $"{ReadString(settlement, "display_name", settlement_id)} · 任务板",
-            ["meta"] =
-                $"{ReadString(payload, "facility_name", "任务板")} · {ReadString(payload, "npc_name", "值守人员")} · {ReadString(payload, "service_type", "契约")}",
-            ["summary_text"] = summaryText,
-            ["state_summary_text"] = stateSummaryText,
-            ["service_name"] = ReadString(payload, "service_type", "任务板"),
-            ["settlement_id"] = settlement_id,
-            ["action_id"] = ReadString(payload, "action_id"),
-            ["interaction_script_id"] = providerInteractionId,
-            ["provider_interaction_id"] = providerInteractionId,
-            ["facility_id"] = ReadString(payload, "facility_id"),
-            ["facility_name"] = ReadString(payload, "facility_name"),
-            ["npc_id"] = ReadString(payload, "npc_id"),
-            ["npc_name"] = ReadString(payload, "npc_name"),
-            ["service_type"] = ReadString(payload, "service_type"),
-            ["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-                SettlementPanelKind.ContractBoard
-            ),
-            ["show_member_selector"] = false,
-            ["confirm_label"] = "确认操作",
-            ["cancel_label"] = "返回据点",
-            ["entry_title"] = "可选契约",
-            ["summary_title"] = "任务板概况",
-            ["state_title"] = "契约状态",
-            ["cost_title"] = "契约奖励",
-            ["details_title"] = "契约说明",
-            ["member_title"] = "执行成员",
-            ["empty_state_label"] = "状态：暂无契约",
-            ["empty_cost_label"] = "奖励：无",
-            ["empty_details_text"] = "当前没有可查看契约。",
-            ["entries"] = entries,
-        };
-    }
-
-    private bool _try_open_npc_quest_offer(
-        string settlement_id,
-        string action_id,
-        GDictionary payload,
-        out GDictionary result
-    )
-    {
-        result = new GDictionary();
-        if (_is_npc_quest_offer_modal_submission(payload))
-            return false;
-        string interactionScriptId = ReadString(payload, "interaction_script_id");
-        if (interactionScriptId == "")
-            return false;
-
-        var npcQuests = new List<QuestDefinition>();
-        foreach (QuestDefinition questDefinition in GetQuestDefsTyped().Values)
-        {
-            if (questDefinition.ProviderKind != "npc")
-                continue;
-            if (questDefinition.ProviderInteractionId != interactionScriptId)
-                continue;
-            if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
-                continue;
-            npcQuests.Add(questDefinition);
-        }
-
-        if (npcQuests.Count == 0)
-            return false;
-
-        NpcQuestOfferWindowData windowData = _build_npc_quest_offer_window_data(
-            settlement_id,
-            interactionScriptId,
-            npcQuests
-        );
-        SetActiveNpcQuestOfferContext(windowData);
-        SetActiveModalKind(RuntimeModalKind.NpcQuestOffer);
-        UpdateStatus($"已打开 {_resolve_npc_display_name(interactionScriptId)} 的委托。");
-        result = CommandOk($"已打开 {interactionScriptId} 的委托。");
-        return true;
-    }
-
-    private NpcQuestOfferWindowData _build_npc_quest_offer_window_data(
-        string settlement_id,
-        string npcInteractionId,
-        List<QuestDefinition> npcQuests
-    )
-    {
-        var windowData = new NpcQuestOfferWindowData
-        {
-            SettlementId = settlement_id,
-            ActionId = "",
-            NpcInteractionId = npcInteractionId,
-            NpcName = _resolve_npc_display_name(npcInteractionId),
-            SelectedQuestId = npcQuests[0].QuestId.ToString(),
-        };
-
-        foreach (QuestDefinition questDefinition in npcQuests)
-        {
-            ContractBoardQuestData questData = _build_contract_board_quest_data(
-                questDefinition
-            );
-            QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-                questDefinition,
-                _build_quest_accept_context()
-            );
-            windowData.Entries.Add(
-                new NpcQuestOfferEntryData
-                {
-                    QuestId = questDefinition.QuestId.ToString(),
-                    DisplayName = questDefinition.DisplayName,
-                    Description = questDefinition.Description,
-                    AcceptDialogueText = questDefinition.AcceptDialogueText,
-                    SummaryText = questData != null
-                        ? _build_contract_board_objective_summary(questData)
-                        : "",
-                    CostLabel = questData != null
-                        ? _build_contract_board_reward_label(questData.RewardEntries)
-                        : "奖励：无",
-                    IsEnabled = availability.CanAccept,
-                    DisabledReason = availability.DisabledReason,
-                    LockReasonId = availability.LockReasonId,
-                    AcceptFeedbackSuccess = questDefinition.AcceptFeedbackSuccess,
-                    AcceptFeedbackFailure = questDefinition.AcceptFeedbackFailure,
-                    AcceptConfirmationText = questDefinition.AcceptConfirmationText,
-                }
-            );
-        }
-
-        return windowData;
-    }
-
-    private static string _resolve_npc_display_name(string npcInteractionId)
-    {
-        if (npcInteractionId.StartsWith("npc_"))
-            npcInteractionId = npcInteractionId.Substring(4);
-        return npcInteractionId.Replace("_", " ");
-    }
-
-    private GDictArray _build_contract_board_entries(string interaction_script_id)
-    {
-        var entries = new GDictArray();
-        string normalizedInteractionId = interaction_script_id.Trim();
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = GetQuestDefsTyped();
-        var questIds = new List<StringName>(questDefs.Keys);
-        questIds.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
-        foreach (StringName questId in questIds)
-        {
-            QuestDefinition questDefinition = questDefs[questId];
-            GDictionary questEntry = _build_contract_board_entry(
-                questDefinition,
-                normalizedInteractionId
-            );
-            if (questEntry.Count != 0)
-            {
-                entries.Add(questEntry);
-            }
-        }
-        if (entries.Count == 0)
-        {
-            string missingProviderText =
-                $"当前没有 provider_interaction_id 绑定到 {normalizedInteractionId} 的任务定义。";
-            if (string.IsNullOrEmpty(normalizedInteractionId))
-            {
-                missingProviderText =
-                    "当前任务板缺少 interaction_script_id，无法匹配 provider_interaction_id。";
-            }
-            entries.Add(
-                new GDictionary
-                {
-                    ["entry_id"] = "placeholder",
-                    ["display_name"] = "当前暂无可展示契约",
-                    ["provider_kind"] = "",
-                    ["listing_channels"] = new Godot.Collections.Array<string>(),
-                    ["summary_text"] = "任务定义尚未挂到这块任务板上。",
-                    ["details_text"] = missingProviderText,
-                    ["state_id"] = "empty",
-                    ["state_label"] = "状态：空",
-                    ["cost_label"] = "奖励：无",
-                    ["is_enabled"] = false,
-                    ["disabled_reason"] = "暂无可查看任务。",
-                    ["accept_dialogue_text"] = "",
-                }
-            );
-        }
-        return entries;
-    }
-
-    private GDictionary _build_contract_board_entry(
-        QuestDefinition quest_definition,
-        string interaction_script_id
-    )
-    {
-        ContractBoardQuestData questData = _build_contract_board_quest_data(quest_definition);
-        if (questData == null)
-        {
-            return new GDictionary();
-        }
-        string providerInteractionId = questData.ProviderInteractionId.Trim();
-        if (
-            string.IsNullOrEmpty(providerInteractionId)
-            || providerInteractionId != interaction_script_id
-        )
-        {
-            return new GDictionary();
-        }
-
-        QuestProviderKind providerKind = QuestProviderContentRules.ToProviderKind(
-            quest_definition
-        );
-        if (!QuestProviderContentRules.IsSupportedProviderKind(providerKind))
-        {
-            return new GDictionary();
-        }
-
-        bool isContractBoard = interaction_script_id == "service_contract_board";
-        bool matchesProviderKind = isContractBoard
-            ? providerKind == QuestProviderKind.ServiceContractBoard
-            : providerKind == QuestProviderKind.ServiceBountyRegistry;
-        Godot.Collections.Array<QuestListingChannel> listingChannels =
-            QuestProviderContentRules.ToListingChannels(quest_definition);
-        bool matchesChannel = isContractBoard
-            ? listingChannels.Contains(QuestListingChannel.ContractBoard)
-            : listingChannels.Contains(QuestListingChannel.BountyRegistry);
-
-        if (!matchesProviderKind || !matchesChannel)
-        {
-            return new GDictionary();
-        }
-
-        string stateId = _resolve_contract_board_quest_state_id(
-            questData.QuestId,
-            questData.IsRepeatable
-        );
-
-        string disabledReason = "";
-        StringName lockReasonId = "";
-        bool isEnabled = true;
-
-        if (stateId is "available" or "repeatable")
-        {
-            QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-                quest_definition,
-                _build_quest_accept_context()
-            );
-            isEnabled = availability.CanAccept;
-            disabledReason = availability.DisabledReason;
-            lockReasonId = availability.LockReasonId;
-        }
-
-        return new GDictionary
-        {
-            ["entry_id"] = questData.QuestId.ToString(),
-            ["quest_id"] = questData.QuestId.ToString(),
-            ["provider_interaction_id"] = providerInteractionId,
-            ["provider_kind"] = quest_definition.ProviderKind.ToString(),
-            ["listing_channels"] = new Godot.Collections.Array<string>(
-                quest_definition.ListingChannels.Select(c => c.ToString())
-            ),
-            ["display_name"] = questData.DisplayName,
-            ["summary_text"] = _build_contract_board_objective_summary(questData),
-            ["details_text"] = _build_contract_board_entry_details(questData),
-            ["state_id"] = stateId,
-            ["state_label"] = _build_contract_board_state_label(stateId),
-            ["cost_label"] = _build_contract_board_reward_label(questData.RewardEntries),
-            ["is_enabled"] = isEnabled,
-            ["disabled_reason"] = disabledReason,
-            ["lock_reason_id"] = lockReasonId,
-            ["is_repeatable"] = questData.IsRepeatable,
-            ["accept_dialogue_text"] = quest_definition.AcceptDialogueText,
-            ["accept_feedback_success"] = quest_definition.AcceptFeedbackSuccess,
-            ["accept_feedback_failure"] = quest_definition.AcceptFeedbackFailure,
-            ["accept_confirmation_text"] = quest_definition.AcceptConfirmationText,
-        };
-    }
-
-    private string _resolve_contract_board_quest_state_id(
-        StringName quest_id,
-        bool is_repeatable = false
-    )
-    {
-        PartyState partyState = GetPartyState();
-        if (partyState == null)
-        {
-            return "available";
-        }
-        if (partyState.GetActiveQuestState(quest_id) != null)
-        {
-            return "active";
-        }
-        if (partyState.HasClaimableQuest(quest_id))
-        {
-            return "claimable";
-        }
-        if (partyState.HasCompletedQuest(quest_id))
-        {
-            if (is_repeatable)
-            {
-                return "repeatable";
-            }
-            return "completed";
-        }
-        return "available";
-    }
-
-    private string _build_contract_board_state_label(string state_id)
-    {
-        switch (state_id)
-        {
-            case "active":
-                return "状态：进行中";
-            case "claimable":
-                return "状态：待领奖励";
-            case "repeatable":
-                return "状态：可重复接取";
-            case "completed":
-                return "状态：已完成";
-            case "empty":
-                return "状态：空";
-            default:
-                return "状态：待接取";
-        }
-    }
-
-    private string _build_contract_board_state_summary(GDictArray entries)
-    {
-        int activeCount = 0;
-        int availableCount = 0;
-        int claimableCount = 0;
-        int repeatableCount = 0;
-        int completedCount = 0;
-        foreach (GDictionary entry in entries)
-        {
-            switch (ReadString(entry, "state_id"))
-            {
-                case "active":
-                    activeCount += 1;
-                    break;
-                case "claimable":
-                    claimableCount += 1;
-                    break;
-                case "repeatable":
-                    repeatableCount += 1;
-                    break;
-                case "completed":
-                    completedCount += 1;
-                    break;
-                case "empty":
-                    break;
-                default:
-                    availableCount += 1;
-                    break;
-            }
-        }
-        var parts = new List<string> { $"进行中 {activeCount}", $"待接取 {availableCount}" };
-        if (claimableCount > 0)
-        {
-            parts.Add($"待领奖励 {claimableCount}");
-        }
-        if (repeatableCount > 0)
-        {
-            parts.Add($"可重复 {repeatableCount}");
-        }
-        parts.Add($"已完成 {completedCount}");
-        return string.Join("  |  ", parts);
-    }
-
-    private string _build_contract_board_objective_summary(ContractBoardQuestData quest_data)
-    {
-        List<string> objectiveLines = _build_contract_board_objective_lines(quest_data);
-        return "目标：" + string.Join(" / ", objectiveLines);
-    }
-
-    private string _build_contract_board_entry_details(ContractBoardQuestData quest_data)
-    {
-        var lines = new List<string>
-        {
-            quest_data.Description,
-            _build_contract_board_objective_summary(quest_data),
-            _build_contract_board_reward_label(quest_data.RewardEntries),
-        };
-        if (!string.IsNullOrEmpty(quest_data.AcceptDialogueText))
-        {
-            lines.Add($"接取对话：{quest_data.AcceptDialogueText}");
-        }
-        if (quest_data.IsRepeatable)
-        {
-            lines.Add("说明：该契约完成后可再次接取。");
-        }
-        return string.Join("\n", lines);
-    }
-
-    private List<string> _build_contract_board_objective_lines(ContractBoardQuestData quest_data)
-    {
-        var objectiveLines = new List<string>();
-        QuestState questState = _get_active_quest_state(quest_data.QuestId);
-        string stateId = _resolve_contract_board_quest_state_id(
-            quest_data.QuestId,
-            quest_data.IsRepeatable
-        );
-        bool isCompleted = _is_contract_board_completed_state(stateId);
-        foreach (QuestObjectiveDefinition objectiveData in quest_data.ObjectiveEntries)
-        {
-            StringName objectiveId = objectiveData.ObjectiveId;
-            int targetValue = objectiveData.TargetValue;
-            int currentValue = isCompleted ? targetValue : 0;
-            if (!isCompleted && questState != null)
-            {
-                currentValue = questState.GetObjectiveProgress(objectiveId);
-            }
-            objectiveLines.Add(
-                $"{_describe_contract_board_objective(objectiveData)} {currentValue}/{targetValue}"
-            );
-        }
-        return objectiveLines;
-    }
-
-    private string _describe_contract_board_objective(
-        QuestObjectiveDefinition objective_data
-    )
-    {
-        string targetId = objective_data.TargetId.ToString();
-        if (objective_data.ObjectiveKind == QuestObjectiveKind.SettlementAction)
-        {
-            return $"据点事务 {targetId}";
-        }
-        if (objective_data.ObjectiveKind == QuestObjectiveKind.DefeatEnemy)
-        {
-            return "击败敌对遭遇";
-        }
-        if (objective_data.ObjectiveKind == QuestObjectiveKind.SubmitItem)
-        {
-            return $"提交物资 {GetItemDisplayName(objective_data.TargetId)}";
-        }
-        return "";
-    }
-
-    private string _build_contract_board_reward_label(
-        IReadOnlyList<QuestRewardDefinition> reward_entries
-    )
-    {
-        var rewardParts = new List<string>();
-        foreach (QuestRewardDefinition rewardData in reward_entries)
-        {
-            if (rewardData.RewardKind == QuestRewardKind.Gold)
-            {
-                rewardParts.Add($"{rewardData.GoldAmount} 金");
-            }
-            else if (rewardData.RewardKind == QuestRewardKind.Item)
-            {
-                rewardParts.Add($"{GetItemDisplayName(rewardData.ItemId)} x{rewardData.ItemQuantity}");
-            }
-            else if (rewardData.RewardKind == QuestRewardKind.PendingCharacterReward)
-            {
-                rewardParts.Add("角色奖励");
-            }
-        }
-        return $"奖励：{string.Join("、", rewardParts)}";
-    }
-
-    private QuestState _get_active_quest_state(StringName quest_id)
-    {
-        PartyState partyState = GetPartyState();
-        if (partyState == null)
-        {
-            return null;
-        }
-        return partyState.GetActiveQuestState(quest_id);
-    }
-
-    private StringName _resolve_active_submit_item_objective_id(
-        StringName quest_id,
-        IReadOnlyList<QuestObjectiveDefinition> objective_defs
-    )
-    {
-        QuestState questState = _get_active_quest_state(quest_id);
-        if (questState == null)
-        {
-            return "";
-        }
-        foreach (QuestObjectiveDefinition objectiveData in objective_defs)
-        {
-            if (objectiveData.ObjectiveKind != QuestObjectiveKind.SubmitItem)
-            {
-                continue;
-            }
-            StringName objectiveId = objectiveData.ObjectiveId;
-            int targetValue = objectiveData.TargetValue;
-            if (questState.IsObjectiveComplete(objectiveId, targetValue))
-            {
-                continue;
-            }
-            return objectiveId;
-        }
-        return "";
-    }
-
-    private bool _quest_has_submit_item_objective(
-        IReadOnlyList<QuestObjectiveDefinition> objective_defs
-    )
-    {
-        foreach (QuestObjectiveDefinition objectiveData in objective_defs)
-        {
-            if (objectiveData.ObjectiveKind == QuestObjectiveKind.SubmitItem)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void _open_shop_modal(string settlement_id, GDictionary payload)
-    {
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _get_or_create_settlement_state(settlement_id);
-        GDictionary settlementState = settlementStateLease.Value;
-        settlementState["world_step"] = GetWorldStep();
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlement_id);
-        GDictionary windowData = _shop_service.BuildWindowDataTyped(
-            ReadString(payload, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _GetItemDefsTyped(),
-            GetPartyWarehouseService(),
-            GetPartyGold(),
-            _GetTraitDefsTyped()
-        );
-        SetActiveSettlementState(settlement_id, settlementState);
-        windowData["settlement_id"] = settlement_id;
-        windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
-        SetActiveShopContext(windowData);
-        SetActiveModalKind(RuntimeModalKind.Shop);
-        UpdateStatus(
-            $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
-        );
-    }
-
-    private void _open_forge_modal(string settlement_id, GDictionary payload)
-    {
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlement_id);
-        GDictionary windowData = _forge_service.BuildWindowDataTyped(
-            ReadString(payload, "interaction_script_id"),
-            settlementLease.Value,
-            payload,
-            _GetItemDefsTyped(),
-            GetRecipeDefsTyped(),
-            GetPartyWarehouseService()
-        );
-        windowData["settlement_id"] = settlement_id;
-        windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
-        windowData["service_payload"] = payload;
-        windowData["member_options"] = _build_member_options();
-        StringName selectedMemberId = ReadStringName(payload, "member_id");
-        if (selectedMemberId == "")
-        {
-            selectedMemberId = ResolveDefaultSettlementMemberId();
-        }
-        windowData["default_member_id"] = selectedMemberId.ToString();
-        windowData["selected_member_id"] = selectedMemberId.ToString();
-        SetActiveForgeContext(windowData);
-        SetActiveModalKind(RuntimeModalKind.Forge);
-        UpdateStatus(
-            $"已打开 {ReadString(payload, "facility_name", "据点工坊")} 的{_resolve_forge_service_label(payload)}窗口。"
-        );
-    }
-
-    private void _open_stagecoach_modal(string settlement_id, GDictionary payload)
-    {
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlement_id);
-        GDictionary settlement = settlementLease.Value;
-        SetActiveStagecoachContext(
-            new GDictionary
-            {
-                ["title"] = $"{ReadString(settlement, "display_name", "据点")} · 驿站路线",
-                ["settlement_id"] = settlement_id,
-                ["origin_name"] = ReadString(settlement, "display_name", "据点"),
-                ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
-                ["gold"] = GetPartyGold(),
-                ["destinations"] = _build_stagecoach_destinations(
-                    settlement,
-                    ReadString(payload, "interaction_script_id")
-                ),
-                ["feedback_text"] = "选择一个已访问据点并支付路费后即可启程。",
-            }
-        );
-        SetActiveModalKind(RuntimeModalKind.Stagecoach);
-        UpdateStatus("已打开驿站路线。");
-    }
-
-    private void _refresh_active_shop_context()
-    {
-        using GodotProjectionLease<GDictionary> contextLease = GetActiveShopContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return;
-        }
-        string settlementId = ReadString(context, "settlement_id");
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        settlementState["world_step"] = GetWorldStep();
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlementId);
-        GDictionary nextContext = _shop_service.BuildWindowDataTyped(
-            ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _GetItemDefsTyped(),
-            GetPartyWarehouseService(),
-            GetPartyGold(),
-            _GetTraitDefsTyped()
-        );
-        SetActiveSettlementState(settlementId, settlementState);
-        nextContext["settlement_id"] = settlementId;
-        nextContext["interaction_script_id"] = ReadString(context, "interaction_script_id");
-        SetActiveShopContext(nextContext);
-    }
-
-    private void _refresh_active_contract_board_context(string feedback_text = "")
-    {
-        using GodotProjectionLease<GDictionary> contextLease =
-            GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return;
-        }
-        string settlementId = ReadString(context, "settlement_id");
-        GDictionary nextPayload = context;
-        if (!string.IsNullOrEmpty(feedback_text))
-        {
-            nextPayload["feedback_text"] = feedback_text;
-        }
-        GDictionary nextContext = _build_contract_board_window_data(settlementId, nextPayload);
-        SetActiveContractBoardContext(nextContext);
-    }
-
-    private void _set_contract_board_confirmation_context(StringName quest_id, string confirmation_text)
-    {
-        using GodotProjectionLease<GDictionary> contextLease =
-            GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        context["pending_confirmation_quest_id"] = quest_id.ToString();
-        context["pending_confirmation_text"] = confirmation_text;
-        context["pending_confirmation_source"] = "contract_board";
-        SetActiveContractBoardContext(context);
-    }
-
-    private void _clear_contract_board_confirmation_context()
-    {
-        using GodotProjectionLease<GDictionary> contextLease =
-            GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        context.Remove("pending_confirmation_quest_id");
-        context.Remove("pending_confirmation_text");
-        context.Remove("pending_confirmation_source");
-        SetActiveContractBoardContext(context);
-    }
-
-    private void _refresh_active_forge_context(string feedback_text = "")
-    {
-        using GodotProjectionLease<GDictionary> contextLease = GetActiveForgeContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
-        {
-            return;
-        }
-        string settlementId = ReadString(context, "settlement_id");
-        GDictionary servicePayload = ReadDictionary(context, "service_payload");
-        string interactionScriptId = ReadString(context, "interaction_script_id");
-        if (string.IsNullOrEmpty(interactionScriptId))
-        {
-            interactionScriptId = ReadString(servicePayload, "interaction_script_id");
-        }
-        using GodotProjectionLease<GDictionary> settlementLease =
-            GetSettlementRecordLease(settlementId);
-        GDictionary nextContext = _forge_service.BuildWindowDataTyped(
-            interactionScriptId,
-            settlementLease.Value,
-            servicePayload,
-            _GetItemDefsTyped(),
-            GetRecipeDefsTyped(),
-            GetPartyWarehouseService(),
-            !string.IsNullOrEmpty(feedback_text)
-                ? feedback_text
-                : ReadString(context, "feedback_text")
-        );
-        nextContext["settlement_id"] = settlementId;
-        nextContext["interaction_script_id"] = interactionScriptId;
-        nextContext["service_payload"] = servicePayload;
-        nextContext["member_options"] = ReadArray(context, "member_options");
-        string defaultMemberId = ReadString(context, "default_member_id");
-        if (string.IsNullOrEmpty(defaultMemberId))
-        {
-            defaultMemberId = ReadString(servicePayload, "member_id");
-        }
-        nextContext["default_member_id"] = defaultMemberId;
-        string selectedMemberId = ReadString(context, "selected_member_id");
-        if (string.IsNullOrEmpty(selectedMemberId))
-        {
-            selectedMemberId = defaultMemberId;
-        }
-        nextContext["selected_member_id"] = selectedMemberId;
-        SetActiveForgeContext(nextContext);
-    }
-
-    private GDictArray _build_stagecoach_destinations(
-        GDictionary origin_settlement,
-        string interaction_script_id
-    )
-    {
-        var entries = new GDictArray();
-        foreach (
-            StagecoachDestinationData destination in BuildStagecoachDestinationData(
-                origin_settlement,
-                interaction_script_id
-            )
-        )
-        {
-            entries.Add(ProjectStagecoachDestination(destination));
-        }
-        return entries;
-    }
-
-    private static GDictionary ProjectStagecoachDestination(
-        StagecoachDestinationData destination
-    )
-    {
-        if (destination == null)
-            return new GDictionary();
-
-        return new GDictionary
-        {
-            ["settlement_id"] = destination.SettlementId,
-            ["entry_id"] = $"travel:{destination.SettlementId}",
-            ["display_name"] = destination.DisplayName,
-            ["tier_name"] = destination.TierName,
-            ["travel_cost"] = destination.TravelCost,
-            ["can_travel"] = destination.CanTravel,
-            ["state_label"] = destination.CanTravel ? "状态：可出发" : "状态：不可出发",
-            ["cost_label"] = $"路费 {destination.TravelCost} 金",
-            ["summary_text"] = destination.TierName,
-            ["details_text"] = $"{destination.TierName} {destination.DisabledReason}",
-            ["is_enabled"] = destination.CanTravel,
-            ["target_settlement_id"] = destination.SettlementId,
-            ["disabled_reason"] = destination.DisabledReason,
-            ["coord"] = new GDictionary { ["x"] = destination.Coord.X, ["y"] = destination.Coord.Y },
-            ["interaction_script_id"] = destination.InteractionScriptId,
-        };
-    }
-
-    private List<StagecoachDestinationData> BuildStagecoachDestinationData(
-        GDictionary origin_settlement,
-        string interaction_script_id
-    )
-    {
-        var entries = new List<StagecoachDestinationData>();
-        string originSettlementId = ReadString(origin_settlement, "settlement_id");
-        Vector2I originCoord = ReadVector2I(origin_settlement, "origin");
-        using GodotProjectionLease<GArray> settlementsLease = GetAllSettlementRecordsLease();
-        foreach (GDictionary settlement in Dictionaries(settlementsLease.Value))
-        {
-            string settlementId = ReadString(settlement, "settlement_id");
-            if (string.IsNullOrEmpty(settlementId) || settlementId == originSettlementId)
-            {
-                continue;
-            }
-            if (!IsSettlementVisited(settlementId))
-            {
-                continue;
-            }
-            Vector2I targetCoord = ReadVector2I(settlement, "origin");
-            int travelCost =
-                (Math.Abs(targetCoord.X - originCoord.X) + Math.Abs(targetCoord.Y - originCoord.Y))
-                * STAGECOACH_COST_PER_STEP;
-            bool canTravel = GetPartyGold() >= travelCost;
-            entries.Add(
-                new StagecoachDestinationData(
-                    settlementId,
-                    ReadString(settlement, "display_name", settlementId),
-                    ReadString(settlement, "tier_name"),
-                    travelCost,
-                    canTravel,
-                    canTravel ? "" : "金币不足",
-                    targetCoord,
-                    interaction_script_id
-                )
-            );
-        }
-        return entries;
-    }
-
-    private GDictionary _find_stagecoach_destination(
-        GDictionary stagecoach_context,
-        string settlement_id
-    )
-    {
-        foreach (
-            GDictionary destination in Dictionaries(
-                ReadArray(stagecoach_context, "destinations")
-            )
-        )
-        {
-            if (ReadString(destination, "settlement_id") == settlement_id)
-            {
-                return destination;
-            }
-        }
-        return new GDictionary();
-    }
-
-    private StagecoachDestinationData ResolveStagecoachDestinationTyped(
-        GDictionary stagecoach_context,
-        string settlement_id
-    )
-    {
-        string originSettlementId = ReadString(stagecoach_context, "settlement_id");
-        if (string.IsNullOrEmpty(originSettlementId) || string.IsNullOrEmpty(settlement_id))
-        {
-            return null;
-        }
-        using GodotProjectionLease<GDictionary> originSettlementLease =
-            GetSettlementRecordLease(originSettlementId);
-        GDictionary originSettlement = originSettlementLease.Value;
-        if (originSettlement.Count == 0)
-        {
-            return null;
-        }
-        string interactionScriptId = ReadString(stagecoach_context, "interaction_script_id");
-        foreach (
-            StagecoachDestinationData destination in BuildStagecoachDestinationData(
-                originSettlement,
-                interactionScriptId
-            )
-        )
-        {
-            if (destination.SettlementId == settlement_id)
-            {
-                return destination;
-            }
-        }
-        return null;
-    }
 
     internal GDictionary RestorePartyResources(float restore_ratio, bool restore_full)
     {
@@ -3440,7 +1881,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return revealedCoords;
     }
 
-    private void _mark_settlement_visited(string settlement_id)
+    internal void _mark_settlement_visited(string settlement_id)
     {
         if (!_has_runtime())
         {
@@ -3449,10 +1890,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         Runtime.MarkSettlementVisited(settlement_id);
     }
 
-    private bool IsSettlementVisited(string settlementId) =>
+    internal bool IsSettlementVisited(string settlementId) =>
         Runtime?.IsSettlementVisited(settlementId) ?? false;
 
-    private GodotProjectionLease<GDictionary> _get_or_create_settlement_state(
+    internal GodotProjectionLease<GDictionary> _get_or_create_settlement_state(
         string settlement_id
     )
     {
@@ -3512,7 +1953,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         StringName memberId = ReadStringName(payload, "member_id");
         if (memberId != "")
         {
-            _notify_misfortune_guidance_of_forge_result(memberId, result);
+            _serviceWindowHandler._notify_misfortune_guidance_of_forge_result(memberId, result);
             RecordMemberAchievementEvent(
                 memberId,
                 "settlement_action_completed",
@@ -3532,23 +1973,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             result.PersistPlayerCoord,
             rollbackSnapshot
         );
-    }
-
-    private void _notify_misfortune_guidance_of_forge_result(
-        StringName member_id,
-        SettlementServiceResult result
-    )
-    {
-        if (member_id == "" || Runtime == null || result == null)
-        {
-            return;
-        }
-        GDictionary inventoryDelta = SettlementServiceResultProjection.ProjectInventoryDelta(result);
-        if (ReadStringName(inventoryDelta, "recipe_id") == "")
-        {
-            return;
-        }
-        Runtime?.HandleMisfortuneForgeResult(member_id, result);
     }
 
     private SettlementServiceResult BuildSettlementServiceResultTyped(
@@ -3656,7 +2080,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return scope;
     }
 
-    private SettlementCommandRollbackSnapshot CaptureRollbackSnapshot(
+    internal SettlementCommandRollbackSnapshot CaptureRollbackSnapshot(
         RuntimeTransaction rollbackScope
     )
     {
@@ -3679,7 +2103,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             Runtime.GetActiveContractBoardContextPlain(),
             Runtime.GetActiveForgeContextPlain(),
             Runtime.GetActiveStagecoachContextPlain(),
-            GetActiveNpcQuestOfferContextTyped()
+            GetActiveNpcQuestOfferContextTyped(),
+            GetActiveBountyBoardContextTyped()
         );
     }
 
@@ -3725,6 +2150,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetActiveStagecoachContext(stagecoachContextLease.Value);
         if (snapshot.ActiveNpcQuestOfferContext != null)
             SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
+        if (snapshot.ActiveBountyBoardContext != null)
+            SetActiveBountyBoardContext(snapshot.ActiveBountyBoardContext);
         if (snapshot.SettlementEntryActive)
             Runtime.SetSettlementEntryContext(
                 snapshot.SettlementEntrySourceCoord,
@@ -3775,7 +2202,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ["player_error"] = result.PlayerError,
         };
 
-    private SettlementPersistResult PersistChangesTyped(
+    internal SettlementPersistResult PersistChangesTyped(
         bool persist_party_state,
         bool persist_world_data,
         bool persist_player_coord,
@@ -3824,7 +2251,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    private bool _has_runtime()
+    internal bool _has_runtime()
     {
         return Runtime != null;
     }
@@ -3843,7 +2270,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return Runtime.BuildCommandOk(message);
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandOk(string message = "")
+    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandOk(string message = "")
     {
         return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
     }
@@ -3906,7 +2333,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         };
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
+    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandError(string message)
     {
         if (!string.IsNullOrEmpty(message))
             UpdateStatus(message);
@@ -3916,7 +2343,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeCommandPersistFailure()
+    internal GameRuntimeFacade.RuntimeCommandResult RuntimeCommandPersistFailure()
     {
         UpdateStatus(PERSIST_FAILURE_ROLLBACK_MESSAGE);
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
@@ -4016,7 +2443,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return _has_runtime() ? Runtime.GetPartyWarehouseService() : null;
     }
 
-    private IReadOnlyDictionary<StringName, ItemDefinition> _GetItemDefsTyped()
+    internal IReadOnlyDictionary<StringName, ItemDefinition> _GetItemDefsTyped()
     {
         if (!_has_runtime())
         {
@@ -4028,7 +2455,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             : new Dictionary<StringName, ItemDefinition>();
     }
 
-    private IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()
+    internal IReadOnlyDictionary<StringName, TraitDefinition> _GetTraitDefsTyped()
     {
         if (!_has_runtime())
         {
@@ -4069,17 +2496,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             : new Dictionary<StringName, QuestDefinition>();
     }
 
-    private bool _is_forge_modal_submission(GDictionary payload)
-    {
-        return ReadSubmissionSource(payload) == SettlementSubmissionSource.Forge;
-    }
-
-    private bool _is_contract_board_modal_submission(GDictionary payload)
-    {
-        return ReadSubmissionSource(payload) == SettlementSubmissionSource.ContractBoard;
-    }
-
-    private static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)
+    internal static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)
     {
         if (
             SettlementSubmissionSources.TryParse(
@@ -4091,576 +2508,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             return source;
         }
         return SettlementSubmissionSource.None;
-    }
-
-    private GDictionary _submit_contract_board_quest_action(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    )
-    {
-        if (!_has_runtime())
-        {
-            return CommandError("运行时尚未初始化。");
-        }
-        using GodotProjectionLease<GDictionary> contractBoardContextLease =
-            GetActiveContractBoardContextLease();
-        GDictionary contractBoardContext = contractBoardContextLease.Value;
-        if (ReadString(contractBoardContext, "action_id").Trim() != action_id)
-        {
-            string actionMismatchMessage = "当前任务板与请求的服务入口不一致。";
-            SetSettlementFeedbackText(actionMismatchMessage);
-            _refresh_active_contract_board_context(actionMismatchMessage);
-            UpdateStatus(actionMismatchMessage);
-            return CommandError(actionMismatchMessage);
-        }
-        StringName questId = ReadStringName(payload, "quest_id");
-        if (questId == "")
-        {
-            string missingIdMessage = "当前契约条目缺少 quest_id，无法接取。";
-            SetSettlementFeedbackText(missingIdMessage);
-            _refresh_active_contract_board_context(missingIdMessage);
-            UpdateStatus(missingIdMessage);
-            return CommandError(missingIdMessage);
-        }
-        ContractBoardQuestData questData = _resolve_contract_board_submission_quest_data(questId);
-        if (questData == null)
-        {
-            string missingQuestMessage = $"当前任务板未找到契约 {questId}。";
-            SetSettlementFeedbackText(missingQuestMessage);
-            _refresh_active_contract_board_context(missingQuestMessage);
-            UpdateStatus(missingQuestMessage);
-            return CommandError(missingQuestMessage);
-        }
-        string providerInteractionId = ReadString(payload, "provider_interaction_id").Trim();
-        if (string.IsNullOrEmpty(providerInteractionId))
-        {
-            string missingProviderMessage =
-                "当前契约条目缺少 provider_interaction_id，无法匹配任务板。";
-            SetSettlementFeedbackText(missingProviderMessage);
-            _refresh_active_contract_board_context(missingProviderMessage);
-            UpdateStatus(missingProviderMessage);
-            return CommandError(missingProviderMessage);
-        }
-        string questProviderInteractionId = questData.ProviderInteractionId.Trim();
-        if (questProviderInteractionId != providerInteractionId)
-        {
-            string providerMismatchMessage =
-                $"契约 {questData.DisplayName} 不属于当前任务板。";
-            SetSettlementFeedbackText(providerMismatchMessage);
-            _refresh_active_contract_board_context(providerMismatchMessage);
-            UpdateStatus(providerMismatchMessage);
-            return CommandError(providerMismatchMessage);
-        }
-
-        QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-            questData.QuestDefinition,
-            _build_quest_accept_context()
-        );
-
-        if (!availability.CanAccept)
-        {
-            string feedback = !string.IsNullOrEmpty(questData.AcceptFeedbackFailure)
-                ? questData.AcceptFeedbackFailure
-                : $"不满足接取条件：{availability.DisabledReason}";
-            _refresh_active_contract_board_context(feedback);
-            SetSettlementFeedbackText(feedback);
-            UpdateStatus(feedback);
-            return CommandError(feedback);
-        }
-
-        bool isConfirmationSubmission = ReadBool(payload, "confirm_accept", false);
-        using GodotProjectionLease<GDictionary> activeContractBoardLease =
-            GetActiveContractBoardContextLease();
-        bool hasPendingConfirmation =
-            ReadStringName(
-                activeContractBoardLease.Value,
-                "pending_confirmation_quest_id"
-            ) == questId;
-
-        if (!string.IsNullOrEmpty(questData.AcceptConfirmationText))
-        {
-            if (!isConfirmationSubmission && !hasPendingConfirmation)
-            {
-                _set_contract_board_confirmation_context(questId, questData.AcceptConfirmationText);
-                return CommandOk("请确认是否接取该契约。");
-            }
-
-            if (isConfirmationSubmission && !hasPendingConfirmation)
-            {
-                string bypassMessage = "该契约需要先在面板中确认。";
-                _refresh_active_contract_board_context(bypassMessage);
-                SetSettlementFeedbackText(bypassMessage);
-                UpdateStatus(bypassMessage);
-                return CommandError(bypassMessage);
-            }
-
-            if (!isConfirmationSubmission && hasPendingConfirmation)
-            {
-                string pendingMessage = "请确认是否接取该契约。";
-                _refresh_active_contract_board_context(pendingMessage);
-                SetSettlementFeedbackText(pendingMessage);
-                UpdateStatus(pendingMessage);
-                return CommandOk(pendingMessage);
-            }
-        }
-
-        if (hasPendingConfirmation)
-            _clear_contract_board_confirmation_context();
-
-        string stateId = _resolve_contract_board_quest_state_id(
-            questData.QuestId,
-            questData.IsRepeatable
-        );
-        GameRuntimeFacade.RuntimeCommandResult commandResult;
-        bool isAcceptAction = false;
-        if (stateId == "claimable")
-        {
-            commandResult = Runtime.CommandClaimQuestTyped(questId);
-        }
-        else if (stateId == "active")
-        {
-            StringName submitItemObjectiveId = _resolve_active_submit_item_objective_id(
-                questId,
-                questData.ObjectiveEntries
-            );
-            if (
-                submitItemObjectiveId != ""
-                || _quest_has_submit_item_objective(questData.ObjectiveEntries)
-            )
-            {
-                commandResult = Runtime.CommandSubmitQuestItemTyped(
-                    questId,
-                    submitItemObjectiveId
-                );
-            }
-            else
-            {
-                commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
-                isAcceptAction = true;
-            }
-        }
-        else
-        {
-            commandResult = Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
-            isAcceptAction = true;
-        }
-
-        string message;
-        if (commandResult.Ok && isAcceptAction)
-        {
-            message = !string.IsNullOrEmpty(questData.AcceptFeedbackSuccess)
-                ? questData.AcceptFeedbackSuccess
-                : $"已接取契约 {questData.DisplayName}。";
-        }
-        else
-        {
-            message = string.IsNullOrEmpty(commandResult.Message)
-                ? "任务处理失败。"
-                : commandResult.Message;
-        }
-        SetActiveSettlementId(settlement_id);
-        SetActiveModalKind(RuntimeModalKind.ContractBoard);
-        SetSettlementFeedbackText(message);
-        _refresh_active_contract_board_context(message);
-        if (commandResult.Ok)
-        {
-            return CommandOk(message);
-        }
-        return CommandError(message);
-    }
-
-    private ContractBoardQuestData _resolve_contract_board_submission_quest_data(StringName quest_id)
-    {
-        if (quest_id == "")
-            return null;
-        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = GetQuestDefsTyped();
-        if (
-            !questDefs.TryGetValue(quest_id, out QuestDefinition questDefinition)
-            || questDefinition == null
-        )
-            return null;
-        return _build_contract_board_quest_data(questDefinition);
-    }
-
-    private ContractBoardQuestData _build_contract_board_quest_data(
-        QuestDefinition quest_definition
-    )
-    {
-        if (quest_definition == null || quest_definition.QuestId == "")
-            return null;
-        string displayName = quest_definition.DisplayName.StripEdges();
-        string description = quest_definition.Description.StripEdges();
-        string providerInteractionId = quest_definition.ProviderInteractionId
-            .ToString()
-            .Trim();
-        if (
-            string.IsNullOrEmpty(displayName)
-            || string.IsNullOrEmpty(description)
-            || string.IsNullOrEmpty(providerInteractionId)
-        )
-        {
-            return null;
-        }
-        IReadOnlyList<QuestObjectiveDefinition> objectiveEntries =
-            quest_definition.Objectives;
-        if (!_is_contract_board_objective_entries_valid(objectiveEntries))
-            return null;
-        IReadOnlyList<QuestRewardDefinition> rewardEntries = quest_definition.Rewards;
-        if (!_is_contract_board_reward_entries_valid(rewardEntries))
-            return null;
-        return new ContractBoardQuestData(
-            quest_definition,
-            displayName,
-            description,
-            providerInteractionId,
-            objectiveEntries,
-            rewardEntries
-        );
-    }
-
-    private static bool _is_contract_board_objective_entries_valid(
-        IReadOnlyList<QuestObjectiveDefinition> objective_entries
-    )
-    {
-        if (objective_entries == null || objective_entries.Count == 0)
-            return false;
-        var seenObjectiveIds = new HashSet<StringName>();
-        foreach (QuestObjectiveDefinition objectiveData in objective_entries)
-        {
-            if (objectiveData == null)
-                return false;
-            if (objectiveData.ObjectiveId == "" || !seenObjectiveIds.Add(objectiveData.ObjectiveId))
-                return false;
-            if (objectiveData.TargetValue <= 0)
-                return false;
-            if (objectiveData.ObjectiveKind == QuestObjectiveKind.SettlementAction)
-            {
-                if (objectiveData.TargetId == "")
-                    return false;
-            }
-            else if (objectiveData.ObjectiveKind == QuestObjectiveKind.SubmitItem)
-            {
-                if (objectiveData.TargetId == "")
-                    return false;
-            }
-            else if (objectiveData.ObjectiveKind != QuestObjectiveKind.DefeatEnemy)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static bool _is_contract_board_reward_entries_valid(
-        IReadOnlyList<QuestRewardDefinition> reward_entries
-    )
-    {
-        if (reward_entries == null || reward_entries.Count == 0)
-            return false;
-        foreach (QuestRewardDefinition rewardData in reward_entries)
-        {
-            if (rewardData == null)
-                return false;
-            if (rewardData.RewardKind == QuestRewardKind.Gold)
-            {
-                if (rewardData.GoldAmount <= 0)
-                    return false;
-            }
-            else if (rewardData.RewardKind == QuestRewardKind.Item)
-            {
-                if (rewardData.ItemId == "" || rewardData.ItemQuantity <= 0)
-                {
-                    return false;
-                }
-            }
-            else if (rewardData.RewardKind == QuestRewardKind.PendingCharacterReward)
-            {
-                if (!_is_contract_board_pending_character_reward_valid(rewardData))
-                    return false;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static bool _is_contract_board_pending_character_reward_valid(
-        QuestRewardDefinition reward_data
-    )
-    {
-        if (reward_data.PendingRewardMemberId == "")
-            return false;
-        if (reward_data.PendingRewardEntries == null || reward_data.PendingRewardEntries.Count == 0)
-            return false;
-        foreach (
-            QuestPendingRewardEntryDefinition entryData in reward_data.PendingRewardEntries
-        )
-        {
-            if (
-                entryData == null
-                || entryData.EntryType == ""
-                || !PendingCharacterRewardContentRules.IsSupportedEntryType(entryData.EntryType)
-                || entryData.TargetId == ""
-                || entryData.Amount == 0
-            )
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private bool _is_contract_board_completed_state(string state_id)
-    {
-        return state_id == "claimable" || state_id == "completed" || state_id == "repeatable";
-    }
-
-    private bool _is_npc_quest_offer_modal_submission(GDictionary payload) =>
-        ReadString(payload, "submission_source") == "npc_quest_offer";
-
-    private sealed class NpcQuestOfferActionRequest
-    {
-        internal StringName QuestId { get; init; } = "";
-        internal bool ConfirmAccept { get; init; }
-
-        internal static bool TryParse(GDictionary payload, out NpcQuestOfferActionRequest request)
-        {
-            request = null;
-            if (payload == null)
-                return false;
-            StringName questId = ReadStringName(payload, "quest_id");
-            if (questId == "")
-                return false;
-            request = new NpcQuestOfferActionRequest
-            {
-                QuestId = questId,
-                ConfirmAccept = ReadBool(payload, "confirm_accept", false),
-            };
-            return true;
-        }
-    }
-
-    private GDictionary _submit_npc_quest_offer_action(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    )
-    {
-        if (!_has_runtime())
-        {
-            return CommandError("运行时尚未初始化。");
-        }
-        if (GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer)
-        {
-            string notOpenMessage = "当前没有打开 NPC 委托面板。";
-            UpdateStatus(notOpenMessage);
-            return CommandError(notOpenMessage);
-        }
-
-        if (!NpcQuestOfferActionRequest.TryParse(payload, out NpcQuestOfferActionRequest request))
-        {
-            string missingIdMessage = "NPC 委托提交缺少 quest_id。";
-            UpdateStatus(missingIdMessage);
-            return CommandError(missingIdMessage);
-        }
-
-        NpcQuestOfferWindowData npcContext = GetActiveNpcQuestOfferContextTyped();
-        if (npcContext == null || npcContext.SettlementId.Trim() != settlement_id)
-        {
-            string settlementMismatchMessage = "当前 NPC 委托面板与请求的据点不一致。";
-            UpdateStatus(settlementMismatchMessage);
-            return CommandError(settlementMismatchMessage);
-        }
-
-        StringName questId = request.QuestId;
-        QuestDefinition questDefinition = Runtime.GetQuestDef(questId);
-        if (questDefinition == null || questDefinition.ProviderKind != "npc")
-        {
-            string notNpcMessage = "该任务不是 NPC 委托。";
-            UpdateStatus(notNpcMessage);
-            return CommandError(notNpcMessage);
-        }
-
-        if (questDefinition.ProviderInteractionId != npcContext.NpcInteractionId)
-        {
-            string wrongNpcMessage = "该任务不属于当前 NPC。";
-            UpdateStatus(wrongNpcMessage);
-            return CommandError(wrongNpcMessage);
-        }
-
-        if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
-        {
-            string notOfferMessage = "该任务未配置为 NPC 委托。";
-            UpdateStatus(notOfferMessage);
-            return CommandError(notOfferMessage);
-        }
-
-        QuestAcceptAvailabilityResult availability = _quest_accept_evaluator.Evaluate(
-            questDefinition,
-            _build_quest_accept_context()
-        );
-
-        if (!availability.CanAccept)
-        {
-            string feedback = !string.IsNullOrEmpty(questDefinition.AcceptFeedbackFailure)
-                ? questDefinition.AcceptFeedbackFailure
-                : $"不满足接取条件：{availability.DisabledReason}";
-            _refresh_active_npc_quest_offer_context(feedback);
-            UpdateStatus(feedback);
-            return CommandError(feedback);
-        }
-
-        bool isConfirmationSubmission = request.ConfirmAccept;
-        bool hasPendingConfirmation = npcContext.PendingConfirmationQuestId == questId.ToString();
-
-        if (!string.IsNullOrEmpty(questDefinition.AcceptConfirmationText))
-        {
-            if (!isConfirmationSubmission && !hasPendingConfirmation)
-            {
-                _set_npc_quest_offer_confirmation_context(
-                    questId,
-                    questDefinition.AcceptConfirmationText
-                );
-                return CommandOk("请确认是否接受该委托。");
-            }
-
-            if (isConfirmationSubmission && !hasPendingConfirmation)
-            {
-                string bypassMessage = "该委托需要先在面板中确认。";
-                _refresh_active_npc_quest_offer_context(bypassMessage);
-                UpdateStatus(bypassMessage);
-                return CommandError(bypassMessage);
-            }
-
-            if (!isConfirmationSubmission && hasPendingConfirmation)
-            {
-                string pendingMessage = "请确认是否接受该委托。";
-                _refresh_active_npc_quest_offer_context(pendingMessage);
-                UpdateStatus(pendingMessage);
-                return CommandOk(pendingMessage);
-            }
-        }
-
-        if (hasPendingConfirmation)
-            _clear_npc_quest_offer_confirmation_context();
-
-        GameRuntimeFacade.RuntimeCommandResult commandResult = Runtime.CommandAcceptQuestTyped(
-            questId,
-            questDefinition.IsRepeatable
-        );
-        if (!commandResult.Ok)
-        {
-            _refresh_active_npc_quest_offer_context(commandResult.Message);
-            UpdateStatus(commandResult.Message);
-            return CommandError(commandResult.Message);
-        }
-
-        string successFeedback = !string.IsNullOrEmpty(
-            questDefinition.AcceptFeedbackSuccess
-        )
-            ? questDefinition.AcceptFeedbackSuccess
-            : $"已接受委托 {questDefinition.DisplayName}。";
-        _refresh_active_npc_quest_offer_context(successFeedback);
-        UpdateStatus(successFeedback);
-        return CommandOk(successFeedback);
-    }
-
-    private void _refresh_active_npc_quest_offer_context(string feedback_text)
-    {
-        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
-        if (context == null)
-            return;
-
-        string settlementId = context.SettlementId;
-        string npcInteractionId = context.NpcInteractionId;
-        var npcQuests = new List<QuestDefinition>();
-        foreach (QuestDefinition questDefinition in GetQuestDefsTyped().Values)
-        {
-            if (questDefinition.ProviderKind != "npc")
-                continue;
-            if (questDefinition.ProviderInteractionId != npcInteractionId)
-                continue;
-            if (!questDefinition.ListingChannels.Contains(NPC_OFFER_LISTING_CHANNEL))
-                continue;
-            npcQuests.Add(questDefinition);
-        }
-
-        if (npcQuests.Count == 0)
-            return;
-
-        NpcQuestOfferWindowData refreshed = _build_npc_quest_offer_window_data(
-            settlementId,
-            npcInteractionId,
-            npcQuests
-        );
-        refreshed.FeedbackText = feedback_text;
-        refreshed.SelectedQuestId = context.SelectedQuestId;
-        if (!npcQuests.Exists(q => q.QuestId.ToString() == refreshed.SelectedQuestId))
-            refreshed.SelectedQuestId = npcQuests[0].QuestId.ToString();
-        refreshed.PendingConfirmationQuestId = context.PendingConfirmationQuestId;
-        refreshed.PendingConfirmationText = context.PendingConfirmationText;
-        refreshed.PendingConfirmationSource = context.PendingConfirmationSource;
-        SetActiveNpcQuestOfferContext(refreshed);
-    }
-
-    private void _set_npc_quest_offer_confirmation_context(
-        StringName questId,
-        string confirmationText
-    )
-    {
-        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
-        if (context == null)
-            return;
-        context.PendingConfirmationQuestId = questId.ToString();
-        context.PendingConfirmationText = confirmationText;
-        context.PendingConfirmationSource = "npc_quest_offer";
-        SetActiveNpcQuestOfferContext(context);
-    }
-
-    private void _clear_npc_quest_offer_confirmation_context()
-    {
-        NpcQuestOfferWindowData context = GetActiveNpcQuestOfferContextTyped();
-        if (context == null)
-            return;
-        context.PendingConfirmationQuestId = "";
-        context.PendingConfirmationText = "";
-        context.PendingConfirmationSource = "";
-        SetActiveNpcQuestOfferContext(context);
-    }
-
-    private bool _is_forge_interaction(string interaction_script_id)
-    {
-        return _forge_service != null
-            && _forge_service.IsSupportedInteraction(interaction_script_id);
-    }
-
-    private bool _is_research_interaction(string interaction_script_id)
-    {
-        return _research_service != null
-            && _research_service.IsSupportedInteraction(interaction_script_id);
-    }
-
-    private string _build_forge_unavailable_reason(string interaction_script_id)
-    {
-        return interaction_script_id == "service_master_reforge"
-            ? "当前没有可用重铸配方"
-            : "当前没有可用锻造配方";
-    }
-
-    private string _resolve_forge_service_label(GDictionary payload)
-    {
-        string serviceType = ReadString(payload, "service_type").Trim();
-        if (!string.IsNullOrEmpty(serviceType))
-        {
-            return serviceType;
-        }
-        return
-            ReadString(payload, "interaction_script_id").Trim() == "service_master_reforge"
-            ? "大师重铸"
-            : "锻造";
     }
 
     private void DisposeServiceInstances(bool recreate)
@@ -4960,7 +2807,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             $"GameRuntimeSettlementCommandHandler.{label}"
         );
 
-    private static IEnumerable<GDictionary> Dictionaries(GArray values)
+    internal static IEnumerable<GDictionary> Dictionaries(GArray values)
     {
         if (values == null)
         {
@@ -5040,21 +2887,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return false;
     }
 
-    private static string ReadString(GDictionary data, string key, string fallback = "")
+    internal static string ReadString(GDictionary data, string key, string fallback = "")
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return fallback;
         return TryAsString(data[key], out string value) ? value : fallback;
     }
 
-    private static Variant ReadVariant(GDictionary data, string key)
+    internal static Variant ReadVariant(GDictionary data, string key)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return default;
         return data[key];
     }
 
-    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    internal static bool ReadBool(GDictionary data, string key, bool fallback = false)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return fallback;
@@ -5073,21 +2920,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return TryAsInt(data[key], out int value) ? value : fallback;
     }
 
-    private static GArray ReadArray(GDictionary data, string key)
+    internal static GArray ReadArray(GDictionary data, string key)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return new GArray();
         return TryAsArray(data[key], out GArray value) ? value : new GArray();
     }
 
-    private static GDictionary ReadDictionary(GDictionary data, string key)
+    internal static GDictionary ReadDictionary(GDictionary data, string key)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return new GDictionary();
         return TryAsDictionary(data[key], out GDictionary value) ? value : new GDictionary();
     }
 
-    private static Vector2I ReadVector2I(
+    internal static Vector2I ReadVector2I(
         GDictionary data,
         string key,
         Vector2I fallback = default
@@ -5119,7 +2966,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return false;
     }
 
-    private static StringName ReadStringName(GDictionary data, string key)
+    internal static StringName ReadStringName(GDictionary data, string key)
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
             return "";

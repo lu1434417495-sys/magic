@@ -53,6 +53,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     public ShopWindow stagecoach_service_modal;
     // Dedicated modal for NPC quest offers; driven by RuntimeModalKind.NpcQuestOffer.
     public NpcQuestOfferDialog npc_quest_offer_dialog;
+    public BountyBoardWindow bounty_board_window;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
     public ContingencySetupWindow contingency_setup_window;
@@ -959,6 +960,22 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandCloseActiveModal();
     }
 
+    public void _on_bounty_board_window_action_requested(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    )
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+    }
+
+    public void _on_bounty_board_window_closed()
+    {
+        if (_runtime != null)
+            _runtime_proxy.CommandCloseActiveModal();
+    }
+
     public void _on_shop_service_modal_action_requested(
         string _settlement_id,
         string _action_id,
@@ -1320,6 +1337,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = GetNode<ShopWindow>("ForgeServiceModal");
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
         npc_quest_offer_dialog = GetNode<NpcQuestOfferDialog>("NpcQuestOfferDialog");
+        bounty_board_window = GetNode<BountyBoardWindow>("BountyBoardWindow");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
         contingency_setup_window = GetNodeOrNull<ContingencySetupWindow>("ContingencySetupWindow");
@@ -1360,6 +1378,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
         npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
         npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
+        bounty_board_window.action_requested += _on_bounty_board_window_action_requested;
+        bounty_board_window.closed += _on_bounty_board_window_closed;
         character_info_window.closed += _on_character_info_window_closed;
         party_management_window.leader_change_requested += _on_party_leader_change_requested;
         party_management_window.roster_change_requested += _on_party_roster_change_requested;
@@ -1432,6 +1452,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.action_requested -= _on_npc_quest_offer_dialog_action_requested;
             npc_quest_offer_dialog.closed -= _on_npc_quest_offer_dialog_closed;
         }
+        if (bounty_board_window != null)
+        {
+            bounty_board_window.action_requested -= _on_bounty_board_window_action_requested;
+            bounty_board_window.closed -= _on_bounty_board_window_closed;
+        }
         if (character_info_window != null)
             character_info_window.closed -= _on_character_info_window_closed;
         if (party_management_window != null)
@@ -1501,6 +1526,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = null;
         stagecoach_service_modal = null;
         npc_quest_offer_dialog = null;
+        bounty_board_window = null;
         character_info_window = null;
         party_management_window = null;
         contingency_setup_window = null;
@@ -1568,6 +1594,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.ShowDialog(_runtime_proxy.GetNpcQuestOfferWindowDataTyped());
         else
             npc_quest_offer_dialog.HideDialog();
+        if (modalId == "bounty_board")
+            bounty_board_window.ShowBoard(_runtime_proxy.GetBountyBoardWindowDataTyped());
+        else
+            bounty_board_window.HideWindow();
         if (modalId == "character_info")
         {
             using GodotProjectionLease<GDictionary> contextLease =

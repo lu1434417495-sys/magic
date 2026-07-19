@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=79 format=3]
+[gd_resource type="Resource" script_class="WorldMapGenerationConfig" load_steps=80 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/WorldMapGenerationConfig.cs" id="1_conf"]
 [ext_resource type="Script" path="res://scripts/utils/SettlementConfig.cs" id="2_settlement"]
@@ -18,6 +18,14 @@ display_name = "誓约传令官"
 service_type = "誓约"
 interaction_script_id = "service_contract_board"
 local_slot_id = "notice_slot"
+
+[sub_resource type="Resource" id="Resource_ashen_bounty_clerk_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_ashen_bounty_clerk"
+display_name = "灰烬悬赏司录"
+service_type = "悬赏"
+interaction_script_id = "service_bounty_registry"
+local_slot_id = "choir_bounty_registry"
 
 [sub_resource type="Resource" id="Resource_supply_npc"]
 script = ExtResource("6_npc")
@@ -182,7 +190,7 @@ display_name = "炭化圣堂"
 category = "faith"
 min_settlement_tier = 3
 allowed_slot_tags = Array[String](["core", "civic", "service"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_council_npc"), SubResource("Resource_notice_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_council_npc"), SubResource("Resource_notice_npc"), SubResource("Resource_ashen_bounty_clerk_npc")])
 interaction_type = "faith"
 
 [sub_resource type="Resource" id="Resource_grand_library"]

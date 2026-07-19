@@ -49,6 +49,7 @@ public interface IGameRuntimeSnapshotSource
     IReadOnlyDictionary<string, object> GetShopWindowDataSnapshotPlain();
     IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain();
     IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain();
+    IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain();
     IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain();
     IReadOnlyDictionary<string, object> GetStagecoachWindowDataSnapshotPlain();
     IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain();

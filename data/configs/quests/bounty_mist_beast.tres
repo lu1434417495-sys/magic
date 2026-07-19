@@ -10,6 +10,7 @@ description = "迷雾兽是裂隙渗出后最常见的威胁。它们笨重，�
 provider_kind = &"service_bounty_registry"
 provider_interaction_id = &"service_bounty_registry"
 listing_channels = Array[StringName]([&"bounty_registry"])
+listing_settlement_ids = Array[StringName]([&"charred_cathedral", &"silverlight_metropolis"])
 tags = Array[StringName]([&"bounty", &"repeatable", &"ashen_intersection"])
 accept_requirements = Array[Dictionary]([])
 accept_dialogue_text = ""

@@ -115,7 +115,9 @@ public sealed class QuestDefinition
         string acceptDialogueText,
         string acceptFeedbackSuccess,
         string acceptFeedbackFailure,
-        string acceptConfirmationText
+        string acceptConfirmationText,
+        int dangerTierOverride = 0,
+        IReadOnlyList<StringName> listingSettlementIds = null
     )
     {
         QuestId = questId;
@@ -160,6 +162,17 @@ public sealed class QuestDefinition
             acceptConfirmationText,
             "QuestDefinition.AcceptConfirmationText"
         );
+        if (dangerTierOverride < 0 || dangerTierOverride > 5)
+        {
+            throw new InvalidDataException(
+                $"QuestDefinition {questId} danger_tier_override must be within 0..5."
+            );
+        }
+        DangerTierOverride = dangerTierOverride;
+        ListingSettlementIds = IdentityDefinitionProjection.FreezeList(
+            listingSettlementIds ?? System.Array.Empty<StringName>(),
+            "QuestDefinition.ListingSettlementIds"
+        );
     }
 
     public StringName QuestId { get; }
@@ -177,6 +190,8 @@ public sealed class QuestDefinition
     public string AcceptFeedbackSuccess { get; }
     public string AcceptFeedbackFailure { get; }
     public string AcceptConfirmationText { get; }
+    public int DangerTierOverride { get; }
+    public IReadOnlyList<StringName> ListingSettlementIds { get; }
 
     internal static QuestDefinition FromResource(QuestDef source, string path)
     {
@@ -222,6 +237,17 @@ public sealed class QuestDefinition
         for (int index = 0; index < listingChannels.Count; index++)
             RequireNonEmpty(listingChannels[index], $"{rootPath}.listing_channels[{index}]");
 
+        IReadOnlyList<StringName> listingSettlementIds =
+            IdentityDefinitionProjection.CopyStringNames(
+                source.ListingSettlementIdsBorrowed,
+                $"{rootPath}.listing_settlement_ids"
+            );
+        for (int index = 0; index < listingSettlementIds.Count; index++)
+            RequireNonEmpty(
+                listingSettlementIds[index],
+                $"{rootPath}.listing_settlement_ids[{index}]"
+            );
+
         EnsureCollection(source.AcceptRequirementsBorrowed, $"{rootPath}.accept_requirements");
         EnsureCollection(source.ObjectiveDefsBorrowed, $"{rootPath}.objective_defs");
         EnsureCollection(source.RewardEntriesBorrowed, $"{rootPath}.reward_entries");
@@ -261,7 +287,9 @@ public sealed class QuestDefinition
             source.accept_dialogue_text,
             source.accept_feedback_success,
             source.accept_feedback_failure,
-            source.accept_confirmation_text
+            source.accept_confirmation_text,
+            source.danger_tier_override,
+            listingSettlementIds
         );
     }
 
