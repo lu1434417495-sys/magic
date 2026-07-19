@@ -10,6 +10,7 @@ description = "一只狼群首领正在统合周边的荒狼。在它壮大之�
 provider_kind = &"service_bounty_registry"
 provider_interaction_id = &"service_bounty_registry"
 listing_channels = Array[StringName]([&"bounty_registry"])
+listing_settlement_ids = Array[StringName]([&"template_town", &"template_city", &"template_capital", &"template_world_stronghold", &"template_metropolis"])
 tags = Array[StringName]([&"bounty", &"repeatable", &"main_world"])
 accept_requirements = Array[Dictionary]([])
 accept_dialogue_text = ""

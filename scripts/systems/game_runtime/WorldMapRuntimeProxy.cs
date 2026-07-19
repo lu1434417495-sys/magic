@@ -278,6 +278,11 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetActiveNpcQuestOfferData();
     }
 
+    internal BountyBoardWindowData GetBountyBoardWindowDataTyped()
+    {
+        return _runtime?.GetActiveBountyBoardData();
+    }
+
     internal GodotProjectionLease<Dictionary> GetForgeWindowDataLease() =>
         _runtime?.GetForgeWindowDataLease()
         ?? EmptyWindowDataLease("forge");

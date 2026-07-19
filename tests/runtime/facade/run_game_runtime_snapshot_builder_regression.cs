@@ -179,7 +179,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         AssertSafetyCounters(baseline, afterCanonicalPlain, "canonical plain snapshot");
         _test.Eq(
             string.Join(",", canonical.Keys),
-            "status,modal,logs,world,submap,game_over,party,settlement,contract_board,npc_quest_offer,shop,forge,stagecoach,character_info,warehouse,battle,loot,reward,promotion",
+            "status,modal,logs,world,submap,game_over,party,settlement,contract_board,bounty_board,npc_quest_offer,shop,forge,stagecoach,character_info,warehouse,battle,loot,reward,promotion",
             "headless snapshot canonical root key order 不应漂移。"
         );
         _test.True(

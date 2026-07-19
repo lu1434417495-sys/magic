@@ -10,6 +10,7 @@ description = "有人在维持裂隙的开放。消灭那些守护裂隙的编�
 provider_kind = &"service_bounty_registry"
 provider_interaction_id = &"service_bounty_registry"
 listing_channels = Array[StringName]([&"bounty_registry"])
+listing_settlement_ids = Array[StringName]([&"charred_cathedral", &"silverlight_metropolis"])
 tags = Array[StringName]([&"ashen_intersection", &"abyss", &"bounty"])
 accept_requirements = Array[Dictionary]([{&"requirement_type": &"quest_completed", &"quest_id": &"ashen_abyss_survival"}])
 accept_dialogue_text = ""

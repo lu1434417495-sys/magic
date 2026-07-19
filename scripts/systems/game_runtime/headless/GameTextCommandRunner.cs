@@ -523,6 +523,7 @@ public sealed class GameTextCommandRunner : IDisposable
         }
         if (
             source == SettlementSubmissionSource.ContractBoard
+            || source == SettlementSubmissionSource.BountyBoard
             || source == SettlementSubmissionSource.Forge
         )
         {
@@ -1172,7 +1173,10 @@ public sealed class GameTextCommandRunner : IDisposable
             payload["member_id"] = memberId;
         if (quantity > 0)
             payload["request_quantity"] = quantity;
-        if (source == SettlementSubmissionSource.ContractBoard)
+        if (
+            source == SettlementSubmissionSource.ContractBoard
+            || source == SettlementSubmissionSource.BountyBoard
+        )
         {
             if (namedArgs.TryGetValue("quest_id", out string questId))
                 payload["quest_id"] = questId;

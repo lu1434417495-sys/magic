@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WorldMapSettlementBundle" load_steps=58 format=3]
+[gd_resource type="Resource" script_class="WorldMapSettlementBundle" load_steps=65 format=3]
 
 [ext_resource type="Script" path="res://scripts/utils/WorldMapSettlementBundle.cs" id="1_bundle"]
 [ext_resource type="Script" path="res://scripts/utils/SettlementConfig.cs" id="2_settlement"]
@@ -95,13 +95,37 @@ service_type = "部署"
 interaction_script_id = "service_elite_recruitment"
 local_slot_id = "command_slot"
 
-[sub_resource type="Resource" id="Resource_village_rest_npc"]
+[sub_resource type="Resource" id="Resource_village_chief_npc"]
 script = ExtResource("6_npc")
 npc_id = "npc_village_elder"
 display_name = "村长"
+service_type = "委托"
+interaction_script_id = "npc_village_chief"
+local_slot_id = "hearth_chief"
+
+[sub_resource type="Resource" id="Resource_village_hearth_keeper_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_village_hearth_keeper"
+display_name = "守灶人"
 service_type = "歇脚"
 interaction_script_id = "service_rest_basic"
 local_slot_id = "hearth_rest"
+
+[sub_resource type="Resource" id="Resource_village_healer_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_village_healer"
+display_name = "村医"
+service_type = "委托"
+interaction_script_id = "npc_village_healer"
+local_slot_id = "hearth_healer"
+
+[sub_resource type="Resource" id="Resource_village_hunter_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_old_hunter"
+display_name = "老猎人"
+service_type = "委托"
+interaction_script_id = "npc_old_hunter"
+local_slot_id = "hearth_hunter"
 
 [sub_resource type="Resource" id="Resource_village_rumor_npc"]
 script = ExtResource("6_npc")
@@ -110,6 +134,14 @@ display_name = "猎径向导"
 service_type = "传闻"
 interaction_script_id = "service_village_rumor"
 local_slot_id = "hearth_rumor"
+
+[sub_resource type="Resource" id="Resource_guild_bounty_clerk_npc"]
+script = ExtResource("6_npc")
+npc_id = "npc_bounty_clerk"
+display_name = "悬赏登记员"
+service_type = "悬赏"
+interaction_script_id = "service_bounty_registry"
+local_slot_id = "guild_bounty_registry"
 
 [sub_resource type="Resource" id="Resource_town_trade_npc"]
 script = ExtResource("6_npc")
@@ -180,9 +212,9 @@ script = ExtResource("5_facility")
 facility_id = "guild_hall"
 display_name = "行会大厅"
 category = "civic"
-min_settlement_tier = 2
+min_settlement_tier = 1
 allowed_slot_tags = Array[String](["core", "civic"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_guild_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_guild_npc"), SubResource("Resource_guild_bounty_clerk_npc")])
 interaction_type = "guild"
 
 [sub_resource type="Resource" id="Resource_market_square"]
@@ -242,7 +274,7 @@ display_name = "篝烟灶"
 category = "rest"
 min_settlement_tier = 0
 allowed_slot_tags = Array[String](["core"])
-bound_service_npcs = Array[Resource]([SubResource("Resource_village_rest_npc"), SubResource("Resource_village_rumor_npc"), SubResource("Resource_supply_npc"), SubResource("Resource_warehouse_npc")])
+bound_service_npcs = Array[Resource]([SubResource("Resource_village_chief_npc"), SubResource("Resource_village_healer_npc"), SubResource("Resource_village_hunter_npc"), SubResource("Resource_village_hearth_keeper_npc"), SubResource("Resource_village_rumor_npc"), SubResource("Resource_supply_npc")])
 interaction_type = "rest"
 
 [sub_resource type="Resource" id="Resource_town_market"]
@@ -296,6 +328,12 @@ script = ExtResource("3_slot")
 slot_id = "town_service"
 local_coord = Vector2i(1, 1)
 slot_tag = "service"
+
+[sub_resource type="Resource" id="Resource_town_slot_civic"]
+script = ExtResource("3_slot")
+slot_id = "town_civic"
+local_coord = Vector2i(0, 0)
+slot_tag = "civic"
 
 [sub_resource type="Resource" id="Resource_city_slot_core"]
 script = ExtResource("3_slot")
@@ -360,6 +398,12 @@ slot_id = "stronghold_service"
 local_coord = Vector2i(3, 2)
 slot_tag = "service"
 
+[sub_resource type="Resource" id="Resource_stronghold_slot_civic"]
+script = ExtResource("3_slot")
+slot_id = "stronghold_civic"
+local_coord = Vector2i(2, 1)
+slot_tag = "civic"
+
 [sub_resource type="Resource" id="Resource_metropolis_slot_core"]
 script = ExtResource("3_slot")
 slot_id = "metropolis_core"
@@ -390,6 +434,12 @@ script = ExtResource("3_slot")
 slot_id = "metropolis_support"
 local_coord = Vector2i(4, 4)
 slot_tag = "support"
+
+[sub_resource type="Resource" id="Resource_metropolis_slot_guild"]
+script = ExtResource("3_slot")
+slot_id = "metropolis_guild"
+local_coord = Vector2i(0, 1)
+slot_tag = "civic"
 
 [sub_resource type="Resource" id="Resource_optional_supply"]
 script = ExtResource("4_weighted")
@@ -431,8 +481,8 @@ script = ExtResource("2_settlement")
 settlement_id = "template_town"
 display_name = "城镇"
 tier = 1
-facility_slots = Array[Resource]([SubResource("Resource_town_slot_core"), SubResource("Resource_town_slot_market"), SubResource("Resource_town_slot_support"), SubResource("Resource_town_slot_service")])
-guaranteed_facility_ids = Array[String](["inn", "workshop", "market_stall", "coach_station"])
+facility_slots = Array[Resource]([SubResource("Resource_town_slot_core"), SubResource("Resource_town_slot_civic"), SubResource("Resource_town_slot_market"), SubResource("Resource_town_slot_support"), SubResource("Resource_town_slot_service")])
+guaranteed_facility_ids = Array[String](["inn", "workshop", "market_stall", "coach_station", "guild_hall"])
 optional_facility_pool = Array[Resource]([])
 max_optional_facilities = 0
 
@@ -452,7 +502,7 @@ settlement_id = "template_capital"
 display_name = "主城"
 tier = 3
 facility_slots = Array[Resource]([SubResource("Resource_capital_slot_core"), SubResource("Resource_capital_slot_civic"), SubResource("Resource_capital_slot_service"), SubResource("Resource_capital_slot_support")])
-guaranteed_facility_ids = Array[String](["council_hall"])
+guaranteed_facility_ids = Array[String](["council_hall", "guild_hall"])
 optional_facility_pool = Array[Resource]([SubResource("Resource_optional_market"), SubResource("Resource_optional_library")])
 max_optional_facilities = 2
 
@@ -461,8 +511,8 @@ script = ExtResource("2_settlement")
 settlement_id = "template_world_stronghold"
 display_name = "世界据点"
 tier = 4
-facility_slots = Array[Resource]([SubResource("Resource_stronghold_slot_core"), SubResource("Resource_stronghold_slot_support"), SubResource("Resource_stronghold_slot_service")])
-guaranteed_facility_ids = Array[String](["world_gate"])
+facility_slots = Array[Resource]([SubResource("Resource_stronghold_slot_core"), SubResource("Resource_stronghold_slot_civic"), SubResource("Resource_stronghold_slot_support"), SubResource("Resource_stronghold_slot_service")])
+guaranteed_facility_ids = Array[String](["world_gate", "guild_hall"])
 optional_facility_pool = Array[Resource]([SubResource("Resource_optional_command")])
 max_optional_facilities = 1
 
@@ -471,8 +521,8 @@ script = ExtResource("2_settlement")
 settlement_id = "template_metropolis"
 display_name = "都会"
 tier = 5
-facility_slots = Array[Resource]([SubResource("Resource_metropolis_slot_core"), SubResource("Resource_metropolis_slot_civic"), SubResource("Resource_metropolis_slot_trade"), SubResource("Resource_metropolis_slot_service"), SubResource("Resource_metropolis_slot_support")])
-guaranteed_facility_ids = Array[String](["council_hall", "world_gate"])
+facility_slots = Array[Resource]([SubResource("Resource_metropolis_slot_core"), SubResource("Resource_metropolis_slot_civic"), SubResource("Resource_metropolis_slot_guild"), SubResource("Resource_metropolis_slot_trade"), SubResource("Resource_metropolis_slot_service"), SubResource("Resource_metropolis_slot_support")])
+guaranteed_facility_ids = Array[String](["council_hall", "world_gate", "guild_hall"])
 optional_facility_pool = Array[Resource]([SubResource("Resource_optional_market"), SubResource("Resource_optional_library"), SubResource("Resource_optional_command")])
 max_optional_facilities = 3
 

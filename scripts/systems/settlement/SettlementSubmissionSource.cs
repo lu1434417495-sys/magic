@@ -6,6 +6,7 @@ internal enum SettlementSubmissionSource
     Settlement,
     Shop,
     ContractBoard,
+    BountyBoard,
     Forge,
     Stagecoach,
     NpcQuestOffer,
@@ -29,6 +30,9 @@ internal static class SettlementSubmissionSources
             case "contract_board":
                 source = SettlementSubmissionSource.ContractBoard;
                 return true;
+            case "bounty_board":
+                source = SettlementSubmissionSource.BountyBoard;
+                return true;
             case "forge":
                 source = SettlementSubmissionSource.Forge;
                 return true;
@@ -48,6 +52,7 @@ internal static class SettlementSubmissionSources
         {
             SettlementPanelKind.Shop => SettlementSubmissionSource.Shop,
             SettlementPanelKind.ContractBoard => SettlementSubmissionSource.ContractBoard,
+            SettlementPanelKind.BountyBoard => SettlementSubmissionSource.BountyBoard,
             SettlementPanelKind.Forge => SettlementSubmissionSource.Forge,
             SettlementPanelKind.Stagecoach => SettlementSubmissionSource.Stagecoach,
             _ => SettlementSubmissionSource.None,
@@ -59,6 +64,7 @@ internal static class SettlementSubmissionSources
             SettlementSubmissionSource.Settlement => "settlement",
             SettlementSubmissionSource.Shop => "shop",
             SettlementSubmissionSource.ContractBoard => "contract_board",
+            SettlementSubmissionSource.BountyBoard => "bounty_board",
             SettlementSubmissionSource.Forge => "forge",
             SettlementSubmissionSource.Stagecoach => "stagecoach",
             SettlementSubmissionSource.NpcQuestOffer => "npc_quest_offer",

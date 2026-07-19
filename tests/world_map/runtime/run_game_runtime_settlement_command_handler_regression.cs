@@ -443,17 +443,35 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                     "service:bounty_registry",
                     new GDictionary()
                 );
-            using (GodotProjectionLease<GDictionary> bountyBoardWindowLease = handler.GetContractBoardWindowDataLease())
-            {
-                GDictionary bountyBoardWindowData = bountyBoardWindowLease.Value;
-                _test.True(bountyBoardResult.Ok, "悬赏署服务应复用 contract_board modal。");
-                _test.Eq(runtime._active_modal_kind, RuntimeModalKind.ContractBoard, "悬赏署服务后仍应落到 contract_board modal。");
-                _test.Eq(DictString(bountyBoardWindowData, "action_id", ""), "service:bounty_registry", "悬赏署 modal 应保留原始 action_id。");
-                _test.Eq(DictString(bountyBoardWindowData, "provider_interaction_id", ""), "service_bounty_registry", "悬赏署 modal 应记录自己的 provider_interaction_id。");
-                AssertSequence(ExtractContractBoardEntryIds(DictArray(bountyBoardWindowData, "entries")), new[] { "contract_regional_bounty" }, "悬赏署 modal 只应暴露自己的 bounty quest。");
-            }
+            _test.True(bountyBoardResult.Ok, "悬赏署服务应打开独立悬赏板 modal。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.BountyBoard, "悬赏署服务应落到 bounty_board modal。");
+            BountyBoardWindowData bountyBoardData = handler.GetActiveBountyBoardContextTyped();
+            _test.True(bountyBoardData != null, "悬赏板 modal 打开后应持有 typed 上下文。");
+            _test.Eq(bountyBoardData.ActionId, "service:bounty_registry", "悬赏板应保留原始 action_id。");
+            _test.Eq(bountyBoardData.ProviderInteractionId, "service_bounty_registry", "悬赏板应记录自己的 provider_interaction_id。");
+            _test.Eq(bountyBoardData.SettlementTemplateId, "template_spring_village_01", "悬赏板应记录当前据点 template_id。");
+            _test.Eq(bountyBoardData.Entries.Count, 1, "悬赏板只应暴露绑定当前据点的 bounty quest（外域悬赏应被过滤）。");
+            _test.Eq(bountyBoardData.Entries[0].QuestId, "contract_regional_bounty", "悬赏板条目应为 contract_regional_bounty。");
+            _test.Eq(bountyBoardData.Entries[0].DangerSource, "unrated", "settlement_action 目标且无 override 时应未评级。");
+            _test.Eq(bountyBoardData.Entries[0].DangerLabel, "危险度：未评级", "未评级悬赏应显示未评级文案。");
 
-            handler.OnContractBoardWindowClosed();
+            handler.CommandExecuteSettlementActionRuntimeTyped(
+                "service:bounty_registry",
+                new GDictionary
+                {
+                    ["submission_source"] = "bounty_board",
+                    ["quest_id"] = "contract_regional_bounty",
+                    ["provider_interaction_id"] = "service_bounty_registry",
+                }
+            );
+            _test.True(runtime._party_state.HasActiveQuest("contract_regional_bounty"), "悬赏板接取后任务应进入 active_quests。");
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.BountyBoard, "悬赏板接取后应停留在 bounty_board modal。");
+            BountyBoardWindowData acceptedBountyData = handler.GetActiveBountyBoardContextTyped();
+            _test.Eq(acceptedBountyData.Entries[0].StateId, "active", "接取后悬赏条目应刷新为 active。");
+            _test.False(acceptedBountyData.Entries[0].IsEnabled, "进行中的悬赏不应允许再次提交。");
+
+            handler.OnBountyBoardWindowClosed();
+            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Settlement, "关闭悬赏板后应返回 settlement modal。");
             handler.CommandExecuteSettlementActionRuntimeTyped(
                 "service:contract_board",
                 new GDictionary()
@@ -1386,6 +1404,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(15) }, true));
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new QuestObjectiveDefinition[] { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new QuestObjectiveDefinition[] { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new QuestRewardDefinition[] { BuildGoldReward(120) }));
+        AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_foreign_bounty", "外域悬赏", "绑定其它据点的悬赏不应出现在本地悬赏板。", "service_bounty_registry", new QuestObjectiveDefinition[] { BuildObjective("submit_foreign_report", "settlement_action", "service:report_bounty", 1) }, new QuestRewardDefinition[] { BuildGoldReward(150) }, listingSettlementIds: new StringName[] { "template_other_town" }));
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_display_name", "", "缺少 display_name 的坏契约不应显示。", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_description", "缺说明契约", "", "service_contract_board", new QuestObjectiveDefinition[] { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, new QuestRewardDefinition[] { BuildGoldReward(1) }));
         AddQuestDefinition(questDefinitions, BuildQuestDefinition("contract_missing_objectives", "缺目标契约", "缺少 objective_defs 的坏契约不应显示。", "service_contract_board", System.Array.Empty<QuestObjectiveDefinition>(), new QuestRewardDefinition[] { BuildGoldReward(1) }));
@@ -1433,7 +1452,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         questDefinitions[questDefinition.QuestId] = questDefinition;
     }
 
-    private static QuestDefinition BuildQuestDefinition(string questId, string displayName, string description, string providerInteractionId, IReadOnlyList<QuestObjectiveDefinition> objectives, IReadOnlyList<QuestRewardDefinition> rewards, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "", IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null)
+    private static QuestDefinition BuildQuestDefinition(string questId, string displayName, string description, string providerInteractionId, IReadOnlyList<QuestObjectiveDefinition> objectives, IReadOnlyList<QuestRewardDefinition> rewards, bool isRepeatable = false, string acceptDialogueText = "", string acceptFeedbackSuccess = "", string acceptFeedbackFailure = "", string acceptConfirmationText = "", IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null, IReadOnlyList<StringName> listingSettlementIds = null)
     {
         StringName providerKind = providerInteractionId;
         IReadOnlyList<StringName> listingChannels = System.Array.Empty<StringName>();
@@ -1444,6 +1463,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         else if (providerInteractionId == "service_bounty_registry")
         {
             listingChannels = new StringName[] { "bounty_registry" };
+            // 悬赏必须绑定据点；fixture 据点 record 的 template_id 为 template_{settlement_id}。
+            listingSettlementIds ??= new StringName[] { "template_spring_village_01" };
         }
 
         return new QuestDefinition(
@@ -1461,7 +1482,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             acceptDialogueText,
             acceptFeedbackSuccess,
             acceptFeedbackFailure,
-            acceptConfirmationText
+            acceptConfirmationText,
+            listingSettlementIds: listingSettlementIds
         );
     }
 

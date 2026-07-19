@@ -21,6 +21,8 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         TestProviderKindValidationNegativeBoundary();
         TestListingChannelValidationNegativeBoundary();
         TestAcceptRequirementValidation();
+        TestBountyDangerRatingValidation();
+        TestListingSettlementValidation();
 
         RequestTestExit(_test.Finish("Quest content validator typed regression"));
     }
@@ -257,6 +259,149 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         );
     }
 
+    private void TestBountyDangerRatingValidation()
+    {
+        // Bounty-listed quest with a non-combat objective and no override cannot derive stars.
+        QuestDefinition underivableBounty = BuildQuestDefinition(
+            "underivable_bounty_quest",
+            providerKind: "service_bounty_registry",
+            providerInteractionId: "service_bounty_registry",
+            listingChannels: [new StringName("bounty_registry")]
+        );
+        List<string> underivableErrors = new();
+        QuestContentValidator.AppendDangerRatingErrors(
+            underivableErrors,
+            underivableBounty,
+            _snapshot.EnemyTemplates
+        );
+        _test.Eq(
+            underivableErrors.Count,
+            1,
+            $"无法推导危险度的悬赏任务应产生一条错误: {FormatErrors(underivableErrors)}"
+        );
+        _test.True(
+            underivableErrors[0].Contains("无法推导危险度"),
+            $"错误消息应提示无法推导危险度。 actual={underivableErrors[0]}"
+        );
+
+        // The same quest passes once the author sets danger_tier_override.
+        QuestDefinition overriddenBounty = BuildQuestDefinition(
+            "overridden_bounty_quest",
+            providerKind: "service_bounty_registry",
+            providerInteractionId: "service_bounty_registry",
+            listingChannels: [new StringName("bounty_registry")],
+            dangerTierOverride: 2
+        );
+        List<string> overriddenErrors = new();
+        QuestContentValidator.AppendDangerRatingErrors(
+            overriddenErrors,
+            overriddenBounty,
+            _snapshot.EnemyTemplates
+        );
+        _test.Eq(
+            overriddenErrors.Count,
+            0,
+            $"带 override 的悬赏任务不应报危险度错误: {FormatErrors(overriddenErrors)}"
+        );
+
+        // Bounty-listed quests must not configure per-item accept confirmation.
+        QuestDefinition confirmationBounty = BuildQuestDefinition(
+            "confirmation_bounty_quest",
+            providerKind: "service_bounty_registry",
+            providerInteractionId: "service_bounty_registry",
+            listingChannels: [new StringName("bounty_registry")],
+            acceptConfirmationText: "确认接取这条悬赏吗？",
+            dangerTierOverride: 1
+        );
+        List<string> confirmationErrors = new();
+        QuestContentValidator.AppendDangerRatingErrors(
+            confirmationErrors,
+            confirmationBounty,
+            _snapshot.EnemyTemplates
+        );
+        _test.Eq(
+            confirmationErrors.Count,
+            1,
+            $"悬赏任务配置 accept_confirmation_text 应产生一条错误: {FormatErrors(confirmationErrors)}"
+        );
+        _test.True(
+            confirmationErrors[0].Contains("accept_confirmation_text"),
+            $"错误消息应提示禁用逐项确认。 actual={confirmationErrors[0]}"
+        );
+
+        // Non-bounty quests are exempt from both rules.
+        QuestDefinition contractQuest = BuildQuestDefinition(
+            "contract_confirmation_ok_quest",
+            acceptConfirmationText: "确认接取这份契约吗？"
+        );
+        List<string> contractErrors = new();
+        QuestContentValidator.AppendDangerRatingErrors(
+            contractErrors,
+            contractQuest,
+            _snapshot.EnemyTemplates
+        );
+        _test.Eq(
+            contractErrors.Count,
+            0,
+            $"非悬赏任务不应受危险度规则约束: {FormatErrors(contractErrors)}"
+        );
+    }
+
+    private void TestListingSettlementValidation()
+    {
+        // Bounty-listed quests must bind at least one settlement.
+        QuestDefinition unboundBounty = BuildQuestDefinition(
+            "unbound_bounty_quest",
+            providerKind: "service_bounty_registry",
+            providerInteractionId: "service_bounty_registry",
+            listingChannels: [new StringName("bounty_registry")]
+        );
+        List<string> unboundErrors = new();
+        QuestContentValidator.AppendListingSettlementErrors(unboundErrors, unboundBounty);
+        _test.Eq(
+            unboundErrors.Count,
+            1,
+            $"未绑定据点的悬赏任务应产生一条错误: {FormatErrors(unboundErrors)}"
+        );
+        _test.True(
+            unboundErrors[0].Contains("listing_settlement_ids"),
+            $"错误消息应提示 listing_settlement_ids。 actual={unboundErrors[0]}"
+        );
+
+        // A bound bounty passes.
+        QuestDefinition boundBounty = BuildQuestDefinition(
+            "bound_bounty_quest",
+            providerKind: "service_bounty_registry",
+            providerInteractionId: "service_bounty_registry",
+            listingChannels: [new StringName("bounty_registry")],
+            listingSettlementIds: [new StringName("template_city")]
+        );
+        List<string> boundErrors = new();
+        QuestContentValidator.AppendListingSettlementErrors(boundErrors, boundBounty);
+        _test.Eq(
+            boundErrors.Count,
+            0,
+            $"已绑定据点的悬赏任务不应报错: {FormatErrors(boundErrors)}"
+        );
+
+        // Non-bounty quests must not configure the field (no consumer yet).
+        QuestDefinition boundContract = BuildQuestDefinition(
+            "bound_contract_quest",
+            listingSettlementIds: [new StringName("template_city")]
+        );
+        List<string> contractErrors = new();
+        QuestContentValidator.AppendListingSettlementErrors(contractErrors, boundContract);
+        _test.Eq(
+            contractErrors.Count,
+            1,
+            $"非悬赏任务配置 listing_settlement_ids 应产生一条错误: {FormatErrors(contractErrors)}"
+        );
+        _test.True(
+            contractErrors[0].Contains("仅悬赏板"),
+            $"错误消息应提示字段仅悬赏板消费。 actual={contractErrors[0]}"
+        );
+    }
+
     private static QuestDefinition BuildQuestDefinition(
         StringName questId,
         string providerKind = null,
@@ -264,7 +409,10 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
         IReadOnlyList<StringName> listingChannels = null,
         IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements = null,
         IReadOnlyList<QuestObjectiveDefinition> objectives = null,
-        IReadOnlyList<QuestRewardDefinition> rewards = null
+        IReadOnlyList<QuestRewardDefinition> rewards = null,
+        string acceptConfirmationText = "",
+        int dangerTierOverride = 0,
+        IReadOnlyList<StringName> listingSettlementIds = null
     )
     {
         IReadOnlyList<QuestObjectiveDefinition> resolvedObjectives = objectives
@@ -304,7 +452,9 @@ public partial class run_quest_content_validator_typed_regression : LifecycleTes
             "",
             "",
             "",
-            ""
+            acceptConfirmationText,
+            dangerTierOverride,
+            listingSettlementIds
         );
     }
 

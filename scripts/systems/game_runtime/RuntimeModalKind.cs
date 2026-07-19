@@ -4,6 +4,7 @@ public enum RuntimeModalKind
     Settlement,
     Shop,
     ContractBoard,
+    BountyBoard,
     NpcQuestOffer,
     Forge,
     Stagecoach,
@@ -27,6 +28,7 @@ internal static class RuntimeModalKinds
             RuntimeModalKind.Settlement => "settlement",
             RuntimeModalKind.Shop => "shop",
             RuntimeModalKind.ContractBoard => "contract_board",
+            RuntimeModalKind.BountyBoard => "bounty_board",
             RuntimeModalKind.NpcQuestOffer => "npc_quest_offer",
             RuntimeModalKind.Forge => "forge",
             RuntimeModalKind.Stagecoach => "stagecoach",
@@ -47,6 +49,7 @@ internal static class RuntimeModalKinds
         kind == RuntimeModalKind.Settlement
         || kind == RuntimeModalKind.Shop
         || kind == RuntimeModalKind.ContractBoard
+        || kind == RuntimeModalKind.BountyBoard
         || kind == RuntimeModalKind.Forge
         || kind == RuntimeModalKind.Stagecoach;
 }

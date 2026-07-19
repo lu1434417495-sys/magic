@@ -66,6 +66,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["party"] = BuildPartySnapshot(),
             ["settlement"] = BuildSettlementSnapshot(),
             ["contract_board"] = BuildContractBoardSnapshot(),
+            ["bounty_board"] = BuildBountyBoardSnapshot(),
             ["npc_quest_offer"] = BuildNpcQuestOfferSnapshot(),
             ["shop"] = BuildShopSnapshot(),
             ["forge"] = BuildForgeSnapshot(),
@@ -709,6 +710,19 @@ public sealed class GameRuntimeSnapshotBuilder
         return new PlainDictionary(StringComparer.Ordinal)
         {
             ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.Stagecoach,
+            ["window_data"] = windowData,
+        };
+    }
+
+    private PlainDictionary BuildBountyBoardSnapshot()
+    {
+        PlainDictionary windowData = RuntimePlainPayload.CloneDictionary(
+            _runtime.GetBountyBoardWindowDataSnapshotPlain()
+        );
+        windowData.Remove("party_state");
+        return new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["visible"] = _runtime.GetActiveModalKind() == RuntimeModalKind.BountyBoard,
             ["window_data"] = windowData,
         };
     }

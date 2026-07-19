@@ -53,6 +53,8 @@ public static class QuestContentValidator
             AppendAcceptRequirementErrors(errors, questDef, questDefs);
             AppendObjectiveReferenceErrors(errors, questDef, itemDefs, enemyTemplates);
             AppendRewardReferenceErrors(errors, questDef, itemDefs, skillDefinitions);
+            AppendDangerRatingErrors(errors, questDef, enemyTemplates);
+            AppendListingSettlementErrors(errors, questDef);
         }
 
         return errors;
@@ -127,6 +129,74 @@ public static class QuestContentValidator
         {
             if (channel == QuestListingChannel.Unknown)
                 errors.Add($"Quest {questDef.QuestId}: listing_channels 包含未知渠道。");
+        }
+    }
+
+    internal static void AppendDangerRatingErrors(
+        List<string> errors,
+        QuestDefinition questDef,
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
+    )
+    {
+        bool isBountyListed = false;
+        foreach (
+            QuestListingChannel channel in QuestProviderContentRules.ToListingChannels(questDef)
+        )
+        {
+            if (channel == QuestListingChannel.BountyRegistry)
+                isBountyListed = true;
+        }
+        if (!isBountyListed)
+            return;
+
+        if (!string.IsNullOrEmpty(questDef.AcceptConfirmationText))
+        {
+            errors.Add(
+                $"Quest {questDef.QuestId}: 悬赏板任务不允许配置 accept_confirmation_text（悬赏板不做逐项确认）。"
+            );
+        }
+
+        QuestDangerRatingResult rating = QuestDangerRatingResolver.Resolve(
+            questDef,
+            enemyTemplates
+        );
+        if (!rating.IsRated)
+        {
+            errors.Add(
+                $"Quest {questDef.QuestId}: 悬赏板任务无法推导危险度（目标为空、缺失模板或非战斗目标），请补 defeat_enemy 目标或设置 danger_tier_override。"
+            );
+        }
+    }
+
+    // listing_settlement_ids 引用 SettlementConfig.settlement_id（运行时据点 template_id）。
+    // 悬赏板按当前据点过滤，未绑定的悬赏在任何板上都不可见，因此必须显式绑定；
+    // 其它渠道当前没有消费方，禁止配置以免字段沦为无语义元数据。
+    internal static void AppendListingSettlementErrors(
+        List<string> errors,
+        QuestDefinition questDef
+    )
+    {
+        bool isBountyListed = false;
+        foreach (
+            QuestListingChannel channel in QuestProviderContentRules.ToListingChannels(questDef)
+        )
+        {
+            if (channel == QuestListingChannel.BountyRegistry)
+                isBountyListed = true;
+        }
+
+        if (isBountyListed)
+        {
+            if (questDef.ListingSettlementIds.Count == 0)
+                errors.Add(
+                    $"Quest {questDef.QuestId}: 悬赏板任务必须通过 listing_settlement_ids 绑定至少一个据点（值为 SettlementConfig.settlement_id）。"
+                );
+        }
+        else if (questDef.ListingSettlementIds.Count > 0)
+        {
+            errors.Add(
+                $"Quest {questDef.QuestId}: listing_settlement_ids 目前仅悬赏板（bounty_registry 渠道）消费，其它任务不允许配置。"
+            );
         }
     }
 

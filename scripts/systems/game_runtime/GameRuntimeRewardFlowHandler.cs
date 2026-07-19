@@ -110,6 +110,9 @@ public sealed class GameRuntimeRewardFlowHandler
             case RuntimeModalKind.ContractBoard:
                 CloseContractBoardModal();
                 return CommandOkTyped();
+            case RuntimeModalKind.BountyBoard:
+                CloseBountyBoardModal();
+                return CommandOkTyped();
             case RuntimeModalKind.NpcQuestOffer:
                 CloseNpcQuestOfferModal();
                 return CommandOkTyped();
@@ -373,6 +376,7 @@ public sealed class GameRuntimeRewardFlowHandler
         if (
             activeModalKind == RuntimeModalKind.Settlement
             || activeModalKind == RuntimeModalKind.ContractBoard
+            || activeModalKind == RuntimeModalKind.BountyBoard
             || activeModalKind == RuntimeModalKind.NpcQuestOffer
             || activeModalKind == RuntimeModalKind.Shop
             || activeModalKind == RuntimeModalKind.Forge
@@ -577,6 +581,12 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (HasRuntime())
             _runtime.CloseNpcQuestOfferModal();
+    }
+
+    private void CloseBountyBoardModal()
+    {
+        if (HasRuntime())
+            _runtime.CloseBountyBoardModal();
     }
 
     private void CloseShopModal()
