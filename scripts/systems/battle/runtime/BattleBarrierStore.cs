@@ -86,6 +86,23 @@ internal sealed class BattleBarrierStore
         return result;
     }
 
+    internal IReadOnlyList<KeyValuePair<StringName, BattleBarrierInstanceState>>
+        SnapshotEntriesForMutationSnapshotExact()
+    {
+        var result =
+            new List<KeyValuePair<StringName, BattleBarrierInstanceState>>();
+        foreach (KeyValuePair<StringName, BattleBarrierInstanceState> entry in _barriers)
+        {
+            result.Add(
+                new KeyValuePair<StringName, BattleBarrierInstanceState>(
+                    entry.Key,
+                    entry.Value?.DuplicateForMutationSnapshotExact()
+                )
+            );
+        }
+        return result;
+    }
+
     internal void ReplaceWith(
         IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> barriers
     )
@@ -106,6 +123,22 @@ internal sealed class BattleBarrierStore
         foreach (KeyValuePair<StringName, BattleBarrierInstanceState> entry in parsed)
         {
             _barriers[entry.Key] = entry.Value;
+        }
+    }
+
+    internal void ReplaceWithForMutationSnapshotExact(
+        IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> barriers
+    )
+    {
+        _barriers.Clear();
+        if (barriers == null)
+        {
+            return;
+        }
+        foreach (KeyValuePair<StringName, BattleBarrierInstanceState> entry in barriers)
+        {
+            _barriers[entry.Key] =
+                entry.Value?.DuplicateForMutationSnapshotExact();
         }
     }
 

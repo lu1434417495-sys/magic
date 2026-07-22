@@ -411,13 +411,32 @@ public static class BattleSaveResolver
             return state;
         }
 
+        // 豁免标签语义写死:字段即语义,值只接受裸 save tag(如 "poison"),
+        // 不存在 "*_advantage/_disadvantage/_immunity" 后缀解析——后缀写法由
+        // 各内容注册层在加载期拒绝。
         ApplySaveTagValues(
             state,
             unitState.save_advantage_tags,
             saveTag,
             "unit",
             "save_advantage_tags",
-            ""
+            AdvantageStateAdvantage
+        );
+        ApplySaveTagValues(
+            state,
+            unitState.save_disadvantage_tags,
+            saveTag,
+            "unit",
+            "save_disadvantage_tags",
+            AdvantageStateDisadvantage
+        );
+        ApplySaveTagValues(
+            state,
+            unitState.save_immunity_tags,
+            saveTag,
+            "unit",
+            "save_immunity_tags",
+            SaveModeImmunity
         );
         foreach (StringName statusId in unitState.GetSortedStatusEffectIdsTyped())
         {
@@ -450,14 +469,6 @@ public static class BattleSaveResolver
                 "save_immunity_tags",
                 SaveModeImmunity
             );
-            ApplySaveTagValues(
-                state,
-                statusEntry.save_tags,
-                saveTag,
-                statusId,
-                "save_tags",
-                ""
-            );
         }
         return state;
     }
@@ -468,17 +479,16 @@ public static class BattleSaveResolver
         StringName saveTag,
         StringName sourceId,
         string sourceType,
-        StringName forcedMode
+        StringName mode
     )
     {
-        if (values == null)
+        if (values == null || IsEmpty(saveTag))
         {
             return;
         }
         foreach (StringName parsedValue in values)
         {
-            StringName mode = ResolveSaveTagMode(parsedValue, saveTag, forcedMode);
-            if (IsEmpty(mode))
+            if (parsedValue != saveTag)
             {
                 continue;
             }
@@ -497,45 +507,6 @@ public static class BattleSaveResolver
 
             state.Sources.Add(new BattleSaveSource(sourceId, sourceType, parsedValue, mode));
         }
-    }
-
-    private static StringName ResolveSaveTagMode(
-        StringName value,
-        StringName saveTag,
-        StringName forcedMode
-    )
-    {
-        if (IsEmpty(value) || IsEmpty(saveTag))
-        {
-            return "";
-        }
-        string saveTagText = saveTag.ToString();
-        if (!IsEmpty(forcedMode))
-        {
-            if (
-                value == saveTag
-                || value == new StringName($"{saveTagText}_advantage")
-                || value == new StringName($"{saveTagText}_disadvantage")
-                || value == new StringName($"{saveTagText}_immunity")
-            )
-            {
-                return forcedMode;
-            }
-            return "";
-        }
-        if (value == saveTag || value == new StringName($"{saveTagText}_advantage"))
-        {
-            return AdvantageStateAdvantage;
-        }
-        if (value == new StringName($"{saveTagText}_disadvantage"))
-        {
-            return AdvantageStateDisadvantage;
-        }
-        if (value == new StringName($"{saveTagText}_immunity"))
-        {
-            return SaveModeImmunity;
-        }
-        return "";
     }
 
     private static StringName ResolveAdvantageState(BattleSaveTagState tagState)

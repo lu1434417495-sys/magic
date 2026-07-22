@@ -81,6 +81,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_k6cbk"]
 script = ExtResource("4_00paa")
 skill_id = &"mage_shadow_double"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"

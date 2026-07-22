@@ -34,6 +34,7 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _enemyTemplateDefinitions;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> _enemyBrainDefinitions;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> _encounterRosterDefinitions;
+    private IReadOnlyDictionary<StringName, BattleEncounterDefinition> _battleEncounterDefinitions;
     private IReadOnlyDictionary<StringName, BattleSimProfileDefinition> _battleSimProfiles;
     private IBattleSpecialProfileView _battleSpecialProfileView;
 
@@ -81,6 +82,7 @@ public sealed class GameContentCatalog
         _enemyTemplateDefinitions = snapshot.EnemyTemplates;
         _enemyBrainDefinitions = snapshot.EnemyBrains;
         _encounterRosterDefinitions = snapshot.EncounterRosters;
+        _battleEncounterDefinitions = snapshot.BattleEncounters;
         _battleSimProfiles = snapshot.BattleSimProfiles;
         _battleSpecialProfileView = snapshot.BattleSpecialProfiles;
         _revision++;
@@ -104,6 +106,7 @@ public sealed class GameContentCatalog
         _enemyTemplateDefinitions = EmptyTyped<EnemyTemplateDefinition>();
         _enemyBrainDefinitions = EmptyTyped<EnemyAiBrainDefinition>();
         _encounterRosterDefinitions = EmptyTyped<WildEncounterRosterDefinition>();
+        _battleEncounterDefinitions = EmptyTyped<BattleEncounterDefinition>();
         _battleSimProfiles = EmptyTyped<BattleSimProfileDefinition>();
         _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
     }
@@ -184,6 +187,9 @@ public sealed class GameContentCatalog
 
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> GetEncounterRosterDefinitions() =>
         _encounterRosterDefinitions;
+
+    internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> GetBattleEncounterDefinitions() =>
+        _battleEncounterDefinitions;
 
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> GetBattleSimProfiles() =>
         _battleSimProfiles;

@@ -154,7 +154,8 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
         BattleLootEntry lootEntry = BattleLootEntryPayload.FormalDropEntryPayloadToTyped(
             lootEntryPayload
         );
-        BattleResolutionResult result = new() { winner_faction_id = "player" };
+        BattleResolutionResult result =
+            BattleObjectiveTestFactory.CreateEliminationResolution("player");
         result.SetLootEntries(
             lootEntry != null ? new[] { lootEntry } : System.Array.Empty<BattleLootEntry>()
         );
@@ -557,7 +558,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
 
     private static BattleState BuildEndedBattleState()
     {
-        return new BattleState
+        BattleState state = new()
         {
             battle_id = "battle_session",
             seed = 99,
@@ -565,9 +566,10 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             encounter_anchor_id = "encounter_session",
             terrain_profile_id = "default",
             phase = "battle_ended",
-            winner_faction_id = "player",
             timeline = new BattleTimelineState(),
         };
+        BattleObjectiveTestFactory.SetEliminationDecision(state, "player");
+        return state;
     }
 
     private static WorldBattleFixture BuildWorldBattleFixture()
@@ -644,7 +646,7 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             facade._battle_runtime._collect_defeated_unit_loot(enemyUnit, defaultKiller);
         }
         runtimeState.phase = "battle_ended";
-        runtimeState.winner_faction_id = "player";
+        BattleObjectiveTestFactory.SetEliminationDecision(runtimeState, "player");
         facade.RefreshBattleRuntimeState();
     }
 

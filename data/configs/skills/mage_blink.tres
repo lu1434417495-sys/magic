@@ -16,6 +16,7 @@ forced_move_distance = 5
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_blink"
+delivery_categories = Array[StringName]([&"spell", &"location"])
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 3

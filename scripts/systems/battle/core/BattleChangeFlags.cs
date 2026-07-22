@@ -16,4 +16,5 @@ internal enum BattleChangeFlags
     Log = 1 << 9,
     Progression = 1 << 10,
     Report = 1 << 11,
+    Objective = 1 << 12,
 }

@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_k7pav"]
 script = ExtResource("4_7433m")
 skill_id = &"mage_grave_mist"
+delivery_categories = Array[StringName]([&"spell", &"gas"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

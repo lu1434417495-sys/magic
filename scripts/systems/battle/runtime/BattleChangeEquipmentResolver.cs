@@ -1130,15 +1130,6 @@ internal class BattleChangeEquipmentResolver
                 fallbackOccupied
             );
         }
-        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
-            activeUnit,
-            itemDefinition,
-            normItem
-        );
-        if (!requirementRule.Allowed)
-        {
-            return requirementRule;
-        }
         var occupiedSlots = new List<StringName>(
             itemDefinition.GetFinalOccupiedSlotIdsTyped(normSlot)
         );
@@ -1149,6 +1140,17 @@ internal class BattleChangeEquipmentResolver
         else if (!occupiedSlots.Contains(normSlot))
         {
             occupiedSlots.Insert(0, normSlot);
+        }
+        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
+            activeUnit?.source_member_id ?? "",
+            activeUnit?.GetEquipmentView(),
+            itemDefinition,
+            normItem,
+            occupiedSlots
+        );
+        if (!requirementRule.Allowed)
+        {
+            return requirementRule;
         }
         return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
     }
@@ -1196,15 +1198,6 @@ internal class BattleChangeEquipmentResolver
                 fallbackOccupied
             );
         }
-        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
-            activeUnit,
-            itemDefinition,
-            normItem
-        );
-        if (!requirementRule.Allowed)
-        {
-            return requirementRule;
-        }
         var occupiedSlots = new List<StringName>(
             itemDefinition.GetFinalOccupiedSlotIdsTyped(normSlot)
         );
@@ -1216,13 +1209,26 @@ internal class BattleChangeEquipmentResolver
         {
             occupiedSlots.Insert(0, normSlot);
         }
+        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
+            activeUnit.IsValid ? activeUnit.SourceMemberId : "",
+            activeUnit.DuplicateEquipmentView(),
+            itemDefinition,
+            normItem,
+            occupiedSlots
+        );
+        if (!requirementRule.Allowed)
+        {
+            return requirementRule;
+        }
         return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
     }
 
     private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
-        BattleUnitState activeUnit,
+        StringName sourceMemberId,
+        EquipmentState currentEquipmentView,
         ItemDefinition itemDefinition,
-        StringName itemId
+        StringName itemId,
+        IReadOnlyList<StringName> candidateOccupiedSlotIds
     )
     {
         if (itemDefinition == null)
@@ -1235,10 +1241,7 @@ internal class BattleChangeEquipmentResolver
             return new ChangeEquipmentRuleResult(true);
         }
         string itemLabel = GetChangeEquipmentItemDisplayName(itemDefinition, itemId);
-        if (
-            activeUnit == null
-            || StringNameIsEmpty(activeUnit.source_member_id)
-        )
+        if (StringNameIsEmpty(sourceMemberId))
         {
             return new ChangeEquipmentRuleResult(
                 false,
@@ -1255,7 +1258,7 @@ internal class BattleChangeEquipmentResolver
                 BuildChangeEquipmentRequirementFailureMessage(itemLabel)
             );
         }
-        PartyMemberState memberState = characterGateway.GetMemberState(activeUnit.source_member_id);
+        PartyMemberState memberState = characterGateway.GetMemberState(sourceMemberId);
         if (memberState == null)
         {
             return new ChangeEquipmentRuleResult(
@@ -1264,63 +1267,17 @@ internal class BattleChangeEquipmentResolver
                 BuildChangeEquipmentRequirementFailureMessage(itemLabel)
             );
         }
-        if (equipRequirement.CheckResult(memberState).Allowed)
+        AttributeSnapshot stableAttributes = null;
+        if (equipRequirement.AttributeRequirements.Count > 0 && currentEquipmentView != null)
         {
-            return new ChangeEquipmentRuleResult(true);
-        }
-        return new ChangeEquipmentRuleResult(
-            false,
-            "item_not_equippable",
-            BuildChangeEquipmentRequirementFailureMessage(itemLabel)
-        );
-    }
-
-    private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
-        BattleUnitReadView activeUnit,
-        ItemDefinition itemDefinition,
-        StringName itemId
-    )
-    {
-        if (itemDefinition == null)
-        {
-            return new ChangeEquipmentRuleResult(true);
-        }
-        EquipmentRequirementDefinition equipRequirement = itemDefinition.EquipRequirement;
-        if (equipRequirement == null)
-        {
-            return new ChangeEquipmentRuleResult(true);
-        }
-        string itemLabel = GetChangeEquipmentItemDisplayName(itemDefinition, itemId);
-        if (
-            !activeUnit.IsValid
-            || StringNameIsEmpty(activeUnit.SourceMemberId)
-        )
-        {
-            return new ChangeEquipmentRuleResult(
-                false,
-                "item_not_equippable",
-                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            EquipmentState requirementEquipmentView =
+                currentEquipmentView.DuplicateWithoutOccupiedSlots(candidateOccupiedSlotIds);
+            stableAttributes = characterGateway.GetMemberAttributeSnapshotForEquipmentView(
+                sourceMemberId,
+                requirementEquipmentView
             );
         }
-        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
-        if (characterGateway == null)
-        {
-            return new ChangeEquipmentRuleResult(
-                false,
-                "item_not_equippable",
-                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
-            );
-        }
-        PartyMemberState memberState = characterGateway.GetMemberState(activeUnit.SourceMemberId);
-        if (memberState == null)
-        {
-            return new ChangeEquipmentRuleResult(
-                false,
-                "item_not_equippable",
-                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
-            );
-        }
-        if (equipRequirement.CheckResult(memberState).Allowed)
+        if (equipRequirement.CheckResult(memberState, stableAttributes).Allowed)
         {
             return new ChangeEquipmentRuleResult(true);
         }

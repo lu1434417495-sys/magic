@@ -20,20 +20,22 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         if (actor == null || context.state == null)
             return null;
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "multi_unit_skill",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["distance_reference"] = action.DistanceReference.ToString(),
-                ["desired_min_distance"] = action.DesiredMinDistance,
-                ["desired_max_distance"] = action.DesiredMaxDistance,
-                ["candidate_pool_limit"] = action.CandidatePoolLimit,
-                ["candidate_group_limit"] = action.CandidateGroupLimit,
-            }
-        );
+        AiActionTrace actionTrace = context.trace_enabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "multi_unit_skill",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["distance_reference"] = action.DistanceReference.ToString(),
+                    ["desired_min_distance"] = action.DesiredMinDistance,
+                    ["desired_max_distance"] = action.DesiredMaxDistance,
+                    ["candidate_pool_limit"] = action.CandidatePoolLimit,
+                    ["candidate_group_limit"] = action.CandidateGroupLimit,
+                }
+            )
+            : null;
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
@@ -99,8 +101,17 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     continue;
                 }
 
+                bool deferGroupLimitUntilCanonicalPreview = HasLayeredBarrier(context);
+                int canonicalValidGroupCount = 0;
                 foreach (List<BattleUnitState> targetGroup in targetGroups)
                 {
+                    if (
+                        deferGroupLimitUntilCanonicalPreview
+                        && canonicalValidGroupCount >= action.CandidateGroupLimit
+                    )
+                    {
+                        break;
+                    }
                     TraceCountIncrement(actionTrace, "evaluation_count", 1);
                     BattleCommand command = BuildMultiUnitSkillCommand(
                         context,
@@ -108,21 +119,37 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                         castVariant,
                         targetGroup
                     );
-                    BattlePreview preview = BuildFastUnitSkillPreview(
+                    BattlePreview fastPreview = BuildFastUnitSkillPreview(
                         context,
                         skillDefinition,
                         command
+                    );
+                    BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
+                        context,
+                        command,
+                        fastPreview
                     );
                     if (preview?.allowed != true)
                     {
                         TraceCountIncrement(actionTrace, "preview_reject_count", 1);
                         continue;
                     }
+                    if (preview.TargetUnitIdsTyped.Count == 0)
+                    {
+                        TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                        TraceAddBlockReason(actionTrace, "barrier_blocked_all_targets");
+                        continue;
+                    }
+                    canonicalValidGroupCount += 1;
 
+                    List<BattleUnitState> effectiveTargetGroup = ResolvePreviewTargetGroup(
+                        targetGroup,
+                        preview
+                    );
                     Dictionary<string, object> positionMetadata = BuildPositionMetadata(
                         context,
                         action,
-                        targetGroup,
+                        effectiveTargetGroup,
                         skillDefinition
                     );
                     string optionLabel = EnemyAiActionHelper.FormatSkillVariantLabel(
@@ -136,16 +163,32 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                         skillDefinition,
                         command,
                         preview,
-                        CollectMultiUnitEffectDefinitions(skillDefinition, castVariant),
+                        _helper.CollectUnitSkillEffectDefinitions(
+                            skillDefinition,
+                            castVariant,
+                            skillEntry.SkillLevel
+                        ),
                         positionMetadata
                     );
-                    int targetCount = command.TargetUnitIdsTyped.Count;
-                    Dictionary<string, object> candidateExtra =
-                        new(StringComparer.Ordinal)
+                    int targetCount = preview.TargetUnitIdsTyped.Count;
+
+                    if (actionTrace != null)
+                    {
+                        var candidateExtra = new Dictionary<string, object>(StringComparer.Ordinal)
                         {
                             ["skill_id"] = skillId.ToString(),
                             ["target_count"] = targetCount,
                         };
+                        TraceOfferCandidate(
+                            actionTrace,
+                            EnemyAiActionHelper.BuildCandidateSummary(
+                                optionLabel,
+                                command,
+                                scoreInput,
+                                candidateExtra
+                            )
+                        );
+                    }
 
                     if (scoreInput == null)
                     {
@@ -155,27 +198,8 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                             command,
                             $"{actor.display_name} 准备用 {skillDefinition.DisplayName} 锁定 {targetCount} 个单位。"
                         );
-                        TraceOfferCandidate(
-                            actionTrace,
-                            EnemyAiActionHelper.BuildCandidateSummary(
-                                optionLabel,
-                                command,
-                                null,
-                                candidateExtra
-                            )
-                        );
                         continue;
                     }
-
-                    TraceOfferCandidate(
-                        actionTrace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            optionLabel,
-                            command,
-                            scoreInput,
-                            candidateExtra
-                        )
-                    );
                     if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
 
@@ -281,6 +305,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         if (pool.Count < minCount)
             return groups;
 
+        bool deferGroupLimitUntilCanonicalPreview = HasLayeredBarrier(context);
         var seen = new HashSet<string>();
         for (int count = maxCount; count >= minCount; count--)
         {
@@ -289,8 +314,13 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 foreach (BattleUnitState target in pool)
                 {
                     AppendTargetGroup(groups, seen, new List<BattleUnitState> { target });
-                    if (groups.Count >= action.CandidateGroupLimit)
+                    if (
+                        !deferGroupLimitUntilCanonicalPreview
+                        && groups.Count >= action.CandidateGroupLimit
+                    )
+                    {
                         return groups;
+                    }
                 }
                 continue;
             }
@@ -300,8 +330,13 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 for (int offset = 0; offset < count; offset++)
                     targetGroup.Add(pool[startIndex + offset]);
                 AppendTargetGroup(groups, seen, targetGroup);
-                if (groups.Count >= action.CandidateGroupLimit)
+                if (
+                    !deferGroupLimitUntilCanonicalPreview
+                    && groups.Count >= action.CandidateGroupLimit
+                )
+                {
                     return groups;
+                }
             }
         }
         return groups;
@@ -318,10 +353,16 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
     {
         var pool = new List<BattleUnitState>();
         int minCount = Mathf.Max(skillDefinition.CombatProfile.MinTargetCount, 1);
+        bool deferPoolLimitUntilCanonicalPreview = minCount > 1 && HasLayeredBarrier(context);
         foreach (BattleUnitState target in sortedTargets ?? Array.Empty<BattleUnitState>())
         {
-            if (target == null || pool.Count >= action.CandidatePoolLimit)
+            if (
+                !deferPoolLimitUntilCanonicalPreview
+                && pool.Count >= action.CandidatePoolLimit
+            )
                 break;
+            if (target == null)
+                continue;
             if (minCount <= 1)
             {
                 BattleCommand singleCommand = BuildMultiUnitSkillCommand(
@@ -336,13 +377,26 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                     singleCommand,
                     target
                 );
-                if (singlePreview?.allowed != true)
+                BattlePreview barrierAwarePreview = _helper.ResolveBarrierAwareUnitSkillPreview(
+                    context,
+                    singleCommand,
+                    singlePreview
+                );
+                if (
+                    barrierAwarePreview?.allowed != true
+                    || !barrierAwarePreview.ContainsTargetUnitId(target.unit_id)
+                )
+                {
                     continue;
+                }
             }
             pool.Add(target);
         }
         return pool;
     }
+
+    private static bool HasLayeredBarrier(BattleAiContext context) =>
+        context?.state?.LayeredBarrierFieldCount > 0;
 
     private static void AppendTargetGroup(
         List<List<BattleUnitState>> groups,
@@ -453,6 +507,23 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 ? preview.TargetCoordsTyped[0]
                 : new Vector2I(-1, -1);
         return preview;
+    }
+
+    private static List<BattleUnitState> ResolvePreviewTargetGroup(
+        IReadOnlyList<BattleUnitState> targetGroup,
+        BattlePreview preview
+    )
+    {
+        var effectiveTargetIds = new HashSet<StringName>(
+            preview?.TargetUnitIdsTyped ?? Array.Empty<StringName>()
+        );
+        var result = new List<BattleUnitState>();
+        foreach (BattleUnitState target in targetGroup ?? Array.Empty<BattleUnitState>())
+        {
+            if (target != null && effectiveTargetIds.Contains(target.unit_id))
+                result.Add(target);
+        }
+        return result;
     }
 
     private Dictionary<string, object> BuildPositionMetadata(

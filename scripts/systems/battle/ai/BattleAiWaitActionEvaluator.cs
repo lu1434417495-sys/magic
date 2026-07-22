@@ -40,20 +40,22 @@ internal sealed class BattleAiWaitActionEvaluator
     private BattleAiDecision EvaluateImpl(WaitActionDefinition action, BattleAiContext context)
     {
         ActiveRestProfile rest = BuildActiveRestProfile(action, context);
-        AiActionTrace trace = EnemyAiActionHelper.BeginActionTrace(
-            action.ActionId,
-            action.ScoreBucketId,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "wait",
-                ["active_rest"] = rest.Active,
-                ["will_rest"] = rest.WillRest,
-                ["current_stamina"] = rest.CurrentStamina,
-                ["projected_rest_stamina"] = rest.ProjectedRestStamina,
-                ["desired_stamina"] = rest.DesiredStamina,
-            }
-        );
+        AiActionTrace trace = context?.trace_enabled == true
+            ? EnemyAiActionHelper.BeginActionTrace(
+                action.ActionId,
+                action.ScoreBucketId,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "wait",
+                    ["active_rest"] = rest.Active,
+                    ["will_rest"] = rest.WillRest,
+                    ["current_stamina"] = rest.CurrentStamina,
+                    ["projected_rest_stamina"] = rest.ProjectedRestStamina,
+                    ["desired_stamina"] = rest.DesiredStamina,
+                }
+            )
+            : null;
         BattleCommand command = EnemyAiActionHelper.BuildWaitCommand(context);
         var metadata = new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -90,10 +92,13 @@ internal sealed class BattleAiWaitActionEvaluator
             scoreInput,
             reason
         );
-        EnemyAiActionHelper.TraceOfferCandidate(
-            trace,
-            EnemyAiActionHelper.BuildCandidateSummary("wait", command, scoreInput)
-        );
+        if (trace != null)
+        {
+            EnemyAiActionHelper.TraceOfferCandidate(
+                trace,
+                EnemyAiActionHelper.BuildCandidateSummary("wait", command, scoreInput)
+            );
+        }
         EnemyAiActionHelper.FinalizeActionTrace(context, trace, decision);
         return decision;
     }

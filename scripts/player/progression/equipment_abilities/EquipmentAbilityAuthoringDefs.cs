@@ -41,6 +41,7 @@ public sealed partial class EquipmentAbilityReactionDef : Resource
     [Export] public EquipmentAbilityConditionGroupDef condition_group { get; set; }
     [Export] public EquipmentRollGateDef roll_gate { get; set; }
     [Export] public EquipmentOutcomeTableDef outcome_table { get; set; }
+    [Export] public Godot.Collections.Array<StringName> projected_effect_categories { get; set; } = new();
     [Export] public Godot.Collections.Array<EquipmentAbilityActionDef> actions { get; set; } = new();
 }
 

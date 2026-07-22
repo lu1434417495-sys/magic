@@ -20,7 +20,6 @@ public class EncounterAnchorData
         "display_name",
         "world_coord",
         "faction_id",
-        "enemy_roster_template_id",
         "region_tag",
         "vision_range",
         "is_cleared",
@@ -34,7 +33,6 @@ public class EncounterAnchorData
     public string display_name { get; set; } = "";
     public Vector2I world_coord { get; set; } = Vector2I.Zero;
     public StringName faction_id { get; set; } = "hostile";
-    public StringName enemy_roster_template_id { get; set; } = "";
     public StringName region_tag { get; set; } = "";
     public int vision_range { get; set; }
     public bool is_cleared { get; set; }
@@ -50,7 +48,6 @@ public class EncounterAnchorData
             display_name = display_name ?? "",
             world_coord = world_coord,
             faction_id = faction_id,
-            enemy_roster_template_id = enemy_roster_template_id,
             region_tag = region_tag,
             vision_range = vision_range,
             is_cleared = is_cleared,
@@ -67,7 +64,6 @@ public class EncounterAnchorData
             ["display_name"] = display_name ?? "",
             ["world_coord"] = world_coord,
             ["faction_id"] = faction_id.ToString(),
-            ["enemy_roster_template_id"] = enemy_roster_template_id.ToString(),
             ["region_tag"] = region_tag.ToString(),
             ["vision_range"] = vision_range,
             ["is_cleared"] = is_cleared,
@@ -115,12 +111,6 @@ public class EncounterAnchorData
             )
             || !TryParseStringNameField(
                 payload,
-                "enemy_roster_template_id",
-                true,
-                out StringName enemyRosterTemplateIdValue
-            )
-            || !TryParseStringNameField(
-                payload,
                 "region_tag",
                 true,
                 out StringName regionTagValue
@@ -134,7 +124,7 @@ public class EncounterAnchorData
             || !TryParseStringNameField(
                 payload,
                 "encounter_profile_id",
-                true,
+                false,
                 out StringName encounterProfileIdValue
             )
         )
@@ -196,7 +186,6 @@ public class EncounterAnchorData
             display_name = displayNameValue,
             world_coord = rawWorldCoord.AsVector2I(),
             faction_id = factionIdValue,
-            enemy_roster_template_id = enemyRosterTemplateIdValue,
             region_tag = regionTagValue,
             vision_range = rawVisionRange.AsInt32(),
             is_cleared = rawIsCleared.AsBool(),

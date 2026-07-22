@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_b000k"]
 script = ExtResource("4_b3smv")
 skill_id = &"mage_arcane_aegis"
+delivery_categories = Array[StringName]([&"spell", &"force_effect"])
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4

@@ -20,5 +20,4 @@ profile_id = &"invalid_roster"
 display_name = "非法编队"
 initial_stage = 0
 growth_step_interval = 1
-suppression_steps_on_victory = 0
 stages = Array[ExtResource("2_stage")]([SubResource("Resource_invalid_roster_stage0")])

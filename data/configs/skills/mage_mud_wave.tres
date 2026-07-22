@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_bxig6"]
 script = ExtResource("4_ygyp3")
 skill_id = &"mage_mud_wave"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"cone"

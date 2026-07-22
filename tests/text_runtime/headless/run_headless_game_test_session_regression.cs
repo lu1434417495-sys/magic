@@ -190,6 +190,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
                     battleRuntime.StartBattleBorrowingContext(
                         null,
                         1,
+                        BattleEliminationObjectiveDefinition.Instance,
                         invalidContextLease.Value
                     )
             );
@@ -223,7 +224,13 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         );
         _test.True(
             Throws<ArgumentNullException>(
-                () => battleRuntime.StartBattleBorrowingContext(null, 1, null)
+                () =>
+                    battleRuntime.StartBattleBorrowingContext(
+                        null,
+                        1,
+                        BattleEliminationObjectiveDefinition.Instance,
+                        null
+                    )
             ),
             "borrowed battle context 入口应独立拒绝 null。"
         );

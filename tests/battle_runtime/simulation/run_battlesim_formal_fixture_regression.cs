@@ -49,6 +49,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
             TestMixed6v12StartsAllUnitsAtFullEffectiveHp();
             TestMixed6v12EquipsRoleArmor();
             TestFormalFixtureRequestsBidirectionalSpawnReachability();
+            TestMixed6v12ContextBorrowingDoesNotCreateOwnershipConflicts();
         }
         finally
         {
@@ -376,6 +377,139 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         _test.True(ReadBool(context, "validate_spawn_reachability"), "formal combat fixture 模拟应开启出生可达性验证。");
         _test.True(ReadBool(context, "validate_bidirectional_spawn_reachability"), "formal combat fixture 模拟应开启玩家/敌方双向可攻击验证。");
         _test.True(ReadBool(context, "enforce_opposing_spawn_sides"), "formal combat fixture 模拟应开启玩家/敌方对侧出生约束。");
+    }
+
+    private void TestMixed6v12ContextBorrowingDoesNotCreateOwnershipConflicts()
+    {
+        const string scenarioPath =
+            "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
+        BattleSimFormalCombatFixture fixture = BuildFixture(
+            BattleSimFormalCombatFixture.ROSTER_MIXED_6V12
+        );
+        BattleSimScenarioDefinition scenario;
+        using (var loader = new TestContentResourceLoader())
+            scenario = loader.LoadCanonical<BattleSimScenarioDef>(scenarioPath).ToDefinition();
+
+        var runtime = new BattleRuntimeModule();
+        BattleState state = null;
+        try
+        {
+            runtime.setup(
+                fixture,
+                _contentSnapshot.Skills,
+                _contentSnapshot.EnemyTemplates,
+                _contentSnapshot.EnemyBrains,
+                null,
+                default,
+                fixture.GetItemDefsTyped(),
+                null,
+                default,
+                null,
+                _contentSnapshot.BattleSpecialProfiles,
+                _contentSnapshot.Traits,
+                _contentSnapshot.EquipmentAbilityBindings,
+                _contentSnapshot.BarrierProfiles
+            );
+
+            LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            using (
+                GodotProjectionLease<GDictionary> baseContextLease =
+                    scenario.BuildStartContextLease()
+            )
+            using (
+                GodotProjectionLease<GDictionary> contextLease =
+                    fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value)
+            )
+            {
+                LifecycleAuditSnapshot afterContext =
+                    LifecycleAuditRegistry.Shared.CaptureSnapshot();
+                _test.Eq(
+                    afterContext.OwnerConflictCount,
+                    baseline.OwnerConflictCount,
+                    "formal fixture 构建 hostile context 时不应重复接管 caller lease。"
+                );
+                _test.Eq(
+                    afterContext.ViolationCount,
+                    baseline.ViolationCount,
+                    "formal fixture 构建 context 时不应新增生命周期违规。"
+                );
+                _test.Eq(
+                    afterContext.ActiveLeaseCount,
+                    baseline.ActiveLeaseCount + 2,
+                    "scenario 与 formal context 应各保持一个 caller-owned request lease。"
+                );
+
+                var encounterAnchor = new EncounterAnchorData
+                {
+                    entity_id = scenario.ScenarioId,
+                    display_name = scenario.DisplayName,
+                    faction_id = "hostile",
+                    world_coord = scenario.WorldCoord,
+                    region_tag = "simulation",
+                };
+                state = runtime.StartBattleBorrowingContext(
+                    encounterAnchor,
+                    101,
+                    BattleEliminationObjectiveDefinition.Instance,
+                    contextLease.Value
+                );
+
+                LifecycleAuditSnapshot afterStart =
+                    LifecycleAuditRegistry.Shared.CaptureSnapshot();
+                _test.True(state != null && !state.IsEmpty(), "6v12 borrowed context 应能正常开战。");
+                _test.Eq(
+                    (state?.ally_unit_ids?.Count ?? 0) + (state?.enemy_unit_ids?.Count ?? 0),
+                    18,
+                    "6v12 borrowed context 应保留全部 18 个单位。"
+                );
+                _test.Eq(
+                    afterStart.OwnerConflictCount,
+                    baseline.OwnerConflictCount,
+                    "StartBattleBorrowingContext 不应重复接管 caller lease。"
+                );
+                _test.Eq(
+                    afterStart.ViolationCount,
+                    baseline.ViolationCount,
+                    "borrowed battle start 不应新增生命周期违规。"
+                );
+                _test.Eq(
+                    afterStart.ActiveLeaseCount,
+                    afterContext.ActiveLeaseCount,
+                    "borrowed battle start 不应关闭或新增 caller request lease。"
+                );
+                _test.True(
+                    contextLease.Value.ContainsKey("enemy_units"),
+                    "borrowed battle start 返回后 caller lease 仍应可用。"
+                );
+            }
+
+            LifecycleAuditSnapshot afterLeases =
+                LifecycleAuditRegistry.Shared.CaptureSnapshot();
+            _test.Eq(
+                afterLeases.ActiveLeaseCount,
+                baseline.ActiveLeaseCount,
+                "scenario 与 formal context lease 应在 caller scope 结束后回到基线。"
+            );
+            _test.Eq(
+                afterLeases.ActiveOwnerCount,
+                baseline.ActiveOwnerCount,
+                "scenario 与 formal context 的 nested projection owner 应回到基线。"
+            );
+            _test.Eq(
+                afterLeases.OwnerConflictCount,
+                baseline.OwnerConflictCount,
+                "caller lease 关闭阶段不应产生 ownership conflict。"
+            );
+            _test.Eq(
+                afterLeases.ViolationCount,
+                baseline.ViolationCount,
+                "caller lease 关闭阶段不应新增生命周期违规。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(runtime, state);
+        }
     }
 
     private BattleSimFormalCombatFixture BuildFixture(

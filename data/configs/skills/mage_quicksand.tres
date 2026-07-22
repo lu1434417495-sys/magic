@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_brqvn"]
 script = ExtResource("4_du7br")
 skill_id = &"mage_quicksand"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

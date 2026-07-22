@@ -17,6 +17,15 @@ internal readonly struct BattleStateReadView
     internal BattlePhaseKind PhaseKind => _state?.PhaseKind ?? BattlePhaseKind.Unknown;
     internal BattleModalStateKind ModalStateKind =>
         _state?.ModalStateKind ?? BattleModalStateKind.None;
+    internal BattleObjectiveMode ObjectiveMode =>
+        _state?.ObjectiveRuntimeState?.Mode ?? BattleObjectiveMode.Unknown;
+    internal bool HasFinalDecision => _state?.FinalDecision != null;
+    internal BattleOutcomeKind Outcome =>
+        _state?.FinalDecision?.Outcome ?? BattleOutcomeKind.Unknown;
+    internal BattleEndReasonKind EndReason =>
+        _state?.FinalDecision?.EndReason ?? BattleEndReasonKind.None;
+    internal int DecisionTu => _state?.FinalDecision?.DecisionTu ?? -1;
+    internal StringName WinnerFactionId => _state?.FinalDecision?.WinnerFactionId ?? "";
 
     internal BattleUnitReadView GetUnit(StringName unitId) =>
         new(_state?.GetUnit(unitId));
@@ -181,18 +190,24 @@ internal readonly struct BattleUnitReadView
     {
         if (_unit == null)
             return 0;
-        int penalty = 0;
+        // 攻击惩罚默认跨状态累加;语义表中标记为取大的特殊来源单独进取大池
+        // (池内只生效最大值),再与累加池求和。
+        int additivePenalty = 0;
+        int takeMaxPenalty = 0;
         foreach (StringName statusId in _unit.GetSortedStatusEffectIdsTyped())
         {
             BattleStatusEffectState status = _unit.GetStatusEffect(statusId);
             if (status == null)
                 continue;
-            penalty = Mathf.Max(
-                penalty,
-                BattleStatusSemanticTable.GetAttackRollPenalty(status)
-            );
+            int penalty = BattleStatusSemanticTable.GetAttackRollPenalty(status);
+            if (penalty <= 0)
+                continue;
+            if (BattleStatusSemanticTable.IsAttackRollPenaltyTakeMax(status.status_id))
+                takeMaxPenalty = Mathf.Max(takeMaxPenalty, penalty);
+            else
+                additivePenalty += penalty;
         }
-        return penalty;
+        return additivePenalty + takeMaxPenalty;
     }
 
     internal bool HasCombatResourceUnlocked(StringName resourceId) =>

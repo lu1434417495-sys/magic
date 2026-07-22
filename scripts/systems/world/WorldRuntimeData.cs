@@ -187,25 +187,7 @@ internal sealed class WorldRuntimeData
         {
             if (encounterAnchor == null)
                 continue;
-            encounterAnchors.Add(
-                new Dictionary<string, object>(System.StringComparer.Ordinal)
-                {
-                    ["entity_id"] = encounterAnchor.entity_id.ToString(),
-                    ["display_name"] = encounterAnchor.display_name ?? "",
-                    ["world_coord"] = encounterAnchor.world_coord,
-                    ["faction_id"] = encounterAnchor.faction_id.ToString(),
-                    ["enemy_roster_template_id"] =
-                        encounterAnchor.enemy_roster_template_id.ToString(),
-                    ["region_tag"] = encounterAnchor.region_tag.ToString(),
-                    ["vision_range"] = encounterAnchor.vision_range,
-                    ["is_cleared"] = encounterAnchor.is_cleared,
-                    ["encounter_kind"] = encounterAnchor.encounter_kind.ToString(),
-                    ["encounter_profile_id"] =
-                        encounterAnchor.encounter_profile_id.ToString(),
-                    ["growth_stage"] = encounterAnchor.growth_stage,
-                    ["suppressed_until_step"] = encounterAnchor.suppressed_until_step,
-                }
-            );
+            encounterAnchors.Add(encounterAnchor.BuildSaveSnapshotPlain());
         }
 
         var resourceNodes = new List<object>();
@@ -376,17 +358,10 @@ internal sealed class WorldRuntimeData
             {
                 continue;
             }
-            Dictionary<string, object> payloadPlain = settlement.BuildSaveSnapshotPlain();
-            payloadPlain["settlement_state"] = state.BuildSnapshotPlain();
-            using GodotProjectionLease<GDictionary> payloadLease =
-                RuntimePlainPayload.ProjectDictionaryLease(
-                    payloadPlain,
-                    $"WorldRuntimeData.settlement.{settlementId}",
-                    LifetimeDomain.Request,
-                    $"WorldRuntimeData.settlement.{settlementId}"
-                );
-            GDictionary payload = payloadLease.Value;
-            _settlements[index] = WorldMapSettlementRecordData.FromDictionary(payload);
+            WorldMapSettlementRecordData updated = settlement.WithSettlementState(state);
+            if (updated == null)
+                return false;
+            _settlements[index] = updated;
             return true;
         }
         return false;
@@ -399,10 +374,7 @@ internal sealed class WorldRuntimeData
         {
             return false;
         }
-        return TrySetSettlementState(
-            settlementId,
-            WorldMapSettlementStateData.Create(true, current.Reputation, current.ActiveConditions)
-        );
+        return TrySetSettlementState(settlementId, current.WithVisited(true));
     }
 
     internal bool RemoveEncounterAnchorById(StringName encounterId)
@@ -433,18 +405,16 @@ internal sealed class WorldRuntimeData
     {
         if (string.IsNullOrEmpty(settlementId))
         {
-            return WorldMapSettlementStateData.Create(false, 0, System.Array.Empty<string>());
+            return null;
         }
         foreach (WorldMapSettlementRecordData settlement in _settlements)
         {
             if (settlement != null && settlement.SettlementId == settlementId)
             {
-                return WorldMapSettlementStateData.FromPlain(
-                    settlement.BuildSettlementStateSnapshotPlain()
-                );
+                return settlement.SettlementState;
             }
         }
-        return WorldMapSettlementStateData.Create(false, 0, System.Array.Empty<string>());
+        return null;
     }
 
     private static bool ReadReturnStack(
@@ -476,10 +446,9 @@ internal sealed class WorldRuntimeData
                 return false;
             WorldMapSettlementRecordData settlement =
                 WorldMapSettlementRecordData.FromDictionary(payload);
-            if (settlement != null)
-            {
-                target.Add(settlement);
-            }
+            if (settlement == null)
+                return false;
+            target.Add(settlement);
         }
         return true;
     }
@@ -508,10 +477,9 @@ internal sealed class WorldRuntimeData
                 return false;
             using GDictionary payload = value.AsGodotDictionary();
             EncounterAnchorData encounterAnchor = EncounterAnchorData.FromDictionary(payload);
-            if (encounterAnchor != null)
-            {
-                target.Add(encounterAnchor);
-            }
+            if (encounterAnchor == null)
+                return false;
+            target.Add(encounterAnchor);
         }
         return true;
     }

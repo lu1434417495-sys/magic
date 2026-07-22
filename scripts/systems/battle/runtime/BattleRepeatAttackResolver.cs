@@ -17,26 +17,42 @@ internal sealed class BattleRepeatAttackResolver
     private readonly record struct RepeatAttackRuntimeParameters(
         bool StopOnMiss,
         bool StopOnTargetDown,
-        double FollowUpDamageMultiplier
+        int FollowUpDamageMultiplierPercent
     )
     {
         public static RepeatAttackRuntimeParameters FromEffect(
             CombatEffectDefinition effectDefinition
         )
         {
+            // 追击倍率用整数百分比(与 damage_ratio_percent 等内容参数同一惯例,
+            // 规则层不引入浮点):100 = 等额,允许衰减(<100)与放大(>100);
+            // 0 或负数任何设计下都不合法,静默回退为等额。
+            int followUpPercent = (int)Math.Round(
+                GetFloat(
+                    effectDefinition?.Parameters,
+                    "follow_up_damage_multiplier_percent",
+                    100.0
+                )
+            );
+            if (followUpPercent <= 0)
+                followUpPercent = 100;
             return new RepeatAttackRuntimeParameters(
                 effectDefinition?.StopOnMiss ?? true,
                 effectDefinition?.StopOnTargetDown ?? true,
-                Math.Max(
-                    GetFloat(effectDefinition?.Parameters, "follow_up_damage_multiplier", 1.0),
-                    1.0
-                )
+                followUpPercent
             );
         }
 
-        public double GetStageDamageMultiplier(int stageIndex)
+        public int GetStageDamagePercent(int stageIndex)
         {
-            return stageIndex <= 0 ? 1.0 : Math.Pow(FollowUpDamageMultiplier, stageIndex);
+            // 按段整数复合,除以 100 时向下截断(50% → 25% → 12%),符合
+            // DnD 取整惯例且各段结果可精确复现。
+            int percent = 100;
+            for (int stage = 0; stage < stageIndex; stage++)
+            {
+                percent = percent * FollowUpDamageMultiplierPercent / 100;
+            }
+            return percent;
         }
 
     }
@@ -149,14 +165,14 @@ internal sealed class BattleRepeatAttackResolver
                 (_runtime as BattleRuntimeModule)?.AppendChangedUnitId(batch, active_unit.unit_id);
             }
 
-            double stageDamageMultiplier = _get_repeat_attack_stage_damage_multiplier(
+            int stageDamagePercent = _get_repeat_attack_stage_damage_percent(
                 repeat_attack_effect,
                 stageIndex
             );
             List<CombatEffectDefinition> stageEffects = _build_repeat_attack_stage_effects(
                 stagedEffects,
                 repeat_attack_effect,
-                stageDamageMultiplier
+                stageDamagePercent
             );
             AttackEffectResolutionResult stageResult = ResolveRepeatAttackStageResult(
                 active_unit,
@@ -233,7 +249,7 @@ internal sealed class BattleRepeatAttackResolver
             totalHealing += healing;
             _runtime?.AppendDamageResultLogLines(
                 batch,
-                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamageMultiplier)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
+                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamagePercent / 100.0)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
                 DisplayName(target_unit),
                 stageResult
             );
@@ -955,20 +971,20 @@ internal sealed class BattleRepeatAttackResolver
             .StopOnTargetDown;
     }
 
-    internal double _get_repeat_attack_stage_damage_multiplier(
+    internal int _get_repeat_attack_stage_damage_percent(
         CombatEffectDefinition repeat_attack_effect,
         int stage_index
     )
     {
         return RepeatAttackRuntimeParameters
             .FromEffect(repeat_attack_effect)
-            .GetStageDamageMultiplier(stage_index);
+            .GetStageDamagePercent(stage_index);
     }
 
     internal List<CombatEffectDefinition> _build_repeat_attack_stage_effects(
         IEnumerable<CombatEffectDefinition> base_effects,
         CombatEffectDefinition repeat_attack_effect,
-        double damage_multiplier
+        int damage_percent
     )
     {
         var stagedEffects = new List<CombatEffectDefinition>();
@@ -990,10 +1006,13 @@ internal sealed class BattleRepeatAttackResolver
             if (
                 stageEffect.EffectKind == BattleEffectKind.Damage
                 && damageMultiplierStage == PreResistanceStage
-                && damage_multiplier > 1.0
+                && damage_percent != 100
             )
             {
-                stageEffect = stageEffect.WithPreResistanceDamageMultiplier(damage_multiplier);
+                // 整数百分比只在交给伤害管线的边界处转一次浮点。
+                stageEffect = stageEffect.WithPreResistanceDamageMultiplier(
+                    damage_percent / 100.0
+                );
             }
             stagedEffects.Add(stageEffect);
         }

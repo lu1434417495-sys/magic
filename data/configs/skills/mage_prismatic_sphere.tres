@@ -22,6 +22,7 @@ params = {
 [sub_resource type="Resource" id="Resource_ps_combat"]
 script = ExtResource("2_ps_combat")
 skill_id = &"mage_prismatic_sphere"
+delivery_categories = Array[StringName]([&"spell", &"force_effect"])
 target_mode = &"unit"
 target_team_filter = &"self"
 range_value = 0

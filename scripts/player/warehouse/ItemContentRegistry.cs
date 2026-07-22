@@ -341,6 +341,18 @@ public class ItemContentRegistry : System.IDisposable
             );
             return;
         }
+        // 只告警不拒绝:超过买价 50%(向上取整)的卖价在 ItemDefinition.GetSellPrice
+        // 中静默回退到该上限生效(防商店套利,详见该方法注释)。这里的告警只负责
+        // 让内容作者知道配置值与生效值不一致。
+        int sellPriceCap = (itemDef.BuyPrice + 1) / 2;
+        if (itemDef.Sellable && itemDef.BuyPrice > 0 && itemDef.SellPrice > sellPriceCap)
+        {
+            GameLog.Warning(
+                $"Item {(string)itemDef.ItemId} declares sell_price {itemDef.SellPrice} above half of buy_price {itemDef.BuyPrice}; effective sell price is clamped to {sellPriceCap} to prevent shop arbitrage.",
+                "item.sell_price_clamped",
+                "content"
+            );
+        }
         if (itemTags.Contains(new StringName("material")) && itemCraftingGroups.Count == 0)
         {
             _validationErrors.Add(

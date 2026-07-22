@@ -31,8 +31,7 @@ public partial class GameSession
                 validator.ValidateGenerationConfigTyped(
                     definition,
                     path,
-                    snapshot.EnemyTemplates.Keys,
-                    snapshot.EncounterRosters.Keys
+                    snapshot.BattleEncounters.Keys
                 )
             );
         }

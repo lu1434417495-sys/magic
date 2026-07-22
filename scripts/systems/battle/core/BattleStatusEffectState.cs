@@ -6,7 +6,7 @@ using Variant = Godot.Variant;
 
 // 战斗状态效果数据 bag。
 // 翻译自 battle_status_effect_state.gd（2026-05-24，数据层 C# 迁移）。
-// 契约：docs/design/battle_csharp_migration.md
+// 契约：docs/design/battle/skill_runtime.md
 public class BattleStatusEffectState
 {
     private static readonly string[] RequiredSchemaFields =
@@ -87,7 +87,6 @@ public class BattleStatusEffectState
         "save_advantage_tags",
         "save_disadvantage_tags",
         "save_immunity_tags",
-        "save_tags",
         "status_tags",
         "save_bonus_by_tag",
     };
@@ -168,7 +167,6 @@ public class BattleStatusEffectState
     public List<StringName> save_advantage_tags { get; set; } = new();
     public List<StringName> save_disadvantage_tags { get; set; } = new();
     public List<StringName> save_immunity_tags { get; set; } = new();
-    public List<StringName> save_tags { get; set; } = new();
     public List<StringName> status_tags { get; set; } = new();
     public Dictionary<StringName, int> save_bonus_by_tag { get; set; } = new();
 
@@ -303,11 +301,27 @@ public class BattleStatusEffectState
             save_advantage_tags = BuildStringNameList(save_advantage_tags),
             save_disadvantage_tags = BuildStringNameList(save_disadvantage_tags),
             save_immunity_tags = BuildStringNameList(save_immunity_tags),
-            save_tags = BuildStringNameList(save_tags),
             status_tags = BuildStringNameList(status_tags),
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
         };
         duplicate.SetParamsTyped(_params);
+        return duplicate;
+    }
+
+    internal BattleStatusEffectState DuplicateForMutationSnapshotExact()
+    {
+        BattleStatusEffectState duplicate = DuplicateState();
+        duplicate.display_label = display_label;
+        duplicate.damage_tags = DuplicateNullableStringNameListExact(damage_tags);
+        duplicate.save_advantage_tags =
+            DuplicateNullableStringNameListExact(save_advantage_tags);
+        duplicate.save_disadvantage_tags =
+            DuplicateNullableStringNameListExact(save_disadvantage_tags);
+        duplicate.save_immunity_tags =
+            DuplicateNullableStringNameListExact(save_immunity_tags);
+        duplicate.status_tags = DuplicateNullableStringNameListExact(status_tags);
+        duplicate.save_bonus_by_tag =
+            DuplicateNullableStringNameIntMapExact(save_bonus_by_tag);
         return duplicate;
     }
 
@@ -684,7 +698,6 @@ public class BattleStatusEffectState
             save_advantage_tags = ReadStringNameListParam(parameters, "save_advantage_tags"),
             save_disadvantage_tags = ReadStringNameListParam(parameters, "save_disadvantage_tags"),
             save_immunity_tags = ReadStringNameListParam(parameters, "save_immunity_tags"),
-            save_tags = ReadStringNameListParam(parameters, "save_tags"),
             status_tags = ReadStringNameListParam(parameters, "status_tags"),
             save_bonus_by_tag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
             stacks = stacks,
@@ -816,7 +829,7 @@ public class BattleStatusEffectState
         {
             projected["damage_tag"] = damage_tag;
         }
-        if (damage_tags.Count > 0)
+        if ((damage_tags?.Count ?? 0) > 0)
         {
             projected["damage_tags"] =
                 ProgressionDataUtils.string_name_array_to_string_array(damage_tags);
@@ -889,32 +902,27 @@ public class BattleStatusEffectState
         {
             projected["range_bonus"] = range_bonus;
         }
-        if (save_advantage_tags.Count > 0)
+        if ((save_advantage_tags?.Count ?? 0) > 0)
         {
             projected["save_advantage_tags"] =
                 ProgressionDataUtils.string_name_array_to_string_array(save_advantage_tags);
         }
-        if (save_disadvantage_tags.Count > 0)
+        if ((save_disadvantage_tags?.Count ?? 0) > 0)
         {
             projected["save_disadvantage_tags"] =
                 ProgressionDataUtils.string_name_array_to_string_array(save_disadvantage_tags);
         }
-        if (save_immunity_tags.Count > 0)
+        if ((save_immunity_tags?.Count ?? 0) > 0)
         {
             projected["save_immunity_tags"] =
                 ProgressionDataUtils.string_name_array_to_string_array(save_immunity_tags);
         }
-        if (save_tags.Count > 0)
-        {
-            projected["save_tags"] =
-                ProgressionDataUtils.string_name_array_to_string_array(save_tags);
-        }
-        if (status_tags.Count > 0)
+        if ((status_tags?.Count ?? 0) > 0)
         {
             projected["status_tags"] =
                 ProgressionDataUtils.string_name_array_to_string_array(status_tags);
         }
-        if (save_bonus_by_tag.Count > 0)
+        if ((save_bonus_by_tag?.Count ?? 0) > 0)
         {
             GDictionary projectedBonusByTag = new();
             foreach (KeyValuePair<StringName, int> entry in save_bonus_by_tag)
@@ -994,7 +1002,7 @@ public class BattleStatusEffectState
             projected["dispellable_beneficial_magic"] = true;
         if (damage_tag != "")
             projected["damage_tag"] = damage_tag;
-        if (damage_tags.Count > 0)
+        if ((damage_tags?.Count ?? 0) > 0)
             projected["damage_tags"] = BuildPlainStringList(damage_tags);
         if (damage_category != "")
             projected["damage_category"] = damage_category;
@@ -1030,17 +1038,15 @@ public class BattleStatusEffectState
             projected["guard_block"] = guard_block;
         if (range_bonus != 0)
             projected["range_bonus"] = range_bonus;
-        if (save_advantage_tags.Count > 0)
+        if ((save_advantage_tags?.Count ?? 0) > 0)
             projected["save_advantage_tags"] = BuildPlainStringList(save_advantage_tags);
-        if (save_disadvantage_tags.Count > 0)
+        if ((save_disadvantage_tags?.Count ?? 0) > 0)
             projected["save_disadvantage_tags"] = BuildPlainStringList(save_disadvantage_tags);
-        if (save_immunity_tags.Count > 0)
+        if ((save_immunity_tags?.Count ?? 0) > 0)
             projected["save_immunity_tags"] = BuildPlainStringList(save_immunity_tags);
-        if (save_tags.Count > 0)
-            projected["save_tags"] = BuildPlainStringList(save_tags);
-        if (status_tags.Count > 0)
+        if ((status_tags?.Count ?? 0) > 0)
             projected["status_tags"] = BuildPlainStringList(status_tags);
-        if (save_bonus_by_tag.Count > 0)
+        if ((save_bonus_by_tag?.Count ?? 0) > 0)
         {
             var projectedBonusByTag = new Dictionary<StringName, int>();
             foreach ((StringName key, int value) in save_bonus_by_tag)
@@ -1313,6 +1319,24 @@ public class BattleStatusEffectState
             }
         }
         return result;
+    }
+
+    private static List<StringName> DuplicateNullableStringNameListExact(
+        IEnumerable<StringName> values
+    )
+    {
+        if (values == null)
+            return null;
+        return new List<StringName>(values);
+    }
+
+    private static Dictionary<StringName, int> DuplicateNullableStringNameIntMapExact(
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        if (values == null)
+            return null;
+        return new Dictionary<StringName, int>(values);
     }
 
     private static Dictionary<StringName, int> BuildStringNameIntMap(

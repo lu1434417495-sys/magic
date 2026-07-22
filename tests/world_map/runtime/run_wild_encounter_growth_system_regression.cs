@@ -28,13 +28,27 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
         {
             ["wolf_den"] = roster.ToDefinition(),
         };
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
+            BuildBattleEncounters();
 
-        bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 2, rosters);
+        bool changed = growthSystem.ApplyStepAdvance(
+            encounterAnchors,
+            0,
+            2,
+            battleEncounters,
+            rosters
+        );
 
         _test.True(changed, "到达成长间隔时应报告变更。");
         _test.Eq(encounterAnchor.growth_stage, 1, "聚落类野怪应按 roster.growth_step_interval 提升阶段。");
 
-        bool cappedChange = growthSystem.ApplyStepAdvance(encounterAnchors, 2, 20, rosters);
+        bool cappedChange = growthSystem.ApplyStepAdvance(
+            encounterAnchors,
+            2,
+            20,
+            battleEncounters,
+            rosters
+        );
         _test.True(cappedChange, "继续推进到上限前应报告变更。");
         _test.Eq(encounterAnchor.growth_stage, 2, "成长阶段不应超过 roster.GetMaxStage()。");
     }
@@ -48,15 +62,22 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
         {
             ["wolf_den"] = roster.ToDefinition(),
         };
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
+            BuildBattleEncounters();
 
-        bool changed = growthSystem.ApplyBattleVictory(encounterAnchor, 5, rosters);
+        bool changed = growthSystem.ApplyBattleSuppression(
+            encounterAnchor,
+            5,
+            battleEncounters,
+            rosters
+        );
 
         _test.True(changed, "聚落类野怪战斗胜利应应用成长回退。");
         _test.Eq(encounterAnchor.growth_stage, 1, "战斗胜利后应下降 1 个成长阶段，但不低于 initial_stage。");
         _test.Eq(
             encounterAnchor.suppressed_until_step,
             8,
-            "战斗胜利后应按 roster.suppression_steps_on_victory 写入压制截止 step。"
+            "战斗胜利后应按 BattleEncounter world resolution 写入压制截止 step。"
         );
     }
 
@@ -67,7 +88,13 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
         var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
         var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>();
 
-        bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 10, rosters);
+        bool changed = growthSystem.ApplyStepAdvance(
+            encounterAnchors,
+            0,
+            10,
+            BuildBattleEncounters(),
+            rosters
+        );
 
         _test.False(changed, "缺少 typed WildEncounterRosterDefinition 时不应推进成长阶段。");
         _test.Eq(encounterAnchor.growth_stage, 0, "无有效 typed roster 时不应推进成长阶段。");
@@ -93,7 +120,6 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
             display_name = "Wolf Den",
             initial_stage = 0,
             growth_step_interval = 2,
-            suppression_steps_on_victory = 3,
         };
         roster.stages.Add(BuildStage(0));
         roster.stages.Add(BuildStage(1));
@@ -116,4 +142,22 @@ public partial class run_wild_encounter_growth_system_regression : LifecycleTest
         );
         return stageDef;
     }
+
+    private static IReadOnlyDictionary<StringName, BattleEncounterDefinition>
+        BuildBattleEncounters() =>
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                ["wolf_den"] = new BattleEncounterDefinition(
+                    "wolf_den",
+                    "Wolf Den",
+                    "wolf_den",
+                    BattleEliminationObjectiveDefinition.Instance,
+                    new BattleEncounterWorldResolutionDefinition(
+                        BattleWorldResolutionMode.Suppress,
+                        BattleWorldResolutionMode.Preserve,
+                        BattleWorldResolutionMode.Preserve,
+                        3
+                    )
+                ),
+            };
 }

@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_blmuj"]
 script = ExtResource("4_y33uv")
 skill_id = &"mage_tempest_ring"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 0
 area_pattern = &"radius"

@@ -87,7 +87,11 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         );
 
         _test.Eq(report.ProfileEntries.Count, 2, "simulation report 应包含 baseline 与 patch 两组 profile 结果。");
-        _test.Eq(report.Comparisons.Count, 1, "两组 profile 应产出 1 组 comparison。");
+        _test.Eq(
+            report.Comparisons.Count,
+            0,
+            "木桩场景没有 battle-ended sample，不应产出正式 comparison。"
+        );
         _test.True(
             !string.IsNullOrEmpty(report.OutputFiles.ReportJson),
             "simulation runner 应写出主 report json。"
@@ -104,6 +108,21 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         _test.True(
             baselineEntry.Runs.Count == 2 && patchedEntry.Runs.Count == 2,
             "每个 profile 应按 scenario seeds 跑满 2 场战斗。"
+        );
+        _test.Eq(
+            baselineEntry.Summary.CompletedRunCount,
+            0,
+            "永久 wait 木桩场景不应伪装成 completed sample。"
+        );
+        _test.Eq(
+            baselineEntry.Summary.IterationBudgetExhaustedRunCount,
+            2,
+            "baseline 的两场木桩战斗都应保留为迭代预算诊断。"
+        );
+        _test.Eq(
+            patchedEntry.Summary.IterationBudgetExhaustedRunCount,
+            2,
+            "patched profile 的两场木桩战斗都应保留为迭代预算诊断。"
         );
         if (baselineEntry.Runs.Count > 0)
         {
@@ -125,13 +144,12 @@ public partial class run_battle_simulation_regression : LifecycleTestSceneTree
         }
 
         _test.True(
-            GetInt(baselineEntry.Summary.SkillUsageTotals, "archer_suppressive_fire") > 0,
-            "baseline profile 面对成线目标时应允许 AI 使用 archer_suppressive_fire。"
+            HasTraceCommandSkill(baselineEntry, "archer_suppressive_fire"),
+            "baseline profile 的原始 trace 应显示 AI 使用过 archer_suppressive_fire。"
         );
-        _test.Eq(
-            GetInt(patchedEntry.Summary.SkillUsageTotals, "archer_suppressive_fire"),
-            0,
-            "高 stamina patch 后，AI 不应再使用 archer_suppressive_fire。"
+        _test.False(
+            HasTraceCommandSkill(patchedEntry, "archer_suppressive_fire"),
+            "高 stamina patch 后，原始 trace 不应再出现 archer_suppressive_fire。"
         );
         _test.True(
             HasTraceCommandSkill(patchedEntry, "archer_pinning_shot"),

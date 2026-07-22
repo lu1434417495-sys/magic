@@ -77,6 +77,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_he5sn"]
 script = ExtResource("4_iuw8i")
 skill_id = &"mage_null_zone"
+delivery_categories = Array[StringName]([&"spell", &"antimagic"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

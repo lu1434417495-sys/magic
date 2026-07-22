@@ -27,6 +27,31 @@ internal sealed class BattleStatusEffectCollection
         _effects[effect.status_id] = effect;
     }
 
+    internal void SetForMutationSnapshotExact(
+        StringName statusKey,
+        BattleStatusEffectState effect
+    )
+    {
+        _effects[statusKey] = effect;
+    }
+
+    internal IReadOnlyList<KeyValuePair<StringName, BattleStatusEffectState>>
+        SnapshotEntriesForMutationSnapshotExact()
+    {
+        var result =
+            new List<KeyValuePair<StringName, BattleStatusEffectState>>();
+        foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in _effects)
+        {
+            result.Add(
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    entry.Key,
+                    entry.Value?.DuplicateForMutationSnapshotExact()
+                )
+            );
+        }
+        return result;
+    }
+
     public bool Remove(StringName id)
     {
         StringName normalized = ProgressionDataUtils.to_string_name(id);

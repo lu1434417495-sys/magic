@@ -121,6 +121,7 @@ tick_interval_tu = 10
 [sub_resource type="Resource" id="Resource_p1pox"]
 script = ExtResource("4_dxu67")
 skill_id = &"mage_inferno_pillar"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 5
 area_pattern = &"line"

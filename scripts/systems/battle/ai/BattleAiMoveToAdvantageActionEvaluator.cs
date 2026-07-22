@@ -90,29 +90,31 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
             "effective_attack_range",
             -1
         );
-        AiActionTrace trace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "move_to_advantage_position",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["desired_min_distance"] = resolvedMinDistance,
-                ["desired_max_distance"] = resolvedMaxDistance,
-                ["configured_desired_min_distance"] = action.DesiredMinDistance,
-                ["configured_desired_max_distance"] = action.DesiredMaxDistance,
-                ["effective_attack_range"] = effectiveAttackRange,
-                ["range_skill_ids"] = new List<StringName>(action.RangeSkillIds),
-                ["minimum_safe_distance"] = action.MinimumSafeDistance,
-                ["safe_distance_margin"] = action.SafeDistanceMargin,
-                ["min_distance_progress_when_beyond_band"] =
-                    action.MinDistanceProgressWhenBeyondBand,
-                ["positioning_mode"] = action.PositioningMode.ToString(),
-                ["high_ground_weight"] = action.HighGroundWeight,
-                ["safety_weight"] = action.SafetyWeight,
-                ["distance_band_weight"] = action.DistanceBandWeight,
-            }
-        );
+        AiActionTrace trace = context?.trace_enabled == true
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "move_to_advantage_position",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["desired_min_distance"] = resolvedMinDistance,
+                    ["desired_max_distance"] = resolvedMaxDistance,
+                    ["configured_desired_min_distance"] = action.DesiredMinDistance,
+                    ["configured_desired_max_distance"] = action.DesiredMaxDistance,
+                    ["effective_attack_range"] = effectiveAttackRange,
+                    ["range_skill_ids"] = new List<StringName>(action.RangeSkillIds),
+                    ["minimum_safe_distance"] = action.MinimumSafeDistance,
+                    ["safe_distance_margin"] = action.SafeDistanceMargin,
+                    ["min_distance_progress_when_beyond_band"] =
+                        action.MinDistanceProgressWhenBeyondBand,
+                    ["positioning_mode"] = action.PositioningMode.ToString(),
+                    ["high_ground_weight"] = action.HighGroundWeight,
+                    ["safety_weight"] = action.SafetyWeight,
+                    ["distance_band_weight"] = action.DistanceBandWeight,
+                }
+            )
+            : null;
         if (
             context?.state == null
             || context.unit_state == null
@@ -307,20 +309,23 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
                 );
                 continue;
             }
-            EnemyAiActionHelper.TraceOfferCandidate(
-                trace,
-                EnemyAiActionHelper.BuildCandidateSummary(
-                    $"move_to_{candidate.Coord.X}_{candidate.Coord.Y}",
-                    command,
-                    scoreInput,
-                    new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["coord"] = candidate.Coord,
-                        ["dist"] = candidate.Distance,
-                        ["height"] = candidate.Height,
-                    }
-                )
-            );
+            if (trace != null)
+            {
+                EnemyAiActionHelper.TraceOfferCandidate(
+                    trace,
+                    EnemyAiActionHelper.BuildCandidateSummary(
+                        $"move_to_{candidate.Coord.X}_{candidate.Coord.Y}",
+                        command,
+                        scoreInput,
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["coord"] = candidate.Coord,
+                            ["dist"] = candidate.Distance,
+                            ["height"] = candidate.Height,
+                        }
+                    )
+                );
+            }
             if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                 continue;
             bestScoreInput = scoreInput;

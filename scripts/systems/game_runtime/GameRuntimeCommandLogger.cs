@@ -393,6 +393,16 @@ public sealed class GameRuntimeCommandLogger
             ["map_size"] = battleState.map_size,
             ["phase"] = battleState.phase.ToString(),
             ["modal_state"] = battleState.modal_state.ToString(),
+            ["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleState.ObjectiveRuntimeState?.Mode ?? BattleObjectiveMode.Unknown
+            ),
+            ["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleState.FinalDecision?.Outcome ?? BattleOutcomeKind.Unknown
+            ),
+            ["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleState.FinalDecision?.EndReason ?? BattleEndReasonKind.None
+            ),
+            ["decision_tu"] = battleState.FinalDecision?.DecisionTu ?? -1,
             ["winner_faction_id"] = battleState.winner_faction_id.ToString(),
             ["active_unit_id"] = battleState.active_unit_id.ToString(),
             ["active_unit_name"] = _runtime._get_battle_active_unit_name(),

@@ -41,10 +41,8 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             EnsureCapacity(partyState, 10);
             SeedRegularBattleShardFlags(partyState, 2);
 
-            BattleResolutionResult resolutionResult = new()
-            {
-                winner_faction_id = "player",
-            };
+            BattleResolutionResult resolutionResult =
+                BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(new[]
             {
                 BuildLootEntry(
@@ -110,10 +108,8 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
                 BattleLootIds.OrdinaryBattleCalamityShardChapterCap
             );
 
-            BattleResolutionResult resolutionResult = new()
-            {
-                winner_faction_id = "player",
-            };
+            BattleResolutionResult resolutionResult =
+                BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(new[]
             {
                 BuildLootEntry(
@@ -279,12 +275,13 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
 
     private static BattleState BuildFinishedBattleState(StringName battleId)
     {
-        return new BattleState
+        BattleState state = new()
         {
             battle_id = battleId,
-            winner_faction_id = "player",
             phase = "battle_ended",
         };
+        BattleObjectiveTestFactory.SetEliminationDecision(state, "player");
+        return state;
     }
 
     private static BattleUnitState BuildEnemyUnit(

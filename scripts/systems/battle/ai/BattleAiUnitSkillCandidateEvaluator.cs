@@ -35,23 +35,24 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
         string actorDisplayName = actor.display_name;
         bool traceEnabled = context.trace_enabled;
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            traceEnabled,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "unit_skill",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["minimum_effective_target_count"] = action.MinimumEffectiveTargetCount,
-                ["maximum_friendly_fire_target_count"] =
-                    action.MaximumFriendlyFireTargetCount,
-                ["allow_friendly_lethal"] = action.AllowFriendlyLethal,
-                ["distance_reference"] = action.DistanceReference.ToString(),
-                ["desired_min_distance"] = desiredMinDistance,
-                ["desired_max_distance"] = desiredMaxDistance,
-            }
-        );
+        AiActionTrace actionTrace = traceEnabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "unit_skill",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["minimum_effective_target_count"] = action.MinimumEffectiveTargetCount,
+                    ["maximum_friendly_fire_target_count"] =
+                        action.MaximumFriendlyFireTargetCount,
+                    ["allow_friendly_lethal"] = action.AllowFriendlyLethal,
+                    ["distance_reference"] = action.DistanceReference.ToString(),
+                    ["desired_min_distance"] = desiredMinDistance,
+                    ["desired_max_distance"] = desiredMaxDistance,
+                }
+            )
+            : null;
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
@@ -128,17 +129,31 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         target,
                         optionId
                     );
-                    BattlePreview preview = BuildFastUnitSkillPreview(
+                    BattlePreview fastPreview = BuildFastUnitSkillPreview(
                         context,
                         skillDefinition,
                         command,
                         target,
                         out string previewRejectCounterKey
                     );
+                    BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
+                        context,
+                        command,
+                        fastPreview
+                    );
                     if (preview == null || !preview.allowed)
                     {
                         TraceCountIncrement(actionTrace, "preview_reject_count", 1);
-                        TraceCountIncrement(actionTrace, previewRejectCounterKey, 1);
+                        if (!string.IsNullOrEmpty(previewRejectCounterKey))
+                            TraceCountIncrement(actionTrace, previewRejectCounterKey, 1);
+                        else
+                            TraceAddBlockReason(actionTrace, "canonical_preview_reject");
+                        continue;
+                    }
+                    if (!preview.ContainsTargetUnitId(target.unit_id))
+                    {
+                        TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                        TraceAddBlockReason(actionTrace, "barrier_blocked_all_targets");
                         continue;
                     }
 
@@ -163,13 +178,15 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         effectDefinitions,
                         positionMetadata
                     );
-                    Dictionary<string, object> candidateExtra = BuildCandidateExtra(
-                        skillId,
-                        optionId,
-                        skillDefinition,
-                        castVariant,
-                        target
-                    );
+                    Dictionary<string, object> candidateExtra = actionTrace != null
+                        ? BuildCandidateExtra(
+                            skillId,
+                            optionId,
+                            skillDefinition,
+                            castVariant,
+                            target
+                        )
+                        : null;
 
                     if (scoreInput == null)
                     {
@@ -180,7 +197,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         );
                         OfferCandidate(
                             actionTrace,
-                            traceEnabled,
                             optionLabel,
                             target,
                             command,
@@ -203,7 +219,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
                     OfferCandidate(
                         actionTrace,
-                        traceEnabled,
                         optionLabel,
                         target,
                         command,
@@ -225,7 +240,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         }
 
         BattleAiDecision resolvedDecision = bestDecision ?? fallbackDecision;
-        FinalizeActionTrace(context, actionTrace, resolvedDecision, traceEnabled);
+        FinalizeActionTrace(context, actionTrace, resolvedDecision);
         return resolvedDecision;
     }
 
@@ -421,7 +436,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     private static AiActionTrace BeginActionTrace(
         UseUnitSkillActionDefinition action,
         BattleAiContext context,
-        bool traceEnabled,
         IReadOnlyDictionary<string, object> metadata
     )
     {
@@ -435,11 +449,10 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             action?.ScoreBucketId ?? EmptyStringName
         );
         StringName actionId = action?.ActionId ?? EmptyStringName;
-        StringName traceId = context != null ? context.NextActionTraceId(actionId) : actionId;
-        return new AiActionTrace(
-            traceId,
-            actionId.ToString(),
-            scoreBucketId.ToString(),
+        return EnemyAiActionHelper.BeginActionTrace(
+            actionId,
+            scoreBucketId,
+            context,
             traceMetadata
         );
     }
@@ -456,7 +469,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
     private static void OfferCandidate(
         AiActionTrace actionTrace,
-        bool traceEnabled,
         string optionLabel,
         BattleUnitState target,
         BattleCommand command,
@@ -466,19 +478,15 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     {
         if (actionTrace == null)
             return;
-        if (!traceEnabled)
-        {
-            actionTrace.Increment("candidate_count", 1);
-            return;
-        }
-
-        AiCandidateSummary candidateSummary = AiCandidateSummary.Create(
-            $"{optionLabel}->{target?.display_name ?? ""}",
-            command,
-            scoreInput,
-            candidateExtra
+        EnemyAiActionHelper.TraceOfferCandidate(
+            actionTrace,
+            EnemyAiActionHelper.BuildCandidateSummary(
+                $"{optionLabel}->{target?.display_name ?? ""}",
+                command,
+                scoreInput,
+                candidateExtra
+            )
         );
-        actionTrace.OfferCandidate(candidateSummary, 5);
     }
 
     private static Dictionary<string, object> CloneTraceMetadata(
@@ -555,19 +563,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
     private static void FinalizeActionTrace(
         BattleAiContext context,
         AiActionTrace actionTrace,
-        BattleAiDecision bestDecision,
-        bool traceEnabled
-    )
-    {
-        if (actionTrace == null || actionTrace.IsEmpty())
-            return;
-        if (bestDecision != null)
-            bestDecision.action_trace_id = actionTrace.TraceId;
-        if (!traceEnabled)
-            return;
-
-        actionTrace.ApplyBestDecision(bestDecision);
-        context?.RecordActionTrace(actionTrace);
-    }
+        BattleAiDecision bestDecision
+    ) => EnemyAiActionHelper.FinalizeActionTrace(context, actionTrace, bestDecision);
 
 }

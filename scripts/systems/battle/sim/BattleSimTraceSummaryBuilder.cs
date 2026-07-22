@@ -38,10 +38,11 @@ public sealed class BattleSimTraceSummaryBuilder
     internal GodotProjectionLease<Dictionary> BuildLease(
         BattleSimScenarioReport report,
         string sourceReportPath = "",
-        TraceSummaryOptionsData options = null
+        TraceSummaryOptionsData options = null,
+        TraceSummaryBatchFactsData batchFacts = null
     ) =>
         TraceDictionaryProjection.BuildLease(
-            BuildPlainSummary(report, sourceReportPath, options),
+            BuildPlainSummary(report, sourceReportPath, options, batchFacts),
             "battle_sim_trace_summary",
             LifetimeDomain.Request,
             "BattleSimTraceSummaryBuilder.BuildLease"
@@ -50,10 +51,11 @@ public sealed class BattleSimTraceSummaryBuilder
     internal GodotProjectionLease<Dictionary> BuildFileLease(
         BattleSimScenarioReport report,
         string sourceReportPath = "",
-        TraceSummaryOptionsData options = null
+        TraceSummaryOptionsData options = null,
+        TraceSummaryBatchFactsData batchFacts = null
     ) =>
         TraceDictionaryProjection.BuildJsonSafeLease(
-            BuildPlainSummary(report, sourceReportPath, options),
+            BuildPlainSummary(report, sourceReportPath, options, batchFacts),
             "battle-sim-trace-summary-file",
             LifetimeDomain.Request,
             "BattleSimTraceSummaryBuilder.BuildFileLease"
@@ -62,7 +64,8 @@ public sealed class BattleSimTraceSummaryBuilder
     private System.Collections.Generic.Dictionary<string, object> BuildPlainSummary(
         BattleSimScenarioReport report,
         string sourceReportPath,
-        TraceSummaryOptionsData options
+        TraceSummaryOptionsData options,
+        TraceSummaryBatchFactsData batchFacts
     )
     {
         TraceSummaryOptionsData summaryOptions = options ?? new TraceSummaryOptionsData();
@@ -77,8 +80,6 @@ public sealed class BattleSimTraceSummaryBuilder
                 string profileId = profileEntry.Profile?.ProfileId.ToString() ?? "";
                 foreach (BattleSimRunReport run in profileEntry.Runs)
                 {
-                    if (run == null)
-                        continue;
                     CompactRunTraceData compactRun = BuildCompactRunTraceDataManaged(
                         run,
                         profileId,
@@ -111,16 +112,26 @@ public sealed class BattleSimTraceSummaryBuilder
         var runs = new List<object>();
         foreach (CompactRunTraceData compactRun in compactRuns)
             runs.Add(compactRun.ToPlainDictionary());
-        return PlainMap(
+        System.Collections.Generic.Dictionary<string, object> summary = PlainMap(
             ("source_report", sourceReportPath ?? ""),
             ("scenario", BattleSimFilePayloadProjection.BuildScenarioFacts(report?.Scenario)),
             ("batch_id", 0),
             ("generated_at_unix", report?.GeneratedAtUnix ?? 0),
             ("profile_count", report?.ProfileEntries.Count ?? 0),
-            ("run_count", compactRuns.Count),
+            ("run_count", report?.RunCount ?? 0),
+            ("completed_run_count", report?.CompletedRunCount ?? 0),
+            ("unfinished_run_count", report?.UnfinishedRunCount ?? 0),
+            ("stalled_run_count", report?.StalledRunCount ?? 0),
+            (
+                "iteration_budget_exhausted_run_count",
+                report?.IterationBudgetExhaustedRunCount ?? 0
+            ),
+            ("invalid_runtime_run_count", report?.InvalidRuntimeRunCount ?? 0),
+            ("has_unfinished_runs", report?.HasUnfinishedRuns ?? false),
+            ("is_complete", report?.IsComplete ?? false),
             ("trace_count", traceCount),
             ("elapsed_seconds", 0.0f),
-            ("ended_count", 0),
+            ("ended_count", report?.CompletedRunCount ?? 0),
             ("avg_iterations", 0.0f),
             ("avg_timeline_steps", 0.0f),
             ("win_rate", PlainMap()),
@@ -132,6 +143,14 @@ public sealed class BattleSimTraceSummaryBuilder
             ("trace_compaction", summaryOptions.ToPlainDictionary()),
             ("runs", runs)
         );
+        if (batchFacts != null)
+        {
+            summary["requested_run_count"] = batchFacts.RequestedRunCount;
+            summary["timeout_seconds"] = batchFacts.TimeoutSeconds;
+            summary["timed_out"] = batchFacts.TimedOut;
+            summary["is_complete"] = batchFacts.IsComplete;
+        }
+        return summary;
     }
 
     private CompactRunTraceData BuildCompactRunTraceDataManaged(
@@ -147,7 +166,14 @@ public sealed class BattleSimTraceSummaryBuilder
             RunIndex = 0,
             Seed = runEntry?.Seed ?? 0,
             BattleEnded = runEntry?.BattleEnded ?? false,
-            WinnerFactionId = runEntry?.WinnerFactionId ?? "",
+            TerminationKind = runEntry?.TerminationKind ?? BattleSimTerminationKind.InvalidRuntime,
+            StartFailure = BattleSimFilePayloadProjection.BuildStartFailureFacts(
+                runEntry?.StartFailure
+            ),
+            ObjectiveMode = runEntry?.ObjectiveMode ?? BattleObjectiveMode.Unknown,
+            Outcome = runEntry?.Outcome ?? BattleOutcomeKind.Unknown,
+            EndReason = runEntry?.EndReason ?? BattleEndReasonKind.None,
+            DecisionTu = runEntry?.DecisionTu ?? -1,
             FinalTu = runEntry?.FinalTu ?? 0,
             Iterations = runEntry?.Iterations ?? 0,
             TimelineSteps = runEntry?.TimelineSteps ?? 0,
@@ -848,13 +874,32 @@ public sealed class BattleSimTraceSummaryBuilder
             );
     }
 
+    internal sealed class TraceSummaryBatchFactsData
+    {
+        internal int RequestedRunCount { get; set; }
+
+        internal int TimeoutSeconds { get; set; }
+
+        internal bool TimedOut { get; set; }
+
+        internal bool IsComplete { get; set; }
+    }
+
     private sealed class CompactRunTraceData
     {
         public string ProfileId { get; set; } = "";
         public int RunIndex { get; set; }
         public long Seed { get; set; }
         public bool BattleEnded { get; set; }
-        public string WinnerFactionId { get; set; } = "";
+        public BattleSimTerminationKind TerminationKind { get; set; }
+        public System.Collections.Generic.Dictionary<string, object> StartFailure { get; set; } =
+            new(StringComparer.Ordinal);
+        public BattleObjectiveMode ObjectiveMode { get; set; }
+        public BattleOutcomeKind Outcome { get; set; }
+        public BattleEndReasonKind EndReason { get; set; }
+        public int DecisionTu { get; set; } = -1;
+        public string WinnerFactionId =>
+            BattleObjectiveRuntimeCodec.ToWinnerFactionId(Outcome);
         public int FinalTu { get; set; }
         public int Iterations { get; set; }
         public int TimelineSteps { get; set; }
@@ -896,6 +941,13 @@ public sealed class BattleSimTraceSummaryBuilder
                 ("run_index", RunIndex),
                 ("seed", Seed),
                 ("battle_ended", BattleEnded),
+                ("termination_kind", BattleSimTerminationKindCodec.ToWireValue(TerminationKind)),
+                ("stalled", TerminationKind == BattleSimTerminationKind.IdleStall),
+                ("start_failure", StartFailure),
+                ("objective_mode", BattleObjectiveRuntimeCodec.ToWireValue(ObjectiveMode)),
+                ("outcome", BattleObjectiveRuntimeCodec.ToWireValue(Outcome)),
+                ("end_reason", BattleObjectiveRuntimeCodec.ToWireValue(EndReason)),
+                ("decision_tu", DecisionTu),
                 ("winner_faction_id", WinnerFactionId),
                 ("final_tu", FinalTu),
                 ("iterations", Iterations),

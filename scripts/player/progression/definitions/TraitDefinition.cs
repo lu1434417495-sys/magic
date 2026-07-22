@@ -22,6 +22,8 @@ public sealed class TraitDefinition
         int proficiencyChoiceCount,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         IReadOnlyList<StringName> saveAdvantageTags,
+        IReadOnlyList<StringName> saveDisadvantageTags,
+        IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyList<TraitDamageResistanceEntryDefinition> damageResistanceEntries,
         IReadOnlyList<TraitSaveBonusEntryDefinition> saveBonusEntries,
         IReadOnlyList<TraitPassiveStatusEffectDefinition> passiveStatusEffects,
@@ -60,6 +62,14 @@ public sealed class TraitDefinition
         SaveAdvantageTags = ProgressionDefinitionProjection.FreezeValues(
             saveAdvantageTags,
             "TraitDefinition.SaveAdvantageTags"
+        );
+        SaveDisadvantageTags = ProgressionDefinitionProjection.FreezeValues(
+            saveDisadvantageTags,
+            "TraitDefinition.SaveDisadvantageTags"
+        );
+        SaveImmunityTags = ProgressionDefinitionProjection.FreezeValues(
+            saveImmunityTags,
+            "TraitDefinition.SaveImmunityTags"
         );
         DamageResistanceEntries = ProgressionDefinitionProjection.FreezeValues(
             damageResistanceEntries,
@@ -116,6 +126,8 @@ public sealed class TraitDefinition
     public int ProficiencyChoiceCount { get; }
     public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
     public IReadOnlyList<StringName> SaveAdvantageTags { get; }
+    public IReadOnlyList<StringName> SaveDisadvantageTags { get; }
+    public IReadOnlyList<StringName> SaveImmunityTags { get; }
     public IReadOnlyList<TraitDamageResistanceEntryDefinition> DamageResistanceEntries { get; }
     public IReadOnlyList<TraitSaveBonusEntryDefinition> SaveBonusEntries { get; }
     public IReadOnlyList<TraitPassiveStatusEffectDefinition> PassiveStatusEffects { get; }
@@ -223,6 +235,14 @@ public sealed class TraitDefinition
             ProgressionDefinitionProjection.CopyBorrowedValues(
                 source.SaveAdvantageTagsProjectionBorrowed,
                 $"{path}.save_advantage_tags"
+            ),
+            ProgressionDefinitionProjection.CopyBorrowedValues(
+                source.SaveDisadvantageTagsProjectionBorrowed,
+                $"{path}.save_disadvantage_tags"
+            ),
+            ProgressionDefinitionProjection.CopyBorrowedValues(
+                source.SaveImmunityTagsProjectionBorrowed,
+                $"{path}.save_immunity_tags"
             ),
             ProgressionDefinitionProjection.ProjectBorrowedValues(
                 source.DamageResistanceEntriesProjectionBorrowed,

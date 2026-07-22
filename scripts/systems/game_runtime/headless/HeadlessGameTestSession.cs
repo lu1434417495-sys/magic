@@ -271,6 +271,12 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return false;
         }
         SyncBattleRuntimeContentCatalogs(battleRuntime);
+        BattleObjectiveDefinition objectiveDefinition =
+            runtimeFacade.ResolveBattleObjectiveDefinition(encounterAnchor);
+        if (objectiveDefinition == null)
+        {
+            return false;
+        }
 
         int seed =
             pendingRequest.Seed != 0
@@ -294,6 +300,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             runtimeState = battleRuntime.StartBattleBorrowingContext(
                 encounterAnchor,
                 seed,
+                objectiveDefinition,
                 contextLease.Value
             );
         }
@@ -406,6 +413,15 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         }
         SyncBattleRuntimeContentCatalogs(battleRuntime);
 
+        GameRuntimeFacade runtimeFacade = _runtime as GameRuntimeFacade;
+        BattleObjectiveDefinition objectiveDefinition =
+            runtimeFacade?.ResolveBattleObjectiveDefinition(encounterAnchor);
+        if (objectiveDefinition == null)
+        {
+            _lastBattleStartDiagnostic = "objective_definition_missing";
+            return;
+        }
+
         _runtime.PrepareBattleStart(encounterAnchor);
         Dictionary<string, object> typedContext = BuildBattleStartContextTyped(encounterAnchor);
         int seed = TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
@@ -423,6 +439,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             runtimeState = battleRuntime.StartBattleBorrowingContext(
                 encounterAnchor,
                 seed,
+                objectiveDefinition,
                 contextLease.Value
             );
         }
@@ -438,7 +455,6 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return;
         }
 
-        GameRuntimeFacade runtimeFacade = _runtime as GameRuntimeFacade;
         runtimeFacade?.ClearPendingBattleGenerationRequest();
         runtimeFacade?.RefreshBattleRuntimeState();
         runtimeFacade?.PresentBattleStartConfirmation();
@@ -465,17 +481,54 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             return new SessionCommandOutcome(false, "当前战斗状态不可用。");
         }
 
+        GameRuntimeFacade facade = _runtime as GameRuntimeFacade;
+        BattleRuntimeModule battleRuntime = facade?.GetBattleRuntime();
+        if (facade == null || battleRuntime == null)
+        {
+            return new SessionCommandOutcome(false, "当前战斗运行时不可用。");
+        }
+
         PrimeHeadlessBattleLootIfNeeded(winner_faction_id);
-        battleState.PhaseKind = BattlePhaseKind.BattleEnded;
-        battleState.winner_faction_id = winner_faction_id;
-        battleState.active_unit_id = "";
-        battleState.timeline.ready_unit_ids.Clear();
-        battleState.timeline.frozen = true;
-        _runtime.RefreshBattleRuntimeState();
-        GameRuntimeFacade.RuntimeCommandResult result = _runtime.CommandBattleWaitOrResolveTyped();
+        using BattleEventBatch batch = new();
+        battleRuntime.BeginObjectiveMutation();
+        bool mutationCompleted = false;
+        try
+        {
+            IReadOnlyList<StringName> defeatedUnitIds =
+                winner_faction_id == "player"
+                    ? battleState.GetEnemyUnitIdsTyped()
+                    : battleState.GetAllyUnitIdsTyped();
+            foreach (StringName unitId in defeatedUnitIds)
+            {
+                BattleUnitState unit = battleState.GetUnit(unitId);
+                if (unit?.is_alive != true)
+                    continue;
+                unit.MarkDead();
+                battleRuntime.HandleUnitDefeatedByRuntimeEffect(
+                    unit,
+                    null,
+                    batch,
+                    $"{unit.display_name} 被测试结算击倒。",
+                    new BattleDefeatHandlingOptions(
+                        collectLoot: false,
+                        recordEnemyDefeatedAchievement: false
+                    )
+                );
+            }
+            mutationCompleted = true;
+        }
+        finally
+        {
+            battleRuntime.EndObjectiveMutation(batch, mutationCompleted);
+        }
+        facade.ApplyBattleBatch(batch);
         _activeHeadlessEncounterAnchor = null;
         SettleFrames(1);
-        return new SessionCommandOutcome(result.Ok, result.Message, result.Code);
+        return new SessionCommandOutcome(
+            true,
+            "战斗已按正式目标结算。",
+            GameRuntimeFacade.RuntimeCommandCode.Ok
+        );
     }
 
     internal SessionCommandOutcome ChangeBattleEquipmentTyped(
@@ -889,10 +942,12 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
             _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
+            _gameSession.GetBattleEncounterDefinitions();
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             _gameSession.GetEnemyTemplateDefinitions();
         using var builder = new EncounterRosterBuilder();
-        builder.Setup(wildEncounterRosters, enemyTemplates);
+        builder.Setup(battleEncounters, wildEncounterRosters, enemyTemplates);
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
             builder.BuildLootEntriesPlain(
             encounterAnchor,
@@ -1027,10 +1082,12 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters =
             _gameSession.GetEncounterRosterDefinitions();
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters =
+            _gameSession.GetBattleEncounterDefinitions();
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
             _gameSession.GetEnemyTemplateDefinitions();
         using var rosterBuilder = new EncounterRosterBuilder();
-        rosterBuilder.Setup(wildEncounterRosters, enemyTemplates);
+        rosterBuilder.Setup(battleEncounters, wildEncounterRosters, enemyTemplates);
         IReadOnlyList<IReadOnlyDictionary<string, object>> previewLootEntries =
             rosterBuilder.BuildLootEntriesPlain(
                 _activeHeadlessEncounterAnchor,

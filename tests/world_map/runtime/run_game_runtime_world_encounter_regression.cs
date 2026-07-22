@@ -166,7 +166,6 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
             display_name = displayName,
             world_coord = coord,
             faction_id = "hostile",
-            enemy_roster_template_id = "test_roster",
             region_tag = "test",
             vision_range = 2,
             is_cleared = isCleared,
@@ -183,7 +182,6 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
             display_name = "Wolf Den",
             initial_stage = 0,
             growth_step_interval = 1,
-            suppression_steps_on_victory = 1,
             stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
             {
                 new WildEncounterRosterStageDef { stage = 0 },

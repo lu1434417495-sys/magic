@@ -292,8 +292,8 @@ public partial class run_butcher_weapon_ability_regression : LifecycleTestSceneT
         BattleState state = new()
         {
             battle_id = "butcher_loot_resolution",
-            winner_faction_id = "player",
         };
+        BattleObjectiveTestFactory.SetEliminationDecision(state, "player");
         runtime.SetupStateForTests(state);
         BattleResolutionResult resolution = runtime._build_battle_resolution_result();
         _test.Eq(

@@ -35,8 +35,18 @@ internal sealed class BattleTimelineDriver
         var resolvedTickCount = Mathf.Max(tickCount, 0);
         for (int i = 0; i < resolvedTickCount; i++)
         {
-            ApplyTimelineStep(batch, state.timeline.tu_per_tick);
-            if (CheckBattleEnd(batch))
+            runtime?.BeginObjectiveMutation();
+            bool mutationCompleted = false;
+            try
+            {
+                ApplyTimelineStep(batch, state.timeline.tu_per_tick);
+                mutationCompleted = true;
+            }
+            finally
+            {
+                runtime?.EndObjectiveMutation(batch, mutationCompleted);
+            }
+            if (state.FinalDecision != null)
                 return;
         }
     }
@@ -75,14 +85,6 @@ internal sealed class BattleTimelineDriver
         if (runtime == null)
             return;
         runtime._collect_defeated_unit_loot(unitState, killerUnit, batch);
-    }
-
-    private void _ClearDefeatedUnit(BattleUnitState unitState, BattleEventBatch batch = null)
-    {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return;
-        runtime._clear_defeated_unit(unitState, batch);
     }
 
     private void _AdvanceUnitTurnTimers(BattleUnitState unitState, BattleEventBatch batch)
@@ -142,14 +144,6 @@ internal sealed class BattleTimelineDriver
         if (runtime == null)
             return;
         runtime._cleanup_ai_turn(unitState);
-    }
-
-    private BattleResolutionResult _BuildBattleResolutionResult()
-    {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return null;
-        return runtime._build_battle_resolution_result();
     }
 
     private void _ReconcilePendingCasts(BattleEventBatch batch)
@@ -500,59 +494,6 @@ internal sealed class BattleTimelineDriver
         return tuPerTick;
     }
 
-    internal bool CheckBattleEnd(BattleEventBatch batch)
-    {
-        var runtime = _ResolveRuntime();
-        var state = _ResolveState();
-        if (state == null || batch == null)
-            return false;
-        if (state.PhaseKind == BattlePhaseKind.BattleEnded)
-            return true;
-        state.NormalizeUnitIdArrays();
-        var allyUnitIds = state.GetAllyUnitIdsTyped();
-        var enemyUnitIds = state.GetEnemyUnitIdsTyped();
-        var livingAllies = CountLivingUnits(allyUnitIds);
-        var livingEnemies = CountLivingUnits(enemyUnitIds);
-        if (livingAllies > 0 && livingEnemies > 0)
-            return false;
-
-        state.PhaseKind = BattlePhaseKind.BattleEnded;
-        if (livingAllies <= 0 && livingEnemies <= 0)
-            state.winner_faction_id = "draw";
-        else if (livingAllies > 0)
-            state.winner_faction_id = "player";
-        else
-            state.winner_faction_id = "hostile";
-        state.active_unit_id = "";
-        state.timeline.ready_unit_ids.Clear();
-        state.timeline.frozen = true;
-        runtime?._battle_rating_system?.RecordBattleWonAchievements();
-        runtime?._battle_rating_system?.FinalizeBattleRatingRewards();
-        if (runtime?._battle_resolution_result == null)
-            runtime._battle_resolution_result = _BuildBattleResolutionResult();
-        if (runtime != null)
-            runtime._battle_resolution_result_consumed = false;
-        batch.phase_changed = true;
-        batch.battle_ended = true;
-        var line = $"战斗结束，胜利方：{state.winner_faction_id}。";
-        batch.AddLogLine(line);
-        state.AppendLogEntry(line);
-        return true;
-    }
-
-    internal int CountLivingUnits(IEnumerable<StringName> unitIds)
-    {
-        var state = _ResolveState();
-        int count = 0;
-        foreach (StringName unitId in unitIds)
-        {
-            var unitState = state?.GetUnit(unitId);
-            if (unitState != null && unitState.is_alive)
-                count++;
-        }
-        return count;
-    }
-
     internal void EndActiveTurn(BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
@@ -648,8 +589,7 @@ internal sealed class BattleTimelineDriver
                     batch,
                     $"{unitState.display_name} 因持续效果倒下。",
                     new BattleDefeatHandlingOptions(
-                        recordEnemyDefeatedAchievement: defeatSourceUnit != null,
-                        checkBattleEnd: false
+                        recordEnemyDefeatedAchievement: defeatSourceUnit != null
                     )
                 );
                 state.PhaseKind = BattlePhaseKind.TimelineRunning;
@@ -657,8 +597,6 @@ internal sealed class BattleTimelineDriver
                 batch.phase_changed = true;
                 batch.AddChangedUnitId(nextUnitId);
                 state.AppendLogEntry(batch.LogLinesTyped[batch.LogLinesTyped.Count - 1]);
-                if (CheckBattleEnd(batch))
-                    return;
                 continue;
             }
             var skillTurnResolver = runtime?._skill_turn_resolver;

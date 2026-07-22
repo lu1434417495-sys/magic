@@ -9,6 +9,7 @@
 [sub_resource type="Resource" id="Resource_hgbww"]
 script = ExtResource("3_uwxx6")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 max_skill_level = 0
 damage_tag = &"force"
 save_dc_mode = &"caster_spell"
@@ -22,6 +23,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_sm051"]
 script = ExtResource("3_uwxx6")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"force"
@@ -36,6 +38,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_uwxx6"]
 script = ExtResource("3_uwxx6")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"force"
@@ -50,6 +53,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_nyenx"]
 script = ExtResource("3_uwxx6")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"force"
@@ -64,6 +68,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_qqqmk"]
 script = ExtResource("3_uwxx6")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 7
 damage_tag = &"force"
 save_dc_mode = &"caster_spell"
@@ -118,6 +123,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_yuagv"]
 script = ExtResource("4_nyenx")
 skill_id = &"mage_arcane_cataclysm"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 5
 area_pattern = &"radius"

@@ -9,8 +9,9 @@ public sealed class WildSpawnRuleDefinition
     public WildSpawnRuleDefinition(
         string regionTag,
         string monsterName,
-        StringName enemyRosterTemplateId,
         StringName encounterProfileId,
+        StringName settlementEncounterProfileId,
+        string settlementEncounterDisplayName,
         int densityPerChunk,
         int minDistanceToSettlement,
         int visionRange,
@@ -19,8 +20,9 @@ public sealed class WildSpawnRuleDefinition
     {
         RegionTag = regionTag ?? throw new ArgumentNullException(nameof(regionTag));
         MonsterName = monsterName ?? throw new ArgumentNullException(nameof(monsterName));
-        EnemyRosterTemplateId = enemyRosterTemplateId;
         EncounterProfileId = encounterProfileId;
+        SettlementEncounterProfileId = settlementEncounterProfileId;
+        SettlementEncounterDisplayName = settlementEncounterDisplayName ?? "";
         DensityPerChunk = densityPerChunk;
         MinDistanceToSettlement = minDistanceToSettlement;
         VisionRange = visionRange;
@@ -32,8 +34,9 @@ public sealed class WildSpawnRuleDefinition
 
     public string RegionTag { get; }
     public string MonsterName { get; }
-    public StringName EnemyRosterTemplateId { get; }
     public StringName EncounterProfileId { get; }
+    public StringName SettlementEncounterProfileId { get; }
+    public string SettlementEncounterDisplayName { get; }
     public int DensityPerChunk { get; }
     public int MinDistanceToSettlement { get; }
     public int VisionRange { get; }
@@ -56,8 +59,9 @@ public sealed class WildSpawnRuleDefinition
                 source.monster_name,
                 path + ".monster_name"
             ),
-            source.enemy_roster_template_id,
             source.encounter_profile_id,
+            source.settlement_encounter_profile_id,
+            source.settlement_encounter_display_name,
             source.density_per_chunk,
             source.min_distance_to_settlement,
             source.vision_range,

@@ -75,6 +75,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_acr7m"]
 script = ExtResource("4_iby7f")
 skill_id = &"mage_grand_conjuration"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4

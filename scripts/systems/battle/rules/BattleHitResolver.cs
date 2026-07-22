@@ -39,25 +39,6 @@ public class BattleHitResolver : IDisposable
     {
     }
 
-    public AttackRollResult ResolveRepeatAttackStageHit(
-        BattleState battle_state,
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        CombatEffectDefinition repeat_attack_effect,
-        int stage_index
-    )
-    {
-        AttackCheckInput attackCheck = BuildRepeatAttackStageHitCheck(
-            active_unit,
-            target_unit,
-            skill_definition,
-            repeat_attack_effect,
-            stage_index
-        );
-        return RollAttackCheck(battle_state, attackCheck);
-    }
-
     public AttackCheckInput BuildRepeatAttackStageHitCheck(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -554,22 +535,25 @@ public class BattleHitResolver : IDisposable
         {
             return 0;
         }
+        // 攻击命中修正设计为跨状态累加(正负都算),不做取大——取大会让
+        // 黑星烙印 -3 被任意正面 buff 吞掉,也让多个 buff 互吞。
         int attackDelta = 0;
         if (active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_ELITE))
         {
-            attackDelta = BLACK_STAR_BRAND_ATTACK_BONUS_DELTA;
+            attackDelta += BLACK_STAR_BRAND_ATTACK_BONUS_DELTA;
         }
-        else if (active_unit.HasStatusEffect(STATUS_ATTACK_ROLL_BONUS_UP))
+        // attack_roll_bonus_up 的数值载体在 power/stacks,状态本体的
+        // attack_roll_bonus 字段为 0,不会在下面的循环中重复计数。
+        if (active_unit.HasStatusEffect(STATUS_ATTACK_ROLL_BONUS_UP))
         {
-            attackDelta = Math.Max(
+            attackDelta += Math.Max(
                 active_unit.GetStatusPower(STATUS_ATTACK_ROLL_BONUS_UP),
                 active_unit.GetStatusStacks(STATUS_ATTACK_ROLL_BONUS_UP)
             );
         }
         foreach (BattleStatusReadView status in active_unit.StatusEffects())
         {
-            if (status.AttackRollBonus > 0)
-                attackDelta = Math.Max(attackDelta, status.AttackRollBonus);
+            attackDelta += status.AttackRollBonus;
         }
         return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
@@ -1699,76 +1683,6 @@ public class BattleHitResolver : IDisposable
         int clampedHitRate = Math.Clamp(hit_rate_percent, 0, 100);
         int successfulRolls = (int)Math.Ceiling(clampedHitRate / 5.0);
         return ATTACK_CHECK_TARGET - successfulRolls;
-    }
-
-    private static GDictionary GetDict(GDictionary source, object key)
-    {
-        return TryGetValue(source, key, out dynamic value)
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GArray GetArray(GDictionary source, object key)
-    {
-        return TryGetValue(source, key, out dynamic value) ? value.AsGodotArray() : new GArray();
-    }
-
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryGetValue(source, key, out dynamic value))
-        {
-            return fallback;
-        }
-        return ToInt(value, fallback);
-    }
-
-    private static int ToInt(object rawValue, int fallback = 0)
-    {
-        try
-        {
-            dynamic value = rawValue;
-            return value.AsInt32();
-        }
-        catch
-        {
-            return rawValue switch
-            {
-                int intValue => intValue,
-                long longValue => (int)longValue,
-                float floatValue => (int)floatValue,
-                double doubleValue => (int)doubleValue,
-                bool boolValue => boolValue ? 1 : 0,
-                StringName stringNameValue
-                    => int.TryParse(stringNameValue.ToString(), out int parsed)
-                        ? parsed
-                        : fallback,
-                string stringValue => int.TryParse(stringValue, out int parsed) ? parsed : fallback,
-                _ => fallback,
-            };
-        }
-    }
-
-    private static bool TryGetValue(GDictionary source, object key, out dynamic value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        try
-        {
-            dynamic dynamicKey = key;
-            if (source.ContainsKey(dynamicKey))
-            {
-                value = source[dynamicKey];
-                return true;
-            }
-        }
-        catch
-        {
-        }
-        value = default;
-        return false;
     }
 
     private static bool IsEmpty(StringName value)

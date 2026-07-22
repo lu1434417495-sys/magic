@@ -8,7 +8,7 @@ public partial class run_save_index_resilience_regression : LifecycleTestSceneTr
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
     private const string SaveDirectory = "user://saves";
     private const string SaveIndexPath = "user://saves/index.dat";
-    private const int SaveIndexVersion = 3;
+    private const int SaveIndexVersion = 4;
     private const FileAccess.CompressionMode SaveCompressionMode = FileAccess.CompressionMode.Zstd;
 
     private readonly TestHarness _test = new();

@@ -21,6 +21,6 @@ stack_policy = &"stack_by_instance"
 charge_scope = &"none"
 charge_reset_timing = &"none"
 attribute_modifiers = Array[Resource]([])
-save_advantage_tags = Array[StringName]([&"poison_immunity", &"antidote_immunity"])
+save_immunity_tags = Array[StringName]([&"poison", &"antidote"])
 damage_resistance_entries = Array[Resource]([SubResource("Resistance_poison_immune")])
 roll_value_schema = Array[Resource]([])

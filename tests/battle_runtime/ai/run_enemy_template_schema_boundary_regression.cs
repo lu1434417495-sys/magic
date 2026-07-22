@@ -15,7 +15,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
         TestTypedSchemaValidationRejectsMissingTypedItemReferences();
         TestSaveAdvantageTagsExportFieldExists();
-        TestSaveAdvantageTagsAcceptSupportedSaveModes();
+        TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes();
         TestSaveAdvantageTagsRejectEmptyTag();
         TestSaveAdvantageTagsRejectUnsupportedBaseTag();
         TestDamageResistancesAcceptSupportedTagsAndTiers();
@@ -179,24 +179,31 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         );
     }
 
-    private void TestSaveAdvantageTagsAcceptSupportedSaveModes()
+    private void TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes()
     {
         EnemyTemplateDef template = BuildValidTemplate(
             "save_tag_schema_template",
             "save_tag_schema_weapon"
         );
-        SetSaveAdvantageTags(
-            template,
-            "illusion_immunity",
-            "illusion",
-            "illusion_advantage",
-            "illusion_disadvantage"
-        );
+        SetSaveAdvantageTags(template, "illusion");
+        template.save_disadvantage_tags = new GStringNameArray { "frightened" };
+        template.save_immunity_tags = new GStringNameArray { "sleep", "poison" };
 
         GStringArray errors = ValidateWithReferenceTables(template);
         _test.True(
             errors.Count == 0,
-            $"save_advantage_tags 应接受 illusion 直接优势、优势/劣势后缀和免疫后缀。 errors={FormatErrors(errors)}"
+            $"三个豁免标签字段应各自接受裸 save tag。 errors={FormatErrors(errors)}"
+        );
+
+        EnemyTemplateDef suffixTemplate = BuildValidTemplate(
+            "save_tag_suffix_schema_template",
+            "save_tag_suffix_schema_weapon"
+        );
+        SetSaveAdvantageTags(suffixTemplate, "illusion_immunity");
+        GStringArray suffixErrors = ValidateWithReferenceTables(suffixTemplate);
+        _test.True(
+            ContainsError(suffixErrors, "removed suffix"),
+            $"后缀写法已废除,应被 schema 拒绝并提示迁移。 errors={FormatErrors(suffixErrors)}"
         );
     }
 
@@ -221,12 +228,12 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             "unsupported_save_tag_schema_template",
             "unsupported_save_tag_schema_weapon"
         );
-        SetSaveAdvantageTags(template, "unsupported_save_advantage");
+        SetSaveAdvantageTags(template, "not_a_save_tag");
 
         GStringArray errors = ValidateWithReferenceTables(template);
         _test.True(
-            ContainsError(errors, "unsupported_save_advantage"),
-            $"save_advantage_tags 应按去除后缀后的基础豁免标签校验并拒绝未知标签。 errors={FormatErrors(errors)}"
+            ContainsError(errors, "not_a_save_tag"),
+            $"save_advantage_tags 应拒绝不在豁免标签枚举内的裸标签。 errors={FormatErrors(errors)}"
         );
     }
 

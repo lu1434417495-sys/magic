@@ -89,7 +89,7 @@ public sealed partial class BattleRuntimeModule
         return result;
     }
 
-    private static GBattleUnitArray ToBattleUnitArray(GArray values)
+    internal static GBattleUnitArray ToBattleUnitArray(GArray values)
     {
         var result = new GBattleUnitArray();
         if (values == null)
@@ -103,7 +103,7 @@ public sealed partial class BattleRuntimeModule
         return result;
     }
 
-    private static GBattleUnitArray ToBattleUnitArray(IEnumerable<BattleUnitState> values)
+    internal static GBattleUnitArray ToBattleUnitArray(IEnumerable<BattleUnitState> values)
     {
         var result = new GBattleUnitArray();
         if (values == null)
@@ -126,7 +126,7 @@ public sealed partial class BattleRuntimeModule
         return result;
     }
 
-    private static List<Vector2I> ToVector2IList(GArray values)
+    internal static List<Vector2I> ToVector2IList(GArray values)
     {
         var result = new List<Vector2I>();
         if (values == null)
@@ -136,7 +136,7 @@ public sealed partial class BattleRuntimeModule
         return result;
     }
 
-    private static List<Vector2I> ToVector2IList(GVector2IArray values)
+    internal static List<Vector2I> ToVector2IList(GVector2IArray values)
     {
         var result = new List<Vector2I>();
         if (values == null)

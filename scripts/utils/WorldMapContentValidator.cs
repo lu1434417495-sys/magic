@@ -9,8 +9,7 @@ public class WorldMapContentValidator
     internal List<string> ValidateGenerationConfigTyped(
         WorldGenerationDefinition generationDefinition,
         string label,
-        IEnumerable<StringName> enemyTemplateIds,
-        IEnumerable<StringName> wildEncounterRosterIds
+        IEnumerable<StringName> battleEncounterIds
     )
     {
         if (generationDefinition == null)
@@ -23,8 +22,7 @@ public class WorldMapContentValidator
         return ValidateGenerationDefinitionInternal(
             generationDefinition,
             label,
-            SnapshotIds(enemyTemplateIds),
-            SnapshotIds(wildEncounterRosterIds),
+            SnapshotIds(battleEncounterIds),
             new HashSet<string>(StringComparer.Ordinal)
         );
     }
@@ -41,8 +39,7 @@ public class WorldMapContentValidator
     private static List<string> ValidateGenerationDefinitionInternal(
         WorldGenerationDefinition definition,
         string label,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds,
+        IReadOnlyCollection<StringName> battleEncounterIds,
         HashSet<string> validatedPaths
     )
     {
@@ -88,16 +85,14 @@ public class WorldMapContentValidator
         ValidateWildSpawnRuleDefinitions(
             definition.EffectiveWildSpawnRules,
             definition,
-            enemyTemplateIds,
-            wildEncounterRosterIds,
+            battleEncounterIds,
             label,
             errors
         );
         HashSet<StringName> mountedSubmapIds = ValidateMountedSubmapDefinitions(
             definition.MountedSubmaps,
             label,
-            enemyTemplateIds,
-            wildEncounterRosterIds,
+            battleEncounterIds,
             validatedPaths,
             errors
         );
@@ -360,8 +355,7 @@ public class WorldMapContentValidator
     private static void ValidateWildSpawnRuleDefinitions(
         IReadOnlyList<WildSpawnRuleDefinition> rules,
         WorldGenerationDefinition generationDefinition,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds,
+        IReadOnlyCollection<StringName> battleEncounterIds,
         string label,
         List<string> errors
     )
@@ -370,38 +364,46 @@ public class WorldMapContentValidator
         foreach (WildSpawnRuleDefinition rule in rules)
         {
             string regionTag = (rule.RegionTag ?? string.Empty).Trim();
-            string enemyRosterTemplateId = rule.EnemyRosterTemplateId.ToString().Trim();
             string encounterProfileId = rule.EncounterProfileId.ToString().Trim();
+            string settlementEncounterProfileId =
+                rule.SettlementEncounterProfileId.ToString().Trim();
             if (regionTag.Length == 0)
             {
                 errors.Add(
                     $"World generation config {label} has wild spawn rule missing region_tag."
                 );
             }
-            if (enemyRosterTemplateId.Length == 0 && encounterProfileId.Length == 0)
+            if (encounterProfileId.Length == 0)
             {
                 errors.Add(
-                    $"World generation config {label} wild spawn rule {regionTag} must declare enemy_roster_template_id or encounter_profile_id."
-                );
-            }
-            if (
-                enemyRosterTemplateId.Length > 0
-                && HasEntries(enemyTemplateIds)
-                && !ContainsStringName(enemyTemplateIds, enemyRosterTemplateId)
-            )
-            {
-                errors.Add(
-                    $"World generation config {label} wild spawn rule {regionTag} references missing enemy roster template {enemyRosterTemplateId}."
+                    $"World generation config {label} wild spawn rule {regionTag} must declare encounter_profile_id."
                 );
             }
             if (
                 encounterProfileId.Length > 0
-                && HasEntries(wildEncounterRosterIds)
-                && !ContainsStringName(wildEncounterRosterIds, encounterProfileId)
+                && !ContainsStringName(battleEncounterIds, encounterProfileId)
             )
             {
                 errors.Add(
-                    $"World generation config {label} wild spawn rule {regionTag} references missing encounter profile {encounterProfileId}."
+                    $"World generation config {label} wild spawn rule {regionTag} references missing battle encounter {encounterProfileId}."
+                );
+            }
+            if (
+                settlementEncounterProfileId.Length > 0
+                && !ContainsStringName(battleEncounterIds, settlementEncounterProfileId)
+            )
+            {
+                errors.Add(
+                    $"World generation config {label} wild spawn rule {regionTag} references missing settlement battle encounter {settlementEncounterProfileId}."
+                );
+            }
+            if (
+                settlementEncounterProfileId.Length > 0
+                && string.IsNullOrWhiteSpace(rule.SettlementEncounterDisplayName)
+            )
+            {
+                errors.Add(
+                    $"World generation config {label} wild spawn rule {regionTag} declares settlement_encounter_profile_id without settlement_encounter_display_name."
                 );
             }
             if (rule.DensityPerChunk <= 0)
@@ -449,8 +451,7 @@ public class WorldMapContentValidator
     private static HashSet<StringName> ValidateMountedSubmapDefinitions(
         IReadOnlyList<MountedSubmapDefinition> submaps,
         string label,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds,
+        IReadOnlyCollection<StringName> battleEncounterIds,
         HashSet<string> validatedPaths,
         List<string> errors
     )
@@ -492,8 +493,7 @@ public class WorldMapContentValidator
                 ValidateGenerationDefinitionInternal(
                     submap.Generation,
                     submap.Generation.CanonicalPath,
-                    enemyTemplateIds,
-                    wildEncounterRosterIds,
+                    battleEncounterIds,
                     validatedPaths
                 )
             );

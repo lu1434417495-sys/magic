@@ -10,6 +10,13 @@ from pathlib import Path
 from typing import Any
 
 
+FACTION_COUNTER_FIELDS = (
+	"action_counts",
+	"skill_attempt_counts",
+	"skill_success_counts",
+)
+
+
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
 		description=(
@@ -155,6 +162,16 @@ def count_total_traces(profile_entries: list[dict[str, Any]]) -> int:
 	)
 
 
+def count_completed_traces(profile_entries: list[dict[str, Any]]) -> int:
+	trace_count = 0
+	for entry in profile_entries:
+		runs = [run for run in entry.get("runs", []) if isinstance(run, dict)]
+		if any(not is_completion_classification_known(run) for run in runs):
+			continue
+		trace_count += sum(len(run.get("ai_turn_traces", [])) for run in runs if is_completed_run(run))
+	return trace_count
+
+
 def infer_alive_count(metrics: dict[str, Any], faction_id: str) -> int:
 	units = metrics.get("units", {})
 	factions = metrics.get("factions", {})
@@ -181,12 +198,26 @@ def normalize_run_for_packet(run: dict[str, Any], report: dict[str, Any], run_in
 	normalized["metrics"] = metrics
 	if "battle_ended" not in normalized:
 		runs = report.get("runs", [])
+		reported_ended_count = as_int(report.get("ended_count", -1), -1)
+		winner_count = sum(
+			1
+			for candidate in runs
+			if isinstance(candidate, dict) and bool(str(candidate.get("winner_faction_id", "")))
+		) if isinstance(runs, list) else 0
 		all_runs_completed = (
 			isinstance(runs, list)
 			and len(runs) > 0
-			and as_int(report.get("ended_count", -1), -1) == len(runs)
+			and reported_ended_count == len(runs)
 		)
-		normalized["battle_ended"] = bool(str(normalized.get("winner_faction_id", ""))) or all_runs_completed
+		has_winner = bool(str(normalized.get("winner_faction_id", "")))
+		normalized["battle_ended"] = has_winner or all_runs_completed
+		normalized["_packet_completion_known"] = (
+			has_winner
+			or all_runs_completed
+			or (reported_ended_count >= 0 and reported_ended_count == winner_count)
+		)
+	else:
+		normalized["_packet_completion_known"] = True
 	if "ally_alive" not in normalized:
 		normalized["ally_alive"] = infer_alive_count(metrics, "player")
 	if "enemy_alive" not in normalized:
@@ -242,7 +273,11 @@ def build_trace_command_counts_by_faction(runs: list[dict[str, Any]]) -> dict[st
 
 
 def merge_faction_metric_totals(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-	totals: dict[str, dict[str, Any]] = defaultdict(lambda: defaultdict(float))
+	numeric_totals: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+	counter_totals: dict[str, dict[str, Counter[str]]] = defaultdict(
+		lambda: {field: Counter() for field in FACTION_COUNTER_FIELDS}
+	)
+	faction_ids: set[str] = set()
 	for run in runs:
 		metrics = run.get("metrics", {})
 		factions = metrics.get("factions", {}) if isinstance(metrics, dict) else {}
@@ -251,17 +286,35 @@ def merge_faction_metric_totals(runs: list[dict[str, Any]]) -> dict[str, dict[st
 		for faction_id, faction_entry in factions.items():
 			if not isinstance(faction_entry, dict):
 				continue
+			faction_key = str(faction_id)
+			faction_ids.add(faction_key)
 			for key, value in faction_entry.items():
+				key_text = str(key)
+				if key_text in FACTION_COUNTER_FIELDS:
+					if not isinstance(value, dict):
+						continue
+					for counter_key, counter_value in value.items():
+						if isinstance(counter_value, bool):
+							continue
+						if isinstance(counter_value, (int, float)):
+							counter_totals[faction_key][key_text][str(counter_key)] += counter_value
+					continue
 				if isinstance(value, bool):
 					continue
 				if isinstance(value, (int, float)):
-					totals[str(faction_id)][str(key)] += value
+					numeric_totals[faction_key][key_text] += value
 	result: dict[str, dict[str, Any]] = {}
-	for faction_id, faction_totals in sorted(totals.items()):
-		result[faction_id] = {
+	for faction_id in sorted(faction_ids):
+		faction_result: dict[str, Any] = {
 			key: int(value) if float(value).is_integer() else value
-			for key, value in sorted(faction_totals.items())
+			for key, value in sorted(numeric_totals[faction_id].items())
 		}
+		for field in FACTION_COUNTER_FIELDS:
+			faction_result[field] = {
+				key: int(value) if float(value).is_integer() else value
+				for key, value in sorted(counter_totals[faction_id][field].items())
+			}
+		result[faction_id] = faction_result
 	return result
 
 
@@ -368,49 +421,15 @@ def build_unit_contribution_summary(
 
 
 def build_standalone_summary(report: dict[str, Any], runs: list[dict[str, Any]]) -> dict[str, Any]:
-	success_counter: Counter[str] = Counter()
-	attempt_counter: Counter[str] = Counter()
-	for run in runs:
-		metrics = run.get("metrics", {})
-		if not isinstance(metrics, dict):
-			continue
-		success_counter.update(build_run_skill_counts(metrics))
-		attempt_counter.update(build_run_skill_attempt_counts(metrics))
-	global_skill_report = report.get("global", {})
-	if isinstance(global_skill_report, dict) and not success_counter:
-		update_counter_from_skill_report(success_counter, global_skill_report, "successes")
-	if isinstance(global_skill_report, dict) and not attempt_counter:
-		update_counter_from_skill_report(attempt_counter, global_skill_report, "attempts")
-	completed_runs = [run for run in runs if bool(run.get("battle_ended", False))]
-	wins_by_faction: dict[str, int] = {}
-	for run in completed_runs:
-		winner_faction_id = str(run.get("winner_faction_id", ""))
-		if winner_faction_id:
-			wins_by_faction[winner_faction_id] = wins_by_faction.get(winner_faction_id, 0) + 1
-	top_level_wins = report.get("win_rate", {})
-	if isinstance(top_level_wins, dict) and top_level_wins:
-		wins_by_faction = {str(key): as_int(value) for key, value in top_level_wins.items()}
-	faction_metric_totals = merge_faction_metric_totals(runs)
-	return {
+	source_summary = {
 		"profile_id": "standalone",
 		"display_name": "Standalone report",
-		"run_count": len(runs),
 		"requested_run_count": as_int(report.get("requested_run_count", len(runs)), len(runs)),
-		"completed_run_count": len(completed_runs),
-		"ended_count": as_int(report.get("ended_count", len(completed_runs)), len(completed_runs)),
+		"reported_ended_count": as_int(report.get("ended_count", -1), -1),
 		"timed_out": bool(report.get("timed_out", False)),
 		"elapsed_seconds": as_float(report.get("elapsed_seconds", 0.0)),
-		"wins_by_faction": wins_by_faction,
-		"win_rate_by_faction": build_rate_dict(wins_by_faction, max(len(completed_runs), 1)),
-		"average_iterations": as_float(report.get("avg_iterations", 0.0)),
-		"average_timeline_steps": as_float(report.get("avg_timeline_steps", 0.0)),
-		"skill_usage_totals": dict(sorted(success_counter.items())),
-		"skill_attempt_totals": dict(sorted(attempt_counter.items())),
-		"action_choice_counts": build_trace_action_counts_by_faction(runs),
-		"command_counts_by_faction": build_trace_command_counts_by_faction(runs),
-		"faction_metric_totals": faction_metric_totals,
-		"unit_contribution_summary": build_unit_contribution_summary(report, runs, faction_metric_totals),
 	}
+	return build_completed_only_summary(runs, source_summary, action_counts_by_faction=True)
 
 
 def build_effective_profile_entries(report: dict[str, Any]) -> list[dict[str, Any]]:
@@ -532,19 +551,14 @@ def build_skill_counter_snapshot(
 
 
 def build_profile_skill_counters(runs: list[dict[str, Any]], summary: dict[str, Any], limit: int = 5) -> dict[str, Any]:
-	success_counter: Counter[str] = Counter()
-	attempt_counter: Counter[str] = Counter()
-	for run in runs:
-		metrics = run.get("metrics", {})
-		if not isinstance(metrics, dict):
-			continue
-		success_counter.update(build_run_skill_counts(metrics))
-		attempt_counter.update(build_run_skill_attempt_counts(metrics))
-	if not success_counter and isinstance(summary.get("skill_usage_totals", {}), dict):
-		success_counter.update({str(key): int(value) for key, value in summary.get("skill_usage_totals", {}).items()})
-	if not attempt_counter and isinstance(summary.get("skill_attempt_totals", {}), dict):
-		attempt_counter.update({str(key): int(value) for key, value in summary.get("skill_attempt_totals", {}).items()})
-	return build_skill_counter_snapshot(dict(success_counter), dict(attempt_counter), limit=limit)
+	del runs
+	success_counts = summary.get("skill_usage_totals", {})
+	attempt_counts = summary.get("skill_attempt_totals", {})
+	return build_skill_counter_snapshot(
+		success_counts if isinstance(success_counts, dict) else {},
+		attempt_counts if isinstance(attempt_counts, dict) else {},
+		limit=limit,
+	)
 
 
 def build_run_digest(run: dict[str, Any]) -> dict[str, Any]:
@@ -580,38 +594,232 @@ def build_rate_dict(counts: dict[str, int], denominator: int) -> dict[str, float
 	}
 
 
-def build_profile_guardrails(entry: dict[str, Any], scenario: dict[str, Any]) -> dict[str, Any]:
+def is_completed_run(run: dict[str, Any]) -> bool:
+	return bool(run.get("battle_ended", False))
+
+
+def is_completion_classification_known(run: dict[str, Any]) -> bool:
+	return bool(run.get("_packet_completion_known", "battle_ended" in run))
+
+
+def completed_numeric_mean(runs: list[dict[str, Any]], field: str) -> float | None:
+	if not runs:
+		return None
+	values: list[float] = []
+	for run in runs:
+		value = run.get(field)
+		if isinstance(value, bool) or not isinstance(value, (int, float)):
+			return None
+		values.append(float(value))
+	return sum(values) / float(len(values))
+
+
+def get_run_metric_map(run: dict[str, Any], field: str) -> dict[str, Any] | None:
+	metrics = run.get("metrics", {})
+	if not isinstance(metrics, dict):
+		return None
+	value = metrics.get(field)
+	return value if isinstance(value, dict) else None
+
+
+def has_complete_skill_metrics(run: dict[str, Any]) -> bool:
+	units = get_run_metric_map(run, "units")
+	if units is None:
+		return False
+	for unit_entry in units.values():
+		if not isinstance(unit_entry, dict):
+			return False
+		attempts = unit_entry.get("skill_attempt_counts", unit_entry.get("skill_attempts"))
+		successes = unit_entry.get("skill_success_counts", unit_entry.get("skill_successes"))
+		if not isinstance(attempts, dict) or not isinstance(successes, dict):
+			return False
+	return True
+
+
+def has_complete_faction_metrics(run: dict[str, Any]) -> bool:
+	factions = get_run_metric_map(run, "factions")
+	if not factions:
+		return False
+	for faction_entry in factions.values():
+		if not isinstance(faction_entry, dict):
+			return False
+		if any(
+			not isinstance(faction_entry.get(field), dict)
+			for field in FACTION_COUNTER_FIELDS
+		):
+			return False
+	return True
+
+
+def build_flat_action_counts(runs: list[dict[str, Any]]) -> dict[str, int]:
+	counter: Counter[str] = Counter()
+	for run in runs:
+		traces = run.get("ai_turn_traces", [])
+		counter.update(build_run_action_counts(traces if isinstance(traces, list) else []))
+	return dict(sorted(counter.items()))
+
+
+def build_completed_only_summary(
+	runs: list[dict[str, Any]],
+	source_summary: dict[str, Any],
+	*,
+	action_counts_by_faction: bool = False,
+) -> dict[str, Any]:
+	completed_runs = [run for run in runs if is_completed_run(run)]
+	completion_classification_complete = all(is_completion_classification_known(run) for run in runs)
+	completion_unknown_run_count = sum(not is_completion_classification_known(run) for run in runs)
+	reported_ended_count = as_int(source_summary.get("reported_ended_count", -1), -1)
+	completed_run_count = (
+		len(completed_runs)
+		if completion_classification_complete or reported_ended_count < 0
+		else min(max(reported_ended_count, 0), len(runs))
+	)
+	unfinished_run_count = len(runs) - completed_run_count
+	aggregate_runs = completed_runs if completion_classification_complete else []
+	result: dict[str, Any] = {
+		"profile_id": str(source_summary.get("profile_id", "")),
+		"display_name": str(source_summary.get("display_name", "")),
+		"run_count": len(runs),
+		"completed_run_count": completed_run_count,
+		"reconstructable_completed_run_count": len(completed_runs),
+		"unfinished_run_count": unfinished_run_count,
+		"ended_count": completed_run_count,
+		"completion_classification_complete": completion_classification_complete,
+		"completion_unknown_run_count": completion_unknown_run_count,
+		"normal_aggregate_scope": "completed_runs_only",
+	}
+	for field in ["description", "requested_run_count", "reported_ended_count", "timed_out", "elapsed_seconds"]:
+		if field in source_summary:
+			result[field] = source_summary[field]
+
+	wins_by_faction: dict[str, int] = {}
+	for run in aggregate_runs:
+		winner_faction_id = str(run.get("winner_faction_id", "")) or "draw"
+		wins_by_faction[winner_faction_id] = wins_by_faction.get(winner_faction_id, 0) + 1
+	result["wins_by_faction"] = dict(sorted(wins_by_faction.items()))
+	result["win_rate_by_faction"] = build_rate_dict(wins_by_faction, len(aggregate_runs))
+
+	metric_sources: dict[str, str] = {
+		"wins_by_faction": "per_run_completed" if completion_classification_complete else "unavailable",
+		"win_rate_by_faction": "per_run_completed" if completion_classification_complete else "unavailable",
+	}
+	for run_field, summary_field in [
+		("final_tu", "average_final_tu"),
+		("iterations", "average_iterations"),
+		("timeline_steps", "average_timeline_steps"),
+	]:
+		mean_value = completed_numeric_mean(aggregate_runs, run_field)
+		result[summary_field] = mean_value
+		metric_sources[summary_field] = "per_run_completed" if mean_value is not None else "unavailable"
+
+	skill_metrics_available = bool(aggregate_runs) and all(has_complete_skill_metrics(run) for run in aggregate_runs)
+	success_counter: Counter[str] = Counter()
+	attempt_counter: Counter[str] = Counter()
+	if skill_metrics_available:
+		for run in aggregate_runs:
+			metrics = run.get("metrics", {})
+			success_counter.update(build_run_skill_counts(metrics))
+			attempt_counter.update(build_run_skill_attempt_counts(metrics))
+	result["skill_usage_totals"] = dict(sorted(success_counter.items())) if skill_metrics_available else {}
+	result["skill_attempt_totals"] = dict(sorted(attempt_counter.items())) if skill_metrics_available else {}
+	result["skill_failure_totals"] = (
+		dict(sorted(build_failure_counter(attempt_counter, success_counter).items()))
+		if skill_metrics_available
+		else {}
+	)
+	for field in ["skill_usage_totals", "skill_attempt_totals", "skill_failure_totals"]:
+		metric_sources[field] = "per_run_completed" if skill_metrics_available else "unavailable"
+
+	traces_available = bool(aggregate_runs) and all(isinstance(run.get("ai_turn_traces"), list) for run in aggregate_runs)
+	if traces_available:
+		result["action_choice_counts"] = (
+			build_trace_action_counts_by_faction(aggregate_runs)
+			if action_counts_by_faction
+			else build_flat_action_counts(aggregate_runs)
+		)
+		result["command_counts_by_faction"] = build_trace_command_counts_by_faction(aggregate_runs)
+	else:
+		result["action_choice_counts"] = {}
+		result["command_counts_by_faction"] = {}
+	metric_sources["action_choice_counts"] = "per_run_completed" if traces_available else "unavailable"
+	metric_sources["command_counts_by_faction"] = "per_run_completed" if traces_available else "unavailable"
+
+	faction_metrics_available = bool(aggregate_runs) and all(
+		has_complete_faction_metrics(run) for run in aggregate_runs
+	)
+	faction_metric_totals = merge_faction_metric_totals(aggregate_runs) if faction_metrics_available else {}
+	result["faction_metric_totals"] = faction_metric_totals
+	metric_sources["faction_metric_totals"] = "per_run_completed" if faction_metrics_available else "unavailable"
+
+	unit_metrics_available = bool(aggregate_runs) and all(
+		get_run_metric_map(run, "units") is not None for run in aggregate_runs
+	)
+	result["unit_contribution_summary"] = (
+		build_unit_contribution_summary({}, aggregate_runs, faction_metric_totals)
+		if unit_metrics_available and faction_metrics_available
+		else None
+	)
+	metric_sources["unit_contribution_summary"] = (
+		"per_run_completed" if unit_metrics_available and faction_metrics_available else "unavailable"
+	)
+	result["completed_only_metric_sources"] = metric_sources
+	return result
+
+
+def build_profile_guardrails(
+	entry: dict[str, Any],
+	scenario: dict[str, Any],
+	completed_only_summary: dict[str, Any],
+) -> dict[str, Any]:
 	runs = list(entry.get("runs", []))
 	seeds = [int(run.get("seed", 0)) for run in runs]
-	completed_runs = [run for run in runs if bool(run.get("battle_ended", False))]
-	unfinished_runs = [run for run in runs if not bool(run.get("battle_ended", False))]
-	completed_wins: dict[str, int] = {}
-	for run in completed_runs:
-		winner_faction_id = str(run.get("winner_faction_id", ""))
-		if not winner_faction_id:
-			continue
-		completed_wins[winner_faction_id] = int(completed_wins.get(winner_faction_id, 0)) + 1
+	completed_run_count = as_int(completed_only_summary.get("completed_run_count", 0))
+	unfinished_run_count = as_int(completed_only_summary.get("unfinished_run_count", 0))
+	completion_unknown_run_count = as_int(completed_only_summary.get("completion_unknown_run_count", 0))
+	completed_wins = completed_only_summary.get("wins_by_faction", {})
+	if not isinstance(completed_wins, dict):
+		completed_wins = {}
+	metric_sources = completed_only_summary.get("completed_only_metric_sources", {})
+	unavailable_metrics = sorted(
+		str(field)
+		for field, source in metric_sources.items()
+		if str(source) == "unavailable"
+	) if isinstance(metric_sources, dict) else []
 	warnings: list[str] = []
 	if str(scenario.get("manual_policy", "")) == "wait":
 		warnings.append(
 			"manual_policy=wait: manual-side units behave as stationary dummies, so this scenario is not suitable for validating AI against an intelligent player."
 		)
-	if len(runs) < 20:
+	if completed_run_count < 20:
 		warnings.append(
-			"seed_count_below_recommendation: use at least 20 seeds per profile before treating small deltas as stable conclusions."
+			"completed_sample_count_below_recommendation: use at least 20 independent completed runs per profile before treating small deltas as stable conclusions."
 		)
-	if unfinished_runs:
+	if unfinished_run_count > 0:
 		warnings.append(
-			"unfinished_runs_present: exclude battle_ended=false runs from win-rate conclusions unless you are explicitly diagnosing stall behavior."
+			"unfinished_runs_present: packet aggregates and comparisons exclude battle_ended=false runs; unfinished run details remain diagnostic only."
+		)
+	if completion_unknown_run_count > 0:
+		warnings.append(
+			"completion_classification_unknown: %d run(s) lack per-run battle_ended and cannot be assigned reliably from ended_count/winner alone; normal aggregates are unavailable."
+			% completion_unknown_run_count
+		)
+	if unavailable_metrics:
+		warnings.append(
+			"completed_only_metrics_unavailable: %s could not be reconstructed reliably from completed per-run data."
+			% ", ".join(unavailable_metrics)
 		)
 	return {
 		"run_count": len(runs),
 		"seed_count": len(set(seeds)),
 		"seed_values": sorted(set(seeds)),
-		"completed_run_count": len(completed_runs),
-		"unfinished_run_count": len(unfinished_runs),
+		"completed_run_count": completed_run_count,
+		"unfinished_run_count": unfinished_run_count,
+		"completion_unknown_run_count": completion_unknown_run_count,
+		"completion_classification_complete": bool(completed_only_summary.get("completion_classification_complete", False)),
+		"normal_aggregate_scope": "completed_runs_only",
+		"unavailable_completed_only_metrics": unavailable_metrics,
 		"completed_only_wins_by_faction": completed_wins,
-		"completed_only_win_rate_by_faction": build_rate_dict(completed_wins, len(completed_runs)),
+		"completed_only_win_rate_by_faction": completed_only_summary.get("win_rate_by_faction", {}),
 		"warnings": warnings,
 	}
 
@@ -620,10 +828,21 @@ def build_profile_summaries(profile_entries: list[dict[str, Any]], scenario: dic
 	summaries: list[dict[str, Any]] = []
 	for entry in profile_entries:
 		runs = [run for run in entry.get("runs", []) if isinstance(run, dict)]
-		summary = entry.get("summary", {})
+		raw_summary = entry.get("summary", {})
+		source_summary = raw_summary if isinstance(raw_summary, dict) else {}
+		profile = entry.get("profile", {})
+		if isinstance(profile, dict):
+			source_summary = dict(source_summary)
+			source_summary.setdefault("profile_id", str(profile.get("profile_id", "")))
+			source_summary.setdefault("display_name", str(profile.get("display_name", "")))
+		summary = build_completed_only_summary(
+			runs,
+			source_summary,
+			action_counts_by_faction=str(scenario.get("report_shape", "")) == "standalone_runs",
+		)
 		skill_counters = build_profile_skill_counters(
 			runs,
-			summary if isinstance(summary, dict) else {},
+			summary,
 		)
 		summaries.append(
 			{
@@ -631,10 +850,80 @@ def build_profile_summaries(profile_entries: list[dict[str, Any]], scenario: dic
 				"summary": summary,
 				"skill_counters": skill_counters,
 				"run_digest": [build_run_digest(run) for run in runs],
-				"guardrails": build_profile_guardrails(entry, scenario),
+				"guardrails": build_profile_guardrails(entry, scenario, summary),
 			}
 		)
 	return summaries
+
+
+def diff_numeric_dict(baseline: dict[str, Any], candidate: dict[str, Any]) -> dict[str, float]:
+	keys = set(str(key) for key in baseline.keys()) | set(str(key) for key in candidate.keys())
+	return {
+		key: as_float(candidate.get(key, 0.0)) - as_float(baseline.get(key, 0.0))
+		for key in sorted(keys)
+	}
+
+
+def summary_metric_available(summary: dict[str, Any], field: str) -> bool:
+	sources = summary.get("completed_only_metric_sources", {})
+	return isinstance(sources, dict) and str(sources.get(field, "unavailable")) != "unavailable"
+
+
+def build_completed_only_comparisons(profile_summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+	if len(profile_summaries) < 2:
+		return []
+	baseline_entry = profile_summaries[0]
+	baseline_profile = baseline_entry.get("profile", {})
+	baseline_summary = baseline_entry.get("summary", {})
+	if not isinstance(baseline_summary, dict):
+		return []
+	comparisons: list[dict[str, Any]] = []
+	for candidate_entry in profile_summaries[1:]:
+		candidate_profile = candidate_entry.get("profile", {})
+		candidate_summary = candidate_entry.get("summary", {})
+		if not isinstance(candidate_summary, dict):
+			continue
+		unavailable_metrics: list[str] = []
+
+		def scalar_delta(field: str) -> float | None:
+			if not summary_metric_available(baseline_summary, field) or not summary_metric_available(candidate_summary, field):
+				unavailable_metrics.append(field)
+				return None
+			return as_float(candidate_summary.get(field, 0.0)) - as_float(baseline_summary.get(field, 0.0))
+
+		def map_delta(field: str) -> dict[str, float]:
+			if not summary_metric_available(baseline_summary, field) or not summary_metric_available(candidate_summary, field):
+				unavailable_metrics.append(field)
+				return {}
+			baseline_values = baseline_summary.get(field, {})
+			candidate_values = candidate_summary.get(field, {})
+			if not isinstance(baseline_values, dict) or not isinstance(candidate_values, dict):
+				unavailable_metrics.append(field)
+				return {}
+			return diff_numeric_dict(baseline_values, candidate_values)
+
+		comparisons.append(
+			{
+				"baseline_profile_id": str(baseline_profile.get("profile_id", "")) if isinstance(baseline_profile, dict) else "",
+				"candidate_profile_id": str(candidate_profile.get("profile_id", "")) if isinstance(candidate_profile, dict) else "",
+				"comparison_method": "independent_completed_run_aggregates",
+				"sample_scope": "completed_runs_only",
+				"baseline_run_count": as_int(baseline_summary.get("run_count", 0)),
+				"baseline_completed_run_count": as_int(baseline_summary.get("completed_run_count", 0)),
+				"candidate_run_count": as_int(candidate_summary.get("run_count", 0)),
+				"candidate_completed_run_count": as_int(candidate_summary.get("completed_run_count", 0)),
+				"average_final_tu_delta": scalar_delta("average_final_tu"),
+				"average_iterations_delta": scalar_delta("average_iterations"),
+				"average_timeline_steps_delta": scalar_delta("average_timeline_steps"),
+				"win_rate_delta": map_delta("win_rate_by_faction"),
+				"skill_usage_delta": map_delta("skill_usage_totals"),
+				"skill_attempt_delta": map_delta("skill_attempt_totals"),
+				"skill_failure_delta": map_delta("skill_failure_totals"),
+				"action_choice_delta": map_delta("action_choice_counts"),
+				"unavailable_completed_only_metrics": sorted(set(unavailable_metrics)),
+			}
+		)
+	return comparisons
 
 
 def build_focus_hints(
@@ -644,10 +933,14 @@ def build_focus_hints(
 ) -> list[dict[str, Any]]:
 	hints: list[dict[str, Any]] = []
 	for comparison in comparisons:
-		skill_deltas = sorted_delta_items(comparison.get("skill_usage_delta", {}), top_skills)
-		skill_failure_deltas = sorted_delta_items(comparison.get("skill_failure_delta", {}), top_skills)
-		skill_attempt_deltas = sorted_delta_items(comparison.get("skill_attempt_delta", {}), top_skills)
-		action_deltas = sorted_delta_items(comparison.get("action_choice_delta", {}), top_actions)
+		skill_usage_delta = comparison.get("skill_usage_delta", {})
+		skill_failure_delta = comparison.get("skill_failure_delta", {})
+		skill_attempt_delta = comparison.get("skill_attempt_delta", {})
+		action_choice_delta = comparison.get("action_choice_delta", {})
+		skill_deltas = sorted_delta_items(skill_usage_delta if isinstance(skill_usage_delta, dict) else {}, top_skills)
+		skill_failure_deltas = sorted_delta_items(skill_failure_delta if isinstance(skill_failure_delta, dict) else {}, top_skills)
+		skill_attempt_deltas = sorted_delta_items(skill_attempt_delta if isinstance(skill_attempt_delta, dict) else {}, top_skills)
+		action_deltas = sorted_delta_items(action_choice_delta if isinstance(action_choice_delta, dict) else {}, top_actions)
 		focus_skill_ids = {
 			str(entry["id"]) for entry in skill_deltas + skill_failure_deltas + skill_attempt_deltas if entry.get("id", "")
 		}
@@ -655,9 +948,9 @@ def build_focus_hints(
 			{
 				"baseline_profile_id": str(comparison.get("baseline_profile_id", "")),
 				"candidate_profile_id": str(comparison.get("candidate_profile_id", "")),
-				"average_final_tu_delta": float(comparison.get("average_final_tu_delta", 0.0)),
-				"average_iterations_delta": float(comparison.get("average_iterations_delta", 0.0)),
-				"average_timeline_steps_delta": float(comparison.get("average_timeline_steps_delta", 0.0)),
+				"average_final_tu_delta": comparison.get("average_final_tu_delta"),
+				"average_iterations_delta": comparison.get("average_iterations_delta"),
+				"average_timeline_steps_delta": comparison.get("average_timeline_steps_delta"),
 				"win_rate_delta": comparison.get("win_rate_delta", {}),
 				"top_skill_deltas": skill_deltas,
 				"top_skill_attempt_deltas": skill_attempt_deltas,
@@ -665,6 +958,8 @@ def build_focus_hints(
 				"top_action_deltas": action_deltas,
 				"focus_skill_ids": sorted(focus_skill_ids),
 				"focus_action_ids": [entry["id"] for entry in action_deltas],
+				"comparison_method": str(comparison.get("comparison_method", "")),
+				"unavailable_completed_only_metrics": comparison.get("unavailable_completed_only_metrics", []),
 			}
 		)
 	return hints
@@ -676,6 +971,7 @@ def build_summary_packet(
 	report: dict[str, Any],
 	scenario: dict[str, Any],
 	profile_entries: list[dict[str, Any]],
+	comparisons: list[dict[str, Any]],
 	focus_hints: list[dict[str, Any]],
 ) -> dict[str, Any]:
 	profile_summaries = build_profile_summaries(profile_entries, scenario)
@@ -687,9 +983,11 @@ def build_summary_packet(
 		"analysis_guardrails": [
 			"manual_policy=wait means manual-side units behave like dummies, so do not use this packet to claim AI performance against an intelligent player.",
 			"Baseline comparisons always use profile_entries[0]. Prefer a profile_id prefix such as 00_baseline_* in scripted runs so ordering mistakes are obvious.",
-			"battle_ended=false runs should be filtered out before drawing win-rate conclusions; use completed_only_win_rate_by_faction when available.",
+			"Packet averages, wins, skill/action counts, faction metrics, unit contributions, comparisons, and focus traces are reconstructed from battle_ended=true runs only.",
+			"Profile comparisons use independent completed-run aggregates, never seed pairing; combat outcomes are independently random even when terrain seeds match.",
+			"If completed per-run data is insufficient, the affected metric is empty or null and listed in unavailable_completed_only_metrics instead of falling back to a possibly contaminated source aggregate.",
 			"score_input.estimated_* fields are AI-side estimates, not actual realized combat output. Validate suspicious choices against faction_metric_totals and skill_success_counts.",
-			"For small deltas, prefer at least 20 seeds per profile before treating the difference as stable.",
+			"For small deltas, prefer at least 20 independent completed runs per profile before treating the difference as stable.",
 			"top_candidates inside traces are truncated to the best 5 candidates per action, so dense target spaces may hide lower-ranked alternatives.",
 		],
 		"packet_notes": [
@@ -703,8 +1001,9 @@ def build_summary_packet(
 		"profile_count": len(profile_entries),
 		"run_count": count_total_runs(profile_entries),
 		"trace_count": count_total_traces(profile_entries),
+		"completed_run_trace_count": count_completed_traces(profile_entries),
 		"profile_summaries": profile_summaries,
-		"comparisons": report.get("comparisons", []),
+		"comparisons": comparisons,
 		"focus_hints": focus_hints,
 	}
 
@@ -718,7 +1017,12 @@ def build_trace_records(
 	traces_by_profile: dict[str, list[dict[str, Any]]] = defaultdict(list)
 	for entry in profile_entries:
 		profile_id = normalize_profile_id(entry)
-		for run in entry.get("runs", []):
+		runs = [run for run in entry.get("runs", []) if isinstance(run, dict)]
+		if any(not is_completion_classification_known(run) for run in runs):
+			continue
+		for run in runs:
+			if not isinstance(run, dict) or not is_completed_run(run):
+				continue
 			seed = int(run.get("seed", 0))
 			for trace in run.get("ai_turn_traces", []):
 				record = dict(trace)
@@ -968,14 +1272,17 @@ def build_analysis_brief(
 		f"- profile_count: `{profile_count}`",
 		f"- run_count: `{run_count}`",
 		f"- embedded_trace_count: `{trace_count}`",
+		f"- completed_run_embedded_trace_count: `{count_completed_traces(profile_entries)}`",
 		f"- exported_focus_trace_count: `{len(selected_traces)}`",
 		"",
 		"## Guardrails",
 		"- `manual_policy=wait` means manual-side units act as dummies, not intelligent players.",
 		"- Baseline comparisons always use `profile_entries[0]`. Prefer a `00_baseline_*` profile_id prefix in scripted runs.",
-		"- Filter `battle_ended=false` runs before drawing win-rate conclusions.",
+		"- Packet normal aggregates, comparisons, and focus traces already exclude `battle_ended=false` runs.",
+		"- Profile comparisons use independent completed-run aggregates, never seed pairing.",
+		"- Metrics that cannot be reconstructed from completed per-run data are marked unavailable instead of using source aggregates.",
 		"- `score_input.estimated_*` fields are AI-side estimates, not realized combat output.",
-		"- Treat small deltas cautiously when a profile has fewer than 20 seeds.",
+		"- Treat small deltas cautiously when a profile has fewer than 20 completed runs.",
 		"- `top_candidates` in traces are truncated to 5 entries per action.",
 		"",
 		"## Use Order",
@@ -998,9 +1305,11 @@ def build_analysis_brief(
 			lines.extend(
 				[
 					f"### `{hint.get('baseline_profile_id', '')}` -> `{hint.get('candidate_profile_id', '')}`",
+					f"- comparison_method: `{hint.get('comparison_method', '')}`",
 					f"- average_final_tu_delta: `{hint.get('average_final_tu_delta', 0.0)}`",
 					f"- average_iterations_delta: `{hint.get('average_iterations_delta', 0.0)}`",
 					f"- average_timeline_steps_delta: `{hint.get('average_timeline_steps_delta', 0.0)}`",
+					f"- unavailable_completed_only_metrics: `{hint.get('unavailable_completed_only_metrics', [])}`",
 					"- top_skill_deltas:",
 					*format_delta_entries(hint.get("top_skill_deltas", []), "delta"),
 					"- top_skill_attempt_deltas:",
@@ -1025,6 +1334,8 @@ def build_analysis_brief(
 				f"- seed_count: `{guardrails.get('seed_count', 0)}`",
 				f"- completed_run_count: `{guardrails.get('completed_run_count', 0)}`",
 				f"- unfinished_run_count: `{guardrails.get('unfinished_run_count', 0)}`",
+				f"- normal_aggregate_scope: `{guardrails.get('normal_aggregate_scope', '')}`",
+				f"- unavailable_completed_only_metrics: `{guardrails.get('unavailable_completed_only_metrics', [])}`",
 				f"- completed_only_win_rate_by_faction: `{guardrails.get('completed_only_win_rate_by_faction', {})}`",
 				f"- faction_metric_totals: `{summary_data.get('faction_metric_totals', {}) if isinstance(summary_data, dict) else {}}`",
 				"- role_damage_share:",
@@ -1093,12 +1404,23 @@ def main() -> int:
 	output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else default_output_dir(report_path)
 	output_dir.mkdir(parents=True, exist_ok=True)
 
+	completed_only_comparisons = build_completed_only_comparisons(
+		build_profile_summaries(profile_entries, scenario)
+	)
 	focus_hints = build_focus_hints(
-		list(report.get("comparisons", [])),
+		completed_only_comparisons,
 		top_skills=max(args.top_skills, 0),
 		top_actions=max(args.top_actions, 0),
 	)
-	summary_packet = build_summary_packet(report_path, trace_path, report, scenario, profile_entries, focus_hints)
+	summary_packet = build_summary_packet(
+		report_path,
+		trace_path,
+		report,
+		scenario,
+		profile_entries,
+		completed_only_comparisons,
+		focus_hints,
+	)
 	selected_traces = select_focus_traces(
 		profile_entries,
 		build_trace_records(report, scenario, profile_entries),

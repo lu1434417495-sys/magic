@@ -5,6 +5,8 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_enemy_template_attribute_projection_regression : LifecycleTestSceneTree
 {
+    private static readonly StringName EncounterProfileId = "typed_attribute_encounter";
+    private static readonly StringName RosterProfileId = "typed_attribute_roster";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -30,8 +32,17 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         {
             [template.template_id] = template.ToDefinition(gameSession.GetItemDefsTyped())
         };
+        WildEncounterRosterDefinition roster = BuildRosterDefinition(template.template_id);
+        BattleEncounterDefinition encounter = BuildEncounterDefinition();
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                [encounter.EncounterId] = encounter,
+            },
+            new Dictionary<StringName, WildEncounterRosterDefinition>
+            {
+                [roster.ProfileId] = roster,
+            },
             enemyTemplates
         );
 
@@ -63,7 +74,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         );
 
         using GodotProjectionLease<GArray> enemyUnitsLease = builder.BuildEnemyUnitsLease(
-            BuildEncounterAnchor(template.template_id),
+            BuildEncounterAnchor(),
             gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped(),
             enemyTemplates,
             gameSession.GetEnemyAiBrainDefinitions(),
@@ -143,7 +154,47 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         );
     }
 
-    private static EncounterAnchorData BuildEncounterAnchor(StringName templateId)
+    private static WildEncounterRosterDefinition BuildRosterDefinition(StringName templateId)
+    {
+        return new WildEncounterRosterDefinition(
+            RosterProfileId,
+            "Typed Attribute Roster",
+            0,
+            0,
+            new[]
+            {
+                new WildEncounterRosterStageDefinition(
+                    0,
+                    new[]
+                    {
+                        new WildEncounterRosterUnitEntryDefinition(
+                            templateId,
+                            1,
+                            "Typed Attribute Enemy"
+                        ),
+                    }
+                ),
+            }
+        );
+    }
+
+    private static BattleEncounterDefinition BuildEncounterDefinition()
+    {
+        return new BattleEncounterDefinition(
+            EncounterProfileId,
+            "Typed Attribute Encounter",
+            RosterProfileId,
+            BattleEliminationObjectiveDefinition.Instance,
+            new BattleEncounterWorldResolutionDefinition(
+                BattleWorldResolutionMode.Clear,
+                BattleWorldResolutionMode.Preserve,
+                BattleWorldResolutionMode.Preserve,
+                0
+            )
+        );
+    }
+
+    private static EncounterAnchorData BuildEncounterAnchor()
     {
         return new EncounterAnchorData
         {
@@ -151,11 +202,10 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             display_name = "Typed Attribute Enemy",
             world_coord = new Vector2I(6, 6),
             faction_id = "hostile",
-            enemy_roster_template_id = templateId,
             region_tag = "typed_tests",
             vision_range = 2,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
-            encounter_profile_id = "",
+            encounter_profile_id = EncounterProfileId,
             growth_stage = 0,
             suppressed_until_step = 0,
         };

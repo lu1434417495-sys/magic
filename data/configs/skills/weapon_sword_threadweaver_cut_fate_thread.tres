@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Effect_cut_fate_thread_execute"]
 script = ExtResource("1_effect")
 effect_type = &"execute"
+effect_categories = Array[StringName]([&"psychic"])
 effect_target_team_filter = &"enemy"
 damage_tag = &"psychic"
 save_dc_mode = &"static"

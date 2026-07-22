@@ -704,6 +704,10 @@ public static class GameTextSnapshotRenderer
             $"active_unit_id={GetString(battle, "active_unit_id")}",
             $"active_unit_name={GetString(battle, "active_unit_name")}",
             $"modal_state={GetString(battle, "modal_state")}",
+            $"objective_mode={GetString(battle, "objective_mode")}",
+            $"outcome={GetString(battle, "outcome")}",
+            $"end_reason={GetString(battle, "end_reason")}",
+            $"decision_tu={GetInt(battle, "decision_tu", -1)}",
             $"winner_faction_id={GetString(battle, "winner_faction_id")}",
             $"selected_coord={FormatCoord(GetDictionary(battle, "selected_coord"))}",
             $"selected_skill_entry_id={GetString(battle, "selected_skill_entry_id")}",
@@ -883,6 +887,10 @@ public static class GameTextSnapshotRenderer
         return new List<string>
         {
             $"battle_name={GetString(loot, "battle_name")}",
+            $"objective_mode={GetString(loot, "objective_mode")}",
+            $"outcome={GetString(loot, "outcome")}",
+            $"end_reason={GetString(loot, "end_reason")}",
+            $"decision_tu={GetInt(loot, "decision_tu", -1)}",
             $"winner_faction_id={GetString(loot, "winner_faction_id")}",
             $"loot_entry_count={GetInt(loot, "loot_entry_count")}",
             $"loot_summary={GetString(loot, "loot_summary_text")}",

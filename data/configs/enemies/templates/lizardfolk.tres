@@ -20,7 +20,7 @@ creature_level = 2
 hit_die_sides = 8
 action_threshold = 35
 tags = Array[StringName]([&"humanoid", &"reptile", &"lizardfolk"])
-save_advantage_tags = Array[StringName]([&"poison_advantage"])
+save_advantage_tags = Array[StringName]([&"poison"])
 attack_equipment_item_id = &"guard_trident"
 base_attribute_overrides = {
 &"strength": 13,

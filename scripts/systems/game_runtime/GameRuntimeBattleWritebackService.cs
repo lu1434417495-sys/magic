@@ -6,7 +6,7 @@ using PlainDictionary = System.Collections.Generic.Dictionary<string, object>;
 
 internal sealed class GameRuntimeBattleWritebackService : IDisposable
 {
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeBattleWritebackPort> _portRef;
 
     internal sealed class BattleLocalWritebackResult
     {
@@ -132,20 +132,24 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         }
     }
 
-    private GameRuntimeFacade _runtime
+    private IGameRuntimeBattleWritebackPort _port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_portRef);
+        set =>
+            _portRef =
+                value != null
+                    ? new WeakReference<IGameRuntimeBattleWritebackPort>(value)
+                    : null;
     }
 
-    internal void Setup(GameRuntimeFacade runtime)
+    internal void Setup(IGameRuntimeBattleWritebackPort port)
     {
-        _runtime = runtime;
+        _port = port;
     }
 
     public void Dispose()
     {
-        _runtime = null;
+        _port = null;
         GC.SuppressFinalize(this);
     }
 
@@ -298,8 +302,7 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         if (!validationResult.Ok)
             return BattleLocalWritebackResult.FromFailure(validationResult.Failure);
 
-        _runtime.SetPartyState(candidateParty);
-        SyncRuntimePartyServicesAfterBattleLocalWriteback();
+        _port.ApplyBattleLocalPartyState(candidateParty);
 
         return BattleLocalWritebackResult.Success(
             committedMemberIds.Count,
@@ -398,9 +401,8 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             }
         }
 
-        var itemDefs = GetRuntimeItemDefsTyped();
-        var capacityService = new PartyWarehouseService();
-        capacityService.Setup(candidateParty, itemDefs);
+        using var capacityService = new PartyWarehouseService();
+        capacityService.Setup(candidateParty);
         var usedSlots = capacityService.GetUsedSlots();
         var capacity = capacityService.GetTotalCapacity();
 
@@ -457,62 +459,6 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
         return true;
     }
 
-    private void SyncRuntimePartyServicesAfterBattleLocalWriteback()
-    {
-        var typedItemDefs = GetRuntimeItemDefsTyped();
-        PartyState partyState = _runtime?.GetPartyState();
-
-        CharacterManagementModule characterManagement = _runtime?.GetCharacterManagement();
-        if (characterManagement != null)
-            characterManagement.SetPartyState(partyState);
-
-        PartyWarehouseService partyWarehouseService = _runtime?.GetPartyWarehouseService();
-        if (partyWarehouseService != null)
-            _runtime.SetupPartyWarehouseService(
-                partyWarehouseService,
-                partyState,
-                typedItemDefs
-            );
-
-        PartyItemUseService partyItemUseService = _runtime?.GetPartyItemUseService();
-        if (partyItemUseService != null)
-        {
-            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-                new System.Collections.Generic.Dictionary<StringName, SkillDefinition>();
-            GameSession gameSession = _runtime?.GetGameSession();
-            if (gameSession != null)
-                skillDefinitions =
-                    gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
-            partyItemUseService.Setup(
-                partyState,
-                typedItemDefs,
-                skillDefinitions,
-                partyWarehouseService,
-                characterManagement
-            );
-        }
-
-        PartyEquipmentService partyEquipmentService = _runtime?.GetPartyEquipmentService();
-        if (partyEquipmentService != null)
-        {
-            var allocator = _runtime.GetEquipmentInstanceIdAllocator();
-            partyEquipmentService.Setup(
-                partyState,
-                typedItemDefs,
-                partyWarehouseService,
-                allocator
-            );
-        }
-    }
-
-    private IReadOnlyDictionary<StringName, ItemDefinition> GetRuntimeItemDefsTyped()
-    {
-        GameSession gameSession = _runtime?.GetGameSession();
-        if (gameSession != null)
-            return gameSession.GetItemDefsTyped();
-        return new System.Collections.Generic.Dictionary<StringName, ItemDefinition>();
-    }
-
     private static BattleLocalWritebackFailure BuildBattleLocalWritebackFailure(
         string errorCode,
         IReadOnlyDictionary<string, object> details = null
@@ -544,12 +490,8 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             "战斗结算发生内部不变量错误：battle-local 队伍状态写回不可能失败但失败了（{0}）。",
             errorCode
         );
-        _runtime.UpdateStatus(statusMessage);
-        _runtime._log_runtime_event(
-            GameLogLevel.Error,
-            "battle",
-            "battle.local_writeback_inoption_failed",
-            _runtime.GetStatusText(),
+        _port.ReportBattleLocalWritebackInvariantFailure(
+            statusMessage,
             Json.Stringify(new Dictionary
             {
                 ["battle"] = battleSummary,
@@ -579,9 +521,14 @@ internal sealed class GameRuntimeBattleWritebackService : IDisposable
             : new Dictionary();
     }
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static IGameRuntimeBattleWritebackPort ResolveWeakRef(
+        WeakReference<IGameRuntimeBattleWritebackPort> weakRef
+    )
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out IGameRuntimeBattleWritebackPort target)
+        )
             return null;
         return target;
     }

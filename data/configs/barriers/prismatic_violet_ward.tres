@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="BarrierProfileDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierProfileDef.cs" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierLayerDef.cs" id="2_layer"]
+[ext_resource type="Resource" path="res://data/configs/barrier_layers/prismatic/violet.tres" id="3_layer_resource"]
+
+[resource]
+script = ExtResource("1_profile")
+profile_id = &"prismatic_violet_ward"
+display_name = "虹光·紫晶屏障"
+anchor_mode = &"fixed"
+area_pattern = &"diamond"
+radius_cells = 1
+duration_tu = 40
+catch_all_projected_effects = false
+layers = Array[ExtResource("2_layer")]([ExtResource("3_layer_resource")])

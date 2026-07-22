@@ -15,6 +15,7 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
     private void Run()
     {
         TestCommitBatchSwapRollsBackOnCapacityFailure();
+        TestCommitBatchSwapRollsBackWhenEquipmentIdAllocationFails();
         TestBatchSwapEntriesClonesTypedEquipmentInstance();
         TestBatchSwapEntriesAcceptsEquipmentInstanceDictionaryPayload();
         TestRemoveEquipmentInstanceTypedContracts();
@@ -41,6 +42,38 @@ public partial class run_party_warehouse_batch_swap_regression : LifecycleTestSc
         _test.Eq(service.CountItem("herb"), 0, "失败 commit 不应保留中间 deposit。");
         _test.Eq(service.CountItem("gem"), 0, "失败 commit 不应写入阻塞物品。");
         _test.Eq(service.GetUsedSlots(), 1, "失败 commit 后占用格应回滚。");
+    }
+
+    private void TestCommitBatchSwapRollsBackWhenEquipmentIdAllocationFails()
+    {
+        PartyState partyState = BuildPartyState(capacity: 2);
+        PartyWarehouseService service = new();
+        service.Setup(
+            partyState,
+            BuildItemDefinitions(),
+            () => new StringName("")
+        );
+        service.AddItemTyped("potion", 1);
+
+        GDictionary result = PartyInventoryProjection.Project(
+            service.CommitBatchSwapTyped(
+                new GStringNameArray { "potion" },
+                new GStringNameArray { "iron_sword" }
+            )
+        );
+
+        _test.False(
+            DictBool(result, "allowed", true),
+            "装备实例 id 分配失败时 batch swap 应拒绝。"
+        );
+        _test.Eq(
+            DictString(result, "error_code", ""),
+            "warehouse_blocked_swap",
+            "装备实例 id 分配失败应返回稳定错误码。"
+        );
+        _test.Eq(service.CountItem("potion"), 1, "失败 commit 应恢复被 withdraw 的物品。");
+        _test.Eq(service.CountItem("iron_sword"), 0, "分配失败的装备不应写入仓库。");
+        _test.Eq(service.GetUsedSlots(), 1, "分配失败回滚后占用格应保持不变。");
     }
 
     private void TestBatchSwapEntriesClonesTypedEquipmentInstance()

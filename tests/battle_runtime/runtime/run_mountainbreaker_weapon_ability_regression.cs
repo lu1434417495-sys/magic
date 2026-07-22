@@ -289,14 +289,23 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         PartyState party = BuildPartyState($"hero_{strength}", strength);
         PartyWarehouseService warehouse = new();
         warehouse.Setup(party, itemDefs);
+        CharacterManagementModule management = new();
+        management.setup(party, item_defs: itemDefs);
         PartyEquipmentService equipment = new();
-        equipment.Setup(party, itemDefs, warehouse);
+        equipment.Setup(
+            party,
+            itemDefs,
+            warehouse,
+            requirementSnapshotProvider: management.GetMemberAttributeSnapshotForEquipmentView
+        );
         warehouse.AddItemTyped(ItemId, 1);
         PartyEquipmentService.EquipmentActionResult result = equipment.EquipItemTyped($"hero_{strength}", ItemId);
         if (shouldSucceed)
             _ = result.Success ? true : throw new InvalidOperationException($"strength {strength} should equip裂山者: {result.ErrorCode}");
         else if (result.Success || result.ErrorCode != "attribute_too_low")
             throw new InvalidOperationException($"strength {strength} should fail attribute_too_low, actual success={result.Success} error={result.ErrorCode}");
+        equipment.Dispose();
+        management.Dispose();
     }
 
     private static void AssertAbilitySource(BattleUnitState unit, StringName traitId, StringName bindingId)
@@ -437,7 +446,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
                 snapshot.Quests,
                 snapshot.Traits,
                 null,
-                new ProgressionIdentityCatalogData()
+                snapshot.IdentityCatalog
             );
             BattleRuntimeModule runtime = new();
             runtime.setup(

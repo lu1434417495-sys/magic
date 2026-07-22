@@ -9,6 +9,7 @@
 [sub_resource type="Resource" id="Resource_15nby"]
 script = ExtResource("3_nq72s")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 max_skill_level = 0
 damage_tag = &"force"
 save_dc_mode = &"caster_spell"
@@ -22,6 +23,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_7324h"]
 script = ExtResource("3_nq72s")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"force"
@@ -36,6 +38,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_nq72s"]
 script = ExtResource("3_nq72s")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"force"
@@ -50,6 +53,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_d7yt4"]
 script = ExtResource("3_nq72s")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"force"
@@ -64,6 +68,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_62n6n"]
 script = ExtResource("3_nq72s")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 7
 damage_tag = &"force"
 save_dc_mode = &"caster_spell"
@@ -118,6 +123,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_k1w5o"]
 script = ExtResource("4_d7yt4")
 skill_id = &"mage_runic_golem"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 3
 ap_cost = 3

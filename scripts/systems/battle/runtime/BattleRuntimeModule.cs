@@ -32,19 +32,16 @@ internal readonly struct BattleDefeatHandlingOptions
 {
     internal readonly bool CollectLoot;
     internal readonly bool RecordEnemyDefeatedAchievement;
-    internal readonly bool CheckBattleEnd;
     internal readonly BattleKillProvenance KillProvenance;
 
     internal BattleDefeatHandlingOptions(
         bool collectLoot = true,
         bool recordEnemyDefeatedAchievement = false,
-        bool checkBattleEnd = true,
         BattleKillProvenance killProvenance = default
     )
     {
         CollectLoot = collectLoot;
         RecordEnemyDefeatedAchievement = recordEnemyDefeatedAchievement;
-        CheckBattleEnd = checkBattleEnd;
         KillProvenance = killProvenance;
     }
 
@@ -239,16 +236,16 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal static readonly StringName SPAWN_SIDE_NEAR_LONG_EDGE_VALUE = "near_long_edge";
     internal static readonly StringName SPAWN_SIDE_FAR_LONG_EDGE_VALUE = "far_long_edge";
 
-    private IBattleRuntimeCharacterGateway _characterGateway;
-    private ISkillCatalog _skillCatalog;
+    internal IBattleRuntimeCharacterGateway _characterGateway;
+    internal ISkillCatalog _skillCatalog;
 
-    private readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
+    internal readonly Dictionary<StringName, SkillDefinition> _skillDefinitionIndex = new();
     private readonly Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
     private readonly Dictionary<StringName, EnemyAiBrainDefinition> _enemyAiBrainIndex = new();
-    private readonly Dictionary<StringName, ItemDefinition> _itemDefIndex = new();
+    internal readonly Dictionary<StringName, ItemDefinition> _itemDefIndex = new();
     private readonly Dictionary<StringName, TraitDefinition> _traitDefIndex = new();
     private readonly Dictionary<StringName, BarrierProfileDefinition> _barrierProfileIndex = new();
-    private readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindingIndex = new();
+    internal readonly Dictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindingIndex = new();
     internal EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
@@ -262,7 +259,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 	internal BattleDamageResolver _damage_resolver = new();
 	internal BattleHitResolver _hit_resolver = new();
     internal BattleAiService _ai_service = new();
-    private readonly BattleAiActionAssembler _ai_action_assembler = new();
+    internal readonly BattleAiActionAssembler _ai_action_assembler = new();
     internal BattleTerrainEffectSystem _terrain_effect_system = new();
     internal BattleDelayedAreaEffectSystem _delayed_area_effect_system = new();
     internal BattleRatingSystem _battle_rating_system = new();
@@ -284,7 +281,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleRuntimeSkillTurnResolver _skill_turn_resolver = new();
     internal BattleMetricsCollector _metrics_collector = new();
     internal BattleShieldService _shield_service = new();
-    private readonly BattleRuntimeServices _runtime_services = new();
+    internal readonly BattleRuntimeServices _runtime_services = new();
     internal BattleGroundEffectService _ground_effect_service => _runtime_services.GroundEffects;
     internal BattleSpecialSkillResolver _special_skill_resolver => _runtime_services.SpecialSkills;
     internal BattleMovementService _movement_service => _runtime_services.Movement;
@@ -302,7 +299,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleSkillOutcomeCommitter _skill_outcome_committer = new();
     private readonly Dictionary<StringName, BattleRatingMemberStats> _battleRatingStatsByMemberId = new();
     private readonly List<PendingCharacterReward> _pendingPostBattleCharacterRewards = new();
-    private readonly Stack<BattleEffectOrigin> _effectOriginStack = new();
     internal List<BattleLootEntry> _active_loot_entries = new();
     internal HashSet<StringName> _looted_defeated_unit_ids = new();
     internal BattleResolutionResult _battle_resolution_result;
@@ -310,12 +306,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public int _terrain_effect_nonce;
     public bool _ai_trace_enabled;
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
-    private int _contingencySourceEventOrdinal;
+    internal int _contingencySourceEventOrdinal;
     internal Dictionary<StringName, BattleAiRuntimeActionPlan> _ai_action_plans_by_unit_id = new();
-    private readonly Func<StringName, Vector2I, Vector2I, int> _ai_move_query_cost_callback;
-    private readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
-    private readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
-    private readonly Func<
+    internal readonly Func<StringName, Vector2I, Vector2I, int> _ai_move_query_cost_callback;
+    internal readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
+    internal readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
+    internal readonly Func<
         BattleAiContext,
         SkillDefinition,
         BattleCommand,
@@ -324,7 +320,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > _ai_skill_score_input_callback;
-    private readonly Func<
+    internal readonly Func<
         BattleAiContext,
         StringName,
         string,
@@ -334,7 +330,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > _ai_action_score_input_callback;
-    private readonly Func<
+    internal readonly Func<
         BattleAiQueryService,
         StringName,
         string,
@@ -344,10 +340,27 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<string, object>,
         BattleAiScoreInput
     > _ai_query_action_score_input_callback;
-    private readonly Func<StringName, bool> _ai_movement_blocked_callback;
-    private readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
+    internal readonly Func<StringName, bool> _ai_movement_blocked_callback;
+    internal readonly Func<BattleUnitState, SkillDefinition, BattleSkillCastBlockReasonKind>
         _ai_skill_cast_block_reason_callback;
     internal BattleMetricsState _battle_metrics = new();
+    internal readonly BattleRuntimeModuleBorrowerSet _moduleBorrowers = new();
+    internal BattleSpawnPlacementService _spawnPlacementService =>
+        _moduleBorrowers.SpawnPlacement;
+    internal BattleSpecialSkillGateService _specialSkillGateService =>
+        _moduleBorrowers.SpecialSkillGate;
+    internal BattleMovementCommandService _movementCommandService =>
+        _moduleBorrowers.MovementCommand;
+    internal BattleMetricsReportService _metricsReportService =>
+        _moduleBorrowers.MetricsReport;
+    internal BattleAiDecisionBindingService _aiDecisionBindingService =>
+        _moduleBorrowers.AiDecisionBinding;
+    internal BattleContingencyBridgeService _contingencyBridgeService =>
+        _moduleBorrowers.ContingencyBridge;
+    internal BattleTimelineStatusBridgeService _timelineStatusBridgeService =>
+        _moduleBorrowers.TimelineStatusBridge;
+    internal BattleCommandPreviewService _commandPreviewService =>
+        _moduleBorrowers.CommandPreview;
     private BattleStartFailureSnapshot _last_start_failure = new();
     internal BattleCalamityStore calamity_by_member_id = new();
     private long _battleCacheEpoch;
@@ -355,14 +368,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     public BattleRuntimeModule()
     {
+        _moduleBorrowers.Setup(this);
         SetTerrainGenerator(new BattleTerrainGenerator(), true);
-        _ai_move_query_cost_callback = _get_ai_move_query_cost;
-        _ai_move_cost_callback = _get_move_cost_for_unit_target;
-        _ai_preview_command_callback = PreviewCommand;
-        _ai_skill_score_input_callback = BuildAiSkillScoreInput;
-        _ai_action_score_input_callback = BuildAiActionScoreInput;
-        _ai_query_action_score_input_callback = BuildAiQueryActionScoreInput;
-        _ai_movement_blocked_callback = IsAiMovementBlocked;
+        _ai_move_query_cost_callback = _aiDecisionBindingService._get_ai_move_query_cost;
+        _ai_move_cost_callback = _movementCommandService._get_move_cost_for_unit_target;
+        _ai_preview_command_callback = _commandPreviewService.PreviewCommand;
+        _ai_skill_score_input_callback = _aiDecisionBindingService.BuildAiSkillScoreInput;
+        _ai_action_score_input_callback = _aiDecisionBindingService.BuildAiActionScoreInput;
+        _ai_query_action_score_input_callback = _aiDecisionBindingService.BuildAiQueryActionScoreInput;
+        _ai_movement_blocked_callback = _aiDecisionBindingService.IsAiMovementBlocked;
         _ai_skill_cast_block_reason_callback = GetSkillCastBlockReason;
     }
 
@@ -431,7 +445,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (terrain_generator != null)
             SetTerrainGenerator(terrain_generator, false);
 
-        ClearAiActionPlans();
+        _aiDecisionBindingService.ClearAiActionPlans();
         ClearLastStartFailure();
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.Setup(this);
@@ -464,6 +478,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
+        _moduleBorrowers.Setup(this);
         _setup_special_profile_runtime();
         CompleteContentCatalogRebind();
     }
@@ -488,15 +503,17 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _meteor_swarm_resolver.Setup(this, _attack_check_policy_service);
     }
 
-    public BattleState StartBattle(
+    internal BattleState StartBattle(
         EncounterAnchorData encounter_anchor,
         long seed,
+        BattleObjectiveDefinition objectiveDefinition,
         GDictionary context = null
     )
     {
         return StartBattleCore(
             encounter_anchor,
             seed,
+            objectiveDefinition,
             context,
             BattleStartContextReferenceRole.OwnedByStartScope
         );
@@ -505,6 +522,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal BattleState StartBattleBorrowingContext(
         EncounterAnchorData encounterAnchor,
         long seed,
+        BattleObjectiveDefinition objectiveDefinition,
         GDictionary borrowedContext
     )
     {
@@ -513,6 +531,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return StartBattleCore(
             encounterAnchor,
             seed,
+            objectiveDefinition,
             borrowedContext,
             BattleStartContextReferenceRole.BorrowedForSynchronousStart
         );
@@ -540,6 +559,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private BattleState StartBattleCore(
         EncounterAnchorData encounter_anchor,
         long seed,
+        BattleObjectiveDefinition objectiveDefinition,
         GDictionary context,
         BattleStartContextReferenceRole contextRole
     )
@@ -550,6 +570,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
         else if (context == null)
             throw new ArgumentNullException(nameof(context));
         ClearLastStartFailure();
+        if (objectiveDefinition == null)
+        {
+            _last_start_failure = new BattleStartFailureSnapshot
+            {
+                Reason = "missing_objective_definition",
+            };
+            ClearRuntimeBattleStateReference();
+            return new BattleState();
+        }
         _ensure_sidecars_ready();
         var partyState =
             _characterGateway != null ? _characterGateway.GetPartyState() : null;
@@ -576,7 +605,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         GBattleUnitArray enemyUnits = new();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
-        ClearAiActionPlans();
+        _aiDecisionBindingService.ClearAiActionPlans();
         calamity_by_member_id.Clear();
 
         bool hasExplicitEnemyUnits = false;
@@ -623,7 +652,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         )
         {
             ClearRuntimeBattleStateReference();
-            ClearAiActionPlans();
+            _aiDecisionBindingService.ClearAiActionPlans();
             _last_start_failure = new BattleStartFailureSnapshot
             {
                 Reason = "invalid_start_units",
@@ -677,6 +706,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 terrain_profile_id = terrainProfileId,
                 timeline = new BattleTimelineState(),
             });
+            if (!InitializeBattleObjective(objectiveDefinition))
+            {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "unsupported_objective_definition",
+                };
+                ClearRuntimeBattleStateReference();
+                return new BattleState();
+            }
             _state.ReplaceEnvironmentSnapshot(
                 BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
             );
@@ -694,7 +732,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _state.ReplaceCellColumnsFromPayload(cellColumns);
             }
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
-            _state.timeline.tu_per_tick = _resolve_timeline_tu_per_tick(context);
+            _state.timeline.tu_per_tick = _timelineStatusBridgeService._resolve_timeline_tu_per_tick(context);
 
             using GArray allySpawnCoords = GetArray(terrainData, "ally_spawns");
             using GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
@@ -702,21 +740,21 @@ public sealed partial class BattleRuntimeModule : IDisposable
             StringName enemySpawnSide = "";
             if (startOptions.EnforceOpposingSpawnSides)
             {
-                allySpawnSide = _resolve_spawn_side_from_coords(allySpawnCoords);
-                enemySpawnSide = _resolve_spawn_side_from_coords(enemySpawnCoords);
+                allySpawnSide = _spawnPlacementService._resolve_spawn_side_from_coords(allySpawnCoords);
+                enemySpawnSide = _spawnPlacementService._resolve_spawn_side_from_coords(enemySpawnCoords);
                 if (IsEmpty(allySpawnSide) && !IsEmpty(enemySpawnSide))
-                    allySpawnSide = _get_opposite_spawn_side(enemySpawnSide);
+                    allySpawnSide = _spawnPlacementService._get_opposite_spawn_side(enemySpawnSide);
                 if (IsEmpty(enemySpawnSide) && !IsEmpty(allySpawnSide))
-                    enemySpawnSide = _get_opposite_spawn_side(allySpawnSide);
+                    enemySpawnSide = _spawnPlacementService._get_opposite_spawn_side(allySpawnSide);
                 if (!IsEmpty(allySpawnSide) && enemySpawnSide == allySpawnSide)
-                    enemySpawnSide = _get_opposite_spawn_side(allySpawnSide);
+                    enemySpawnSide = _spawnPlacementService._get_opposite_spawn_side(allySpawnSide);
             }
-            if (!PlaceUnitsTyped(allyUnits, ToVector2IList(allySpawnCoords), true, allySpawnSide))
+            if (!_spawnPlacementService.PlaceUnitsTyped(allyUnits, ToVector2IList(allySpawnCoords), true, allySpawnSide))
             {
                 ClearRuntimeBattleStateReference();
                 continue;
             }
-            if (!PlaceUnitsTyped(enemyUnits, ToVector2IList(enemySpawnCoords), false, enemySpawnSide))
+            if (!_spawnPlacementService.PlaceUnitsTyped(enemyUnits, ToVector2IList(enemySpawnCoords), false, enemySpawnSide))
             {
                 ClearRuntimeBattleStateReference();
                 continue;
@@ -745,16 +783,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
                         ReachabilityResult = reachability,
                     };
                     ClearRuntimeBattleStateReference();
-                    ClearAiActionPlans();
+                    _aiDecisionBindingService.ClearAiActionPlans();
                     continue;
                 }
             }
 
-            _initialize_unit_action_thresholds();
-            _build_ai_action_plans();
+            _timelineStatusBridgeService._initialize_unit_action_thresholds();
+            _aiDecisionBindingService._build_ai_action_plans();
             _state.PhaseKind = BattlePhaseKind.TimelineRunning;
             _state.active_unit_id = "";
-            _state.winner_faction_id = "";
             _state.ModalStateKind = BattleModalStateKind.None;
             _state.attack_roll_nonce = 0;
             _state.ResetLogEntries(new GStringArray { $"战斗开始：{encounterDisplayName}" });
@@ -766,11 +803,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _ai_turn_traces.Clear();
             _contingency_system.ResetForBattle(partyState, _state);
             _initialize_battle_metrics();
+            ClearLastStartFailure();
             return _state;
         }
 
         ClearRuntimeBattleStateReference();
-        ClearAiActionPlans();
+        _aiDecisionBindingService.ClearAiActionPlans();
         if (_last_start_failure.IsEmpty)
         {
             _last_start_failure = new BattleStartFailureSnapshot
@@ -836,198 +874,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return true;
     }
 
-    internal void _build_ai_action_plans()
-    {
-        ClearAiActionPlans();
-        if (_state == null || _ai_action_assembler == null)
-            return;
-        foreach (BattleUnitState unitState in _state.GetUnitsTyped())
-        {
-            if (
-                unitState == null
-                || unitState.ControlModeKind == BattleUnitControlMode.Manual
-                || IsEmpty(unitState.ai_brain_id)
-            )
-                continue;
-            EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unitState.ai_brain_id);
-            if (brain == null)
-                continue;
-            BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
-                unitState,
-                brain,
-                GetSkillDefinitionIndexTyped()
-            );
-            if (actionPlan != null)
-                _ai_action_plans_by_unit_id[unitState.unit_id] = actionPlan;
-        }
-    }
-
-    private void ClearAiActionPlans()
-    {
-        List<BattleAiRuntimeActionPlan> plans = new(_ai_action_plans_by_unit_id.Values);
-        _ai_action_plans_by_unit_id.Clear();
-        Exception firstFailure = null;
-        foreach (BattleAiRuntimeActionPlan plan in plans)
-        {
-            RunTeardownStep(ref firstFailure, () => plan?.Dispose());
-        }
-        if (firstFailure != null)
-        {
-            ExceptionDispatchInfo.Capture(firstFailure).Throw();
-        }
-    }
-
-    internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)
-    {
-        if (unit_state == null || _ai_action_assembler == null)
-            return;
-        if (_ai_action_plans_by_unit_id.ContainsKey(unit_state.unit_id))
-            return;
-        if (unit_state.ControlModeKind == BattleUnitControlMode.Manual || IsEmpty(unit_state.ai_brain_id))
-            return;
-        EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
-        if (brain == null)
-            return;
-        BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
-            unit_state,
-            brain,
-            GetSkillDefinitionIndexTyped()
-        );
-        if (actionPlan != null)
-            _ai_action_plans_by_unit_id[unit_state.unit_id] = actionPlan;
-    }
-
-    internal void _bind_ai_helper_services_for_decision(
-        BattleUnitState unit_state,
-        BattleAiContext ai_context
-    )
-    {
-        if (unit_state == null || ai_context == null || _state == null || _grid_service == null)
-            return;
-        _runtime_services.BindAiHelperServicesForDecision(
-            new BattleAiHelperBindingContext(
-                _state,
-                _grid_service,
-                unit_state,
-                GetSkillDefinitionIndexTyped(),
-                GetBarrierProfileIndexTyped(),
-                _skillCatalog,
-                _ai_service.GetScoreService(),
-                _ai_move_query_cost_callback,
-                _ai_query_action_score_input_callback,
-                _ai_movement_blocked_callback,
-                _ai_move_cost_callback,
-                _ai_preview_command_callback,
-                _ai_skill_score_input_callback,
-                _ai_action_score_input_callback,
-                _ai_skill_cast_block_reason_callback
-            ),
-            ai_context
-        );
-    }
-
-    internal BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
-    {
-        _ai_action_plans_by_unit_id.TryGetValue(
-            activeUnit.unit_id,
-            out BattleAiRuntimeActionPlan actionPlan
-        );
-        return _runtime_services.PrepareAiContextForDecision(
-            new BattleAiDecisionContextSetup(
-                _state,
-                activeUnit,
-                _grid_service,
-                actionPlan,
-                GetSkillDefinitionIndexTyped(),
-                GetBarrierProfileIndexTyped(),
-                _ai_trace_enabled,
-                _skillCatalog,
-                _ai_move_cost_callback,
-                _ai_preview_command_callback,
-                _ai_skill_score_input_callback,
-                _ai_action_score_input_callback,
-                _ai_skill_cast_block_reason_callback
-            )
-        );
-    }
-
-    private BattleAiScoreInput BuildAiSkillScoreInput(
-        BattleAiContext context,
-        SkillDefinition skillDefinition,
-        BattleCommand command,
-        BattlePreview preview,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> metadata
-    )
-    {
-        return _ai_service.GetScoreService()
-            .BuildSkillScoreInput(
-                context,
-                skillDefinition,
-                command,
-                preview,
-                effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>(),
-                metadata
-            );
-    }
-
-    private BattleAiScoreInput BuildAiActionScoreInput(
-        BattleAiContext context,
-        StringName actionKind,
-        string actionLabel,
-        StringName scoreBucketId,
-        BattleCommand command,
-        BattlePreview preview,
-        IReadOnlyDictionary<string, object> metadata
-    )
-    {
-        return _ai_service.GetScoreService()
-            .BuildActionScoreInput(
-                context,
-                actionKind,
-                actionLabel,
-                scoreBucketId,
-                command,
-                preview,
-                metadata
-            );
-    }
-
-    private BattleAiScoreInput BuildAiQueryActionScoreInput(
-        BattleAiQueryService service,
-        StringName actionKind,
-        string actionLabel,
-        StringName scoreBucketId,
-        BattleCommand command,
-        BattlePreview preview,
-        IReadOnlyDictionary<string, object> metadata
-    )
-    {
-        return _runtime_services.BuildActionScoreInput(
-            service,
-            actionKind,
-            actionLabel,
-            scoreBucketId,
-            command,
-            preview,
-            metadata
-        );
-    }
-
-    private bool IsAiMovementBlocked(StringName unitId)
-    {
-        _state.TryGetUnitTyped(unitId, out BattleUnitState candidate);
-        return candidate != null && _is_movement_blocked(candidate);
-    }
-
-    internal int _get_ai_move_query_cost(StringName unit_id, Vector2I _from_coord, Vector2I to_coord)
-    {
-        if (_state == null)
-            return 1;
-        _state.TryGetUnitTyped(unit_id, out BattleUnitState unitState);
-        return unitState == null ? 1 : _get_move_cost_for_unit_target(unitState, to_coord);
-    }
-
     internal StringName _resolve_formal_terrain_profile_id(GDictionary terrain_data)
     {
         if (terrain_data == null || !terrain_data.ContainsKey("terrain_profile_id"))
@@ -1051,7 +897,17 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _state.TryGetUnitTyped(_state.active_unit_id, out BattleUnitState activeUnit);
             if (activeUnit == null || !activeUnit.is_alive)
             {
-                _end_active_turn(batch);
+                BeginObjectiveMutation();
+                bool mutationCompleted = false;
+                try
+                {
+                    _end_active_turn(batch);
+                    mutationCompleted = true;
+                }
+                finally
+                {
+                    EndObjectiveMutation(batch, mutationCompleted);
+                }
                 return batch;
             }
             bool madnessAiControl = _skill_turn_resolver.IsTurnAiOverrideActive(activeUnit);
@@ -1069,7 +925,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 }
                 using (new BattleAiTraceSpan("advance:ensure_ai_action_plan"))
                 {
-                    _ensure_ai_action_plan_for_unit(activeUnit);
+                    _aiDecisionBindingService._ensure_ai_action_plan_for_unit(activeUnit);
                 }
 
                 BattleAiContext aiContext = null;
@@ -1078,11 +934,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 {
                     using (new BattleAiTraceSpan("advance:create_ai_context"))
                     {
-                        aiContext = _prepare_ai_context_for_decision(activeUnit);
+                        aiContext = _aiDecisionBindingService._prepare_ai_context_for_decision(activeUnit);
                     }
                     using (new BattleAiTraceSpan("advance:bind_ai_helpers"))
                     {
-                        _bind_ai_helper_services_for_decision(activeUnit, aiContext);
+                        _aiDecisionBindingService._bind_ai_helper_services_for_decision(activeUnit, aiContext);
                     }
 
                     BattleAiDecisionResult decisionResult;
@@ -1105,6 +961,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                         List<StringName> decisionTargetUnitIds = new();
                         using (new BattleAiTraceSpan("advance:ai_decision_commit"))
                         {
+                            BattleAiDecisionCommitter.Commit(activeUnit, decision);
                             if (_ai_trace_enabled && aiTurnTrace != null)
                             {
                                 decisionTargetUnitIds = CollectAiTraceDecisionTargetUnitIds(
@@ -1157,337 +1014,48 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (tick_count > 0)
         {
             _timeline_driver.AdvanceTimeline(tick_count, batch);
-            if (_check_battle_end(batch))
+            if (_state.FinalDecision != null)
                 return batch;
         }
 
         if (_state.PhaseKind == BattlePhaseKind.TimelineRunning)
-            _activate_next_ready_unit(batch);
-        return batch;
-    }
-
-    internal bool _use_discrete_timeline_ticks()
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.UseDiscreteTimelineTicks();
-    }
-
-    internal void _apply_timeline_step(BattleEventBatch batch, int tu_delta)
-    {
-        _ensure_sidecars_ready();
-        _timeline_driver.ApplyTimelineStep(batch, tu_delta);
-    }
-
-    internal void _resolve_timeline_status_phase(BattleEventBatch batch, int tu_delta)
-    {
-        _ensure_sidecars_ready();
-        _timeline_driver.ResolveTimelineStatusPhase(batch, tu_delta);
-    }
-
-    internal void _collect_timeline_ready_units(BattleEventBatch batch, int tu_delta)
-    {
-        _ensure_sidecars_ready();
-        _timeline_driver.CollectTimelineReadyUnits(batch, tu_delta);
-    }
-
-    internal bool _apply_stamina_recovery(BattleUnitState unit_state, int tu_delta)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.ApplyStaminaRecovery(unit_state, tu_delta);
-    }
-
-    internal int _get_unit_constitution(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.GetUnitConstitution(unit_state);
-    }
-
-    internal int _apply_stamina_recovery_percent_bonus(
-        BattleUnitState unit_state,
-        int base_progress_gain
-    )
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.ApplyStaminaRecoveryPercentBonus(unit_state, base_progress_gain);
-    }
-
-    public BattlePreview PreviewCommand(BattleCommand command)
-    {
-        _ensure_sidecars_ready();
-        var preview = new BattlePreview();
-        if (!CanPreviewCommand(command))
-            return preview;
-        if (_state.ModalStateKind != BattleModalStateKind.None)
         {
-            preview.AddLogLine(_get_battle_interaction_block_message());
-            return preview;
-        }
-        if (command.IsCancelCast())
-        {
-            _casting_time_service.PreviewCancelCast(command, preview);
-            return preview;
-        }
-
-        BattleUnitReadView activeUnit = ResolvePreviewActiveUnit(command);
-        if (!activeUnit.IsValid || !activeUnit.IsAlive)
-            return preview;
-
-        if (command.IsMove())
-            PreviewMoveCommand(activeUnit, command, preview);
-        else if (command.IsSkill())
-            PreviewSkillCommand(activeUnit, command, preview);
-        else if (command.IsWait())
-            PreviewWaitCommand(activeUnit, preview);
-        else if (command.IsChangeEquipment())
-            PreviewChangeEquipmentCommand(activeUnit, command, preview);
-        else
-            PreviewUnknownCommand(preview);
-        return preview;
-    }
-
-    private bool CanPreviewCommand(BattleCommand command)
-    {
-        return _state != null && command != null && _state.PhaseKind != BattlePhaseKind.BattleEnded;
-    }
-
-    private BattleUnitReadView ResolvePreviewActiveUnit(BattleCommand command)
-    {
-        return command != null ? _state.AsReadView().GetUnit(command.unit_id) : default;
-    }
-
-    private void PreviewMoveCommand(
-        BattleUnitReadView activeUnit,
-        BattleCommand command,
-        BattlePreview preview
-    )
-    {
-        using BattleAiTraceSpan trace = new("preview:move");
-        if (_movement_service.IsMovementBlocked(activeUnit))
-        {
-            preview.AddLogLine($"{activeUnit.DisplayName} 当前被限制移动。");
-            return;
-        }
-
-        BattleMovePathResult moveResult;
-        using (new BattleAiTraceSpan("preview:move.resolve_path_result"))
-        {
-            moveResult = _movement_service.ResolveMovePathResultTyped(
-                activeUnit,
-                command.target_coord
-            );
-        }
-
-        using (new BattleAiTraceSpan("preview:move.build_preview"))
-        {
-            ApplyMovePreviewResult(activeUnit, command, preview, moveResult);
-        }
-    }
-
-    private void ApplyMovePreviewResult(
-        BattleUnitReadView activeUnit,
-        BattleCommand command,
-        BattlePreview preview,
-        BattleMovePathResult moveResult
-    )
-    {
-        if (!moveResult.Allowed)
-        {
-            preview.AddLogLine(
-                string.IsNullOrEmpty(moveResult.Message) ? "该移动不可执行。" : moveResult.Message
-            );
-            return;
-        }
-
-        preview.allowed = true;
-        preview.move_cost = moveResult.Cost;
-        preview.resolved_anchor_coord = command.target_coord;
-        preview.AddLogLine(
-            $"移动可执行，距离消耗 {moveResult.Cost} 点移动力，执行后锁定剩余移动力。"
-        );
-        AddPreviewFootprintCoords(preview, activeUnit, command.target_coord);
-    }
-
-    private void AddPreviewFootprintCoords(
-        BattlePreview preview,
-        BattleUnitReadView activeUnit,
-        Vector2I anchorCoord
-    )
-    {
-        foreach (Vector2I targetCoord in _grid_service.GetUnitTargetCoords(activeUnit, anchorCoord))
-            preview.AddTargetCoord(targetCoord);
-    }
-
-    private void PreviewSkillCommand(
-        BattleUnitReadView activeUnit,
-        BattleCommand command,
-        BattlePreview preview
-    )
-    {
-        using BattleAiTraceSpan trace = new("preview:skill");
-        if (activeUnit.TurnCastingExhausted)
-        {
-            preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
-            return;
-        }
-        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(
-            command,
-            BattleSkillAvailabilityConsumer.PreviewExecution
-        );
-        if (!accessResult.Allowed)
-        {
-            preview.AddLogLine(accessResult.Message);
-            return;
-        }
-        _preview_skill_command(activeUnit, command, preview);
-    }
-
-    private BattleSkillAccessResult ValidateSkillCommandEntryAccess(
-        BattleCommand command,
-        BattleSkillAvailabilityConsumer consumer
-    )
-    {
-        if (command == null)
-        {
-            return BattleSkillAccessResult.Deny("missing_command", "技能命令无效。");
-        }
-        if (_state == null || !_state.TryGetUnitTyped(command.unit_id, out BattleUnitState unit))
-        {
-            return BattleSkillAccessResult.Deny("missing_unit", "当前单位无效。");
-        }
-        BattleSkillAvailabilityService service = new(
-            _skillCatalog,
-            _skillDefinitionIndex,
-            _equipmentAbilityBindingIndex,
-            _itemDefIndex
-        );
-        return service.ValidateSkillEntryAccess(
-            new BattleSkillAvailabilityQuery
+            BeginObjectiveMutation();
+            bool mutationCompleted = false;
+            try
             {
-                User = unit,
-                Consumer = consumer,
-                IncludeEquipmentSkills = true,
-                WorldStep = GetBattleWorldStep(),
-                BattleState = _state,
-            },
-            command.skill_entry_id,
-            command.skill_id
-        );
-    }
-
-    internal int ResolveSkillCommandEntryLevel(
-        BattleCommand command,
-        BattleSkillAvailabilityConsumer consumer,
-        int fallback = 0
-    )
-    {
-        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(command, consumer);
-        return accessResult.Allowed && accessResult.Entry != null
-            ? accessResult.Entry.SkillLevel
-            : fallback;
+                _activate_next_ready_unit(batch);
+                mutationCompleted = true;
+            }
+            finally
+            {
+                EndObjectiveMutation(batch, mutationCompleted);
+            }
+        }
+        return batch;
     }
 
     internal int GetBattleWorldStep() =>
         _state?.GetEnvironmentSnapshot()?.WorldStep ?? -1;
 
-    internal bool CommitEquipmentSkillUsageIfNeeded(
-        BattleUnitState unit,
-        BattleCommand command,
-        BattleEventBatch batch = null,
-        BattleEquipmentSkillUseOutcome skillOutcome = null
-    )
-    {
-        if (unit == null || command == null)
-            return false;
-        BattleSkillAvailabilityService service = new(
-            _skillCatalog,
-            _skillDefinitionIndex,
-            _equipmentAbilityBindingIndex,
-            _itemDefIndex
-        );
-        BattleSkillAccessResult accessResult = service.ValidateSkillEntryAccess(
-            new BattleSkillAvailabilityQuery
-            {
-                User = unit,
-                Consumer = BattleSkillAvailabilityConsumer.PreviewExecution,
-                IncludeKnownSkills = false,
-                IncludeEquipmentSkills = true,
-                WorldStep = GetBattleWorldStep(),
-                BattleState = _state,
-            },
-            command.skill_entry_id,
-            command.skill_id
-        );
-        if (!accessResult.Allowed)
-            return false;
-
-        bool committed = EquipmentAbilityUsageRuntime.TryCommitUsage(
-            unit,
-            accessResult.Entry,
-            GetBattleWorldStep()
-        );
-        bool triggered = _equipment_ability_runtime_service?.ResolveGrantedSkillUsed(
-            new BattleEquipmentAbilityGrantedSkillUsedContext
-            {
-                SourceUnit = unit,
-                TargetUnit = ResolveCommandPrimaryTargetUnit(command),
-                BattleState = _state,
-                Batch = batch,
-                BindingId = accessResult.Entry.EquipmentBindingId,
-                GrantedActionId = accessResult.Entry.EquipmentGrantedActionId,
-                SkillId = accessResult.Entry.EntryRef.SkillId,
-                SkillEntryId = accessResult.Entry.EntryRef.SkillEntryId,
-                SkillOutcome = skillOutcome ?? BattleEquipmentSkillUseOutcome.Empty,
-            }
-        ) == true;
-        if (committed || triggered)
-            batch?.AddChangedUnitId(unit.unit_id);
-        return committed || triggered;
-    }
-
-    private BattleUnitState ResolveCommandPrimaryTargetUnit(BattleCommand command)
-    {
-        if (_state == null || command == null)
-            return null;
-        StringName targetUnitId = ProgressionDataUtils.to_string_name(command.target_unit_id);
-        if (targetUnitId != "" && _state.TryGetUnitTyped(targetUnitId, out BattleUnitState target))
-            return target;
-        foreach (StringName candidateId in command.TargetUnitIdsTyped ?? Array.Empty<StringName>())
-        {
-            targetUnitId = ProgressionDataUtils.to_string_name(candidateId);
-            if (targetUnitId != "" && _state.TryGetUnitTyped(targetUnitId, out target))
-                return target;
-        }
-        return null;
-    }
-
-    private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
-    {
-        using BattleAiTraceSpan trace = new("preview:wait");
-        preview.allowed = true;
-        preview.AddLogLine($"{activeUnit.DisplayName} 可以结束行动。");
-    }
-
-    private void PreviewChangeEquipmentCommand(
-        BattleUnitReadView activeUnit,
-        BattleCommand command,
-        BattlePreview preview
-    )
-    {
-        using BattleAiTraceSpan trace = new("preview:change_equipment");
-        if (activeUnit.TurnCastingExhausted)
-        {
-            preview.AddLogLine("本次施法准备失败后只能移动、等待或取消读条。");
-            return;
-        }
-        _preview_change_equipment_command(activeUnit, command, preview);
-    }
-
-    private static void PreviewUnknownCommand(BattlePreview preview)
-    {
-        preview.AddLogLine("未知命令类型。");
-    }
-
     public BattleEventBatch IssueCommand(BattleCommand command)
+    {
+        BeginObjectiveMutation();
+        BattleEventBatch batch = null;
+        bool mutationCompleted = false;
+        try
+        {
+            batch = IssueCommandCore(command);
+            mutationCompleted = true;
+            return batch;
+        }
+        finally
+        {
+            EndObjectiveMutation(batch, mutationCompleted);
+        }
+    }
+
+    private BattleEventBatch IssueCommandCore(BattleCommand command)
     {
         _ensure_sidecars_ready();
         var batch = _new_batch();
@@ -1497,7 +1065,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return batch;
         if (_state.ModalStateKind != BattleModalStateKind.None)
         {
-            batch.AddLogLine(_get_battle_interaction_block_message());
+            batch.AddLogLine(_commandPreviewService._get_battle_interaction_block_message());
             return batch;
         }
         if (command.CommandKind == BattleCommandKind.CancelCast)
@@ -1528,7 +1096,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             }
             return batch;
         }
-        _ensure_unit_turn_anchor(activeUnit);
+        _timelineStatusBridgeService._ensure_unit_turn_anchor(activeUnit);
         if (
             activeUnit.turn_casting_exhausted
             && (
@@ -1543,7 +1111,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         if (
             command.CommandKind == BattleCommandKind.Skill
-            && _should_block_skill_issue_from_preview(command, batch)
+            && _commandPreviewService._should_block_skill_issue_from_preview(command, batch)
         )
         {
             _append_batch_logs_to_state(batch);
@@ -1551,7 +1119,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
 
         if (command.CommandKind == BattleCommandKind.Move)
-            _handle_move_command(activeUnit, command, batch);
+            _movementCommandService._handle_move_command(activeUnit, command, batch);
         else if (command.CommandKind == BattleCommandKind.Skill)
             _handle_skill_command(activeUnit, command, batch);
         else if (command.CommandKind == BattleCommandKind.Wait)
@@ -1575,12 +1143,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return batch;
         }
 
-        if (_check_battle_end(batch))
-        {
-            _append_batch_logs_to_state_from(batch, flushedLogCount, flushedReportCount);
-            return batch;
-        }
-
         if (
             activeUnit.current_ap <= 0
             || !activeUnit.is_alive
@@ -1592,43 +1154,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
 
         return batch;
-    }
-
-    internal string _get_battle_interaction_block_message()
-    {
-        if (_state == null)
-            return "当前无法操作。";
-        return _state.ModalStateKind switch
-        {
-            BattleModalStateKind.StartConfirm => "战斗尚未开始，确认后才能操作。",
-            BattleModalStateKind.PromotionChoice => "当前处于晋升选择中，无法操作。",
-            _ => "当前有待处理的战斗流程，暂时无法操作。",
-        };
-    }
-
-    internal bool _should_block_skill_issue_from_preview(
-        BattleCommand command,
-        BattleEventBatch batch
-    )
-    {
-        BattlePreview preview = PreviewCommand(command);
-        try
-        {
-            if (preview != null && preview.allowed)
-                return false;
-            if (preview != null)
-            {
-                foreach (string logLine in preview.LogLinesTyped)
-                    batch.AddLogLine(logLine);
-            }
-            if (batch.LogLinesTyped.Count == 0)
-                batch.AddLogLine("技能或目标无效。");
-            return true;
-        }
-        finally
-        {
-            DisposeBattlePreview(preview);
-        }
     }
 
     internal void _append_batch_logs_to_state(BattleEventBatch batch) =>
@@ -1654,95 +1179,33 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
-    internal void AppendResultReportEntry(
-        BattleEventBatch batch,
-        AttackEffectResolutionResult result
-    )
-    {
-        if (batch == null)
-            return;
-        IReadOnlyDictionary<string, object> reportEntry = result.HasReportEntry
-            ? BattleReportEntryPayload.BuildPlainPayload(result.ReportEntry)
-            : BuildAutoCastEffectResultReport(result);
-        if (reportEntry.Count > 0)
-            _append_report_entry_to_batch(batch, reportEntry);
-    }
-
-    private IReadOnlyDictionary<string, object> BuildAutoCastEffectResultReport(
-        AttackEffectResolutionResult result
-    )
-    {
-        BattleEffectOrigin origin = CurrentEffectOrigin;
-        if (
-            origin?.OriginKind != new StringName("contingency_auto_cast")
-            || !result.Applied
-        )
-            return new Dictionary<string, object>(StringComparer.Ordinal);
-        Dictionary<string, object> payload = AttackEffectResolutionPlainPayload.Build(result);
-        payload["entry_kind"] = "effect_result";
-        return payload;
-    }
-
-    internal void _append_report_entry_to_batch(
-        BattleEventBatch batch,
-        IReadOnlyDictionary<string, object> report_entry
-    )
-    {
-        if (batch == null || report_entry == null || report_entry.Count == 0)
-            return;
-        var detachedReportEntry = new Dictionary<string, object>(
-            report_entry,
-            StringComparer.Ordinal
-        );
-        AttachCurrentEffectOrigin(detachedReportEntry);
-        batch.AddReportEntry(detachedReportEntry);
-        string entryText =
-            detachedReportEntry.TryGetValue("text", out object textValue)
-                ? textValue?.ToString()?.StripEdges() ?? ""
-                : "";
-        if (!string.IsNullOrEmpty(entryText))
-            batch.AddLogLine(entryText);
-    }
-
-    private IDisposable PushEffectOrigin(BattleEffectOrigin origin)
-    {
-        _effectOriginStack.Push(origin ?? BattleEffectOrigin.PlayerCommand());
-        return new EffectOriginScope(this);
-    }
-
-    private BattleEffectOrigin CurrentEffectOrigin =>
-        _effectOriginStack.Count > 0 ? _effectOriginStack.Peek() : BattleEffectOrigin.PlayerCommand();
-
-    private void AttachCurrentEffectOrigin(Dictionary<string, object> reportEntry)
-    {
-        if (reportEntry == null || reportEntry.Count == 0)
-            return;
-        reportEntry["effect_origin"] = CurrentEffectOrigin.ToPlainDictionary();
-    }
-
-    private void PopEffectOrigin()
-    {
-        if (_effectOriginStack.Count > 0)
-            _effectOriginStack.Pop();
-    }
-
-    private sealed class EffectOriginScope : IDisposable
-    {
-        private BattleRuntimeModule _runtime;
-
-        internal EffectOriginScope(BattleRuntimeModule runtime)
-        {
-            _runtime = runtime;
-        }
-
-        public void Dispose()
-        {
-            _runtime?.PopEffectOrigin();
-            _runtime = null;
-        }
-    }
-
     public BattleEventBatch SubmitPromotionChoice(
+        StringName member_id,
+        StringName profession_id,
+        PromotionSelectionData selection
+    )
+    {
+        BeginObjectiveMutation();
+        BattleEventBatch batch = null;
+        bool mutationCompleted = false;
+        try
+        {
+            batch = SubmitPromotionChoiceCore(
+                member_id,
+                profession_id,
+                selection
+            );
+            _append_batch_logs_to_state(batch);
+            mutationCompleted = true;
+            return batch;
+        }
+        finally
+        {
+            EndObjectiveMutation(batch, mutationCompleted);
+        }
+    }
+
+    private BattleEventBatch SubmitPromotionChoiceCore(
         StringName member_id,
         StringName profession_id,
         PromotionSelectionData selection
@@ -1820,6 +1283,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void SetupStateForTests(BattleState state)
     {
+        if (state != null && state.ObjectiveRuntimeState == null)
+            state.InitializeObjective(BattleEliminationObjectiveDefinition.Instance);
+        if (state != null)
+            MarkObjectiveEvaluationDirty();
         if (state == null)
             _contingency_system.ClearBattleState();
         if (!ReferenceEquals(_state, state))
@@ -1834,207 +1301,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
-    internal BattleContingencySystem GetContingencySystemTyped()
-    {
-        _ensure_sidecars_ready();
-        return _contingency_system;
-    }
-
     internal BattleMovementQueryService.CacheDiagnostics GetAiMovementQueryCacheDiagnostics() =>
         _runtime_services.AiMovementQuery.CaptureCacheDiagnostics();
 
     internal BattleEffectOrigin CurrentEffectOriginForContingency =>
-        CurrentEffectOrigin ?? BattleEffectOrigin.PlayerCommand();
-
-    internal StringName AllocateContingencySourceEventId(StringName prefix)
-    {
-        _contingencySourceEventOrdinal += 1;
-        string normalizedPrefix = ProgressionDataUtils.to_string_name(prefix).ToString();
-        if (string.IsNullOrEmpty(normalizedPrefix))
-            normalizedPrefix = "battle_fact";
-        return new StringName($"{normalizedPrefix}:{_contingencySourceEventOrdinal}");
-    }
-
-    internal void EmitContingencyHpAndStatusHooks(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        int previousHp,
-        IReadOnlyList<StringName> statusIds,
-        StringName sourceEventId
-    )
-    {
-        _ensure_sidecars_ready();
-        if (targetUnit == null)
-            return;
-        BattleEffectOrigin origin = CurrentEffectOriginForContingency;
-        Vector2I sourceCell = sourceUnit?.coord ?? new Vector2I(-1, -1);
-        Vector2I targetCell = targetUnit.coord;
-        int maxHp = Math.Max(
-            targetUnit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? targetUnit.current_hp,
-            1
-        );
-        if (targetUnit.current_hp != previousHp)
-        {
-            _contingency_system.OnHookFact(
-                ContingencyHookFact.HpChanged(
-                    sourceEventId,
-                    sourceUnit?.unit_id ?? "",
-                    targetUnit.unit_id,
-                    previousHp,
-                    targetUnit.current_hp,
-                    maxHp,
-                    origin,
-                    sourceCell,
-                    targetCell
-                )
-            );
-        }
-        if (statusIds != null && statusIds.Count > 0)
-        {
-            _contingency_system.OnHookFact(
-                ContingencyHookFact.StatusApplied(
-                    sourceEventId,
-                    sourceUnit?.unit_id ?? "",
-                    targetUnit.unit_id,
-                    statusIds,
-                    origin,
-                    sourceCell,
-                    targetCell
-                )
-            );
-        }
-    }
-
-    internal void EmitContingencySpellAffected(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        IReadOnlyList<StringName> affectedUnitIds,
-        StringName sourceEventId,
-        IReadOnlyList<Vector2I> areaCells = null
-    )
-    {
-        _ensure_sidecars_ready();
-        _contingency_system.OnHookFact(
-            ContingencyHookFact.SpellAffected(
-                sourceEventId,
-                sourceUnit?.unit_id ?? "",
-                targetUnit?.unit_id ?? "",
-                affectedUnitIds ?? Array.Empty<StringName>(),
-                CurrentEffectOriginForContingency,
-                sourceUnit?.coord ?? new Vector2I(-1, -1),
-                targetUnit?.coord ?? new Vector2I(-1, -1),
-                areaCells
-            )
-        );
-    }
-
-    internal void EmitContingencyPositionChanged(
-        BattleUnitState unitState,
-        Vector2I previousCoord,
-        Vector2I currentCoord,
-        StringName sourceEventId
-    )
-    {
-        _ensure_sidecars_ready();
-        if (unitState == null || previousCoord == currentCoord)
-            return;
-        _contingency_system.OnHookFact(
-            ContingencyHookFact.PositionChanged(
-                sourceEventId,
-                unitState.unit_id,
-                previousCoord,
-                currentCoord,
-                CurrentEffectOriginForContingency
-            )
-        );
-    }
-
-    internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
-    {
-        _ensure_sidecars_ready();
-        if (request?.IsValid != true || _state == null)
-            return false;
-        if (!IsContingencyAutoCastSourcePlayerLearned(request))
-            return false;
-        using IDisposable originScope = PushEffectOrigin(BattleEffectOrigin.AutoCast(request));
-        return _skill_orchestrator.ExecuteAutoCast(request, batch ?? _new_batch());
-    }
-
-    internal bool IsContingencyAutoCastSourcePlayerLearned(AutoCastRequest request)
-    {
-        if (request == null || request.OwnerMemberId == "" || request.SourceSkillId == "")
-            return false;
-        PartyMemberState memberState = _characterGateway
-            ?.GetPartyState()
-            ?.GetMemberState(request.OwnerMemberId);
-        UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(
-            request.SourceSkillId
-        );
-        return progress != null
-            && progress.is_learned
-            && progress.skill_level > 0
-            && progress.GrantedSourceTypeKind == UnitSkillGrantSourceType.Player;
-    }
-
-    internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(
-        ContingencyReleaseContext context,
-        ContingencyFrozenTriggerFacts facts
-    )
-    {
-        _ensure_sidecars_ready();
-        return _contingency_system.ResolveStoredSpellTargetsForRelease(context, facts);
-    }
-
-    internal void OnBattleConfirmed(BattleEventBatch batch = null)
-    {
-        _ensure_sidecars_ready();
-        BattleEventBatch targetBatch = batch ?? _new_batch();
-        _contingency_system.OnBattleConfirmed(targetBatch);
-        _contingency_system.ExecuteQueuedReleaseContexts(
-            ContingencyFrozenTriggerFacts.Empty,
-            targetBatch
-        );
-        if (batch == null)
-            _append_batch_logs_to_state(targetBatch);
-    }
-
-    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null)
-    {
-        _ensure_sidecars_ready();
-        _contingency_system.OnOwnerTurnStarted(ownerUnit, batch);
-    }
-
-    internal int ExecuteQueuedContingencyReleases(
-        ContingencyFrozenTriggerFacts facts,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _contingency_system.ExecuteQueuedReleaseContexts(
-            facts ?? ContingencyFrozenTriggerFacts.Empty,
-            batch
-        );
-    }
-
-    internal int ExecuteNextSequentialContingencyAutoCastForOwner(
-        BattleUnitState ownerUnit,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _contingency_system.ExecuteNextSequentialAutoCastForOwner(
-            ownerUnit?.unit_id ?? "",
-            batch
-        );
-    }
-
-    internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState)
-    {
-        if (unitState == null)
-            return;
-        _ensure_sidecars_ready();
-        _unit_factory.RefreshBattleUnit(unitState);
-    }
+        _metricsReportService.CurrentEffectOrigin ?? BattleEffectOrigin.PlayerCommand();
 
     internal IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
         _fate_runtime != null
@@ -2165,22 +1436,22 @@ public sealed partial class BattleRuntimeModule : IDisposable
             foreach (StringName allyUnitId in _state.ally_unit_ids)
             {
                 _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
-                if (unitState == null || !unitState.is_alive)
+                if (!IsPersistentPartyBattleUnit(unitState) || !unitState.is_alive)
                     continue;
                 ContingencyConsumedCommitResult validationResult =
-                    ValidateContingencyConsumedSetupsForBattleUnit(unitState);
+                    _contingencyBridgeService.ValidateContingencyConsumedSetupsForBattleUnit(unitState);
                 if (!validationResult.Ok)
                     return BattleEndResult.ContingencyConsumedFailure(validationResult);
             }
             foreach (StringName allyUnitId in _state.ally_unit_ids)
             {
                 _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
-                if (unitState == null)
+                if (!IsPersistentPartyBattleUnit(unitState))
                     continue;
                 if (unitState.is_alive)
                 {
                     ContingencyConsumedCommitResult contingencyResult =
-                        CommitContingencyConsumedSetupsForBattleUnit(unitState);
+                        _contingencyBridgeService.CommitContingencyConsumedSetupsForBattleUnit(unitState);
                     if (!contingencyResult.Ok)
                         return BattleEndResult.ContingencyConsumedFailure(contingencyResult);
                     BattleResourceCommitResult resourceResult =
@@ -2216,38 +1487,15 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return BattleEndResult.Success();
     }
 
-    private ContingencyConsumedCommitResult ValidateContingencyConsumedSetupsForBattleUnit(
-        BattleUnitState unitState
-    )
+    private bool IsPersistentPartyBattleUnit(BattleUnitState unitState)
     {
-        IReadOnlyList<StringName> consumedSetupIds =
-            unitState?.GetConsumedContingencySetupIdsTyped() ?? Array.Empty<StringName>();
-        if (consumedSetupIds.Count == 0)
-            return ContingencyConsumedCommitResult.Success(
-                unitState?.source_member_id ?? "",
-                0
-            );
-        return _characterGateway.ValidateContingencyConsumedSetups(
-            unitState.source_member_id,
-            consumedSetupIds
-        );
-    }
-
-    private ContingencyConsumedCommitResult CommitContingencyConsumedSetupsForBattleUnit(
-        BattleUnitState unitState
-    )
-    {
-        IReadOnlyList<StringName> consumedSetupIds =
-            unitState?.GetConsumedContingencySetupIdsTyped() ?? Array.Empty<StringName>();
-        if (consumedSetupIds.Count == 0)
-            return ContingencyConsumedCommitResult.Success(
-                unitState?.source_member_id ?? "",
-                0
-            );
-        return _characterGateway.CommitContingencyConsumedSetups(
-            unitState.source_member_id,
-            consumedSetupIds
-        );
+        if (
+            unitState == null
+            || unitState.source_member_id == ""
+            || unitState.ai_blackboard?.temporary_unit == true
+        )
+            return false;
+        return _characterGateway?.GetMemberState(unitState.source_member_id) != null;
     }
 
     internal BattleResolutionResult GetBattleResolutionResult()
@@ -2449,124 +1697,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal GVector2IArray sort_coords(GVector2IArray target_coords) => _sort_coords(target_coords);
 
-    internal void MarkAppliedStatusesForTurnTiming(
-        BattleUnitState target_unit,
-        GArray status_effect_ids
-    )
-    {
-        _initialize_applied_status_timeline_ticks(target_unit, status_effect_ids);
-        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
-    }
-
-    internal void MarkAppliedStatusesForTurnTiming(
-        BattleUnitState target_unit,
-        GStringNameArray status_effect_ids
-    )
-    {
-        GStringNameArray normalizedStatusIds = NormalizeStatusIdArray(status_effect_ids);
-        _initialize_applied_status_timeline_ticks(target_unit, normalizedStatusIds);
-        _fate_runtime?.HandleAppliedStatuses(target_unit, normalizedStatusIds);
-    }
-
-    internal void MarkAppliedStatusesForTurnTiming(
-        BattleUnitState target_unit,
-        IReadOnlyList<StringName> status_effect_ids
-    )
-    {
-        _initialize_applied_status_timeline_ticks(target_unit, status_effect_ids);
-        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
-    }
-
-    internal void _initialize_applied_status_timeline_ticks(
-        BattleUnitState target_unit,
-        GArray status_effect_ids
-    )
-    {
-        _initialize_applied_status_timeline_ticks(
-            target_unit,
-            NormalizeStatusIdArray(status_effect_ids)
-        );
-    }
-
-    internal void _initialize_applied_status_timeline_ticks(
-        BattleUnitState target_unit,
-        GStringNameArray status_effect_ids
-    )
-    {
-        if (target_unit == null)
-            return;
-        GStringNameArray normalizedStatusIds = NormalizeStatusIdArray(status_effect_ids);
-        if (normalizedStatusIds.Count == 0)
-            return;
-        int currentTu = _state?.timeline != null ? _state.timeline.current_tu : 0;
-        foreach (StringName statusId in normalizedStatusIds)
-        {
-            BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(statusId);
-            if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
-                continue;
-            if (statusEntry.next_tick_at_tu <= currentTu)
-            {
-                statusEntry.next_tick_at_tu = currentTu + statusEntry.tick_interval_tu;
-                target_unit.SetStatusEffect(statusEntry);
-            }
-        }
-    }
-
-    internal void _initialize_applied_status_timeline_ticks(
-        BattleUnitState target_unit,
-        IReadOnlyList<StringName> status_effect_ids
-    )
-    {
-        if (target_unit == null || status_effect_ids == null || status_effect_ids.Count == 0)
-            return;
-        int currentTu = _state?.timeline != null ? _state.timeline.current_tu : 0;
-        var seenStatusIds = new HashSet<StringName>();
-        foreach (StringName rawStatusId in status_effect_ids)
-        {
-            StringName statusId = ProgressionDataUtils.to_string_name(rawStatusId);
-            if (statusId == "" || !seenStatusIds.Add(statusId))
-                continue;
-            BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(statusId);
-            if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
-                continue;
-            if (statusEntry.next_tick_at_tu <= currentTu)
-            {
-                statusEntry.next_tick_at_tu = currentTu + statusEntry.tick_interval_tu;
-                target_unit.SetStatusEffect(statusEntry);
-            }
-        }
-    }
-
-    private static GStringNameArray NormalizeStatusIdArray(GArray statusEffectIds)
-    {
-        GStringNameArray normalized = new();
-        if (statusEffectIds == null)
-            return normalized;
-        foreach (var statusIdValue in statusEffectIds)
-        {
-            StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            if (statusId == "" || normalized.Contains(statusId))
-                continue;
-            normalized.Add(statusId);
-        }
-        return normalized;
-    }
-
-    private static GStringNameArray NormalizeStatusIdArray(GStringNameArray statusEffectIds)
-    {
-        GStringNameArray normalized = new();
-        if (statusEffectIds == null)
-            return normalized;
-        foreach (StringName statusIdValue in statusEffectIds)
-        {
-            StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            if (statusId == "" || normalized.Contains(statusId))
-                continue;
-            normalized.Add(statusId);
-        }
-        return normalized;
-    }
-
     internal bool IsUnitValidForEffect(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
@@ -2575,45 +1705,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal int GetUnitSkillLevel(BattleUnitState unit_state, StringName skill_id) =>
         _get_unit_skill_level(unit_state, skill_id);
-
-    internal void RecordEnemyDefeatedAchievement(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit
-    ) => _battle_rating_system.RecordEnemyDefeatedAchievement(active_unit, target_unit);
-
-    internal void RecordSkillEffectResult(
-        BattleUnitState source_unit,
-        int damage,
-        int healing,
-        int kill_count
-    )
-    {
-        _battle_rating_system.RecordSkillEffectResult(source_unit, damage, healing, kill_count);
-        if (source_unit == null)
-            return;
-        _metrics_collector.RecordSkillEffectResult(source_unit, damage, healing, kill_count);
-    }
-
-    public void RecordBattleContributionResult(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        int damage,
-        int healing,
-        bool causedDefeat,
-        StringName originKind,
-        StringName skillId
-    )
-    {
-        _battle_rating_system.RecordContributionFromUnits(
-            source_unit,
-            target_unit,
-            damage,
-            healing,
-            causedDefeat,
-            originKind,
-            skillId
-        );
-    }
 
     internal void AppendResultSourceStatusEffects(
         BattleEventBatch batch,
@@ -2624,7 +1715,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (source_unit == null || result == null || result.Count == 0)
             return;
         using GArray sourceStatusValues = GetArray(result, "source_status_effect_ids");
-        GStringNameArray sourceStatusIds = NormalizeStatusIdArray(sourceStatusValues);
+        GStringNameArray sourceStatusIds = BattleTimelineStatusBridgeService.NormalizeStatusIdArray(sourceStatusValues);
         if (sourceStatusIds.Count == 0)
             return;
         MarkAppliedStatusesForTurnTiming(source_unit, sourceStatusIds);
@@ -2650,16 +1741,165 @@ public sealed partial class BattleRuntimeModule : IDisposable
             batch.AddLogLine($"{source_unit.display_name} 获得状态 {statusId}。");
     }
 
-    internal void _initialize_battle_metrics()
-    {
-        _ensure_sidecars_ready();
-        _metrics_collector.InitializeBattleMetrics();
-    }
+    internal bool PlaceUnitsForTestsTyped(
+        IReadOnlyList<BattleUnitState> units,
+        IReadOnlyList<Vector2I> spawnCoords,
+        bool isAlly,
+        StringName spawnSide = default
+    ) => _spawnPlacementService.PlaceUnitsForTestsTyped(units, spawnCoords, isAlly, spawnSide);
+
+    internal void _set_runtime_status_effect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id = default,
+        int power = 1,
+        GDictionary @params = null,
+        StringName source_profile_id = default,
+        StringName source_layer_id = default,
+        StringName source_skill_id = default,
+        int? source_skill_level = null,
+        int self_save_dc = 0,
+        StringName self_save_ability = default,
+        StringName self_save_tag = default,
+        int? self_save_roll_override = null,
+        int save_bonus = 0,
+        int control_save_bonus = 0,
+        int range_bonus = 0,
+        int passive_reduction = 0,
+        int content_dr = 0,
+        int guard_block = 0,
+        IReadOnlyList<StringName> save_advantage_tags = null,
+        IReadOnlyList<StringName> save_disadvantage_tags = null,
+        IReadOnlyList<StringName> save_immunity_tags = null,
+        int? heal_multiplier_percent = null,
+        int? shield_gain_multiplier_percent = null,
+        double? incoming_damage_multiplier = null,
+        double? outgoing_damage_multiplier = null,
+        StringName damage_tag = default,
+        IReadOnlyList<StringName> damage_tags = null,
+        StringName damage_category = default,
+        int attack_roll_penalty = -1,
+        bool undispellable = false,
+        bool dispellable_magic = false,
+        bool dispellable_harmful_magic = false,
+        bool dispellable_beneficial_magic = false,
+        StringName mitigation_tier = default,
+        StringName dr_bypass_tag = default,
+        bool counts_as_debuff_override = false,
+        bool counts_as_debuff = false,
+        bool forced_move_immune = false,
+        bool lock_counterattack = false,
+        bool lock_guard = false,
+        bool lock_dodge_bonus = false,
+        bool lock_crit = false,
+        int main_skill_lock_other_debuff_count = 0,
+        StringName stack_behavior = default,
+        int stack_limit = 0,
+        StringName body_size_category_override = default,
+        StringName previous_body_size_category = default
+    ) => _specialSkillGateService._set_runtime_status_effect(unit_state, status_id, duration_tu, source_unit_id, power, @params, source_profile_id, source_layer_id, source_skill_id, source_skill_level, self_save_dc, self_save_ability, self_save_tag, self_save_roll_override, save_bonus, control_save_bonus, range_bonus, passive_reduction, content_dr, guard_block, save_advantage_tags, save_disadvantage_tags, save_immunity_tags, heal_multiplier_percent, shield_gain_multiplier_percent, incoming_damage_multiplier, outgoing_damage_multiplier, damage_tag, damage_tags, damage_category, attack_roll_penalty, undispellable, dispellable_magic, dispellable_harmful_magic, dispellable_beneficial_magic, mitigation_tier, dr_bypass_tag, counts_as_debuff_override, counts_as_debuff, forced_move_immune, lock_counterattack, lock_guard, lock_dodge_bonus, lock_crit, main_skill_lock_other_debuff_count, stack_behavior, stack_limit, body_size_category_override, previous_body_size_category);
+
+    internal void _set_runtime_debuff_status_effect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id = default,
+        int power = 1,
+        GDictionary @params = null
+    ) => _specialSkillGateService._set_runtime_debuff_status_effect(unit_state, status_id, duration_tu, source_unit_id, power, @params);
+
+    internal void _set_runtime_body_size_override_status_effect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id = default,
+        int power = 1,
+        GDictionary @params = null,
+        StringName body_size_category_override = default,
+        StringName previous_body_size_category = default
+    ) => _specialSkillGateService._set_runtime_body_size_override_status_effect(unit_state, status_id, duration_tu, source_unit_id, power, @params, body_size_category_override, previous_body_size_category);
+
+    internal void _set_runtime_source_status_effect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        int duration_tu,
+        StringName source_unit_id,
+        int power = 1,
+        GDictionary @params = null
+    ) => _specialSkillGateService._set_runtime_source_status_effect(unit_state, status_id, duration_tu, source_unit_id, power, @params);
+
+    internal void _set_runtime_barrier_status_effect(
+        BattleUnitState unit_state,
+        StringName status_id,
+        StringName source_unit_id,
+        StringName source_profile_id,
+        StringName source_layer_id,
+        int self_save_dc,
+        StringName self_save_ability,
+        StringName self_save_tag,
+        int power = 1,
+        GDictionary @params = null
+    ) => _specialSkillGateService._set_runtime_barrier_status_effect(unit_state, status_id, source_unit_id, source_profile_id, source_layer_id, self_save_dc, self_save_ability, self_save_tag, power, @params);
+
+    internal bool _is_doom_shift_skill(StringName skill_id) => _specialSkillGateService._is_doom_shift_skill(skill_id);
+
+    internal bool _is_black_crown_seal_skill(StringName skill_id) => _specialSkillGateService._is_black_crown_seal_skill(skill_id);
+
+    internal bool _is_crown_break_target_eligible(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    ) => _specialSkillGateService._is_crown_break_target_eligible(active_unit, target_unit);
+
+    internal bool _is_crown_break_skill(StringName skill_id) => _specialSkillGateService._is_crown_break_skill(skill_id);
+
+    internal bool _is_doom_sentence_target_eligible(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    ) => _specialSkillGateService._is_doom_sentence_target_eligible(active_unit, target_unit);
+
+    internal bool _is_black_crown_seal_target_eligible(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    ) => _specialSkillGateService._is_black_crown_seal_target_eligible(active_unit, target_unit);
+
+    internal bool _is_doom_sentence_skill(StringName skill_id) => _specialSkillGateService._is_doom_sentence_skill(skill_id);
+
+    internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        AttackEffectResolutionResult result,
+        BattleEventBatch batch = null
+    ) => _specialSkillGateService.RecordVajraBodyMasteryFromIncomingDamageTyped(sourceUnit, targetUnit, skillDefinition, result, batch);
+
+    public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDefinition skill_definition,
+        CombatCastVariantDefinition cast_variant,
+        IEnumerable<CombatEffectDefinition> effect_definitions,
+        BattleEventBatch batch,
+        BattleForcedMoveContext forced_move_context = default
+    ) => _specialSkillGateService.ApplyUnitSkillSpecialEffectsResult(active_unit, target_unit, skill_definition, cast_variant, effect_definitions, batch, forced_move_context);
+
+    internal void _apply_on_kill_gain_resources_effects(
+        BattleUnitState source_unit,
+        BattleUnitState defeated_unit,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch
+    ) => _specialSkillGateService._apply_on_kill_gain_resources_effects(source_unit, defeated_unit, skillDefinition, effectDefinitions, batch);
+
+    internal bool _blocks_enemy_forced_move(BattleUnitState source_unit, BattleUnitState target_unit) => _specialSkillGateService._blocks_enemy_forced_move(source_unit, target_unit);
+
+    internal bool _is_movement_blocked(BattleUnitState unit_state) => _movementCommandService._is_movement_blocked(unit_state);
+
+    internal void _initialize_battle_metrics() => _metricsReportService._initialize_battle_metrics();
 
     internal void _record_turn_started(BattleUnitState unit_state, BattleEventBatch batch = null)
     {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordTurnStarted(unit_state);
+        _metricsReportService.RecordTurnStartedMetrics(unit_state);
         _contingency_system.OnOwnerTurnStarted(unit_state, batch);
         if (batch == null)
             return;
@@ -2684,23 +1924,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleUnitState unit_state,
         StringName command_type,
         int ap_cost = 0
-    )
-    {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordActionIssued(unit_state, command_type, ap_cost);
-    }
+    ) => _metricsReportService._record_action_issued(unit_state, command_type, ap_cost);
 
-    internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordSkillAttempt(unit_state, skill_id);
-    }
+    internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id) => _metricsReportService._record_skill_attempt(unit_state, skill_id);
 
-    internal void _record_skill_success(BattleUnitState unit_state, StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordSkillSuccess(unit_state, skill_id);
-    }
+    internal void _record_skill_success(BattleUnitState unit_state, StringName skill_id) => _metricsReportService._record_skill_success(unit_state, skill_id);
 
     internal void _record_effect_metrics(
         BattleUnitState source_unit,
@@ -2708,23 +1936,173 @@ public sealed partial class BattleRuntimeModule : IDisposable
         int damage,
         int healing,
         int kill_count
-    )
+    ) => _metricsReportService._record_effect_metrics(source_unit, target_unit, damage, healing, kill_count);
+
+    internal void _record_unit_defeated(BattleUnitState unit_state) => _metricsReportService._record_unit_defeated(unit_state);
+
+    internal void RecordEnemyDefeatedAchievement(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    ) => _metricsReportService.RecordEnemyDefeatedAchievement(active_unit, target_unit);
+
+    internal void RecordSkillEffectResult(
+        BattleUnitState source_unit,
+        int damage,
+        int healing,
+        int kill_count
+    ) => _metricsReportService.RecordSkillEffectResult(source_unit, damage, healing, kill_count);
+
+    public void RecordBattleContributionResult(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        int damage,
+        int healing,
+        bool causedDefeat,
+        StringName originKind,
+        StringName skillId
+    ) => _metricsReportService.RecordBattleContributionResult(source_unit, target_unit, damage, healing, causedDefeat, originKind, skillId);
+
+    internal void AppendResultReportEntry(
+        BattleEventBatch batch,
+        AttackEffectResolutionResult result
+    ) => _metricsReportService.AppendResultReportEntry(batch, result);
+
+    internal void _append_report_entry_to_batch(
+        BattleEventBatch batch,
+        IReadOnlyDictionary<string, object> report_entry
+    ) => _metricsReportService._append_report_entry_to_batch(batch, report_entry);
+
+    internal void _build_ai_action_plans() => _aiDecisionBindingService._build_ai_action_plans();
+
+    internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state) => _aiDecisionBindingService._ensure_ai_action_plan_for_unit(unit_state);
+
+    internal void _bind_ai_helper_services_for_decision(
+        BattleUnitState unit_state,
+        BattleAiContext ai_context
+    ) => _aiDecisionBindingService._bind_ai_helper_services_for_decision(unit_state, ai_context);
+
+    internal BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit) => _aiDecisionBindingService._prepare_ai_context_for_decision(activeUnit);
+
+    internal int _get_ai_move_query_cost(StringName unit_id, Vector2I _from_coord, Vector2I to_coord) => _aiDecisionBindingService._get_ai_move_query_cost(unit_id, _from_coord, to_coord);
+
+    internal void _prepare_ai_turn(BattleUnitState unit_state) => _aiDecisionBindingService._prepare_ai_turn(unit_state);
+
+    internal void _cleanup_ai_turn(BattleUnitState unit_state) => _aiDecisionBindingService._cleanup_ai_turn(unit_state);
+
+    internal BattleContingencySystem GetContingencySystemTyped() => _contingencyBridgeService.GetContingencySystemTyped();
+
+    internal StringName AllocateContingencySourceEventId(StringName prefix) => _contingencyBridgeService.AllocateContingencySourceEventId(prefix);
+
+    internal void EmitContingencyHpAndStatusHooks(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        int previousHp,
+        IReadOnlyList<StringName> statusIds,
+        StringName sourceEventId
+    ) => _contingencyBridgeService.EmitContingencyHpAndStatusHooks(sourceUnit, targetUnit, previousHp, statusIds, sourceEventId);
+
+    internal void EmitContingencySpellAffected(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        IReadOnlyList<StringName> affectedUnitIds,
+        StringName sourceEventId,
+        IReadOnlyList<Vector2I> areaCells = null
+    ) => _contingencyBridgeService.EmitContingencySpellAffected(sourceUnit, targetUnit, affectedUnitIds, sourceEventId, areaCells);
+
+    internal void EmitContingencyPositionChanged(
+        BattleUnitState unitState,
+        Vector2I previousCoord,
+        Vector2I currentCoord,
+        StringName sourceEventId
+    ) => _contingencyBridgeService.EmitContingencyPositionChanged(unitState, previousCoord, currentCoord, sourceEventId);
+
+    internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch) => _contingencyBridgeService.ExecuteAutoCast(request, batch);
+
+    internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(
+        ContingencyReleaseContext context,
+        ContingencyFrozenTriggerFacts facts
+    ) => _contingencyBridgeService.ResolveContingencyStoredSpellTargetsForRelease(context, facts);
+
+    internal BattleEventBatch ConfirmBattleStart()
     {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordEffectMetrics(
-            source_unit,
-            target_unit,
-            damage,
-            healing,
-            kill_count
-        );
+        BattleEventBatch batch = _new_batch();
+        OnBattleConfirmed(batch);
+        return batch;
     }
 
-    internal void _record_unit_defeated(BattleUnitState unit_state)
+    internal void OnBattleConfirmed(BattleEventBatch batch)
     {
-        _ensure_sidecars_ready();
-        _metrics_collector.RecordUnitDefeated(unit_state);
+        ArgumentNullException.ThrowIfNull(batch);
+        BeginObjectiveMutation();
+        bool mutationCompleted = false;
+        try
+        {
+            _contingencyBridgeService.OnBattleConfirmed(batch);
+            _append_batch_logs_to_state(batch);
+            mutationCompleted = true;
+        }
+        finally
+        {
+            EndObjectiveMutation(batch, mutationCompleted);
+        }
     }
+
+    internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null) => _contingencyBridgeService.OnOwnerTurnStarted(ownerUnit, batch);
+
+    internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState) => _contingencyBridgeService.RefreshBattleUnitForContingencyOverlay(unitState);
+
+    internal void _apply_timeline_step(BattleEventBatch batch, int tu_delta) => _timelineStatusBridgeService._apply_timeline_step(batch, tu_delta);
+
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        GArray status_effect_ids
+    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        GStringNameArray status_effect_ids
+    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+
+    internal void MarkAppliedStatusesForTurnTiming(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+
+    internal void _advance_unit_turn_timers(BattleUnitState unit_state, BattleEventBatch batch) => _timelineStatusBridgeService._advance_unit_turn_timers(unit_state, batch);
+
+    internal BattleStatusTickResult _apply_turn_start_statuses_result(
+        BattleUnitState unit_state,
+        BattleEventBatch batch
+    ) => _timelineStatusBridgeService._apply_turn_start_statuses_result(unit_state, batch);
+
+    internal BattleStatusTickResult _apply_unit_status_periodic_ticks_result(
+        BattleUnitState unit_state,
+        int elapsed_tu,
+        BattleEventBatch batch
+    ) => _timelineStatusBridgeService._apply_unit_status_periodic_ticks_result(unit_state, elapsed_tu, batch);
+
+    internal bool _advance_unit_status_durations(
+        BattleUnitState unit_state,
+        int elapsed_tu,
+        BattleEventBatch batch = null
+    ) => _timelineStatusBridgeService._advance_unit_status_durations(unit_state, elapsed_tu, batch);
+
+    internal void _initialize_unit_action_thresholds() => _timelineStatusBridgeService._initialize_unit_action_thresholds();
+
+    public BattlePreview PreviewCommand(BattleCommand command) => _commandPreviewService.PreviewCommand(command);
+
+    internal int ResolveSkillCommandEntryLevel(
+        BattleCommand command,
+        BattleSkillAvailabilityConsumer consumer,
+        int fallback = 0
+    ) => _commandPreviewService.ResolveSkillCommandEntryLevel(command, consumer, fallback);
+
+    internal bool CommitEquipmentSkillUsageIfNeeded(
+        BattleUnitState unit,
+        BattleCommand command,
+        BattleEventBatch batch = null,
+        BattleEquipmentSkillUseOutcome skillOutcome = null
+    ) => _skill_orchestrator.CommitEquipmentSkillUsageIfNeeded(unit, command, batch, skillOutcome);
 
     public void Dispose()
     {
@@ -2752,12 +2130,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
         // Phase 1: release the most-derived decision borrowers before any service,
         // content catalog, state graph, or owned native resource can disappear.
         RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
-        RunTeardownStep(ref firstFailure, ClearAiActionPlans);
+        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
         RunTeardownStep(ref firstFailure, _ai_turn_traces.Clear);
         RunTeardownStep(ref firstFailure, _contingency_system.ClearBattleState);
 
         // Phase 2: dispose AI and runtime sidecars while their borrowed inputs still exist.
         RunTeardownStep(ref firstFailure, () => _ai_service?.Dispose());
+        _moduleBorrowers.DisposeRuntime(ref firstFailure);
         RunTeardownStep(ref firstFailure, _runtime_services.Dispose);
         RunTeardownStep(ref firstFailure, () => _terrain_effect_system?.Dispose());
         RunTeardownStep(ref firstFailure, () => _delayed_area_effect_system?.Dispose());
@@ -2796,7 +2175,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _pendingPostBattleCharacterRewards.Clear();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
-        _effectOriginStack.Clear();
         _battle_metrics.Clear();
         calamity_by_member_id.Clear();
         _battle_resolution_result = null;
@@ -2820,7 +2198,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
     }
 
-    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    internal static void RunTeardownStep(ref Exception firstFailure, Action action)
     {
         try
         {
@@ -2870,370 +2248,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _runtime_services.BeginBattle(_battleCacheEpoch);
     }
 
-    private static void DisposeBattlePreview(BattlePreview preview)
+    internal static void DisposeBattlePreview(BattlePreview preview)
     {
         if (preview == null)
             return;
         preview.hit_preview = null;
     }
-
-    internal bool _place_units(
-        GArray units,
-        GArray spawn_coords,
-        bool is_ally,
-        StringName spawn_side = default
-    ) => PlaceUnitsTyped(
-        ToBattleUnitArray(units),
-        ToVector2IList(spawn_coords),
-        is_ally,
-        spawn_side
-    );
-
-    internal bool PlaceUnitsForTestsTyped(
-        IReadOnlyList<BattleUnitState> units,
-        IReadOnlyList<Vector2I> spawnCoords,
-        bool isAlly,
-        StringName spawnSide = default
-    ) => PlaceUnitsTyped(units, spawnCoords, isAlly, spawnSide);
-
-    private bool PlaceUnitsTyped(
-        IReadOnlyList<BattleUnitState> units,
-        IReadOnlyList<Vector2I> spawnCoordValues,
-        bool is_ally,
-        StringName spawn_side = default
-    )
-    {
-        units ??= Array.Empty<BattleUnitState>();
-        spawnCoordValues ??= Array.Empty<Vector2I>();
-        var placedUnits = new GBattleUnitArray();
-        for (int index = 0; index < units.Count; index++)
-        {
-            BattleUnitState unitState = units[index];
-            if (unitState == null)
-                continue;
-            unitState.RefreshFootprint();
-            var preferredCoords = new List<Vector2I>();
-            if (index < spawnCoordValues.Count)
-                preferredCoords.Add(spawnCoordValues[index]);
-            foreach (Vector2I coord in spawnCoordValues)
-            {
-                if (!preferredCoords.Contains(coord))
-                    preferredCoords.Add(coord);
-            }
-            Vector2I placementCoord = _find_spawn_anchor(unitState, preferredCoords, spawn_side);
-            if (placementCoord == new Vector2I(-1, -1))
-            {
-                _clear_spawn_placed_units(placedUnits, is_ally);
-                return false;
-            }
-            if (!_place_spawn_unit_at_anchor(unitState, placementCoord))
-            {
-                _clear_spawn_placed_units(placedUnits, is_ally);
-                return false;
-            }
-            if (is_ally)
-                _state.ally_unit_ids.Add(unitState.unit_id);
-            else
-                _state.enemy_unit_ids.Add(unitState.unit_id);
-            placedUnits.Add(unitState);
-        }
-        return true;
-    }
-
-    internal bool _place_units(GArray units, GArray spawn_coords, bool is_ally) =>
-        _place_units(units, spawn_coords, is_ally, "");
-
-    internal void _clear_spawn_placed_units(GBattleUnitArray placed_units, bool is_ally)
-    {
-        if (_state == null)
-            return;
-        foreach (BattleUnitState unitState in placed_units)
-        {
-            if (unitState == null)
-                continue;
-            _grid_service.ClearUnitOccupancy(_state, unitState);
-            _state.RemoveUnit(unitState.unit_id);
-            if (is_ally)
-                _state.ally_unit_ids.Remove(unitState.unit_id);
-            else
-                _state.enemy_unit_ids.Remove(unitState.unit_id);
-        }
-    }
-
-    internal bool _place_spawn_unit_at_anchor(BattleUnitState unit_state, Vector2I coord)
-    {
-        if (_state == null || unit_state == null)
-            return false;
-        if (!_can_place_spawn_anchor(unit_state, coord))
-            return false;
-        unit_state.SetAnchorCoord(coord);
-        _state.SetUnit(unit_state);
-        _grid_service.SetOccupantsTyped(_state, unit_state.occupied_coords, unit_state.unit_id);
-        return true;
-    }
-
-    internal Vector2I _find_spawn_anchor(
-        BattleUnitState unit_state,
-        IReadOnlyList<Vector2I> preferred_coords,
-        StringName spawn_side = default
-    )
-    {
-        if (_state == null || unit_state == null)
-            return new Vector2I(-1, -1);
-        preferred_coords ??= Array.Empty<Vector2I>();
-        Vector2I bestCoord = new(-1, -1);
-        int bestScore = int.MinValue + 1;
-        for (int preferredIndex = 0; preferredIndex < preferred_coords.Count; preferredIndex++)
-        {
-            Vector2I coord = preferred_coords[preferredIndex];
-            if (!_can_place_spawn_anchor(unit_state, coord, spawn_side))
-                continue;
-            int score = _score_spawn_anchor(unit_state, coord, preferredIndex);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestCoord = coord;
-            }
-        }
-        if (bestCoord != new Vector2I(-1, -1))
-            return bestCoord;
-        foreach (Vector2I coord in preferred_coords)
-        {
-            if (_can_place_spawn_anchor(unit_state, coord, spawn_side))
-                return coord;
-        }
-        for (int y = 0; y < _state.map_size.Y; y++)
-        {
-            for (int x = 0; x < _state.map_size.X; x++)
-            {
-                var coord = new Vector2I(x, y);
-                if (_can_place_spawn_anchor(unit_state, coord, spawn_side))
-                    return coord;
-            }
-        }
-        return new Vector2I(-1, -1);
-    }
-
-    internal Vector2I _find_spawn_anchor(
-        BattleUnitState unit_state,
-        IReadOnlyList<Vector2I> preferred_coords
-    ) => _find_spawn_anchor(unit_state, preferred_coords, "");
-
-    internal bool _can_place_spawn_anchor(
-        BattleUnitState unit_state,
-        Vector2I coord,
-        StringName spawn_side = default
-    )
-    {
-        if (_state == null || unit_state == null)
-            return false;
-        if (
-            !_grid_service.CanPlaceFootprint(
-                _state,
-                coord,
-                unit_state.footprint_size,
-                unit_state.unit_id,
-                unit_state
-            )
-        )
-            return false;
-        if (!IsEmpty(spawn_side) && !_footprint_matches_spawn_side(unit_state, coord, spawn_side))
-            return false;
-        foreach (Vector2I footprintCoord in _grid_service.GetUnitTargetCoords(unit_state, coord))
-        {
-            BattleCellState cell = _grid_service.GetCellState(_state, footprintCoord);
-            if (cell == null || BattleTerrainRules.IsWaterTerrain(cell.base_terrain))
-                return false;
-        }
-        return true;
-    }
-
-    internal StringName _resolve_spawn_side_from_coords(GArray spawn_coords)
-    {
-        if (_state == null || _get_long_edge_side_extent() <= 1)
-            return "";
-        int nearCount = 0;
-        int farCount = 0;
-        foreach (Vector2I coord in ToVector2IList(spawn_coords))
-        {
-            if (_coord_matches_spawn_side(coord, SPAWN_SIDE_NEAR_LONG_EDGE_VALUE))
-                nearCount++;
-            else if (_coord_matches_spawn_side(coord, SPAWN_SIDE_FAR_LONG_EDGE_VALUE))
-                farCount++;
-        }
-        if (nearCount == 0 && farCount == 0)
-            return "";
-        return nearCount >= farCount
-            ? SPAWN_SIDE_NEAR_LONG_EDGE_VALUE
-            : SPAWN_SIDE_FAR_LONG_EDGE_VALUE;
-    }
-
-    internal StringName _get_opposite_spawn_side(StringName spawn_side)
-    {
-        if (spawn_side == SPAWN_SIDE_NEAR_LONG_EDGE_VALUE)
-            return SPAWN_SIDE_FAR_LONG_EDGE_VALUE;
-        if (spawn_side == SPAWN_SIDE_FAR_LONG_EDGE_VALUE)
-            return SPAWN_SIDE_NEAR_LONG_EDGE_VALUE;
-        return "";
-    }
-
-    internal bool _footprint_matches_spawn_side(
-        BattleUnitState unit_state,
-        Vector2I coord,
-        StringName spawn_side
-    )
-    {
-        if (_state == null || unit_state == null)
-            return false;
-        foreach (Vector2I footprintCoord in _grid_service.GetUnitTargetCoords(unit_state, coord))
-        {
-            if (!_coord_matches_spawn_side(footprintCoord, spawn_side))
-                return false;
-        }
-        return true;
-    }
-
-    internal bool _coord_matches_spawn_side(Vector2I coord, StringName spawn_side)
-    {
-        if (_state == null || _get_long_edge_side_extent() <= 1)
-            return true;
-        int sideValue = _get_long_edge_side_axis_value(coord);
-        int splitValue = Mathf.FloorToInt(_get_long_edge_side_extent() * 0.5f);
-        if (spawn_side == SPAWN_SIDE_NEAR_LONG_EDGE_VALUE)
-            return sideValue < splitValue;
-        if (spawn_side == SPAWN_SIDE_FAR_LONG_EDGE_VALUE)
-            return sideValue >= splitValue;
-        return true;
-    }
-
-    internal int _get_long_edge_side_axis_value(Vector2I coord) =>
-        _state == null ? 0 : (_state.map_size.X >= _state.map_size.Y ? coord.Y : coord.X);
-
-    internal int _get_long_edge_side_extent() =>
-        _state == null
-            ? 0
-            : (_state.map_size.X >= _state.map_size.Y ? _state.map_size.Y : _state.map_size.X);
-
-    internal int _score_spawn_anchor(BattleUnitState unit_state, Vector2I coord, int preferred_index)
-    {
-        int mobilityScore = _count_spawn_anchor_reachable_coords(unit_state, coord);
-        int edgeClearance = _get_spawn_anchor_edge_clearance(unit_state, coord);
-        int centerBias = _get_spawn_anchor_center_bias(unit_state, coord);
-        return mobilityScore * 100 + edgeClearance * 18 + centerBias * 4 - preferred_index;
-    }
-
-    internal int _count_spawn_anchor_reachable_coords(
-        BattleUnitState unit_state,
-        Vector2I start_coord
-    )
-    {
-        if (_state == null || unit_state == null)
-            return 0;
-        int moveBudget = Math.Min(Math.Max(unit_state.current_move_points, 0), 4);
-        if (moveBudget <= 0)
-            moveBudget = 1;
-        var bestCosts = new Dictionary<Vector2I, int> { [start_coord] = 0 };
-        var frontier = new List<Vector2I> { start_coord };
-        int frontierIndex = 0;
-        while (frontierIndex < frontier.Count)
-        {
-            Vector2I currentCoord = frontier[frontierIndex++];
-            int spentCost = bestCosts[currentCoord];
-            foreach (Vector2I neighborCoord in _grid_service.GetNeighbors4(_state, currentCoord))
-            {
-                if (
-                    !_grid_service.CanUnitStepBetweenAnchors(
-                        _state,
-                        unit_state,
-                        currentCoord,
-                        neighborCoord
-                    )
-                )
-                    continue;
-                int nextCost =
-                    spentCost + _grid_service.GetUnitMoveCost(_state, unit_state, neighborCoord);
-                if (nextCost > moveBudget)
-                    continue;
-                if (
-                    bestCosts.TryGetValue(neighborCoord, out int existingCost)
-                    && nextCost >= existingCost
-                )
-                    continue;
-                bestCosts[neighborCoord] = nextCost;
-                frontier.Add(neighborCoord);
-            }
-        }
-        return bestCosts.Count - 1;
-    }
-
-    internal int _get_spawn_anchor_edge_clearance(BattleUnitState unit_state, Vector2I coord)
-    {
-        if (_state == null || unit_state == null)
-            return 0;
-        Vector2I footprint = unit_state.footprint_size;
-        int left = coord.X;
-        int top = coord.Y;
-        int right = _state.map_size.X - (coord.X + footprint.X);
-        int bottom = _state.map_size.Y - (coord.Y + footprint.Y);
-        return Math.Min(Math.Min(left, right), Math.Min(top, bottom));
-    }
-
-    internal int _get_spawn_anchor_center_bias(BattleUnitState unit_state, Vector2I coord)
-    {
-        if (_state == null || unit_state == null)
-            return 0;
-        Vector2I footprint = unit_state.footprint_size;
-        float centerX = (_state.map_size.X - footprint.X) * 0.5f;
-        float centerY = (_state.map_size.Y - footprint.Y) * 0.5f;
-        float distance = Mathf.Abs(coord.X - centerX) + Mathf.Abs(coord.Y - centerY);
-        return -Mathf.RoundToInt(distance * 10.0f);
-    }
-
-    internal int _get_move_cost_for_unit_target(BattleUnitState unit_state, Vector2I target_coord)
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.GetMoveCostForUnitTarget(unit_state, target_coord);
-    }
-
-    internal int _get_move_path_cost(BattleUnitState unit_state, GVector2IArray anchor_path)
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.GetMovePathCost(unit_state, ToVector2IList(anchor_path));
-    }
-
-    internal int _get_status_move_cost_delta(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.GetStatusMoveCostDelta(unit_state);
-    }
-
-    internal int _get_available_move_points(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.GetAvailableMovePoints(unit_state);
-    }
-
-    internal bool _is_normal_movement_locked(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.IsNormalMovementLocked(unit_state);
-    }
-
-    internal void _handle_move_command(
-        BattleUnitState active_unit,
-        BattleCommand command,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        _movement_service.HandleMoveCommand(active_unit, command, batch);
-    }
-
-    internal void _preview_change_equipment_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        BattlePreview preview
-    ) => _change_equipment_resolver.PreviewCommand(active_unit, command, preview);
 
     internal void _handle_change_equipment_command(
         BattleUnitState active_unit,
@@ -3246,22 +2266,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal int _get_unit_stamina_max(BattleUnitState unit_state) =>
         _change_equipment_resolver.GetUnitStaminaMax(unit_state);
-
-    internal bool _move_unit_along_validated_path(
-        BattleUnitState active_unit,
-        GVector2IArray anchor_path,
-        Vector2I target_coord,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _movement_service.MoveUnitAlongValidatedPathTyped(
-            active_unit,
-            ToVector2IList(anchor_path),
-            target_coord,
-            batch
-        ).ReachedTarget;
-    }
 
     internal void _handle_skill_command(
         BattleUnitState active_unit,
@@ -3366,352 +2370,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return _skill_orchestrator._is_chain_path_clear(source_unit, target_unit);
     }
 
-    internal void _apply_on_kill_gain_resources_effects(
-        BattleUnitState source_unit,
-        BattleUnitState defeated_unit,
-        SkillDefinition skillDefinition,
-        IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.ApplyOnKillGainResourcesEffects(
-            source_unit,
-            defeated_unit,
-            skillDefinition,
-            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
-            batch
-        );
-    }
-
-    public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skill_definition,
-        CombatCastVariantDefinition cast_variant,
-        IEnumerable<CombatEffectDefinition> effect_definitions,
-        BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.ApplyUnitSkillSpecialEffectsResult(
-            active_unit,
-            target_unit,
-            skill_definition,
-            cast_variant,
-            effect_definitions ?? Array.Empty<CombatEffectDefinition>(),
-            batch,
-            forced_move_context
-        );
-    }
-
-    internal bool _swap_unit_positions(
-        BattleUnitState first_unit,
-        BattleUnitState second_unit,
-        BattleEventBatch batch
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.SwapUnitPositions(first_unit, second_unit, batch);
-    }
-
-    internal void _set_runtime_status_effect(
-        BattleUnitState unit_state,
-        StringName status_id,
-        int duration_tu,
-        StringName source_unit_id = default,
-        int power = 1,
-        GDictionary @params = null,
-        StringName source_profile_id = default,
-        StringName source_layer_id = default,
-        StringName source_skill_id = default,
-        int? source_skill_level = null,
-        int self_save_dc = 0,
-        StringName self_save_ability = default,
-        StringName self_save_tag = default,
-        int? self_save_roll_override = null,
-        int save_bonus = 0,
-        int control_save_bonus = 0,
-        int range_bonus = 0,
-        int passive_reduction = 0,
-        int content_dr = 0,
-        int guard_block = 0,
-        IReadOnlyList<StringName> save_advantage_tags = null,
-        IReadOnlyList<StringName> save_disadvantage_tags = null,
-        IReadOnlyList<StringName> save_immunity_tags = null,
-        IReadOnlyList<StringName> save_tags = null,
-        int? heal_multiplier_percent = null,
-        int? shield_gain_multiplier_percent = null,
-        double? incoming_damage_multiplier = null,
-        double? outgoing_damage_multiplier = null,
-        StringName damage_tag = default,
-        IReadOnlyList<StringName> damage_tags = null,
-        StringName damage_category = default,
-        int attack_roll_penalty = -1,
-        bool undispellable = false,
-        bool dispellable_magic = false,
-        bool dispellable_harmful_magic = false,
-        bool dispellable_beneficial_magic = false,
-        StringName mitigation_tier = default,
-        StringName dr_bypass_tag = default,
-        bool counts_as_debuff_override = false,
-        bool counts_as_debuff = false,
-        bool forced_move_immune = false,
-        bool lock_counterattack = false,
-        bool lock_guard = false,
-        bool lock_dodge_bonus = false,
-        bool lock_crit = false,
-        int main_skill_lock_other_debuff_count = 0,
-        StringName stack_behavior = default,
-        int stack_limit = 0,
-        StringName body_size_category_override = default,
-        StringName previous_body_size_category = default
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.SetRuntimeStatusEffect(
-            unit_state,
-            status_id,
-            duration_tu,
-            source_unit_id,
-            power,
-            @params,
-            source_profile_id,
-            source_layer_id,
-            source_skill_id,
-            source_skill_level,
-            self_save_dc,
-            self_save_ability,
-            self_save_tag,
-            self_save_roll_override,
-            save_bonus,
-            control_save_bonus,
-            range_bonus,
-            passive_reduction,
-            content_dr,
-            guard_block,
-            save_advantage_tags,
-            save_disadvantage_tags,
-            save_immunity_tags,
-            save_tags,
-            heal_multiplier_percent,
-            shield_gain_multiplier_percent,
-            incoming_damage_multiplier,
-            outgoing_damage_multiplier,
-            damage_tag,
-            damage_tags,
-            damage_category,
-            attack_roll_penalty,
-            undispellable,
-            dispellable_magic,
-            dispellable_harmful_magic,
-            dispellable_beneficial_magic,
-            mitigation_tier,
-            dr_bypass_tag,
-            counts_as_debuff_override,
-            counts_as_debuff,
-            forced_move_immune,
-            lock_counterattack,
-            lock_guard,
-            lock_dodge_bonus,
-            lock_crit,
-            main_skill_lock_other_debuff_count,
-            stack_behavior,
-            stack_limit,
-            body_size_category_override,
-            previous_body_size_category
-        );
-    }
-
-    internal void _set_runtime_debuff_status_effect(
-        BattleUnitState unit_state,
-        StringName status_id,
-        int duration_tu,
-        StringName source_unit_id = default,
-        int power = 1,
-        GDictionary @params = null
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.SetRuntimeDebuffStatusEffect(
-            unit_state,
-            status_id,
-            duration_tu,
-            source_unit_id,
-            power,
-            @params
-        );
-    }
-
-    internal void _set_runtime_body_size_override_status_effect(
-        BattleUnitState unit_state,
-        StringName status_id,
-        int duration_tu,
-        StringName source_unit_id = default,
-        int power = 1,
-        GDictionary @params = null,
-        StringName body_size_category_override = default,
-        StringName previous_body_size_category = default
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.SetRuntimeBodySizeOverrideStatusEffect(
-            unit_state,
-            status_id,
-            duration_tu,
-            source_unit_id,
-            power,
-            @params,
-            body_size_category_override,
-            previous_body_size_category
-        );
-    }
-
-    internal void _set_runtime_source_status_effect(
-        BattleUnitState unit_state,
-        StringName status_id,
-        int duration_tu,
-        StringName source_unit_id,
-        int power = 1,
-        GDictionary @params = null
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.SetRuntimeSourceStatusEffect(
-            unit_state,
-            status_id,
-            duration_tu,
-            source_unit_id,
-            power,
-            @params
-        );
-    }
-
-    internal void _set_runtime_barrier_status_effect(
-        BattleUnitState unit_state,
-        StringName status_id,
-        StringName source_unit_id,
-        StringName source_profile_id,
-        StringName source_layer_id,
-        int self_save_dc,
-        StringName self_save_ability,
-        StringName self_save_tag,
-        int power = 1,
-        GDictionary @params = null
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.SetRuntimeBarrierStatusEffect(
-            unit_state,
-            status_id,
-            source_unit_id,
-            source_profile_id,
-            source_layer_id,
-            self_save_dc,
-            self_save_ability,
-            self_save_tag,
-            power,
-            @params
-        );
-    }
-
-    internal void _clear_black_star_brand_statuses(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.ClearBlackStarBrandStatuses(unit_state);
-    }
-
-    internal bool _is_black_star_brand_elite_target(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBlackStarBrandEliteTarget(unit_state);
-    }
-
-    internal bool _is_elite_or_boss_target(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsEliteOrBossTarget(unit_state);
-    }
-
-    internal bool _is_boss_target(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBossTarget(unit_state);
-    }
-
-    internal bool _is_black_star_brand_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBlackStarBrandSkill(skill_id);
-    }
-
-    internal bool _is_black_contract_push_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBlackContractPushSkill(skill_id);
-    }
-
-    internal bool _is_doom_shift_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsDoomShiftSkill(skill_id);
-    }
-
-    internal bool _is_black_crown_seal_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBlackCrownSealSkill(skill_id);
-    }
-
-    internal void _clear_crown_break_seal_statuses(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.ClearCrownBreakSealStatuses(unit_state);
-    }
-
-    internal bool _is_crown_break_target_eligible(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsCrownBreakTargetEligible(active_unit, target_unit);
-    }
-
-    internal bool _is_crown_break_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsCrownBreakSkill(skill_id);
-    }
-
-    internal bool _is_doom_sentence_target_eligible(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsDoomSentenceTargetEligible(active_unit, target_unit);
-    }
-
-    internal bool _is_black_crown_seal_target_eligible(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsBlackCrownSealTargetEligible(
-            active_unit,
-            target_unit
-        );
-    }
-
-    internal bool _is_doom_sentence_skill(StringName skill_id)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.IsDoomSentenceSkill(skill_id);
-    }
-
     internal string _get_unit_skill_target_validation_message(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -3725,98 +2383,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
             target_unit,
             skillDefinition,
             castVariant
-        );
-    }
-
-    internal bool _blocks_enemy_forced_move(BattleUnitState source_unit, BattleUnitState target_unit)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.BlocksEnemyForcedMove(source_unit, target_unit);
-    }
-
-    internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        SkillDefinition skillDefinition,
-        AttackEffectResolutionResult result,
-        BattleEventBatch batch = null
-    )
-    {
-        _ensure_sidecars_ready();
-        _special_skill_resolver.RecordVajraBodyMasteryFromIncomingDamageTyped(
-            sourceUnit,
-            targetUnit,
-            skillDefinition,
-            result,
-            batch
-        );
-    }
-
-    internal Vector2I _pick_forced_move_coord(
-        BattleUnitState unit_state,
-        BattleForcedMoveMode mode,
-        BattleUnitState source_unit = null,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.PickForcedMoveCoord(
-            unit_state,
-            mode,
-            source_unit,
-            forced_move_context
-        );
-    }
-
-    internal Vector2I PickForcedMoveCoord(
-        BattleUnitState unit_state,
-        BattleForcedMoveMode mode,
-        BattleUnitState source_unit,
-        BattleForcedMoveContext forced_move_context
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.PickForcedMoveCoord(
-            unit_state,
-            mode,
-            source_unit,
-            forced_move_context
-        );
-    }
-
-    internal int _score_forced_move_coord(
-        BattleUnitState unit_state,
-        Vector2I candidate_coord,
-        BattleForcedMoveMode mode,
-        BattleUnitState source_unit = null,
-        BattleForcedMoveContext forced_move_context = default
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.ScoreForcedMoveCoord(
-            unit_state,
-            candidate_coord,
-            mode,
-            source_unit,
-            forced_move_context
-        );
-    }
-
-    internal int ScoreForcedMoveCoord(
-        BattleUnitState unit_state,
-        Vector2I candidate_coord,
-        BattleForcedMoveMode mode,
-        BattleUnitState source_unit,
-        BattleForcedMoveContext forced_move_context
-    )
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.ScoreForcedMoveCoord(
-            unit_state,
-            candidate_coord,
-            mode,
-            source_unit,
-            forced_move_context
         );
     }
 
@@ -3873,8 +2439,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _battle_rating_system.RecordEnemyDefeatedAchievement(source_unit, unit_state);
         if (!string.IsNullOrEmpty(log_line) && batch != null)
             batch.AddLogLine(log_line);
-        if (options.CheckBattleEnd)
-            _check_battle_end(batch);
+        MarkObjectiveEvaluationDirty();
     }
 
     internal void RemoveSummonedUnitFromBattle(
@@ -3894,7 +2459,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (!string.IsNullOrEmpty(log_line) && batch != null)
             batch.AddLogLine(log_line);
         _record_unit_defeated(unit_state);
-        _check_battle_end(batch);
+        MarkObjectiveEvaluationDirty();
     }
 
     internal void _clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null)
@@ -3959,34 +2524,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return ToVector2IArray(coords);
     }
 
-    internal int _normalize_unit_action_threshold(int action_threshold)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.NormalizeUnitActionThreshold(action_threshold);
-    }
-
-    internal void _initialize_unit_action_thresholds()
-    {
-        _ensure_sidecars_ready();
-        _timeline_driver.InitializeUnitActionThresholds();
-    }
-
     internal void _initialize_unit_trait_hooks()
     {
         _ensure_sidecars_ready();
         _timeline_driver.InitializeUnitTraitHooks();
-    }
-
-    internal int _resolve_unit_action_threshold(BattleUnitState unit_state)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.ResolveUnitActionThreshold(unit_state);
-    }
-
-    internal int _resolve_timeline_tu_per_tick(GDictionary context)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.ResolveTimelineTuPerTick(context);
     }
 
     internal GVector2IArray _collect_dict_vector2i_keys(GDictionary values)
@@ -4010,18 +2551,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return _skill_orchestrator._get_unit_skill_level(unit_state, skill_id);
     }
 
-    internal bool _check_battle_end(BattleEventBatch batch)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.CheckBattleEnd(batch);
-    }
-
-    internal int _count_living_units(GStringNameArray unit_ids)
-    {
-        _ensure_sidecars_ready();
-        return _timeline_driver.CountLivingUnits(unit_ids);
-    }
-
     internal void _end_active_turn(BattleEventBatch batch)
     {
         _ensure_sidecars_ready();
@@ -4041,12 +2570,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         _ensure_sidecars_ready();
         _special_skill_resolver.HandleLowLuckRelicAllyDefeat(defeated_unit, batch);
-    }
-
-    internal bool _are_units_adjacent(BattleUnitState first_unit, BattleUnitState second_unit)
-    {
-        _ensure_sidecars_ready();
-        return _special_skill_resolver.AreUnitsAdjacent(first_unit, second_unit);
     }
 
     internal void _activate_next_ready_unit(BattleEventBatch batch)
@@ -4101,59 +2624,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         SkillDefinition skillDefinition
     ) => _skill_turn_resolver.GetEffectiveSkillResourceCosts(active_unit, skillDefinition);
 
-    internal string _get_black_contract_push_variant_block_reason(
-        BattleUnitState active_unit,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        BattleSkillCastBlockReasonKind blockReason =
-            _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
-            active_unit,
-            castVariant
-        );
-        return _skill_turn_resolver.FormatSkillCastBlockReason(
-            active_unit,
-            null,
-            blockReason,
-            castVariant
-        );
-    }
-
-    internal bool _consume_black_contract_push_cast(
-        BattleUnitState active_unit,
-        CombatCastVariantDefinition castVariant,
-        BattleEventBatch batch = null
-    ) => _skill_turn_resolver.ConsumeBlackContractPushCast(active_unit, castVariant, batch);
-
-    internal void _ensure_unit_turn_anchor(BattleUnitState unit_state) =>
-        _skill_turn_resolver.EnsureUnitTurnAnchor(unit_state);
-
-    internal bool _advance_unit_cooldowns(BattleUnitState unit_state, int cooldown_delta) =>
-        _skill_turn_resolver.AdvanceUnitCooldowns(unit_state, cooldown_delta);
-
-    internal bool _consume_turn_cooldown_delta(BattleUnitState unit_state) =>
-        _skill_turn_resolver.ConsumeTurnCooldownDelta(unit_state);
-
-    internal void _advance_unit_turn_timers(BattleUnitState unit_state, BattleEventBatch batch) =>
-        _skill_turn_resolver.AdvanceUnitTurnTimers(unit_state, batch);
-
-    internal BattleStatusTickResult _apply_turn_start_statuses_result(
-        BattleUnitState unit_state,
-        BattleEventBatch batch
-    ) => _skill_turn_resolver.ApplyTurnStartStatusesResult(unit_state, batch);
-
-    internal BattleStatusTickResult _apply_unit_status_periodic_ticks_result(
-        BattleUnitState unit_state,
-        int elapsed_tu,
-        BattleEventBatch batch
-    ) => _skill_turn_resolver.ApplyUnitStatusPeriodicTicksResult(unit_state, elapsed_tu, batch);
-
-    internal bool _advance_unit_status_durations(
-        BattleUnitState unit_state,
-        int elapsed_tu,
-        BattleEventBatch batch = null
-    ) => _skill_turn_resolver.AdvanceUnitStatusDurations(unit_state, elapsed_tu, batch);
-
     internal int _get_effective_skill_range(
         BattleUnitState active_unit,
         SkillDefinition skillDefinition
@@ -4181,9 +2651,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     internal bool _skill_has_tag(SkillDefinition skillDefinition, StringName expected_tag) =>
         _skill_turn_resolver.SkillHasTag(skillDefinition, expected_tag);
 
-    internal bool _is_movement_blocked(BattleUnitState unit_state) =>
-        _skill_turn_resolver.IsMovementBlocked(unit_state);
-
     internal bool _has_status(BattleUnitState unit_state, StringName status_id) =>
         _skill_turn_resolver.HasUnitStatus(unit_state, status_id);
 
@@ -4209,29 +2676,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal int _get_main_skill_lock_other_debuff_count(BattleUnitState unit_state) =>
         _skill_turn_resolver.GetMainSkillLockOtherDebuffCount(unit_state);
-
-    internal void _prepare_ai_turn(BattleUnitState unit_state)
-    {
-        if (unit_state == null)
-            return;
-        unit_state.ai_blackboard.SetInt(
-            "turn_started_tu",
-            _state?.timeline != null ? _state.timeline.current_tu : 0
-        );
-        unit_state.ai_blackboard.SetInt("turn_decision_count", 0);
-        EnemyAiBrainDefinition brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
-        if (brain != null && !brain.HasState(unit_state.ai_state_id))
-            unit_state.ai_state_id = brain.DefaultStateId;
-    }
-
-    internal void _cleanup_ai_turn(BattleUnitState unit_state)
-    {
-        if (unit_state == null)
-            return;
-        unit_state.ai_blackboard.Remove("turn_started_tu");
-        unit_state.ai_blackboard.Remove("turn_decision_count");
-        _skill_turn_resolver?.ClearTurnAiOverride(unit_state);
-    }
 
     internal BattleUnitState _find_unit_by_member_id(StringName member_id)
     {
@@ -4296,6 +2740,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
     }
 
-    private static bool IsEmpty(StringName value) => value == default || value == (StringName)"";
+    internal static bool IsEmpty(StringName value) => value == default || value == (StringName)"";
 
 }

@@ -32,7 +32,7 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
 
         BattleUnitState weakEnemy = MakeUnit("weak_enemy", "enemy", new Vector2I(4, 4), 200, 40);
         BattleUnitState immuneEnemy = MakeUnit("immune_enemy", "enemy", new Vector2I(5, 4), 200, 40);
-        immuneEnemy.save_advantage_tags.Add("illusion_immunity");
+        immuneEnemy.save_immunity_tags.Add("illusion");
         BattleUnitState weakAlly = MakeUnit("weak_ally", "player", new Vector2I(6, 4), 200, 45);
         BattleUnitState outsideEnemy = MakeUnit("outside_enemy", "enemy", new Vector2I(8, 4), 200, 40);
 

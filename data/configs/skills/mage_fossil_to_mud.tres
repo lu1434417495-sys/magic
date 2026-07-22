@@ -68,6 +68,7 @@ effect_defs = Array[ExtResource("3_o0jes")]([SubResource("Resource_7wo80")])
 [sub_resource type="Resource" id="Resource_sjstb"]
 script = ExtResource("4_f3njh")
 skill_id = &"mage_fossil_to_mud"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 3
 mp_cost = 80

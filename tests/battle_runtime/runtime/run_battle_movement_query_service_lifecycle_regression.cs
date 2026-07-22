@@ -213,8 +213,18 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
 
             state.NormalizeUnitIdArrays();
             long revisionBefore = state.MovementGeometryRevision;
-            _test.False(runtime._check_battle_end(new BattleEventBatch()), "双方存活时战斗不应结束。");
-            _test.False(runtime._check_battle_end(new BattleEventBatch()), "重复检查仍不应结束战斗。");
+            using BattleEventBatch firstBatch = new();
+            using BattleEventBatch secondBatch = new();
+            _test.Eq(
+                runtime.FlushBattleOutcomeEvaluation(firstBatch),
+                BattleOutcomeFlushResult.NoChange,
+                "双方存活时战斗目标应保持进行中。"
+            );
+            _test.Eq(
+                runtime.FlushBattleOutcomeEvaluation(secondBatch),
+                BattleOutcomeFlushResult.NoChange,
+                "重复求值仍应保持进行中。"
+            );
             _test.Eq(
                 state.MovementGeometryRevision,
                 revisionBefore,

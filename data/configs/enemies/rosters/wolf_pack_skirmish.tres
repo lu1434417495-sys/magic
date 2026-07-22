@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_wolf_pack_entry"]
+script = ExtResource("3_entry")
+template_id = &"wolf_pack"
+count = 2
+
+[sub_resource type="Resource" id="Resource_wolf_pack_stage"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_wolf_pack_entry")])
+
+[resource]
+script = ExtResource("1_roster")
+profile_id = &"wolf_pack_skirmish"
+display_name = "荒狼群"
+initial_stage = 0
+growth_step_interval = 1
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_wolf_pack_stage")])

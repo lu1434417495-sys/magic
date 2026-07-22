@@ -571,7 +571,13 @@ public sealed partial class GameRuntimeFacade
                 _battle_state.ModalStateKind = BattleModalStateKind.None;
                 if (_battle_state.timeline != null)
                     _battle_state.timeline.frozen = false;
-                _battle_runtime?.OnBattleConfirmed();
+                BattleEventBatch batch = _battle_runtime?.ConfirmBattleStart();
+                if (batch != null)
+                    ApplyBattleBatch(batch);
+                if (batch?.battle_ended == true)
+                    return BuildCommandOkResult("战斗已在开战触发结算后结束。");
+                if (batch?.modal_requested == true)
+                    return BuildCommandOkResult("战斗开始触发需要先完成当前选择。");
                 UpdateStatusInternal("战斗开始，TU 现在按每秒 5 点推进。");
                 return BuildCommandOkResult();
             }

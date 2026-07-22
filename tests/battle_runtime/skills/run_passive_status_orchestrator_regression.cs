@@ -306,6 +306,8 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             System.Array.Empty<StringName>(),
             [new StringName("darkvision")],
             System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             new Dictionary<StringName, StringName> { ["fire"] = "half" },
             System.Array.Empty<StringName>(),
             System.Array.Empty<string>()
@@ -327,6 +329,8 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             System.Array.Empty<StringName>(),
             System.Array.Empty<StringName>(),
             [new StringName("poison")],
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             new Dictionary<StringName, StringName>(),
             System.Array.Empty<StringName>(),
             System.Array.Empty<string>()

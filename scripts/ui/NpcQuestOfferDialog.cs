@@ -4,10 +4,11 @@ using GDictionary = Godot.Collections.Dictionary;
 
 /// <summary>
 /// Player-facing modal for NPC quest offers. Consumes the typed <see cref="NpcQuestOfferWindowData"/>
-/// built by <see cref="GameRuntimeSettlementCommandHandler"/> and emits accept/close signals that
+/// built by <see cref="GameRuntimeSettlementCommandHandler"/> and emits action/close signals that
 /// <see cref="WorldMapSystem"/> forwards to the runtime command handler.
 ///
-/// Accept button logic:
+/// Action button logic:
+/// - The runtime-provided action label identifies accept, submit-item, or claim behavior.
 /// - If the selected quest is already in pending confirmation state, the payload carries
 ///   <c>confirm_accept=true</c>.
 /// - Otherwise it carries <c>confirm_accept=false</c>; the runtime may set pending confirmation
@@ -104,7 +105,12 @@ public partial class NpcQuestOfferDialog : ModalWindowShell
         {
             bool isConfirming = _pendingConfirmationQuestId == _selectedQuestId
                 && !string.IsNullOrEmpty(_pendingConfirmationQuestId);
-            accept_button.Text = isConfirming ? "确认接受" : "接受委托";
+            string actionLabel = selectedEntry?.ActionLabel ?? "";
+            accept_button.Text = isConfirming
+                ? "确认接受"
+                : string.IsNullOrEmpty(actionLabel)
+                    ? "接受委托"
+                    : actionLabel;
             accept_button.Disabled = !isEnabled;
         }
 

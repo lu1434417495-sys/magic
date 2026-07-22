@@ -9,7 +9,6 @@ internal sealed class WildEncounterRosterDefinition
         string displayName,
         int initialStage,
         int growthStepInterval,
-        int suppressionStepsOnVictory,
         IReadOnlyList<WildEncounterRosterStageDefinition> stages
     )
     {
@@ -17,7 +16,6 @@ internal sealed class WildEncounterRosterDefinition
         DisplayName = displayName ?? "";
         InitialStage = initialStage;
         GrowthStepInterval = growthStepInterval;
-        SuppressionStepsOnVictory = suppressionStepsOnVictory;
         Stages = EnemyDefinitionCollections.FreezeList(stages);
     }
 
@@ -25,7 +23,6 @@ internal sealed class WildEncounterRosterDefinition
     internal string DisplayName { get; }
     internal int InitialStage { get; }
     internal int GrowthStepInterval { get; }
-    internal int SuppressionStepsOnVictory { get; }
     internal IReadOnlyList<WildEncounterRosterStageDefinition> Stages { get; }
 
     internal int GetMaxStage()

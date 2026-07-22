@@ -20,7 +20,7 @@ creature_level = 4
 hit_die_sides = 8
 action_threshold = 30
 tags = Array[StringName]([&"undead", &"ghoul", &"beast", &"claw"])
-save_advantage_tags = Array[StringName]([&"sleep_immunity", &"charm_immunity", &"poison_immunity"])
+save_immunity_tags = Array[StringName]([&"sleep", &"charm", &"poison"])
 base_attribute_overrides = {
 &"strength": 14,
 &"agility": 15,

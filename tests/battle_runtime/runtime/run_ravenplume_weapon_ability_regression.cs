@@ -127,8 +127,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             batch,
             "ravenplume defeated.",
             new BattleDefeatHandlingOptions(
-                recordEnemyDefeatedAchievement: false,
-                checkBattleEnd: false
+                recordEnemyDefeatedAchievement: false
             )
         );
         for (int index = 0; index < 11; index++)

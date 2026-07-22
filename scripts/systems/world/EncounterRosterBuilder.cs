@@ -127,12 +127,17 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private Dictionary<StringName, WildEncounterRosterDefinition> _wildEncounterRosterIndex = new();
     private Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
+    private Dictionary<StringName, BattleEncounterDefinition> _battleEncounterIndex = new();
 
     internal void Setup(
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
     )
     {
+        _battleEncounterIndex = new Dictionary<StringName, BattleEncounterDefinition>(
+            battleEncounters ?? new Dictionary<StringName, BattleEncounterDefinition>()
+        );
         _wildEncounterRosterIndex = new Dictionary<StringName, WildEncounterRosterDefinition>(
             wildEncounterRosters ?? new Dictionary<StringName, WildEncounterRosterDefinition>()
         );
@@ -267,44 +272,32 @@ public sealed class EncounterRosterBuilder : IDisposable
         return BuildLootEntriesWithContextPlain(encounterAnchor, buildContext);
     }
 
-    private static EnemyTemplateDefinition ResolveEnemyTemplate(
-        EncounterAnchorData encounterAnchor,
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
-    )
-    {
-        if (enemyTemplates == null || enemyTemplates.Count == 0)
-            return null;
-        if (
-            encounterAnchor != null
-            && encounterAnchor.enemy_roster_template_id != ""
-            && enemyTemplates.TryGetValue(
-                encounterAnchor.enemy_roster_template_id,
-                out EnemyTemplateDefinition template
-            )
-        )
-            return template;
-        return null;
-    }
-
     private WildEncounterRosterDefinition ResolveWildEncounterRoster(
         EncounterAnchorData encounterAnchor
     )
     {
-        if (_wildEncounterRosterIndex == null || _wildEncounterRosterIndex.Count == 0)
-            return null;
-        var anchor = encounterAnchor;
         if (
-            anchor != null
-            && anchor.encounter_profile_id != ""
-            && _wildEncounterRosterIndex.TryGetValue(
-                anchor.encounter_profile_id,
-                out WildEncounterRosterDefinition roster
+            _battleEncounterIndex == null
+            || _battleEncounterIndex.Count == 0
+            || _wildEncounterRosterIndex == null
+            || _wildEncounterRosterIndex.Count == 0
+        )
+            return null;
+        if (
+            encounterAnchor == null
+            || encounterAnchor.encounter_profile_id == ""
+            || !_battleEncounterIndex.TryGetValue(
+                encounterAnchor.encounter_profile_id,
+                out BattleEncounterDefinition battleEncounter
             )
         )
-        {
-            return roster;
-        }
-        return null;
+            return null;
+        return _wildEncounterRosterIndex.TryGetValue(
+            battleEncounter.RosterProfileId,
+            out WildEncounterRosterDefinition roster
+        )
+            ? roster
+            : null;
     }
 
     private IReadOnlyList<IReadOnlyDictionary<string, object>> BuildPreviewLootFactsFromRoster(
@@ -580,47 +573,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             return enemyUnits;
         }
-        var fallbackTemplate = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
-        if (fallbackTemplate != null)
-        {
-            return BuildTemplateEnemyUnits(
-                encounterAnchor,
-                fallbackTemplate,
-                buildContext
-            );
-        }
-        ReportMissingEnemyTemplate(encounterAnchor);
+        ReportMissingEncounterRoster(encounterAnchor);
         return new List<BattleUnitState>();
-    }
-
-    private List<BattleUnitState> BuildTemplateEnemyUnits(
-        EncounterAnchorData encounterAnchor,
-        EnemyTemplateDefinition template,
-        EncounterBuildContextData buildContext
-    )
-    {
-        int enemyCount = Mathf.Max(
-            buildContext.EnemyUnitCountOverride ?? template.EnemyCount,
-            1
-        );
-        string fallbackDisplayName = "敌人";
-        if (template != null && !string.IsNullOrEmpty(template.DisplayName))
-        {
-            fallbackDisplayName = template.DisplayName;
-        }
-        else if (encounterAnchor != null && !string.IsNullOrEmpty(encounterAnchor.display_name))
-        {
-            fallbackDisplayName = encounterAnchor.display_name;
-        }
-        return BuildUnitsFromTemplate(
-            encounterAnchor,
-            template,
-            buildContext,
-            0,
-            enemyCount,
-            fallbackDisplayName,
-            false
-        );
     }
 
     private List<BattleUnitState> BuildUnitsFromTemplate(
@@ -707,7 +661,9 @@ public sealed class EncounterRosterBuilder : IDisposable
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0,
                 BattleUnitState.DefaultMovePointsPerTurn
             );
-            unitState.save_advantage_tags = CopyTemplateSaveAdvantageTags(template);
+            unitState.save_advantage_tags = CopyTemplateSaveTags(template?.SaveAdvantageTags);
+            unitState.save_disadvantage_tags = CopyTemplateSaveTags(template?.SaveDisadvantageTags);
+            unitState.save_immunity_tags = CopyTemplateSaveTags(template?.SaveImmunityTags);
             if (template != null)
             {
                 unitState.damage_resistances.ReplaceWithTyped(
@@ -738,13 +694,9 @@ public sealed class EncounterRosterBuilder : IDisposable
         return enemyUnits;
     }
 
-    private static StringNameList CopyTemplateSaveAdvantageTags(
-        EnemyTemplateDefinition template
-    )
+    private static StringNameList CopyTemplateSaveTags(IReadOnlyList<StringName> tags)
     {
-        return template?.SaveAdvantageTags != null
-            ? new StringNameList(template.SaveAdvantageTags)
-            : new StringNameList();
+        return tags != null ? new StringNameList(tags) : new StringNameList();
     }
 
     private static string ResolveEnemyUnitDisplayName(
@@ -922,15 +874,15 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
     }
 
-    private static void ReportMissingEnemyTemplate(EncounterAnchorData encounterAnchor)
+    private static void ReportMissingEncounterRoster(EncounterAnchorData encounterAnchor)
     {
         string anchorId =
             encounterAnchor != null ? encounterAnchor.entity_id.ToString() : "unknown";
-        string templateId =
-            encounterAnchor != null ? encounterAnchor.enemy_roster_template_id.ToString() : "";
+        string encounterProfileId =
+            encounterAnchor != null ? encounterAnchor.encounter_profile_id.ToString() : "";
         GameLog.Error(
-            $"Encounter {anchorId} cannot build fallback enemy units; missing enemy roster/template {templateId}.",
-            "encounter.missing_roster_template",
+            $"Encounter {anchorId} cannot resolve a battle encounter roster from profile {encounterProfileId}.",
+            "encounter.missing_battle_encounter_roster",
             "encounter"
         );
     }
@@ -1083,16 +1035,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             );
         }
 
-        var template = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
-        if (template != null)
-        {
-            return BuildTemplateEnemyUnits(
-                encounterAnchor,
-                template,
-                buildContext
-            );
-        }
-        ReportMissingEnemyTemplate(encounterAnchor);
+        ReportMissingEncounterRoster(encounterAnchor);
         return new List<BattleUnitState>();
     }
 
@@ -1104,24 +1047,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         var encounterRoster = ResolveWildEncounterRoster(encounterAnchor);
         if (encounterRoster == null)
         {
-            var template = ResolveEnemyTemplate(encounterAnchor, buildContext.EnemyTemplates);
-            if (template == null)
-            {
-                return System.Array.Empty<IReadOnlyDictionary<string, object>>();
-            }
-            int enemyCount = Mathf.Max(
-                buildContext.EnemyUnitCountOverride ?? template.EnemyCount,
-                1
-            );
-            return PreviewEntriesToFacts(
-                BuildPreviewLootEntriesFromTemplate(
-                    template,
-                    enemyCount,
-                    "enemy_template",
-                    template.TemplateId,
-                    template.DisplayName
-                )
-            );
+            return System.Array.Empty<IReadOnlyDictionary<string, object>>();
         }
         return BuildPreviewLootFactsFromRoster(
             encounterAnchor,
@@ -1182,5 +1108,8 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     public void Dispose()
     {
+        _battleEncounterIndex.Clear();
+        _wildEncounterRosterIndex.Clear();
+        _enemyTemplateIndex.Clear();
     }
 }

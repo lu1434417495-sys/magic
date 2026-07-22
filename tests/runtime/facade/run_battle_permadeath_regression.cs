@@ -105,6 +105,11 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
                     reloadedAllyState != null && reloadedAllyState.is_dead,
                     "重新加载存档后，队友死亡标记应保持稳定。"
                 );
+                _test.Eq(
+                    reloadedAllyState?.current_hp ?? -1,
+                    0,
+                    "重新加载存档后，死亡队友的权威 HP 应保持为 0。"
+                );
                 _test.False(
                     reloadedParty.active_member_ids.Contains("ally_guard_01"),
                     "重新加载存档后，死亡队友不应被归一化回 active roster。"
@@ -257,14 +262,10 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 
     private static BattleResolutionResult BuildResolutionResult(StringName winnerFactionId)
     {
-        return new BattleResolutionResult
-        {
-            battle_id = "battle_permadeath_test",
-            winner_faction_id = winnerFactionId,
-            encounter_resolution = winnerFactionId == (StringName)"player"
-                ? "player_victory"
-                : "hostile_victory",
-        };
+        BattleResolutionResult result =
+            BattleObjectiveTestFactory.CreateEliminationResolution(winnerFactionId);
+        result.battle_id = "battle_permadeath_test";
+        return result;
     }
 
     private static BattleUnitState BuildAllyUnit(

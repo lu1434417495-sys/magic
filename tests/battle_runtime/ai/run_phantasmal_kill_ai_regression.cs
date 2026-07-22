@@ -74,7 +74,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             200,
             40
         );
-        immuneTarget.save_advantage_tags.Add("illusion_immunity");
+        immuneTarget.save_immunity_tags.Add("illusion");
         fixture.AddUnit(source);
         fixture.AddUnit(immuneTarget);
 
@@ -115,7 +115,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             200,
             120
         );
-        disadvantageTarget.save_advantage_tags.Add("illusion_disadvantage");
+        disadvantageTarget.save_disadvantage_tags.Add("illusion");
         fixture.AddUnit(source);
         fixture.AddUnit(normalTarget);
         fixture.AddUnit(advantageTarget);

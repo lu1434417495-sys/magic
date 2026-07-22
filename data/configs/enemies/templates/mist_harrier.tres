@@ -20,7 +20,7 @@ creature_level = 3
 hit_die_sides = 8
 action_threshold = 30
 tags = Array[StringName]([&"beast", &"mist", &"harrier", &"magical_beast"])
-save_advantage_tags = Array[StringName]([&"illusion_advantage"])
+save_advantage_tags = Array[StringName]([&"illusion"])
 damage_resistances = {
 &"physical_pierce": &"half",
 &"fire": &"double",

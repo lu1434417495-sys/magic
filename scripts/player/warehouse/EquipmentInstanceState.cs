@@ -111,6 +111,95 @@ public class EquipmentInstanceState
         };
     }
 
+    internal EquipmentInstanceState DuplicateForMutationSnapshotExact()
+    {
+        List<TraitInstanceState> traitInstancesCopy = null;
+        if (trait_instances != null)
+        {
+            traitInstancesCopy = new List<TraitInstanceState>(trait_instances.Count);
+            foreach (TraitInstanceState trait in trait_instances)
+            {
+                if (trait == null)
+                {
+                    traitInstancesCopy.Add(null);
+                    continue;
+                }
+                List<TraitRollValueState> rollValuesCopy = null;
+                if (trait.roll_values != null)
+                {
+                    rollValuesCopy = new List<TraitRollValueState>(trait.roll_values.Count);
+                    foreach (TraitRollValueState rollValue in trait.roll_values)
+                        rollValuesCopy.Add(rollValue?.DuplicateState());
+                }
+                traitInstancesCopy.Add(
+                    new TraitInstanceState
+                    {
+                        trait_instance_id = trait.trait_instance_id,
+                        trait_id = trait.trait_id,
+                        source_type = trait.source_type,
+                        source_id = trait.source_id,
+                        rank = trait.rank,
+                        stacks = trait.stacks,
+                        roll_values = rollValuesCopy,
+                    }
+                );
+            }
+        }
+
+        List<EquipmentAbilityUsagePeriodState> usagePeriodsCopy = null;
+        if (ability_usage_periods != null)
+        {
+            usagePeriodsCopy = new List<EquipmentAbilityUsagePeriodState>(
+                ability_usage_periods.Count
+            );
+            foreach (EquipmentAbilityUsagePeriodState usage in ability_usage_periods)
+            {
+                usagePeriodsCopy.Add(
+                    usage == null
+                        ? null
+                        : new EquipmentAbilityUsagePeriodState
+                        {
+                            AbilityId = usage.AbilityId,
+                            PeriodKind = usage.PeriodKind,
+                            PeriodIndex = usage.PeriodIndex,
+                            UsedCount = usage.UsedCount,
+                        }
+                );
+            }
+        }
+
+        List<EquipmentAbilityPersistentCounterState> countersCopy = null;
+        if (ability_persistent_counters != null)
+        {
+            countersCopy = new List<EquipmentAbilityPersistentCounterState>(
+                ability_persistent_counters.Count
+            );
+            foreach (EquipmentAbilityPersistentCounterState counter in ability_persistent_counters)
+            {
+                countersCopy.Add(
+                    counter == null
+                        ? null
+                        : new EquipmentAbilityPersistentCounterState
+                        {
+                            CounterId = counter.CounterId,
+                            Value = counter.Value,
+                        }
+                );
+            }
+        }
+
+        return new EquipmentInstanceState
+        {
+            instance_id = instance_id,
+            item_id = item_id,
+            rarity = rarity,
+            current_durability = current_durability,
+            trait_instances = traitInstancesCopy,
+            ability_usage_periods = usagePeriodsCopy,
+            ability_persistent_counters = countersCopy,
+        };
+    }
+
     public static EquipmentInstanceState FromDictionary(Godot.Collections.Dictionary data) =>
         _from_dict(data, false, SAVE_PAYLOAD_LABEL);
 

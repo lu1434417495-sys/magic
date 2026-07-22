@@ -9,10 +9,12 @@ public class BattlePreview
     private readonly List<StringName> _targetUnitIds = new();
     private readonly List<Vector2I> _targetCoords = new();
     private readonly List<StringName> _randomChainCandidateUnitIds = new();
+    private readonly List<StringName> _randomChainImpactCandidateUnitIds = new();
     private readonly ReadOnlyCollection<string> _logLinesView;
     private readonly ReadOnlyCollection<StringName> _targetUnitIdsView;
     private readonly ReadOnlyCollection<Vector2I> _targetCoordsView;
     private readonly ReadOnlyCollection<StringName> _randomChainCandidateUnitIdsView;
+    private readonly ReadOnlyCollection<StringName> _randomChainImpactCandidateUnitIdsView;
     private BattleSaveBranchPreviewData _saveBranchPreview;
     private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
@@ -44,6 +46,8 @@ public class BattlePreview
     internal IReadOnlyList<Vector2I> TargetCoordsTyped => _targetCoordsView;
     internal IReadOnlyList<StringName> RandomChainCandidateUnitIdsTyped =>
         _randomChainCandidateUnitIdsView;
+    internal IReadOnlyList<StringName> RandomChainImpactCandidateUnitIdsTyped =>
+        _randomChainImpactCandidateUnitIdsView;
     internal IReadOnlyList<string> LogLinesTyped => _logLinesView;
     internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
         CloneDamagePreview(_damagePreview);
@@ -56,6 +60,8 @@ public class BattlePreview
         _targetUnitIdsView = _targetUnitIds.AsReadOnly();
         _targetCoordsView = _targetCoords.AsReadOnly();
         _randomChainCandidateUnitIdsView = _randomChainCandidateUnitIds.AsReadOnly();
+        _randomChainImpactCandidateUnitIdsView =
+            _randomChainImpactCandidateUnitIds.AsReadOnly();
     }
 
     internal void SetTargetUnitIds(IEnumerable<StringName> values)
@@ -135,6 +141,19 @@ public class BattlePreview
     internal void AddRandomChainCandidateUnitId(StringName value)
     {
         _randomChainCandidateUnitIds.Add(ProgressionDataUtils.to_string_name(value));
+    }
+
+    internal void SetRandomChainImpactCandidateUnitIds(IEnumerable<StringName> values)
+    {
+        _randomChainImpactCandidateUnitIds.Clear();
+        if (values == null)
+            return;
+        foreach (StringName value in values)
+        {
+            _randomChainImpactCandidateUnitIds.Add(
+                ProgressionDataUtils.to_string_name(value)
+            );
+        }
     }
 
     internal void SetLogLines(IEnumerable values)

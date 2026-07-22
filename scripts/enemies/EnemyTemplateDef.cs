@@ -64,6 +64,12 @@ public partial class EnemyTemplateDef : Resource
     public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> save_disadvantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> save_immunity_tags { get; set; } = new();
+
+    [Export]
     public Godot.Collections.Dictionary damage_resistances { get; set; } = new();
 
     [Export]
@@ -472,47 +478,58 @@ public partial class EnemyTemplateDef : Resource
     private Godot.Collections.Array<string> _validate_save_advantage_tags()
     {
         var errors = new Godot.Collections.Array<string>();
-        if (save_advantage_tags == null)
+        _validate_save_tag_list(errors, save_advantage_tags, "save_advantage_tags");
+        _validate_save_tag_list(errors, save_disadvantage_tags, "save_disadvantage_tags");
+        _validate_save_tag_list(errors, save_immunity_tags, "save_immunity_tags");
+        return errors;
+    }
+
+    // 豁免标签语义写死:字段即语义,值必须是裸 save tag。带
+    // _advantage/_disadvantage/_immunity 后缀的旧写法在此拒绝并给出迁移提示。
+    private void _validate_save_tag_list(
+        Godot.Collections.Array<string> errors,
+        Godot.Collections.Array<StringName> tags,
+        string fieldName
+    )
+    {
+        if (tags == null)
         {
-            return errors;
+            return;
         }
 
-        foreach (StringName rawTag in save_advantage_tags)
+        foreach (StringName rawTag in tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
             if (tag == "")
             {
-                errors.Add($"Enemy template {template_id} save_advantage_tags contains an empty tag.");
+                errors.Add($"Enemy template {template_id} {fieldName} contains an empty tag.");
                 continue;
             }
 
-            StringName baseSaveTag = _base_save_tag_for_advantage_tag(tag);
-            if (baseSaveTag == "" || !BattleSaveContentRules.IsValidSaveTag(baseSaveTag))
+            string text = tag.ToString();
+            bool hasLegacySuffix = false;
+            foreach (string suffix in new[] { "_advantage", "_disadvantage", "_immunity" })
+            {
+                if (text.EndsWith(suffix, StringComparison.Ordinal))
+                {
+                    errors.Add(
+                        $"Enemy template {template_id} {fieldName} entry {tag} uses removed suffix syntax; write the bare save tag {text[..^suffix.Length]} in the field matching its semantics."
+                    );
+                    hasLegacySuffix = true;
+                    break;
+                }
+            }
+            if (hasLegacySuffix)
+            {
+                continue;
+            }
+            if (!BattleSaveContentRules.IsValidSaveTag(tag))
             {
                 errors.Add(
-                    $"Enemy template {template_id} save_advantage_tags entry {tag} has unsupported base save tag {baseSaveTag}."
+                    $"Enemy template {template_id} {fieldName} entry {tag} is not a supported save tag."
                 );
             }
         }
-        return errors;
-    }
-
-    private static StringName _base_save_tag_for_advantage_tag(StringName tag)
-    {
-        if (tag == "")
-        {
-            return "";
-        }
-
-        string text = tag.ToString();
-        foreach (string suffix in new[] { "_advantage", "_disadvantage", "_immunity" })
-        {
-            if (text.EndsWith(suffix, StringComparison.Ordinal))
-            {
-                return new StringName(text[..^suffix.Length]);
-            }
-        }
-        return tag;
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_ids(

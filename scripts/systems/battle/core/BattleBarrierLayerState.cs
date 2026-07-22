@@ -19,6 +19,57 @@ public sealed class BattleBarrierLayerState
     public bool HasSaveRollOverride { get; set; }
     public int SaveRollOverride { get; set; }
 
+    internal BattleBarrierLayerState DuplicateForMutationSnapshotExact()
+    {
+        var duplicate = new BattleBarrierLayerState
+        {
+            LayerId = LayerId,
+            DisplayName = DisplayName,
+            Order = Order,
+            Broken = Broken,
+            HasSaveRollOverride = HasSaveRollOverride,
+            SaveRollOverride = SaveRollOverride,
+        };
+        duplicate.SetBlockedCategoriesForMutationSnapshotExact(_blockedCategories);
+        duplicate.SetBreakerSkillIdsForMutationSnapshotExact(_breakerSkillIds);
+        var outcomes = new List<BattleBarrierOutcomeState>();
+        foreach (BattleBarrierOutcomeState outcome in _passageOutcomes)
+        {
+            outcomes.Add(outcome?.DuplicateForMutationSnapshotExact());
+        }
+        duplicate.SetPassageOutcomesForMutationSnapshotExact(outcomes);
+        return duplicate;
+    }
+
+    internal void SetBlockedCategoriesForMutationSnapshotExact(
+        IEnumerable<StringName> values
+    )
+    {
+        ReplaceStringNameListForMutationSnapshotExact(_blockedCategories, values);
+    }
+
+    internal void SetBreakerSkillIdsForMutationSnapshotExact(
+        IEnumerable<StringName> values
+    )
+    {
+        ReplaceStringNameListForMutationSnapshotExact(_breakerSkillIds, values);
+    }
+
+    internal void SetPassageOutcomesForMutationSnapshotExact(
+        IEnumerable<BattleBarrierOutcomeState> outcomes
+    )
+    {
+        _passageOutcomes.Clear();
+        if (outcomes == null)
+        {
+            return;
+        }
+        foreach (BattleBarrierOutcomeState outcome in outcomes)
+        {
+            _passageOutcomes.Add(outcome);
+        }
+    }
+
     internal static BattleBarrierLayerState FromRuntimeDict(GDictionary source)
     {
         var layer = new BattleBarrierLayerState();
@@ -105,6 +156,22 @@ public sealed class BattleBarrierLayerState
             {
                 target.Add(value);
             }
+        }
+    }
+
+    private static void ReplaceStringNameListForMutationSnapshotExact(
+        List<StringName> target,
+        IEnumerable<StringName> values
+    )
+    {
+        target.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (StringName value in values)
+        {
+            target.Add(value);
         }
     }
 

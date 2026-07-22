@@ -79,10 +79,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
             snapshot.EnemyBrains,
             snapshot.EncounterRosters
         );
-        HashSet<StringName> enemyTemplateIds = new(enemyDefinitions.EnemyTemplates.Keys);
-        HashSet<StringName> wildEncounterRosterIds = new(
-            enemyDefinitions.EncounterRosters.Keys
-        );
+        HashSet<StringName> battleEncounterIds = new(snapshot.BattleEncounters.Keys);
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs = itemDefs;
         IReadOnlyDictionary<StringName, SkillDefinition> typedSkillDefinitions =
             progressionRegistry.GetSkillDefinitionsTyped();
@@ -116,8 +113,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
                 ContentValidationRunner.ValidateRecipeDirectory(OFFICIAL_RECIPE_DIRECTORY, itemDefs),
                 officialEnemyResult,
                 ContentValidationRunner.ValidateWorldPresets(
-                    enemyTemplateIds,
-                    wildEncounterRosterIds
+                    battleEncounterIds
                 ),
                 ContentValidationRunner.ValidateQuestEntries(
                     "official_quests",
@@ -365,8 +361,7 @@ public partial class run_resource_validation_regression : LifecycleTestSceneTree
         ValidationDomainResult worldResult = ContentValidationRunner.ValidateWorldGenerationConfig(
             "invalid_world_generation_config",
             BuildInvalidWorldGenerationDefinition(),
-            enemyTemplateIds,
-            wildEncounterRosterIds
+            battleEncounterIds
         );
         ValidationDomainResult questResult = ContentValidationRunner.ValidateQuestEntries(
             "invalid_quest_entries",

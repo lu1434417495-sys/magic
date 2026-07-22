@@ -72,6 +72,15 @@ public class AttributeSnapshot
         return new Dictionary<StringName, int>(_values);
     }
 
+    internal void ReplaceValuesForMutationSnapshotExact(
+        IReadOnlyDictionary<StringName, int> values
+    )
+    {
+        _values = values == null
+            ? new Dictionary<StringName, int>()
+            : new Dictionary<StringName, int>(values);
+    }
+
     public Godot.Collections.Dictionary ToDictionary() =>
         ProgressionDataUtils.string_name_int_map_to_string_dict(_values);
 

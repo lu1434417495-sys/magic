@@ -162,6 +162,20 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
                 "save_advantage_tags"
             );
 
+            _append_string_name_array_errors(
+                errors,
+                label,
+                subraceDef.SaveDisadvantageTags,
+                "save_disadvantage_tags"
+            );
+
+            _append_string_name_array_errors(
+                errors,
+                label,
+                subraceDef.SaveImmunityTags,
+                "save_immunity_tags"
+            );
+
             _append_string_name_to_string_name_dictionary_errors(
                 errors,
                 label,

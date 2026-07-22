@@ -2,6 +2,33 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
 
+internal static class SkillDefinitionCollectionFreeze
+{
+    internal static IReadOnlyList<T> List<T>(IReadOnlyList<T> values)
+    {
+        if (values == null || values.Count == 0)
+        {
+            return System.Array.Empty<T>();
+        }
+        return new ReadOnlyCollection<T>(new List<T>(values));
+    }
+
+    internal static IReadOnlyDictionary<TKey, TValue> Dictionary<TKey, TValue>(
+        IReadOnlyDictionary<TKey, TValue> values
+    )
+    {
+        if (values == null || values.Count == 0)
+        {
+            return new ReadOnlyDictionary<TKey, TValue>(
+                new Dictionary<TKey, TValue>()
+            );
+        }
+        return new ReadOnlyDictionary<TKey, TValue>(
+            new Dictionary<TKey, TValue>(values)
+        );
+    }
+}
+
 public sealed class SkillDefinition
 {
     private static readonly IReadOnlyList<StringName> EmptyStringNames =
@@ -59,23 +86,35 @@ public sealed class SkillDefinition
         DynamicMaxLevelStatId = dynamicMaxLevelStatId;
         DynamicMaxLevelBase = dynamicMaxLevelBase;
         DynamicMaxLevelPerStat = dynamicMaxLevelPerStat;
-        MasteryCurve = masteryCurve ?? System.Array.Empty<int>();
-        Tags = tags ?? EmptyStringNames;
+        MasteryCurve = SkillDefinitionCollectionFreeze.List(masteryCurve);
+        Tags = SkillDefinitionCollectionFreeze.List(tags);
         LearnSource = learnSource;
-        LearnRequirements = learnRequirements ?? EmptyStringNames;
+        LearnRequirements = SkillDefinitionCollectionFreeze.List(learnRequirements);
         UnlockMode = unlockMode;
-        KnowledgeRequirements = knowledgeRequirements ?? EmptyStringNames;
-        SkillLevelRequirements = skillLevelRequirements ?? EmptyStringNameIntMap;
-        AttributeRequirements = attributeRequirements ?? EmptyStringNameIntMap;
-        AchievementRequirements = achievementRequirements ?? EmptyStringNames;
-        UpgradeSourceSkillIds = upgradeSourceSkillIds ?? EmptyStringNames;
+        KnowledgeRequirements = SkillDefinitionCollectionFreeze.List(
+            knowledgeRequirements
+        );
+        SkillLevelRequirements = SkillDefinitionCollectionFreeze.Dictionary(
+            skillLevelRequirements
+        );
+        AttributeRequirements = SkillDefinitionCollectionFreeze.Dictionary(
+            attributeRequirements
+        );
+        AchievementRequirements = SkillDefinitionCollectionFreeze.List(
+            achievementRequirements
+        );
+        UpgradeSourceSkillIds = SkillDefinitionCollectionFreeze.List(
+            upgradeSourceSkillIds
+        );
         RetainSourceSkillsOnUnlock = retainSourceSkillsOnUnlock;
         CoreSkillTransitionMode = coreSkillTransitionMode;
-        MasterySources = masterySources ?? EmptyStringNames;
+        MasterySources = SkillDefinitionCollectionFreeze.List(masterySources);
         GrowthTier = growthTier;
-        AttributeGrowthProgress = attributeGrowthProgress ?? EmptyStringNameIntMap;
+        AttributeGrowthProgress = SkillDefinitionCollectionFreeze.Dictionary(
+            attributeGrowthProgress
+        );
         PracticeTier = practiceTier;
-        AttributeModifiers = attributeModifiers ?? EmptyAttributeModifiers;
+        AttributeModifiers = SkillDefinitionCollectionFreeze.List(attributeModifiers);
         LevelDescriptionTemplate = levelDescriptionTemplate ?? "";
         LevelDescriptionConfigs = FreezeLevelValueMap(
             levelDescriptionConfigs,
@@ -393,9 +432,11 @@ public sealed class ContingencyAutomationDefinition
         CanBeStoredInContingency = canBeStoredInContingency;
         MinContingencySkillLevel = minContingencySkillLevel;
         EffectCategory = effectCategory;
-        Tags = tags ?? EmptyStringNames;
+        Tags = SkillDefinitionCollectionFreeze.List(tags);
         ContingencyLoadOverride = contingencyLoadOverride;
-        AllowedTargetResolvers = allowedTargetResolvers ?? EmptyStringNames;
+        AllowedTargetResolvers = SkillDefinitionCollectionFreeze.List(
+            allowedTargetResolvers
+        );
         RequiresManualTargeting = requiresManualTargeting;
         AllowedParameterBindings = ContentValueNormalizer.NormalizeDictionary(
             allowedParameterBindings,
@@ -557,15 +598,19 @@ public sealed class CombatSkillDefinition
         SpellFateMode = spellFateMode;
         SpellCriticalMode = spellCriticalMode;
         SpellCriticalMpRefundPercent = Mathf.Clamp(spellCriticalMpRefundPercent, 0, 100);
-        FumbleProtectionCurve = fumbleProtectionCurve ?? System.Array.Empty<int>();
+        FumbleProtectionCurve = SkillDefinitionCollectionFreeze.List(
+            fumbleProtectionCurve
+        );
         FumbleProtectionExtraMpPercent = Mathf.Max(fumbleProtectionExtraMpPercent, 0);
         BacklashMode = backlashMode;
         BacklashTargetFilter = backlashTargetFilter;
         BacklashOffsetRadius = backlashOffsetRadius;
         AreaOriginMode = areaOriginMode;
         AreaDirectionMode = areaDirectionMode;
-        AiTags = aiTags ?? EmptyStringNames;
-        DeliveryCategories = deliveryCategories ?? EmptyStringNames;
+        AiTags = SkillDefinitionCollectionFreeze.List(aiTags);
+        DeliveryCategories = SkillDefinitionCollectionFreeze.List(
+            deliveryCategories
+        );
         SpecialResolutionProfileId = specialResolutionProfileId;
         TargetSelectionMode = targetSelectionMode;
         MinTargetCount = minTargetCount;
@@ -573,12 +618,20 @@ public sealed class CombatSkillDefinition
         AllowRepeatTarget = allowRepeatTarget;
         MaxHitsPerTarget = maxHitsPerTarget;
         SelectionOrderMode = selectionOrderMode;
-        EffectDefinitions = effectDefinitions ?? EmptyEffectDefinitions;
-        PassiveEffectDefinitions = passiveEffectDefinitions ?? EmptyEffectDefinitions;
-        CastVariants = castVariants ?? EmptyCastVariants;
-        RequiredWeaponFamilies = requiredWeaponFamilies ?? EmptyStringNames;
-        ExcludedWeaponFamilies = excludedWeaponFamilies ?? EmptyStringNames;
-        ExcludedWeaponTypeIds = excludedWeaponTypeIds ?? EmptyStringNames;
+        EffectDefinitions = SkillDefinitionCollectionFreeze.List(effectDefinitions);
+        PassiveEffectDefinitions = SkillDefinitionCollectionFreeze.List(
+            passiveEffectDefinitions
+        );
+        CastVariants = SkillDefinitionCollectionFreeze.List(castVariants);
+        RequiredWeaponFamilies = SkillDefinitionCollectionFreeze.List(
+            requiredWeaponFamilies
+        );
+        ExcludedWeaponFamilies = SkillDefinitionCollectionFreeze.List(
+            excludedWeaponFamilies
+        );
+        ExcludedWeaponTypeIds = SkillDefinitionCollectionFreeze.List(
+            excludedWeaponTypeIds
+        );
         RequiresEquippedShield = requiresEquippedShield;
         MasteryLowHpBonusMultiplier = masteryLowHpBonusMultiplier;
         MasteryLowHpThresholdPercent = masteryLowHpThresholdPercent;
@@ -1172,9 +1225,10 @@ public sealed class CombatCastVariantDefinition
         TargetMode = targetMode;
         FootprintPattern = footprintPattern;
         RequiredCoordCount = requiredCoordCount;
-        AllowedBaseTerrains = allowedBaseTerrains ?? System.Array.Empty<StringName>();
-        EffectDefinitions =
-            effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>();
+        AllowedBaseTerrains = SkillDefinitionCollectionFreeze.List(
+            allowedBaseTerrains
+        );
+        EffectDefinitions = SkillDefinitionCollectionFreeze.List(effectDefinitions);
         Parameters = ContentValueNormalizer.NormalizeDictionary(
             parameters,
             "CombatCastVariantDefinition.Parameters"
@@ -1279,9 +1333,13 @@ public sealed class CombatDamageSegmentDefinition
         DiceSides = diceSides;
         DiceBonus = diceBonus;
         PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
-        DamageTags = damageTags ?? EmptyStringNames;
-        MitigationBypassDamageTags = mitigationBypassDamageTags ?? EmptyStringNames;
-        MitigationBypassTiers = mitigationBypassTiers ?? EmptyStringNames;
+        DamageTags = SkillDefinitionCollectionFreeze.List(damageTags);
+        MitigationBypassDamageTags = SkillDefinitionCollectionFreeze.List(
+            mitigationBypassDamageTags
+        );
+        MitigationBypassTiers = SkillDefinitionCollectionFreeze.List(
+            mitigationBypassTiers
+        );
     }
 
     public StringName DamageTag { get; }
@@ -1368,9 +1426,15 @@ public sealed class CombatTargetDamageMultiplierRuleDefinition
         int multiplierPercent
     )
     {
-        AnyCreatureTypeTags = anyCreatureTypeTags ?? EmptyStringNames;
-        AllCreatureTypeTags = allCreatureTypeTags ?? EmptyStringNames;
-        ExcludedCreatureTypeTags = excludedCreatureTypeTags ?? EmptyStringNames;
+        AnyCreatureTypeTags = SkillDefinitionCollectionFreeze.List(
+            anyCreatureTypeTags
+        );
+        AllCreatureTypeTags = SkillDefinitionCollectionFreeze.List(
+            allCreatureTypeTags
+        );
+        ExcludedCreatureTypeTags = SkillDefinitionCollectionFreeze.List(
+            excludedCreatureTypeTags
+        );
         MultiplierPercent = multiplierPercent;
     }
 
@@ -1601,7 +1665,6 @@ public sealed class CombatEffectDefinition
         IReadOnlyList<StringName> saveAdvantageTags = null,
         IReadOnlyList<StringName> saveDisadvantageTags = null,
         IReadOnlyList<StringName> saveImmunityTags = null,
-        IReadOnlyList<StringName> saveTags = null,
         IReadOnlyList<EquipmentSlotWeightDefinition> equipmentDurabilitySlotWeights = null,
         StringName requiredTargetStatusSourceSelector = default,
         StringName bonusConditionCreatureTypeTag = default,
@@ -1665,7 +1728,7 @@ public sealed class CombatEffectDefinition
         AppliedStatusDurationTu = appliedStatusDurationTu;
         DurationTu = durationTu;
         TickIntervalTu = tickIntervalTu;
-        EffectTags = effectTags ?? EmptyStringNames;
+        EffectTags = SkillDefinitionCollectionFreeze.List(effectTags);
         TriggerCondition = triggerCondition;
         Power = power;
         RangeBonus = rangeBonus;
@@ -1681,7 +1744,7 @@ public sealed class CombatEffectDefinition
             parameters,
             "CombatEffectDefinition.Parameters"
         );
-        EffectCategories = effectCategories ?? EmptyStringNames;
+        EffectCategories = SkillDefinitionCollectionFreeze.List(effectCategories);
         AllowRepeatHitsAcrossSteps = allowRepeatHitsAcrossSteps;
         TickEffectType = tickEffectType;
         LifetimePolicy = lifetimePolicy == "" ? (StringName)"timed" : lifetimePolicy;
@@ -1689,12 +1752,18 @@ public sealed class CombatEffectDefinition
         RenderOverlayId = renderOverlayId;
         OverlayPriority = overlayPriority;
         DisplayName = displayName ?? "";
-        AccuracyModifierSpec = accuracyModifierSpec?.Clone();
+        _accuracyModifierSpec = accuracyModifierSpec?.Clone();
         DoesNotStackWithStatusId = doesNotStackWithStatusId;
-        DoesNotStackWithStatusIds = doesNotStackWithStatusIds ?? EmptyStringNames;
-        DamageTags = damageTags ?? EmptyStringNames;
-        MitigationBypassDamageTags = mitigationBypassDamageTags ?? EmptyStringNames;
-        MitigationBypassTiers = mitigationBypassTiers ?? EmptyStringNames;
+        DoesNotStackWithStatusIds = SkillDefinitionCollectionFreeze.List(
+            doesNotStackWithStatusIds
+        );
+        DamageTags = SkillDefinitionCollectionFreeze.List(damageTags);
+        MitigationBypassDamageTags = SkillDefinitionCollectionFreeze.List(
+            mitigationBypassDamageTags
+        );
+        MitigationBypassTiers = SkillDefinitionCollectionFreeze.List(
+            mitigationBypassTiers
+        );
         UseWeaponPhysicalDamageTag = useWeaponPhysicalDamageTag;
         ResolveAsWeaponAttack = resolveAsWeaponAttack;
         StopOnMiss = stopOnMiss;
@@ -1747,16 +1816,23 @@ public sealed class CombatEffectDefinition
         ContentDr = contentDr;
         GuardBlock = guardBlock;
         MainSkillLockOtherDebuffCount = mainSkillLockOtherDebuffCount;
-        SaveAdvantageTags = saveAdvantageTags ?? EmptyStringNames;
-        SaveDisadvantageTags = saveDisadvantageTags ?? EmptyStringNames;
-        SaveImmunityTags = saveImmunityTags ?? EmptyStringNames;
-        SaveTags = saveTags ?? EmptyStringNames;
-        EquipmentDurabilitySlotWeights =
-            equipmentDurabilitySlotWeights ?? System.Array.Empty<EquipmentSlotWeightDefinition>();
+        SaveAdvantageTags = SkillDefinitionCollectionFreeze.List(
+            saveAdvantageTags
+        );
+        SaveDisadvantageTags = SkillDefinitionCollectionFreeze.List(
+            saveDisadvantageTags
+        );
+        SaveImmunityTags = SkillDefinitionCollectionFreeze.List(saveImmunityTags);
+        EquipmentDurabilitySlotWeights = SkillDefinitionCollectionFreeze.List(
+            equipmentDurabilitySlotWeights
+        );
         RequiredTargetStatusSourceSelector = requiredTargetStatusSourceSelector;
-        ExtraDamageSegments = extraDamageSegments ?? EmptyDamageSegments;
-        TargetDamageMultiplierRules =
-            targetDamageMultiplierRules ?? EmptyTargetDamageMultiplierRules;
+        ExtraDamageSegments = SkillDefinitionCollectionFreeze.List(
+            extraDamageSegments
+        );
+        TargetDamageMultiplierRules = SkillDefinitionCollectionFreeze.List(
+            targetDamageMultiplierRules
+        );
     }
 
     public StringName EffectType { get; }
@@ -1827,7 +1903,9 @@ public sealed class CombatEffectDefinition
     public StringName RenderOverlayId { get; }
     public int OverlayPriority { get; }
     public string DisplayName { get; }
-    public BattleAttackRollModifierSpec AccuracyModifierSpec { get; }
+    private readonly BattleAttackRollModifierSpec _accuracyModifierSpec;
+    public BattleAttackRollModifierSpec AccuracyModifierSpec =>
+        _accuracyModifierSpec?.Clone();
     public StringName DoesNotStackWithStatusId { get; }
     public IReadOnlyList<StringName> DoesNotStackWithStatusIds { get; }
     public IReadOnlyList<StringName> DamageTags { get; }
@@ -1889,7 +1967,6 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> SaveAdvantageTags { get; }
     public IReadOnlyList<StringName> SaveDisadvantageTags { get; }
     public IReadOnlyList<StringName> SaveImmunityTags { get; }
-    public IReadOnlyList<StringName> SaveTags { get; }
     public IReadOnlyList<EquipmentSlotWeightDefinition> EquipmentDurabilitySlotWeights { get; }
     public IReadOnlyList<CombatDamageSegmentDefinition> ExtraDamageSegments { get; }
     public IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> TargetDamageMultiplierRules { get; }
@@ -2152,7 +2229,6 @@ public sealed class CombatEffectDefinition
             SaveAdvantageTags,
             SaveDisadvantageTags,
             SaveImmunityTags,
-            SaveTags,
             EquipmentDurabilitySlotWeights,
             RequiredTargetStatusSourceSelector,
             BonusConditionCreatureTypeTag,
@@ -2292,7 +2368,6 @@ public sealed class CombatEffectDefinition
             SaveAdvantageTags,
             SaveDisadvantageTags,
             SaveImmunityTags,
-            SaveTags,
             EquipmentDurabilitySlotWeights,
             RequiredTargetStatusSourceSelector,
             BonusConditionCreatureTypeTag,
@@ -2440,7 +2515,6 @@ public sealed class CombatEffectDefinition
                 CopyStringNameArray(source.save_advantage_tags),
                 CopyStringNameArray(source.save_disadvantage_tags),
                 CopyStringNameArray(source.save_immunity_tags),
-                CopyStringNameArray(source.save_tags),
                 ProjectEquipmentDurabilitySlotWeights(
                     source.equipment_durability_slot_weights
                 ),

@@ -257,16 +257,14 @@ internal static class WorldMapSpawnProjection
     {
         if (settlementState == null)
             return EmptyDictionary();
-        return new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["visited"] = settlementState.Visited,
-            ["reputation"] = settlementState.Reputation,
-            ["active_conditions"] = new List<object>(),
-            ["cooldowns"] = EmptyDictionary(),
-            ["shop_inventory_seed"] = settlementState.ShopInventorySeed,
-            ["shop_last_refresh_step"] = settlementState.ShopLastRefreshStep,
-            ["shop_states"] = EmptyDictionary(),
-        };
+        WorldMapSettlementStateData state = WorldMapSettlementStateData.Create(
+            settlementState.Visited,
+            settlementState.Reputation,
+            Array.Empty<string>(),
+            new Dictionary<string, int>(StringComparer.Ordinal),
+            new Dictionary<string, SettlementShopStateData>(StringComparer.Ordinal)
+        );
+        return state?.BuildSnapshotPlain() ?? EmptyDictionary();
     }
 
     private static Dictionary<string, object> BuildPlain(

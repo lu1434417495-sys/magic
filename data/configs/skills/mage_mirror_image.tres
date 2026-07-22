@@ -58,6 +58,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_3cvim"]
 script = ExtResource("4_apahk")
 skill_id = &"mage_mirror_image"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"

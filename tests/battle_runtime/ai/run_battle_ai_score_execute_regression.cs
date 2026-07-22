@@ -72,7 +72,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
-        target.save_advantage_tags.Add("execute_immunity");
+        target.save_immunity_tags.Add("execute");
         fixture.AddUnit(source);
         fixture.AddUnit(target);
 

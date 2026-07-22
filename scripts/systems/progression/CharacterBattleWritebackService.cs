@@ -93,8 +93,7 @@ internal sealed class CharacterBattleWritebackService
                 currentAura,
                 0,
                 Mathf.Max(snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax)), 0)
-            ),
-            false
+            )
         );
         return BattleResourceCommitResult.Success(normalizedMemberId);
     }

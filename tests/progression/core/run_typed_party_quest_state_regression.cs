@@ -16,6 +16,7 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         TestPartyMembersRejectNonMemberValues();
         TestQuestProgressRejectsNonIntValues();
         TestQuestContextRejectsNonIntValues();
+        TestQuestStateSafelyRejectsInvalidProgressContext();
         TestCustomStatsRejectNonIntValues();
         TestReputationsRejectNonIntValues();
         TestValidTypedPayloadsRoundTrip();
@@ -48,6 +49,35 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
                     new GDictionary { ["submitted_quantity"] = "bad" }
                 ),
             "last_progress_context.submitted_quantity 的非 int value 应在解析阶段被拒绝。"
+        );
+    }
+
+    private void TestQuestStateSafelyRejectsInvalidProgressContext()
+    {
+        GDictionary payload = new QuestState { quest_id = "corrupt_context" }.ToDictionary();
+        payload["last_progress_context"] = new GDictionary
+        {
+            ["submitted_quantity"] = "bad",
+        };
+
+        QuestState parsedState = null;
+        Exception parseException = null;
+        try
+        {
+            parsedState = QuestState.FromDictionary(payload);
+        }
+        catch (Exception exception)
+        {
+            parseException = exception;
+        }
+
+        _test.True(
+            parseException == null,
+            "QuestState 应安全拒绝损坏的 last_progress_context，而不是抛出异常。"
+        );
+        _test.True(
+            parsedState == null,
+            "QuestState 应将损坏的 last_progress_context 判为无效 payload。"
         );
     }
 

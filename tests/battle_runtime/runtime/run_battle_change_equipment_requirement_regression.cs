@@ -8,6 +8,12 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
     private static readonly StringName RestrictedHelmId = "requirement_test_restricted_helm";
     private static readonly StringName RestrictedHelmInstanceId =
         "requirement_test_restricted_helm_001";
+    private static readonly StringName StrengthBoostHelmId = "requirement_test_strength_boost_helm";
+    private static readonly StringName StrengthBoostHelmInstanceId =
+        "requirement_test_strength_boost_helm_001";
+    private static readonly StringName RequirementAscensionId = "requirement_test_ascension";
+    private static readonly StringName RequirementAscensionStageId =
+        "requirement_test_ascension_stage";
     private static readonly StringName DuplicateHelmId = "duplicate_test_helm";
     private static readonly StringName DuplicateHelmCommonInstanceId =
         "duplicate_test_helm_common_001";
@@ -19,6 +25,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
     public override void _Initialize()
     {
         TestBattleChangeEquipmentEnforcesItemRequirement();
+        TestBattleRequirementIgnoresTemporaryAndDisplacedAttributes();
         TestDuplicateSameItemBattleEquipAndUnequipPreservesInstance();
         TestChangeEquipmentRejectsInactiveCommandUnitWithTypedReport();
         RequestTestExit(_test.Finish("Battle change equipment requirement regression"));
@@ -32,7 +39,25 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         };
         PartyState party = BuildParty("requirement_hero", 2);
         PartyMemberState member = party.GetMemberState("requirement_hero");
+        member.progression.unit_base_attributes.SetAttributeValue("strength", 17);
+        _test.True(
+            member.SetAscension(
+                RequirementAscensionId,
+                RequirementAscensionStageId,
+                0,
+                member.race_id
+            ),
+            "测试成员应能写入正式升华身份。"
+        );
         var runtime = BuildRuntime(party, itemDefs, out CharacterManagementModule gateway);
+        _test.Eq(
+            gateway.GetMemberAttributeSnapshotForEquipmentView(
+                member.member_id,
+                member.equipment_state
+            ).GetValue("strength"),
+            20,
+            "基础力量 17 与永久升华 +3 应形成稳定力量 20。"
+        );
         BattleState state = BuildState("change_equipment_requirement_regression");
         BattleUnitState unit = BuildUnit("requirement_hero", Vector2I.Zero, 2);
         unit.source_member_id = "requirement_hero";
@@ -104,6 +129,79 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             BackpackInstanceIdSignature(state.GetPartyBackpackView()),
             Array.Empty<string>(),
             "需求满足后应从 battle-local 背包移除实例。"
+        );
+        runtime.Dispose();
+        gateway.Dispose();
+    }
+
+    private void TestBattleRequirementIgnoresTemporaryAndDisplacedAttributes()
+    {
+        var itemDefs = new Dictionary<StringName, ItemDefinition>
+        {
+            [RestrictedHelmId] = BuildStrengthRestrictedHelmItem(RestrictedHelmId),
+            [StrengthBoostHelmId] = BuildStrengthBoostHelmItem(StrengthBoostHelmId),
+        };
+        PartyState party = BuildParty("detached_requirement_hero", 3);
+        PartyMemberState member = party.GetMemberState("detached_requirement_hero");
+        member.progression.unit_base_attributes.SetAttributeValue("strength", 17);
+        var runtime = BuildRuntime(party, itemDefs, out CharacterManagementModule gateway);
+        BattleState state = BuildState("change_equipment_detached_requirement_regression");
+        BattleUnitState unit = BuildUnit("detached_requirement_hero", Vector2I.Zero, 2);
+        unit.source_member_id = member.member_id;
+        unit.SetEquipmentView(new EquipmentState());
+        unit.GetEquipmentView().SetEquippedEntry(
+            "head",
+            StrengthBoostHelmId,
+            new[] { new StringName("head") },
+            MakeEquipmentInstance(StrengthBoostHelmInstanceId, StrengthBoostHelmId)
+        );
+        unit.attribute_snapshot.SetValue("strength", 99);
+        BattleUnitState enemy = BuildUnit("detached_requirement_enemy", new Vector2I(2, 0), 0);
+        enemy.faction_id = "enemy";
+        InstallUnits(runtime, state, unit, enemy);
+        state.GetPartyBackpackView().equipment_instances = new()
+        {
+            MakeEquipmentInstance(RestrictedHelmInstanceId, RestrictedHelmId),
+        };
+        runtime.SetupStateForTests(state);
+
+        _test.Eq(
+            gateway.GetMemberAttributeSnapshotForEquipmentView(
+                member.member_id,
+                unit.GetEquipmentView()
+            ).GetValue("strength"),
+            20,
+            "被替换头盔应是当前稳定力量达到 20 的唯一来源。"
+        );
+        BattleCommand command = BuildEquipCommand(
+            unit.unit_id,
+            "head",
+            RestrictedHelmInstanceId,
+            RestrictedHelmId
+        );
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(
+            preview != null && !preview.allowed,
+            "战斗 preview 应先移除被替换头盔，且不得读取临时 battle snapshot 的力量 99。"
+        );
+        string[] backpackBefore = BackpackInstanceIdSignature(state.GetPartyBackpackView());
+        BattleEventBatch batch = runtime.IssueCommand(command);
+        IReadOnlyDictionary<string, object> report = FindChangeEquipmentReport(batch.report_entries);
+        _test.Eq(
+            DictString(report, "error_code", ""),
+            "item_not_equippable",
+            "战斗执行应与 detached requirement preview 同样拒绝。"
+        );
+        _test.Eq(unit.current_ap, 2, "门槛失败不应扣除 AP。");
+        _test.Eq(
+            unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
+            StrengthBoostHelmInstanceId.ToString(),
+            "门槛失败应保留原有增力头盔。"
+        );
+        AssertSequenceEq(
+            BackpackInstanceIdSignature(state.GetPartyBackpackView()),
+            backpackBefore,
+            "门槛失败不应移动候选装备实例。"
         );
         runtime.Dispose();
         gateway.Dispose();
@@ -277,7 +375,11 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
     )
     {
         gateway = new CharacterManagementModule();
-        gateway.setup(party, item_defs: itemDefinitions);
+        gateway.setup(
+            party,
+            item_defs: itemDefinitions,
+            progression_identity_catalog: BuildRequirementIdentityCatalog()
+        );
         var runtime = new BattleRuntimeModule();
         runtime.setup(gateway, item_defs: itemDefinitions);
         return runtime;
@@ -321,10 +423,40 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
                 new[] { "helmet_training" },
                 3,
                 0,
-                Array.Empty<EquipmentAttributeRequirementDefinition>()
+                new[] { new EquipmentAttributeRequirementDefinition("strength", 20) }
             )
         );
     }
+
+    private static ItemDefinition BuildStrengthRestrictedHelmItem(StringName itemId) =>
+        BuildHelmItem(
+            itemId,
+            "Strength Requirement Test Helm",
+            new EquipmentRequirementDefinition(
+                Array.Empty<string>(),
+                0,
+                0,
+                new[] { new EquipmentAttributeRequirementDefinition("strength", 20) }
+            )
+        );
+
+    private static ItemDefinition BuildStrengthBoostHelmItem(StringName itemId) =>
+        BuildHelmItem(
+            itemId,
+            "Strength Boost Test Helm",
+            null,
+            new[]
+            {
+                new AttributeModifierDefinition(
+                    "strength",
+                    AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                    3,
+                    0,
+                    "equipment",
+                    "requirement_test_strength_boost"
+                ),
+            }
+        );
 
     private static ItemDefinition BuildPlainHelmItem(StringName itemId) =>
         BuildHelmItem(itemId, "Duplicate Test Helm", null);
@@ -332,7 +464,8 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
     private static ItemDefinition BuildHelmItem(
         StringName itemId,
         string displayName,
-        EquipmentRequirementDefinition requirement
+        EquipmentRequirementDefinition requirement,
+        IReadOnlyList<AttributeModifierDefinition> attributeModifiers = null
     )
     {
         return new ItemDefinition(
@@ -354,13 +487,68 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             Array.Empty<StringName>(),
             Array.Empty<TraitRollGroupDefinition>(),
             new[] { "head" },
-            Array.Empty<AttributeModifierDefinition>(),
+            attributeModifiers ?? Array.Empty<AttributeModifierDefinition>(),
             "",
             Array.Empty<string>(),
             requirement,
             ItemDefinition.ToStringName(ItemEquipmentTypeKind.Armor),
             null,
             -1
+        );
+    }
+
+    private static ProgressionIdentityCatalogData BuildRequirementIdentityCatalog()
+    {
+        AscensionDefinition ascension = new(
+            RequirementAscensionId,
+            "Requirement Test Ascension",
+            "",
+            new[] { RequirementAscensionStageId },
+            Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<string>(),
+            false,
+            false
+        );
+        AscensionStageDefinition stage = new(
+            RequirementAscensionStageId,
+            RequirementAscensionId,
+            "Requirement Test Ascension Stage",
+            "",
+            new[]
+            {
+                new AttributeModifierDefinition(
+                    "strength",
+                    AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                    3,
+                    0,
+                    "ascension",
+                    RequirementAscensionStageId
+                ),
+            },
+            Array.Empty<StringName>(),
+            Array.Empty<RacialGrantedSkillDefinition>(),
+            "",
+            Array.Empty<string>()
+        );
+        return new ProgressionIdentityCatalogData(
+            new Dictionary<StringName, RaceDefinition>(),
+            new Dictionary<StringName, SubraceDefinition>(),
+            new Dictionary<StringName, AgeProfileDefinition>(),
+            new Dictionary<StringName, BloodlineDefinition>(),
+            new Dictionary<StringName, BloodlineStageDefinition>(),
+            new Dictionary<StringName, AscensionDefinition>
+            {
+                [RequirementAscensionId] = ascension,
+            },
+            new Dictionary<StringName, AscensionStageDefinition>
+            {
+                [RequirementAscensionStageId] = stage,
+            },
+            new Dictionary<StringName, StageAdvancementDefinition>()
         );
     }
 

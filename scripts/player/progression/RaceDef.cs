@@ -46,6 +46,12 @@ public partial class RaceDef : Resource
     public Godot.Collections.Array<StringName> save_advantage_tags = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> save_disadvantage_tags = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> save_immunity_tags = new();
+
+    [Export]
     public Godot.Collections.Dictionary damage_resistances = new();
 
     [Export]
@@ -63,6 +69,10 @@ public partial class RaceDef : Resource
     internal Godot.Collections.Array<StringName> VisionTagsBorrowed => vision_tags;
     internal Godot.Collections.Array<StringName> SaveAdvantageTagsBorrowed =>
         save_advantage_tags;
+    internal Godot.Collections.Array<StringName> SaveDisadvantageTagsBorrowed =>
+        save_disadvantage_tags;
+    internal Godot.Collections.Array<StringName> SaveImmunityTagsBorrowed =>
+        save_immunity_tags;
     internal Godot.Collections.Dictionary DamageResistancesBorrowed => damage_resistances;
     internal Godot.Collections.Array<StringName> DialogueTagsBorrowed => dialogue_tags;
     internal Godot.Collections.Array<string> RacialTraitSummaryBorrowed => racial_trait_summary;

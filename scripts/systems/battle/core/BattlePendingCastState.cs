@@ -75,4 +75,29 @@ internal sealed class BattlePendingCastState
         clone.SetTargetCoords(_targetCoords);
         return clone;
     }
+
+    internal BattlePendingCastState DuplicateForMutationSnapshotExact()
+    {
+        BattlePendingCastState clone = new()
+        {
+            SourceUnitId = SourceUnitId,
+            SkillId = SkillId,
+            VariantId = VariantId,
+            TargetMode = TargetMode,
+            BindingMode = BindingMode,
+            StartedCoord = StartedCoord,
+            StartedTu = StartedTu,
+            BaseCastingTimeTu = BaseCastingTimeTu,
+            RemainingCastProgress = RemainingCastProgress,
+            LastMaintenanceCheckpointHp = LastMaintenanceCheckpointHp,
+            CastSequence = CastSequence,
+            CostTransaction = CostTransaction?.Clone(),
+            SpellControlMetadata = SpellControlMetadata is null
+                ? null
+                : SpellControlMetadata with { },
+        };
+        clone._targetUnitIds.AddRange(_targetUnitIds);
+        clone._targetCoords.AddRange(_targetCoords);
+        return clone;
+    }
 }

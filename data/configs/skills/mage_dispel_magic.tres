@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Dispel_l0"]
 script = ExtResource("1_dispel_effect")
 effect_type = &"dispel_magic"
+effect_categories = Array[StringName]([&"antimagic"])
 power = 1
 max_skill_level = 0
 effect_target_team_filter = &"any"
@@ -20,6 +21,7 @@ params = {
 [sub_resource type="Resource" id="Dispel_l1"]
 script = ExtResource("1_dispel_effect")
 effect_type = &"dispel_magic"
+effect_categories = Array[StringName]([&"antimagic"])
 power = 1
 min_skill_level = 1
 max_skill_level = 2
@@ -34,6 +36,7 @@ params = {
 [sub_resource type="Resource" id="Dispel_l3"]
 script = ExtResource("1_dispel_effect")
 effect_type = &"dispel_magic"
+effect_categories = Array[StringName]([&"antimagic"])
 power = 2
 min_skill_level = 3
 max_skill_level = 4
@@ -48,6 +51,7 @@ params = {
 [sub_resource type="Resource" id="Dispel_l5"]
 script = ExtResource("1_dispel_effect")
 effect_type = &"dispel_magic"
+effect_categories = Array[StringName]([&"antimagic"])
 power = 3
 min_skill_level = 5
 max_skill_level = 6
@@ -62,6 +66,7 @@ params = {
 [sub_resource type="Resource" id="Dispel_l7"]
 script = ExtResource("1_dispel_effect")
 effect_type = &"dispel_magic"
+effect_categories = Array[StringName]([&"antimagic"])
 power = 4
 min_skill_level = 7
 effect_target_team_filter = &"any"
@@ -75,6 +80,7 @@ params = {
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_dispel_combat")
 skill_id = &"mage_dispel_magic"
+delivery_categories = Array[StringName]([&"spell", &"antimagic"])
 target_mode = &"unit"
 target_team_filter = &"any"
 range_value = 6

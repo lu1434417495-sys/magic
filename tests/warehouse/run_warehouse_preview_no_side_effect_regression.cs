@@ -150,6 +150,8 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
             0,
             System.Array.Empty<AttributeModifierDefinition>(),
             System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),

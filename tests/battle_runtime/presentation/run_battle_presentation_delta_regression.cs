@@ -14,6 +14,7 @@ public partial class run_battle_presentation_delta_regression : LifecycleTestSce
             TestChangedCoordsStayConservative();
             TestPlacementWithoutUnitIdsStaysConservative();
             TestTimelineRefreshesAllUnitsWithoutFullBoard();
+            TestObjectiveRefreshesHudWithoutFullBoard();
             TestUnitDeltaSkipsFullRuntimeLogScan();
             TestMergeFromPreservesCombinedFacts();
             TestCommandDeltaCaptureResetsBetweenCommands();
@@ -98,6 +99,17 @@ public partial class run_battle_presentation_delta_regression : LifecycleTestSce
             0,
             "空 changed ids 是 refresh-all-units contract，不应伪造单位 id。"
         );
+    }
+
+    private void TestObjectiveRefreshesHudWithoutFullBoard()
+    {
+        var batch = new BattleEventBatch();
+        batch.MarkChanged(BattleChangeFlags.Objective);
+
+        BattlePresentationDelta delta = BattlePresentationDeltaFactory.Create(batch);
+
+        _test.True(delta.RequiresPanelRefresh, "objective fact 应刷新 HUD。");
+        _test.False(delta.RequiresFullBoardRefresh, "objective fact 不应重铺棋盘。");
     }
 
     private void TestMergeFromPreservesCombinedFacts()

@@ -59,8 +59,15 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);
 
         ConsoleProcessOutput.WriteStandard(
-            $"[BattleSim] scenario={report.ScenarioId} profiles={report.ProfileEntries.Count} comparisons={report.Comparisons.Count} report_json={report.OutputFiles.ReportJson} traces_jsonl={report.OutputFiles.TurnTraceJsonl}"
+            $"[BattleSim] scenario={report.ScenarioId} profiles={report.ProfileEntries.Count} comparisons={report.Comparisons.Count} runs={report.RunCount} completed={report.CompletedRunCount} unfinished={report.UnfinishedRunCount} report_json={report.OutputFiles.ReportJson} traces_jsonl={report.OutputFiles.TurnTraceJsonl}"
         );
+        if (!report.IsComplete)
+        {
+            ConsoleProcessOutput.WriteFailure(
+                $"[BattleSim] scenario incomplete: stalled={report.StalledRunCount} iteration_budget_exhausted={report.IterationBudgetExhaustedRunCount} invalid_runtime={report.InvalidRuntimeRunCount}. Diagnostic report was written, but the result is not valid for balance conclusions."
+            );
+            return 2;
+        }
         return 0;
     }
 }

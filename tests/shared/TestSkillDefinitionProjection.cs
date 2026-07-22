@@ -259,7 +259,8 @@ internal static class TestSkillDefinitionProjection
         int healPerLevel = 4,
         int conModBase = 2,
         int conModPer2Levels = 1,
-        IReadOnlyList<StringName> effectTags = null
+        IReadOnlyList<StringName> effectTags = null,
+        IReadOnlyList<StringName> effectCategories = null
     )
     {
         return new CombatEffectDefinition(
@@ -339,7 +340,8 @@ internal static class TestSkillDefinitionProjection
             baseHeal: baseHeal,
             healPerLevel: healPerLevel,
             conModBase: conModBase,
-            conModPer2Levels: conModPer2Levels
+            conModPer2Levels: conModPer2Levels,
+            effectCategories: effectCategories ?? System.Array.Empty<StringName>()
         );
     }
 

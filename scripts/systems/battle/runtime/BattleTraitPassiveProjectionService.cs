@@ -93,15 +93,28 @@ internal static class BattleTraitPassiveProjectionService
 
     private static void ProjectSaveTags(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (unitState?.save_advantage_tags == null || traitDef == null)
+        if (unitState == null || traitDef == null)
             return;
 
-        foreach (StringName rawTag in traitDef.SaveAdvantageTags)
+        AppendUniqueSaveTags(unitState.save_advantage_tags, traitDef.SaveAdvantageTags);
+        AppendUniqueSaveTags(unitState.save_disadvantage_tags, traitDef.SaveDisadvantageTags);
+        AppendUniqueSaveTags(unitState.save_immunity_tags, traitDef.SaveImmunityTags);
+    }
+
+    private static void AppendUniqueSaveTags(
+        StringNameList target,
+        IReadOnlyList<StringName> tags
+    )
+    {
+        if (target == null || tags == null)
+            return;
+
+        foreach (StringName rawTag in tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
-            if (tag == "" || unitState.save_advantage_tags.Contains(tag))
+            if (tag == "" || target.Contains(tag))
                 continue;
-            unitState.save_advantage_tags.Add(tag);
+            target.Add(tag);
         }
     }
 

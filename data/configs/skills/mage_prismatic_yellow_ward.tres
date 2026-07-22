@@ -1,0 +1,129 @@
+[gd_resource type="Resource" script_class="SkillDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
+
+[sub_resource type="Resource" id="Effect_l0"]
+script = ExtResource("1_effect")
+effect_type = &"layered_barrier"
+min_skill_level = 0
+max_skill_level = 2
+duration_tu = 40
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+params = {
+"area_pattern": "diamond",
+"profile_id": "prismatic_yellow_ward",
+"radius_cells": 1,
+"save_dc": 16
+}
+
+[sub_resource type="Resource" id="Effect_l3"]
+script = ExtResource("1_effect")
+effect_type = &"layered_barrier"
+min_skill_level = 3
+max_skill_level = 4
+duration_tu = 60
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+params = {
+"area_pattern": "diamond",
+"profile_id": "prismatic_yellow_ward",
+"radius_cells": 1,
+"save_dc": 16
+}
+
+[sub_resource type="Resource" id="Effect_l5"]
+script = ExtResource("1_effect")
+effect_type = &"layered_barrier"
+min_skill_level = 5
+max_skill_level = -1
+duration_tu = 80
+save_dc_mode = &"caster_spell"
+save_dc_source_ability = &"intelligence"
+save_ability = &"willpower"
+save_tag = &"magic"
+params = {
+"area_pattern": "diamond",
+"profile_id": "prismatic_yellow_ward",
+"radius_cells": 1,
+"save_dc": 16
+}
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
+skill_id = &"mage_prismatic_yellow_ward"
+delivery_categories = Array[StringName]([&"spell", &"force_effect"])
+target_mode = &"unit"
+target_team_filter = &"self"
+range_value = 0
+area_pattern = &"self"
+ap_cost = 2
+mp_cost = 70
+cooldown_tu = 20
+level_overrides = {
+3: {
+"cooldown_tu": 15
+}
+}
+mastery_trigger_mode = &"effect_applied"
+target_selection_mode = &"self"
+effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_l0"), SubResource("Effect_l3"), SubResource("Effect_l5")])
+
+[resource]
+script = ExtResource("3_skill")
+skill_id = &"mage_prismatic_yellow_ward"
+display_name = "虹光·金黄屏障"
+icon_id = &"mage_prismatic_sphere"
+description = "创造单独的黄色虹光屏障，阻挡投射而来的毒素、气体与石化效果；穿越者承受闪电伤害。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500)
+tags = Array[StringName]([&"mage", &"magic", &"defense", &"control"])
+learn_source = &"book"
+growth_tier = &"basic"
+attribute_growth_progress = {
+"constitution": 20,
+"intelligence": 20,
+"willpower": 20
+}
+level_description_template = "创造一层固定虹光屏障（半径1格，持续{duration}TU）。消耗2AP/{mp}法力，冷却{cooldown}TU。"
+level_description_configs = {
+"0": {
+"cooldown": "20",
+"duration": "40",
+"mp": "70"
+},
+"1": {
+"cooldown": "20",
+"duration": "40",
+"mp": "70"
+},
+"2": {
+"cooldown": "20",
+"duration": "40",
+"mp": "70"
+},
+"3": {
+"cooldown": "15",
+"duration": "60",
+"mp": "70"
+},
+"4": {
+"cooldown": "15",
+"duration": "60",
+"mp": "70"
+},
+"5": {
+"cooldown": "15",
+"duration": "80",
+"mp": "70"
+}
+}
+combat_profile = SubResource("Combat")
+

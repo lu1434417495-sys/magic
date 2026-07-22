@@ -21,7 +21,7 @@ creature_level = 1
 hit_die_sides = 6
 action_threshold = 25
 tags = Array[StringName]([&"humanoid", &"kobold"])
-save_advantage_tags = Array[StringName]([&"frightened_disadvantage"])
+save_disadvantage_tags = Array[StringName]([&"frightened"])
 attack_equipment_item_id = &"iron_dagger"
 base_attribute_overrides = {
 &"strength": 8,

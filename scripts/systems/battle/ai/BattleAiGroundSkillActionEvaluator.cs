@@ -131,26 +131,28 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             return null;
         }
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "ground_skill",
-                ["minimum_hit_count"] = minimum_hit_count,
-                ["allow_empty_ground_control"] = allow_empty_ground_control,
-                ["allow_ground_control_supplement_partial_hits"] =
-                    allow_ground_control_supplement_partial_hits,
-                ["minimum_ground_control_score"] = minimum_ground_control_score,
-                ["minimum_ally_threat_hit_count"] = minimum_ally_threat_hit_count,
-                ["maximum_friendly_fire_target_count"] = maximum_friendly_fire_target_count,
-                ["allow_friendly_lethal"] = allow_friendly_lethal,
-                ["threat_minimum_safe_distance"] = threat_minimum_safe_distance,
-                ["threat_safe_distance_margin"] = threat_safe_distance_margin,
-                ["distance_reference"] = distance_reference.ToString(),
-                ["desired_min_distance"] = desired_min_distance,
-                ["desired_max_distance"] = desired_max_distance,
-            }
-        );
+        AiActionTrace actionTrace = context?.trace_enabled == true
+            ? BeginActionTrace(
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "ground_skill",
+                    ["minimum_hit_count"] = minimum_hit_count,
+                    ["allow_empty_ground_control"] = allow_empty_ground_control,
+                    ["allow_ground_control_supplement_partial_hits"] =
+                        allow_ground_control_supplement_partial_hits,
+                    ["minimum_ground_control_score"] = minimum_ground_control_score,
+                    ["minimum_ally_threat_hit_count"] = minimum_ally_threat_hit_count,
+                    ["maximum_friendly_fire_target_count"] = maximum_friendly_fire_target_count,
+                    ["allow_friendly_lethal"] = allow_friendly_lethal,
+                    ["threat_minimum_safe_distance"] = threat_minimum_safe_distance,
+                    ["threat_safe_distance_margin"] = threat_safe_distance_margin,
+                    ["distance_reference"] = distance_reference.ToString(),
+                    ["desired_min_distance"] = desired_min_distance,
+                    ["desired_max_distance"] = desired_max_distance,
+                }
+            )
+            : null;
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
@@ -363,23 +365,26 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                                 $"{unitState?.display_name} 准备用 {skillDefinition.DisplayName} 覆盖 {rawHitCount} 个单位。"
                             );
                         }
-                        TraceOfferCandidate(
-                            actionTrace,
-                            BuildCandidateSummary(
-                                FormatSkillVariantLabel(skillDefinition, castVariant),
-                                command,
-                                null,
-                                new Dictionary<string, object>(StringComparer.Ordinal)
-                                {
-                                    ["raw_hit_count"] = rawHitCount,
-                                    ["ally_threat_hit_count"] = allyThreatHitCount,
-                                    ["prefilter_raw_hit_count"] = prefilter.RawHitCount,
-                                    ["prefilter_ally_threat_hit_count"] =
-                                        prefilter.AllyThreatHitCount,
-                                    ["skill_id"] = skillId.ToString(),
-                                }
-                            )
-                        );
+                        if (actionTrace != null)
+                        {
+                            TraceOfferCandidate(
+                                actionTrace,
+                                BuildCandidateSummary(
+                                    FormatSkillVariantLabel(skillDefinition, castVariant),
+                                    command,
+                                    null,
+                                    new Dictionary<string, object>(StringComparer.Ordinal)
+                                    {
+                                        ["raw_hit_count"] = rawHitCount,
+                                        ["ally_threat_hit_count"] = allyThreatHitCount,
+                                        ["prefilter_raw_hit_count"] = prefilter.RawHitCount,
+                                        ["prefilter_ally_threat_hit_count"] =
+                                            prefilter.AllyThreatHitCount,
+                                        ["skill_id"] = skillId.ToString(),
+                                    }
+                                )
+                            );
+                        }
                         continue;
                     }
 
@@ -402,33 +407,36 @@ internal sealed class BattleAiGroundSkillActionEvaluator
                         continue;
                     }
 
-                    TraceOfferCandidate(
-                        actionTrace,
-                        BuildCandidateSummary(
-                            FormatSkillVariantLabel(skillDefinition, castVariant),
-                            command,
-                            scoreInput,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["raw_hit_count"] = rawHitCount,
-                                ["effective_hit_count"] = scoreInput.effective_target_count,
-                                ["ally_threat_hit_count"] = allyThreatHitCount,
-                                ["prefilter_raw_hit_count"] = prefilter.RawHitCount,
-                                ["prefilter_ally_threat_hit_count"] =
-                                    prefilter.AllyThreatHitCount,
-                                ["allow_empty_ground_control"] = allow_empty_ground_control,
-                                ["allow_ground_control_supplement_partial_hits"] =
-                                    allow_ground_control_supplement_partial_hits,
-                                ["estimated_ground_control_cell_count"] =
-                                    scoreInput.estimated_ground_control_cell_count,
-                                ["ground_control_score"] = scoreInput.ground_control_score,
-                                ["acceptance_reason"] = _resolve_candidate_acceptance_reason(
-                                    scoreInput
-                                ),
-                                ["skill_id"] = skillId.ToString(),
-                            }
-                        )
-                    );
+                    if (actionTrace != null)
+                    {
+                        TraceOfferCandidate(
+                            actionTrace,
+                            BuildCandidateSummary(
+                                FormatSkillVariantLabel(skillDefinition, castVariant),
+                                command,
+                                scoreInput,
+                                new Dictionary<string, object>(StringComparer.Ordinal)
+                                {
+                                    ["raw_hit_count"] = rawHitCount,
+                                    ["effective_hit_count"] = scoreInput.effective_target_count,
+                                    ["ally_threat_hit_count"] = allyThreatHitCount,
+                                    ["prefilter_raw_hit_count"] = prefilter.RawHitCount,
+                                    ["prefilter_ally_threat_hit_count"] =
+                                        prefilter.AllyThreatHitCount,
+                                    ["allow_empty_ground_control"] = allow_empty_ground_control,
+                                    ["allow_ground_control_supplement_partial_hits"] =
+                                        allow_ground_control_supplement_partial_hits,
+                                    ["estimated_ground_control_cell_count"] =
+                                        scoreInput.estimated_ground_control_cell_count,
+                                    ["ground_control_score"] = scoreInput.ground_control_score,
+                                    ["acceptance_reason"] = _resolve_candidate_acceptance_reason(
+                                        scoreInput
+                                    ),
+                                    ["skill_id"] = skillId.ToString(),
+                                }
+                            )
+                        );
+                    }
 
                     if (!IsBetterSkillScoreInput(scoreInput, bestScoreInput))
                     {

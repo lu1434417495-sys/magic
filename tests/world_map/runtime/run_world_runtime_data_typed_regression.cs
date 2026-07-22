@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -10,11 +12,119 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
     public override void _Initialize()
     {
         TestMalformedSettlementStateIsRejected();
+        TestMalformedEncounterAnchorIsRejected();
+        TestTypedSettlementFactoriesPreserveDecodeContract();
         TestTypedSettlementUpdateProjectsToPayload();
         TestResourceNodesRoundTripThroughTypedWorldData();
         TestContextAndRuntimeTransactionUseTypedWorldData();
         TestSaveWorldStateAcceptsTypedWorldData();
         RequestTestExit(_test.Finish("World runtime data typed regression"));
+    }
+
+    private void TestMalformedEncounterAnchorIsRejected()
+    {
+        GDictionary worldData = BuildWorldData();
+        worldData["encounter_anchors"] = new GArray
+        {
+            new GDictionary
+            {
+                ["entity_id"] = "wild_anchor",
+                ["display_name"] = "Wild Anchor",
+                ["world_coord"] = new Vector2I(4, 5),
+                ["faction_id"] = "hostile",
+                ["region_tag"] = "north_wilds",
+                ["vision_range"] = 2,
+                ["is_cleared"] = false,
+                ["encounter_kind"] = "single",
+                ["encounter_profile_id"] = "",
+                ["growth_stage"] = 0,
+                ["suppressed_until_step"] = 0,
+            },
+        };
+
+        _test.True(
+            WorldRuntimeData.FromDictionary(worldData) == null,
+            "WorldRuntimeData.FromDictionary 应拒绝包含空 encounter_profile_id 的遭遇锚点，而不是静默丢弃。"
+        );
+    }
+
+    private void TestTypedSettlementFactoriesPreserveDecodeContract()
+    {
+        SettlementShopStockEntryData stock = SettlementShopStockEntryData.Create(
+            "healing_herb",
+            2,
+            12
+        );
+        SettlementShopStateData shopState = SettlementShopStateData.Create(
+            "village_basic_supply",
+            new[] { stock },
+            99L,
+            5
+        );
+        WorldMapSettlementStateData settlementState = WorldMapSettlementStateData.Create(
+            true,
+            7,
+            new[] { "safe" },
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["rest_basic"] = 3 },
+            new Dictionary<string, SettlementShopStateData>(StringComparer.Ordinal)
+            {
+                ["village_basic_supply"] = shopState,
+            }
+        );
+
+        _test.True(
+            settlementState != null
+                && WorldMapSettlementStateData.TryFromPlain(
+                    settlementState.BuildSnapshotPlain(),
+                    out WorldMapSettlementStateData decoded,
+                    out _
+                )
+                && decoded.GetShopState("village_basic_supply") != null,
+            "typed settlement factory 产物必须能按当前 v15 schema 解码。"
+        );
+        _test.True(
+            SettlementShopStateData.Create(
+                "village_basic_supply",
+                new[] { stock, stock },
+                99L,
+                5
+            ) == null,
+            "typed shop factory 不得产生包含重复 item_id 的库存。"
+        );
+        _test.True(
+            SettlementShopStateData.Create(
+                "village_basic_supply",
+                new SettlementShopStockEntryData[] { stock, null },
+                99L,
+                5
+            ) == null,
+            "typed shop factory 不得静默丢弃 null 库存项。"
+        );
+        _test.True(
+            WorldMapSettlementStateData.Create(
+                true,
+                0,
+                Array.Empty<string>(),
+                new Dictionary<string, int>(StringComparer.Ordinal)
+                {
+                    ["rest_basic"] = 1,
+                    [" rest_basic "] = 2,
+                },
+                new Dictionary<string, SettlementShopStateData>(StringComparer.Ordinal)
+            ) == null,
+            "typed settlement factory 必须拒绝规范化后冲突的 cooldown key。"
+        );
+
+        Dictionary<string, object> malformedSnapshot = settlementState.BuildSnapshotPlain();
+        malformedSnapshot["cooldowns"] = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["rest_basic"] = 1,
+            [" rest_basic "] = 2,
+        };
+        _test.False(
+            WorldMapSettlementStateData.TryFromPlain(malformedSnapshot, out _, out _),
+            "v15 parser 必须与 typed factory 一致拒绝规范化后冲突的 cooldown key。"
+        );
     }
 
     private void TestMalformedSettlementStateIsRejected()
@@ -29,6 +139,48 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             WorldRuntimeData.FromDictionary(worldData) == null,
             "WorldRuntimeData.FromDictionary 应拒绝 malformed settlement_state。"
         );
+
+        GDictionary missingFieldWorldData = BuildWorldData();
+        GDictionary missingFieldRecord = missingFieldWorldData["settlements"]
+            .AsGodotArray()[0]
+            .AsGodotDictionary();
+        GDictionary missingFieldState = missingFieldRecord["settlement_state"]
+            .AsGodotDictionary();
+        missingFieldState.Remove("shop_states");
+        missingFieldRecord["settlement_state"] = missingFieldState;
+        missingFieldWorldData["settlements"] = new GArray { missingFieldRecord };
+        _test.True(
+            WorldRuntimeData.FromDictionary(missingFieldWorldData) == null,
+            "WorldRuntimeData.FromDictionary 应拒绝缺少当前必填字段的 settlement_state。"
+        );
+
+        GDictionary extraFieldWorldData = BuildWorldData();
+        GDictionary extraFieldRecord = extraFieldWorldData["settlements"]
+            .AsGodotArray()[0]
+            .AsGodotDictionary();
+        GDictionary extraFieldState = extraFieldRecord["settlement_state"].AsGodotDictionary();
+        extraFieldState["world_step"] = 0;
+        extraFieldRecord["settlement_state"] = extraFieldState;
+        extraFieldWorldData["settlements"] = new GArray { extraFieldRecord };
+        _test.True(
+            WorldRuntimeData.FromDictionary(extraFieldWorldData) == null,
+            "WorldRuntimeData.FromDictionary 应拒绝 settlement_state 中的 transient/额外字段。"
+        );
+
+        GDictionary obsoleteMirrorWorldData = BuildWorldData();
+        GDictionary obsoleteMirrorRecord = obsoleteMirrorWorldData["settlements"]
+            .AsGodotArray()[0]
+            .AsGodotDictionary();
+        GDictionary obsoleteMirrorState = obsoleteMirrorRecord["settlement_state"]
+            .AsGodotDictionary();
+        obsoleteMirrorState["shop_inventory_seed"] = 1L;
+        obsoleteMirrorState["shop_last_refresh_step"] = 0;
+        obsoleteMirrorRecord["settlement_state"] = obsoleteMirrorState;
+        obsoleteMirrorWorldData["settlements"] = new GArray { obsoleteMirrorRecord };
+        _test.True(
+            WorldRuntimeData.FromDictionary(obsoleteMirrorWorldData) == null,
+            "v15 settlement_state 应拒绝已删除的顶层 shop seed/刷新步镜像。"
+        );
     }
 
     private void TestTypedSettlementUpdateProjectsToPayload()
@@ -36,9 +188,32 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(BuildWorldData());
         _test.True(runtimeData != null, "valid world_data 应能构建 typed WorldRuntimeData。");
 
+        SettlementShopStockEntryData stock = SettlementShopStockEntryData.Create(
+            "healing_herb",
+            2,
+            12
+        );
+        SettlementShopStateData shopState = SettlementShopStateData.Create(
+            "village_basic_supply",
+            new[] { stock },
+            99L,
+            5
+        );
         bool updated = runtimeData.TrySetSettlementState(
             "spring",
-            WorldMapSettlementStateData.Create(true, 7, new[] { "safe" })
+            WorldMapSettlementStateData.Create(
+                true,
+                7,
+                new[] { "safe" },
+                new Dictionary<string, int>(StringComparer.Ordinal)
+                {
+                    ["rest_basic"] = 3,
+                },
+                new Dictionary<string, SettlementShopStateData>(StringComparer.Ordinal)
+                {
+                    ["village_basic_supply"] = shopState,
+                }
+            )
         );
         _test.True(updated, "typed settlement state update 应成功。");
 
@@ -53,6 +228,23 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             state["active_conditions"].AsGodotArray()[0].AsString(),
             "safe",
             "typed active_conditions 更新应体现在 projection。"
+        );
+        _test.Eq(
+            state["cooldowns"].AsGodotDictionary()["rest_basic"].AsInt32(),
+            3,
+            "typed cooldowns 更新应体现在 projection。"
+        );
+        _test.False(state.ContainsKey("shop_inventory_seed"), "projection 不应恢复失效的顶层 shop seed。");
+        _test.False(state.ContainsKey("shop_last_refresh_step"), "projection 不应恢复失效的顶层刷新步。");
+        GDictionary projectedShop = state["shop_states"].AsGodotDictionary()
+            ["village_basic_supply"].AsGodotDictionary();
+        _test.Eq(projectedShop["seed"].AsInt64(), 99L, "每个商店应保留自身实际随机 seed。");
+        _test.Eq(projectedShop["last_refresh_step"].AsInt32(), 5, "每个商店应保留自身刷新步。");
+        _test.Eq(
+            projectedShop["current_inventory"].AsGodotArray()[0]
+                .AsGodotDictionary()["quantity"].AsInt32(),
+            2,
+            "typed shop_states/current_inventory 更新应体现在 projection。"
         );
     }
 
@@ -143,7 +335,7 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             ["submap_return_stack"] = new GArray(),
             ["settlements"] = new GArray
             {
-                BuildSettlementRecord("spring", "Spring", new GDictionary()),
+                BuildSettlementRecord("spring", "Spring", BuildSettlementState()),
             },
             ["world_events"] = new GArray(),
             ["encounter_anchors"] = new GArray(),
@@ -192,6 +384,16 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
             ["remaining_charges"] = remainingCharges,
         };
     }
+
+    private static GDictionary BuildSettlementState() =>
+        new()
+        {
+            ["visited"] = true,
+            ["reputation"] = 0,
+            ["active_conditions"] = new GArray(),
+            ["cooldowns"] = new GDictionary(),
+            ["shop_states"] = new GDictionary(),
+        };
 
     private static GDictionary BuildSettlementRecord(
         string settlementId,

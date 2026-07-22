@@ -238,7 +238,11 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
                 "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_member_ids"
             );
             var hostileUnits =
-                runtime?._unit_factory?.BuildAllyUnits(party_state, hostileContext)
+                runtime?._unit_factory?.BuildAllyUnits(
+                    party_state,
+                    hostileContext,
+                    contextRole: BattleStartContextReferenceRole.BorrowedForSynchronousStart
+                )
                 ?? System.Array.Empty<BattleUnitState>();
             Godot.Collections.Array hostileUnitPayloads = contextLease.Own(
                 new Godot.Collections.Array(),

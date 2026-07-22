@@ -15,38 +15,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
     private StringName _scopedCommandSkillUnitId = "";
     private StringName _scopedCommandSkillId = "";
     private int _scopedCommandSkillLevel;
-    private readonly record struct ChainDamageParameters(
-        int BaseRadius,
-        StringName BonusTerrainEffectId,
-        int WetChainRadius,
-        bool PreventRepeatTarget
-    )
-    {
-        public static ChainDamageParameters FromEffect(CombatEffectDefinition effectDefinition)
-        {
-            int baseRadius = Math.Max(
-                effectDefinition?.GetIntParamTyped("base_chain_radius", 1) ?? 1,
-                0
-            );
-            return new ChainDamageParameters(
-                baseRadius,
-                effectDefinition?.GetStringNameParamTyped("bonus_terrain_effect_id")
-                    ?? new StringName(""),
-                Math.Max(
-                    effectDefinition?.GetIntParamTyped("wet_chain_radius", baseRadius) ?? baseRadius,
-                    baseRadius
-                ),
-                effectDefinition?.PreventRepeatTarget ?? true
-            );
-        }
-    }
-
-    private readonly record struct ChainDamageHop(
-        Vector2I OriginCoord,
-        BattleUnitState TargetUnit
-    );
-
     private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private readonly BattleSkillPreviewService _skillPreviewService = new();
+    private readonly BattleSkillTargetValidationService _targetValidationService = new();
+    private readonly BattleChainDamageService _chainDamageService = new();
+    private readonly BattleRandomChainSkillService _randomChainSkillService = new();
 
     internal BattleSkillExecutionOrchestrator()
     {
@@ -63,12 +36,134 @@ internal sealed partial class BattleSkillExecutionOrchestrator
     internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
+        _skillPreviewService.Setup(runtime, this, _targetValidationService);
+        _targetValidationService.Setup(runtime, this, _randomChainSkillService);
+        _chainDamageService.Setup(runtime, this, _skillPreviewService);
+        _randomChainSkillService.Setup(runtime, this, _targetValidationService);
     }
 
     internal void DisposeRuntime()
     {
+        _chainDamageService.DisposeRuntime();
+        _skillPreviewService.DisposeRuntime();
+        _randomChainSkillService.DisposeRuntime();
+        _targetValidationService.DisposeRuntime();
         _runtime = null;
     }
+
+    internal void _preview_skill_command(
+        BattleUnitReadView active_unit,
+        BattleCommand command,
+        BattlePreview preview
+    ) => _skillPreviewService._preview_skill_command(active_unit, command, preview);
+
+    internal void AppendDamageResultLogLines(
+        BattleEventBatch batch,
+        string subject_label,
+        string target_display_name,
+        AttackEffectResolutionResult result
+    ) =>
+        _skillPreviewService.AppendDamageResultLogLines(
+            batch,
+            subject_label,
+            target_display_name,
+            result
+        );
+
+    internal GStringNameArray _normalize_target_unit_ids(
+        BattleCommand command,
+        bool allow_repeat = false
+    ) => _targetValidationService._normalize_target_unit_ids(command, allow_repeat);
+
+    internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids) =>
+        _targetValidationService._sort_target_unit_ids_for_execution(target_unit_ids);
+
+    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant = null,
+        bool requireAp = true
+    ) =>
+        _targetValidationService.GetUnitSkillTargetAffordance(
+            activeUnit,
+            targetUnit,
+            skillDefinition,
+            castVariant,
+            requireAp
+        );
+
+    internal string _get_unit_skill_target_validation_message(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition cast_variant = null
+    ) =>
+        _targetValidationService._get_unit_skill_target_validation_message(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+
+    internal string _get_unit_skill_target_validation_message(
+        BattleUnitReadView active_unit,
+        BattleUnitReadView target_unit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition cast_variant = null
+    ) =>
+        _targetValidationService._get_unit_skill_target_validation_message(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+
+    internal BattleUnitSkillValidationResult _validate_unit_skill_targets_result(
+        BattleUnitState active_unit,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition cast_variant = null
+    ) =>
+        _targetValidationService._validate_unit_skill_targets_result(
+            active_unit,
+            command,
+            skillDefinition,
+            cast_variant
+        );
+
+    internal void _apply_chain_damage_effects(
+        BattleUnitState source_unit,
+        BattleUnitState primary_target,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        AttackEffectResolutionResult primaryResolution,
+        BattleEventBatch batch,
+        string skill_subject,
+        BattleSpellControlResult spell_control_context = default
+    ) =>
+        _chainDamageService._apply_chain_damage_effects(
+            source_unit,
+            primary_target,
+            skillDefinition,
+            effectDefinitions,
+            primaryResolution,
+            batch,
+            skill_subject,
+            spell_control_context
+        );
+
+    internal bool _is_within_chain_radius(
+        BattleUnitState primary_target,
+        BattleUnitState candidate,
+        int max_radius
+    ) => _chainDamageService._is_within_chain_radius(primary_target, candidate, max_radius);
+
+    internal List<Vector2I> _get_line_coords(Vector2I from, Vector2I to) =>
+        _chainDamageService._get_line_coords(from, to);
+
+    internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit) =>
+        _chainDamageService._is_chain_path_clear(source_unit, target_unit);
 
     // ============================================================
     // 委托 _runtime 的薄包装
@@ -556,7 +651,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied || IsEquipmentSkillCommand(command))
             {
-                Runtime?.CommitEquipmentSkillUsageIfNeeded(
+                CommitEquipmentSkillUsageIfNeeded(
                     active_unit,
                     command,
                     batch,
@@ -597,7 +692,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (meteorApplied)
             {
-                Runtime?.CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
+                CommitEquipmentSkillUsageIfNeeded(active_unit, command, batch);
                 if (ShouldGrantSkillMasteryForCommand(command, active_unit, skillDefinition))
                 {
                     _grant_skill_mastery_if_needed(active_unit, skillDefinition, batch);
@@ -644,7 +739,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (definitionApplied || IsEquipmentSkillCommand(command))
             {
-                Runtime?.CommitEquipmentSkillUsageIfNeeded(
+                CommitEquipmentSkillUsageIfNeeded(
                     active_unit,
                     command,
                     batch,
@@ -669,6 +764,81 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             command?.skill_entry_id ?? new StringName("")
         );
         return skillEntryId.ToString().StartsWith("equipment_skill:", StringComparison.Ordinal);
+    }
+
+    internal bool CommitEquipmentSkillUsageIfNeeded(
+        BattleUnitState unit,
+        BattleCommand command,
+        BattleEventBatch batch = null,
+        BattleEquipmentSkillUseOutcome skillOutcome = null
+    )
+    {
+        BattleRuntimeModule runtime = Runtime;
+        if (runtime == null || unit == null || command == null)
+            return false;
+        BattleSkillAvailabilityService service = new(
+            runtime._skillCatalog,
+            runtime._skillDefinitionIndex,
+            runtime._equipmentAbilityBindingIndex,
+            runtime._itemDefIndex
+        );
+        BattleSkillAccessResult accessResult = service.ValidateSkillEntryAccess(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                Consumer = BattleSkillAvailabilityConsumer.PreviewExecution,
+                IncludeKnownSkills = false,
+                IncludeEquipmentSkills = true,
+                WorldStep = runtime.GetBattleWorldStep(),
+                BattleState = runtime._state,
+            },
+            command.skill_entry_id,
+            command.skill_id
+        );
+        if (!accessResult.Allowed)
+            return false;
+
+        bool committed = EquipmentAbilityUsageRuntime.TryCommitUsage(
+            unit,
+            accessResult.Entry,
+            runtime.GetBattleWorldStep()
+        );
+        bool triggered = runtime._equipment_ability_runtime_service?.ResolveGrantedSkillUsed(
+            new BattleEquipmentAbilityGrantedSkillUsedContext
+            {
+                SourceUnit = unit,
+                TargetUnit = ResolveCommandPrimaryTargetUnit(runtime._state, command),
+                BattleState = runtime._state,
+                Batch = batch,
+                BindingId = accessResult.Entry.EquipmentBindingId,
+                GrantedActionId = accessResult.Entry.EquipmentGrantedActionId,
+                SkillId = accessResult.Entry.EntryRef.SkillId,
+                SkillEntryId = accessResult.Entry.EntryRef.SkillEntryId,
+                SkillOutcome = skillOutcome ?? BattleEquipmentSkillUseOutcome.Empty,
+            }
+        ) == true;
+        if (committed || triggered)
+            batch?.AddChangedUnitId(unit.unit_id);
+        return committed || triggered;
+    }
+
+    private static BattleUnitState ResolveCommandPrimaryTargetUnit(
+        BattleState state,
+        BattleCommand command
+    )
+    {
+        if (state == null || command == null)
+            return null;
+        StringName targetUnitId = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (targetUnitId != "" && state.TryGetUnitTyped(targetUnitId, out BattleUnitState target))
+            return target;
+        foreach (StringName candidateId in command.TargetUnitIdsTyped ?? Array.Empty<StringName>())
+        {
+            targetUnitId = ProgressionDataUtils.to_string_name(candidateId);
+            if (targetUnitId != "" && state.TryGetUnitTyped(targetUnitId, out target))
+                return target;
+        }
+        return null;
     }
 
     private static bool ShouldGrantSkillMasteryForCommand(
@@ -899,7 +1069,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         };
     }
 
-    private static BattleKillProvenance BuildWeaponAttackKillProvenance(
+    internal static BattleKillProvenance BuildWeaponAttackKillProvenance(
         BattleUnitState sourceUnit,
         AttackEffectResolutionResult result,
         StringName sourceActionId
@@ -1159,130 +1329,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return applied;
     }
 
-    internal void _preview_skill_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        BattlePreview preview
-    )
-    {
-        AiTraceRecorder.Enter("preview:skill.orchestrator");
-        _preview_skill_command_impl(active_unit, command, preview);
-        AiTraceRecorder.Exit("preview:skill.orchestrator");
-    }
-
-    internal void _preview_skill_command_impl(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        BattlePreview preview
-    )
-    {
-        SkillDefinition skillDefinition = Runtime?.GetSkillDefinitionTyped(command.skill_id);
-        if (skillDefinition?.CombatProfile == null)
-        {
-            preview.AddLogLine("技能或目标无效。");
-            return;
-        }
-        var runtime = _runtime as BattleRuntimeModule;
-        bool isMeteorSwarm =
-            skillDefinition.CombatProfile.SpecialResolutionProfileId
-            == new StringName("meteor_swarm");
-        if (runtime != null && isMeteorSwarm)
-        {
-            AiTraceRecorder.Enter("preview:skill.meteor_gate");
-            BattleSpecialProfileGateResult gateResult = runtime._special_profile_gate != null
-                ? runtime._special_profile_gate.PreviewSkill(
-                    skillDefinition,
-                    command,
-                    active_unit,
-                    runtime._state
-                )
-                : null;
-            AiTraceRecorder.Exit("preview:skill.meteor_gate");
-            preview.special_profile_gate_result = gateResult;
-            if (gateResult == null || !gateResult.Allowed)
-            {
-                if (
-                    gateResult != null
-                    && !string.IsNullOrEmpty(gateResult.PlayerMessage)
-                )
-                {
-                    preview.AddLogLine(gateResult.PlayerMessage);
-                }
-                else
-                {
-                    preview.AddLogLine("该禁咒配置未通过校验，暂时无法施放。");
-                }
-                return;
-            }
-            string blockReason = _get_skill_command_block_reason(active_unit, skillDefinition, null);
-            if (!string.IsNullOrEmpty(blockReason))
-            {
-                preview.AddLogLine(blockReason);
-                return;
-            }
-            if (runtime._meteor_swarm_resolver != null)
-            {
-                runtime._meteor_swarm_resolver.PopulatePreview(
-                    active_unit,
-                    command,
-                    skillDefinition,
-                    preview
-                );
-                return;
-            }
-            preview.allowed = false;
-            preview.AddLogLine("该禁咒结算尚未接入。");
-            return;
-        }
-        AiTraceRecorder.Enter("preview:skill.resolve_options");
-        bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
-        BattleSkillResolutionPolicy policy = Runtime?._skill_resolution_rules
-            ?.BuildSkillResolutionPolicy(
-                skillDefinition,
-                active_unit,
-                command != null ? command.skill_variant_id : new StringName(""),
-                _normalize_target_unit_ids(command, allowRepeat)
-            );
-        bool routesToUnitTargeting = policy?.RoutesToUnitTargeting == true;
-        AiTraceRecorder.Exit("preview:skill.resolve_options");
-        AiTraceRecorder.Enter("preview:skill.option_block");
-        string optionBlockReason = policy?.OptionErrorMessage ?? "技能或目标无效。";
-        AiTraceRecorder.Exit("preview:skill.option_block");
-        if (!string.IsNullOrEmpty(optionBlockReason))
-        {
-            preview.AddLogLine(optionBlockReason);
-            return;
-        }
-
-        if (routesToUnitTargeting)
-        {
-            _preview_unit_skill_command(
-                active_unit,
-                command,
-                skillDefinition,
-                policy?.UnitExecutionCastVariantDefinition,
-                preview
-            );
-            return;
-        }
-
-        bool routesToGroundTargeting = !routesToUnitTargeting
-            && policy?.GroundCastVariantDefinition != null;
-        if (routesToGroundTargeting)
-        {
-            _preview_ground_skill_command(
-                active_unit,
-                command,
-                skillDefinition,
-                policy.GroundCastVariantDefinition,
-                preview
-            );
-            return;
-        }
-
-        preview.AddLogLine("技能或目标无效。");
-    }
-
     internal bool _handle_meteor_swarm_skill_command(
         BattleUnitState active_unit,
         BattleCommand command,
@@ -1388,738 +1434,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return outcomeCommitter.CommitMeteorSwarmResult(result, batch);
     }
 
-    internal void _preview_unit_skill_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattlePreview preview
-    )
-    {
-        AiTraceRecorder.Enter("preview:unit_skill");
-        _preview_unit_skill_command_impl(
-            active_unit,
-            command,
-            preview,
-            skillDefinition,
-            castVariantDefinition
-        );
-        AiTraceRecorder.Exit("preview:unit_skill");
-    }
-
-    internal void _preview_unit_skill_command_impl(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        BattlePreview preview,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        if (preview == null)
-        {
-            return;
-        }
-        preview.ClearSaveBranchPreview();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
-            ?.ResolveUnitCastVariantDefinition(
-                skillDefinition,
-                active_unit,
-                command != null ? command.skill_variant_id : new StringName("")
-            );
-        string blockReason = _get_skill_command_block_reason(
-            active_unit,
-            skillDefinition,
-            castVariantDefinition
-        );
-        if (!string.IsNullOrEmpty(blockReason))
-        {
-            preview.AddLogLine(blockReason);
-            return;
-        }
-
-        AiTraceRecorder.Enter("preview:unit_skill.validate_targets");
-        BattleUnitSkillPreviewValidationResult validation = _validate_unit_skill_preview_targets_result(
-            active_unit,
-            command,
-            skillDefinition,
-            castVariantDefinition
-        );
-        AiTraceRecorder.Exit("preview:unit_skill.validate_targets");
-        AiTraceRecorder.Enter("preview:unit_skill.copy_validation");
-        preview.allowed = validation.Allowed;
-        preview.SetTargetUnitIds(validation.TargetUnitIds);
-        preview.SetRandomChainCandidateUnitIds(validation.RandomChainCandidateUnitIds);
-        preview.ClearTargetCoords();
-        foreach (Vector2I previewCoord in validation.PreviewCoords)
-        {
-            preview.AddTargetCoord(previewCoord);
-        }
-        AiTraceRecorder.Exit("preview:unit_skill.copy_validation");
-        if (preview.allowed)
-        {
-            AiTraceRecorder.Enter("preview:unit_skill.hit_preview");
-            preview.hit_preview = _build_unit_skill_hit_preview(
-                active_unit,
-                validation.TargetUnits,
-                skillDefinition,
-                castVariantDefinition
-            );
-            AiTraceRecorder.Exit("preview:unit_skill.hit_preview");
-            AiTraceRecorder.Enter("preview:unit_skill.damage_preview");
-            preview.SetDamagePreview(
-                BuildUnitSkillDamagePreviewTyped(
-                    active_unit,
-                    skillDefinition,
-                    castVariantDefinition
-                )
-            );
-            preview.SetSaveBranchPreview(
-                BuildUnitSkillSaveBranchPreview(
-                    active_unit,
-                    validation.TargetUnits,
-                    skillDefinition,
-                    castVariantDefinition
-                )
-            );
-            AiTraceRecorder.Exit("preview:unit_skill.damage_preview");
-            AiTraceRecorder.Enter("preview:unit_skill.log_lines");
-            string skillLabel = _format_skill_variant_label(skillDefinition, castVariantDefinition);
-            if (validation.TargetUnits.Count == 1)
-            {
-                BattleUnitReadView targetUnit = validation.TargetUnits[0];
-                if (targetUnit.IsValid)
-                {
-                    preview.AddLogLine(
-                        $"{active_unit.DisplayName} 可对 {targetUnit.DisplayName} 使用 {skillLabel}。"
-                    );
-                    if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
-                    {
-                        preview.AddLogLine(preview.hit_preview.SummaryText);
-                    }
-                    _append_damage_preview_line(preview);
-                    AiTraceRecorder.Exit("preview:unit_skill.log_lines");
-                    return;
-                }
-            }
-            if (
-                skillDefinition?.CombatProfile != null
-                && skillDefinition.CombatProfile.TargetSelectionModeKind
-                    == BattleTargetSelectionMode.RandomChain
-            )
-            {
-                preview.AddLogLine(
-                    $"{active_unit.DisplayName} 可用 {skillLabel} 从 {preview.RandomChainCandidateUnitIdsTyped.Count} 个候选单位中随机连击。"
-                );
-                _append_damage_preview_line(preview);
-                AiTraceRecorder.Exit("preview:unit_skill.log_lines");
-                return;
-            }
-            preview.AddLogLine(
-                $"{active_unit.DisplayName} 可对 {preview.TargetUnitIdsTyped.Count} 个单位使用 {skillLabel}。"
-            );
-            if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
-            {
-                preview.AddLogLine(preview.hit_preview.SummaryText);
-            }
-            _append_damage_preview_line(preview);
-            AiTraceRecorder.Exit("preview:unit_skill.log_lines");
-            return;
-        }
-        preview.AddLogLine(
-            string.IsNullOrEmpty(validation.Message) ? "技能或目标无效。" : validation.Message
-        );
-    }
-
-    internal void _preview_ground_skill_command(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattlePreview preview
-    )
-    {
-        AiTraceRecorder.Enter("preview:ground_skill");
-        _preview_ground_skill_command_impl(
-            active_unit,
-            command,
-            preview,
-            skillDefinition,
-            castVariantDefinition
-        );
-        AiTraceRecorder.Exit("preview:ground_skill");
-    }
-
-    internal void _preview_ground_skill_command_impl(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        BattlePreview preview,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        if (preview == null)
-        {
-            return;
-        }
-        preview.ClearSaveBranchPreview();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
-            ?.ResolveGroundCastVariantDefinition(
-                skillDefinition,
-                active_unit,
-                command != null ? command.skill_variant_id : new StringName("")
-            );
-        string blockReason = _get_skill_command_block_reason(
-            active_unit,
-            skillDefinition,
-            castVariantDefinition
-        );
-        if (!string.IsNullOrEmpty(blockReason))
-        {
-            preview.AddLogLine(blockReason);
-            return;
-        }
-        AiTraceRecorder.Enter("preview:ground_skill.validate");
-        BattleGroundSkillValidationResult validation =
-            Runtime?.ValidateGroundSkillCommandResultTyped(
-                active_unit,
-                skillDefinition,
-                castVariantDefinition,
-                command
-            ) ?? BattleGroundSkillValidationResult.Denied("地面技能目标无效。");
-        AiTraceRecorder.Exit("preview:ground_skill.validate");
-        AiTraceRecorder.Enter("preview:ground_skill.preview_coords");
-        preview.ClearTargetCoords();
-        IReadOnlyList<Vector2I> previewCoords;
-        if (validation.HasPreviewCoords)
-        {
-            previewCoords = validation.PreviewCoords;
-        }
-        else
-        {
-            Vector2I sourceCoord = active_unit.IsValid
-                ? active_unit.Coord
-                : new Vector2I(-1, -1);
-            IReadOnlyList<Vector2I> builtCoords =
-                Runtime?.BuildGroundEffectCoordsTyped(
-                    skillDefinition,
-                    validation.TargetCoords,
-                    sourceCoord,
-                    active_unit,
-                    castVariantDefinition
-                ) ?? Array.Empty<Vector2I>();
-            previewCoords = builtCoords;
-        }
-        preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
-        bool allowed = validation.Allowed;
-        IReadOnlyList<CombatEffectDefinition> previewUnitEffectDefinitions;
-        IReadOnlyList<Vector2I> previewUnitEffectCoords;
-        bool chargePathPreview = false;
-        if (allowed && Runtime?._charge_resolver != null)
-        {
-            CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
-                .GetChargePathStepAoeEffectDefinition(
-                    castVariantDefinition,
-                    skillDefinition,
-                    active_unit
-                );
-            if (pathStepAoeEffect != null)
-            {
-                chargePathPreview = true;
-                previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
-                    active_unit,
-                    skillDefinition,
-                    validation.Direction,
-                    validation.Distance,
-                    pathStepAoeEffect
-                );
-            }
-        }
-        if (chargePathPreview)
-        {
-            previewUnitEffectDefinitions = Runtime?.CollectGroundUnitEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    active_unit
-                ) ?? Array.Empty<CombatEffectDefinition>();
-            previewUnitEffectCoords = previewCoords;
-        }
-        else
-        {
-            GroundEffectBarrierClipContext barrierClip = PreviewGroundEffectBarrierClipContext(
-                active_unit,
-                skillDefinition,
-                castVariantDefinition,
-                validation.TargetCoords,
-                previewCoords
-            );
-            previewCoords = barrierClip.VisibleEffectCoords;
-            previewUnitEffectDefinitions = barrierClip.UnitEffectDefinitions;
-            previewUnitEffectCoords = barrierClip.UnitEffectCoords;
-        }
-        foreach (Vector2I targetCoord in previewCoords)
-        {
-            preview.AddTargetCoord(targetCoord);
-        }
-        AiTraceRecorder.Exit("preview:ground_skill.preview_coords");
-        AiTraceRecorder.Enter("preview:ground_skill.collect_unit_ids");
-        IReadOnlyList<StringName> previewUnitIds =
-            Runtime?.CollectGroundPreviewUnitIdsTyped(
-                active_unit,
-                skillDefinition,
-                previewUnitEffectDefinitions,
-                previewUnitEffectCoords
-            ) ?? Array.Empty<StringName>();
-        preview.SetTargetUnitIds(previewUnitIds);
-        AiTraceRecorder.Exit("preview:ground_skill.collect_unit_ids");
-        if (allowed && Runtime?._charge_resolver != null)
-        {
-            AiTraceRecorder.Enter("preview:ground_skill.path_step_aoe");
-            CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
-                .GetChargePathStepAoeEffectDefinition(
-                    castVariantDefinition,
-                    skillDefinition,
-                    active_unit
-                );
-            if (pathStepAoeEffect != null)
-            {
-                StringName pathStepTargetFilter =
-                    Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
-                        skillDefinition,
-                        pathStepAoeEffect
-                    ) ?? new StringName("");
-                foreach (
-                    BattleUnitReadView targetUnit in CollectUnitsInCoordsReadView(
-                        preview.TargetCoordsTyped
-                    )
-                )
-                {
-                    if (!_is_unit_valid_for_effect(active_unit, targetUnit, pathStepTargetFilter))
-                    {
-                        continue;
-                    }
-                    if (preview.ContainsTargetUnitId(targetUnit.UnitId))
-                    {
-                        continue;
-                    }
-                    preview.AddTargetUnitId(targetUnit.UnitId);
-                }
-            }
-            AiTraceRecorder.Exit("preview:ground_skill.path_step_aoe");
-        }
-        preview.allowed = allowed;
-        if (preview.allowed)
-        {
-            preview.SetSaveBranchPreview(
-                BuildGroundSkillGradedSaveExecutePreview(
-                    active_unit,
-                    skillDefinition,
-                    castVariantDefinition,
-                    preview.TargetUnitIdsTyped
-                )
-            );
-        }
-        AiTraceRecorder.Enter("preview:ground_skill.log_lines");
-        if (preview.allowed)
-        {
-            preview.AddLogLine(
-                $"{active_unit.DisplayName} 可使用 {_format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
-            );
-        }
-        else
-        {
-            preview.AddLogLine(
-                string.IsNullOrEmpty(validation.Message)
-                    ? "地面技能目标无效。"
-                    : validation.Message
-            );
-        }
-        AiTraceRecorder.Exit("preview:ground_skill.log_lines");
-    }
-
-    private BattleSaveBranchPreviewData BuildGroundSkillGradedSaveExecutePreview(
-        BattleUnitReadView activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant,
-        IReadOnlyList<StringName> targetUnitIds
-    )
-    {
-        if (
-            !activeUnit.IsValid
-            || skillDefinition == null
-            || targetUnitIds == null
-            || targetUnitIds.Count == 0
-        )
-        {
-            return null;
-        }
-
-        CombatEffectDefinition effectDefinition = FindFirstValidGradedSaveExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectGroundUnitEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>(),
-            out PhantasmalKillExecutionProfile profile
-        );
-        if (effectDefinition == null)
-        {
-            return null;
-        }
-
-        BattleState state = RtState();
-        if (
-            state == null
-            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceUnit)
-        )
-        {
-            return null;
-        }
-
-        StringName targetFilter =
-            Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
-                skillDefinition,
-                effectDefinition
-            ) ?? new StringName("");
-        int targetCount = 0;
-        int enemyTargetCount = 0;
-        int friendlyTargetCount = 0;
-        int affectedUnitCount = 0;
-        int enemyAffectedCount = 0;
-        int friendlyAffectedCount = 0;
-        int immuneCount = 0;
-        int enemyExecuteRiskCount = 0;
-        int friendlyExecuteRiskCount = 0;
-        int failureExecuteRiskCount = 0;
-        int criticalFailureExecuteRiskCount = 0;
-        int criticalSuccessExpectedCount = 0;
-        int criticalSuccessExpectedBasisPoints = 0;
-        int successAftershockExpectedBasisPoints = 0;
-        int failureExpectedBasisPoints = 0;
-        int criticalFailureExpectedBasisPoints = 0;
-
-        foreach (StringName targetUnitId in targetUnitIds)
-        {
-            if (
-                StringNameIsEmpty(targetUnitId)
-                || !state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit)
-                || !_is_unit_valid_for_effect(sourceUnit, targetUnit, targetFilter)
-            )
-            {
-                continue;
-            }
-
-            bool friendly = targetUnit.faction_id == sourceUnit.faction_id;
-            targetCount++;
-            if (friendly)
-            {
-                friendlyTargetCount++;
-            }
-            else
-            {
-                enemyTargetCount++;
-            }
-
-            BattleGradedSaveGradeDistribution distribution =
-                PhantasmalKillExecutionRules.EstimateGradeDistribution(
-                    sourceUnit,
-                    targetUnit,
-                    effectDefinition,
-                    BattleSaveContext.ForSkill(skillDefinition.SkillId)
-                );
-            if (distribution.ImmuneBasisPoints > 0)
-            {
-                immuneCount++;
-                continue;
-            }
-
-            affectedUnitCount++;
-            if (friendly)
-            {
-                friendlyAffectedCount++;
-            }
-            else
-            {
-                enemyAffectedCount++;
-            }
-
-            if (distribution.CriticalSuccessBasisPoints > 0)
-            {
-                criticalSuccessExpectedCount++;
-                criticalSuccessExpectedBasisPoints += distribution.CriticalSuccessBasisPoints;
-            }
-            successAftershockExpectedBasisPoints += distribution.SuccessBasisPoints;
-            failureExpectedBasisPoints += distribution.FailureBasisPoints;
-            criticalFailureExpectedBasisPoints += distribution.CriticalFailureBasisPoints;
-
-            int targetMaxHp = GetUnitMaxHp(targetUnit);
-            bool failureExecuteRisk =
-                distribution.FailureBasisPoints > 0
-                && targetUnit.current_hp
-                    <= PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(
-                        profile,
-                        targetMaxHp
-                    );
-            bool criticalFailureExecuteRisk =
-                distribution.CriticalFailureBasisPoints > 0
-                && targetUnit.current_hp
-                    <= PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
-                        profile,
-                        targetMaxHp
-                    );
-            if (failureExecuteRisk)
-            {
-                failureExecuteRiskCount++;
-            }
-            if (criticalFailureExecuteRisk)
-            {
-                criticalFailureExecuteRiskCount++;
-            }
-            if (failureExecuteRisk || criticalFailureExecuteRisk)
-            {
-                if (friendly)
-                {
-                    friendlyExecuteRiskCount++;
-                }
-                else
-                {
-                    enemyExecuteRiskCount++;
-                }
-            }
-        }
-
-        if (targetCount == 0)
-        {
-            return null;
-        }
-
-        return new BattleSaveBranchPreviewData
-        {
-            Kind = new StringName("graded_save_execute"),
-            SaveTag = effectDefinition.SaveTag,
-            SaveAbility = effectDefinition.SaveAbility,
-            SummaryText = BuildGroundGradedSaveExecuteSummaryText(
-                enemyTargetCount,
-                friendlyAffectedCount,
-                friendlyExecuteRiskCount,
-                enemyExecuteRiskCount,
-                immuneCount,
-                failureExecuteRiskCount,
-                criticalFailureExecuteRiskCount,
-                successAftershockExpectedBasisPoints
-            ),
-            ResidualValues = new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["profile_id"] = profile.ProfileId,
-                ["target_count"] = targetCount,
-                ["enemy_target_count"] = enemyTargetCount,
-                ["friendly_target_count"] = friendlyTargetCount,
-                ["affected_unit_count"] = affectedUnitCount,
-                ["enemy_affected_count"] = enemyAffectedCount,
-                ["friendly_affected_count"] = friendlyAffectedCount,
-                ["friendly_execute_risk_count"] = friendlyExecuteRiskCount,
-                ["enemy_execute_risk_count"] = enemyExecuteRiskCount,
-                ["immune_count"] = immuneCount,
-                ["critical_success_expected_count"] = criticalSuccessExpectedCount,
-                ["critical_success_expected_basis_points"] =
-                    criticalSuccessExpectedBasisPoints,
-                ["success_aftershock_expected_basis_points"] =
-                    successAftershockExpectedBasisPoints,
-                ["failure_expected_basis_points"] = failureExpectedBasisPoints,
-                ["critical_failure_expected_basis_points"] =
-                    criticalFailureExpectedBasisPoints,
-                ["failure_execute_risk_count"] = failureExecuteRiskCount,
-                ["critical_failure_execute_risk_count"] = criticalFailureExecuteRiskCount,
-            },
-        };
-    }
-
-    private static CombatEffectDefinition FindFirstValidGradedSaveExecuteEffect(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        out PhantasmalKillExecutionProfile profile
-    )
-    {
-        profile = default;
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition?.EffectKind == BattleEffectKind.GradedSaveExecute
-                && PhantasmalKillExecutionRules.TryReadPhantasmalKillProfile(
-                    effectDefinition,
-                    out profile,
-                    out _
-                )
-            )
-            {
-                return effectDefinition;
-            }
-        }
-        return null;
-    }
-
-    private static string BuildGroundGradedSaveExecuteSummaryText(
-        int enemyTargetCount,
-        int friendlyAffectedCount,
-        int friendlyExecuteRiskCount,
-        int enemyExecuteRiskCount,
-        int immuneCount,
-        int failureExecuteRiskCount,
-        int criticalFailureExecuteRiskCount,
-        int successAftershockExpectedBasisPoints
-    )
-    {
-        var parts = new List<string>
-        {
-            $"怪影杀戮：敌方 {enemyTargetCount}，友军 {friendlyAffectedCount}",
-            $"处决风险 敌方 {enemyExecuteRiskCount} / 友军 {friendlyExecuteRiskCount}",
-            $"分支风险 失败处决 {failureExecuteRiskCount} / 大失败处决 {criticalFailureExecuteRiskCount}",
-        };
-        if (successAftershockExpectedBasisPoints > 0)
-        {
-            parts.Add($"成功余悸期望 {successAftershockExpectedBasisPoints}bp");
-        }
-        if (immuneCount > 0)
-        {
-            parts.Add($"免疫/无效 {immuneCount}");
-        }
-        if (friendlyAffectedCount > 0 || friendlyExecuteRiskCount > 0)
-        {
-            parts.Add("友军误伤风险");
-        }
-        return string.Join(" · ", parts);
-    }
-
-    internal void AppendDamageResultLogLines(
-        BattleEventBatch batch,
-        string subject_label,
-        string target_display_name,
-        AttackEffectResolutionResult result
-    )
-    {
-        Runtime?._report_formatter.AppendDamageResultLogLines(
-            batch,
-            subject_label,
-            target_display_name,
-            result
-        );
-    }
-
-    internal BattleDamagePreviewRangeService.SkillDamagePreview? BuildUnitSkillDamagePreviewTyped(
-        BattleUnitReadView active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        if (!active_unit.IsValid || skillDefinition == null)
-        {
-            return null;
-        }
-        List<CombatEffectDefinition> effectDefinitions = Runtime?._skill_resolution_rules
-            ?.CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                active_unit
-            ) ?? new List<CombatEffectDefinition>();
-        return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
-            active_unit,
-            effectDefinitions
-        );
-    }
-
-    private BattleSaveBranchPreviewData BuildUnitSkillSaveBranchPreview(
-        BattleUnitReadView activeUnit,
-        IReadOnlyList<BattleUnitReadView> targetUnits,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        if (!activeUnit.IsValid || skillDefinition == null || targetUnits == null || targetUnits.Count != 1)
-        {
-            return null;
-        }
-
-        BattleUnitReadView targetUnit = targetUnits[0];
-        if (!targetUnit.IsValid)
-        {
-            return null;
-        }
-
-        var lookup = FindSingleExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>()
-        );
-        if (lookup.Effect == null || !string.IsNullOrEmpty(lookup.ErrorMessage))
-        {
-            return null;
-        }
-
-        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
-            activeUnit,
-            targetUnit,
-            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDefinition.SkillId)
-        );
-        if (!plan.CanExecute)
-        {
-            return null;
-        }
-
-        BattleState state = RtState();
-        if (
-            state == null
-            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceState)
-            || !state.TryGetUnitTyped(targetUnit.UnitId, out BattleUnitState targetState)
-        )
-        {
-            return null;
-        }
-
-        BattleSaveProbabilityResult probability =
-            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
-                sourceState,
-                targetState,
-                lookup.Effect,
-                BattleSaveContext.ForSkill(skillDefinition.SkillId)
-            );
-        int saveSuccessBps = Mathf.Clamp(probability.SuccessProbabilityBasisPoints, 0, 10000);
-        int hitChanceBps = probability.HasSave ? Mathf.Clamp(10000 - saveSuccessBps, 0, 10000) : 10000;
-        string successBranchText = plan.SoulFractureParams.HasValue ? "灵魂裂解" : "抵抗";
-        string summaryText =
-            $"命中率 {FormatBasisPointPercent(hitChanceBps)} · 豁免失败：死亡律令 · 豁免成功：{successBranchText}";
-
-        return new BattleSaveBranchPreviewData
-        {
-            Kind = new StringName("execute"),
-            Branch = plan.Branch,
-            SaveTag = probability.SaveTag,
-            SaveAbility = probability.Ability,
-            SaveDc = probability.Dc,
-            SaveAdvantageState = probability.AdvantageState,
-            SaveSuccessChanceBasisPoints = saveSuccessBps,
-            HitChanceBasisPoints = hitChanceBps,
-            Threshold = plan.Threshold,
-            CurrentHp = plan.CurrentHp,
-            MaxHp = plan.MaxHp,
-            FailureBranchText = "死亡律令",
-            SuccessBranchText = successBranchText,
-            SummaryText = summaryText,
-        };
-    }
-
-    private static string FormatBasisPointPercent(int basisPoints)
-    {
-        int clamped = Mathf.Clamp(basisPoints, 0, 10000);
-        if (clamped % 100 == 0)
-        {
-            return $"{clamped / 100}%";
-        }
-        return $"{clamped / 100.0f:0.#}%";
-    }
-
     internal string _build_skill_log_subject_label(
         BattleUnitState source_unit,
         SkillDefinition skillDefinition,
@@ -2204,7 +1518,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             repeatAttackResolver?.get_repeat_attack_effect_def(resolvedEffectDefinitions);
         if (isRandomChain)
         {
-            return _handle_random_chain_unit_skill_command(
+            return _randomChainSkillService._handle_random_chain_unit_skill_command(
                 active_unit,
                 skillDefinition,
                 castVariantDefinition,
@@ -2255,218 +1569,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
         }
         return applied;
-    }
-
-    internal bool _handle_random_chain_unit_skill_command(
-        BattleUnitState active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleEventBatch batch,
-        IReadOnlyList<CombatEffectDefinition> effect_definitions,
-        CombatEffectDefinition repeat_attack_effect,
-        BattleSpellControlResult spell_control_context
-    )
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        int maxHitsPerTarget = Math.Max(combatProfile?.MaxHitsPerTarget ?? 0, 1);
-        var chainHitCounts = new Dictionary<StringName, int>();
-        bool applied = false;
-        int attemptCount = 0;
-        int maxAttempts = Math.Max(
-            (Runtime?._state?.UnitCount ?? 0) * maxHitsPerTarget,
-            1
-        );
-        string skillLabel = _format_skill_variant_label(skillDefinition, castVariantDefinition);
-        BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
-        while (attemptCount < maxAttempts)
-        {
-            List<BattleUnitState> chainPool = BuildRandomChainTargetPool(
-                active_unit,
-                skillDefinition,
-                castVariantDefinition,
-                chainHitCounts,
-                maxHitsPerTarget
-            );
-            if (chainPool.Count == 0)
-            {
-                break;
-            }
-            ShuffleRandomChainPool(chainPool);
-            BattleUnitState targetUnit = chainPool[0];
-            if (targetUnit == null)
-            {
-                break;
-            }
-            batch?.AddLogLine(
-                $"{active_unit.display_name} 的{skillLabel}锁定了 {targetUnit.display_name}。"
-            );
-            StringName targetId = targetUnit.unit_id;
-            chainHitCounts.TryGetValue(targetId, out int targetHitCount);
-            chainHitCounts[targetId] = targetHitCount + 1;
-            attemptCount += 1;
-            bool stageApplied;
-            if (repeat_attack_effect != null)
-            {
-                stageApplied =
-                    repeatAttackResolver != null
-                    && repeatAttackResolver.ApplyRepeatAttackSkillResult(
-                        active_unit,
-                        targetUnit,
-                        skillDefinition,
-                        effect_definitions,
-                        repeat_attack_effect,
-                        batch
-                    );
-            }
-            else
-            {
-                stageApplied = _apply_unit_skill_result(
-                    active_unit,
-                    targetUnit,
-                    skillDefinition,
-                    castVariantDefinition,
-                    effect_definitions,
-                    batch,
-                    spell_control_context
-                );
-            }
-            if (stageApplied)
-            {
-                applied = true;
-            }
-            else
-            {
-                break;
-            }
-        }
-        if (attemptCount > 0)
-        {
-            batch?.AddLogLine(
-                $"{active_unit.display_name} 的{skillLabel}执行了 {attemptCount} 次攻击链判定。"
-            );
-        }
-        return applied;
-    }
-
-    private List<BattleUnitState> BuildRandomChainTargetPool(
-        BattleUnitState active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant,
-        IReadOnlyDictionary<StringName, int> chain_hit_counts,
-        int max_hits_per_target
-    )
-    {
-        var chainPool = new List<BattleUnitState>();
-        BattleState state = RtState();
-        if (state == null)
-        {
-            return chainPool;
-        }
-        foreach (BattleUnitState candidate in state.GetUnitsTyped())
-        {
-            if (
-                candidate == null
-                || candidate == active_unit
-                || !candidate.is_alive
-            )
-            {
-                continue;
-            }
-            StringName candidateId = ProgressionDataUtils.to_string_name(
-                candidate.unit_id
-            );
-            if (
-                StringNameIsEmpty(candidateId)
-                || (
-                    chain_hit_counts != null
-                    && chain_hit_counts.TryGetValue(candidateId, out int hitCount)
-                    && hitCount >= max_hits_per_target
-                )
-            )
-            {
-                continue;
-            }
-            if (!_can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
-            {
-                continue;
-            }
-            chainPool.Add(candidate);
-        }
-        return chainPool;
-    }
-
-    private List<BattleUnitReadView> BuildRandomChainTargetPool(
-        BattleUnitReadView active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant,
-        int max_hits_per_target
-    )
-    {
-        var chainPool = new List<BattleUnitReadView>();
-        BattleState state = RtState();
-        if (state == null || !active_unit.IsValid)
-        {
-            return chainPool;
-        }
-        foreach (BattleUnitReadView candidate in state.AsReadView().AliveUnits())
-        {
-            if (
-                !candidate.IsValid
-                || candidate.UnitId == active_unit.UnitId
-                || StringNameIsEmpty(candidate.UnitId)
-            )
-            {
-                continue;
-            }
-            if (max_hits_per_target <= 0)
-            {
-                continue;
-            }
-            if (!_can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
-            {
-                continue;
-            }
-            chainPool.Add(candidate);
-        }
-        return chainPool;
-    }
-
-    internal void _shuffle_random_chain_pool(GArray chain_pool)
-    {
-        if (chain_pool.Count <= 1)
-        {
-            return;
-        }
-        for (int index = chain_pool.Count - 1; index > 0; index--)
-        {
-            int swapIndex = TrueRandomSeedService.RandiRange(0, index);
-            if (swapIndex == index)
-            {
-                continue;
-            }
-            var temp = chain_pool[index];
-            chain_pool[index] = chain_pool[swapIndex];
-            chain_pool[swapIndex] = temp;
-        }
-    }
-
-    private static void ShuffleRandomChainPool(List<BattleUnitState> chainPool)
-    {
-        if (chainPool == null || chainPool.Count <= 1)
-        {
-            return;
-        }
-        for (int index = chainPool.Count - 1; index > 0; index--)
-        {
-            int swapIndex = TrueRandomSeedService.RandiRange(0, index);
-            if (swapIndex == index)
-            {
-                continue;
-            }
-            BattleUnitState temp = chainPool[index];
-            chainPool[index] = chainPool[swapIndex];
-            chainPool[swapIndex] = temp;
-        }
     }
 
     internal bool _handle_ground_skill_command(
@@ -2611,539 +1713,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
         }
         return applied;
-    }
-
-    internal BattleUnitSkillValidationResult _validate_unit_skill_targets_result(
-        BattleUnitState active_unit,
-        BattleCommand command,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        BattleState state = RtState();
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            state == null
-            || active_unit == null
-            || command == null
-            || skillDefinition == null
-            || combatProfile == null
-        )
-        {
-            return BattleUnitSkillValidationResult.Denied("技能或目标无效。");
-        }
-
-        bool allowRepeat = combatProfile.AllowRepeatTarget;
-        GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
-        int skillLevel = _get_unit_skill_level(
-            active_unit,
-            skillDefinition.SkillId
-        );
-        int minTargetCount = 1;
-        int maxTargetCount = 1;
-        if (_is_multi_unit_skill(skillDefinition))
-        {
-            minTargetCount = Math.Max(combatProfile.MinTargetCount, 1);
-            maxTargetCount = Math.Max(
-                combatProfile.GetEffectiveMaxTargetCount(skillLevel),
-                minTargetCount
-            );
-        }
-        bool isRandomChain =
-            combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain;
-        if (targetUnitIds.Count == 0 && !isRandomChain)
-        {
-            return BattleUnitSkillValidationResult.Denied("技能或目标无效。");
-        }
-        if (isRandomChain)
-        {
-            int maxHitsPerTarget = Math.Max(
-                combatProfile.MaxHitsPerTarget,
-                1
-            );
-            List<BattleUnitState> randomChainPool = BuildRandomChainTargetPool(
-                active_unit,
-                skillDefinition,
-                cast_variant,
-                new Dictionary<StringName, int>(),
-                maxHitsPerTarget
-            );
-            if (randomChainPool.Count == 0)
-            {
-                return BattleUnitSkillValidationResult.Denied("没有可用的随机连击目标。");
-            }
-            var candidateUnitIds = new List<StringName>();
-            foreach (BattleUnitState candidate in randomChainPool)
-            {
-                if (candidate != null)
-                {
-                    candidateUnitIds.Add(candidate.unit_id);
-                }
-            }
-            return BattleUnitSkillValidationResult.AllowedResult(
-                System.Array.Empty<StringName>(),
-                System.Array.Empty<BattleUnitState>(),
-                candidateUnitIds
-            );
-        }
-        if (targetUnitIds.Count < minTargetCount)
-        {
-            return BattleUnitSkillValidationResult.Denied($"至少需要选择 {minTargetCount} 个单位目标。");
-        }
-        if (targetUnitIds.Count > maxTargetCount)
-        {
-            return BattleUnitSkillValidationResult.Denied($"最多只能选择 {maxTargetCount} 个单位目标。");
-        }
-        if (!_is_multi_unit_skill(skillDefinition) && targetUnitIds.Count != 1)
-        {
-            return BattleUnitSkillValidationResult.Denied("当前技能只允许选择 1 个单位目标。");
-        }
-        if (combatProfile.SelectionOrderModeKind != BattleTargetSelectionOrderMode.Manual)
-        {
-            targetUnitIds = _sort_target_unit_ids_for_execution(targetUnitIds);
-        }
-
-        var targetUnits = new List<BattleUnitState>();
-        foreach (StringName targetUnitId in targetUnitIds)
-        {
-            state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit);
-            string specialValidationMessage = _get_unit_skill_target_validation_message(
-                active_unit,
-                targetUnit,
-                skillDefinition,
-                cast_variant
-            );
-            if (!string.IsNullOrEmpty(specialValidationMessage))
-            {
-                return BattleUnitSkillValidationResult.Denied(specialValidationMessage);
-            }
-            if (
-                targetUnit == null
-                || !_can_skill_target_unit(
-                    active_unit,
-                    targetUnit,
-                    skillDefinition,
-                    true,
-                    cast_variant
-                )
-            )
-            {
-                return BattleUnitSkillValidationResult.Denied("技能目标超出范围或不满足筛选条件。");
-            }
-            targetUnits.Add(targetUnit);
-        }
-
-        IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
-        BattleTargetCollectionResult collectedTargetCoords =
-            Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
-                state,
-                Runtime.GetGridService(),
-                active_unit != null ? active_unit.coord : new Vector2I(-1, -1),
-                combatProfile,
-                emptyTargetCoords,
-                active_unit,
-                targetUnits,
-                skillLevel
-            ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
-        List<Vector2I> previewCoords = SortCoordsTyped(collectedTargetCoords.TargetCoords);
-        return BattleUnitSkillValidationResult.AllowedResult(
-            ToStringNameList(targetUnitIds),
-            targetUnits,
-            null,
-            previewCoords
-        );
-    }
-
-    internal BattleUnitSkillPreviewValidationResult _validate_unit_skill_preview_targets_result(
-        BattleUnitReadView active_unit,
-        BattleCommand command,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        BattleState state = RtState();
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            state == null
-            || !active_unit.IsValid
-            || command == null
-            || skillDefinition == null
-            || combatProfile == null
-        )
-        {
-            return BattleUnitSkillPreviewValidationResult.Denied("技能或目标无效。");
-        }
-
-        bool allowRepeat = combatProfile.AllowRepeatTarget;
-        GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
-        int skillLevel = active_unit.GetKnownSkillLevel(skillDefinition.SkillId);
-        int minTargetCount = 1;
-        int maxTargetCount = 1;
-        if (_is_multi_unit_skill(skillDefinition))
-        {
-            minTargetCount = Math.Max(combatProfile.MinTargetCount, 1);
-            maxTargetCount = Math.Max(
-                combatProfile.GetEffectiveMaxTargetCount(skillLevel),
-                minTargetCount
-            );
-        }
-        bool isRandomChain =
-            combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.RandomChain;
-        if (targetUnitIds.Count == 0 && !isRandomChain)
-        {
-            return BattleUnitSkillPreviewValidationResult.Denied("技能或目标无效。");
-        }
-        if (isRandomChain)
-        {
-            int maxHitsPerTarget = Math.Max(
-                combatProfile.MaxHitsPerTarget,
-                1
-            );
-            List<BattleUnitReadView> randomChainPool = BuildRandomChainTargetPool(
-                active_unit,
-                skillDefinition,
-                cast_variant,
-                maxHitsPerTarget
-            );
-            if (randomChainPool.Count == 0)
-            {
-                return BattleUnitSkillPreviewValidationResult.Denied("没有可用的随机连击目标。");
-            }
-            var candidateUnitIds = new List<StringName>();
-            foreach (BattleUnitReadView candidate in randomChainPool)
-            {
-                if (candidate.IsValid)
-                {
-                    candidateUnitIds.Add(candidate.UnitId);
-                }
-            }
-            return BattleUnitSkillPreviewValidationResult.AllowedResult(
-                System.Array.Empty<StringName>(),
-                System.Array.Empty<BattleUnitReadView>(),
-                candidateUnitIds
-            );
-        }
-        if (targetUnitIds.Count < minTargetCount)
-        {
-            return BattleUnitSkillPreviewValidationResult.Denied($"至少需要选择 {minTargetCount} 个单位目标。");
-        }
-        if (targetUnitIds.Count > maxTargetCount)
-        {
-            return BattleUnitSkillPreviewValidationResult.Denied($"最多只能选择 {maxTargetCount} 个单位目标。");
-        }
-        if (!_is_multi_unit_skill(skillDefinition) && targetUnitIds.Count != 1)
-        {
-            return BattleUnitSkillPreviewValidationResult.Denied("当前技能只允许选择 1 个单位目标。");
-        }
-        if (combatProfile.SelectionOrderModeKind != BattleTargetSelectionOrderMode.Manual)
-        {
-            targetUnitIds = _sort_target_unit_ids_for_execution(targetUnitIds);
-        }
-
-        BattleStateReadView stateView = state.AsReadView();
-        var targetUnits = new List<BattleUnitReadView>();
-        foreach (StringName targetUnitId in targetUnitIds)
-        {
-            BattleUnitReadView targetUnit = stateView.GetUnit(targetUnitId);
-            string specialValidationMessage = _get_unit_skill_target_validation_message(
-                active_unit,
-                targetUnit,
-                skillDefinition,
-                cast_variant
-            );
-            if (!string.IsNullOrEmpty(specialValidationMessage))
-            {
-                return BattleUnitSkillPreviewValidationResult.Denied(specialValidationMessage);
-            }
-            if (
-                !targetUnit.IsValid
-                || !_can_skill_target_unit(
-                    active_unit,
-                    targetUnit,
-                    skillDefinition,
-                    true,
-                    cast_variant
-                )
-            )
-            {
-                return BattleUnitSkillPreviewValidationResult.Denied("技能目标超出范围或不满足筛选条件。");
-            }
-            targetUnits.Add(targetUnit);
-        }
-
-        IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
-        BattleTargetCollectionResult collectedTargetCoords =
-            Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
-                state,
-                Runtime.GetGridService(),
-                active_unit.Coord,
-                combatProfile,
-                emptyTargetCoords,
-                active_unit,
-                targetUnits,
-                skillLevel
-            ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
-        List<Vector2I> previewCoords = SortCoordsTyped(collectedTargetCoords.TargetCoords);
-        return BattleUnitSkillPreviewValidationResult.AllowedResult(
-            ToStringNameList(targetUnitIds),
-            targetUnits,
-            null,
-            previewCoords
-        );
-    }
-
-    internal GStringNameArray _normalize_target_unit_ids(
-        BattleCommand command,
-        bool allow_repeat = false
-    )
-    {
-        var targetUnitIds = new GStringNameArray();
-        if (command == null)
-        {
-            return targetUnitIds;
-        }
-        var seenIds = new HashSet<StringName>();
-        StringName singleTargetId = ProgressionDataUtils.to_string_name(
-            command.target_unit_id
-        );
-        if (!StringNameIsEmpty(singleTargetId))
-        {
-            seenIds.Add(singleTargetId);
-            targetUnitIds.Add(singleTargetId);
-        }
-        foreach (StringName targetUnitIdValue in command.TargetUnitIdsTyped)
-        {
-            StringName targetUnitId = ProgressionDataUtils.to_string_name(targetUnitIdValue);
-            if (
-                StringNameIsEmpty(targetUnitId)
-                || (!allow_repeat && seenIds.Contains(targetUnitId))
-            )
-            {
-                continue;
-            }
-            seenIds.Add(targetUnitId);
-            targetUnitIds.Add(targetUnitId);
-        }
-        return targetUnitIds;
-    }
-
-    internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)
-    {
-        BattleState state = RtState();
-        if (state == null)
-        {
-            return (GStringNameArray)target_unit_ids.Duplicate();
-        }
-        var ids = new List<StringName>();
-        foreach (StringName id in target_unit_ids)
-        {
-            ids.Add(id);
-        }
-        ids.Sort(
-            (a, b) =>
-            {
-                state.TryGetUnitTyped(a, out BattleUnitState unitA);
-                state.TryGetUnitTyped(b, out BattleUnitState unitB);
-                if (unitA == null || unitB == null)
-                {
-                    return string.CompareOrdinal(a.ToString(), b.ToString());
-                }
-                Vector2I ca = unitA.coord;
-                Vector2I cb = unitB.coord;
-                if (ca.Y != cb.Y)
-                    return ca.Y.CompareTo(cb.Y);
-                if (ca.X != cb.X)
-                    return ca.X.CompareTo(cb.X);
-                return string.CompareOrdinal(a.ToString(), b.ToString());
-            }
-        );
-        var sorted = new GStringNameArray();
-        foreach (StringName id in ids)
-        {
-            sorted.Add(id);
-        }
-        return sorted;
-    }
-
-    internal bool _is_multi_unit_skill(SkillDefinition skillDefinition)
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        return combatProfile != null
-            && combatProfile.TargetSelectionModeKind == BattleTargetSelectionMode.MultiUnit;
-    }
-
-    internal bool _can_skill_target_unit(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skillDefinition,
-        bool require_ap = true,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            active_unit == null
-            || target_unit == null
-            || skillDefinition == null
-            || combatProfile == null
-        )
-        {
-            return false;
-        }
-        CombatSkillResourceCosts costs = _get_effective_skill_resource_costs(
-            active_unit,
-            skillDefinition
-        );
-        if (
-            require_ap
-            && active_unit.current_ap < costs.ApCost
-        )
-        {
-            return false;
-        }
-        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
-        if (
-            !_is_unit_valid_for_effect(
-                active_unit,
-                target_unit,
-                combatProfile.TargetTeamFilter,
-                allowDeadTargets
-            )
-        )
-        {
-            return false;
-        }
-        if (
-            !string.IsNullOrEmpty(
-                _get_unit_skill_target_validation_message(
-                    active_unit,
-                    target_unit,
-                    skillDefinition,
-                    cast_variant
-                )
-            )
-        )
-        {
-            return false;
-        }
-        active_unit.RefreshFootprint();
-        target_unit.RefreshFootprint();
-        return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
-            <= _get_effective_skill_range(active_unit, skillDefinition);
-    }
-
-    internal bool _can_skill_target_unit(
-        BattleUnitReadView active_unit,
-        BattleUnitReadView target_unit,
-        SkillDefinition skillDefinition,
-        bool require_ap = true,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            !active_unit.IsValid
-            || !target_unit.IsValid
-            || skillDefinition == null
-            || combatProfile == null
-        )
-        {
-            return false;
-        }
-        CombatSkillResourceCosts costs = _get_effective_skill_resource_costs(
-            active_unit,
-            skillDefinition
-        );
-        if (require_ap && active_unit.CurrentAp < costs.ApCost)
-        {
-            return false;
-        }
-        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
-        if (
-            !_is_unit_valid_for_effect(
-                active_unit,
-                target_unit,
-                combatProfile.TargetTeamFilter,
-                allowDeadTargets
-            )
-        )
-        {
-            return false;
-        }
-        if (
-            !string.IsNullOrEmpty(
-                _get_unit_skill_target_validation_message(
-                    active_unit,
-                    target_unit,
-                    skillDefinition,
-                    cast_variant
-                )
-            )
-        )
-        {
-            return false;
-        }
-        return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
-            <= _get_effective_skill_range(active_unit, skillDefinition);
-    }
-
-    private static bool SkillAllowsDeadUnitTargets(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            combatProfile == null
-            || !BattleTargetTeamRules.IsBeneficialFilter(combatProfile.TargetTeamFilter)
-        )
-        {
-            return false;
-        }
-        foreach (CombatEffectDefinition effect in combatProfile.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>())
-        {
-            if (IsRevivingHealEffect(effect))
-                return true;
-        }
-        foreach (CombatEffectDefinition effect in castVariant?.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>())
-        {
-            if (IsRevivingHealEffect(effect))
-                return true;
-        }
-        return false;
-    }
-
-    private static bool IsRevivingHealEffect(CombatEffectDefinition effect) =>
-        effect?.EffectKind is BattleEffectKind.Heal or BattleEffectKind.HealFatal;
-
-    internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant = null,
-        bool requireAp = true
-    )
-    {
-        bool allowed = _can_skill_target_unit(
-            activeUnit,
-            targetUnit,
-            skillDefinition,
-            requireAp,
-            castVariant
-        );
-        if (allowed)
-        {
-            return BattleUnitSkillTargetAffordance.AllowedResult();
-        }
-        string reason = _get_unit_skill_target_validation_message(
-            activeUnit,
-            targetUnit,
-            skillDefinition,
-            castVariant
-        );
-        return BattleUnitSkillTargetAffordance.Denied(
-            string.IsNullOrEmpty(reason) ? "技能目标超出范围或不满足筛选条件。" : reason
-        );
     }
 
     internal UnitSkillEffectResolution ResolveUnitSkillEffectResult(
@@ -3313,7 +1882,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
     }
 
-    private bool _apply_unit_skill_result(
+    internal bool _apply_unit_skill_result(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDefinition skillDefinition,
@@ -3703,329 +2272,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
     }
 
-    internal void _apply_chain_damage_effects(
-        BattleUnitState source_unit,
-        BattleUnitState primary_target,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        AttackEffectResolutionResult primaryResolution,
-        BattleEventBatch batch,
-        string skill_subject,
-        BattleSpellControlResult spell_control_context = default
-    )
-    {
-        if (!primaryResolution.Applied)
-        {
-            return;
-        }
-        BattleDamageResolver damageResolver = Runtime?._damage_resolver;
-        BattleSkillMasteryService skillMasteryService = Runtime?._skill_mastery_service;
-        BattleRatingSystem ratingSystem = Runtime?._battle_rating_system;
-        foreach (CombatEffectDefinition chainEffect in effectDefinitions)
-        {
-            if (chainEffect == null || chainEffect.EffectKind != BattleEffectKind.ChainDamage)
-            {
-                continue;
-            }
-            List<CombatEffectDefinition> chainTargetEffects = BuildChainTargetEffectDefinitions(
-                effectDefinitions,
-                chainEffect
-            );
-            if (chainTargetEffects.Count == 0)
-            {
-                continue;
-            }
-            List<ChainDamageHop> chainTargets = CollectChainDamageTargets(
-                source_unit,
-                primary_target,
-                skillDefinition,
-                chainEffect,
-                spell_control_context
-            );
-            if (chainTargets.Count == 0)
-            {
-                continue;
-            }
-
-            int totalDamage = 0;
-            int totalHealing = 0;
-            int totalKillCount = 0;
-            foreach (ChainDamageHop chainHop in chainTargets)
-            {
-                BattleUnitState chainTarget = chainHop.TargetUnit;
-                if (chainTarget == null || !chainTarget.is_alive)
-                {
-                    continue;
-                }
-                BattleBarrierInteractionResult barrierResult =
-                    Runtime?._layered_barrier_service?.ResolveSkillBarrierInteractionFromCoordResult(
-                        source_unit,
-                        chainHop.OriginCoord,
-                        chainTarget,
-                        skillDefinition,
-                        chainTargetEffects,
-                        batch
-                    ) ?? new BattleBarrierInteractionResult(false, false);
-                if (barrierResult.Blocked)
-                {
-                    continue;
-                }
-                AttackEffectResolutionResult chainResolution =
-                    damageResolver?.ResolveEffects(
-                        source_unit,
-                        chainTarget,
-                        chainTargetEffects,
-                        DamageResolutionContext
-                            .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
-                            .WithSourceSkillLevel(
-                                Math.Max(
-                                    source_unit.GetKnownSkillLevelTyped(
-                                        skillDefinition?.SkillId ?? new StringName(""),
-                                        fallback: 1
-                                    ),
-                                    1
-                                )
-                            )
-                            .WithDamageApplicationHookContext(
-                                batch,
-                                Runtime?.CurrentEffectOriginForContingency
-                                    ?? BattleEffectOrigin.PlayerCommand()
-                            )
-                    ) ?? new AttackEffectResolutionResult
-                    {
-                        AttackCheck = new AttackCheckInput(
-                            skillId: skillDefinition?.SkillId ?? new StringName("")
-                        ),
-                    };
-                skillMasteryService?.RecordTargetResult(
-                    source_unit,
-                    chainTarget,
-                    skillDefinition,
-                    chainResolution
-                );
-                MarkAppliedStatusesForTurnTiming(
-                    chainTarget,
-                    chainResolution.StatusEffectIds
-                );
-                if (!chainResolution.Applied)
-                {
-                    continue;
-                }
-
-                _append_changed_unit_id(batch, source_unit.unit_id);
-                _append_changed_unit_id(batch, chainTarget.unit_id);
-                _append_changed_unit_coords(batch, chainTarget);
-                append_result_source_status_effects(batch, source_unit, chainResolution);
-                AppendDamageResultLogLines(
-                    batch,
-                    $"{skill_subject} 的连锁闪电",
-                    chainTarget.display_name,
-                    chainResolution
-                );
-                foreach (StringName statusId in chainResolution.StatusEffectIds)
-                {
-                    batch.AddLogLine($"{chainTarget.display_name} 获得状态 {statusId}。");
-                }
-
-                int chainDamage = chainResolution.Damage;
-                int chainHealing = chainResolution.Healing;
-                totalDamage += chainDamage;
-                totalHealing += chainHealing;
-                if (!chainTarget.is_alive)
-                {
-                    totalKillCount += 1;
-                    Runtime?._apply_on_kill_gain_resources_effects(
-                        source_unit,
-                        chainTarget,
-                        skillDefinition,
-                        chainTargetEffects,
-                        batch
-                    );
-                    Runtime?.HandleUnitDefeatedByRuntimeEffect(
-                        chainTarget,
-                        source_unit,
-                        batch,
-                        $"{chainTarget.display_name} 被击倒。",
-                        new BattleDefeatHandlingOptions(
-                            recordEnemyDefeatedAchievement: true,
-                            killProvenance: BuildWeaponAttackKillProvenance(
-                                source_unit,
-                                chainResolution,
-                                skillDefinition?.SkillId ?? new StringName("")
-                            )
-                        )
-                    );
-                }
-                bool causedChainDefeat = !chainTarget.is_alive;
-                _record_effect_metrics(
-                    source_unit,
-                    chainTarget,
-                    chainDamage,
-                    chainHealing,
-                    causedChainDefeat ? 1 : 0
-                );
-                ratingSystem?.RecordContributionFromUnits(
-                    source_unit,
-                    chainTarget,
-                    chainDamage,
-                    chainHealing,
-                    causedChainDefeat,
-                    new StringName("skill"),
-                    skillDefinition?.SkillId ?? new StringName("")
-                );
-            }
-        }
-    }
-
-    private static List<CombatEffectDefinition> BuildChainTargetEffectDefinitions(
-        IEnumerable<CombatEffectDefinition> effectDefinitions,
-        CombatEffectDefinition chainEffect
-    )
-    {
-        var chainTargetEffects = new List<CombatEffectDefinition>();
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition == null
-                || effectDefinition == chainEffect
-                || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
-            )
-            {
-                continue;
-            }
-            chainTargetEffects.Add(effectDefinition);
-        }
-        return chainTargetEffects;
-    }
-
-    private List<ChainDamageHop> CollectChainDamageTargets(
-        BattleUnitState source_unit,
-        BattleUnitState primary_target,
-        SkillDefinition skillDefinition,
-        CombatEffectDefinition chainEffect,
-        BattleSpellControlResult spell_control_context = default
-    )
-    {
-        var targets = new List<ChainDamageHop>();
-        BattleState state = RtState();
-        if (state == null || source_unit == null || primary_target == null || chainEffect == null)
-        {
-            return targets;
-        }
-
-        int maxRadius = _resolve_chain_damage_radius(
-            primary_target,
-            chainEffect,
-            spell_control_context
-        );
-        if (maxRadius <= 0)
-        {
-            return targets;
-        }
-        bool preventRepeatTarget = ChainDamageParameters
-            .FromEffect(chainEffect)
-            .PreventRepeatTarget;
-        StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, chainEffect);
-        if (StringNameIsEmpty(targetFilter))
-        {
-            return targets;
-        }
-
-        BattleGridService gridService = Runtime?.GetGridService();
-        var visited = new HashSet<StringName>();
-        var queue = new List<BattleUnitState>();
-        visited.Add(primary_target.unit_id);
-        queue.Add(primary_target);
-
-        while (queue.Count != 0)
-        {
-            BattleUnitState current = queue[0];
-            queue.RemoveAt(0);
-
-            foreach (BattleUnitState candidate in state.GetUnitsTyped())
-            {
-                if (candidate == null || !candidate.is_alive)
-                {
-                    continue;
-                }
-                if (
-                    preventRepeatTarget
-                    && visited.Contains(candidate.unit_id)
-                )
-                {
-                    continue;
-                }
-                if (!_is_unit_valid_for_effect(source_unit, candidate, targetFilter))
-                {
-                    continue;
-                }
-                if (!_is_within_chain_radius(primary_target, candidate, maxRadius))
-                {
-                    continue;
-                }
-                if (!_is_chain_path_clear(current, candidate))
-                {
-                    continue;
-                }
-
-                visited.Add(candidate.unit_id);
-                targets.Add(new ChainDamageHop(current.coord, candidate));
-                queue.Add(candidate);
-            }
-        }
-
-        targets.Sort(
-            (a, b) =>
-            {
-                BattleUnitState targetA = a.TargetUnit;
-                BattleUnitState targetB = b.TargetUnit;
-                int distanceA = gridService?.GetDistanceBetweenUnits(primary_target, targetA) ?? 0;
-                int distanceB = gridService?.GetDistanceBetweenUnits(primary_target, targetB) ?? 0;
-                if (distanceA != distanceB)
-                    return distanceA.CompareTo(distanceB);
-                Vector2I ca = targetA?.coord ?? Vector2I.Zero;
-                Vector2I cb = targetB?.coord ?? Vector2I.Zero;
-                if (ca.Y != cb.Y)
-                    return ca.Y.CompareTo(cb.Y);
-                if (ca.X != cb.X)
-                    return ca.X.CompareTo(cb.X);
-                return string.CompareOrdinal(
-                    (targetA?.unit_id ?? new StringName("")).ToString(),
-                    (targetB?.unit_id ?? new StringName("")).ToString()
-                );
-            }
-        );
-        return targets;
-    }
-
-    private int _resolve_chain_damage_radius(
-        BattleUnitState primary_target,
-        CombatEffectDefinition chainEffect,
-        BattleSpellControlResult spell_control_context = default
-    )
-    {
-        ChainDamageParameters chainParams = ChainDamageParameters.FromEffect(chainEffect);
-        int baseRadius = chainParams.BaseRadius;
-        StringName bonusEffectId = chainParams.BonusTerrainEffectId;
-        int radius = baseRadius;
-        if (
-            !StringNameIsEmpty(bonusEffectId)
-            && primary_target != null
-            && _unit_stands_on_terrain_effect(primary_target, bonusEffectId)
-        )
-        {
-            radius = chainParams.WetChainRadius;
-        }
-        if (spell_control_context.BacklashTriggered)
-        {
-            radius += 1;
-        }
-        return radius;
-    }
-
     internal bool _unit_stands_on_terrain_effect(
         BattleUnitState unit_state,
         StringName terrain_effect_id
@@ -4058,687 +2304,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             }
         }
         return false;
-    }
-
-    internal bool _is_within_chain_radius(
-        BattleUnitState primary_target,
-        BattleUnitState candidate,
-        int max_radius
-    )
-    {
-        if (primary_target == null || candidate == null || max_radius <= 0)
-        {
-            return false;
-        }
-        primary_target.RefreshFootprint();
-        candidate.RefreshFootprint();
-        BattleGridService gridService = Runtime?.GetGridService();
-        foreach (Vector2I primaryCoord in primary_target.occupied_coords)
-        {
-            foreach (Vector2I candidateCoord in candidate.occupied_coords)
-            {
-                if (gridService != null && gridService.GetDistance(primaryCoord, candidateCoord) <= max_radius)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    internal List<Vector2I> _get_line_coords(Vector2I from, Vector2I to)
-    {
-        var coords = new List<Vector2I>();
-        int dx = Math.Abs(to.X - from.X);
-        int dy = Math.Abs(to.Y - from.Y);
-        int sx = from.X < to.X ? 1 : -1;
-        int sy = from.Y < to.Y ? 1 : -1;
-        int err = dx - dy;
-        int x = from.X;
-        int y = from.Y;
-        while (x != to.X || y != to.Y)
-        {
-            int e2 = 2 * err;
-            if (e2 > -dy)
-            {
-                err -= dy;
-                x += sx;
-            }
-            if (e2 < dx)
-            {
-                err += dx;
-                y += sy;
-            }
-            if (x == to.X && y == to.Y)
-            {
-                break;
-            }
-            coords.Add(new Vector2I(x, y));
-        }
-        return coords;
-    }
-
-    internal bool _is_chain_path_clear(BattleUnitState source_unit, BattleUnitState target_unit)
-    {
-        BattleState state = RtState();
-        BattleGridService gridService = Runtime?.GetGridService();
-        if (state == null || source_unit == null || target_unit == null || gridService == null)
-        {
-            return false;
-        }
-        source_unit.RefreshFootprint();
-        target_unit.RefreshFootprint();
-        foreach (Vector2I sourceCoord in source_unit.occupied_coords)
-        {
-            BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);
-            if (sourceCell == null)
-            {
-                continue;
-            }
-            int sourceHeight = sourceCell.current_height;
-            foreach (Vector2I targetCoord in target_unit.occupied_coords)
-            {
-                foreach (Vector2I midCoord in _get_line_coords(sourceCoord, targetCoord))
-                {
-                    BattleCellState midCell = gridService.GetCellState(state, midCoord);
-                    if (midCell == null)
-                    {
-                        continue;
-                    }
-                    if (Math.Abs(midCell.current_height - sourceHeight) > 1)
-                    {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    internal string _get_unit_skill_target_validation_message(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        string bodySizeOverrideMessage = _get_body_size_category_override_validation_message(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(bodySizeOverrideMessage))
-        {
-            return bodySizeOverrideMessage;
-        }
-        string executeMessage = GetExecuteTargetValidationMessage(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(executeMessage))
-        {
-            return executeMessage;
-        }
-        if (!BattleTemporalStatusService.CanTargetTimeStasis(target_unit, skillDefinition))
-        {
-            return "目标处于时间静滞，只有时间系解控技能能够作用。";
-        }
-        string targetStatusRequirementMessage = GetTargetStatusRequirementValidationMessage(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(targetStatusRequirementMessage))
-        {
-            return targetStatusRequirementMessage;
-        }
-        StringName skillId = skillDefinition?.SkillId ?? new StringName("");
-        if (
-            _is_black_crown_seal_skill(skillId)
-            && !_is_black_crown_seal_target_eligible(active_unit, target_unit)
-        )
-        {
-            return "黑冠封印只能对 boss 施放。";
-        }
-        if (_is_doom_shift_skill(skillId))
-        {
-            if (target_unit == null || active_unit == null)
-            {
-                return "断命换位的目标无效。";
-            }
-            if (target_unit.unit_id == active_unit.unit_id)
-            {
-                return "断命换位不能以自己为目标。";
-            }
-        }
-        if (
-            _is_crown_break_skill(skillId)
-            && !_is_crown_break_target_eligible(active_unit, target_unit)
-        )
-        {
-            return "折冠只能对已被黑星烙印的 elite / boss 施放。";
-        }
-        if (
-            _is_doom_sentence_skill(skillId)
-            && !_is_doom_sentence_target_eligible(active_unit, target_unit)
-        )
-        {
-            return "厄命宣判只能对 elite / boss 施放。";
-        }
-        return "";
-    }
-
-    internal string _get_unit_skill_target_validation_message(
-        BattleUnitReadView active_unit,
-        BattleUnitReadView target_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        string bodySizeOverrideMessage = _get_body_size_category_override_validation_message(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(bodySizeOverrideMessage))
-        {
-            return bodySizeOverrideMessage;
-        }
-        string executeMessage = GetExecuteTargetValidationMessage(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(executeMessage))
-        {
-            return executeMessage;
-        }
-        if (
-            target_unit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS)
-            && !BattleTemporalStatusService.IsTemporalReleaseSkill(skillDefinition)
-        )
-        {
-            return "目标处于时间静滞，只有时间系解控技能能够作用。";
-        }
-        string targetStatusRequirementMessage = GetTargetStatusRequirementValidationMessage(
-            active_unit,
-            target_unit,
-            skillDefinition,
-            cast_variant
-        );
-        if (!string.IsNullOrEmpty(targetStatusRequirementMessage))
-        {
-            return targetStatusRequirementMessage;
-        }
-        StringName skillId = skillDefinition?.SkillId ?? new StringName("");
-        if (_is_black_crown_seal_skill(skillId))
-        {
-            if (
-                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
-                || !target_unit.IsBossTarget
-            )
-            {
-                return "黑冠封印只能对 boss 施放。";
-            }
-        }
-        if (_is_doom_shift_skill(skillId))
-        {
-            if (!target_unit.IsValid || !active_unit.IsValid)
-            {
-                return "断命换位的目标无效。";
-            }
-            if (target_unit.UnitId == active_unit.UnitId)
-            {
-                return "断命换位不能以自己为目标。";
-            }
-        }
-        if (_is_crown_break_skill(skillId))
-        {
-            if (
-                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
-                || !target_unit.HasStatusEffect("black_star_brand_elite")
-            )
-            {
-                return "折冠只能对已被黑星烙印的 elite / boss 施放。";
-            }
-        }
-        if (_is_doom_sentence_skill(skillId))
-        {
-            if (
-                !_is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
-                || !target_unit.IsEliteOrBossTarget
-            )
-            {
-                return "厄命宣判只能对 elite / boss 施放。";
-            }
-        }
-        return "";
-    }
-
-    private string GetTargetStatusRequirementValidationMessage(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        if (activeUnit == null || targetUnit == null || skillDefinition == null)
-            return "";
-
-        bool sawRelevantRequirement = false;
-        CombatEffectDefinition firstFailedRequirement = null;
-        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            )
-        )
-        {
-            if (effectDefinition == null)
-                continue;
-            if (
-                !_is_unit_valid_for_effect(
-                    activeUnit,
-                    targetUnit,
-                    ResolveEffectTargetFilter(skillDefinition, effectDefinition),
-                    allowDeadTargets
-                )
-            )
-            {
-                continue;
-            }
-
-            StringName requiredStatusId = ProgressionDataUtils.to_string_name(
-                effectDefinition.RequiredTargetStatusId
-            );
-            if (requiredStatusId == "")
-                return "";
-
-            sawRelevantRequirement = true;
-            firstFailedRequirement ??= effectDefinition;
-            if (TargetStatusRequirementPasses(
-                activeUnit,
-                targetUnit,
-                effectDefinition,
-                requiredStatusId
-            ))
-            {
-                return "";
-            }
-        }
-
-        return sawRelevantRequirement
-            ? BuildTargetStatusRequirementMessage(firstFailedRequirement)
-            : "";
-    }
-
-    private string GetTargetStatusRequirementValidationMessage(
-        BattleUnitReadView activeUnit,
-        BattleUnitReadView targetUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        if (!activeUnit.IsValid || !targetUnit.IsValid || skillDefinition == null)
-            return "";
-
-        bool sawRelevantRequirement = false;
-        CombatEffectDefinition firstFailedRequirement = null;
-        bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            )
-        )
-        {
-            if (effectDefinition == null)
-                continue;
-            if (
-                !_is_unit_valid_for_effect(
-                    activeUnit,
-                    targetUnit,
-                    ResolveEffectTargetFilter(skillDefinition, effectDefinition),
-                    allowDeadTargets
-                )
-            )
-            {
-                continue;
-            }
-
-            StringName requiredStatusId = ProgressionDataUtils.to_string_name(
-                effectDefinition.RequiredTargetStatusId
-            );
-            if (requiredStatusId == "")
-                return "";
-
-            sawRelevantRequirement = true;
-            firstFailedRequirement ??= effectDefinition;
-            if (TargetStatusRequirementPasses(
-                activeUnit,
-                targetUnit,
-                effectDefinition,
-                requiredStatusId
-            ))
-            {
-                return "";
-            }
-        }
-
-        return sawRelevantRequirement
-            ? BuildTargetStatusRequirementMessage(firstFailedRequirement)
-            : "";
-    }
-
-    private static bool TargetStatusRequirementPasses(
-        BattleUnitState sourceUnit,
-        BattleUnitState targetUnit,
-        CombatEffectDefinition effectDefinition,
-        StringName requiredStatusId
-    )
-    {
-        BattleStatusEffectState statusEntry = targetUnit?.GetStatusEffect(requiredStatusId);
-        if (statusEntry == null)
-            return false;
-        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
-        if (Math.Max(statusEntry.stacks, 0) < requiredStacks)
-            return false;
-        return TargetStatusSourceRequirementPasses(
-            effectDefinition,
-            statusEntry.source_unit_id,
-            sourceUnit?.unit_id ?? new StringName("")
-        );
-    }
-
-    private static bool TargetStatusRequirementPasses(
-        BattleUnitReadView sourceUnit,
-        BattleUnitReadView targetUnit,
-        CombatEffectDefinition effectDefinition,
-        StringName requiredStatusId
-    )
-    {
-        if (!targetUnit.HasStatusEffect(requiredStatusId))
-            return false;
-        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
-        if (Math.Max(targetUnit.GetStatusStacks(requiredStatusId), 0) < requiredStacks)
-            return false;
-        return TargetStatusSourceRequirementPasses(
-            effectDefinition,
-            targetUnit.GetStatusSourceUnitId(requiredStatusId),
-            sourceUnit.UnitId
-        );
-    }
-
-    private static bool TargetStatusSourceRequirementPasses(
-        CombatEffectDefinition effectDefinition,
-        StringName statusSourceUnitId,
-        StringName sourceUnitId
-    )
-    {
-        StringName sourceSelector = ProgressionDataUtils.to_string_name(
-            effectDefinition?.RequiredTargetStatusSourceSelector ?? new StringName("")
-        );
-        if (sourceSelector == "")
-            return true;
-        if (
-            sourceSelector == "source"
-            || sourceSelector == "attacker"
-            || sourceSelector == "owner"
-            || sourceSelector == "caster"
-        )
-        {
-            return sourceUnitId != "" && ProgressionDataUtils.to_string_name(statusSourceUnitId) == sourceUnitId;
-        }
-        return false;
-    }
-
-    private static string BuildTargetStatusRequirementMessage(
-        CombatEffectDefinition effectDefinition
-    )
-    {
-        StringName requiredStatusId = ProgressionDataUtils.to_string_name(
-            effectDefinition?.RequiredTargetStatusId ?? new StringName("")
-        );
-        int requiredStacks = Math.Max(effectDefinition?.RequiredTargetStatusMinStacks ?? 0, 1);
-        return $"目标缺少所需状态 {requiredStatusId} 至少 {requiredStacks} 层。";
-    }
-
-    private string GetExecuteTargetValidationMessage(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        var lookup = FindSingleExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>()
-        );
-        if (!string.IsNullOrEmpty(lookup.ErrorMessage))
-        {
-            return lookup.ErrorMessage;
-        }
-        if (lookup.Effect == null)
-        {
-            return "";
-        }
-        if (targetUnit == null)
-        {
-            return "律令死亡目标无效。";
-        }
-        if (!targetUnit.is_alive)
-        {
-            return "";
-        }
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            combatProfile == null
-            || !_is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
-        )
-        {
-            return "";
-        }
-        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
-            activeUnit,
-            targetUnit,
-            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDefinition.SkillId)
-        );
-        return plan.CanExecute
-            ? ""
-            : $"{targetUnit.display_name} 当前生命高于律令死亡阈值。";
-    }
-
-    private string GetExecuteTargetValidationMessage(
-        BattleUnitReadView activeUnit,
-        BattleUnitReadView targetUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        var lookup = FindSingleExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                castVariant,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>()
-        );
-        if (!string.IsNullOrEmpty(lookup.ErrorMessage))
-        {
-            return lookup.ErrorMessage;
-        }
-        if (lookup.Effect == null)
-        {
-            return "";
-        }
-        if (!targetUnit.IsValid)
-        {
-            return "律令死亡目标无效。";
-        }
-        if (!targetUnit.IsAlive)
-        {
-            return "";
-        }
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            combatProfile == null
-            || !_is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
-        )
-        {
-            return "";
-        }
-        BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(
-            activeUnit,
-            targetUnit,
-            BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDefinition.SkillId)
-        );
-        return plan.CanExecute
-            ? ""
-            : $"{targetUnit.DisplayName} 当前生命高于律令死亡阈值。";
-    }
-
-    private (CombatEffectDefinition Effect, string ErrorMessage) FindSingleExecuteEffect(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        CombatEffectDefinition found = null;
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (effectDefinition?.EffectKind != BattleEffectKind.Execute)
-            {
-                continue;
-            }
-            if (found != null)
-            {
-                return (null, "律令死亡效果配置无效。");
-            }
-            found = effectDefinition;
-        }
-        return (found, "");
-    }
-
-    internal string _get_body_size_category_override_validation_message(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        BattleState state = RtState();
-        if (state == null || target_unit == null || skillDefinition == null)
-        {
-            return "";
-        }
-        BattleGridService gridService = Runtime?.GetGridService();
-        if (gridService == null)
-        {
-            return "";
-        }
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                cast_variant,
-                active_unit
-            )
-        )
-        {
-            if (
-                effectDefinition == null
-                || effectDefinition.EffectKind != BattleEffectKind.BodySizeCategoryOverride
-            )
-            {
-                continue;
-            }
-            StringName targetCategory = effectDefinition.BodySizeCategory;
-            if (!BodySizeContentRules.IsValidBodySizeCategory(targetCategory))
-            {
-                continue;
-            }
-            Vector2I targetFootprint = BodySizeContentRules.GetFootprintForCategory(targetCategory);
-            if (
-                !gridService
-                    .CanPlaceFootprint(
-                        state,
-                        target_unit.coord,
-                        targetFootprint,
-                        target_unit.unit_id,
-                        target_unit
-                    )
-            )
-            {
-                return $"{target_unit.display_name} 周围空间不足，无法改变体型。";
-            }
-        }
-        return "";
-    }
-
-    internal string _get_body_size_category_override_validation_message(
-        BattleUnitReadView active_unit,
-        BattleUnitReadView target_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition cast_variant = null
-    )
-    {
-        BattleState state = RtState();
-        if (state == null || !target_unit.IsValid || skillDefinition == null)
-        {
-            return "";
-        }
-        BattleGridService gridService = Runtime?.GetGridService();
-        if (gridService == null)
-        {
-            return "";
-        }
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectUnitSkillEffectDefinitions(
-                skillDefinition,
-                cast_variant,
-                active_unit
-            )
-        )
-        {
-            if (
-                effectDefinition == null
-                || effectDefinition.EffectKind != BattleEffectKind.BodySizeCategoryOverride
-            )
-            {
-                continue;
-            }
-            StringName targetCategory = effectDefinition.BodySizeCategory;
-            if (!BodySizeContentRules.IsValidBodySizeCategory(targetCategory))
-            {
-                continue;
-            }
-            Vector2I targetFootprint = BodySizeContentRules.GetFootprintForCategory(targetCategory);
-            if (
-                !gridService
-                    .CanPlaceFootprint(
-                        state,
-                        target_unit.Coord,
-                        targetFootprint,
-                        target_unit.UnitId,
-                        target_unit
-                    )
-            )
-            {
-                return $"{target_unit.DisplayName} 周围空间不足，无法改变体型。";
-            }
-        }
-        return "";
     }
 
     internal readonly struct UnitSkillEffectResolution

@@ -353,6 +353,8 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
             System.Array.Empty<StringName>(),
             System.Array.Empty<StringName>(),
             System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             new Dictionary<StringName, StringName>(),
             System.Array.Empty<StringName>(),
             System.Array.Empty<string>()

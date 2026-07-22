@@ -17,6 +17,7 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
     private void Run()
     {
         TestPlainWorldMoveStagesWithoutDiskWrite();
+        TestResourceHarvestRollbackOnPersistFailure();
 
         RequestTestExit(_test.Finish("World map save transaction regression"));
     }
@@ -73,6 +74,151 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
         }
 
         _test.Fail("测试地图应至少存在一个不会打开窗口或战斗的相邻可移动格。");
+    }
+
+    private void TestResourceHarvestRollbackOnPersistFailure()
+    {
+        RuntimeContext context = CreateRuntimeContext();
+        if (context == null)
+        {
+            return;
+        }
+
+        try
+        {
+            WorldMapResourceNodeData node = FindHarvestableResourceNode(context.Facade);
+            _test.True(node != null, "资源采集回滚测试前置：测试地图应存在可采集资源点。");
+            if (node == null)
+            {
+                return;
+            }
+
+            Vector2I coord = node.WorldCoord;
+            StringName itemId = node.YieldItemId;
+            int warehouseCountBefore = context.Facade
+                .GetPartyWarehouseService()
+                .CountItem(itemId);
+            int remainingChargesBefore = node.RemainingCharges;
+            bool hadPendingSaveBefore = context.GameSession.HasPendingSave();
+            WorldMapResourceNodeData sessionNodeBefore = FindSessionResourceNode(
+                context.GameSession,
+                coord
+            );
+            _test.Eq(
+                sessionNodeBefore?.RemainingCharges ?? -1,
+                remainingChargesBefore,
+                "资源采集回滚测试前置：session world 应与 active world 一致。"
+            );
+
+            context.Facade._pending_harvest_coord = coord;
+            context.Facade._active_modal_kind = RuntimeModalKind.ResourceHarvestConfirm;
+            context.GameSession.fail_payload_write = true;
+
+            GameRuntimeFacade.RuntimeCommandResult result =
+                context.Facade.CommandConfirmResourceHarvestTyped();
+
+            _test.False(result.Ok, "资源采集提交失败时命令应返回失败。");
+            _test.True(
+                result.Message.Contains("操作已回滚", StringComparison.Ordinal),
+                "资源采集提交失败时应明确报告操作已回滚。"
+            );
+            _test.False(
+                result.Message.Contains("已采集", StringComparison.Ordinal),
+                "资源采集提交失败时不应继续报告采集成功。"
+            );
+            _test.Eq(
+                context.Facade.GetPartyWarehouseService().CountItem(itemId),
+                warehouseCountBefore,
+                "资源采集提交失败后仓库物品数量应恢复。"
+            );
+            _test.True(
+                ReferenceEquals(
+                    context.Facade.GetPartyState(),
+                    context.GameSession.GetPartyState()
+                ),
+                "资源采集回滚后 runtime 应重新绑定 session 的 canonical party state。"
+            );
+
+            WorldMapResourceNodeData activeNode =
+                context.Facade._world_map_data_context.GetResourceNodeAt(coord);
+            _test.True(activeNode != null, "资源采集提交失败后 active world 资源点不应丢失。");
+            _test.Eq(
+                activeNode?.RemainingCharges ?? -1,
+                remainingChargesBefore,
+                "资源采集提交失败后 active world 的剩余次数应恢复。"
+            );
+
+            WorldMapResourceNodeData rootNode = FindResourceNode(
+                context.Facade._world_map_data_context.RootRuntimeData,
+                coord
+            );
+            _test.True(rootNode != null, "资源采集提交失败后 root world 资源点不应丢失。");
+            _test.Eq(
+                rootNode?.RemainingCharges ?? -1,
+                remainingChargesBefore,
+                "资源采集提交失败后 root world 的剩余次数应恢复。"
+            );
+
+            WorldMapResourceNodeData sessionNodeAfter = FindSessionResourceNode(
+                context.GameSession,
+                coord
+            );
+            _test.True(sessionNodeAfter != null, "资源采集提交失败后 session world 资源点不应丢失。");
+            _test.Eq(
+                sessionNodeAfter?.RemainingCharges ?? -1,
+                remainingChargesBefore,
+                "资源采集提交失败后 session world 的剩余次数应恢复。"
+            );
+            _test.Eq(
+                context.GameSession.HasPendingSave(),
+                hadPendingSaveBefore,
+                "资源采集提交失败后 session 保存状态应恢复到命令前。"
+            );
+        }
+        finally
+        {
+            context.GameSession.fail_payload_write = false;
+            context.Dispose();
+        }
+    }
+
+    private static WorldMapResourceNodeData FindHarvestableResourceNode(
+        GameRuntimeFacade facade
+    )
+    {
+        foreach (
+            WorldMapResourceNodeData node in facade._world_map_data_context.GetActiveResourceNodes()
+        )
+        {
+            if (node != null && node.Exists && node.RemainingCharges > 0)
+                return node;
+        }
+        return null;
+    }
+
+    private static WorldMapResourceNodeData FindResourceNode(
+        WorldRuntimeData worldData,
+        Vector2I coord
+    )
+    {
+        if (worldData == null)
+            return null;
+        foreach (WorldMapResourceNodeData node in worldData.ResourceNodes)
+        {
+            if (node != null && node.Exists && node.WorldCoord == coord)
+                return node;
+        }
+        return null;
+    }
+
+    private static WorldMapResourceNodeData FindSessionResourceNode(
+        GameSession gameSession,
+        Vector2I coord
+    )
+    {
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            gameSession.GetWorldDataLease();
+        return FindResourceNode(WorldRuntimeData.FromDictionary(worldDataLease.Value), coord);
     }
 
     private RuntimeContext CreateRuntimeContext()

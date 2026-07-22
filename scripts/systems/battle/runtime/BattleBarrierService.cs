@@ -1,10 +1,41 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
 
-internal readonly record struct BattleBarrierInteractionResult(bool Blocked, bool Applied)
+internal readonly record struct BattleBarrierInteractionResult(
+    bool Blocked,
+    bool Applied,
+    string PreviewText = "",
+    bool WouldBreakLayer = false
+)
 {
+}
+
+internal sealed class BattleBarrierPreviewSession
+{
+    private readonly Dictionary<StringName, BattleBarrierInstanceState> _barriers;
+
+    internal BattleBarrierPreviewSession(
+        IReadOnlyList<StringName> orderedBarrierKeys,
+        Dictionary<StringName, BattleBarrierInstanceState> barriers
+    )
+    {
+        OrderedBarrierKeys = orderedBarrierKeys ?? System.Array.Empty<StringName>();
+        _barriers = barriers ?? new Dictionary<StringName, BattleBarrierInstanceState>();
+    }
+
+    internal IReadOnlyList<StringName> OrderedBarrierKeys { get; }
+
+    internal bool TryGetBarrier(
+        StringName barrierKey,
+        out BattleBarrierInstanceState barrier
+    ) => _barriers.TryGetValue(barrierKey, out barrier);
+
+    internal void PutBarrier(StringName barrierKey, BattleBarrierInstanceState barrier)
+    {
+        if (barrierKey != "" && barrier != null)
+            _barriers[barrierKey] = barrier;
+    }
 }
 
 internal readonly record struct BattleBarrierPassageResult(bool Applied, bool Stopped)
@@ -280,8 +311,44 @@ internal class BattleBarrierService
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,
-            batch
+            batch,
+            commit: true
         );
+    }
+
+    internal BattleBarrierInteractionResult PreviewSkillBarrierInteractionResult(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleBarrierPreviewSession previewSession = null
+    )
+    {
+        if (!sourceUnit.IsValid || !targetUnit.IsValid)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit.UnsafeUnitForReadOnlyRules,
+            sourceUnit.Coord,
+            targetUnit.Coord,
+            targetUnit.DisplayName,
+            skillDefinition,
+            effectDefinitions,
+            batch: null,
+            commit: false,
+            previewSession: previewSession
+        );
+    }
+
+    internal BattleBarrierPreviewSession BeginSkillBarrierPreviewSession()
+    {
+        IReadOnlyList<StringName> orderedBarrierKeys = _SortedBarrierKeys();
+        var barriers = new Dictionary<StringName, BattleBarrierInstanceState>();
+        foreach (StringName barrierKey in orderedBarrierKeys)
+        {
+            if (TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
+                barriers[barrierKey] = barrier;
+        }
+        return new BattleBarrierPreviewSession(orderedBarrierKeys, barriers);
     }
 
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionFromCoordResult(
@@ -302,7 +369,8 @@ internal class BattleBarrierService
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,
-            batch
+            batch,
+            commit: true
         );
     }
 
@@ -321,7 +389,8 @@ internal class BattleBarrierService
             $"({targetCoord.X}, {targetCoord.Y})",
             skillDefinition,
             effectDefinitions,
-            batch
+            batch,
+            commit: true
         );
     }
 
@@ -335,7 +404,7 @@ internal class BattleBarrierService
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
-            sourceUnit != null,
+            sourceUnit,
             sourceUnit?.coord ?? new Vector2I(-1, -1),
             sourceUnit?.display_name ?? "",
             skillDefinition,
@@ -356,7 +425,7 @@ internal class BattleBarrierService
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
-            sourceUnit.IsValid,
+            sourceUnit.IsValid ? sourceUnit.UnsafeUnitForReadOnlyRules : null,
             sourceUnit.IsValid ? sourceUnit.Coord : new Vector2I(-1, -1),
             sourceUnit.DisplayName,
             skillDefinition,
@@ -378,7 +447,7 @@ internal class BattleBarrierService
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
-            sourceUnit != null,
+            sourceUnit,
             effectOriginCoord,
             sourceUnit?.display_name ?? "",
             skillDefinition,
@@ -400,7 +469,7 @@ internal class BattleBarrierService
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
-            sourceUnit.IsValid,
+            sourceUnit.IsValid ? sourceUnit.UnsafeUnitForReadOnlyRules : null,
             effectOriginCoord,
             sourceUnit.DisplayName,
             skillDefinition,
@@ -413,7 +482,7 @@ internal class BattleBarrierService
     }
 
     private BattleGroundEffectBarrierClipResult _ResolveGroundEffectBarrierClipResult(
-        bool sourceValid,
+        BattleUnitState sourceUnit,
         Vector2I sourceCoord,
         string sourceDisplayName,
         SkillDefinition skillDefinition,
@@ -445,14 +514,24 @@ internal class BattleBarrierService
         if (
             runtime != null
             && runtime._state != null
-            && sourceValid
+            && sourceUnit != null
             && !_IsProjectedBarrierExempt(skillDefinition)
         )
         {
+            IReadOnlyList<StringName> projectedWeaponCategories = hasUnitEffects
+                ? runtime
+                    .GetEquipmentAbilityRuntimeService()
+                    .CollectProjectedWeaponEffectCategories(
+                        sourceUnit,
+                        normalizedUnitEffects,
+                        skillDefinition
+                    )
+                : System.Array.Empty<StringName>();
             IReadOnlyList<StringName> unitCategories = hasUnitEffects
                 ? BattleEffectCategoryResolver.ResolveCategories(
                     skillDefinition,
-                    normalizedUnitEffects
+                    normalizedUnitEffects,
+                    projectedWeaponCategories
                 )
                 : System.Array.Empty<StringName>();
             IReadOnlyList<StringName> terrainCategories = hasTerrainEffects
@@ -601,7 +680,9 @@ internal class BattleBarrierService
         string targetLabel,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        bool commit,
+        BattleBarrierPreviewSession previewSession = null
     )
     {
         if (_IsProjectedBarrierExempt(skillDefinition))
@@ -613,10 +694,37 @@ internal class BattleBarrierService
             || sourceUnit == null
         )
             return new BattleBarrierInteractionResult(false, false);
-        foreach (StringName barrierKey in _SortedBarrierKeys())
+        IReadOnlyList<CombatEffectDefinition> normalizedEffects =
+            effectDefinitions as IReadOnlyList<CombatEffectDefinition>
+            ?? new List<CombatEffectDefinition>(
+                effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>()
+            );
+        IReadOnlyList<StringName> projectedWeaponCategories = runtime
+            .GetEquipmentAbilityRuntimeService()
+            .CollectProjectedWeaponEffectCategories(
+                sourceUnit,
+                normalizedEffects,
+                skillDefinition
+            );
+        IReadOnlyList<StringName> categories = BattleEffectCategoryResolver.ResolveCategories(
+            skillDefinition,
+            normalizedEffects,
+            projectedWeaponCategories
+        );
+        IReadOnlyList<StringName> barrierKeys =
+            previewSession?.OrderedBarrierKeys ?? _SortedBarrierKeys();
+        foreach (StringName barrierKey in barrierKeys)
         {
-            if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
+            BattleBarrierInstanceState barrier;
+            if (previewSession != null)
+            {
+                if (!previewSession.TryGetBarrier(barrierKey, out barrier))
+                    continue;
+            }
+            else if (!TryReadBarrier(barrierKey, out barrier))
+            {
                 continue;
+            }
             if (!_ProjectedEffectCrossesBarrier(effectOriginCoord, targetCoord, barrier))
                 continue;
             var activeLayer = _GetActiveLayer(barrier);
@@ -624,21 +732,42 @@ internal class BattleBarrierService
                 continue;
             if (_SkillBreaksLayer(skillDefinition, activeLayer))
             {
-                _BreakActiveLayer(barrierKey, barrier, activeLayer, batch);
-                return new BattleBarrierInteractionResult(true, true);
+                string activeBreakerPreviewText =
+                    $"{sourceUnit.display_name} 的 {(skillDefinition != null ? skillDefinition.DisplayName : "效果")} 会破解{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(activeLayer)}，但本次跨界效果仍被阻挡。";
+                if (commit)
+                    _BreakActiveLayer(barrierKey, barrier, activeLayer, batch);
+                else if (previewSession != null)
+                {
+                    List<BattleBarrierLayerState> previewLayers = barrier.GetLayersTyped();
+                    foreach (BattleBarrierLayerState previewLayer in previewLayers)
+                    {
+                        if (previewLayer?.LayerId != activeLayer.LayerId)
+                            continue;
+                        previewLayer.Broken = true;
+                        break;
+                    }
+                    barrier.SetLayers(previewLayers);
+                    previewSession.PutBarrier(barrierKey, barrier);
+                }
+                return new BattleBarrierInteractionResult(
+                    true,
+                    commit,
+                    activeBreakerPreviewText,
+                    WouldBreakLayer: true
+                );
             }
             if (_SkillBreaksAnyRemainingLayer(skillDefinition, barrier))
             {
-                _AppendLog(
-                    batch,
-                    $"{sourceUnit.display_name} 试图破解{_GetBarrierLabel(barrier)}，但必须先处理外层 {_GetLayerLabel(activeLayer)}。"
+                string deeperBreakerPreviewText =
+                    $"{sourceUnit.display_name} 试图破解{_GetBarrierLabel(barrier)}，但必须先处理外层 {_GetLayerLabel(activeLayer)}。";
+                if (commit)
+                    _AppendLog(batch, deeperBreakerPreviewText);
+                return new BattleBarrierInteractionResult(
+                    true,
+                    commit,
+                    deeperBreakerPreviewText
                 );
-                return new BattleBarrierInteractionResult(true, true);
             }
-            var categories = BattleEffectCategoryResolver.ResolveCategories(
-                skillDefinition,
-                effectDefinitions
-            );
             var blockingLayer = _FindFirstBlockingLayer(barrier, categories);
             if (
                 blockingLayer == null
@@ -647,11 +776,11 @@ internal class BattleBarrierService
                 blockingLayer = activeLayer;
             if (blockingLayer == null)
                 continue;
-            _AppendLog(
-                batch,
-                $"{sourceUnit.display_name} 的 {(skillDefinition != null ? skillDefinition.DisplayName : "效果")} 被{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡，无法影响 {targetLabel}。"
-            );
-            return new BattleBarrierInteractionResult(true, true);
+            string blockingPreviewText =
+                $"{sourceUnit.display_name} 的 {(skillDefinition != null ? skillDefinition.DisplayName : "效果")} 被{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡，无法影响 {targetLabel}。";
+            if (commit)
+                _AppendLog(batch, blockingPreviewText);
+            return new BattleBarrierInteractionResult(true, commit, blockingPreviewText);
         }
         return new BattleBarrierInteractionResult(false, false);
     }

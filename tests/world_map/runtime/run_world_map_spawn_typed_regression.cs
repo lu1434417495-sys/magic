@@ -15,9 +15,109 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
     private void Run()
     {
         TestTypedWorldBuildProjectsSettlementsAndAnchors();
+        TestPlayerVillageUsesAuthoredNpcServices();
         TestTypedWorldBuildGeneratesResourceNodes();
 
         RequestTestExit(_test.Finish("World map spawn typed regression"));
+    }
+
+    private void TestPlayerVillageUsesAuthoredNpcServices()
+    {
+        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Load(
+            TestWorldConfig
+        );
+        _test.True(definition != null, "玩家村庄 NPC 回归需要可投影的测试世界配置。");
+        if (definition == null)
+            return;
+
+        WorldMapGridSystem gridSystem = new();
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
+        WorldMapSpawnSystem.WorldBuildData typedWorld = new WorldMapSpawnSystem().BuildWorldTyped(
+            definition,
+            gridSystem
+        );
+        WorldMapSpawnSystem.SettlementInstanceData playerVillage = null;
+        foreach (WorldMapSpawnSystem.SettlementInstanceData settlement in typedWorld.Settlements)
+        {
+            if (settlement != null && settlement.IsPlayerStart)
+            {
+                playerVillage = settlement;
+                break;
+            }
+        }
+
+        _test.True(playerVillage != null, "世界生成应包含玩家出生村庄。");
+        if (playerVillage == null)
+            return;
+
+        _test.Eq(playerVillage.Tier, 0, "玩家出生据点应保持村庄层级。");
+        _test.Eq(playerVillage.Facilities.Count, 1, "出生村庄不应为新手任务新增设施。");
+        if (playerVillage.Facilities.Count == 1)
+        {
+            _test.Eq(
+                playerVillage.Facilities[0].TemplateId,
+                "village_hearth",
+                "出生村庄唯一设施应继续使用 village_hearth。"
+            );
+        }
+
+        var interactionIds = new HashSet<string>();
+        var actionIdByInteractionId = new Dictionary<string, string>();
+        foreach (WorldMapSpawnSystem.ServiceEntryData service in playerVillage.AvailableServices)
+        {
+            if (service == null)
+                continue;
+            interactionIds.Add(service.InteractionScriptId);
+            actionIdByInteractionId[service.InteractionScriptId] = service.ActionId;
+        }
+
+        _test.True(interactionIds.Contains("npc_village_chief"), "出生村庄应提供村长任务入口。");
+        _test.True(interactionIds.Contains("npc_village_healer"), "出生村庄应提供村医任务入口。");
+        _test.True(interactionIds.Contains("npc_old_hunter"), "出生村庄应提供老猎人任务入口。");
+        _test.True(interactionIds.Contains("service_rest_basic"), "村长改为任务发布者后仍应保留基础休息服务。");
+        _test.False(interactionIds.Contains("party_warehouse"), "村庄不应提供正式仓库服务。");
+
+        actionIdByInteractionId.TryGetValue("npc_village_chief", out string chiefActionId);
+        actionIdByInteractionId.TryGetValue("npc_village_healer", out string healerActionId);
+        actionIdByInteractionId.TryGetValue("npc_old_hunter", out string hunterActionId);
+        _test.True(!string.IsNullOrEmpty(chiefActionId), "村长服务应有非空 action_id。");
+        _test.True(!string.IsNullOrEmpty(healerActionId), "村医服务应有非空 action_id。");
+        _test.True(!string.IsNullOrEmpty(hunterActionId), "老猎人服务应有非空 action_id。");
+        _test.True(
+            chiefActionId != healerActionId,
+            "村长与村医的 action_id 不应相同，否则据点窗口会把村医请求路由到村长的委托面板。"
+        );
+        _test.True(
+            chiefActionId != hunterActionId,
+            "村长与老猎人的 action_id 不应相同，否则据点窗口会把老猎人请求路由到村长的委托面板。"
+        );
+        _test.True(
+            healerActionId != hunterActionId,
+            "村医与老猎人的 action_id 不应相同，否则据点窗口会把两者请求互相混淆。"
+        );
+
+        int villageCount = 0;
+        foreach (WorldMapSpawnSystem.SettlementInstanceData settlement in typedWorld.Settlements)
+        {
+            if (settlement == null || settlement.Tier != 0)
+                continue;
+            villageCount++;
+            bool hasQuartermaster = false;
+            bool hasSyntheticServiceDesk = false;
+            bool hasWarehouse = false;
+            foreach (WorldMapSpawnSystem.ServiceEntryData service in settlement.AvailableServices)
+            {
+                if (service == null)
+                    continue;
+                hasQuartermaster |= service.NpcName == "军需官";
+                hasSyntheticServiceDesk |= service.FacilityName == "据点服务台";
+                hasWarehouse |= service.InteractionScriptId == "party_warehouse";
+            }
+            _test.False(hasQuartermaster, $"村庄 {settlement.DisplayName} 不应出现军需官。");
+            _test.False(hasSyntheticServiceDesk, $"村庄 {settlement.DisplayName} 不应出现虚构据点服务台。");
+            _test.False(hasWarehouse, $"村庄 {settlement.DisplayName} 不应提供正式仓库服务。");
+        }
+        _test.True(villageCount > 0, "村庄服务回归需要至少一个 tier 0 据点。");
     }
 
     private void TestTypedWorldBuildProjectsSettlementsAndAnchors()

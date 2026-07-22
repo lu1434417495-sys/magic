@@ -319,8 +319,7 @@ internal static class ContentValidationRunner
     }
 
     public static ValidationDomainResult ValidateWorldPresets(
-        IEnumerable<StringName> enemyTemplateIds = null,
-        IEnumerable<StringName> wildEncounterRosterIds = null
+        IEnumerable<StringName> battleEncounterIds = null
     )
     {
         using TestContentResourceLoader loader = new();
@@ -341,8 +340,7 @@ internal static class ContentValidationRunner
                     validator.ValidateGenerationConfigTyped(
                         definition,
                         canonicalPath,
-                        enemyTemplateIds,
-                        wildEncounterRosterIds
+                        battleEncounterIds
                     )
                 );
             }
@@ -367,8 +365,7 @@ internal static class ContentValidationRunner
     public static ValidationDomainResult ValidateWorldGenerationConfig(
         string label,
         WorldGenerationDefinition generationDefinition,
-        IEnumerable<StringName> enemyTemplateIds = null,
-        IEnumerable<StringName> wildEncounterRosterIds = null
+        IEnumerable<StringName> battleEncounterIds = null
     )
     {
         WorldMapContentValidator validator = new();
@@ -378,8 +375,7 @@ internal static class ContentValidationRunner
             validator.ValidateGenerationConfigTyped(
                 generationDefinition,
                 label,
-                enemyTemplateIds,
-                wildEncounterRosterIds
+                battleEncounterIds
             )
         );
     }

@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_gpe5d"]
 script = ExtResource("4_220n8")
 skill_id = &"mage_prism_spray"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"cone"

@@ -18,7 +18,10 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
     private void Run()
     {
         TestSaveSerializerRoundTripPreservesPartyQuestSchema();
+        TestDecodePayloadRejectsInvalidQuestProgressContext();
         TestDecodePayloadRejectsMissingPartySchemaFields();
+        TestDecodePayloadRejectsIncompleteSettlementState();
+        TestRootVersion14IsRejectedWithoutMigration();
         TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate();
         TestExtractSaveMetaRejectsMissingSlotFields();
         RequestTestExit(_test.Finish("Save serializer quest round trip regression"));
@@ -60,8 +63,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
-            12,
-            "World resource node schema should bump top-level save version to 12."
+            15,
+            "Current strict world schema should use top-level save version 15."
         );
         Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,
@@ -154,6 +157,172 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         _test.Eq(decodeResult.Error, (int)Error.InvalidData, "旧 schema 解码结果应标记 InvalidData。");
 
         CleanupTestSession(gameSession);
+    }
+
+    private void TestRootVersion14IsRejectedWithoutMigration()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "v14 rejection regression requires a valid current save.");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "settlement-v14.payload"
+            );
+            payload["version"] = 14;
+
+            _test.True(
+                !serializer.TryExtractSaveMetaPlain(payload, out _),
+                "v14 save metadata must be rejected; current world schema has no compatibility path."
+            );
+            bool decoded = serializer.TryDecodePayload(
+                payload,
+                gameSession.GetGenerationConfigPath(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
+            );
+            _test.True(!decoded, "v14 save payload must be rejected without migration.");
+            _test.Eq(
+                decodeResult.Error,
+                (int)Error.InvalidData,
+                "v14 rejection must report InvalidData."
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestDecodePayloadRejectsIncompleteSettlementState()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "nested settlement-state validation requires a valid save.");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "invalid-settlement-state.payload"
+            );
+            Dictionary<string, object> worldState = PlainDictionary(payload, "world_state");
+            Dictionary<string, object> worldData = PlainDictionary(worldState, "world_data");
+            var settlements = (List<object>)worldData["settlements"];
+            var settlement = (Dictionary<string, object>)settlements[0];
+            var settlementState = (Dictionary<string, object>)settlement["settlement_state"];
+            settlementState.Remove("shop_states");
+
+            bool decoded = serializer.TryDecodePayload(
+                payload,
+                gameSession.GetGenerationConfigPath(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
+            );
+            _test.True(
+                !decoded,
+                "current-version payload with incomplete settlement_state must be rejected."
+            );
+            _test.Eq(
+                decodeResult.Error,
+                (int)Error.InvalidData,
+                "incomplete settlement_state must report InvalidData."
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestDecodePayloadRejectsInvalidQuestProgressContext()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "损坏任务上下文回归需要可创建的测试世界。");
+            if (createError != Error.Ok)
+                return;
+
+            PartyState partyState = gameSession.GetPartyState();
+            var questState = new QuestState { quest_id = "contract_wolf_pack" };
+            questState.MarkAccepted(8);
+            partyState.SetActiveQuestState(questState);
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, partyState);
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "invalid-quest-progress-context.payload"
+            );
+            Dictionary<string, object> partyPayload = PlainDictionary(payload, "party_state");
+            IReadOnlyList<object> activeQuests =
+                partyPayload.TryGetValue("active_quests", out object activeQuestsValue)
+                && activeQuestsValue is IReadOnlyList<object> questList
+                    ? questList
+                    : Array.Empty<object>();
+            _test.Eq(activeQuests.Count, 1, "测试 payload 应包含一个 active quest。");
+            if (
+                activeQuests.Count != 1
+                || activeQuests[0] is not Dictionary<string, object> activeQuestPayload
+            )
+            {
+                _test.True(false, "测试 payload 的 active quest 应为 plain dictionary。");
+                return;
+            }
+
+            activeQuestPayload["last_progress_context"] = new Dictionary<string, object>(
+                StringComparer.Ordinal
+            )
+            {
+                ["submitted_quantity"] = "bad",
+            };
+
+            bool decoded = false;
+            SaveDecodeResult decodeResult = null;
+            Exception decodeException = null;
+            try
+            {
+                decoded = serializer.TryDecodePayload(
+                    payload,
+                    gameSession.GetGenerationConfigPath(),
+                    gameSession.CaptureActiveSaveMetaPlain(),
+                    out decodeResult
+                );
+            }
+            catch (Exception exception)
+            {
+                decodeException = exception;
+            }
+
+            _test.True(
+                decodeException == null,
+                "SaveSerializer 应安全拒绝损坏的任务上下文，而不是抛出异常。"
+            );
+            _test.True(!decoded, "损坏的任务上下文不应通过存档解码。");
+            _test.True(
+                decodeResult != null && decodeResult.Error == (int)Error.InvalidData,
+                "损坏的任务上下文应返回 Error.InvalidData。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
     }
 
     private void TestDecodePayloadRejectsMissingPartySchemaFields()

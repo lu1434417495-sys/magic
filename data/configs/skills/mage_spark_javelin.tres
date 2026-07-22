@@ -78,6 +78,7 @@ duration_tu = 80
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_spark_javelin"
+delivery_categories = Array[StringName]([&"spell", &"magical_missile"])
 range_value = 5
 mp_cost = 60
 cooldown_tu = 10

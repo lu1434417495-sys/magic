@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="graded_save_execute"]
 script = ExtResource("1_effect")
 effect_type = &"graded_save_execute"
+effect_categories = Array[StringName]([&"mental_attack", &"psychic"])
 effect_target_team_filter = &"any"
 damage_tag = &"psychic"
 save_dc_mode = &"caster_spell"

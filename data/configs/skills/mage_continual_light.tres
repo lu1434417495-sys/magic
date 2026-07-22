@@ -100,6 +100,7 @@ params = {
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_light_combat")
 skill_id = &"mage_continual_light"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"unit"
 target_team_filter = &"enemy"
 range_value = 5

@@ -49,6 +49,12 @@ public partial class TraitDef : Resource
     public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();
 
     [Export]
+    public Godot.Collections.Array<StringName> save_disadvantage_tags { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> save_immunity_tags { get; set; } = new();
+
+    [Export]
     public Godot.Collections.Array<TraitDamageResistanceEntryDef> damage_resistance_entries { get; set; } = new();
 
     [Export]
@@ -69,6 +75,10 @@ public partial class TraitDef : Resource
         attribute_modifiers;
     internal Godot.Collections.Array<StringName> SaveAdvantageTagsProjectionBorrowed =>
         save_advantage_tags;
+    internal Godot.Collections.Array<StringName> SaveDisadvantageTagsProjectionBorrowed =>
+        save_disadvantage_tags;
+    internal Godot.Collections.Array<StringName> SaveImmunityTagsProjectionBorrowed =>
+        save_immunity_tags;
     internal Godot.Collections.Array<TraitDamageResistanceEntryDef> DamageResistanceEntriesProjectionBorrowed =>
         damage_resistance_entries;
     internal Godot.Collections.Array<TraitSaveBonusEntryDef> SaveBonusEntriesProjectionBorrowed =>

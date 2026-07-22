@@ -23,21 +23,23 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
         if (actor == null)
             return null;
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = ActionKindMoveToMultiUnitPosition.ToString(),
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["distance_reference"] = action.DistanceReference.ToString(),
-                ["desired_min_distance"] = action.DesiredMinDistance,
-                ["desired_max_distance"] = action.DesiredMaxDistance,
-                ["candidate_pool_limit"] = action.CandidatePoolLimit,
-                ["candidate_group_limit"] = action.CandidateGroupLimit,
-                ["target_count_weight"] = action.TargetCountWeight,
-            }
-        );
+        AiActionTrace actionTrace = context.trace_enabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = ActionKindMoveToMultiUnitPosition.ToString(),
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["distance_reference"] = action.DistanceReference.ToString(),
+                    ["desired_min_distance"] = action.DesiredMinDistance,
+                    ["desired_max_distance"] = action.DesiredMaxDistance,
+                    ["candidate_pool_limit"] = action.CandidatePoolLimit,
+                    ["candidate_group_limit"] = action.CandidateGroupLimit,
+                    ["target_count_weight"] = action.TargetCountWeight,
+                }
+            )
+            : null;
 
         if (IsUnitMovementBlocked(context, actor))
         {
@@ -164,20 +166,23 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
                         continue;
 
                     ApplyTargetGroupScore(action, scoreInput, targetGroup);
-                    TraceOfferCandidate(
-                        actionTrace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            $"move_to_multi_{destination.X}_{destination.Y}",
-                            command,
-                            scoreInput,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["skill_id"] = skillId.ToString(),
-                                ["current_target_count"] = currentTargetCount,
-                                ["target_count"] = targetCount,
-                            }
-                        )
-                    );
+                    if (actionTrace != null)
+                    {
+                        TraceOfferCandidate(
+                            actionTrace,
+                            EnemyAiActionHelper.BuildCandidateSummary(
+                                $"move_to_multi_{destination.X}_{destination.Y}",
+                                command,
+                                scoreInput,
+                                new Dictionary<string, object>(StringComparer.Ordinal)
+                                {
+                                    ["skill_id"] = skillId.ToString(),
+                                    ["current_target_count"] = currentTargetCount,
+                                    ["target_count"] = targetCount,
+                                }
+                            )
+                        );
+                    }
 
                     if (!IsBetterRepositionScoreInput(scoreInput, bestScoreInput))
                         continue;

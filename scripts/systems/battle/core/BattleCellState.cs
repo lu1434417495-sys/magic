@@ -168,6 +168,33 @@ public partial class BattleCellState
         };
     }
 
+    internal BattleCellState DuplicateForMutationSnapshotExact()
+    {
+        return new BattleCellState
+        {
+            coord = coord,
+            stack_layer = stack_layer,
+            base_terrain = base_terrain,
+            base_height = base_height,
+            height_offset = height_offset,
+            current_height = current_height,
+            passable = passable,
+            move_cost = move_cost,
+            occupant_unit_id = occupant_unit_id,
+            prop_ids = prop_ids == null ? null : new List<StringName>(prop_ids),
+            terrain_effect_ids = terrain_effect_ids == null
+                ? null
+                : new List<StringName>(terrain_effect_ids),
+            timed_terrain_effects =
+                BattleTerrainEffectState.DuplicateListForMutationSnapshotExact(
+                    timed_terrain_effects
+                ),
+            flow_direction = flow_direction,
+            edge_feature_east = edge_feature_east?.DuplicateFeature(),
+            edge_feature_south = edge_feature_south?.DuplicateFeature(),
+        };
+    }
+
     internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         var propIds = new List<string>();

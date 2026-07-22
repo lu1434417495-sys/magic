@@ -20,7 +20,7 @@ creature_level = 6
 hit_die_sides = 6
 action_threshold = 35
 tags = Array[StringName]([&"undead", &"wraith", &"incorporeal", &"beast"])
-save_advantage_tags = Array[StringName]([&"sleep_immunity", &"charm_immunity", &"poison_immunity", &"frightened_immunity"])
+save_immunity_tags = Array[StringName]([&"sleep", &"charm", &"poison", &"frightened"])
 damage_resistances = {
 &"physical_slash": &"half",
 &"physical_pierce": &"half",

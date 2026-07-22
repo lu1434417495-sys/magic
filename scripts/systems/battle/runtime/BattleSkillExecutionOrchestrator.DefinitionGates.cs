@@ -12,7 +12,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
 
-    private static int GetUnitMaxHp(BattleUnitState unitState)
+    internal static int GetUnitMaxHp(BattleUnitState unitState)
     {
         if (unitState == null)
         {
@@ -114,7 +114,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             == BattleTargetSelectionMode.RandomChain;
     }
 
-    private AttackPreviewData _build_unit_skill_hit_preview(
+    internal AttackPreviewData _build_unit_skill_hit_preview(
         BattleUnitReadView active_unit,
         IReadOnlyList<BattleUnitReadView> target_units,
         SkillDefinition skillDefinition,

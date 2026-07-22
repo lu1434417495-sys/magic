@@ -50,6 +50,7 @@ forced_move_distance = 3
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_wind_combat")
 skill_id = &"mage_gust_of_wind"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 target_team_filter = &"enemy"
 range_value = 1

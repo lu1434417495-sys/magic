@@ -302,6 +302,18 @@ public class QuestState
             return null;
         }
 
+        QuestProgressContext progressContext;
+        try
+        {
+            progressContext = QuestProgressContext.FromDictionary(
+                ctxVar.AsGodotDictionary()
+            );
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
         int acceptedAt = payload["accepted_at_world_step"].AsInt32();
 
         int completedAt = payload["completed_at_world_step"].AsInt32();
@@ -343,9 +355,7 @@ public class QuestState
             accepted_at_world_step = acceptedAt,
             completed_at_world_step = completedAt,
             reward_claimed_at_world_step = rewardAt,
-            last_progress_context = QuestProgressContext.FromDictionary(
-                ctxVar.AsGodotDictionary()
-            ),
+            last_progress_context = progressContext,
         };
     }
 

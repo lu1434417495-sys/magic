@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -22,9 +23,16 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         {
             _barrierProfileDefinitions = BarrierDefinitionTestContent.LoadValidated();
             TestPrismaticSphereCommandGrantsEffectAppliedMasteryOnce();
+            TestSingleLayerWardCommandsCreateExactlyOneLayer();
             TestCombinedGenericAndSpecialEffectsDoNotDoubleGrantMastery();
             TestPrismaticSphereCreatesOrderedLayers();
             TestLayerDamageUsesConfiguredDamageTagMitigation();
+            TestProjectedCategoriesRespectRemainingLayersWithoutCatchAll();
+            TestProjectedWeaponAbilityCategoriesRespectRangedBoundary();
+            TestProjectedWeaponCategoriesMatchBasicAttackPreviewAndCommit();
+            TestOrderedMultiHitBreakerPreviewMatchesCommit();
+            TestRandomChainPreviewSeparatesCandidatePoolFromEffectiveTargets();
+            TestGroundEffectWithUnmatchedCategoryPassesBarrier();
             TestGroundAoePreviewAndExecutionClipAtBarrierBoundary();
             TestGroundAoeTerrainClipAtBarrierBoundary();
             TestGroundAoeBreakerClipsUnitAndTerrainWithoutSameCastPenetration();
@@ -43,6 +51,719 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         finally
         {
             RequestTestExit(exitCode ?? _test.Finish("Prismatic sphere regression", 1));
+        }
+    }
+
+    private void TestProjectedWeaponAbilityCategoriesRespectRangedBoundary()
+    {
+        AssertProjectedWeaponAbilityBarrierResult(
+            "ash_longbow",
+            "",
+            expectedCategory: "nonmagical_missile",
+            expectedBlocked: false,
+            message: "普通远程武器伤害应投影为非魔法投射，但不应被只剩黄色层的法球阻挡。"
+        );
+        AssertProjectedWeaponAbilityBarrierResult(
+            "weapon_unique_crossbow_gorgon_329",
+            "binding.weapon.crossbow.gorgon.petrifying_gaze",
+            expectedCategory: "petrification",
+            expectedBlocked: true,
+            message: "远程蛇发女妖之弩携带的石化效果应被黄色层阻挡。"
+        );
+        AssertProjectedWeaponAbilityBarrierResult(
+            "weapon_unique_bow_scorpion_339",
+            "binding.weapon.bow.scorpion.scorpion_arrow",
+            expectedCategory: "poison",
+            expectedBlocked: true,
+            message: "远程蝎尾弓携带的毒素效果应被黄色层阻挡。"
+        );
+        AssertProjectedWeaponAbilityBarrierResult(
+            "weapon_unique_morningstar_viper_206",
+            "binding.weapon.morningstar.viper.venom_strike",
+            expectedCategory: "",
+            expectedBlocked: false,
+            message: "近战毒蛇晨星不得把毒素类别带入投射屏障判定。",
+            syntheticProjectedCategory: "poison"
+        );
+        AssertProjectedWeaponAbilityBarrierResult(
+            "weapon_unique_polearm_rock_halberd_148",
+            "binding.weapon.polearm.rock_halberd.stone_touch",
+            expectedCategory: "",
+            expectedBlocked: false,
+            message: "近战岩石戟不得把石化类别带入投射屏障判定。",
+            syntheticProjectedCategory: "petrification"
+        );
+        AssertExplicitMagicalMissileDoesNotGainNonmagicalProjection();
+    }
+
+    private void TestProjectedWeaponCategoriesMatchBasicAttackPreviewAndCommit()
+    {
+        AssertProjectedWeaponBasicAttackPreviewAndCommit(
+            "ash_longbow",
+            "",
+            expectedBlocked: true,
+            afterHitStatusId: "",
+            remainingLayerId: "red",
+            remainingLayerLabel: "红色层"
+        );
+        AssertProjectedWeaponBasicAttackPreviewAndCommit(
+            "weapon_unique_crossbow_gorgon_329",
+            "binding.weapon.crossbow.gorgon.petrifying_gaze",
+            expectedBlocked: true,
+            afterHitStatusId: "slow"
+        );
+        AssertProjectedWeaponBasicAttackPreviewAndCommit(
+            "weapon_unique_bow_scorpion_339",
+            "binding.weapon.bow.scorpion.scorpion_arrow",
+            expectedBlocked: true,
+            afterHitStatusId: "paralyzed"
+        );
+        AssertProjectedWeaponBasicAttackPreviewAndCommit(
+            "weapon_unique_morningstar_viper_206",
+            "binding.weapon.morningstar.viper.venom_strike",
+            expectedBlocked: false,
+            afterHitStatusId: "",
+            expectBonusDamage: true,
+            syntheticProjectedCategory: "poison"
+        );
+        AssertProjectedWeaponBasicAttackPreviewAndCommit(
+            "weapon_unique_polearm_rock_halberd_148",
+            "binding.weapon.polearm.rock_halberd.complete_petrification",
+            expectedBlocked: false,
+            afterHitStatusId: "rock_halberd_petrification_count",
+            syntheticProjectedCategory: "petrification"
+        );
+    }
+
+    private void AssertExplicitMagicalMissileDoesNotGainNonmagicalProjection()
+    {
+        using Fixture fixture = BuildRuntimeWithSphereAndProjectedWeapon("ash_longbow", "");
+        SetOnlyRemainingLayer(fixture.State, "red");
+        CombatEffectDefinition weaponDamage = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            requiresWeapon: true,
+            addWeaponDice: true,
+            useWeaponPhysicalDamageTag: true,
+            resolveAsWeaponAttack: true
+        );
+        SkillDefinition magicalWeaponSkill = TestSkillDefinitionProjection.BuildSkill(
+            "explicit_magical_weapon_projectile_probe",
+            displayName: "显式魔法武器投射测试",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "explicit_magical_weapon_projectile_probe",
+                effects: new[] { weaponDamage },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 10,
+                deliveryCategories: new[] { new StringName("magical_missile") }
+            )
+        );
+
+        IReadOnlyList<StringName> projectedCategories = fixture.Runtime
+            .GetEquipmentAbilityRuntimeService()
+            .CollectProjectedWeaponEffectCategories(
+                fixture.Enemy,
+                new[] { weaponDamage },
+                magicalWeaponSkill
+            );
+        _test.False(
+            projectedCategories.Contains(new StringName("nonmagical_missile")),
+            "显式 magical_missile 的远程武器技能不得再投影 nonmagical_missile。"
+        );
+        IReadOnlyList<StringName> resolvedCategories = BattleEffectCategoryResolver.ResolveCategories(
+            magicalWeaponSkill,
+            new[] { weaponDamage },
+            projectedCategories
+        );
+        _test.True(
+            resolvedCategories.Contains(new StringName("magical_missile"))
+                && !resolvedCategories.Contains(new StringName("nonmagical_missile")),
+            "显式魔法投射应只保留 magical_missile，而不是同时命中红层类别。"
+        );
+
+        BattleBarrierInteractionResult result = fixture.Runtime._layered_barrier_service
+            .ResolveSkillBarrierInteractionResult(
+                fixture.Enemy,
+                fixture.Caster,
+                magicalWeaponSkill,
+                new[] { weaponDamage },
+                new BattleEventBatch()
+            );
+        _test.False(result.Blocked, "只剩红层时，显式魔法投射不得被当作非魔法投射阻挡。");
+        _test.Eq(
+            ActiveLayerId(FirstBarrier(fixture.State)),
+            new StringName("red"),
+            "显式魔法投射穿过红层后不得改变红层状态。"
+        );
+    }
+
+    private void TestOrderedMultiHitBreakerPreviewMatchesCommit()
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        SkillDefinition magicMissile = snapshot.Skills["mage_arcane_missile"];
+        using Fixture fixture = BuildRuntimeWithSphere(magicMissile);
+        SetOnlyRemainingLayer(fixture.State, "blue");
+        LearnSkill(fixture.Enemy, magicMissile.SkillId);
+        fixture.Enemy.current_ap = 2;
+        fixture.Enemy.current_mp = 120;
+        fixture.Enemy.current_stamina = 40;
+        fixture.Enemy.UnlockCombatResource(
+            CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
+        );
+        fixture.Enemy.UnlockCombatResource(
+            CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)
+        );
+        fixture.State.active_unit_id = fixture.Enemy.unit_id;
+        fixture.Runtime.ConfigureDamageResolverForTests(
+            new FixedRollDamageResolver(
+                new GArray { 1, 1, 1, 1 },
+                new GArray { 1, 1, 1, 1 }
+            )
+        );
+        fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver(20));
+        fixture.Runtime.SetupStateForTests(fixture.State);
+
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = fixture.Enemy.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(magicMissile.SkillId),
+            skill_id = magicMissile.SkillId,
+            target_coord = fixture.Caster.coord,
+        };
+        command.AddTargetUnitId(fixture.Caster.unit_id);
+        command.AddTargetUnitId(fixture.Caster.unit_id);
+        BattlePreview firstPreview = null;
+        BattlePreview secondPreview = null;
+        try
+        {
+            firstPreview = fixture.Runtime.PreviewCommand(command);
+            _test.True(
+                firstPreview?.allowed == true,
+                $"奥术飞弹重复目标预览应保持可施放；logs={string.Join(" | ", firstPreview?.LogLinesTyped ?? Array.Empty<string>())}"
+            );
+            _test.Eq(
+                firstPreview?.TargetUnitIdsTyped.Count ?? 0,
+                1,
+                "第一枚飞弹应在预览副本中破解蓝层并被挡，第二枚应预计命中。"
+            );
+            _test.True(
+                firstPreview?.ContainsTargetUnitId(fixture.Caster.unit_id) == true
+                    && firstPreview.DamagePreviewTyped.HasValue,
+                "顺序破层后，预览必须保留第二枚飞弹的目标和伤害。"
+            );
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                new StringName("blue"),
+                "第一次预览不得修改真实蓝层。"
+            );
+
+            secondPreview = fixture.Runtime.PreviewCommand(command);
+            _test.Eq(
+                secondPreview?.TargetUnitIdsTyped.Count ?? 0,
+                1,
+                "重复预览必须从同一真实状态重新模拟，并保持相同结果。"
+            );
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                new StringName("blue"),
+                "重复预览不得累积破层副作用。"
+            );
+
+            int hpBefore = fixture.Caster.current_hp;
+            BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
+            _test.True(
+                fixture.Caster.current_hp < hpBefore,
+                "正式执行时第一枚飞弹破蓝层后，第二枚应造成伤害。"
+            );
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                new StringName(""),
+                "正式执行应真正破解最后的蓝层。"
+            );
+            _test.True(
+                LogsContain(batch?.LogLinesTyped, "蓝色层")
+                    && LogsContain(batch?.LogLinesTyped, "破解"),
+                "正式执行日志应记录蓝层被第一枚飞弹破解。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(firstPreview);
+            BattleTestFixture.DisposeBattlePreview(secondPreview);
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
+    }
+
+    private void TestRandomChainPreviewSeparatesCandidatePoolFromEffectiveTargets()
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        SkillDefinition chainLightning = snapshot.Skills["mage_chain_lightning"];
+        using Fixture fixture = BuildRuntimeWithSphere(chainLightning);
+        SetOnlyRemainingLayer(fixture.State, "indigo");
+        LearnSkill(fixture.Enemy, chainLightning.SkillId);
+        fixture.Enemy.current_ap = 2;
+        fixture.Enemy.current_mp = 120;
+        fixture.Enemy.UnlockCombatResource(
+            CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
+        );
+        BattleUnitState outsideTarget = BuildUnit(
+            "random_chain_outside_target",
+            "法球外目标",
+            "player",
+            new Vector2I(6, 2)
+        );
+        AddUnit(fixture.Runtime, fixture.State, outsideTarget, false);
+        fixture.State.active_unit_id = fixture.Enemy.unit_id;
+        fixture.Runtime.ConfigureDamageResolverForTests(
+            new FixedFailedSaveDamageResolver(
+                new GArray { 1, 1, 1, 1, 1, 1, 1, 1 },
+                new GArray { 20, 20, 20, 20 }
+            )
+        );
+        fixture.Runtime.SetupStateForTests(fixture.State);
+
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = fixture.Enemy.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(chainLightning.SkillId),
+            skill_id = chainLightning.SkillId,
+        };
+        BattlePreview firstPreview = null;
+        BattlePreview secondPreview = null;
+        try
+        {
+            firstPreview = fixture.Runtime.PreviewCommand(command);
+            _test.True(firstPreview?.allowed == true, "连锁闪电在混合屏障候选池中应保持可施放。");
+            _test.True(
+                firstPreview?.RandomChainCandidateUnitIdsTyped.Contains(
+                    fixture.Caster.unit_id
+                ) == true
+                    && firstPreview.RandomChainCandidateUnitIdsTyped.Contains(
+                        outsideTarget.unit_id
+                    ),
+                "随机链候选池必须保留法球内外两个真实抽样候选。"
+            );
+            _test.False(
+                firstPreview?.ContainsTargetUnitId(fixture.Caster.unit_id) == true,
+                "随机链预览不得伪造确定目标。"
+            );
+            _test.True(
+                firstPreview?.TargetUnitIdsTyped.Count == 0
+                    && firstPreview.RandomChainImpactCandidateUnitIdsTyped.Contains(
+                        outsideTarget.unit_id
+                    )
+                    && !firstPreview.RandomChainImpactCandidateUnitIdsTyped.Contains(
+                        fixture.Caster.unit_id
+                    )
+                    && firstPreview.DamagePreviewTyped.HasValue,
+                "法球外候选仍应出现在随机链预计受影响目标和伤害预览中。"
+            );
+            _test.True(
+                LogsContain(firstPreview?.LogLinesTyped, "靛色层")
+                    && LogsContain(firstPreview?.LogLinesTyped, "其中 1 个单位可受到影响"),
+                "随机链预览应同时说明屏障阻挡和有效候选数量。"
+            );
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                new StringName("indigo"),
+                "随机链预览不得修改真实靛色层。"
+            );
+
+            secondPreview = fixture.Runtime.PreviewCommand(command);
+            _test.True(
+                secondPreview?.RandomChainImpactCandidateUnitIdsTyped.Contains(
+                    outsideTarget.unit_id
+                ) == true
+                    && secondPreview.RandomChainImpactCandidateUnitIdsTyped.Contains(
+                        fixture.Caster.unit_id
+                    ) == false,
+                "重复随机链预览必须保持相同的屏障过滤结果。"
+            );
+            int insideHpBefore = fixture.Caster.current_hp;
+            int outsideHpBefore = outsideTarget.current_hp;
+            fixture.Runtime.IssueCommand(command);
+            _test.Eq(
+                fixture.Caster.current_hp,
+                insideHpBefore,
+                "正式随机链执行中，法球内目标应被靛色层阻挡。"
+            );
+            _test.True(
+                outsideTarget.current_hp < outsideHpBefore,
+                "正式随机链执行中，法球外目标仍应受到连锁闪电伤害。"
+            );
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                new StringName("indigo"),
+                "非破解随机链不得破坏靛色层。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(firstPreview);
+            BattleTestFixture.DisposeBattlePreview(secondPreview);
+            BattleTestFixture.DisposeBattleCommand(command);
+            BattleTestFixture.DisposeBattleUnit(outsideTarget);
+        }
+    }
+
+    private void AssertProjectedWeaponBasicAttackPreviewAndCommit(
+        StringName weaponItemId,
+        StringName bindingId,
+        bool expectedBlocked,
+        StringName afterHitStatusId,
+        bool expectBonusDamage = false,
+        StringName syntheticProjectedCategory = default,
+        StringName remainingLayerId = default,
+        string remainingLayerLabel = ""
+    )
+    {
+        syntheticProjectedCategory = ProgressionDataUtils.to_string_name(
+            syntheticProjectedCategory
+        );
+        remainingLayerId = ProgressionDataUtils.to_string_name(remainingLayerId);
+        if (remainingLayerId == "")
+            remainingLayerId = "yellow";
+        if (string.IsNullOrEmpty(remainingLayerLabel))
+            remainingLayerLabel = "黄色层";
+        using Fixture fixture = BuildRuntimeWithSphereAndProjectedWeapon(
+            weaponItemId,
+            bindingId,
+            useBoundaryTargetGeometry: true,
+            syntheticProjectedCategory: syntheticProjectedCategory
+        );
+        SetOnlyRemainingLayer(fixture.State, remainingLayerId);
+        WeaponAbilityCommandTestSupport.PrimeBasicAttack(fixture.Enemy);
+        fixture.State.active_unit_id = fixture.Enemy.unit_id;
+        fixture.Runtime.SetupStateForTests(fixture.State);
+
+        BattleCommand command = WeaponAbilityCommandTestSupport.BuildBasicAttackCommand(
+            fixture.Enemy,
+            fixture.Caster
+        );
+        BattlePreview firstPreview = null;
+        BattlePreview secondPreview = null;
+        try
+        {
+            firstPreview = fixture.Runtime.PreviewCommand(command);
+            secondPreview = fixture.Runtime.PreviewCommand(command);
+            _test.True(
+                firstPreview?.allowed == true && secondPreview?.allowed == true,
+                $"{weaponItemId} 的基础攻击动作应保持可施放。"
+            );
+            _test.Eq(
+                firstPreview?.ContainsTargetUnitId(fixture.Caster.unit_id) == true,
+                !expectedBlocked,
+                $"{weaponItemId} 预览中的预计受影响目标必须与{remainingLayerLabel}判定一致。"
+            );
+            _test.Eq(
+                firstPreview?.DamagePreviewTyped.HasValue == true,
+                !expectedBlocked,
+                $"{weaponItemId} 预览中的伤害范围必须与{remainingLayerLabel}判定一致。"
+            );
+            if (expectedBlocked)
+            {
+                _test.True(
+                    LogsContain(firstPreview?.LogLinesTyped, remainingLayerLabel)
+                        && LogsContain(firstPreview?.LogLinesTyped, "阻挡"),
+                    $"{weaponItemId} 的预览日志应明确报告{remainingLayerLabel}阻挡。"
+                );
+            }
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                remainingLayerId,
+                $"{weaponItemId} 连续预览不得改变{remainingLayerLabel}。"
+            );
+
+            int hpBefore = fixture.Caster.current_hp;
+            BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
+            if (expectedBlocked)
+            {
+                _test.Eq(
+                    fixture.Caster.current_hp,
+                    hpBefore,
+                    $"{weaponItemId} 被{remainingLayerLabel}阻挡后不得造成基础或装备附加伤害。"
+                );
+                if (afterHitStatusId != "")
+                {
+                    _test.False(
+                        fixture.Caster.HasStatusEffect(afterHitStatusId),
+                        $"{weaponItemId} 被{remainingLayerLabel}阻挡后不得触发 {afterHitStatusId} 后效。"
+                    );
+                }
+                _test.True(
+                    LogsContain(batch?.LogLinesTyped, remainingLayerLabel)
+                        && LogsContain(batch?.LogLinesTyped, "阻挡"),
+                    $"{weaponItemId} 的执行日志应明确报告{remainingLayerLabel}阻挡。"
+                );
+            }
+            else
+            {
+                int damageDealt = hpBefore - fixture.Caster.current_hp;
+                _test.True(
+                    damageDealt > 0,
+                    $"近战武器 {weaponItemId} 应穿过黄色层并造成真实武器伤害。"
+                );
+                if (afterHitStatusId != "")
+                {
+                    _test.True(
+                        fixture.Caster.HasStatusEffect(afterHitStatusId),
+                        $"近战武器 {weaponItemId} 应正常触发 {afterHitStatusId} 后效。"
+                    );
+                }
+                if (expectBonusDamage)
+                {
+                    WeaponDice activeDice = fixture.Enemy.weapon_uses_two_hands
+                        ? fixture.Enemy.weapon_two_handed_dice
+                        : fixture.Enemy.weapon_one_handed_dice;
+                    int fixedBaseDamage =
+                        Math.Max(activeDice?.dice_count ?? 0, 0)
+                        + (activeDice?.flat_bonus ?? 0);
+                    _test.True(
+                        damageDealt > fixedBaseDamage,
+                        $"近战武器 {weaponItemId} 应正常触发额外伤害型 after-hit，actual={damageDealt}, base={fixedBaseDamage}。"
+                    );
+                }
+            }
+            _test.Eq(
+                ActiveLayerId(FirstBarrier(fixture.State)),
+                remainingLayerId,
+                $"{weaponItemId} 的普通攻击不应破坏{remainingLayerLabel}。"
+            );
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattlePreview(firstPreview);
+            BattleTestFixture.DisposeBattlePreview(secondPreview);
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
+    }
+
+    private void AssertProjectedWeaponAbilityBarrierResult(
+        StringName weaponItemId,
+        StringName bindingId,
+        StringName expectedCategory,
+        bool expectedBlocked,
+        string message,
+        StringName syntheticProjectedCategory = default
+    )
+    {
+        syntheticProjectedCategory = ProgressionDataUtils.to_string_name(
+            syntheticProjectedCategory
+        );
+        using Fixture fixture = BuildRuntimeWithSphereAndProjectedWeapon(
+            weaponItemId,
+            bindingId,
+            syntheticProjectedCategory: syntheticProjectedCategory
+        );
+        MarkLayersBroken(
+            fixture.State,
+            "red",
+            "orange",
+            "green",
+            "blue",
+            "indigo",
+            "violet"
+        );
+        CombatEffectDefinition weaponDamage = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            requiresWeapon: true,
+            addWeaponDice: true,
+            useWeaponPhysicalDamageTag: true,
+            resolveAsWeaponAttack: true
+        );
+        SkillDefinition weaponSkill = TestSkillDefinitionProjection.BuildSkill(
+            "projected_weapon_category_probe",
+            displayName: "装备投射类别测试",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "projected_weapon_category_probe",
+                effects: new[] { weaponDamage },
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 10
+            )
+        );
+
+        if (syntheticProjectedCategory != "")
+        {
+            StringName syntheticBindingId = BuildSyntheticProjectedBindingId(
+                weaponItemId,
+                syntheticProjectedCategory
+            );
+            _test.True(
+                fixture.Runtime.GetEquipmentAbilityBindingIndexTyped().TryGetValue(
+                    syntheticBindingId,
+                    out EquipmentAbilityBindingDefinition syntheticBinding
+                )
+                    && syntheticBinding.Reactions.Any(
+                        reaction =>
+                            reaction.ProjectedEffectCategories.Contains(
+                                syntheticProjectedCategory
+                            )
+                    ),
+                $"测试夹具必须真实声明 {syntheticProjectedCategory} 投射类别。"
+            );
+            _test.Eq(
+                fixture.Enemy.weapon_range_type,
+                new StringName("melee"),
+                $"{weaponItemId} 的运行态必须保持近战武器。"
+            );
+            _test.Eq(
+                fixture.Runtime.GetItemDefIndexTyped()[weaponItemId].GetWeaponRangeType(),
+                new StringName("melee"),
+                $"{weaponItemId} 的正式物品定义必须保持近战武器。"
+            );
+        }
+
+        IReadOnlyList<StringName> categories = fixture.Runtime
+            .GetEquipmentAbilityRuntimeService()
+            .CollectProjectedWeaponEffectCategories(
+                fixture.Enemy,
+                new[] { weaponDamage },
+                weaponSkill
+            );
+        if (expectedCategory == "")
+        {
+            _test.Eq(
+                categories.Count,
+                0,
+                $"{weaponItemId} must not contribute projected equipment categories."
+            );
+        }
+        else
+        {
+            _test.True(
+                categories.Contains(expectedCategory),
+                $"{weaponItemId} must contribute {expectedCategory}."
+            );
+        }
+
+        BattleBarrierInteractionResult result = fixture.Runtime._layered_barrier_service
+            .ResolveSkillBarrierInteractionResult(
+                fixture.Enemy,
+                fixture.Caster,
+                weaponSkill,
+                new[] { weaponDamage },
+                new BattleEventBatch()
+            );
+        _test.Eq(result.Blocked, expectedBlocked, message);
+
+        IReadOnlyList<Vector2I> effectCoords = new[] { fixture.Caster.coord };
+        BattleGroundEffectBarrierClipResult preview = fixture.Runtime._layered_barrier_service
+            .PreviewGroundEffectBarrierClipResult(
+                fixture.State.GetUnitView(fixture.Enemy.unit_id),
+                weaponSkill,
+                new[] { weaponDamage },
+                Array.Empty<CombatEffectDefinition>(),
+                effectCoords
+            );
+        _test.Eq(
+            preview.UnitEffects.BlockedCoords.Count > 0,
+            expectedBlocked,
+            $"{weaponItemId} ground preview must match projected unit-effect blocking."
+        );
+
+        BattleGroundEffectBarrierClipResult terrainOnlyPreview = fixture.Runtime
+            ._layered_barrier_service.PreviewGroundEffectBarrierClipResult(
+                fixture.State.GetUnitView(fixture.Enemy.unit_id),
+                weaponSkill,
+                Array.Empty<CombatEffectDefinition>(),
+                new[] { weaponDamage },
+                effectCoords
+            );
+        _test.Eq(
+            terrainOnlyPreview.TerrainEffects.BlockedCoords.Count,
+            0,
+            "装备附加类别只能阻挡投射到单位的效果，不能裁剪纯地形效果。"
+        );
+    }
+
+    private void TestSingleLayerWardCommandsCreateExactlyOneLayer()
+    {
+        var wards = new (StringName SkillId, StringName ProfileId, StringName LayerId)[]
+        {
+            ("mage_prismatic_red_ward", "prismatic_red_ward", "red"),
+            ("mage_prismatic_orange_ward", "prismatic_orange_ward", "orange"),
+            ("mage_prismatic_yellow_ward", "prismatic_yellow_ward", "yellow"),
+            ("mage_prismatic_green_ward", "prismatic_green_ward", "green"),
+            ("mage_prismatic_blue_ward", "prismatic_blue_ward", "blue"),
+            ("mage_prismatic_indigo_ward", "prismatic_indigo_ward", "indigo"),
+            ("mage_prismatic_violet_ward", "prismatic_violet_ward", "violet"),
+        };
+
+        foreach ((StringName skillId, StringName profileId, StringName layerId) in wards)
+        {
+            AssertSingleLayerWardCommand(skillId, profileId, layerId, 1, 40);
+        }
+        AssertSingleLayerWardCommand(
+            "mage_prismatic_red_ward",
+            "prismatic_red_ward",
+            "red",
+            3,
+            60
+        );
+        AssertSingleLayerWardCommand(
+            "mage_prismatic_red_ward",
+            "prismatic_red_ward",
+            "red",
+            5,
+            80
+        );
+    }
+
+    private void AssertSingleLayerWardCommand(
+        StringName skillId,
+        StringName profileId,
+        StringName layerId,
+        int skillLevel,
+        int expectedDurationTu
+    )
+    {
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            $"res://data/configs/skills/{skillId}.tres",
+            $"prismatic_single_layer:{skillId}:level_{skillLevel}"
+        );
+        _test.True(skill?.CombatProfile != null, $"{skillId} must load as a combat skill.");
+        if (skill?.CombatProfile == null)
+            return;
+
+        using MasteryCommandFixture fixture = BuildMasteryCommandFixture(skill, skillLevel);
+        BattleCommand command = new()
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = fixture.Caster.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
+            skill_id = skillId,
+            target_unit_id = fixture.Caster.unit_id,
+            target_coord = fixture.Caster.coord,
+        };
+        command.AddTargetUnitId(fixture.Caster.unit_id);
+        BattleEventBatch batch = null;
+        try
+        {
+            batch = fixture.Runtime.IssueCommand(command);
+            BattleBarrierInstanceState barrier = FirstBarrier(fixture.State);
+            _test.True(
+                barrier is { IsEmpty: false },
+                $"{skillId} level {skillLevel} must create a barrier instance."
+            );
+            if (barrier == null || barrier.IsEmpty)
+                return;
+            _test.Eq(barrier.ProfileId, profileId, $"{skillId} must use {profileId}.");
+            _test.Eq(barrier.RadiusCells, 1, $"{skillId} must create a radius-1 barrier.");
+            _test.Eq(
+                barrier.RemainingTu,
+                expectedDurationTu,
+                $"{skillId} level {skillLevel} must use its configured duration."
+            );
+            _test.Eq(barrier.Layers.Count, 1, $"{skillId} must create exactly one layer.");
+            _test.Eq(ActiveLayerId(barrier), layerId, $"{skillId} must create only {layerId}.");
+        }
+        finally
+        {
+            batch?.Dispose();
+            BattleTestFixture.DisposeBattleCommand(command);
         }
     }
 
@@ -203,6 +924,168 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
 
         _test.Eq(hpBefore - target.current_hp, expectedDamage, message);
+    }
+
+    private void TestProjectedCategoriesRespectRemainingLayersWithoutCatchAll()
+    {
+        using Fixture fixture = BuildRuntimeWithSphere();
+        BattleRuntimeModule runtime = fixture.Runtime;
+        BattleState state = fixture.State;
+        BattleUnitState source = fixture.Enemy;
+        BattleUnitState target = fixture.Caster;
+        _test.False(
+            FirstBarrier(state).CatchAllProjectedEffects,
+            "虹光法球正式 profile 不应再使用投射效果 catch-all。"
+        );
+
+        var cases = new (StringName LayerId, StringName Category)[]
+        {
+            (new StringName("red"), new StringName("nonmagical_missile")),
+            (new StringName("orange"), new StringName("magical_missile")),
+            (new StringName("yellow"), new StringName("poison")),
+            (new StringName("yellow"), new StringName("gas")),
+            (new StringName("yellow"), new StringName("petrification")),
+            (new StringName("green"), new StringName("breath_weapon")),
+            (new StringName("blue"), new StringName("location")),
+            (new StringName("blue"), new StringName("detection")),
+            (new StringName("blue"), new StringName("mental_attack")),
+            (new StringName("blue"), new StringName("psychic")),
+            (new StringName("indigo"), new StringName("spell")),
+            (new StringName("violet"), new StringName("force_effect")),
+            (new StringName("violet"), new StringName("antimagic")),
+        };
+        foreach ((StringName layerId, StringName category) in cases)
+        {
+            SetOnlyRemainingLayer(state, layerId);
+            SkillDefinition skill = BuildCategorizedSkill(
+                $"test_prismatic_{category}",
+                category
+            );
+            BattleBarrierInteractionResult result =
+                runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                    source,
+                    target,
+                    skill,
+                    Array.Empty<CombatEffectDefinition>(),
+                    new BattleEventBatch()
+                );
+            _test.True(
+                result.Blocked,
+                $"{category} 应在 {layerId} 层仍存在时被阻挡。"
+            );
+        }
+
+        SetAllLayersUnbroken(state);
+        SkillDefinition multiCategorySkill = BuildCategorizedSkill(
+            "test_prismatic_multi_category",
+            "spell",
+            "magical_missile"
+        );
+        var orangeBatch = new BattleEventBatch();
+        BattleBarrierInteractionResult orangeResult =
+            runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                source,
+                target,
+                multiCategorySkill,
+                Array.Empty<CombatEffectDefinition>(),
+                orangeBatch
+            );
+        _test.True(orangeResult.Blocked, "多类别技能应被第一个仍存在的匹配层阻挡。");
+        _test.True(
+            LogsContain(orangeBatch.LogLinesTyped, "橙色层"),
+            "魔法投射与法术类别同时存在时，完整法球应先由橙色层阻挡。"
+        );
+
+        MarkLayersBroken(state, "orange");
+        var indigoBatch = new BattleEventBatch();
+        BattleBarrierInteractionResult indigoResult =
+            runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                source,
+                target,
+                multiCategorySkill,
+                Array.Empty<CombatEffectDefinition>(),
+                indigoBatch
+            );
+        _test.True(indigoResult.Blocked, "橙色层破坏后，仍存在的靛色法术层应继续阻挡。");
+        _test.True(
+            LogsContain(indigoBatch.LogLinesTyped, "靛色层"),
+            "橙色层破坏后应报告实际阻挡的靛色层。"
+        );
+
+        MarkLayersBroken(state, "indigo");
+        BattleBarrierInteractionResult passResult =
+            runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                source,
+                target,
+                multiCategorySkill,
+                Array.Empty<CombatEffectDefinition>(),
+                new BattleEventBatch()
+            );
+        _test.False(
+            passResult.Blocked,
+            "魔法投射与法术对应层都被破坏后，其他无关色层不得兜底阻挡。"
+        );
+
+        SetAllLayersUnbroken(state);
+        SkillDefinition unmatchedSkill = BuildCategorizedSkill(
+            "test_prismatic_unmatched",
+            "unmatched_projected_effect"
+        );
+        BattleBarrierInteractionResult unmatchedResult =
+            runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                source,
+                target,
+                unmatchedSkill,
+                Array.Empty<CombatEffectDefinition>(),
+                new BattleEventBatch()
+            );
+        _test.False(
+            unmatchedResult.Blocked,
+            "未匹配任何色层的投射类别必须穿透完整虹光法球。"
+        );
+    }
+
+    private void TestGroundEffectWithUnmatchedCategoryPassesBarrier()
+    {
+        using Fixture fixture = BuildRuntimeWithSphere(enemyCoord: new Vector2I(6, 2));
+        CombatEffectDefinition damageEffect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 10,
+            damageTag: "fire"
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "test_prismatic_unmatched_ground",
+            displayName: "未分类地面投射测试",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "test_prismatic_unmatched_ground",
+                effects: new[] { damageEffect },
+                targetMode: "ground",
+                targetTeamFilter: "enemy",
+                rangeValue: 4,
+                deliveryCategories: new[] { new StringName("unmatched_projected_effect") }
+            )
+        );
+        Vector2I[] effectCoords =
+        {
+            new(5, 2),
+            new(4, 2),
+            new(3, 2),
+        };
+
+        BattleGroundEffectBarrierClipResult result =
+            fixture.Runtime._layered_barrier_service.ResolveGroundEffectBarrierClipResult(
+                fixture.Enemy,
+                skill,
+                new[] { damageEffect },
+                Array.Empty<CombatEffectDefinition>(),
+                effectCoords,
+                new BattleEventBatch()
+            );
+
+        _test.False(result.Applied, "未匹配类别的地面投射不应触发屏障裁剪。");
+        _test.Eq(result.UnitEffects.AllowedCoords.Count, 3, "全部跨界地格都应保留。");
+        _test.Eq(result.UnitEffects.BlockedCoords.Count, 0, "不得产生被兜底裁剪的地格。");
     }
 
     private void TestGroundAoePreviewAndExecutionClipAtBarrierBoundary()
@@ -929,7 +1812,10 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
     }
 
-    private MasteryCommandFixture BuildMasteryCommandFixture(SkillDefinition skillDefinition)
+    private MasteryCommandFixture BuildMasteryCommandFixture(
+        SkillDefinition skillDefinition,
+        int skillLevel = 1
+    )
     {
         var skillDefinitions = new Dictionary<StringName, SkillDefinition>
         {
@@ -944,7 +1830,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         {
             skill_id = skillDefinition.SkillId,
             is_learned = true,
-            skill_level = 1,
+            skill_level = skillLevel,
             current_mastery = 0,
             total_mastery_earned = 0,
             granted_source_type = "player",
@@ -991,7 +1877,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 AttributeService.ToStringName(AttributeIdKind.MpMax),
                 240
             );
-            LearnSkill(caster, skillDefinition.SkillId);
+            LearnSkill(caster, skillDefinition.SkillId, skillLevel);
             enemy = BuildUnit("mastery_enemy", "熟练度见证者", "enemy", new Vector2I(5, 2));
             AddUnit(runtime, state, caster, false);
             AddUnit(runtime, state, enemy, true);
@@ -1056,6 +1942,164 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             new BattleEventBatch()
         );
         return new Fixture(runtime, state, caster, enemy);
+    }
+
+    private Fixture BuildRuntimeWithSphereAndProjectedWeapon(
+        StringName weaponItemId,
+        StringName bindingId,
+        bool useBoundaryTargetGeometry = false,
+        StringName syntheticProjectedCategory = default
+    )
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        syntheticProjectedCategory = ProgressionDataUtils.to_string_name(
+            syntheticProjectedCategory
+        );
+        var equipmentAbilityBindings = new Dictionary<
+            StringName,
+            EquipmentAbilityBindingDefinition
+        >(snapshot.EquipmentAbilityBindings);
+        StringName syntheticBindingId = "";
+        if (syntheticProjectedCategory != "")
+        {
+            syntheticBindingId = BuildSyntheticProjectedBindingId(
+                weaponItemId,
+                syntheticProjectedCategory
+            );
+            equipmentAbilityBindings[syntheticBindingId] =
+                new EquipmentAbilityBindingDefinition
+                {
+                    BindingId = syntheticBindingId,
+                    Reactions = new[]
+                    {
+                        new EquipmentAbilityReactionDefinition
+                        {
+                            ReactionId = $"reaction.{syntheticBindingId}",
+                            Trigger = EquipmentAbilityTriggerKind.OnHit,
+                            Timing = EquipmentAbilityTimingKind.AfterHit,
+                            ProjectedEffectCategories = new[]
+                            {
+                                syntheticProjectedCategory,
+                            },
+                        },
+                    },
+                };
+        }
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            skill_definitions: snapshot.Skills,
+            item_defs: snapshot.Items,
+            trait_defs: snapshot.Traits,
+            equipment_ability_bindings: equipmentAbilityBindings,
+            barrier_profile_definitions: _barrierProfileDefinitions
+        );
+        runtime.ConfigureDamageResolverForTests(
+            new FixedRollDamageResolver(
+                new GArray { 1, 1, 1, 1, 1, 1 },
+                new GArray { 1, 1, 1, 1, 1, 1 }
+            )
+        );
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(15));
+        BattleState state = BuildState(new Vector2I(7, 5));
+        runtime.SetupStateForTests(state);
+        BattleUnitState barrierOwner = BuildUnit(
+            "projected_weapon_barrier_owner",
+            "屏障创建者",
+            "player",
+            new Vector2I(2, 2)
+        );
+        BattleUnitState target = useBoundaryTargetGeometry
+            ? BuildUnit(
+                "projected_weapon_target",
+                "屏障内目标",
+                "player",
+                new Vector2I(4, 2)
+            )
+            : barrierOwner;
+        BattleUnitState source = BuildUnit(
+            "projected_weapon_source",
+            "装备攻击者",
+            "enemy",
+            new Vector2I(5, 2)
+        );
+        ItemDefinition weaponDefinition = snapshot.Items[weaponItemId];
+        WeaponProfileDefinition weaponProfile = weaponDefinition.WeaponProfile;
+        source.weapon_profile_kind = BattleUnitState.ToStringName(
+            BattleWeaponProfileKind.Equipped
+        );
+        source.weapon_item_id = weaponItemId;
+        source.weapon_profile_type_id = weaponProfile?.WeaponTypeId ?? new StringName("");
+        source.weapon_range_type = weaponDefinition.GetWeaponRangeType();
+        source.weapon_family = weaponProfile?.Family ?? new StringName("");
+        source.weapon_attack_range = weaponDefinition.GetWeaponAttackRange();
+        source.weapon_one_handed_dice = BuildWeaponDice(weaponProfile?.OneHandedDice);
+        source.weapon_two_handed_dice = BuildWeaponDice(weaponProfile?.TwoHandedDice);
+        source.weapon_is_versatile =
+            weaponProfile?.OneHandedDice != null && weaponProfile?.TwoHandedDice != null;
+        source.weapon_uses_two_hands =
+            weaponProfile?.OneHandedDice == null && weaponProfile?.TwoHandedDice != null;
+        source.weapon_current_grip = BattleUnitState.ToStringName(
+            source.weapon_uses_two_hands
+                ? BattleWeaponGripKind.TwoHanded
+                : BattleWeaponGripKind.OneHanded
+        );
+        source.weapon_physical_damage_tag = weaponDefinition.GetWeaponPhysicalDamageTag();
+        source.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
+        source.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
+        source.equipment_ability_sources.Add(
+            new BattleEquipmentAbilitySourceState
+            {
+                EffectiveInstanceKey = $"projected:{weaponItemId}",
+                EquipmentDefId = weaponItemId,
+                SourceEquipmentInstanceId = $"projected_instance:{weaponItemId}",
+                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                AbilityIds =
+                    syntheticBindingId == ""
+                        ? new List<StringName> { bindingId }
+                        : new List<StringName> { bindingId, syntheticBindingId },
+            }
+        );
+        AddUnit(runtime, state, barrierOwner, false);
+        if (!ReferenceEquals(target, barrierOwner))
+            AddUnit(runtime, state, target, false);
+        AddUnit(runtime, state, source, true);
+        SkillDefinition sphereSkill = BuildSkill(
+            "mage_prismatic_sphere",
+            "虹光法球",
+            "mage",
+            "magic"
+        );
+        runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
+            barrierOwner,
+            barrierOwner,
+            sphereSkill,
+            BuildLayeredBarrierEffect(),
+            new BattleEventBatch()
+        );
+        return new Fixture(
+            runtime,
+            state,
+            target,
+            source,
+            ReferenceEquals(target, barrierOwner) ? null : barrierOwner
+        );
+    }
+
+    private static StringName BuildSyntheticProjectedBindingId(
+        StringName weaponItemId,
+        StringName projectedCategory
+    ) => $"test.binding.{weaponItemId}.{projectedCategory}.projected";
+
+    private static WeaponDice BuildWeaponDice(WeaponDamageDiceDefinition definition)
+    {
+        return definition == null
+            ? new WeaponDice()
+            : new WeaponDice
+            {
+                dice_count = definition.DiceCount,
+                dice_sides = definition.DiceSides,
+                flat_bonus = definition.FlatBonus,
+            };
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -1127,6 +2171,24 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
     }
 
+    private static SkillDefinition BuildCategorizedSkill(
+        StringName skillId,
+        params StringName[] deliveryCategories
+    )
+    {
+        return TestSkillDefinitionProjection.BuildSkill(
+            skillId,
+            displayName: skillId.ToString(),
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                skillId,
+                targetMode: "unit",
+                targetTeamFilter: "enemy",
+                rangeValue: 10,
+                deliveryCategories: deliveryCategories
+            )
+        );
+    }
+
     private static CombatEffectDefinition BuildLayeredBarrierEffect()
     {
         return TestSkillDefinitionProjection.BuildEffect(
@@ -1168,7 +2230,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 areaValue: 1,
                 castingTimeTu: castingTimeTu,
                 pendingCastBindingMode: "ground_bind",
-                deliveryCategories: new[] { new StringName("magic") }
+                deliveryCategories: new[] { new StringName("spell") }
             )
         );
     }
@@ -1202,7 +2264,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 rangeValue: 4,
                 areaPattern: "cross",
                 areaValue: 1,
-                deliveryCategories: new[] { new StringName("magic") }
+                deliveryCategories: new[] { new StringName("spell") }
             )
         );
     }
@@ -1230,7 +2292,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 rangeValue: 4,
                 areaPattern: "cross",
                 areaValue: 1,
-                deliveryCategories: new[] { new StringName("magic") }
+                deliveryCategories: new[] { new StringName("spell") }
             )
         );
     }
@@ -1253,10 +2315,14 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         return command;
     }
 
-    private static void LearnSkill(BattleUnitState unitState, StringName skillId)
+    private static void LearnSkill(
+        BattleUnitState unitState,
+        StringName skillId,
+        int skillLevel = 1
+    )
     {
         unitState.known_active_skill_ids.Add(skillId);
-        unitState.known_skill_level_map[skillId] = 1;
+        unitState.known_skill_level_map[skillId] = skillLevel;
     }
 
     private static bool LogsContain(IEnumerable<string> logLines, string fragment)
@@ -1440,6 +2506,34 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         StoreFirstBarrier(state, barrier);
     }
 
+    private static void SetOnlyRemainingLayer(BattleState state, StringName remainingLayerId)
+    {
+        BattleBarrierInstanceState barrier = FirstBarrier(state);
+        var layers = new List<BattleBarrierLayerState>();
+        foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
+        {
+            if (layer != null)
+                layer.Broken = layer.LayerId != remainingLayerId;
+            layers.Add(layer);
+        }
+        barrier.SetLayers(layers);
+        StoreFirstBarrier(state, barrier);
+    }
+
+    private static void SetAllLayersUnbroken(BattleState state)
+    {
+        BattleBarrierInstanceState barrier = FirstBarrier(state);
+        var layers = new List<BattleBarrierLayerState>();
+        foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
+        {
+            if (layer != null)
+                layer.Broken = false;
+            layers.Add(layer);
+        }
+        barrier.SetLayers(layers);
+        StoreFirstBarrier(state, barrier);
+    }
+
     private static void SetLayerSaveRollOverride(
         BattleState state,
         StringName layerId,
@@ -1567,7 +2661,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         BattleRuntimeModule Runtime,
         BattleState State,
         BattleUnitState Caster,
-        BattleUnitState Enemy
+        BattleUnitState Enemy,
+        BattleUnitState AdditionalUnit = null
     ) : IDisposable
     {
         public void Dispose()
@@ -1575,6 +2670,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             Runtime?.Dispose();
             BattleTestFixture.DisposeBattleUnit(Caster);
             BattleTestFixture.DisposeBattleUnit(Enemy);
+            BattleTestFixture.DisposeBattleUnit(AdditionalUnit);
             BattleTestFixture.DisposeBattleState(State);
         }
     }

@@ -198,7 +198,7 @@ internal sealed class BattleRatingSystem
         BattleState state = GetState();
         if (
             state == null
-            || state.winner_faction_id != PlayerFaction
+            || state.FinalDecision?.Outcome != BattleOutcomeKind.PlayerSuccess
             || characterGateway == null
         )
         {
@@ -235,7 +235,7 @@ internal sealed class BattleRatingSystem
             return;
         }
 
-        bool playerVictory = state.winner_faction_id == PlayerFaction;
+        bool playerVictory = state.FinalDecision?.Outcome == BattleOutcomeKind.PlayerSuccess;
         foreach (BattleRatingMemberStats stats in GetBattleRatingStatsTyped().Values)
         {
             if (stats == null)

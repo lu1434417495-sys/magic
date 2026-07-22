@@ -433,12 +433,9 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         bool includeCalamityConversionShard = false
     )
     {
-        var result = new BattleResolutionResult
-        {
-            battle_id = battleId,
-            winner_faction_id = "player",
-            encounter_resolution = "player_victory",
-        };
+        BattleResolutionResult result =
+            BattleObjectiveTestFactory.CreateEliminationResolution("player");
+        result.battle_id = battleId;
         if (includeCalamityConversionShard)
         {
             result.SetLootEntries(

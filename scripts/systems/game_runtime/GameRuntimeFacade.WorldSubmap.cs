@@ -182,7 +182,7 @@ public sealed partial class GameRuntimeFacade
         }
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
-        _active_character_info_context.Clear();
+        _active_character_info_context = null;
         UpdateStatusInternal($"已进入 {targetName}。{GetSubmapReturnHintText()}");
         return BuildCommandOkResult();
     }
@@ -221,7 +221,7 @@ public sealed partial class GameRuntimeFacade
         }
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
-        _active_character_info_context.Clear();
+        _active_character_info_context = null;
         _pending_submap_prompt.Clear();
         _active_modal_kind = RuntimeModalKind.None;
         UpdateStatusInternal($"已返回原位置 {FormatCoordInternal(_player_coord)}。");

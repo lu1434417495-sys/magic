@@ -14,7 +14,7 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
     private void Run()
     {
         TestValidRoundtripPreservesCurrentSchema();
-        TestEmptyOptionalRosterAndProfileFieldsAreAcceptedWhenPresent();
+        TestEmptyProfileFieldIsRejected();
         TestExtraFieldsAreRejected();
         TestMissingRequiredFieldIsRejected();
         TestWrongFieldTypeIsRejected();
@@ -32,7 +32,6 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
             display_name = "Wild Den",
             world_coord = new Vector2I(12, 7),
             faction_id = "hostile",
-            enemy_roster_template_id = "wolf_pack",
             region_tag = "north_wilds",
             vision_range = 3,
             is_cleared = true,
@@ -59,7 +58,7 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
         );
     }
 
-    private void TestEmptyOptionalRosterAndProfileFieldsAreAcceptedWhenPresent()
+    private void TestEmptyProfileFieldIsRejected()
     {
         StringName[] encounterKinds =
         {
@@ -70,13 +69,12 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
         {
             GDictionary payload = BuildValidPayload();
             payload["encounter_kind"] = encounterKind;
-            payload["enemy_roster_template_id"] = "";
             payload["encounter_profile_id"] = "";
 
             EncounterAnchorData restoredAnchor = EncounterAnchorData.FromDictionary(payload);
             _test.True(
-                restoredAnchor != null,
-                $"{encounterKind} payload should accept present empty roster/profile string fields."
+                restoredAnchor == null,
+                $"{encounterKind} payload should reject an empty encounter profile field."
             );
         }
     }
@@ -89,7 +87,6 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
             "display_name",
             "world_coord",
             "faction_id",
-            "enemy_roster_template_id",
             "region_tag",
             "vision_range",
             "is_cleared",
@@ -112,10 +109,10 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
     private void TestExtraFieldsAreRejected()
     {
         GDictionary payload = BuildValidPayload();
-        payload["legacy_encounter_type"] = "hostile";
+        payload["enemy_roster_template_id"] = "wolf_pack";
         _test.True(
             EncounterAnchorData.FromDictionary(payload) == null,
-            "payload with extra legacy fields should be rejected."
+            "payload with the removed legacy enemy_roster_template_id field should be rejected."
         );
     }
 
@@ -127,7 +124,6 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
             ("display_name", Variant.From(new StringName("Wild Den"))),
             ("world_coord", Variant.From(new Vector2(1.0f, 2.0f))),
             ("faction_id", Variant.From(1)),
-            ("enemy_roster_template_id", Variant.From(1)),
             ("region_tag", Variant.From(1)),
             ("vision_range", Variant.From("2")),
             ("is_cleared", Variant.From(0)),
@@ -186,7 +182,6 @@ public partial class run_encounter_anchor_schema_regression : LifecycleTestScene
             ["display_name"] = "Wild Anchor",
             ["world_coord"] = new Vector2I(4, 5),
             ["faction_id"] = "hostile",
-            ["enemy_roster_template_id"] = "wolf_pack",
             ["region_tag"] = "north_wilds",
             ["vision_range"] = 2,
             ["is_cleared"] = false,

@@ -67,6 +67,7 @@ damage_tags = Array[StringName]([&"fire", &"freeze", &"lightning", &"negative_en
 [sub_resource type="Resource" id="Resource_l3ha5"]
 script = ExtResource("4_a7rdk")
 skill_id = &"mage_prismatic_barrier"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2

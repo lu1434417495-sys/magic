@@ -28,6 +28,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using EncounterRosterBuilder builder = new();
         using BattleRuntimeModule runtime = new();
         builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
             gameSession.GetEncounterRosterDefinitions(),
             gameSession.GetEnemyTemplateDefinitions()
         );
@@ -47,7 +48,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             display_name = "雾沼伏猎群",
             world_coord = new Vector2I(9, 9),
             faction_id = "hostile",
-            enemy_roster_template_id = "mist_beast",
             region_tag = "south_wilds",
             vision_range = 2,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
@@ -87,6 +87,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
             gameSession.GetEncounterRosterDefinitions(),
             gameSession.GetEnemyTemplateDefinitions()
         );
@@ -141,6 +142,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 0,
                 System.Array.Empty<AttributeModifierDefinition>(),
                 System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
+                System.Array.Empty<StringName>(),
                 System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
                 System.Array.Empty<TraitSaveBonusEntryDefinition>(),
                 System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
@@ -175,6 +178,11 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         {
             [template.template_id] = template.ToDefinition(itemDefinitions),
         };
+        SetupSingleTemplateEncounter(
+            builder,
+            "flame_enemy_encounter",
+            template.template_id
+        );
 
         using GodotProjectionLease<GArray> enemyUnitsLease =
             builder.BuildEnemyUnitsFromDefinitionsLease(
@@ -299,6 +307,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
             gameSession.GetEncounterRosterDefinitions(),
             gameSession.GetEnemyTemplateDefinitions()
         );
@@ -309,7 +318,6 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             display_name = "Wolf Den",
             world_coord = new Vector2I(4, 4),
             faction_id = "hostile",
-            enemy_roster_template_id = "wolf_pack",
             region_tag = "north_wilds",
             vision_range = 2,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement),
@@ -434,17 +442,18 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         StringName templateId
     )
     {
+        StringName encounterProfileId = $"test_{templateId}_encounter";
+        SetupSingleTemplateEncounter(builder, encounterProfileId, templateId);
         EncounterAnchorData encounterAnchor = new()
         {
             entity_id = $"{templateId}_typed_mp_unlock",
             display_name = templateId.ToString(),
             world_coord = new Vector2I(3, 3),
             faction_id = "hostile",
-            enemy_roster_template_id = templateId,
             region_tag = "typed_tests",
             vision_range = 2,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
-            encounter_profile_id = "",
+            encounter_profile_id = encounterProfileId,
             growth_stage = 0,
             suppressed_until_step = 0,
         };
@@ -471,14 +480,65 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             display_name = templateId.ToString(),
             world_coord = new Vector2I(3, 3),
             faction_id = "hostile",
-            enemy_roster_template_id = templateId,
             region_tag = "typed_tests",
             vision_range = 2,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
-            encounter_profile_id = "",
+            encounter_profile_id = encounterId,
             growth_stage = 0,
             suppressed_until_step = 0,
         };
+    }
+
+    private static void SetupSingleTemplateEncounter(
+        EncounterRosterBuilder builder,
+        StringName encounterProfileId,
+        StringName templateId
+    )
+    {
+        StringName rosterProfileId = $"{encounterProfileId}_roster";
+        WildEncounterRosterDefinition roster = new(
+            rosterProfileId,
+            templateId.ToString(),
+            0,
+            1,
+            new[]
+            {
+                new WildEncounterRosterStageDefinition(
+                    0,
+                    new[]
+                    {
+                        new WildEncounterRosterUnitEntryDefinition(
+                            templateId,
+                            1,
+                            templateId.ToString()
+                        ),
+                    }
+                ),
+            }
+        );
+        BattleEncounterDefinition encounter = new(
+            encounterProfileId,
+            templateId.ToString(),
+            rosterProfileId,
+            BattleEliminationObjectiveDefinition.Instance,
+            new BattleEncounterWorldResolutionDefinition(
+                BattleWorldResolutionMode.Clear,
+                BattleWorldResolutionMode.Preserve,
+                BattleWorldResolutionMode.Preserve,
+                0
+            )
+        );
+        builder.Setup(
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                [encounterProfileId] = encounter,
+            },
+            new Dictionary<StringName, WildEncounterRosterDefinition>
+            {
+                [rosterProfileId] = roster,
+            },
+            new Dictionary<StringName, EnemyTemplateDefinition>()
+        );
     }
 
     private static EnemyTemplateDef BuildEnemyTemplate(

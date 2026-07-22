@@ -607,6 +607,17 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             _test.True(DictDictionary(restResult, "service_side_effects").ContainsKey("world_step_advanced"), "整备服务结果应记录 world_step_advanced。");
             _test.False(restResult.ContainsKey("effects"), "整备服务结果不应再输出 legacy effects。");
 
+            PartyMemberState deadHero = runtime._party_state.GetMemberState("hero");
+            deadHero.MarkDead();
+            GDictionary deadMemberEffects = handler.RestorePartyResources(1.0f, true);
+            _test.Eq(deadHero.GetCurrentHp(), 0, "普通据点恢复不得复活死亡成员。");
+            _test.True(deadHero.IsDead(), "普通据点恢复后死亡成员必须保持死亡。");
+            _test.False(
+                deadMemberEffects.ContainsKey("hero"),
+                "普通据点恢复的 effects 不应包含被跳过的死亡成员。"
+            );
+            deadHero.ReviveWithVitals(40, 12, 0);
+
             GDictionary missingResult = SettlementServiceResultProjection.Project(
                 handler.ExecuteSettlementActionTyped("missing_settlement", "service:training", new GDictionary())
             );
@@ -821,14 +832,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         var validWarehouse = new PartyWarehouseService();
         validWarehouse.Setup(validParty, itemDefs);
         validWarehouse.AddItemTyped("travel_ration", 3);
-        GDictionary validWindowData = shopService.BuildWindowDataTyped(
+        WorldMapSettlementStateData validShopState =
+            WorldMapSettlementStateData.FromDictionary(
+                BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } })
+            );
+        SettlementShopWindowBuildResult validWindowBuildResult =
+            shopService.BuildWindowDataTyped(
             "service_basic_supply",
             settlementRecord,
-            BuildShopState(new GArray { new GDictionary { ["item_id"] = "healing_herb", ["quantity"] = 2, ["unit_price"] = 12, ["sold_out"] = false } }),
+            validShopState,
+            0,
+            "",
             itemDefs,
             validWarehouse,
             100
         );
+        using GodotProjectionLease<GDictionary> validWindowLease =
+            validWindowBuildResult.ProjectWindowDataLease(
+                "run_game_runtime_settlement_command_handler_regression.valid_shop_window"
+            );
+        GDictionary validWindowData = validWindowLease.Value;
         _test.Eq(DictArray(validWindowData, "buy_entries").Count, 1, "正式 shop stock entry 应生成可购买条目。");
         _test.Eq(DictArray(validWindowData, "sell_entries").Count, 1, "正式 sell inventory entry 应生成可出售条目。");
 
@@ -845,35 +868,11 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         };
         foreach ((string label, GDictionary entry) in invalidStockCases)
         {
-            PartyState partyState = BuildPartyState(10, 100);
-            var warehouse = new PartyWarehouseService();
-            warehouse.Setup(partyState, itemDefs);
-            GDictionary settlementState = BuildShopState(new GArray { entry.Duplicate(true) });
-            GDictionary windowData = shopService.BuildWindowDataTyped(
-                "service_basic_supply",
-                settlementRecord,
-                settlementState,
-                itemDefs,
-                warehouse,
-                partyState.gold
-            );
-            _test.Eq(DictArray(windowData, "buy_entries").Count, 0, $"{label} 的坏 shop stock 不应生成购买窗口条目。");
-            int goldBefore = partyState.gold;
-            GDictionary buyResult = ProjectShopTradeResult(shopService
-                .BuyTyped(
-                    "service_basic_supply",
-                    settlementRecord,
-                    settlementState,
-                    itemDefs,
-                    warehouse,
-                    partyState,
-                    "healing_herb",
-                    1,
-                    ""
-                ));
-            _test.False(DictBool(buyResult, "success", true), $"{label} 的坏 shop stock 不应允许购买交易。");
-            _test.Eq(partyState.gold, goldBefore, $"{label} 的坏 shop stock 不应扣除金币。");
-            _test.Eq(warehouse.CountItem("healing_herb"), 0, $"{label} 的坏 shop stock 不应写入仓库。");
+            WorldMapSettlementStateData settlementState =
+                WorldMapSettlementStateData.FromDictionary(
+                    BuildShopState(new GArray { entry.Duplicate(true) })
+                );
+            _test.True(settlementState == null, $"{label} 的坏 shop stock 应在据点状态边界被拒绝。");
         }
 
         Dictionary<StringName, ItemDefinition> noPriceItemDefs = new(itemDefs)
@@ -891,20 +890,26 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         var noPriceWarehouse = new PartyWarehouseService();
         noPriceWarehouse.Setup(noPriceParty, noPriceItemDefs);
         noPriceWarehouse.AddItemTyped("no_price_sample", 1);
-        GDictionary noPriceWindowData = shopService.BuildWindowDataTyped(
+        SettlementShopWindowBuildResult noPriceWindowBuildResult =
+            shopService.BuildWindowDataTyped(
             "service_basic_supply",
             settlementRecord,
-            BuildShopState(new GArray()),
+            WorldMapSettlementStateData.FromDictionary(BuildShopState(new GArray())),
+            0,
+            "",
             noPriceItemDefs,
             noPriceWarehouse,
             100
         );
+        using GodotProjectionLease<GDictionary> noPriceWindowLease =
+            noPriceWindowBuildResult.ProjectWindowDataLease(
+                "run_game_runtime_settlement_command_handler_regression.no_price_shop_window"
+            );
+        GDictionary noPriceWindowData = noPriceWindowLease.Value;
         _test.Eq(DictArray(noPriceWindowData, "sell_entries").Count, 0, "缺少正式 sell_price 的物品不应补默认回收价。");
         GDictionary noPriceSellResult = ProjectShopTradeResult(shopService
             .SellTyped(
                 "service_basic_supply",
-                settlementRecord,
-                BuildShopState(new GArray()),
                 noPriceItemDefs,
                 noPriceWarehouse,
                 noPriceParty,
@@ -1094,6 +1099,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
                 _test.Eq(runtime._current_status_message, "已打开 补给铺 的商店。", "UI 信号入口应使用真实服务 facility_name。");
             }
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            runtime.SetSettlementFeedbackText("不应进入商店窗口的据点旧反馈");
 
             GameRuntimeFacade.RuntimeCommandResult spoofedShopResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
@@ -1111,6 +1117,33 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             using (GodotProjectionLease<GDictionary> spoofedShopWindowLease = handler.GetShopWindowDataLease())
             {
                 _test.True(spoofedShopWindowLease.Value.Count > 0, "按真实商店入口执行后应能读取 shop window data。");
+                _test.Eq(
+                    DictString(spoofedShopWindowLease.Value, "feedback_text", "missing"),
+                    "",
+                    "初次打开商店不得把据点级旧反馈泄漏到商店 context。"
+                );
+            }
+            GameRuntimeFacade.RuntimeCommandResult missingItemResult =
+                handler.CommandShopBuyTyped("missing_shop_item", 1);
+            _test.False(missingItemResult.Ok, "购买不存在的商品应失败。");
+            _test.Eq(
+                missingItemResult.Message,
+                "当前商店没有该商品。",
+                "商店购买失败应返回明确原因。"
+            );
+            using (GodotProjectionLease<GDictionary> failedBuyWindowLease =
+                handler.GetShopWindowDataLease())
+            {
+                _test.Eq(
+                    DictString(failedBuyWindowLease.Value, "feedback_text", ""),
+                    missingItemResult.Message,
+                    "商店购买失败原因必须写入 active shop context。"
+                );
+                _test.Eq(
+                    DictString(failedBuyWindowLease.Value, "state_summary_text", ""),
+                    missingItemResult.Message,
+                    "商店窗口投影必须显示最新失败原因。"
+                );
             }
         }
         finally
@@ -1349,8 +1382,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             ["reputation"] = 0,
             ["active_conditions"] = new GArray(),
             ["cooldowns"] = new GDictionary(),
-            ["shop_inventory_seed"] = 0,
-            ["shop_last_refresh_step"] = 0,
             ["shop_states"] = new GDictionary(),
         };
     }
@@ -1546,9 +1577,6 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
             ["reputation"] = 0,
             ["active_conditions"] = new GArray(),
             ["cooldowns"] = new GDictionary(),
-            ["world_step"] = 0,
-            ["shop_inventory_seed"] = 0,
-            ["shop_last_refresh_step"] = 0,
             ["shop_states"] = new GDictionary
             {
                 ["village_basic_supply"] = new GDictionary

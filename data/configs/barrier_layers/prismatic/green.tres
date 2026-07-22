@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="BarrierLayerDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierLayerDef.cs" id="1_layer"]
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierOutcomeDef.cs" id="2_outcome"]
+
+[sub_resource type="Resource" id="Outcome_green"]
+script = ExtResource("2_outcome")
+outcome_type = &"poison_death"
+success_amount = 20
+success_damage_tag = &"poison"
+fatal_damage = 99999
+save_ability = &"constitution"
+save_tag = &"poison"
+
+[resource]
+script = ExtResource("1_layer")
+layer_id = &"green"
+display_name = "绿色层"
+order = 4
+blocked_categories = Array[StringName]([&"breath_weapon"])
+breaker_skill_ids = Array[StringName]([&"mage_passwall"])
+passage_outcomes = Array[ExtResource("2_outcome")]([SubResource("Outcome_green")])

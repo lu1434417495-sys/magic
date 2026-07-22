@@ -125,6 +125,7 @@ damage_tag = &"negative_energy"
 [sub_resource type="Resource" id="Resource_p4f8j"]
 script = ExtResource("4_o6dpd")
 skill_id = &"mage_spellward"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4

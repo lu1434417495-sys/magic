@@ -106,7 +106,11 @@ public partial class BattleState
 
     public StringName active_unit_id = "";
 
-    public StringName winner_faction_id = "";
+    private BattleObjectiveRuntimeState _objectiveRuntimeState;
+
+    private BattleFinalDecision _finalDecision;
+
+    public StringName winner_faction_id => _finalDecision?.WinnerFactionId ?? "";
 
     public StringList log_entries = new();
 
@@ -154,6 +158,62 @@ public partial class BattleState
         BuildPromotionQueueSnapshots();
     internal BattleBarrierStore LayeredBarrierStore => _layeredBarrierStore;
     internal long MovementGeometryRevision => _movement_geometry_revision;
+
+    internal long CaptureMovementGeometryRevisionForMutationSnapshot() =>
+        _movement_geometry_revision;
+
+    internal void RestoreMovementGeometryRevisionForMutationSnapshot(long revision) =>
+        _movement_geometry_revision = revision;
+    internal BattleObjectiveRuntimeState ObjectiveRuntimeState => _objectiveRuntimeState;
+    internal BattleFinalDecision FinalDecision => _finalDecision;
+
+    internal bool InitializeObjective(BattleObjectiveDefinition objectiveDefinition)
+    {
+        _objectiveRuntimeState = objectiveDefinition switch
+        {
+            BattleEliminationObjectiveDefinition =>
+                new BattleEliminationObjectiveRuntimeState(),
+            _ => null,
+        };
+        _finalDecision = null;
+        return _objectiveRuntimeState != null;
+    }
+
+    internal bool TryLatchFinalDecision(BattleFinalDecision decision)
+    {
+        if (decision == null || _finalDecision != null)
+            return false;
+        if (
+            _objectiveRuntimeState == null
+            || _objectiveRuntimeState.Mode != decision.ObjectiveMode
+        )
+            throw new InvalidOperationException(
+                "Battle final decision does not match the active objective."
+            );
+        _finalDecision = decision;
+        return true;
+    }
+
+    internal void RestoreObjectiveState(
+        BattleObjectiveRuntimeState objectiveRuntimeState,
+        BattleFinalDecision finalDecision
+    )
+    {
+        if (
+            finalDecision != null
+            && (
+                objectiveRuntimeState == null
+                || objectiveRuntimeState.Mode != finalDecision.ObjectiveMode
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                "Battle objective snapshot contains a final decision that does not match its runtime objective."
+            );
+        }
+        _objectiveRuntimeState = objectiveRuntimeState?.DuplicateState();
+        _finalDecision = finalDecision?.DuplicateState();
+    }
 
     internal void MarkMovementGeometryChanged()
     {
@@ -623,6 +683,21 @@ public partial class BattleState
         MarkMovementGeometryChanged();
     }
 
+    internal void ReplaceCellsForMutationSnapshotExact(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cellStates
+    )
+    {
+        _cellsByCoord.Clear();
+        if (cellStates != null)
+        {
+            foreach (KeyValuePair<Vector2I, BattleCellState> entry in cellStates)
+            {
+                _cellsByCoord[entry.Key] = entry.Value;
+            }
+        }
+        MarkMovementGeometryChanged();
+    }
+
     internal void SetCellsFromDictionary(
         Godot.Collections.Dictionary cellStates,
         bool duplicateCells = false,
@@ -696,6 +771,21 @@ public partial class BattleState
         MarkMovementGeometryChanged();
     }
 
+    internal void ReplaceUnitsForMutationSnapshotExact(
+        IEnumerable<KeyValuePair<StringName, BattleUnitState>> unitStates
+    )
+    {
+        _unitsById.Clear();
+        if (unitStates != null)
+        {
+            foreach (KeyValuePair<StringName, BattleUnitState> entry in unitStates)
+            {
+                _unitsById[entry.Key] = entry.Value;
+            }
+        }
+        MarkMovementGeometryChanged();
+    }
+
     internal void RebuildCellColumns()
     {
         ReplaceCellColumns(BattleCellState.BuildColumnsFromSurfaceCells(_cellsByCoord));
@@ -713,6 +803,21 @@ public partial class BattleState
             return;
         foreach ((Vector2I coord, List<BattleCellState> column) in columns)
             _cellColumns[coord] = DuplicateCellColumn(column);
+    }
+
+    internal void ReplaceCellColumnsForMutationSnapshotExact(
+        IReadOnlyDictionary<Vector2I, List<BattleCellState>> columns
+    )
+    {
+        DisposeStoredCellColumns();
+        if (columns == null)
+        {
+            return;
+        }
+        foreach (KeyValuePair<Vector2I, List<BattleCellState>> entry in columns)
+        {
+            _cellColumns[entry.Key] = entry.Value;
+        }
     }
 
     internal void ReplaceCellColumnsFromPayload(Godot.Collections.Dictionary payload)
@@ -778,6 +883,10 @@ public partial class BattleState
     internal void ReplaceLayeredBarrierFieldsTyped(
         IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> barriers
     ) => _layeredBarrierStore.ReplaceWith(barriers);
+
+    internal void ReplaceLayeredBarrierFieldsForMutationSnapshotExact(
+        IEnumerable<KeyValuePair<StringName, BattleBarrierInstanceState>> barriers
+    ) => _layeredBarrierStore.ReplaceWithForMutationSnapshotExact(barriers);
 
     internal void PutLayeredBarrierField(StringName key, BattleBarrierInstanceState barrier)
     {
@@ -857,6 +966,62 @@ public partial class BattleState
                 result.Add(mark.DuplicateState());
         }
         return result;
+    }
+
+    internal List<BattleEquipmentTargetMarkState>
+        CaptureEquipmentTargetMarksForMutationSnapshotExact()
+    {
+        var result = new List<BattleEquipmentTargetMarkState>();
+        foreach (BattleEquipmentTargetMarkState mark in _equipmentTargetMarks)
+        {
+            result.Add(mark?.DuplicateState());
+        }
+        return result;
+    }
+
+    internal void ReplaceEquipmentTargetMarksForMutationSnapshotExact(
+        IEnumerable<BattleEquipmentTargetMarkState> marks
+    )
+    {
+        _equipmentTargetMarks.Clear();
+        if (marks == null)
+        {
+            return;
+        }
+        foreach (BattleEquipmentTargetMarkState mark in marks)
+        {
+            _equipmentTargetMarks.Add(mark?.DuplicateState());
+        }
+    }
+
+    internal void ReplaceEquipmentTargetMarksTyped(
+        IEnumerable<BattleEquipmentTargetMarkState> marks
+    )
+    {
+        _equipmentTargetMarks.Clear();
+        foreach (
+            BattleEquipmentTargetMarkState mark in
+            marks ?? Array.Empty<BattleEquipmentTargetMarkState>()
+        )
+        {
+            if (mark?.IsValid == true)
+                _equipmentTargetMarks.Add(mark.DuplicateState());
+        }
+    }
+
+    internal ulong CaptureNextCastSequence() => _next_cast_sequence;
+
+    internal void RestoreNextCastSequence(ulong nextCastSequence)
+    {
+        _next_cast_sequence = nextCastSequence;
+    }
+
+    internal int CaptureNextTemporaryEdgeFeatureSequence() =>
+        _next_temporary_edge_feature_sequence;
+
+    internal void RestoreNextTemporaryEdgeFeatureSequence(int nextSequence)
+    {
+        _next_temporary_edge_feature_sequence = nextSequence;
     }
 
     internal bool SetEquipmentTargetMark(
@@ -1053,6 +1218,32 @@ public partial class BattleState
         }
         _next_temporary_edge_feature_sequence = Math.Max(maxSequence + 1, 1);
         MarkTemporaryEdgeGeometryChanged();
+    }
+
+    internal List<BattleTemporaryEdgeFeatureState>
+        CaptureTemporaryEdgeFeaturesForMutationSnapshotExact()
+    {
+        var result = new List<BattleTemporaryEdgeFeatureState>();
+        foreach (BattleTemporaryEdgeFeatureState feature in _temporaryEdgeFeatures)
+        {
+            result.Add(feature?.DuplicateState());
+        }
+        return result;
+    }
+
+    internal void ReplaceTemporaryEdgeFeaturesForMutationSnapshotExact(
+        IEnumerable<BattleTemporaryEdgeFeatureState> features
+    )
+    {
+        _temporaryEdgeFeatures.Clear();
+        if (features == null)
+        {
+            return;
+        }
+        foreach (BattleTemporaryEdgeFeatureState feature in features)
+        {
+            _temporaryEdgeFeatures.Add(feature?.DuplicateState());
+        }
     }
 
     internal List<BattleCellEntry> GetCellEntriesTyped() => CellEntries();

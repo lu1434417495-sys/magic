@@ -24,6 +24,7 @@ effect_defs = Array[ExtResource("2_passwall_effect")]([SubResource("Effect_edge_
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("3_passwall_combat")
 skill_id = &"mage_passwall"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 target_team_filter = &"any"
 range_value = 4

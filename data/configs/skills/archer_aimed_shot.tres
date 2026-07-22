@@ -60,6 +60,7 @@ dice_sides = 4
 [sub_resource type="Resource" id="Resource_u1vsk"]
 script = ExtResource("4_hf835")
 skill_id = &"archer_aimed_shot"
+delivery_categories = Array[StringName]([&"nonmagical_missile"])
 range_value = 0
 ap_cost = 1
 stamina_cost = 20

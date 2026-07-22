@@ -168,6 +168,7 @@ tick_interval_tu = 20
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_fire_wall"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"line"

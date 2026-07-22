@@ -36,7 +36,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
     private void TestSaveResolverHandlesImmunityBeforeRoll()
     {
         BattleUnitState target = MakeUnit("poison_immune_target", "player");
-        target.save_advantage_tags.Add("poison_immunity");
+        target.save_immunity_tags.Add("poison");
         BattleSaveResult result = BattleSaveResolver.ResolveSaveResult(
             null,
             target,
@@ -63,14 +63,14 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         _test.True(advantageResult.Success, "Advantage should use the higher override roll.");
 
         BattleUnitState disadvantageTarget = MakeUnit("disadvantage_target", "player");
-        disadvantageTarget.save_advantage_tags.Add("poison_disadvantage");
+        disadvantageTarget.save_disadvantage_tags.Add("poison");
         BattleSaveResult disadvantageResult = BattleSaveResolver.ResolveSaveResult(
             null,
             disadvantageTarget,
             MakeSaveDamageEffect("poison", "constitution", 15, false),
             BattleSaveContext.WithSaveRollOverrides(new[] { 18, 2 })
         );
-        _test.Eq(disadvantageResult.NaturalRoll, 2, "save_tag_disadvantage should use the lower roll.");
+        _test.Eq(disadvantageResult.NaturalRoll, 2, "save_disadvantage_tags should use the lower roll.");
         _test.False(disadvantageResult.Success, "Disadvantage should fail with the lower override roll.");
     }
 
@@ -142,7 +142,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "ResolveSaveResult 应携带按 natural/total/DC 解析出的 Degree。"
         );
 
-        target.save_advantage_tags.Add("poison_immunity");
+        target.save_immunity_tags.Add("poison");
         BattleSaveResult immuneResult = BattleSaveResolver.ResolveSaveResult(
             null,
             target,
@@ -364,7 +364,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         );
 
         target.save_advantage_tags.Clear();
-        target.save_advantage_tags.Add("poison_disadvantage");
+        target.save_disadvantage_tags.Add("poison");
         BattleSaveProbabilityResult disadvantageProbability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 null,
@@ -377,8 +377,8 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "DC15 with no modifier should have 9% disadvantage save success."
         );
 
-        target.save_advantage_tags.Clear();
-        target.save_advantage_tags.Add("poison_immunity");
+        target.save_disadvantage_tags.Clear();
+        target.save_immunity_tags.Add("poison");
         BattleSaveProbabilityResult immuneProbability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 null,

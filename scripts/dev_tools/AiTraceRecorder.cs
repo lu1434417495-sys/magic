@@ -8,6 +8,26 @@ using Godot;
 /// them on the hot path with negligible overhead.
 public class AiTraceRecorder
 {
+    private sealed class InstanceScope : IDisposable
+    {
+        private readonly AiTraceRecorder _previousInstance;
+        private bool _disposed;
+
+        internal InstanceScope(AiTraceRecorder nextInstance)
+        {
+            _previousInstance = GetInstance();
+            SetInstance(nextInstance);
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            SetInstance(_previousInstance);
+        }
+    }
+
     private sealed class TraceEventData
     {
         public string Name { get; init; } = "";
@@ -148,6 +168,11 @@ public class AiTraceRecorder
     public static void SetInstance(AiTraceRecorder next_instance)
     {
         _instance = next_instance;
+    }
+
+    internal static IDisposable PushInstance(AiTraceRecorder nextInstance)
+    {
+        return new InstanceScope(nextInstance);
     }
 
     private void _enter_impl(StringName name)

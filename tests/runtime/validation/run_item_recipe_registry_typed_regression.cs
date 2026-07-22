@@ -619,6 +619,8 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             0,
             System.Array.Empty<AttributeModifierDefinition>(),
             System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),

@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_3fyf5"]
 script = ExtResource("4_wwjck")
 skill_id = &"mage_invisibility"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 3
 ap_cost = 2

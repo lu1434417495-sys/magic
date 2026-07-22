@@ -33,8 +33,29 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
                 quantity = 1,
             }
         );
+        WildEncounterRosterDefinition roster = BuildRosterDefinition(
+            "canonical_drop_roster",
+            "荒狼掉落测试",
+            new WildEncounterRosterUnitEntryDefinition(
+                template.template_id,
+                2,
+                template.display_name
+            )
+        );
+        BattleEncounterDefinition encounter = BuildEliminationEncounterDefinition(
+            "canonical_drop_encounter",
+            "荒狼掉落测试",
+            roster.ProfileId
+        );
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                [encounter.EncounterId] = encounter,
+            },
+            new Dictionary<StringName, WildEncounterRosterDefinition>
+            {
+                [roster.ProfileId] = roster,
+            },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
                 [template.template_id] = ProjectTemplate(template),
@@ -42,7 +63,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         );
 
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
-            BuildTemplateEncounterAnchor("wolf_den_drop_schema", template.template_id)
+            BuildEncounterAnchor("wolf_den_drop_schema", encounter.EncounterId)
         );
 
         _test.Eq(lootEntries.Count, 1, "canonical enemy template 应暴露 1 条正式掉落 schema。");
@@ -72,12 +93,12 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         _test.True(!lootEntry.ContainsKey("drop_id"), "掉落 schema 不应继续暴露旧 drop_id alias。");
         _test.Eq(
             DictString(lootEntry, "drop_source_kind"),
-            "enemy_template",
+            "encounter_roster",
             "掉落 schema 应标记来源类型。"
         );
         _test.Eq(
             DictString(lootEntry, "drop_source_id"),
-            "canonical_drop_template",
+            "canonical_drop_roster",
             "掉落 schema 应保留稳定来源标识。"
         );
         _test.Eq(
@@ -87,8 +108,8 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         );
         _test.Eq(
             DictString(lootEntry, "drop_entry_id"),
-            "wolf_hide_bundle",
-            "掉落 schema 应保留稳定 entry 标识。"
+            "encounter_roster_canonical_drop_roster_beast_hide",
+            "roster 聚合后的掉落 schema 应生成稳定 entry 标识。"
         );
         _test.Eq(
             DictString(lootEntry, "item_id"),
@@ -117,8 +138,29 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
                 quantity = 1,
             }
         );
+        WildEncounterRosterDefinition roster = BuildRosterDefinition(
+            "missing_label_drop_roster",
+            "",
+            new WildEncounterRosterUnitEntryDefinition(
+                template.template_id,
+                1,
+                template.display_name
+            )
+        );
+        BattleEncounterDefinition encounter = BuildEliminationEncounterDefinition(
+            "missing_label_drop_encounter",
+            "Missing Label Drop Encounter",
+            roster.ProfileId
+        );
         builder.Setup(
-            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                [encounter.EncounterId] = encounter,
+            },
+            new Dictionary<StringName, WildEncounterRosterDefinition>
+            {
+                [roster.ProfileId] = roster,
+            },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
                 [template.template_id] = ProjectTemplate(template),
@@ -126,7 +168,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         );
 
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries = builder.BuildLootEntriesPlain(
-            BuildTemplateEncounterAnchor("missing_label_drop_schema", template.template_id)
+            BuildEncounterAnchor("missing_label_drop_schema", encounter.EncounterId)
         );
 
         _test.Eq(
@@ -163,16 +205,25 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
                 quantity = 3,
             }
         );
-        WildEncounterRosterDef roster = BuildRoster(
+        WildEncounterRosterDefinition roster = BuildRosterDefinition(
             "wolf_den",
             "Wolf Den",
-            new WildEncounterRosterUnitEntryDef { template_id = "wolf_a", count = 2 },
-            new WildEncounterRosterUnitEntryDef { template_id = "wolf_b", count = 1 }
+            new WildEncounterRosterUnitEntryDefinition("wolf_a", 2, "荒狼 A"),
+            new WildEncounterRosterUnitEntryDefinition("wolf_b", 1, "荒狼 B")
+        );
+        BattleEncounterDefinition encounter = BuildEliminationEncounterDefinition(
+            "wolf_den_elimination",
+            "Wolf Den",
+            roster.ProfileId
         );
         builder.Setup(
+            new Dictionary<StringName, BattleEncounterDefinition>
+            {
+                [encounter.EncounterId] = encounter,
+            },
             new Dictionary<StringName, WildEncounterRosterDefinition>
             {
-                [roster.profile_id] = roster.ToDefinition(),
+                [roster.ProfileId] = roster,
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
@@ -181,8 +232,10 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             }
         );
 
-        EncounterAnchorData encounterAnchor = BuildTemplateEncounterAnchor("wolf_den_profile", "wolf_a");
-        encounterAnchor.encounter_profile_id = roster.profile_id;
+        EncounterAnchorData encounterAnchor = BuildEncounterAnchor(
+            "wolf_den_profile",
+            encounter.EncounterId
+        );
         encounterAnchor.growth_stage = 0;
 
         IReadOnlyList<IReadOnlyDictionary<string, object>> lootEntries =
@@ -242,43 +295,52 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         return template;
     }
 
-    private static WildEncounterRosterDef BuildRoster(
+    private static WildEncounterRosterDefinition BuildRosterDefinition(
         StringName profileId,
         string displayName,
-        params WildEncounterRosterUnitEntryDef[] unitEntries
+        params WildEncounterRosterUnitEntryDefinition[] unitEntries
     )
     {
-        WildEncounterRosterDef roster = new()
-        {
-            profile_id = profileId,
-            display_name = displayName,
-            initial_stage = 0,
-        };
-        WildEncounterRosterStageDef stageDef = new()
-        {
-            stage = 0,
-        };
-        foreach (WildEncounterRosterUnitEntryDef unitEntry in unitEntries)
-        {
-            stageDef.unit_entries.Add(unitEntry);
-        }
-        roster.stages.Add(stageDef);
-        return roster;
+        return new WildEncounterRosterDefinition(
+            profileId,
+            displayName,
+            0,
+            0,
+            new[] { new WildEncounterRosterStageDefinition(0, unitEntries) }
+        );
     }
+
+    private static BattleEncounterDefinition BuildEliminationEncounterDefinition(
+        StringName encounterId,
+        string displayName,
+        StringName rosterProfileId
+    ) =>
+        new(
+            encounterId,
+            displayName,
+            rosterProfileId,
+            BattleEliminationObjectiveDefinition.Instance,
+            new BattleEncounterWorldResolutionDefinition(
+                BattleWorldResolutionMode.Clear,
+                BattleWorldResolutionMode.Preserve,
+                BattleWorldResolutionMode.Preserve,
+                0
+            )
+        );
 
     private static EnemyTemplateDefinition ProjectTemplate(EnemyTemplateDef template) =>
         template.ToDefinition(new Dictionary<StringName, ItemDefinition>());
 
-    private static EncounterAnchorData BuildTemplateEncounterAnchor(
+    private static EncounterAnchorData BuildEncounterAnchor(
         StringName entityId,
-        StringName templateId
+        StringName encounterProfileId
     )
     {
         return new EncounterAnchorData
         {
             entity_id = entityId,
             display_name = entityId.ToString(),
-            enemy_roster_template_id = templateId,
+            encounter_profile_id = encounterProfileId,
             faction_id = "hostile",
             world_coord = Vector2I.Zero,
             vision_range = 1,

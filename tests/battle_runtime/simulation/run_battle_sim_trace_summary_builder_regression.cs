@@ -17,6 +17,8 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
     {
         TestCompactsTypedScenarioReport();
         TestCompactsRunnerProfileReport();
+        TestPreservesInvalidRunFactsAndPlaceholder();
+        TestBatchCompletionFactsOverrideObservedRunCompleteness();
 
         return _test.Finish("Battle sim trace summary builder regression");
     }
@@ -38,6 +40,15 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
 
         GDictionary compactRun = GetSelfDict(GetArray(summary, "runs")[0]);
         _test.Eq(GetInt(compactRun, "trace_count"), 2, "compact run 应统计自身 trace 数。");
+        _test.Eq(GetString(compactRun, "objective_mode"), "elimination", "compact run 应保留 typed objective mode。");
+        _test.Eq(GetString(compactRun, "outcome"), "player_failure", "compact run 应保留 typed outcome。");
+        _test.Eq(
+            GetString(compactRun, "end_reason"),
+            "elimination_allies_defeated",
+            "compact run 应保留 typed end reason。"
+        );
+        _test.Eq(GetInt(compactRun, "decision_tu"), 0, "compact run 应保留终局判定 TU。");
+        _test.Eq(GetString(compactRun, "winner_faction_id"), "hostile", "winner 应只是 typed outcome 的投影。");
         _test.Eq(GetInt(GetDict(GetDict(compactRun, "command_counts_by_faction"), "player"), "wait"), 1, "player wait command 应被聚合。");
         _test.Eq(GetInt(GetDict(GetDict(compactRun, "block_reasons_by_faction"), "player"), "体力不足，无法施放该技能。"), 1, "player 体力不足阻断应被聚合。");
         _test.Eq(GetArray(compactRun, "focus_turns").Count, 1, "默认 focus faction 应只保留 player 回合。");
@@ -102,6 +113,64 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
         _test.Eq(GetArray(actionTrace, "top_candidates").Count, 1, "自定义 top candidate 上限应生效。");
     }
 
+    private void TestBatchCompletionFactsOverrideObservedRunCompleteness()
+    {
+        var builder = new BattleSimTraceSummaryBuilder();
+        BattleSimScenarioReport report = BuildTypedReport();
+        using GodotProjectionLease<GDictionary> summaryLease = builder.BuildLease(
+            report,
+            "user://partial_timeout_report.json",
+            batchFacts: new BattleSimTraceSummaryBuilder.TraceSummaryBatchFactsData
+            {
+                RequestedRunCount = 10,
+                TimeoutSeconds = 1800,
+                TimedOut = true,
+                IsComplete = false,
+            }
+        );
+        GDictionary summary = summaryLease.Value;
+
+        _test.Eq(GetInt(summary, "run_count"), 1, "trace summary 应保留实际已尝试场次数。");
+        _test.Eq(GetInt(summary, "completed_run_count"), 1, "唯一已尝试场次应仍记为正常结束。");
+        _test.Eq(GetInt(summary, "requested_run_count"), 10, "trace summary 应保留整批请求场次数。");
+        _test.Eq(GetInt(summary, "timeout_seconds"), 1800, "trace summary 应保留整批超时预算。");
+        _test.True(summary.ContainsKey("timed_out") && summary["timed_out"].AsBool(), "trace summary 应明确标记整批超时。");
+        _test.True(summary.ContainsKey("is_complete") && !summary["is_complete"].AsBool(), "部分已完成但整批超时时不得误报 is_complete=true。");
+    }
+
+    private void TestPreservesInvalidRunFactsAndPlaceholder()
+    {
+        var builder = new BattleSimTraceSummaryBuilder();
+        BattleSimScenarioReport report = BuildTypedReport();
+        report.ProfileEntries[0].Runs.Add(
+            new BattleSimRunReport
+            {
+                TerminationKind = BattleSimTerminationKind.BattleEnded,
+            }
+        );
+        report.ProfileEntries[0].Runs.Add(null);
+
+        using GodotProjectionLease<GDictionary> summaryLease = builder.BuildLease(report);
+        GDictionary summary = summaryLease.Value;
+        GArray runs = GetArray(summary, "runs");
+
+        _test.Eq(GetInt(summary, "run_count"), 3, "trace summary 不得丢弃 invalid run 槽位。");
+        _test.Eq(GetInt(summary, "completed_run_count"), 1, "只有带 typed final decision 的 ended run 才算完成。");
+        _test.Eq(GetInt(summary, "unfinished_run_count"), 2, "无决策 ended 与 null run 都应计入 unfinished。");
+        _test.Eq(GetInt(summary, "invalid_runtime_run_count"), 2, "无决策 ended 与 null run 都应计入 invalid runtime。");
+        _test.Eq(runs.Count, 3, "compact runs 数量必须与 run_count 一致。");
+        _test.Eq(
+            GetString(GetSelfDict(runs[1]), "outcome"),
+            "unknown",
+            "无决策 ended run 应显式投影 unknown outcome。"
+        );
+        _test.Eq(
+            GetString(GetSelfDict(runs[2]), "termination_kind"),
+            "invalid_runtime",
+            "null run 占位应显式投影 invalid_runtime。"
+        );
+    }
+
     private static BattleSimScenarioReport BuildTypedReport()
     {
         var report = new BattleSimScenarioReport
@@ -139,15 +208,21 @@ public partial class run_battle_sim_trace_summary_builder_regression : Lifecycle
             FactionId = "hostile",
             TurnCount = 1,
         };
-        return new BattleSimRunReport
+        BattleSimRunReport report = new()
         {
+            TerminationKind = BattleSimTerminationKind.BattleEnded,
             Seed = GetInt(run, "seed"),
-            WinnerFactionId = GetString(run, "winner_faction_id"),
             Iterations = GetInt(run, "iterations"),
             TimelineSteps = GetInt(run, "timeline_steps"),
             MetricsSnapshot = BattleSimMetricsSnapshot.Capture(metrics),
             AiTurnTraces = BuildTypedTraces(GetArray(run, "ai_turn_traces")),
         };
+        report.SetFinalDecision(
+            BattleObjectiveTestFactory.CreateEliminationDecision(
+                GetString(run, "winner_faction_id")
+            )
+        );
+        return report;
     }
 
     private static IReadOnlyList<BattleAiTurnTraceProjection> BuildTypedTraces(GArray traces)

@@ -31,17 +31,13 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
+        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
 
-        HashSet<StringName> enemyTemplateIds = new(enemyContent.EnemyTemplates.Keys);
-        HashSet<StringName> wildEncounterRosterIds = new(
-            enemyContent.EncounterRosters.Keys
-        );
+        HashSet<StringName> battleEncounterIds = new(contentSnapshot.BattleEncounters.Keys);
         List<string> typedErrors = ValidateOfficialWorldPresets(
             loader,
             validator,
-            enemyTemplateIds,
-            wildEncounterRosterIds
+            battleEncounterIds
         );
 
         _test.Eq(typedErrors.Count, 0, $"正式 world preset typed boundary 不应报错: {FormatErrors(typedErrors)}");
@@ -51,7 +47,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
+        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
 
         using WorldMapGenerationConfig config = BuildInvalidGenerationConfig();
         WorldGenerationDefinition definition = ProjectSyntheticGeneration(
@@ -59,16 +55,12 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             config,
             loader
         );
-        HashSet<StringName> enemyTemplateIds = new(enemyContent.EnemyTemplates.Keys);
-        HashSet<StringName> wildEncounterRosterIds = new(
-            enemyContent.EncounterRosters.Keys
-        );
+        HashSet<StringName> battleEncounterIds = new(contentSnapshot.BattleEncounters.Keys);
 
         List<string> typedErrors = validator.ValidateGenerationConfigTyped(
             definition,
             "typed_invalid_world_generation_config",
-            enemyTemplateIds,
-            wildEncounterRosterIds
+            battleEncounterIds
         );
 
         _test.True(
@@ -81,7 +73,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     {
         using TestContentResourceLoader loader = new();
         WorldMapContentValidator validator = new();
-        ContentSnapshot enemyContent = GameSessionTestFactory.GetProcessSnapshot();
+        ContentSnapshot contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
 
         using WorldMapGenerationConfig config = new()
         {
@@ -89,10 +81,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             world_size_in_chunks = new Vector2I(4, 4),
             chunk_size = new Vector2I(8, 8),
         };
-        HashSet<StringName> enemyTemplateIds = new(enemyContent.EnemyTemplates.Keys);
-        HashSet<StringName> wildEncounterRosterIds = new(
-            enemyContent.EncounterRosters.Keys
-        );
+        HashSet<StringName> battleEncounterIds = new(contentSnapshot.BattleEncounters.Keys);
         WorldGenerationDefinition definition = ProjectSyntheticGeneration(
             "res://synthetic/typed_default_injected_world_generation_config.tres",
             config,
@@ -102,8 +91,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         List<string> typedErrors = validator.ValidateGenerationConfigTyped(
             definition,
             "typed_default_injected_world_generation_config",
-            enemyTemplateIds,
-            wildEncounterRosterIds
+            battleEncounterIds
         );
 
         _test.Eq(
@@ -119,8 +107,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         WorldMapContentValidator validator = new();
 
         using WorldMapGenerationConfig config = BuildCatalogBoundaryGenerationConfig(
-            "string_key_enemy_template",
-            "string_key_roster"
+            "string_name_battle_encounter"
         );
         WorldGenerationDefinition definition = ProjectSyntheticGeneration(
             "res://synthetic/string_name_catalog_boundary.tres",
@@ -131,19 +118,17 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         List<string> unrelatedIdErrors = validator.ValidateGenerationConfigTyped(
             definition,
             "string_key_catalog_boundary",
-            new HashSet<StringName> { "unrelated_enemy_template" },
-            new HashSet<StringName> { "unrelated_roster" }
+            new HashSet<StringName> { "unrelated_battle_encounter" }
         );
         _test.True(
-            unrelatedIdErrors.Count >= 2,
+            unrelatedIdErrors.Count >= 1,
             $"typed generation config 校验应拒绝不匹配的 catalog id。 errors={FormatErrors(unrelatedIdErrors)}"
         );
 
         List<string> exactIdErrors = validator.ValidateGenerationConfigTyped(
             definition,
             "string_name_key_catalog_boundary",
-            new HashSet<StringName> { "string_key_enemy_template" },
-            new HashSet<StringName> { "string_key_roster" }
+            new HashSet<StringName> { "string_name_battle_encounter" }
         );
         _test.Eq(
             exactIdErrors.Count,
@@ -190,7 +175,6 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         List<string> errors = validator.ValidateGenerationConfigTyped(
             definition,
             "sibling_duplicate_submap_path",
-            new HashSet<StringName>(),
             new HashSet<StringName>()
         );
         _test.Eq(
@@ -253,7 +237,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         {
             region_tag = "north",
             monster_name = "Wolf",
-            enemy_roster_template_id = "wolf_pack",
+            encounter_profile_id = "synthetic_wolf_encounter",
             density_per_chunk = 1,
             min_distance_to_settlement = 0,
             vision_range = 1,
@@ -360,8 +344,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         List<string> errors = validator.ValidateGenerationConfigTyped(
             definition,
             definition.CanonicalPath,
-            new HashSet<StringName> { "wolf_pack" },
-            new HashSet<StringName>()
+            new HashSet<StringName> { "synthetic_wolf_encounter" }
         );
         _test.Eq(
             errors.Count,
@@ -463,8 +446,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     private static List<string> ValidateOfficialWorldPresets(
         TestContentResourceLoader loader,
         WorldMapContentValidator validator,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> wildEncounterRosterIds
+        IReadOnlyCollection<StringName> battleEncounterIds
     )
     {
         var errors = new List<string>();
@@ -481,8 +463,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
                 validator.ValidateGenerationConfigTyped(
                     definition,
                     canonicalPath,
-                    enemyTemplateIds,
-                    wildEncounterRosterIds
+                    battleEncounterIds
                 )
             );
         }
@@ -507,8 +488,7 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
         WildSpawnRule missingWildRule = new()
         {
             region_tag = "invalid_wilds",
-            enemy_roster_template_id = "missing_enemy",
-            encounter_profile_id = "missing_roster",
+            encounter_profile_id = "missing_battle_encounter",
             density_per_chunk = 1,
             chunk_coords = new Godot.Collections.Array<Vector2I> { new Vector2I(0, 0) },
         };
@@ -604,15 +584,13 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
     }
 
     private static WorldMapGenerationConfig BuildCatalogBoundaryGenerationConfig(
-        StringName enemyTemplateId,
-        StringName rosterId
+        StringName battleEncounterId
     )
     {
         WildSpawnRule wildRule = new()
         {
             region_tag = "catalog_boundary",
-            enemy_roster_template_id = enemyTemplateId,
-            encounter_profile_id = rosterId,
+            encounter_profile_id = battleEncounterId,
             density_per_chunk = 1,
             chunk_coords = new Godot.Collections.Array<Vector2I> { new Vector2I(0, 0) },
         };

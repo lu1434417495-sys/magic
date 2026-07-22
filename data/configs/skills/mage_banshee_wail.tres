@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_sqr10"]
 script = ExtResource("4_8nau6")
 skill_id = &"mage_banshee_wail"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 0
 area_pattern = &"cone"

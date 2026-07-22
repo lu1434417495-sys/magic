@@ -21,9 +21,9 @@ public sealed class PartyMemberTestBuilder
         return this;
     }
 
-    public PartyMemberTestBuilder WithVitals(int hp, int mp = 0, int aura = 0, bool dead = false)
+    public PartyMemberTestBuilder WithVitals(int hp, int mp = 0, int aura = 0)
     {
-        _member.SetVitals(hp, mp, aura, dead);
+        _member.SetVitals(hp, mp, aura);
         return this;
     }
 

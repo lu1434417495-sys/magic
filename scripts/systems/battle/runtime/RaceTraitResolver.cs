@@ -32,6 +32,16 @@ public static class RaceTraitResolver
             identityDef.SaveAdvantageTags
         );
 
+        _append_unique_string_names(
+            unitState.save_disadvantage_tags,
+            identityDef.SaveDisadvantageTags
+        );
+
+        _append_unique_string_names(
+            unitState.save_immunity_tags,
+            identityDef.SaveImmunityTags
+        );
+
         _merge_damage_resistances(
             unitState.damage_resistances,
             identityDef.DamageResistances
@@ -58,6 +68,16 @@ public static class RaceTraitResolver
         _append_unique_string_names(
             unitState.save_advantage_tags,
             identityDef.SaveAdvantageTags
+        );
+
+        _append_unique_string_names(
+            unitState.save_disadvantage_tags,
+            identityDef.SaveDisadvantageTags
+        );
+
+        _append_unique_string_names(
+            unitState.save_immunity_tags,
+            identityDef.SaveImmunityTags
         );
 
         _merge_damage_resistances(

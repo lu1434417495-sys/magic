@@ -521,6 +521,10 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
     {
         if (runtime == null || state == null || activeUnit == null || targetUnit == null || skillDefinition == null || repeatEffect == null)
             return -1;
+        // 种子预言机必须与真实执行同口径:policy service 阶段上下文 + fate-aware
+        // 检定,避免与执行路径形成口径分叉。
+        BattleAttackCheckPolicyService attackPolicy = runtime.GetAttackCheckPolicyService();
+        int skillLevel = activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId);
         for (int candidateSeed = 0; candidateSeed < 4096; candidateSeed++)
         {
             state.seed = candidateSeed;
@@ -528,14 +532,28 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             bool matched = true;
             for (int stageIndex = 0; stageIndex < expectedStageOutcomes.Length; stageIndex++)
             {
-                AttackRollResult rollResult = runtime.GetHitResolver().ResolveRepeatAttackStageHit(
-                    state,
-                    activeUnit,
-                    targetUnit,
-                    skillDefinition,
-                    repeatEffect,
-                    stageIndex
-                );
+                BattleRepeatAttackStageSpec stageSpec =
+                    BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
+                        repeatEffect,
+                        stageIndex,
+                        0,
+                        skillLevel
+                    );
+                BattleAttackCheckPolicyContext stageContext =
+                    attackPolicy.BuildRepeatAttackStageContext(
+                        state,
+                        activeUnit,
+                        targetUnit,
+                        skillDefinition,
+                        stageSpec,
+                        new StringName("repeat_attack_stage_check"),
+                        new StringName("execute")
+                    );
+                AttackCheckInput attackCheck =
+                    attackPolicy.BuildFateAwareRepeatAttackStageHitCheck(stageContext);
+                AttackRollResult rollResult = runtime
+                    .GetHitResolver()
+                    .RollAttackCheck(state, attackCheck);
                 if (rollResult.Success != expectedStageOutcomes[stageIndex])
                 {
                     matched = false;

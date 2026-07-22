@@ -115,8 +115,8 @@ internal sealed class LifecycleSoakScenario
             $"cycle {cycle}: CreateNewSave failed with {(Error)createError}."
         );
         Require(
-            GameSession.CurrentSaveVersion == 12,
-            $"cycle {cycle}: lifecycle soak requires save version 12."
+            GameSession.CurrentSaveVersion == 15,
+            $"cycle {cycle}: lifecycle soak requires save version 15."
         );
 
         GameRuntimeFacade facade = new(new FixedBattleSeedSource(FixedBattleSeed));
@@ -173,7 +173,7 @@ internal sealed class LifecycleSoakScenario
             display_name = "Lifecycle Soak Wolf",
             world_coord = new Vector2I(3, 3),
             faction_id = "hostile",
-            enemy_roster_template_id = "wolf_pack",
+            encounter_profile_id = "wolf_wilds",
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
         };
 

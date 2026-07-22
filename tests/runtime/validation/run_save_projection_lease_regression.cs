@@ -367,9 +367,9 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                 "meta",
                 "save_slot_meta"
             ),
-            "save v12 顶层 key shape 应保持不变。"
+            "save v15 顶层 key shape 应保持不变。"
         );
-        _test.Eq(PlainInt(payload, "version", -1), 12, "save version 应保持 12。");
+        _test.Eq(PlainInt(payload, "version", -1), 15, "save version 应保持 15。");
         IReadOnlyDictionary<string, object> worldState = PlainDictionary(
             payload,
             "world_state"

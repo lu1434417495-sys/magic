@@ -384,29 +384,18 @@ public sealed class WorldMapDataContext
     internal GodotProjectionLease<GArray> GetAllSettlementRecordsLease() =>
         WorldMapDataProjection.ProjectSettlementRecordsLease(_settlementsById.Values);
 
-    internal GodotProjectionLease<GDictionary> GetSettlementStateLease(string settlementId) =>
-        _settlementsById.TryGetValue(
-            settlementId ?? "",
-            out WorldMapSettlementRecordData settlement
-        )
-            ? settlement.GetSettlementStateLease()
-            : RuntimePlainPayload.ProjectDictionaryLease(
-                new Dictionary<string, object>(StringComparer.Ordinal),
-                "WorldMapDataContext.empty_settlement_state",
-                LifetimeDomain.Request,
-                "WorldMapDataContext.empty_settlement_state"
-            );
-
     internal WorldMapSettlementStateData GetSettlementStateData(string settlementId) =>
-        _activeRuntimeData?.GetSettlementStateData(settlementId)
-        ?? WorldMapSettlementStateData.Create(false, 0, Array.Empty<string>());
+        _activeRuntimeData?.GetSettlementStateData(settlementId);
 
     internal bool IsSettlementVisited(string settlementId) =>
-        GetSettlementStateData(settlementId).Visited;
+        GetSettlementStateData(settlementId)?.Visited ?? false;
 
     public bool MarkSettlementVisited(string settlementId)
     {
-        if (_activeRuntimeData.GetSettlementStateData(settlementId).Visited)
+        WorldMapSettlementStateData current = _activeRuntimeData?.GetSettlementStateData(
+            settlementId
+        );
+        if (current == null || current.Visited)
         {
             return false;
         }
@@ -432,14 +421,12 @@ public sealed class WorldMapDataContext
 
     public bool SetActiveSettlementState(
         string settlementId,
-        Godot.Collections.Dictionary settlementState
+        WorldMapSettlementStateData settlementState
     )
     {
         if (
-            !_activeRuntimeData.TrySetSettlementState(
-                settlementId,
-                WorldMapSettlementStateData.FromDictionary(settlementState)
-            )
+            _activeRuntimeData == null
+            || !_activeRuntimeData.TrySetSettlementState(settlementId, settlementState)
         )
         {
             return false;
@@ -1262,6 +1249,7 @@ public sealed class WorldMapSettlementRecordData
     public readonly Vector2I Origin;
     public readonly Vector2I FootprintSize;
     public readonly int Tier;
+    public WorldMapSettlementStateData SettlementState { get; }
     private readonly Dictionary<string, object> _sourceData = new(StringComparer.Ordinal);
 
     private WorldMapSettlementRecordData(
@@ -1271,7 +1259,8 @@ public sealed class WorldMapSettlementRecordData
         Vector2I origin,
         Vector2I footprintSize,
         int tier,
-        GDictionary sourceData
+        WorldMapSettlementStateData settlementState,
+        IReadOnlyDictionary<string, object> sourceData
     )
     {
         EntityId = entityId ?? "";
@@ -1280,41 +1269,38 @@ public sealed class WorldMapSettlementRecordData
         Origin = origin;
         FootprintSize = footprintSize;
         Tier = tier;
-        WorldMapPlainPayload.Replace(
-            _sourceData,
-            sourceData,
-            "WorldMapSettlementRecordData.sourceData"
-        );
-    }
-
-    internal GodotProjectionLease<GDictionary> DuplicateSourcePayloadLease() =>
-        WorldMapPlainPayload.ProjectLease(
-            _sourceData,
-            "WorldMapSettlementRecordData.sourceData"
-        );
-
-    internal Dictionary<string, object> BuildSaveSnapshotPlain() =>
-        RuntimePlainPayload.CloneDictionary(_sourceData);
-
-    internal Dictionary<string, object> BuildSettlementStateSnapshotPlain()
-    {
-        if (
-            _sourceData.TryGetValue("settlement_state", out object rawState)
-            && rawState is IReadOnlyDictionary<string, object> state
+        SettlementState = settlementState;
+        foreach (
+            KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(sourceData)
         )
         {
-            return RuntimePlainPayload.CloneDictionary(state);
+            _sourceData[entry.Key] = entry.Value;
         }
-        return new Dictionary<string, object>(StringComparer.Ordinal);
+        _sourceData.Remove("settlement_state");
     }
 
-    internal GodotProjectionLease<GDictionary> GetSettlementStateLease() =>
-        RuntimePlainPayload.ProjectDictionaryLease(
-            BuildSettlementStateSnapshotPlain(),
-            $"WorldMapSettlementRecordData.{SettlementId}.settlement_state",
-            LifetimeDomain.Request,
-            $"WorldMapSettlementRecordData.{SettlementId}.settlement_state"
-        );
+    internal Dictionary<string, object> BuildSaveSnapshotPlain()
+    {
+        Dictionary<string, object> snapshot = RuntimePlainPayload.CloneDictionary(_sourceData);
+        snapshot["settlement_state"] = SettlementState.BuildSnapshotPlain();
+        return snapshot;
+    }
+
+    internal WorldMapSettlementRecordData WithSettlementState(
+        WorldMapSettlementStateData settlementState
+    ) =>
+        settlementState == null
+            ? null
+            : new WorldMapSettlementRecordData(
+                EntityId,
+                SettlementId,
+                DisplayName,
+                Origin,
+                FootprintSize,
+                Tier,
+                settlementState,
+                _sourceData
+            );
 
     public WorldMapSettlementData ToSettlementData() =>
         WorldMapSettlementData.Create(SettlementId, DisplayName);
@@ -1323,6 +1309,30 @@ public sealed class WorldMapSettlementRecordData
     {
         if (data == null || data.Count == 0)
             return null;
+        if (
+            !data.ContainsKey("settlement_state")
+            || data["settlement_state"].VariantType != Variant.Type.Dictionary
+        )
+        {
+            return null;
+        }
+        using GDictionary statePayload = data["settlement_state"].AsGodotDictionary();
+        WorldMapSettlementStateData settlementState =
+            WorldMapSettlementStateData.FromDictionary(statePayload);
+        if (settlementState == null)
+            return null;
+        Dictionary<string, object> sourceData;
+        try
+        {
+            sourceData = RuntimePlainPayload.NormalizeDictionaryStrict(
+                data,
+                "WorldMapSettlementRecordData.sourceData"
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
         return new WorldMapSettlementRecordData(
             WorldMapDictionaryReaders.ReadString(data, "entity_id"),
             WorldMapDictionaryReaders.ReadString(data, "settlement_id"),
@@ -1330,7 +1340,8 @@ public sealed class WorldMapSettlementRecordData
             WorldMapDictionaryReaders.ReadVector2I(data, "origin", Vector2I.Zero),
             WorldMapDictionaryReaders.ReadVector2I(data, "footprint_size", Vector2I.One),
             WorldMapDictionaryReaders.ReadInt(data, "tier", 0),
-            data
+            settlementState,
+            sourceData
         );
     }
 }
@@ -1391,139 +1402,14 @@ public sealed class WorldMapSettlementData
     }
 }
 
-public sealed class WorldMapSettlementStateData
-{
-    public readonly bool Visited;
-    public readonly int Reputation;
-    public readonly IReadOnlyList<string> ActiveConditions;
-
-    private WorldMapSettlementStateData(
-        bool visited,
-        int reputation,
-        IReadOnlyList<string> activeConditions
-    )
-    {
-        Visited = visited;
-        Reputation = reputation;
-        ActiveConditions = activeConditions ?? Array.Empty<string>();
-    }
-
-    public static WorldMapSettlementStateData FromDictionary(GDictionary data)
-    {
-        if (data == null || data.Count == 0)
-        {
-            return new WorldMapSettlementStateData(false, 0, Array.Empty<string>());
-        }
-
-        var conditions = new List<string>();
-        if (
-            data.ContainsKey("active_conditions")
-            && data["active_conditions"].VariantType == Variant.Type.Array
-        )
-        {
-            using GArray activeConditions = data["active_conditions"].AsGodotArray();
-            foreach (Variant condition in activeConditions)
-                conditions.Add(condition.ToString());
-        }
-
-        return new WorldMapSettlementStateData(
-            ReadBool(data, "visited"),
-            ReadInt(data, "reputation"),
-            conditions
-        );
-    }
-
-    internal static WorldMapSettlementStateData FromPlain(
-        IReadOnlyDictionary<string, object> data
-    )
-    {
-        if (data == null || data.Count == 0)
-            return new WorldMapSettlementStateData(false, 0, Array.Empty<string>());
-
-        bool visited = data.TryGetValue("visited", out object rawVisited) && rawVisited is bool flag
-            ? flag
-            : false;
-        int reputation = data.TryGetValue("reputation", out object rawReputation)
-            ? Convert.ToInt32(rawReputation)
-            : 0;
-        var conditions = new List<string>();
-        if (
-            data.TryGetValue("active_conditions", out object rawConditions)
-            && rawConditions is IEnumerable<object> typedConditions
-        )
-        {
-            foreach (object condition in typedConditions)
-            {
-                string normalized = condition?.ToString() ?? "";
-                if (normalized.Length > 0)
-                    conditions.Add(normalized);
-            }
-        }
-        return new WorldMapSettlementStateData(visited, reputation, conditions);
-    }
-
-    public static WorldMapSettlementStateData Create(
-        bool visited,
-        int reputation,
-        IEnumerable<string> activeConditions
-    )
-    {
-        var conditions = new List<string>();
-        if (activeConditions != null)
-        {
-            foreach (string condition in activeConditions)
-            {
-                if (!string.IsNullOrEmpty(condition))
-                    conditions.Add(condition);
-            }
-        }
-        return new WorldMapSettlementStateData(visited, reputation, conditions);
-    }
-
-    internal Dictionary<string, object> BuildSnapshotPlain()
-    {
-        var conditions = new List<object>();
-        foreach (string condition in ActiveConditions)
-        {
-            if (!string.IsNullOrEmpty(condition))
-                conditions.Add(condition);
-        }
-        return new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["visited"] = Visited,
-            ["reputation"] = Reputation,
-            ["active_conditions"] = conditions,
-        };
-    }
-
-    private static bool ReadBool(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-        {
-            return false;
-        }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Bool && value.AsBool();
-    }
-
-    private static int ReadInt(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-        {
-            return 0;
-        }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
-    }
-
-}
-
 public sealed class WorldMapNpcData
 {
     public readonly bool Exists;
     public readonly Vector2I Coord;
     public readonly string DisplayName;
     public readonly string FactionId;
+    public readonly string ServiceType;
+    public readonly string FacilityName;
     private readonly Dictionary<string, object> _sourceData = new(StringComparer.Ordinal);
 
     private WorldMapNpcData(
@@ -1531,6 +1417,8 @@ public sealed class WorldMapNpcData
         Vector2I coord,
         string displayName,
         string factionId,
+        string serviceType,
+        string facilityName,
         GDictionary sourceData
     )
     {
@@ -1538,6 +1426,8 @@ public sealed class WorldMapNpcData
         Coord = coord;
         DisplayName = displayName ?? "";
         FactionId = factionId ?? "";
+        ServiceType = serviceType ?? "";
+        FacilityName = facilityName ?? "";
         WorldMapPlainPayload.Replace(
             _sourceData,
             sourceData,
@@ -1548,7 +1438,7 @@ public sealed class WorldMapNpcData
     public bool IsEmpty => !Exists;
 
     internal static WorldMapNpcData Empty { get; } =
-        new(false, Vector2I.Zero, "", "", null);
+        new(false, Vector2I.Zero, "", "", "", "", null);
 
     public bool HasValidCharacterInfoFields =>
         Exists
@@ -1565,15 +1455,25 @@ public sealed class WorldMapNpcData
     {
         if (data == null || data.Count == 0)
         {
-            return new WorldMapNpcData(false, Vector2I.Zero, "", "", null);
+            return new WorldMapNpcData(false, Vector2I.Zero, "", "", "", "", null);
         }
         return new WorldMapNpcData(
             true,
             WorldMapDictionaryReaders.ReadVector2I(data, "coord", Vector2I.Zero),
             ReadTrimmedString(data, "display_name"),
             ReadTrimmedString(data, "faction_id"),
+            ReadExactTrimmedString(data, "service_type"),
+            ReadExactTrimmedString(data, "facility_name"),
             data
         );
+    }
+
+    private static string ReadExactTrimmedString(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return "";
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.String ? value.AsString().StripEdges() : "";
     }
 
     private static string ReadTrimmedString(GDictionary data, string key)

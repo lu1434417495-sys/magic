@@ -75,6 +75,8 @@ public partial class BattleUnitState
             ("vision_tags", BuildStringList(vision_tags)),
             ("proficiency_tags", BuildStringList(proficiency_tags)),
             ("save_advantage_tags", BuildStringList(save_advantage_tags)),
+            ("save_disadvantage_tags", BuildStringList(save_disadvantage_tags)),
+            ("save_immunity_tags", BuildStringList(save_immunity_tags)),
             ("damage_resistances", BuildStringMap(damage_resistances)),
             ("save_bonus_by_ability", BuildStringIntMap(save_bonus_by_ability)),
             (

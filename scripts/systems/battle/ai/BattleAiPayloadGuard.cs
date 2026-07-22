@@ -252,6 +252,13 @@ internal static class BattleAiPayloadGuard
             )
         )
             return false;
+        if (
+            !ValidateNoForbiddenObject(
+                preview.RandomChainImpactCandidateUnitIdsTyped,
+                "preview.random_chain_impact_candidate_unit_ids"
+            )
+        )
+            return false;
         if (!ValidateNoForbiddenObject(preview.hit_preview, "preview.hit_preview"))
             return false;
         if (!ValidateNoForbiddenObject(preview.DamagePreviewTyped, "preview.damage_preview"))

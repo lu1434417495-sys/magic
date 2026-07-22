@@ -7,6 +7,7 @@ public partial class run_party_member_state_owner_api_regression : LifecycleTest
     public override void _Initialize()
     {
         TestVitalsApiOwnsDeathState();
+        TestDeathPayloadMustMatchHp();
         TestIdentityAndAgeApiNormalizeValues();
         TestBodySizeApiKeepsProjectionConsistent();
         TestBloodlineAndAscensionApiOwnRelatedFields();
@@ -16,6 +17,10 @@ public partial class run_party_member_state_owner_api_regression : LifecycleTest
 
     private void TestVitalsApiOwnsDeathState()
     {
+        PartyMemberState zeroHpMember = new() { current_hp = 0 };
+        _test.True(zeroHpMember.IsDead(), "零 HP 构造态必须立即派生为死亡。");
+        _test.True(zeroHpMember.is_dead, "is_dead 投影必须与零 HP 构造态一致。");
+
         PartyMemberState member = new();
 
         member.SetVitals(-1, -2, -3);
@@ -28,6 +33,11 @@ public partial class run_party_member_state_owner_api_regression : LifecycleTest
         _test.Eq(member.GetCurrentHp(), 1, "ReviveWithVitals 应保证 HP 至少为 1。");
         _test.False(member.IsDead(), "ReviveWithVitals 应同步 is_dead=false。");
 
+        member.SetCurrentHp(0);
+        _test.True(member.IsDead(), "SetCurrentHp 写入 0 时死亡状态必须由 HP 派生。");
+        member.SetCurrentHp(7);
+        _test.False(member.IsDead(), "SetCurrentHp 写入正数时死亡状态必须由 HP 派生。");
+
         member.SetVitals(30, 20, 10);
         member.ClampVitals(12, 8, 3);
         _test.Eq(member.GetCurrentHp(), 12, "ClampVitals 应 clamp HP。");
@@ -39,6 +49,47 @@ public partial class run_party_member_state_owner_api_regression : LifecycleTest
         _test.Eq(member.GetCurrentMp(), 0, "MarkDead 应清空 MP。");
         _test.Eq(member.GetCurrentAura(), 0, "MarkDead 应清空 aura。");
         _test.True(member.IsDead(), "MarkDead 应同步 is_dead=true。");
+    }
+
+    private void TestDeathPayloadMustMatchHp()
+    {
+        PartyMemberState member = new()
+        {
+            member_id = "hero",
+            display_name = "Hero",
+        };
+        member.progression.unit_id = "hero";
+        member.progression.display_name = "Hero";
+        member.SetVitals(12, 5, 2);
+
+        Godot.Collections.Dictionary livingPayload = member.ToDictionary();
+        PartyMemberState parsedLiving = PartyMemberState.FromDictionary(livingPayload);
+        _test.True(
+            parsedLiving != null,
+            "HP 与 is_dead 一致的存活 payload 应可载入。"
+        );
+        _test.Eq(parsedLiving?.GetCurrentHp() ?? -1, 12, "存活 payload round-trip 应保留 HP。");
+        _test.False(parsedLiving?.IsDead() ?? true, "存活 payload round-trip 应保持存活。");
+        livingPayload["is_dead"] = true;
+        _test.True(
+            PartyMemberState.FromDictionary(livingPayload) == null,
+            "current_hp > 0 且 is_dead=true 的矛盾 payload 必须被严格拒绝。"
+        );
+
+        member.MarkDead();
+        Godot.Collections.Dictionary deadPayload = member.ToDictionary();
+        PartyMemberState parsedDead = PartyMemberState.FromDictionary(deadPayload);
+        _test.True(
+            parsedDead != null,
+            "HP 与 is_dead 一致的死亡 payload 应可载入。"
+        );
+        _test.Eq(parsedDead?.GetCurrentHp() ?? -1, 0, "死亡 payload round-trip 应保持零 HP。");
+        _test.True(parsedDead?.IsDead() ?? false, "死亡 payload round-trip 应保持死亡。");
+        deadPayload["is_dead"] = false;
+        _test.True(
+            PartyMemberState.FromDictionary(deadPayload) == null,
+            "current_hp == 0 且 is_dead=false 的矛盾 payload 必须被严格拒绝。"
+        );
     }
 
     private void TestIdentityAndAgeApiNormalizeValues()

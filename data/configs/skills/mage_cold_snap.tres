@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_276g1"]
 script = ExtResource("4_ln5nm")
 skill_id = &"mage_cold_snap"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

@@ -5,6 +5,15 @@ using Godot;
 
 public static class SkillLevelDescriptionFormatter
 {
+    private const string InvalidTemplateFieldText = "[描述配置错误]";
+
+    private static readonly Regex ConditionalRegex = new(
+        @"\{\{\?([^}]+)\}\}(.*?)\{\{/\1\}\}",
+        RegexOptions.Singleline
+    );
+    private static readonly Regex ExpressionRegex = new(@"\{=([^}]*)\}");
+    private static readonly Regex VariableRegex = new(@"\{([^}]+)\}");
+
     public static string BuildLevelDescription(
         SkillDefinition skillDefinition,
         int level,
@@ -55,10 +64,9 @@ public static class SkillLevelDescriptionFormatter
     private static string RenderTemplate(string template, Dictionary<string, object> config)
     {
         string result = template;
-        var condRegex = new Regex(@"\{\{\?([^}]+)\}\}(.*?)\{\{/\1\}\}", RegexOptions.Singleline);
         while (true)
         {
-            var m = condRegex.Match(result);
+            var m = ConditionalRegex.Match(result);
             if (!m.Success)
                 break;
             string key = m.Groups[1].Value.Trim();
@@ -68,31 +76,37 @@ public static class SkillLevelDescriptionFormatter
                     ? result.Substring(0, m.Index) + inner + result.Substring(m.Index + m.Length)
                     : result.Substring(0, m.Index) + result.Substring(m.Index + m.Length);
         }
-        var exprRegex = new Regex(@"\{=([^}]+)\}");
-        while (true)
-        {
-            var m = exprRegex.Match(result);
-            if (!m.Success)
-                break;
-            result =
-                result.Substring(0, m.Index)
-                + _eval_expression(m.Groups[1].Value.Trim(), config)
-                + result.Substring(m.Index + m.Length);
-        }
-        var varRegex = new Regex(@"\{([^}]+)\}");
-        while (true)
-        {
-            var m = varRegex.Match(result);
-            if (!m.Success)
-                break;
-            string key = m.Groups[1].Value.Trim();
-            string value = config.TryGetValue(key, out object rawValue)
-                ? FormatPlainValue(rawValue)
-                : "";
-            result = result.Substring(0, m.Index) + value + result.Substring(m.Index + m.Length);
-        }
+        result = ExpressionRegex.Replace(
+            result,
+            m =>
+            {
+                string expressionText = m.Groups[1].Value.Trim();
+                if (
+                    !_try_evaluate_expression(expressionText, config, out string value)
+                    || _contains_template_token(value)
+                )
+                {
+                    return InvalidTemplateFieldText;
+                }
+                return value;
+            }
+        );
+        result = VariableRegex.Replace(
+            result,
+            m =>
+            {
+                string key = m.Groups[1].Value.Trim();
+                string value = config.TryGetValue(key, out object rawValue)
+                    ? FormatPlainValue(rawValue)
+                    : "";
+                return _contains_template_token(value) ? InvalidTemplateFieldText : value;
+            }
+        );
         return result;
     }
+
+    private static bool _contains_template_token(string value) =>
+        !string.IsNullOrEmpty(value) && VariableRegex.IsMatch(value);
 
     private static void MergePlainMap(
         Dictionary<string, object> target,
@@ -520,8 +534,15 @@ public static class SkillLevelDescriptionFormatter
         return variant.VariantType == Variant.Type.Nil ? "" : variant.AsString();
     }
 
-    private static string _eval_expression(string exprStr, Dictionary<string, object> variables)
+    private static bool _try_evaluate_expression(
+        string expressionText,
+        Dictionary<string, object> variables,
+        out string value
+    )
     {
+        value = "";
+        if (expressionText.Length == 0)
+            return false;
         using var expressionScope = new NativeLeaseScope(
             "skill-level-description-expression",
             LifetimeDomain.Request
@@ -532,22 +553,22 @@ public static class SkillLevelDescriptionFormatter
         );
         var inputNames = new List<string>();
         var inputValues = new List<object>();
-        foreach ((string key, object value) in variables)
+        foreach ((string key, object rawValue) in variables)
         {
             inputNames.Add(key);
-            if (value is string text)
+            if (rawValue is string text)
             {
                 inputValues.Add(
                     text.IsValidInt()
                         ? text.ToInt()
-                        : (text.IsValidFloat() ? text.ToFloat() : value)
+                        : (text.IsValidFloat() ? text.ToFloat() : rawValue)
                 );
             }
             else
-                inputValues.Add(value);
+                inputValues.Add(rawValue);
         }
-        if (expr.Parse(exprStr, inputNames.ToArray()) != Error.Ok)
-            return "{=" + exprStr + "}";
+        if (expr.Parse(expressionText, inputNames.ToArray()) != Error.Ok)
+            return false;
         using GodotProjectionLease<Godot.Collections.Array> inputProjection =
             RuntimePlainPayload.ProjectArrayLease(
                 inputValues,
@@ -555,14 +576,16 @@ public static class SkillLevelDescriptionFormatter
                 LifetimeDomain.Request,
                 "SkillLevelDescriptionFormatter.expression_inputs"
             );
-        Variant er = expr.Execute(inputProjection.Value);
+        Variant er = expr.Execute(inputProjection.Value, showError: false);
         if (expr.HasExecuteFailed())
-            return "{=" + exprStr + "}";
+            return false;
         if (
             er.VariantType == Variant.Type.Float
             && er.AsDouble() == System.Math.Floor(er.AsDouble())
         )
-            return ((int)er.AsDouble()).ToString();
-        return er.AsString();
+            value = ((int)er.AsDouble()).ToString();
+        else
+            value = er.AsString();
+        return true;
     }
 }

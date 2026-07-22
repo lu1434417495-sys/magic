@@ -14,6 +14,7 @@ add_weapon_dice = false
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_qi_blade_line"
+delivery_categories = Array[StringName]([&"magical_missile"])
 target_mode = &"ground"
 range_value = 3
 area_pattern = &"line"

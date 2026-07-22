@@ -4,7 +4,7 @@ using Godot;
 
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
-    private readonly record struct GroundEffectBarrierClipContext(
+    internal readonly record struct GroundEffectBarrierClipContext(
         IReadOnlyList<CombatEffectDefinition> UnitEffectDefinitions,
         IReadOnlyList<CombatEffectDefinition> TerrainEffectDefinitions,
         IReadOnlyList<Vector2I> RawEffectCoords,
@@ -68,7 +68,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         );
     }
 
-    private GroundEffectBarrierClipContext PreviewGroundEffectBarrierClipContext(
+    internal GroundEffectBarrierClipContext PreviewGroundEffectBarrierClipContext(
         BattleUnitReadView activeUnit,
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition,

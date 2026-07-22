@@ -25,6 +25,48 @@ public sealed class BattleBarrierInstanceState
 
     public bool IsEmpty => BarrierInstanceId == "" && ProfileId == "" && _layers.Count == 0;
 
+    internal BattleBarrierInstanceState DuplicateForMutationSnapshotExact()
+    {
+        var duplicate = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = BarrierInstanceId,
+            ProfileId = ProfileId,
+            DisplayName = DisplayName,
+            SourceUnitId = SourceUnitId,
+            SourceSkillId = SourceSkillId,
+            AnchorMode = AnchorMode,
+            AnchorCoord = AnchorCoord,
+            RadiusCells = RadiusCells,
+            AreaPattern = AreaPattern,
+            RemainingTu = RemainingTu,
+            CreatedTu = CreatedTu,
+            SaveDc = SaveDc,
+            CatchAllProjectedEffects = CatchAllProjectedEffects,
+        };
+        var layers = new List<BattleBarrierLayerState>();
+        foreach (BattleBarrierLayerState layer in _layers)
+        {
+            layers.Add(layer?.DuplicateForMutationSnapshotExact());
+        }
+        duplicate.SetLayersForMutationSnapshotExact(layers);
+        return duplicate;
+    }
+
+    internal void SetLayersForMutationSnapshotExact(
+        IEnumerable<BattleBarrierLayerState> layerStates
+    )
+    {
+        _layers.Clear();
+        if (layerStates == null)
+        {
+            return;
+        }
+        foreach (BattleBarrierLayerState layer in layerStates)
+        {
+            _layers.Add(layer);
+        }
+    }
+
     internal static BattleBarrierInstanceState FromRuntimeDict(GDictionary source)
     {
         var instance = new BattleBarrierInstanceState();

@@ -54,9 +54,9 @@ public sealed class SaveSerializer
     private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
     private const string SaveFormat = "multi_save_total_save";
 
-    private int _save_version = 12;
-    private int _save_index_version = 3;
-    private int _max_active_member_count = 4;
+    private int _save_version = SaveSchemaVersions.SaveVersion;
+    private int _save_index_version = SaveSchemaVersions.SaveIndexVersion;
+    private int _max_active_member_count = SaveSchemaVersions.MaxActiveMemberCount;
 
     public void Setup(int saveVersion, int saveIndexVersion, int maxActiveMemberCount)
     {
@@ -1383,6 +1383,18 @@ public sealed class SaveSerializer
                 return $"Corrupt save world_data.settlements[{index}]: is_player_start must be a bool.";
             if (settlementData["settlement_state"].VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.settlements[{index}]: settlement_state must be a Dictionary.";
+            using GDictionary settlementState =
+                settlementData["settlement_state"].AsGodotDictionary();
+            if (
+                !WorldMapSettlementStateData.TryFromDictionary(
+                    settlementState,
+                    out _,
+                    out string settlementStateError
+                )
+            )
+            {
+                return $"Corrupt save world_data.settlements[{index}]: {settlementStateError}";
+            }
             index++;
         }
         return "";

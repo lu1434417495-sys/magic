@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_4h2yb"]
 script = ExtResource("4_bv85l")
 skill_id = &"mage_obsidian_shards"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

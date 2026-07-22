@@ -27,7 +27,6 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             "Typed Stage Roster",
             0,
             1,
-            0,
             new[]
             {
                 BuildDefinitionStage(
@@ -100,6 +99,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         using EncounterRosterBuilder builder = new();
         builder.Setup(
+            gameSession.GetBattleEncounterDefinitions(),
             gameSession.GetEncounterRosterDefinitions(),
             gameSession.GetEnemyTemplateDefinitions()
         );
@@ -110,7 +110,6 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
             display_name = "雾沼伏猎群",
             world_coord = new Vector2I(8, 8),
             faction_id = "hostile",
-            enemy_roster_template_id = "mist_beast",
             region_tag = "south_wilds",
             vision_range = 2,
             encounter_profile_id = "mist_hollow",

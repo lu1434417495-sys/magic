@@ -9,6 +9,7 @@
 [sub_resource type="Resource" id="Damage"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 max_skill_level = 3
 dice_count = 1
@@ -18,6 +19,7 @@ dice_bonus = 1
 [sub_resource type="Resource" id="Damage_L4"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 min_skill_level = 4
 max_skill_level = 5
@@ -28,6 +30,7 @@ dice_bonus = 2
 [sub_resource type="Resource" id="Damage_L6"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 min_skill_level = 6
 max_skill_level = 7
@@ -38,6 +41,7 @@ dice_bonus = 3
 [sub_resource type="Resource" id="Damage_L8"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 min_skill_level = 8
 max_skill_level = 9
@@ -48,6 +52,7 @@ dice_bonus = 4
 [sub_resource type="Resource" id="Damage_L10"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 min_skill_level = 10
 max_skill_level = -1
@@ -58,6 +63,7 @@ dice_bonus = 5
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_arcane_missile"
+delivery_categories = Array[StringName]([&"spell", &"magical_missile"])
 range_value = 3
 mp_cost = 20
 stamina_cost = 15

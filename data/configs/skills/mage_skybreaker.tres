@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_peyrd"]
 script = ExtResource("4_tqqbu")
 skill_id = &"mage_skybreaker"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 6
 area_pattern = &"radius"

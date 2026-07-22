@@ -11,10 +11,13 @@ public partial class WildSpawnRule : Resource
     public string monster_name = "野怪";
 
     [Export]
-    public StringName enemy_roster_template_id = "";
+    public StringName encounter_profile_id = "";
 
     [Export]
-    public StringName encounter_profile_id = "";
+    public StringName settlement_encounter_profile_id = "";
+
+    [Export]
+    public string settlement_encounter_display_name = "";
 
     [Export]
     public int density_per_chunk = 1;

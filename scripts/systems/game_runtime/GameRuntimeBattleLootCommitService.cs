@@ -168,7 +168,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             );
 
         battleResolutionResult.SetOverflowEntries(System.Array.Empty<BattleLootEntry>());
-        if (battleResolutionResult.winner_faction_id != "player")
+        if (battleResolutionResult.outcome != BattleOutcomeKind.PlayerSuccess)
             return BattleLootCommitResult.Success();
 
         var partyState = _runtime._party_state;
@@ -795,6 +795,16 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         return new Dictionary
         {
             ["battle_name"] = battleName,
+            ["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.objective_mode
+            ),
+            ["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.outcome
+            ),
+            ["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.end_reason
+            ),
+            ["decision_tu"] = battleResolutionResult.final_decision?.DecisionTu ?? -1,
             ["winner_faction_id"] = winnerFactionId,
             ["loot_entries"] = lootEntryPayloads,
             ["loot_entry_count"] = lootEntryPayloads.Count,

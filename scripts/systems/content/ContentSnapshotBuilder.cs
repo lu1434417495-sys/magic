@@ -33,6 +33,7 @@ internal sealed class ContentSnapshotBuilder
         using var recipes = new RecipeContentRegistry(_loader);
         using var specialProfiles = new BattleSpecialProfileRegistry(_loader);
         using var enemies = new EnemyContentRegistry(_loader, loadDefaultContent: false);
+        using var battleEncounters = new BattleEncounterContentRegistry(_loader);
         var faith = new FaithContentRegistry(_loader);
 
         items.Rebuild();
@@ -64,6 +65,15 @@ internal sealed class ContentSnapshotBuilder
         EnemyContentDefinitionGraph enemyDefinitions = enemies.ProjectDefinitions(
             itemDefinitions
         );
+        battleEncounters.Rebuild(enemyDefinitions.EncounterRosters);
+        IReadOnlyList<string> battleEncounterValidationErrors =
+            battleEncounters.ValidateTyped();
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounterDefinitions =
+            battleEncounterValidationErrors.Count == 0
+                ? battleEncounters.ProjectDefinitions()
+                : new ReadOnlyDictionary<StringName, BattleEncounterDefinition>(
+                    new Dictionary<StringName, BattleEncounterDefinition>()
+                );
         IReadOnlyDictionary<StringName, BattleSimProfileDefinition> simulationProfileDefinitions =
             BattleSimProfileAuthoringLoader.LoadDefinitions(_loader, BattleSimProfilePaths);
         IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations =
@@ -77,6 +87,7 @@ internal sealed class ContentSnapshotBuilder
         AppendErrors(validationErrors, faith.GetValidationErrors());
         AppendErrors(validationErrors, specialProfiles.ValidateTyped());
         AppendErrors(validationErrors, enemies.ValidateTyped());
+        AppendErrors(validationErrors, battleEncounterValidationErrors);
         AppendErrors(
             validationErrors,
             ItemTraitContentValidator.Validate(itemDefinitions, traitDefinitions)
@@ -102,8 +113,7 @@ internal sealed class ContentSnapshotBuilder
         AppendWorldValidationErrors(
             validationErrors,
             worldGenerations,
-            enemyDefinitions.EnemyTemplates.Keys.ToArray(),
-            enemyDefinitions.EncounterRosters.Keys.ToArray()
+            battleEncounterDefinitions.Keys.ToArray()
         );
         ThrowIfInvalid(validationErrors);
 
@@ -134,6 +144,7 @@ internal sealed class ContentSnapshotBuilder
             enemyDefinitions.EnemyTemplates,
             enemyDefinitions.EnemyBrains,
             enemyDefinitions.EncounterRosters,
+            battleEncounterDefinitions,
             simulationProfileDefinitions
         );
     }
@@ -182,8 +193,7 @@ internal sealed class ContentSnapshotBuilder
     private static void AppendWorldValidationErrors(
         ICollection<string> errors,
         IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations,
-        IReadOnlyCollection<StringName> enemyTemplateIds,
-        IReadOnlyCollection<StringName> encounterRosterIds
+        IReadOnlyCollection<StringName> battleEncounterIds
     )
     {
         var validator = new WorldMapContentValidator();
@@ -194,8 +204,7 @@ internal sealed class ContentSnapshotBuilder
                 validator.ValidateGenerationConfigTyped(
                     definition,
                     path,
-                    enemyTemplateIds,
-                    encounterRosterIds
+                    battleEncounterIds
                 )
             );
         }

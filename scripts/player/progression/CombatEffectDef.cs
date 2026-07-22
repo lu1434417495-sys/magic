@@ -277,7 +277,7 @@ public partial class CombatEffectDef : Resource
     public int skill_level { get; set; } = 1;
 
     [Export]
-    public Godot.Collections.Array effect_categories { get; set; } = new();
+    public Godot.Collections.Array<StringName> effect_categories { get; set; } = new();
 
     [Export]
     public StringName effect_target_team_filter { get; set; } = "";
@@ -458,9 +458,6 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> save_immunity_tags { get; set; } = new();
-
-    [Export]
-    public Godot.Collections.Array<StringName> save_tags { get; set; } = new();
 
     [Export]
     public Godot.Collections.Array<StringName> effect_tags { get; set; } = new();

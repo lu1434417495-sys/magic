@@ -114,7 +114,7 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
         try
         {
             GameRuntimeRewardFlowHandler handler = runtime._reward_flow_handler;
-            runtime.SetActiveCharacterInfoContext(new GDictionary { ["display_name"] = "侦察兵" });
+            runtime.SetActiveCharacterInfoContext(BuildCharacterInfoContext("侦察兵"));
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
 
             GameRuntimeFacade.RuntimeCommandResult closeResult =
@@ -140,6 +140,23 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             runtime.Dispose();
         }
     }
+
+    private static GameRuntimeCharacterInfoContext BuildCharacterInfoContext(
+        string displayName
+    ) =>
+        new(
+            GameRuntimeCharacterInfoSource.World,
+            displayName,
+            "测试人物",
+            "可见提示单位",
+            new[]
+            {
+                new GameRuntimeCharacterInfoSection(
+                    "基础概览",
+                    new[] { GameRuntimeCharacterInfoEntry.Pair("类型", "测试") }
+                ),
+            }
+        );
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {

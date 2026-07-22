@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Godot;
 
 public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
@@ -22,6 +23,23 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
             DisposeCount++;
             _order.Add(_id);
         }
+    }
+
+    private sealed class BatchDisposeCounter
+    {
+        internal int DisposeCount { get; set; }
+    }
+
+    private sealed class BatchDisposeProbe : IDisposable
+    {
+        private readonly BatchDisposeCounter _counter;
+
+        internal BatchDisposeProbe(BatchDisposeCounter counter)
+        {
+            _counter = counter;
+        }
+
+        public void Dispose() => _counter.DisposeCount++;
     }
 
     private readonly TestHarness _test = new();
@@ -75,6 +93,8 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         _test.Eq(first.DisposeCount, 1, "transferred wrapper is disposed once by target");
         _test.Eq(string.Join(",", order), "third,second,first", "scopes dispose owned wrappers in reverse registration order");
 
+        AssertHighCardinalityDisposeRemainsBounded();
+
         var rejectionScope = new NativeLeaseScope("native-rejections", LifetimeDomain.SceneTree);
         var node = new Node();
         _test.True(
@@ -117,6 +137,32 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         _test.Eq(after.ActiveLeaseCount, baseline.ActiveLeaseCount, "lease audit remains at baseline");
         _test.True(after.TransferredCount > baseline.TransferredCount, "transfer is recorded");
         RequestTestExit(_test.Finish("Native lease scope regression"));
+    }
+
+    private void AssertHighCardinalityDisposeRemainsBounded()
+    {
+        const int ownerCount = 100_000;
+        TimeSpan disposalLimit = TimeSpan.FromSeconds(15);
+        var counter = new BatchDisposeCounter();
+        var scope = new NativeLeaseScope("native-linear-dispose", LifetimeDomain.Request);
+        for (int index = 0; index < ownerCount; index++)
+            scope.Own(new BatchDisposeProbe(counter), "batch");
+
+        _test.Eq(scope.OwnedCount, ownerCount, "large native scope tracks every owner before disposal");
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        scope.Dispose();
+        stopwatch.Stop();
+
+        _test.Eq(counter.DisposeCount, ownerCount, "large native scope disposes every owner once");
+        _test.Eq(scope.OwnedCount, 0, "large native scope clears all successful owners");
+        _test.True(
+            stopwatch.Elapsed < disposalLimit,
+            $"large native scope disposal stays below the linear cleanup guardrail: elapsed={stopwatch.Elapsed.TotalSeconds:F3}s limit={disposalLimit.TotalSeconds:F0}s"
+        );
+
+        scope.Dispose();
+        _test.Eq(counter.DisposeCount, ownerCount, "large native scope disposal remains idempotent");
     }
 
     private static bool Throws<TException>(Action action)

@@ -594,7 +594,6 @@ public class BattleSpecialSkillResolver
         IReadOnlyList<StringName> save_advantage_tags = null,
         IReadOnlyList<StringName> save_disadvantage_tags = null,
         IReadOnlyList<StringName> save_immunity_tags = null,
-        IReadOnlyList<StringName> save_tags = null,
         int? heal_multiplier_percent = null,
         int? shield_gain_multiplier_percent = null,
         double? incoming_damage_multiplier = null,
@@ -661,8 +660,6 @@ public class BattleSpecialSkillResolver
                 save_immunity_tags != null
                     ? new List<StringName>(save_immunity_tags)
                     : new List<StringName>(),
-            save_tags =
-                save_tags != null ? new List<StringName>(save_tags) : new List<StringName>(),
             heal_multiplier_percent = heal_multiplier_percent,
             shield_gain_multiplier_percent = shield_gain_multiplier_percent,
             incoming_damage_multiplier = incoming_damage_multiplier,

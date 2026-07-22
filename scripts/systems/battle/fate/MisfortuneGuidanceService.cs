@@ -109,7 +109,7 @@ internal class MisfortuneGuidanceService
         var partyState = GetPartyState();
         if (partyState == null || battleState == null || battleResolutionResult == null)
             return unlockedIds;
-        if (battleResolutionResult.winner_faction_id != "player")
+        if (battleResolutionResult.outcome != BattleOutcomeKind.PlayerSuccess)
             return unlockedIds;
 
         MarkExaltedReadyFlags(battleResolutionResult);
