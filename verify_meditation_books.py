@@ -3,7 +3,7 @@
 import os
 import re
 
-OUTPUT_DIR = "docs/design/books/generated/meditation"
+OUTPUT_DIR = "docs/content/books/generated/meditation"
 
 files = sorted(os.listdir(OUTPUT_DIR))
 print("File count:", len(files))

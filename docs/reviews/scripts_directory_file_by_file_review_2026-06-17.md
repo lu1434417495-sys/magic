@@ -1,78 +1,61 @@
 # scripts 目录逐文件代码审查报告
 
-- 审查日期：2026-06-17
-- 审查范围：`scripts/` 下全部文件（用户写作 `scripr`，本报告按仓库实际目录 `scripts/` 处理）。
-- 文件总数：466
-- 审查方式：先阅读 `AGENTS.md` 与 `docs/design/project_context_units.md`，再对 `scripts/` 每个文件逐一做静态审查记录；重点关注 Godot 场景/信号耦合、typed 边界、存档/序列化、运行时状态、性能热点、测试缺口。
-- 注意：这是全目录静态审查索引，不等同于已逐个场景启动验证；需要对“需跟进”项再做对应 headless/runtime 复现。
+> **当前修复说明（2026-07-23）**：`shop_inventory_seed` / `shop_last_refresh_step` 已从据点顶层 schema 删除，F-14 不再是待修 finding；各商店继续独立使用真随机并只持有自己的 seed、刷新步数和库存，save v15 严格拒绝 v14。
 
-## 总体结论
+- 原始审查日期：`2026-06-17`
+- 当前代码复核：`2026-07-23`
+- 原始索引：466 个脚本文件；清除 19 个已失效条目后保留 447 个历史条目。当前 `scripts/` 已有 862 个脚本（859 个 `.cs`、2 个 `.gd`、1 个 `.py`）。
+- 当前定位：本文件是 `scripts/` 检视意见的主索引。下方 2026-06-17 矩阵只保留为历史路由，不再声称覆盖当前全部文件；是否需要修复，以上方 findings-first 为准。
+- 复核方法：按职责把旧 GDScript、旧路径和旧类型映射到当前 C#、GDScript 或 Python owner，再检查同一失败模式是否仍存在。不能以语言迁移、文件改名或模板命中本身作为“已修复”或“仍有问题”的证据。
 
-本次逐文件审查没有直接修改运行时代码。`scripts/` 目录规模较大，许多文件处于 Godot/C# 边界、战斗 AI、内容注册表、存档序列化和 UI 场景适配层。报告中每个文件均列出“关注点”和“审查结论”。标记为“需跟进”的文件不是一定存在缺陷，而是包含高风险耦合或需要对应场景/回归验证的接口。
+## 当前确认需要修复（findings-first）
 
-## 高优先级横向风险
+### 中优先级
 
-1. **Godot 字典/数组边界仍然广泛存在**：这些文件需要确保字典只停留在 Godot 资源、UI payload 或测试边界，不要回流为正式业务态。
-2. **UI 与场景节点路径/信号高度耦合**：含 `GetNode*`、`Connect`、`SignalName`、`Callable` 的文件应在场景调整时同步检查 `.tscn`。
-3. **战斗 AI 与预览/执行一致性风险**：战斗相关文件数量大，且包含 preview、commit、score、trace 多条链路；后续修复应优先使用窄回归而不是全量模拟。
-4. **存档/序列化触点高风险**：包含 `ToDictionary` / `FromDictionary` / save / JSON 的文件应遵循兼容性策略，不能擅自加入旧 schema 兼容逻辑。
+1. **部分 AI evaluator 的 trace span 仍不具备异常安全。** `BattleAiChargeActionEvaluator`、`BattleAiChargePathAoeActionEvaluator`、`BattleAiMoveToRangeActionEvaluator` 仍有裸 `AiTraceRecorder.Enter/Exit`；中间异常会留下栈帧，后续 trace mismatch。项目已有 exception-safe `BattleAiTraceSpan`，不能因为旧 GDScript owner 已迁移就删除这类 finding。
+2. **AI action 与 skill 的 target mode 不匹配时内容校验仍会放行。** `EnemyAiAction.cs:42-54` 只检查 skill id；unit/ground evaluator 到运行时才跳过不匹配技能，形成“内容校验通过但 action 永远无候选”。
+3. **AI 同分目标缺少稳定 id 兜底。** `BattleAiTypedActionHelper.cs:401-416,454-483` 只比较距离和 HP，输入来自 `BattleState` 的 Dictionary values；完全同分时结果依赖枚举顺序。
+4. **AI 普通伤害估算仍绕开部分正式减伤语义。** `BattleAiScoreService.Scoring.cs:685-753` 的估算路径把 `ShieldAbsorbed` 固定为 0，可能高估打不穿目标的伤害与击杀线。
 
+### 低优先级但逻辑确实不闭合
 
+- **接受风险，暂不修复**：`UnitProgress.cs:225-251` 在递归访问子节点后才写 `visited`，循环 merge source 会无限递归；已确认当前递归 getter 没有生产调用，并在 API 旁注明无环前提和未来接线要求。
+- `QuestProgressService.RecordProgress(...)` 直接把 active quest 标成 completed，却不迁移到 claimable；`PartyState.SetQuestState(...)` 还会把 failed 状态放进 active。两者当前生产链没有调用，但一旦使用会生成反序列化拒绝的状态。
+- `BattleTerrainGenerator` 的 typed cells → Godot Dictionary → typed cells 往返，以及 settlement handler/forge/shop 核心的 `GDictionary` 状态处理仍是架构债；当前没有证据把它们升级成 correctness bug。
 
-## Godot code-review skill 复审结论（findings-first）
+## 已移除的过时结论
 
-本节按 `.codex/skills/godot-code-review/SKILL.md` 和 `references/review-checklist.md` 重新整理，优先报告会导致运行时错误、状态错写、预览/执行不一致、场景脚本契约漂移、持久化风险或缺失回归的发现；不再把普通模式命中当作问题本身。
-
-[高/已修复] `scripts/ui/PromotionChoiceWindow.cs:241` - 原实现的晋升确认信号在 `HideWindow()` 之后发出，而 `HideWindow()` 会清空 `_memberId`，导致 `WorldMapSystem._on_promotion_choice_submitted()` 收到空 `member_id`。本轮已把 `_memberId` 缓存为局部 `memberId` 后再关闭窗口并发信号，同时在 `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs` 增加 confirm signal payload 回归，覆盖 `hero/warrior/selection`。
-
-[中] `scripts/ui/PromotionChoiceWindow.cs:209` - `_detailsLabel.Text` 直接拼入 `display_name`、`description`、`selection_hint`，而 `scenes/ui/promotion_choice_window.tscn:110` 开启 `bbcode_enabled = true`。任何职业/技能内容中出现 BBCode 方括号都会被解释为 UI 标记而非普通文本，导致晋升说明被伪造颜色、隐藏、截断或布局污染。建议只让代码插入受控 BBCode 标签，所有内容字段统一走 BBCode escape helper，或关闭该 label 的 BBCode。
-
-[中] `scripts/systems/battle/ai/BattleAiService.cs:71` - AI trace 的 `Enter("choose:impl")` / `Exit("choose:impl")` 没有用 `try/finally` 包住；`ChooseCommandImpl()` 或 mutation guard capture/validate 中任意异常都会跳过对应 `Exit`，而外层 `finally` 只调用 `_scoreService.EndDecisionScope()`，不会修复 trace recorder 栈。失败后 `AiTraceRecorder.AssertBalanced()` 会失败，后续父子耗时也会被污染。该文件已有外层 try/finally，说明生命周期清理是预期要求；建议给每个 trace span 使用 helper/`try/finally`。
-
-[中] `scripts/systems/battle/ai/BattleAiScoreService.cs:237` - `BuildSkillScoreInput()` 里多段 `AiTraceRecorder.Enter/Exit` 同样不是 exception-safe；`FilterEffectDefsForContext()`、`PopulateHitMetrics()`、`PopulateSpecialProfileMetrics()` 等评分构建任意一步抛错都会让 `build_skill_score_input` 或子 span 残留在 trace 栈中。这个函数处在战斗 AI 热路径，诊断模式一旦打开，异常后的性能报告会变成不可信。建议将 trace span 改成 `using`/scope guard 或显式 `try/finally`。
-
-[中] `scripts/dev_tools/AiTraceRecorder.cs:130` - trace 栈帧把 `Time.GetTicksUsec()` 的 `ulong` 和 `(ulong)0` 存入 `Godot.Collections.Dictionary`，随后在 `scripts/dev_tools/AiTraceRecorder.cs:186` / `scripts/dev_tools/AiTraceRecorder.cs:190` / `scripts/dev_tools/AiTraceRecorder.cs:238` 通过 `long`/`ulong` 显式强转从 Variant 取回。Godot Variant 的正式整数形态是有符号整型，诊断模式下这些混合转换存在 InvalidCast/溢出/平台差异风险。建议内部计时统一为 `long`，写入 Dictionary 前显式转换，读取时使用一致 helper。
-
-[中] `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs:123` - “丢弃全部”先用 `CountItem(itemId)` 计算同类总数，再把 `totalQuantity` 传入 `RemoveWarehouseItemOrInstance()`；但该 helper 在 `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs:533` 对装备完全忽略 quantity，改为只删除 `instanceId` 指定的单个装备实例。UI 当前会传选中实例，所以按钮路径大概率正常；但命令名/API 语义对文本命令、测试和未来调用者是陷阱：`CommandDiscardAllTyped(equipmentId)` 并不会删除全部同类装备。建议把装备无 instance 的路径在 command 层显式拒绝并改文案，或实现真正的多实例删除。
-
-[中] `scripts/systems/battle/rules/BattleDamageResolver.Dice.cs:164` - `RollDamageDieVirtual()` 通过 `Call("_roll_damage_die", diceSides)` 调用本类已有的 `public virtual int _roll_damage_die(...)`。这绕过 C# 编译期重命名检查，也绕过正常虚方法调用约束；若方法名调整、签名变化或 Godot binding 行为变化，伤害随机掷骰会在运行时才失败。测试替身已经通过 override `_roll_damage_die` 工作，直接调用虚方法即可保留可测性并降低 GodotSharp 字符串调用风险。
-
-[低] `scripts/ui/PartyWarehouseWindow.cs:366` - 仓库详情对任意非空 `icon_path` 直接 `GD.Load<Texture2D>()`。内容路径拼错或指向非 Texture2D 时，每次选择条目都会产生 Godot load error/log noise；如果仓库列表频繁刷新，还会重复触发失败加载。建议内容注册时校验 icon path，UI 层用 `ResourceLoader.Exists`/类型检查和失败缓存，失败时显示占位图。
-
-[低] `tests/world_map/ui/run_promotion_choice_window_schema_regression.cs:34` - 晋升窗口回归只覆盖 payload schema 和卡片渲染，没有覆盖确认按钮、取消按钮、信号载荷、BBCode 文本边界。它无法捕捉本次最高优先级的 `_memberId` 清空 bug。建议补 `choice_submitted` 参数断言和 BBCode escape 边界用例。
-
-Open questions / assumptions:
-
-- `scripts/systems/persistence/SaveSerializer.cs:1006` 的 `NormalizeEncounterAnchors()` 在判断 `Variant.Type.Dictionary` 前先调用 `anchorValue.AsGodotObject()`；如果 Godot C# 对非 Object Variant 的 `AsGodotObject()` 不是安全返回 null，而是抛异常，那么已序列化为 Dictionary 的 encounter anchors 在 normalize/load 时会崩。当前缺少 Godot runtime 无法确认该 binding 行为，建议在有 Godot 环境时补一个最小 headless 用例。
-- `AiTraceRecorder` 默认未启用，相关 trace 问题主要影响 benchmark、battle simulation、AI profiling 和异常后的诊断可信度；如果团队不把 trace dump 作为 CI gate，严重度可下调，但仍应修复以免性能排查时被工具自身误导。
-- 仓库“丢弃全部装备”的正确产品语义需要确认：是禁止批量删除装备，还是删除所有同类实例。当前实现和命令名不一致。
-
-Residual risks / test gaps:
-
-- 当前容器缺少 `godot` 与 `dotnet`，无法运行 `dotnet build magic.csproj`、`python tests/run_regression_suite.py` 或针对 UI/AI 的 headless runner，因此以上发现是源码级复审结论，尚未 runtime 复现。
-- 战斗 preview-vs-execution、一整套 battle AI action evaluator、save schema 细节数量很大；本轮优先抓了跨文件高风险链路，没有声称覆盖所有数值平衡或 AI 决策质量问题。
-- 旧的逐文件索引仍保留在后文，用于定位文件和静态热点；真正应优先处理的是本 findings-first 节列出的具体问题。
-
-
-## 本轮真实深度检视与修复记录
-
-- 不再把生成式逐文件矩阵伪装成人工深审结论；本轮实际深挖了 `PromotionChoiceWindow` 的确认链路，从 `ShowPromotion()` 写入 `_memberId`、`HideWindow()` 清状态、`_on_confirm_button_pressed()` 发信号、到 `WorldMapSystem._on_promotion_choice_submitted()` 接收参数，确认并修复了会导致晋升提交空角色 id 的实 bug。
-- 修复方式：确认按钮路径先缓存 `memberId`，再调用 `HideWindow()`，最后用缓存值发出 `choice_submitted`。
-- 回归方式：扩展 `run_promotion_choice_window_schema_regression.cs`，实例化真实 `.tscn`，连接 `choice_submitted`，触发 ConfirmButton 的 `Pressed` 信号，断言收到 `hero`、`warrior` 和非空 selection，并确认窗口关闭。
-- 其余文件的矩阵仍是系统化审查索引，不再声称等价于人工逐行证明；后续应按 findings-first 的剩余 `[中]` 项逐个做同等深度的“读代码链路 + 修代码/补回归”。
+- 据点顶层商店 seed/刷新步数契约漂移已于 2026-07-23 解决：删除 `shop_inventory_seed` / `shop_last_refresh_step` 镜像，只由每个商店子状态持有实际 seed、刷新步数和库存；刷新仍为彼此独立的真随机，且只更新目标商店。破坏性 schema 变更归入 v15，v14 直接拒绝且不提供迁移。
+- 原 findings-first 中的晋升信号/BBCode、旧 AI trace scope 与 Variant 计时、装备 discard-all、骰子字符串虚调用、图标路径、encounter anchor 恢复等具体问题均已由当前实现覆盖。
+- simulation 终止状态现已区分 battle ended、idle stall、iteration budget exhausted 与 invalid runtime；未完成 runs 保留诊断但不再进入胜率、均值、技能/action/faction 汇总，CLI 对不完整实验返回非零。两个手写 benchmark 汇总器与冻结 6v12 runner 的分析包消费者也按相同完成态规则过滤。
+- Faction action/skill 报告缺口已于 2026-07-22 修复：正式单局 JSON、Godot report projection、trace summary、profile summary、冻结 6v12 runner 的 run detail 与 analysis packet 现在都会保留每个 faction 的 `action_counts`、`skill_attempt_counts` 和 `skill_success_counts`；汇总仍只纳入 battle-ended runs，残缺输入缺少任一计数表时标为 unavailable 而不伪装成零。
+- 冻结 6v12 runner 的 raw aggregate 混合口径已于 2026-07-22 修复：执行循环的 `termination_kind` 现在是逐 run 完成态的唯一真相源，raw `runs[]` 显式输出 `battle_ended / termination_kind`；`run_count` 表示尝试数，`completed_run_count` 表示 battle-ended 数，未完成局只保留诊断并按 idle/budget/invalid 分类，不再污染胜率、回合、技能、伤害、mastery 或 per-unit 汇总。请求轮数未全部正常结束时 raw 与 trace summary 都保持 `is_complete=false`，trace summary 同步保留请求数与超时事实，runner 返回 `2`；旧报告的保守 packet fallback 继续保留。
+- AI trace 关闭路径的无效构造已于 2026-07-22 修复：公共 trace 入口会在 `trace_enabled=false` 时直接返回，12 个 evaluator 也会在构造 action metadata、候选摘要及其 extra 字典前门控；关闭时不再消耗 trace nonce、复制候选或维护 Top 5，开启时保留原 trace 结构与决策结果。
+- 已不存在的 `RaceTraitContentRegistry.cs`、`RaceTraitDef.cs`、`TestCsBase.cs`、`BattleSimTerrainGenerator.cs`、`SkillEffectiveCombatProfile.cs`、`SkillEffectiveCombatProfileResolver.cs`、`PartyMemberOptionUtils.cs` 条目已从矩阵删除；其仍有意义的失败模式已映射到当前 owner 后重新判断。
+- 旧 #22–#33 action 条目的运行时方法、规模和 owner 已整体迁入 `scripts/systems/battle/ai/*Evaluator.cs`，旧条目已删除；其中 trace 异常安全、随机链 seed、retreat/multi-target 限制等失败模式先在当前 C# owner 上重新核验，再分别提升为 finding 或降为 AI quality limitation。
+- 旧 weak-owner、settlement transaction、UI Hide/Signal、RichText、DTO `ToDictionary` 等泛化模板已有 typed owner、集中 teardown 或回归覆盖，不再作为待修问题。
+- 旧“仓库批量交换忽略普通物品存入失败”结论已移除：普通单件 deposit 的 preview 与实际添加在同一事务态、相同容量/堆叠算法下连续执行，preview 失败会阻断并回滚，不存在原结论描述的普通物品漂移。
+- 技能等级描述表达式死循环已于 2026-07-20 修复：表达式和变量 token 只处理一轮，失败字段原位显示 `[描述配置错误]` 且继续渲染后续字段；内容校验会提前拒绝空、未闭合及语法错误表达式。
+- 装备能力 registry 的校验/投影顺序已于 2026-07-21 修复：validation 已产生错误时不再进入 Resource→Definition 投影；错误类型的嵌套条件组会由 `Rebuild` 返回 `EQA_CONDITION_GROUP_TYPE_INVALID`，而不会被投影层 `InvalidOperationException` 替代。失败构建仍不发布候选快照。
+- 任务存档的 `last_progress_context` 安全拒绝已于 2026-07-21 修复：底层 context parser 继续严格抛出 `ArgumentException`，`QuestState.FromDictionary` 在存档 DTO 边界将其转换为 `null`，使 `SaveSerializer` 对损坏输入返回 `Error.InvalidData`，不会中断存档读取链。
+- BattleSim 异常路径清理已于 2026-07-21 修复：`AiTraceRecorder` 的实例作用域在成功和异常时都会恢复此前 recorder，保留外层 profiler；`BattleSimRunner` 在 setup、开战、执行循环或结果采集失败时都会释放本轮 runtime，主体与 teardown 同时失败时保留两条异常。共享的 caller-owned terrain generator 不由单轮 runtime 误释放。
+- BattleSim 报告写盘契约已于 2026-07-21 修复：`BattleSimReportFileWriter` 使用秒级时间加 GUID 生成批次名；report、trace 与存在 trace 时的 summary 全部确认写入后才返回路径并打印成功。打开、逐次写入或 flush 失败会恢复此前 `OutputFiles`、清理本批次残缺产物并向上传播，不再出现假成功或同秒覆盖。
+- `scripts/tools/tree_baker.gd` 与 `tile_baker.gd` 于 2026-07-22 按范围决策移出修复清单：它们是人工使用的非生产工具，不属于正式运行链或资产构建验收。本次排除依据是 owner/交付范围，不是 GDScript 语言；生产链中的同类失败模式仍需正常处理。
+- `PartyState` 的“空 roster 会写出空 leader 坏档”结论已移除：玩法硬约束要求主角始终上阵，正式编成入口禁止将主角移入替补并保持 active 非空；主角死亡产生的空 roster 只属于 Game Over 临时态，该结算分支跳过写盘并丢弃 pending save，现有回归验证重新载入仍回到战前存档。当前没有允许全灭状态继续保存的需求。
+- 仓库无实例 payload 装备的 allocator 失败原子性缺口已于 2026-07-22 修复：`PartyWarehouseService` 会检查正式添加结果，实例 id 分配失败时返回 `warehouse_blocked_swap`，现有 batch transaction 随即恢复此前的取出操作；回归覆盖空 allocator 下材料保留、装备不写入。
+- 原 466 项矩阵主要由少量风险模板批量生成；“需跟进”只表示当时的检查方向，不能等同于 finding。没有当前调用链、失败模式和代码证据的模板项不进入修复清单。
 
 ## 逐文件深度检视矩阵
 
-本节按用户要求对 `scripts/` 下每一个文件继续做逐文件深度检视。每个条目都包含：文件职责、关键入口/类型、状态与边界、对抗性失败模式、建议验证。这里的“风险”不是一定存在 bug，而是 review 时必须尝试破坏的路径；真正已确认或高置信的问题仍以上方 findings-first 节为优先。
+本节保留 2026-06-17 对当时 466 个脚本生成的逐文件索引。每个条目包含当时的文件职责、关键入口/类型、状态与边界、对抗性失败模式和建议验证；路径、规模、owner 与方法列表可能已经迁移。这里的“风险”不是 bug 结论，当前真正确认的问题只以上方 findings-first 为准。
 
 ### 1. `scripts/dev_tools/AiTraceRecorder.cs`
 
-- 复审状态：**需跟进**；规模：330 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：330 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：AiTraceRecorder；主要方法：Enter, Exit, SetEventCaptureEnabled, SetSampleCaptureEnabled, HasInstance, GetInstance, SetInstance, _enter_impl, _exit_impl, GetFuncStats。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×2; runtime mutation collections×12。
-- 对抗性检视：
-  - 检查 trace event/sample 的内存上限、Enter/Exit 配平、Variant 整数转换和 DumpTraceJson 失败路径；诊断工具不能污染 AI 热路径。
-- 建议验证：dotnet build magic.csproj；补一个 AiTraceRecorder Enter/Exit/AssertBalanced 单元或 headless benchmark smoke。
+- 当前结论：process-global recorder 可通过嵌套 instance scope 临时替换；scope 在成功或异常退出时恢复此前实例，后续静态 Enter/Exit 继续写入外层 recorder。
+- 建议验证：`run_ai_trace_recorder_regression.cs`。
 
 ### 2. `scripts/enemies/AiActionTrace.cs`
 
@@ -112,12 +95,11 @@ Residual risks / test gaps:
 
 ### 6. `scripts/enemies/EnemyAiAction.cs`
 
-- 复审状态：**需跟进**；规模：1547 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**确认问题**；原规模：1547 行；当前文件已缩为 authoring/validation schema，执行 owner 已迁至 evaluator。
 - 关键类型/入口：EnemyAiAction, struct；主要方法：GetDeclaredSkillIds, ValidateSkillReferences, _collect_base_validation_errors, _is_supported_target_selector, _append_enemy_focus_target_selector_errors, _append_declared_skill_id, _create_decision, _create_scored_decision, _resolve_known_skill_ids, _get_skill_def。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×29; runtime mutation collections×66。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前 finding：skill id 存在即可通过引用校验，没有验证 action 需要的 unit/ground target mode；错误配置只会在运行时被 evaluator 静默跳过。
+- 建议验证：unit action 引用 ground skill、ground action 引用 unit skill 时，内容 registry 应直接报错。
 
 ### 7. `scripts/enemies/EnemyAiActionHelper.cs`
 
@@ -252,114 +234,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
 - 对抗性检视：
   - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 22. `scripts/enemies/actions/MoveToAdvantagePositionAction.cs`
-
-- 复审状态：**需跟进**；规模：583 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：MoveToAdvantagePositionAction, MoveToAdvantagePositioningMode, MoveCandidate；主要方法：_decide_impl, _try_collect_fast_move_candidates, _sort_full_scan_candidates, _sort_fast_candidates, _build_fast_move_preview, ToPositioningMode, ReadMetadataInt。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×22; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 23. `scripts/enemies/actions/MoveToMultiUnitSkillPositionAction.cs`
-
-- 复审状态：**需跟进**；规模：365 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：MoveToMultiUnitSkillPositionAction；主要方法：_decide_impl, _build_anchor_target_group, _can_anchor_target_unit, _collect_reachable_move_candidates, _distance_from_anchor_to_nearest_target, _apply_target_group_score, _is_better_reposition_score_input, _is_multi_unit_skill, _has_explicit_distance_contract。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×25; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 24. `scripts/enemies/actions/MoveToRangeAction.cs`
-
-- 复审状态：**需跟进**；规模：2482 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：MoveToRangeAction, MoveToRangeAiEvaluationMode, MoveToRangeScreeningMode, ScreeningContext, struct, ScreeningThreatEntry, MoveDistanceContract, MovePathTreeCosts；主要方法：Disabled, FromMetadata, ReadMetadataInt, TryResolvePath, FromPathTreeResult, ToCandidateBudget, FromSnapshot, FromSkillRecord, Clone, CanUseGeneratedCandidateRequestMode。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×21; runtime mutation collections×95; hot path / lifecycle×9。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 25. `scripts/enemies/actions/RetreatAction.cs`
-
-- 复审状态：**需跟进**；规模：206 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：RetreatAction；主要方法：_decide_impl, _resolve_retreat_safe_distance, _resolve_retreat_focus_target。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×9; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 26. `scripts/enemies/actions/UseChargeAction.cs`
-
-- 复审状态：**需跟进**；规模：535 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseChargeAction, ChargeTargetInfo, ChargeDistanceBreakpoint；主要方法：_decide_impl, _enumerate_charge_target_coords, _resolve_charge_max_distance, ReadDistanceBreakpoints, TryReadLevelBreakpoint, _resolve_charge_target_info, BuildFastChargePreview, BuildChargeScoreInput, _resolve_short_charge_block_reason, ReadDictionary。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; runtime mutation collections×13; hot path / lifecycle×6。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 27. `scripts/enemies/actions/UseChargePathAoeAction.cs`
-
-- 复审状态：**需跟进**；规模：495 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseChargePathAoeAction, ChargeTargetInfo, PathStepHitMetrics；主要方法：AddHit, ApplyToMetadata, _decide_impl, _get_path_step_aoe_effect, _resolve_charge_target_info, BuildFastChargePathPreview, _build_path_step_hit_metrics, _build_resolved_anchor_path, _build_path_step_effect_coords, _unit_intersects_coords。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×24; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 28. `scripts/enemies/actions/UseGroundRepositionSkillAction.cs`
-
-- 复审状态：**需跟进**；规模：256 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseGroundRepositionSkillAction；主要方法：_decide_impl, _has_reposition_effect。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×10; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 29. `scripts/enemies/actions/UseGroundSkillAction.cs`
-
-- 复审状态：**需跟进**；规模：1122 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseGroundSkillAction, GroundCandidatePrefilter, GroundTargetCoordSet, GroundSkillEffectSet；主要方法：FirstOrDefault, ToSortedList, Add, _decide_impl, _is_ground_coord_set_within_cast_range, _build_ground_candidate_prefilter, _build_prefilter_effect_coords, _resolve_prefilter_direction, _unit_intersects_coords, _collect_living_units。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; runtime mutation collections×61; hot path / lifecycle×5。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 30. `scripts/enemies/actions/UseMultiUnitSkillAction.cs`
-
-- 复审状态：**需跟进**；规模：419 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseMultiUnitSkillAction；主要方法：_decide_impl, _is_multi_unit_skill, _get_multi_unit_cast_variants, _build_target_groups, _build_candidate_pool, _append_target_group, _target_group_key, _build_multi_unit_skill_command, _collect_multi_unit_effect_defs, _resolve_enemy_frontline_unit。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; runtime mutation collections×44; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 31. `scripts/enemies/actions/UseRandomChainSkillAction.cs`
-
-- 复审状态：**需跟进**；规模：479 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseRandomChainSkillAction, RandomChainDistanceContract, RandomChainScoreMetadata；主要方法：_is_random_chain_skill, _get_random_chain_cast_variants, _build_random_chain_skill_command, _resolve_candidate_units, _candidate_unit_ids, _collect_random_chain_effect_defs, BuildRandomChainScoreMetadata, ResolveRandomChainDistanceContract, _resolve_enemy_frontline_unit, _has_explicit_distance_contract。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×36。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 32. `scripts/enemies/actions/UseUnitSkillAction.cs`
-
-- 复审状态：**需跟进**；规模：80 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：UseUnitSkillAction；主要方法：无可提取方法。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×7; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
-
-### 33. `scripts/enemies/actions/WaitAction.cs`
-
-- 复审状态：**需跟进**；规模：286 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：WaitAction, ActiveRestProfile；主要方法：_decide_impl, _build_active_rest_profile, _will_wait_trigger_rest, _has_affordable_legal_hostile_skill, _has_legal_unit_skill_target, _can_pay_skill_cost, _resolve_desired_rest_stamina, _get_skill_stamina_cost, _estimate_resting_recovery, _resolve_action_threshold_tu。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×4; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 34. `scripts/player/equipment/EquipmentDurabilityRules.cs`
@@ -729,7 +603,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×53; save/schema/projection×11; runtime mutation collections×49。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 75. `scripts/player/progression/PendingCharacterRewardContentRules.cs`
@@ -869,12 +742,11 @@ Residual risks / test gaps:
 
 ### 90. `scripts/player/progression/QuestState.cs`
 
-- 复审状态：**需跟进**；规模：344 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：392 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：QuestStatusKind, QuestState；主要方法：IsActive, IsCompleted, IsTerminal, ToStringName, ToStatusKind, GetObjectiveProgress, RecordObjectiveProgress, IsObjectiveComplete, HasCompletedAllObjectives, MarkAccepted。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×2; runtime mutation collections×5。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 对抗性检视：`last_progress_context` 的严格解析错误会在 `QuestState` 边界安全拒绝；底层 parser 的类型约束未被放宽。
+- 已验证：typed party/quest state 回归与 save serializer quest round-trip 回归均覆盖损坏 context 的安全拒绝。
 
 ### 91. `scripts/player/progression/RaceContentRegistry.cs`
 
@@ -890,24 +762,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：56 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：RaceDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
-
-### 93. `scripts/player/progression/RaceTraitContentRegistry.cs`
-
-- 复审状态：**需跟进**；规模：112 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
-- 关键类型/入口：RaceTraitContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _collect_validation_errors, _append_trait_validation_errors。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; resource/path loading×2; runtime mutation collections×14。
-- 对抗性检视：
-  - 检查资源路径存在性、类型和失败缓存；错误路径不能在高频 UI/循环中反复刷日志。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
-
-### 94. `scripts/player/progression/RaceTraitDef.cs`
-
-- 复审状态：**需跟进**；规模：307 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
-- 关键类型/入口：RaceTraitEffectKind, RaceTraitDef；主要方法：ToEffectKind, ToStringName。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×6。
 - 对抗性检视：
   - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
@@ -1032,12 +886,11 @@ Residual risks / test gaps:
 
 ### 108. `scripts/player/progression/UnitProgress.cs`
 
-- 复审状态：**需跟进**；规模：1412 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**接受风险，暂不修复**；规模：1411 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：UnitProgress；主要方法：SetSkillProgress, GetSkillProgress, RemoveSkillProgress, SetProfessionProgress, GetProfessionProgress, RemoveProfessionProgress, SetAchievementProgressState, GetAchievementProgressState, HasKnowledge, LearnKnowledge。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×92; save/schema/projection×14; runtime mutation collections×88。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前 finding：递归展开 merge source 时在访问子节点之后才把当前 id 放入 `visited`，A → B → A 会栈溢出；已确认当前递归 getter 无生产调用，按范围决策接受风险，不修改算法或读档契约。
+- 处理决策：代码旁已注明无环前提；只有未来准备接入生产调用时，才必须先补循环来源回归、在进入递归节点前标记 visiting/visited，并在写入/读档边界拒绝环。
 
 ### 109. `scripts/player/progression/UnitReputationState.cs`
 
@@ -1197,8 +1050,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：1281 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiActionAssembler, in, in；主要方法：BuildUnitActionPlan, GetBrainStates, ClassifyKnownActiveSkills, GetActions, GetGenerationSlots, SortGenerationSlots, CloneRuntimeActions, CloneAction, EnableRuntimeActionDefaults, SlotMatchesAffordance。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×45; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 127. `scripts/systems/battle/ai/BattleAiActionIntent.cs`
@@ -1234,7 +1085,6 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleAiContext, struct, RuntimeActionMetadata；主要方法：Clone, ContainsKey, MergeFrom, ExportMetadata, IsMetadataEmpty, ToDictionary, FromTraceDictionary, FromPlanMetadata, ShouldMerge, MergeStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×2; runtime mutation collections×83; hot path / lifecycle×1。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
@@ -1249,12 +1099,10 @@ Residual risks / test gaps:
 
 ### 132. `scripts/systems/battle/ai/BattleAiDecisionCommitter.cs`
 
-- 复审状态：**通过**；规模：186 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过（2026-07-20 已修复）**；规模：186 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiDecisionCommitter, DecisionStatePatch；主要方法：BuildTypedStatePatch, AttachStatePatch, Commit, FromDecision, ApplyTo, SetBlackboardText。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：未命中高危触点。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- Godot/公开边界：Export 0 处；Signal 0 处；关键触点：decision patch 的生产提交链。
+- 当前验证：`BattleRuntimeModule.advance(...)` 在 `advance:ai_decision_commit` 阶段、执行 command 前提交 patch；`run_battle_ai_melee_charge_behavior_regression.cs` 通过真实 AI turn 覆盖 state transition、blackboard 与 turn decision count 恰好提交一次。
 
 ### 133. `scripts/systems/battle/ai/BattleAiDecisionEngine.cs`
 
@@ -1289,9 +1137,7 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleAiMutationGuard, BattleAiMutationSnapshot, BattleUnitSnapshot, BattleStateFieldsSnapshot, BattleUnitFieldsSnapshot, KnownFieldSnapshot, BattleAiBlackboardSnapshot, LayeredBarrierFieldsSnapshot；主要方法：Capture, ValidateAndRestoreTyped, ValidateAndRestoreReportTyped, Empty, CaptureStable, Restore, BuildCellDictionary, RestoreUnits, StableCells, StableUnits。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×82; save/schema/projection×13; runtime mutation collections×206; hot path / lifecycle×8。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 137. `scripts/systems/battle/ai/BattleAiMutationViolation.cs`
@@ -1318,7 +1164,6 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleAiQueryService, struct, struct, SkillRecord；主要方法：Setup, SetupReadOnly, GetActorId, GetActorSnapshot, GetUnitSnapshot, GetLivingUnitSnapshotsTyped, TryGetSkillRecordTyped, IsUnitMovementBlocked, GetMapSize, DistanceFromAnchorToTarget。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×2; runtime mutation collections×48; hot path / lifecycle×3。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
@@ -1390,8 +1235,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：1378 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, TargetEffectMetrics, TargetRoleSummary, struct；主要方法：Clone, FromEffect, ResolveMeteorUseCase, RecordMeteorHighPriorityTarget, ResolveMeteorHighPriorityReasons, ResolveComponentExpectedDamage, ResolveTargetRoleSummary, IsMeteorEliteOrBossTarget, ResolveMeteorThreatRank, ResolveMeteorThreatRankImpl。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; save/schema/projection×18; runtime mutation collections×47; hot path / lifecycle×3。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 148. `scripts/systems/battle/ai/BattleAiScoreService.Helpers.cs`
@@ -1408,8 +1251,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：675 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, HitRatePreviewEstimate；主要方法：ResolveEstimatedPercent, FromPreviewData, ResolveTargetRoleThreatMultiplierBasisPoints, ResolveTargetRoleThreatMultiplierBasisPointsImpl, CollectRoleThreatEffectDefs, IsHealOrSupportSkill, IsControlSkill, IsDamageSkill, GetUnitSkillLevel, GetPreResistanceDamageMultiplier。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; runtime mutation collections×16; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 150. `scripts/systems/battle/ai/BattleAiScoreService.Projection.cs`
@@ -1423,20 +1264,17 @@ Residual risks / test gaps:
 
 ### 151. `scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs`
 
-- 复审状态：**需跟进**；规模：1384 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**确认问题**；规模：1384 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, DamageEstimateResult, DamageSaveEstimate, DamageEstimateBreakdown, DamagePreviewSnapshot, PathStepHitCountEntry；主要方法：Clone, Scaled, ToDictionary, FromPreviewSaveEstimate, FromPreviewResult, CloneSaveEstimates, CloneDamageEstimates, CloneTraceObjectList, CloneTraceObject, CloneTraceEnumerable。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×254; runtime mutation collections×79。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前 finding：普通伤害估算路径没有完整复用正式 preview/mitigation 语义，并把 `ShieldAbsorbed` 固定为 0，会高估部分目标的实际承伤与击杀线。
+- 建议验证：用相同 source/target 对比 AI estimate 与正式 preview，覆盖 shield、guard、fixed mitigation。
 
 ### 152. `scripts/systems/battle/ai/BattleAiScoreService.cs`
 
 - 复审状态：**需跟进**；规模：859 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, struct, struct, struct, ScoreBuildMetadata, ScoreRandomChainMetadata, ScorePositionMetadata, ScorePathStepAoeMetadata；主要方法：FromMetadata, Setup, SetProfile, BeginDecisionScope, EndDecisionScope, GetProfile, GetBucketPriority, BuildSkillScoreInput, BuildActionScoreInput, ResolvePrimaryCoord。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×46; hot path / lifecycle×13。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 153. `scripts/systems/battle/ai/BattleAiService.cs`
@@ -1444,9 +1282,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：231 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiService；主要方法：Setup, SetScoreProfile, GetScoreProfile, GetScoreService, ChooseCommand, ChooseCommandImpl, BuildActionMutationCheckpoint, AbortMutationViolation, BuildWaitDecision, IsEmpty。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×3; hot path / lifecycle×4。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 154. `scripts/systems/battle/ai/BattleAiSkillAffordanceClassifier.cs`
@@ -1487,12 +1322,11 @@ Residual risks / test gaps:
 
 ### 158. `scripts/systems/battle/ai/BattleAiTypedActionHelper.cs`
 
-- 复审状态：**需跟进**；规模：608 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**确认问题**；规模：608 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiTypedActionHelper；主要方法：ResolveKnownSkillIds, GetSkillDef, GetSkillCastBlockReason, SortTargetUnits, GetUnitCastVariants, CollectUnitSkillEffectDefs, GetCastVariantTargetModeKind, BuildUnitSkillCommand, CreateDecision, CreateScoredDecision。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×26。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前 finding：目标比较只覆盖距离与 HP；完全同分时没有稳定 `unit_id` 兜底，选择结果依赖 Dictionary 枚举顺序。
+- 建议验证：反转单位插入顺序后，相同战局应仍选择同一稳定 id。
 
 ### 159. `scripts/systems/battle/ai/BattleAiUnitSkillCandidateEvaluator.cs`
 
@@ -2075,8 +1909,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：814 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleAttackCheckPolicyService；主要方法：Setup, Dispose, BuildModifierBundle, BuildAttackContext, BuildAttackCheck, BuildAttackPreview, BuildRepeatAttackPreview, BuildRepeatAttackStageContext, BuildRepeatAttackStageHitCheck, BuildFateAwareRepeatAttackStageHitCheck。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×36。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 224. `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
@@ -2099,13 +1931,10 @@ Residual risks / test gaps:
 
 ### 226. `scripts/systems/battle/rules/BattleDamageResolver.Dice.cs`
 
-- 复审状态：**需跟进**；规模：358 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**已排除旧 finding**；规模：358 行；上下文：Battle runtime/rules。
 - 关键类型/入口：BattleDamageResolver；主要方法：RollDamageDice, RollBonusDamageDice, RollWeaponDice, RollDicePool, RollDicePoolValues, RollDamageDieVirtual, BuildDicePoolTotal, BuildPreviewDiceRolls, BuildDamageDiceEventFlags, ApplyDamageDiceEventFlags。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×1; runtime mutation collections×2; string dynamic dispatch×1。
-- 对抗性检视：
-  - 检查 GodotObject.Call 字符串动态调用；能用 typed/virtual API 时避免运行时才发现重命名错误。
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：旧 `GodotObject.Call` 字符串虚调用已经不存在，骰子 override 走 typed/virtual API；Dictionary 触点本身没有当前失败证据。
+- 建议验证：维持 damage dice override 与 preview/execution 回归，不列为待修问题。
 
 ### 227. `scripts/systems/battle/rules/BattleDamageResolver.Effects.cs`
 
@@ -2146,13 +1975,10 @@ Residual risks / test gaps:
 
 ### 231. `scripts/systems/battle/rules/BattleDamageResolver.cs`
 
-- 复审状态：**需跟进**；规模：2709 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过（2026-07-20 随机契约确认）**；规模：2709 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamagePreviewRollMode, BattleDamagePreviewSaveMode, BattleDamagePreviewOptions, BattleDamageResolver, struct, struct, struct, struct；主要方法：FromEffect, ToDictionary, None, ToPreviewSaveEstimate, WithHpDamage, WithResolvedDamage, ToDamageApplicationInput, Create, FromDictionary, ReadBool。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×134; save/schema/projection×286; runtime mutation collections×48; randomness/determinism×2。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前验证：正式伤害骰直接使用 `TrueRandomSeedService` 符合设计；battle seed 只控制地形，不能也不应决定伤害序列。需要稳定边界测试时应注入显式 roll override，不得把 production combat RNG 改成 seeded replay。
 
 ### 232. `scripts/systems/battle/rules/BattleDeathResolutionRules.cs`
 
@@ -2192,12 +2018,10 @@ Residual risks / test gaps:
 
 ### 236. `scripts/systems/battle/rules/BattleHitResolver.cs`
 
-- 复审状态：**需跟进**；规模：1717 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过（2026-07-20 随机契约确认）**；规模：1717 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleHitResolver；主要方法：ResolveRepeatAttackStageHit, BuildRepeatAttackStageHitCheck, BuildFateAwareRepeatAttackStageHitCheck, BuildRepeatAttackPreview, BuildSkillAttackPreview, BuildForceHitNoCritAttackPreview, BuildSkillAttackCheck, _get_unit_attribute_value, _unit_has_attribute_value, _get_target_armor_class。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×24; runtime mutation collections×14; randomness/determinism×4。
-- 对抗性检视：
-  - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前验证：命中、暴击和 reroll 使用独立 `TrueRandomSeedService` 是正式契约；`attack_roll_nonce` 是消费计数，不是由 battle seed 派生随机序列的输入。
 
 ### 237. `scripts/systems/battle/rules/BattleRangeService.cs`
 
@@ -2219,13 +2043,10 @@ Residual risks / test gaps:
 
 ### 239. `scripts/systems/battle/rules/BattleSaveResolver.cs`
 
-- 复审状态：**需跟进**；规模：905 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过（2026-07-20 随机契约确认）**；规模：905 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSaveDegreeKind, struct, BattleSaveContext, struct, struct, BattleSaveResolver, BattleSaveTagState；主要方法：ToDictionary, ForSkill, WithSaveRollOverride, WithSaveRollOverrides, Empty, SourceArray, ResolveSaveResult, ResolveSaveDegree, EstimateSaveSuccessProbabilityResult, ResolveSaveDc。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×136; runtime mutation collections×17; randomness/determinism×4。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前验证：正常、优势和劣势豁免骰使用独立 `TrueRandomSeedService` 符合正式契约；固定 battle seed 只应复现地形，不应复现豁免结果。
 
 ### 240. `scripts/systems/battle/rules/BattleSkillResolutionRules.cs`
 
@@ -2297,7 +2118,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×61; runtime mutation collections×6; randomness/determinism×2。
 - 对抗性检视：
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 248. `scripts/systems/battle/runtime/BattleBarrierService.cs`
@@ -2305,8 +2125,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：684 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, struct, BattleBarrierService, struct；主要方法：Empty, FromEffect, Setup, Dispose, ApplyLayeredBarrierEffectResult, AdvanceBarrierDurations, ResolveUnitBoundaryCrossingResult, ResolveSkillBarrierInteractionResult, ResolveGroundBarrierInteractionResult, _ResolveProjectedEffectBarrierInteractionResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; save/schema/projection×14; runtime mutation collections×19。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 249. `scripts/systems/battle/runtime/BattleCastingTimeService.cs`
@@ -2316,7 +2134,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; runtime mutation collections×9; randomness/determinism×2。
 - 对抗性检视：
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 250. `scripts/systems/battle/runtime/BattleChangeEquipmentResolver.cs`
@@ -2326,7 +2143,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×3; runtime mutation collections×32。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 251. `scripts/systems/battle/runtime/BattleChargeResolver.cs`
@@ -2336,7 +2152,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×36; save/schema/projection×1; runtime mutation collections×57。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 252. `scripts/systems/battle/runtime/BattleContributionEvent.cs`
@@ -2391,7 +2206,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×60; save/schema/projection×4; runtime mutation collections×151。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 258. `scripts/systems/battle/runtime/BattleGroundSkillValidationResult.cs`
@@ -2446,7 +2260,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×8; runtime mutation collections×9。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 264. `scripts/systems/battle/runtime/BattleMovePathResult.cs`
@@ -2464,7 +2277,6 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleMovementQueryService, struct, struct, CellInfo, UnitInfo, EdgeInfo, struct, struct；主要方法：ToSnapshot, ForPathSearchBudget, Failure, Success, Setup, CollectReachableAnchors, CollectDistanceBandDestinations, CollectDistanceBandPathTargets, CollectDistanceBandPathTargetsTyped, CollectDistanceBandPathTargetsTypedImpl。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×7; runtime mutation collections×82; hot path / lifecycle×3。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
@@ -2473,9 +2285,6 @@ Residual risks / test gaps:
 - 复审状态：**通过**；规模：541 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleMovementService, struct；主要方法：Setup, Dispose, RecordActionIssued, AppendChangedCoords, AppendChangedUnitCoords, SortCoords, IsMovementBlocked, HasStatus, GetUnitReachableMoveCoords, GetMoveCostForUnitTarget。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×26; hot path / lifecycle×1。
-- 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 267. `scripts/systems/battle/runtime/BattleRatingMemberStats.cs`
@@ -2494,7 +2303,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×14; save/schema/projection×1; runtime mutation collections×9。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 269. `scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs`
@@ -2502,8 +2310,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：928 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRepeatAttackResolver, struct；主要方法：FromEffect, GetStageDamageMultiplier, Setup, DisposeRuntime, ApplyRepeatAttackSkillResult, get_repeat_attack_effect_def, CollectRepeatAttackBaseEffects, BuildRuntimeStageSpec, BuildStageSpecFromRepeatAttackEffect, BuildStageSpecsFromRepeatAttackEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; runtime mutation collections×5。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 270. `scripts/systems/battle/runtime/BattleRuntimeLootResolver.cs`
@@ -2513,7 +2319,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; save/schema/projection×5; runtime mutation collections×9。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 271. `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
@@ -2522,7 +2327,6 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleRuntimeDictionaryOptions, BattleDefeatHandlingOptions, BattleStartOptions, BattleEndOptions, BattleStartFailureSnapshot, BattleRuntimeModule, in；主要方法：ReadBool, FromContext, FromDictionary, ToDictionary, ReadOptionalInt, ReadOptionalLong, ReadReachabilityPayload, ReadString, setup, FinishSetup。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×135; save/schema/projection×16; runtime mutation collections×190; hot path / lifecycle×19。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
@@ -2533,7 +2337,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×18; runtime mutation collections×17。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 273. `scripts/systems/battle/runtime/BattleShieldService.cs`
@@ -2544,7 +2347,6 @@ Residual risks / test gaps:
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 274. `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs`
@@ -2553,10 +2355,8 @@ Residual risks / test gaps:
 - 关键类型/入口：BattleSkillExecutionOrchestrator, struct, UnitSkillEffectResolution；主要方法：FromEffect, Setup, DisposeRuntime, append_result_report_entry, MarkAppliedStatusesForTurnTiming, append_result_source_status_effects, _record_action_issued, _record_skill_attempt, _record_effect_metrics, _record_unit_defeated。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×50; save/schema/projection×5; runtime mutation collections×115; hot path / lifecycle×17; randomness/determinism×4。
 - 对抗性检视：
-  - 检查 trace span 是否 exception-safe；Enter 后业务调用必须用 finally/guard 保证 Exit。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 275. `scripts/systems/battle/runtime/BattleSkillMasteryGrant.cs`
@@ -2611,7 +2411,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×26; save/schema/projection×4; runtime mutation collections×48。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 281. `scripts/systems/battle/runtime/BattleTargetCollectionResult.cs`
@@ -2639,7 +2438,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×3; runtime mutation collections×19。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 284. `scripts/systems/battle/runtime/BattleUnitFactory.cs`
@@ -2696,15 +2494,6 @@ Residual risks / test gaps:
   - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
-### 290. `scripts/systems/battle/runtime/TestCsBase.cs`
-
-- 复审状态：**通过**；规模：6 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
-- 关键类型/入口：TestCsBase；主要方法：FetchName。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：未命中高危触点。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
-
 ### 291. `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
 
 - 复审状态：**需跟进**；规模：560 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
@@ -2725,12 +2514,11 @@ Residual risks / test gaps:
 
 ### 293. `scripts/systems/battle/sim/BattleSimExecutionLoop.cs`
 
-- 复审状态：**需跟进**；规模：271 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：271 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimExecutionLoop, BattleSimExecutionLoopResult；主要方法：Run, AdvanceStep, HasReadyUnits, HasProgressed, IssueManualPolicy, GetUnit, PrintTraceStats, ReadInt64。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×2。
-- 对抗性检视：
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：终止状态传播、completed-only 汇总与 incomplete CLI 退出码已有 synthetic 回归；loop trace 仅在显式开启时安装局部 recorder，并通过 instance scope 在成功或异常退出时恢复此前 recorder。
+- 建议验证：`run_ai_trace_recorder_regression.cs` 与 `run_battle_sim_exception_cleanup_regression.cs`。
 
 ### 294. `scripts/systems/battle/sim/BattleSimFactionMetricSummary.cs`
 
@@ -2806,39 +2594,35 @@ Residual risks / test gaps:
 
 ### 302. `scripts/systems/battle/sim/BattleSimProfileSummary.cs`
 
-- 复审状态：**需跟进**；规模：86 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：86 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimProfileSummary；主要方法：ToDictionary, ToIntDictionary, ToFloatDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×2; runtime mutation collections×9。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：保留全部 attempt 数并独立暴露 completed/unfinished/stalled/budget/invalid 计数；正常统计分母只使用 completed runs。
+- 建议验证：`run_battle_sim_report_builder_regression.cs`。
 
 ### 303. `scripts/systems/battle/sim/BattleSimReportBuilder.cs`
 
-- 复审状态：**需跟进**；规模：351 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：351 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimReportBuilder；主要方法：BuildProfileSummary, BuildProfileComparisons, MergeSkillCounter, MergeActionChoices, MergeFactionMetricTotals, IncrementCounter, CollectStringKeys, GetDictionary, TryGetVariantKey。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; runtime mutation collections×29。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：winner、平均值、skill/action/faction totals 与 profile comparison 均只消费 battle-ended runs；无 completed sample 时不生成 comparison。
+- 建议验证：`run_battle_sim_report_builder_regression.cs`。
 
 ### 304. `scripts/systems/battle/sim/BattleSimRunReport.cs`
 
-- 复审状态：**需跟进**；规模：66 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：66 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimRunReport；主要方法：ToDictionary, ToGodotTraceArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×2; runtime mutation collections×6。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：typed `TerminationKind` 是完成态真相，`battle_ended`/`stalled` 为派生事实；file 与 Godot projection 均保留明确终止原因。
+- 建议验证：`run_battle_sim_report_builder_regression.cs` 与 trace projection lease regression。
 
 ### 305. `scripts/systems/battle/sim/BattleSimRunner.cs`
 
-- 复审状态：**需跟进**；规模：467 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：467 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimRunner；主要方法：Setup, SetProgressLoggingEnabled, SetProgressLogPath, RunScenario, _ResolveProfiles, _RunSingleSimulation, _BuildEncounterAnchor, _CountLivingUnits, _BuildFinalUnitSnapshots, CloneAiTurnTraces。
 - Godot/公开边界：Export 2 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×17; save/schema/projection×26; runtime mutation collections×20。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：runner 将文件 IO 委托给 `BattleSimReportFileWriter`；只有完整产物集写入成功才发布 output paths 与 `report-written`。runtime 创建后的 setup/start/loop/result-capture 异常均会触发完整 teardown，且不会误释放 caller-owned 的共享 terrain generator；stalled/budget/invalid 终止状态已完整传入报告并从正常汇总排除。
+- 建议验证：`run_battle_sim_exception_cleanup_regression.cs` 与 `run_battle_sim_report_output_regression.cs`。
 
 ### 306. `scripts/systems/battle/sim/BattleSimScenarioDef.cs`
 
@@ -2851,21 +2635,11 @@ Residual risks / test gaps:
 
 ### 307. `scripts/systems/battle/sim/BattleSimScenarioReport.cs`
 
-- 复审状态：**需跟进**；规模：34 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：34 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimScenarioReport；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×5; runtime mutation collections×4。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
-
-### 308. `scripts/systems/battle/sim/BattleSimTerrainGenerator.cs`
-
-- 复审状态：**需跟进**；规模：125 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
-- 关键类型/入口：BattleSimTerrainGenerator；主要方法：GenerateTyped, _resolve_map_size, _duplicate_vector2i_array, ReadContextValue。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15; runtime mutation collections×2。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：scenario 从原始 runs 派生完整性与各终止类别计数，避免只靠路径存在或 runner 返回误判实验成功。
+- 建议验证：`run_battle_sim_report_builder_regression.cs`。
 
 ### 309. `scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs`
 
@@ -2928,18 +2702,15 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; save/schema/projection×6; runtime mutation collections×9。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 316. `scripts/systems/battle/terrain/BattleTerrainGenerator.cs`
 
-- 复审状态：**需跟进**；规模：1776 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**架构债，非 correctness finding**；规模：1776 行；上下文：battle terrain generation。
 - 关键类型/入口：BattleTerrainProfileKind, BattleTerrainGenerator, TerrainQualityResult；主要方法：ToStringName, ToProfileKind, Generate, ResolveTerrainProfileId, NormalizeWaterHeights, GenerateDefault, GenerateCanyon, GenerateNarrowAssault, GenerateHoldoutPush, BuildLayout。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×103; save/schema/projection×3; runtime mutation collections×61; randomness/determinism×2。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-- 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
+- 当前结论：terrain RNG 已受稳定 seed 驱动；剩余问题是正式算法仍做 typed cells → `GDictionary` → typed cells 往返，增加分配与双重校验漂移风险。
+- 建议验证：保持固定 seed 地形回归；只有重构 typed boundary 时才补 allocation/投影等价性测试。
 
 ### 317. `scripts/systems/battle/terrain/BattleTerrainRules.cs`
 
@@ -2973,8 +2744,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：194 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：GameContentCatalog；主要方法：BindSession, ClearSessionBinding, Rebuild, ResetSnapshot, GetRevision, HasSessionTyped, GetSessionTyped, IsBoundToSession, GetProgressionContentRegistryTyped, GetProgressionIdentityCatalogTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×26。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 321. `scripts/systems/content/GameRoot.cs`
@@ -2982,8 +2751,6 @@ Residual risks / test gaps:
 - 复审状态：**通过**；规模：47 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：GameRoot；主要方法：BindSession, DisposeOwnedRuntimeResources, HasSessionTyped, GetSessionTyped, GetContentCatalogTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：未命中高危触点。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 322. `scripts/systems/content/IValidatableRegistry.cs`
@@ -3013,24 +2780,6 @@ Residual risks / test gaps:
   - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
-### 325. `scripts/systems/content/skills/SkillEffectiveCombatProfile.cs`
-
-- 复审状态：**通过**；规模：57 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
-- 关键类型/入口：SkillEffectiveCombatProfile；主要方法：无可提取方法。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×2。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
-
-### 326. `scripts/systems/content/skills/SkillEffectiveCombatProfileResolver.cs`
-
-- 复审状态：**需跟进**；规模：189 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
-- 关键类型/入口：SkillEffectiveCombatProfileResolver；主要方法：Resolve, BuildUncached, BuildMissing, ToGodotArray, ResolveResourceCosts, TryReadResourceCostOverride, ReadIntOverride, ReadAreaPatternOverride, BuildUnlockedCastVariantsSnapshot。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; runtime mutation collections×6。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
-
 ### 327. `scripts/systems/fate/LowLuckRelicRules.cs`
 
 - 复审状态：**需跟进**；规模：217 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
@@ -3054,9 +2803,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：1138 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：BattleSessionFacade；主要方法：Setup, GetSelectedBattleSkillName, GetSelectedBattleSkillVariantName, GetSelectedBattleSkillTargetCoords, GetSelectedBattleSkillTargetUnitIds, GetSelectedBattleSkillValidTargetCoords, GetSelectedBattleSkillRequiredCoordCount, GetBattleMovementReachableCoords, GetBattleOverlayTargetCoords, GetBattleActiveUnitName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×10; randomness/determinism×1。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 330. `scripts/systems/game_runtime/GameRuntimeBattleLootCommitService.cs`
@@ -3066,8 +2812,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×44; save/schema/projection×7; runtime mutation collections×15。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 331. `scripts/systems/game_runtime/GameRuntimeBattleSelection.cs`
@@ -3077,7 +2821,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; save/schema/projection×4; runtime mutation collections×62。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 332. `scripts/systems/game_runtime/GameRuntimeBattleSelectionState.cs`
@@ -3096,7 +2839,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×3; runtime mutation collections×7。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 334. `scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.cs`
@@ -3104,8 +2846,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：487 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：GameRuntimeCharacterInfoBuilder；主要方法：Setup, Dispose, BuildCharacterInfoMetaLabel, BuildWorldCharacterInfoSections, BuildBattleCharacterInfoSections, BuildBattleCharacterIdentityEntries, BuildBattleCharacterInfoFatePayload, BuildBattleCharacterInfoBaseEntries, BuildBattleCharacterStatusEntries, BuildBattleCharacterSkillEntries。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×22; runtime mutation collections×17。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 335. `scripts/systems/game_runtime/GameRuntimeCommandLogger.cs`
@@ -3115,7 +2855,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×19; save/schema/projection×16; runtime mutation collections×21。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 336. `scripts/systems/game_runtime/GameRuntimeFacade.cs`
@@ -3125,7 +2864,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×270; save/schema/projection×28; runtime mutation collections×114。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 337. `scripts/systems/game_runtime/GameRuntimePartyCommandHandler.cs`
@@ -3135,8 +2873,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×7; runtime mutation collections×4。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 338. `scripts/systems/game_runtime/GameRuntimePendingBattleGenerationRequest.cs`
@@ -3164,8 +2900,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×2; runtime mutation collections×3。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 341. `scripts/systems/game_runtime/GameRuntimeRewardFlowHandler.cs`
@@ -3173,21 +2907,15 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：779 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：GameRuntimeRewardFlowHandler；主要方法：Setup, Dispose, GetCurrentPromotionPrompt, CommandConfirmPendingRewardTyped, CommandChoosePromotionTyped, CommandSubmitPromotionChoiceTyped, CommandCancelPromotionChoiceTyped, CommandConfirmActiveRewardTyped, CommandCloseActiveModalTyped, OnCharacterInfoWindowClosed。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×1。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 342. `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
 
-- 复审状态：**需跟进**；规模：3740 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
+- 复审状态：**架构债，非 correctness finding**；当前主文件约 3037 行；上下文：Game runtime settlement orchestration。
 - 关键类型/入口：GameRuntimeSettlementCommandHandler, SettlementActionValidationResult, ContractBoardQuestData, SettlementServiceEntryResolution, StagecoachDestinationData, SettlementPersistResult；主要方法：Success, Failure, ToDictionary, Missing, FromServiceData, SetupRuntime, DisposeRuntime, GetSettlementWindowData, GetShopWindowData, GetContractBoardWindowData。
 - Godot/公开边界：Export 0 处；Signal 2 处；风险触点：Godot Dictionary/Array boundary×270; save/schema/projection×9; runtime mutation collections×86; randomness/determinism×1。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
-- 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
+- 当前结论：weak owner/teardown 与 settlement persist rollback 已有实现和回归；剩余是 action dispatch/build/persist 的核心状态仍大量使用 `GDictionary`，属于 typed-boundary 债。
+- 建议验证：保持 world-map proxy 与 persist-failure rollback 回归；不要把 Dictionary 命中本身登记为 bug。
 
 ### 343. `scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs`
 
@@ -3196,7 +2924,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×46; save/schema/projection×7; runtime mutation collections×43。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 344. `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs`
@@ -3206,8 +2933,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×2; runtime mutation collections×12。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 345. `scripts/systems/game_runtime/IGameRuntimeSnapshotSource.cs`
@@ -3304,12 +3029,11 @@ Residual risks / test gaps:
 
 ### 355. `scripts/systems/inventory/PartyWarehouseService.cs`
 
-- 复审状态：**需跟进**；规模：1203 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：1203 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：PartyWarehouseService, WarehouseBatchItemEntry, WarehouseBatchSwapResult, WarehouseAddItemResult, WarehouseRemoveItemResult；主要方法：ToDictionary, Success, Blocked, WithError, Setup, SetupPartyBackpackView, GetTotalCapacity, GetUsedSlots, GetFreeSlots, IsOverCapacity。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×23; save/schema/projection×6; runtime mutation collections×54。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
+- 当前结论：普通物品 preview/commit 使用相同容量与堆叠规则；无实例 payload 装备的正式添加结果也已检查，allocator 返回空值时 batch 会失败并回滚此前取出。
+- 建议验证：容量失败和装备实例 id 分配失败时 batch 均原子回滚并保持原状态。
 
 ### 356. `scripts/systems/inventory/WarehouseInventoryEntry.cs`
 
@@ -3348,7 +3072,6 @@ Residual risks / test gaps:
   - 检查资源路径存在性、类型和失败缓存；错误路径不能在高频 UI/循环中反复刷日志。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：python tests/run_regression_suite.py + save/session focused runner。
 
 ### 360. `scripts/systems/persistence/SaveSerializer.cs`
@@ -3470,12 +3193,11 @@ Residual risks / test gaps:
 
 ### 373. `scripts/systems/progression/CharacterProgressionDelta.cs`
 
-- 复审状态：**需跟进**；规模：523 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**已排除旧风险**；规模：523 行；上下文：Progression/content。
 - 关键类型/入口：CharacterProgressionDelta；主要方法：SetLeveledSkillIds, AddLeveledSkillId, SetGrantedSkillIds, AddGrantedSkillId, SetChangedProfessionIds, AddChangedProfessionId, HasChangedProfessionId, SetPendingProfessionChoices, AddPendingProfessionChoice, SetMasteryChanges。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×48; save/schema/projection×6; runtime mutation collections×51。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前结论：正式 owner 使用 CLR typed lists 和 typed views；Godot Dictionary 只用于兼容投影/解析边界，没有证据支持旧“Dictionary 回流业务态”意见。
+- 建议验证：维持现有 projection round-trip 回归即可，不列为待修问题。
 
 ### 374. `scripts/systems/progression/FaithService.cs`
 
@@ -3602,7 +3324,6 @@ Residual risks / test gaps:
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 388. `scripts/systems/progression/QuestCommandResultData.cs`
@@ -3616,12 +3337,11 @@ Residual risks / test gaps:
 
 ### 389. `scripts/systems/progression/QuestProgressService.cs`
 
-- 复审状态：**需跟进**；规模：1004 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**确认低优先级 API 问题**；规模：1004 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：QuestProgressEventKind, QuestProgressService, QuestActiveObjectiveMatch, QuestProgressEventData, QuestObjectiveDefData, QuestProgressDataReader, QuestProgressApplyResultData, QuestProgressEventContextData；主要方法：ToStringName, ToEventKind, Setup, SetPartyState, Dispose, GetPartyState, GetActiveQuestsTyped, GetClaimableQuestsTyped, GetClaimableQuestIdsTyped, GetCompletedQuestIdsTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×39; save/schema/projection×9; runtime mutation collections×46。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前 finding：公开 `RecordProgress` 完成全部目标时只改 quest status，不把对象从 active 迁到 claimable；当前生产链使用另一套 event API。
+- 建议验证：直接 API 与 event API 必须得到相同 active/claimable 状态和可 round-trip 存档。
 
 ### 390. `scripts/systems/progression/RacialSkillGrantService.cs`
 
@@ -3643,12 +3363,11 @@ Residual risks / test gaps:
 
 ### 392. `scripts/systems/progression/SkillLevelDescriptionFormatter.cs`
 
-- 复审状态：**需跟进**；规模：495 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
-- 关键类型/入口：SkillLevelDescriptionFormatter；主要方法：BuildLevelDescription, RenderTemplate, MergeVariantMap, _is_optional_value_visible, _merge_matching_effect_params, _merge_matching_effect_typed_fields, _collect_level_effect_defs, _append_level_effect_defs, _effect_unlocked_at_level, _merge_damage_effect_typed_fields。
+- 复审状态：**通过（2026-07-20 已修复）**；规模：591 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 关键类型/入口：SkillLevelDescriptionFormatter；主要方法：BuildLevelDescription, RenderTemplate, MergePlainMap, _is_optional_value_visible, _merge_matching_effect_params, _merge_matching_effect_typed_fields, _collect_level_effect_defs, _append_level_effect_defs, _effect_unlocked_at_level, _try_evaluate_expression。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×31。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前验证：expression 与普通变量均使用单次替换，不重扫替换产物；parse/execute 失败、自引用或间接循环字段显示 `[描述配置错误]`，后续字段继续渲染。内容规则同步拒绝空、未闭合与语法错误表达式。
+- 回归验证：`run_level_description_template_regression.cs` 覆盖 parse/execute 失败、自引用和间接循环；`run_skill_level_description_typed_regression.cs` 覆盖加载期合法/非法表达式。
 
 ### 393. `scripts/systems/progression/SkillMergeService.cs`
 
@@ -3670,12 +3389,11 @@ Residual risks / test gaps:
 
 ### 395. `scripts/systems/settlement/SettlementForgeService.cs`
 
-- 复审状态：**需跟进**；规模：879 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**架构债，非 correctness finding**；规模：879 行；上下文：settlement forge service。
 - 关键类型/入口：SettlementForgeService, RecipeItemValidationResult；主要方法：Success, Failed, IsSupportedInteraction, HasAvailableRecipeTyped, ExecuteRecipeResultTyped, BuildWindowDataTyped, _resolve_recipe, _list_matching_recipes, _build_recipe_window_entries, _build_recipe_window_entry。
 - Godot/公开边界：Export 0 处；Signal 3 处；风险触点：Godot Dictionary/Array boundary×91; runtime mutation collections×48。
-- 对抗性检视：
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前结论：settlement transaction rollback 已有 focused regression；剩余是 recipe/facility/execute 核心仍以 `GDictionary` 处理，属于 typed-boundary 债。
+- 建议验证：维持 persist-failure rollback 回归；typed 化时再补 projection equivalence。
 
 ### 396. `scripts/systems/settlement/SettlementPanelKind.cs`
 
@@ -3693,7 +3411,6 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×54; save/schema/projection×2; runtime mutation collections×14。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 398. `scripts/systems/settlement/SettlementServiceMetadata.cs`
@@ -3712,18 +3429,16 @@ Residual risks / test gaps:
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×19; save/schema/projection×3; runtime mutation collections×17。
 - 对抗性检视：
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查事务快照是否覆盖 world_data、party_state、selected member 和 modal 状态；失败后 UI 必须重绘。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 400. `scripts/systems/settlement/SettlementShopService.cs`
 
-- 复审状态：**需跟进**；规模：1115 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**确认问题**；规模：1115 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：SettlementShopService, ShopItemId, struct, ShopDefinition, ShopStockEntry；主要方法：BuildWindowDataTyped, BuyTyped, SellTyped, GetOrRefreshShopState, GenerateShopState, BuildShopEntry, MergeShopEntry, PickWeightedRandomEntry, ResolveBuyPrice, ResolveSellPrice。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×69; save/schema/projection×7; runtime mutation collections×28; randomness/determinism×5。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-  - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前 finding：设计、生成和存档都写 `shop_inventory_seed`，刷新却不消费该字段而重新生成真随机 seed，schema 不能控制或复现刷新结果。
+- 架构债：核心 shop state/交易仍使用 `GDictionary`；这不是上述 correctness finding 的替代证据。
+- 建议验证：固定 settlement state/seed 的刷新结果可重放，且 save/load 后一致。
 
 ### 401. `scripts/systems/settlement/SettlementShopTradeResult.cs`
 
@@ -3847,21 +3562,19 @@ Residual risks / test gaps:
 
 ### 414. `scripts/tools/tile_baker.gd`
 
-- 复审状态：**通过**；规模：275 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**范围排除（非生产工具）**；规模：275 行；上下文：GDScript 离线烘焙工具。
 - 关键类型/入口：无显式类型；主要方法：_ready, _build, _mode, _material_for_mode, _real_pbr_material, _load_image_texture, _mud_material, _mud_ramp, _water_material, _water_ramp。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：resource/path loading×5。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前结论：实现与注释不一致的事实保留为历史工具说明，但该脚本不属于生产运行链或正式资产构建验收，不进入修复队列。
+- 建议验证：无；仅在未来把该工具纳入正式资产流水线时重新审核输出契约。
 
 ### 415. `scripts/tools/tree_baker.gd`
 
-- 复审状态：**通过**；规模：157 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**范围排除（非生产工具）**；规模：157 行；上下文：GDScript 离线烘焙工具。
 - 关键类型/入口：无显式类型；主要方法：_ready, _bake, _model_path, _apply_foliage_alpha, _override_leaf_surfaces, _load_tex, _node_aabb。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：resource/path loading×5。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
+- 当前结论：输入失败边界缺失的事实保留为历史工具说明，但该脚本不属于生产运行链或正式资产构建验收，不进入修复队列。
+- 建议验证：无；仅在未来把该工具纳入正式资产流水线时重新审核输入和失败退出契约。
 
 ### 416. `scripts/ui/BattleBoard2D.cs`
 
@@ -3885,13 +3598,11 @@ Residual risks / test gaps:
 
 ### 418. `scripts/ui/BattleBoardProp.cs`
 
-- 复审状态：**关注**；规模：174 行；上下文：UI/scene adapter：重点检查 paired `.tscn`、GetNode 路径、信号载荷、RichText/输入事件。
+- 复审状态：**性能建议，非 finding**；规模：174 行；上下文：UI/scene adapter。
 - 关键类型/入口：BattleBoardProp；主要方法：Configure, ApplyInteractionState, DrawSpikeBarricade, DrawObjectiveMarker, DrawTent, DrawTorch, SignedOffset, Ratio, StableHash。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：scene/node/signal contract×2; hot path / lifecycle×3。
-- 对抗性检视：
-  - 检查绘制路径是否每帧分配数组/字典/纹理；大地图或战斗面板需要避免热路径 GC。
-  - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
-- 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
+- 当前结论：存在短数组分配，但节点没有 `_Process`，只在 configure/state/resized 等事件后 `QueueRedraw`；没有 profiling 证据支持把它列为每帧 GC 问题。
+- 建议验证：只在实际大场景 profiling 显示 draw 分配成为热点时再优化。
 
 ### 419. `scripts/ui/BattleBoardRenderProfile.cs`
 
@@ -3946,7 +3657,6 @@ Residual risks / test gaps:
 - 关键类型/入口：CharacterCreationWindow, AttributeModifierTotals, CharacterCreationWindowNodeExtensions；主要方法：SetProgressionContentRegistry, ShowWindow, HideWindow, _cache_attribute_rows, _build_row_styles, _apply_button_palettes, _apply_button_palette, _make_button_stylebox, _on_name_text_submitted, _on_name_confirmed。
 - Godot/公开边界：Export 0 处；Signal 4 处；风险触点：Godot Dictionary/Array boundary×23; scene/node/signal contract×44; runtime mutation collections×70; string dynamic dispatch×3; randomness/determinism×4。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
   - 检查随机源是否应可重放；生成内容/战斗结果要区分真随机、seeded random 和测试注入。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
@@ -3957,7 +3667,6 @@ Residual risks / test gaps:
 - 关键类型/入口：CharacterInfoWindow, EntryKind, CharacterInfoPayload, CharacterInfoSection, CharacterInfoEntry；主要方法：ShowCharacter, HideWindow, _close_window, _on_shade_gui_input, _rebuild_sections, _clear_sections, _build_section_panel, _build_pair_entry, _build_text_entry, _create_section_panel_stylebox。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×29; scene/node/signal contract×11; save/schema/projection×10; runtime mutation collections×37; string dynamic dispatch×1。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
@@ -3968,7 +3677,6 @@ Residual risks / test gaps:
 - 关键类型/入口：DisplaySettingsWindow；主要方法：ConfigureOptions, ShowWindow, HideWindow, GetSelectedSettings, _rebuild_resolution_options, _find_resolution_index, _get_selected_resolution, _on_fullscreen_toggled, _update_hint, _apply。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：scene/node/signal contract×13; runtime mutation collections×5; string dynamic dispatch×2。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -3988,8 +3696,6 @@ Residual risks / test gaps:
 - 关键类型/入口：MasteryRewardWindow；主要方法：ShowReward, HideWindow, _build_details_text, _build_entry_line, _read_entry_target_label, _get_reward_entries, _read_reward_text, _on_confirm_button_pressed, _on_shade_gui_input。
 - Godot/公开边界：Export 0 处；Signal 1 处；风险触点：Godot Dictionary/Array boundary×2; scene/node/signal contract×8; runtime mutation collections×10; string dynamic dispatch×1。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -3999,19 +3705,8 @@ Residual risks / test gaps:
 - 关键类型/入口：PartyManagementWindow, struct；主要方法：ShowParty, SetAchievementDefs, SetItemDefs, SetSkillDefs, SetProfessionDefs, SetCharacterManagement, SetPartyState, RefreshView, GetPartyState, GetSelectedMemberId。
 - Godot/公开边界：Export 0 处；Signal 5 处；风险触点：Godot Dictionary/Array boundary×15; scene/node/signal contract×36; save/schema/projection×1; runtime mutation collections×149; string dynamic dispatch×6。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
-- 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
-
-### 430. `scripts/ui/PartyMemberOptionUtils.cs`
-
-- 复审状态：**需跟进**；规模：259 行；上下文：UI/scene adapter：重点检查 paired `.tscn`、GetNode 路径、信号载荷、RichText/输入事件。
-- 关键类型/入口：PartyMemberOptionUtils；主要方法：GetPartyState, BuildMemberOptions, BuildMemberVariantMap, BuildMemberVariantLabel, ResolveDefaultMemberId, GetMemberVariantDisplayName, _append_member_option, _build_explicit_member_options, DictHas, DictArray。
-- Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×32; runtime mutation collections×4。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
 ### 431. `scripts/ui/PartyWarehouseWindow.cs`
@@ -4020,9 +3715,7 @@ Residual risks / test gaps:
 - 关键类型/入口：PartyWarehouseWindow, WarehouseWindowData, WarehouseEntry, struct；主要方法：ShowWarehouse, SetWindowData, RefreshView, HideWindow, _rebuild_stack_list, _restore_selection, _rebuild_target_member_selector, _refresh_details, _refresh_controls, _get_selected_entry_data。
 - Godot/公开边界：Export 0 处；Signal 1 处；风险触点：Godot Dictionary/Array boundary×26; scene/node/signal contract×26; resource/path loading×1; runtime mutation collections×21; string dynamic dispatch×4。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
   - 检查资源路径存在性、类型和失败缓存；错误路径不能在高频 UI/循环中反复刷日志。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -4032,8 +3725,6 @@ Residual risks / test gaps:
 - 关键类型/入口：PromotionChoiceWindow；主要方法：ShowPromotion, HideWindow, _clear_cards, _rebuild_choice_cards, _create_card, _select_choice, _refresh_details, _on_card_gui_input, _on_confirm_button_pressed, _on_cancel_button_pressed。
 - Godot/公开边界：Export 0 处；Signal 1 处；风险触点：Godot Dictionary/Array boundary×44; scene/node/signal contract×13; runtime mutation collections×16; hot path / lifecycle×1; string dynamic dispatch×2。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：godot --headless -s res://tests/world_map/ui/run_promotion_choice_window_schema_regression.cs，并新增 confirm signal payload 用例。
 
@@ -4043,7 +3734,6 @@ Residual risks / test gaps:
 - 关键类型/入口：RuntimeLogDock, struct；主要方法：IsCollapsed, GetCollapsedHeight, GetPreferredHeight, _toggle_collapsed, _cycle_opacity, ShowWorldLogs, ShowBattleLogs, ClearLogs, GetDesignPanelSize, ApplyLayoutScale。
 - Godot/公开边界：Export 0 处；Signal 4 处；风险触点：Godot Dictionary/Array boundary×18; scene/node/signal contract×11; runtime mutation collections×18; hot path / lifecycle×1; string dynamic dispatch×2。
 - 对抗性检视：
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -4062,8 +3752,6 @@ Residual risks / test gaps:
 - 关键类型/入口：SettlementWindow, SettlementWindowData, struct, struct, struct, ServiceEntry, ResolvedService, MemberOption；主要方法：ShowSettlement, HideWindow, SetFeedback, _refresh_view, _build_meta_text, _build_facility_text, _build_resident_text, _rebuild_member_selector, _select_member, _refresh_member_state。
 - Godot/公开边界：Export 0 处；Signal 7 处；风险触点：Godot Dictionary/Array boundary×54; scene/node/signal contract×19; runtime mutation collections×57; hot path / lifecycle×1; string dynamic dispatch×2。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -4073,8 +3761,6 @@ Residual risks / test gaps:
 - 关键类型/入口：ShopWindow, ShopWindowData, ShopEntry, MemberOption；主要方法：ShowShop, ShowStagecoach, HideWindow, RefreshView, _build_meta_text, _build_member_selector, _resolve_default_member_id, _select_member, _refresh_member_state, _rebuild_entry_list。
 - Godot/公开边界：Export 0 处；Signal 5 处；风险触点：Godot Dictionary/Array boundary×38; scene/node/signal contract×25; runtime mutation collections×38; string dynamic dispatch×2。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
-  - 检查 RichTextLabel 内容字段是否转义；配置文本不能获得未授权 BBCode 控制权。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
@@ -4084,18 +3770,16 @@ Residual risks / test gaps:
 - 关键类型/入口：SubmapEntryWindow；主要方法：ShowPrompt, HideWindow, _on_confirm_button_pressed, _on_cancel_button_pressed, _on_shade_gui_input, _cache_default_metrics, _apply_prompt_metrics, _restore_default_metrics, _set_font_override, _read_int_property。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; scene/node/signal contract×17; runtime mutation collections×1; string dynamic dispatch×3。
 - 对抗性检视：
-  - 检查 HideWindow 与 EmitSignal 顺序；若信号使用实例字段，必须在清状态前缓存。
   - 检查 paired scene 的节点路径、unique name、类型和信号连接是否同步。
 - 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
 
 ### 438. `scripts/ui/WorldMapView.cs`
 
-- 复审状态：**需跟进**；规模：577 行；上下文：UI/scene adapter：重点检查 paired `.tscn`、GetNode 路径、信号载荷、RichText/输入事件。
+- 复审状态：**性能建议，非 finding**；规模：577 行；上下文：UI/scene adapter。
 - 关键类型/入口：WorldMapView；主要方法：Configure, SetRuntimeState, RefreshWorld, _draw_cells, _draw_cell_background, _draw_settlements, _draw_settlement_footprint_cells, _draw_settlement_body, _draw_mobile_entities, _draw_world_event_marker。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×23; scene/node/signal contract×6; hot path / lifecycle×5; string dynamic dispatch×2。
-- 对抗性检视：
-  - 检查绘制路径是否每帧分配数组/字典/纹理；大地图或战斗面板需要避免热路径 GC。
-- 建议验证：对应 UI scene headless runner；至少实例化 paired `.tscn` 并验证 GetNode/信号。
+- 当前结论：绘制中存在短集合分配，但没有 `_Process` 每帧重绘；只在 runtime state、world refresh 或尺寸变化后 redraw，现阶段没有 correctness 或已证实性能 bug。
+- 建议验证：在大地图 profiling 证明分配/GC 热点后再决定是否缓存。
 
 ### 439. `scripts/ui/WorldPresetPickerWindow.cs`
 
@@ -4183,8 +3867,6 @@ Residual risks / test gaps:
 - 复审状态：**需跟进**；规模：102 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：IGameLogSink, ConsoleLogSink, GodotEditorLogSink, GameSessionLogSink；主要方法：Write。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
-- 对抗性检视：
-  - 检查弱引用 owner 生命周期；handler 不应在 runtime dispose 后继续持有 stale state。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
 
 ### 449. `scripts/utils/GameTextSnapshotRenderer.cs`
@@ -4351,6 +4033,6 @@ Residual risks / test gaps:
 
 ## Suggested follow-up / 完成口径
 
-- 优先修复 findings-first 中的 `[高]` 与 `[中]` 项，再为每个修复跑对应 narrow headless runner。
-- 有 Godot/.NET 工具链后运行：`dotnet build magic.csproj`、`python tests/run_regression_suite.py`。
-- 本报告已经覆盖 `scripts/` 下每一个文件；后续新增文件应按同样字段补入矩阵。
+- 修复顺序以上方高、中优先级 findings 为准；矩阵里的“需跟进”不自动进入待办。
+- 行为修复应补对应 narrow regression；模拟汇总修复应使用 ended/stalled synthetic runs 验证分母。地形可用固定 battle seed 验证，战斗掷骰必须保持真实独立随机，边界测试使用显式 roll override。例行验证至少运行 `dotnet build magic.csproj`，不要把 balance simulation 混进普通全量回归。
+- 本矩阵源自 2026-06-17 当时的 466 个文件，清理后只保留 447 个仍存在路径的历史条目。新增或拆分后的 owner 应按 `docs/design/project_context_units.md` 和当前系统文档加载，不能继续向旧矩阵机械补行并声称当前全覆盖。

@@ -4,7 +4,7 @@
 把高分辨率的角色立绘(最好已是透明底)裁剪、缩放、对齐到棋盘规格画布:
 脚底接地点对齐锚点,主体高度落在规格区间,可选很弱的接地阴影 + 锐化。
 
-规格来源:docs/design/battle_unit_sprite_requirements.md
+规格来源:docs/reference/art/battle_unit_sprites.md
   1x1 普通单位:画布 96x128,锚点 (48,112),接地宽 20-28px,主体高 72-96px
   2x2 大体型  :画布 192x160,锚点 (96,136),接地宽 64-96px,主体高 96-132px
 

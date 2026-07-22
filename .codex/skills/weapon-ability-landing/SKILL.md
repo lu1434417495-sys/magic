@@ -1,6 +1,6 @@
 ---
 name: weapon-ability-landing
-description: "Use when landing weapon content or equipment abilities in the E:/game/magic Godot C# repo: selecting weapons from docs/design/weapons/by_family, adding ItemDef/TraitDef/EquipmentAbilityContentPackDef/SkillDef .tres resources, wiring generic typed battle runtime support, or writing weapon ability regressions."
+description: "Use when landing weapon content or equipment abilities in the E:/game/magic Godot C# repo: selecting weapons from docs/content/weapons/by_family, adding ItemDef/TraitDef/EquipmentAbilityContentPackDef/SkillDef .tres resources, wiring generic typed battle runtime support, or writing weapon ability regressions."
 ---
 
 # Weapon Ability Landing
@@ -14,7 +14,7 @@ This is a project-specific workflow for `E:/game/magic`.
 ## Required Context
 
 1. Read `docs/design/project_context_units.md` first.
-2. Load the weapon source from `docs/design/weapons/by_family/`.
+2. Load the weapon source from `docs/content/weapons/by_family/`, and treat it as content intent rather than runtime truth.
 3. For equipment abilities read CU-12, CU-13, CU-15, CU-16, and CU-19 in the context map.
 4. Treat C# owners as truth over design prose.
 5. Use `godot-test-writing` before adding or changing tests.

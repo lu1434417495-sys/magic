@@ -59,4 +59,4 @@ sprite specs:
 - 1x1 units: 96x128 px canvas, anchor (48, 112)
 - 2x2 units: 192x160 px canvas, anchor (96, 136)
 
-See `docs/design/battle_unit_sprite_requirements.md` for full requirements.
+See `docs/reference/art/battle_unit_sprites.md` for full requirements.

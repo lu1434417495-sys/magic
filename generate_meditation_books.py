@@ -4,7 +4,7 @@
 
 import os
 
-OUTPUT_DIR = "docs/design/books/generated/meditation"
+OUTPUT_DIR = "docs/content/books/generated/meditation"
 SERIES = "meditation"
 START_INDEX = 51
 COUNT = 50

@@ -65,7 +65,7 @@ The iteration cycle for any battle / skill / AI balance change. The battle is fu
 
 Use this **instead of** the manual Development Loop when optimizing **many `AI scoring` weights at once** (the high-dim `BattleAiScoreProfile`, ~15–70 params). It is a closed loop: CPU battles produce ground-truth samples → a GPU surrogate learns `(genome → objective)` → GPU search proposes better genomes → real battles gate them. Do **not** use it for single-axis `skill numbers` tweaks (use the Development Loop) and never point it at the immutable 6v12 baseline (94% ceiling = no gradient).
 
-Design doc: `docs/design/battle_ai_score_parameters.md`. Canonical runbook: `tools/battle_sim_tuner/PHASE1_WORKFLOW.md`. All scripts run from `tools/`. CPU venv `battle_sim_tuner/.venv/bin/python`; GPU venv `/home/luchaoli/venvs/cuda-op/bin/python` (needs `torch` + `cma`).
+Current AI score implementation: `docs/design/battle/ai_score_parameters.md`. Canonical runbook: `tools/battle_sim_tuner/PHASE1_WORKFLOW.md`. All scripts run from `tools/`. CPU venv `battle_sim_tuner/.venv/bin/python`; GPU venv `/home/luchaoli/venvs/cuda-op/bin/python` (needs `torch` + `cma`).
 
 **Prereqs (when to do them):**
 - The score params must be wired into the engine with **neutral defaults** (weight 0 / non-triggering), so an untuned profile is byte-identical to today. Confirm with `dotnet build` + the `tests/battle_runtime/ai/run_battle_ai_score_*_regression.cs` suite passing unchanged.
@@ -138,7 +138,7 @@ Total battle cost = (number of distinct genomes `G`) × (battles per genome `n`)
 - Read [../../../docs/design/project_context_units.md](../../../docs/design/project_context_units.md) as the battle-side architecture loading index.
 - Use it to pick the owning context units before loading code. Usually this means CU-15 and CU-16, with CU-17, CU-19, CU-20, or CU-21 only when the packet points there.
 - Do not treat it as the source of balance values, AI parameters, or trace-level behavior.
-- Read [../../../docs/design/battle_balance_simulation.md](../../../docs/design/battle_balance_simulation.md).
+- Read [../../../docs/design/battle/balance_simulation.md](../../../docs/design/battle/balance_simulation.md).
 
 2. Locate the simulation outputs.
 - Use the user-provided `report.json` when available.

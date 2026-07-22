@@ -6,7 +6,7 @@
 > - `tests/` 全部 245 个 C# 测试文件（`run_*.cs`）
 > - `scripts/systems/progression/CharacterManagementModule.cs`（4298 行）
 > - `tests/shared/` 现有 C# 共享基础设施
-> - `docs/design/csharp_migration.md`
+> - `docs/operations/csharp_migration.md`
 
 ---
 
@@ -21,7 +21,7 @@
 | 公开方法 | 54 个 | **155 个** |
 | `private` 成员出现次数 | ~54 | **172 处** |
 
-这意味着原分析中的**诊断结论仍然成立**，但**具体数据、实现建议、文件路径已全部需要基于 C# 重新表述**。同时，由于 C# 迁移目标明确禁止“为测试重新暴露 private state 或 test hook”，测试基础设施的补全必须与 `docs/design/csharp_migration.md` 保持一致。
+这意味着原分析中的**诊断结论仍然成立**，但**具体数据、实现建议、文件路径已全部需要基于 C# 重新表述**。同时，由于 C# 迁移目标明确禁止“为测试重新暴露 private state 或 test hook”，测试基础设施的补全必须与 `docs/operations/csharp_migration.md` 保持一致。
 
 ---
 
@@ -71,7 +71,7 @@ tests/shared/
 runtime._state = state;
 ```
 
-这与 `docs/design/csharp_migration.md` 中的要求冲突：
+这与 `docs/operations/csharp_migration.md` 中的要求冲突：
 
 > 不允许为测试重新暴露 private state 或 test hook。
 > 旧测试如果依赖 private dictionary、旧 create()、Variant/dictionary payload，必须改为 public behavior 断言。
@@ -264,7 +264,7 @@ C# 迁移文档明确要求测试不应依赖 private state。这意味着：
 
 ### 与 C# 迁移目标的关系
 
-`docs/design/csharp_migration.md` 是当前项目的主导约束，与本审查的关系：
+`docs/operations/csharp_migration.md` 是当前项目的主导约束，与本审查的关系：
 
 | C# 迁移要求 | 本审查的影响 |
 |------------|-------------|
@@ -319,7 +319,7 @@ C# 迁移文档明确要求测试不应依赖 private state。这意味着：
 
 原审查文档的核心诊断——测试基础设施薄弱、`CharacterManagementModule` 职责过重、transient service 创建过多——在 C# 迁移后**依然成立且更加紧迫**。
 
-但原文档中的具体数据、文件路径、实现建议已经过时。当前项目处于 C# 迁移完成后的整理阶段，所有后续重构都必须符合 `docs/design/csharp_migration.md` 的约束，尤其是**不为测试暴露私有状态**和**不在核心逻辑新增 dictionary 桥接**。
+但原文档中的具体数据、文件路径、实现建议已经过时。当前项目处于 C# 迁移完成后的整理阶段，所有后续重构都必须符合 `docs/operations/csharp_migration.md` 的约束，尤其是**不为测试暴露私有状态**和**不在核心逻辑新增 dictionary 桥接**。
 
 建议优先执行：
 1. 补全 C# 共享测试基础设施（基于 public API）

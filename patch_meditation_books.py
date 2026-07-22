@@ -5,7 +5,7 @@
 import os
 import re
 
-OUTPUT_DIR = "docs/design/books/generated/meditation"
+OUTPUT_DIR = "docs/content/books/generated/meditation"
 
 EXTRA_SENTENCES = {
     51: "藏书阁的记录显示，学会此法的人常在梦中听见潮汐声，即便他们远离大海。",
