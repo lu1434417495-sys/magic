@@ -51,3 +51,10 @@ data/saves/*
 .tmp_tuner/
 tools/battle_sim_tuner/.venv/
 tools/battle_sim_tuner/dataset/
+
+# Independent architecture analyzer build outputs
+tools/architecture/Magic.ArchitectureAnalyzers/bin/
+tools/architecture/Magic.ArchitectureAnalyzers/obj/
+tools/architecture/Magic.ArchitectureAnalyzers.Tests/bin/
+tools/architecture/Magic.ArchitectureAnalyzers.Tests/obj/
+tools/architecture/.inventory/

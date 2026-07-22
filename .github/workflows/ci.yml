@@ -30,6 +30,9 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Run architecture analyzer tests
+        run: dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj
+
       - name: Install Godot .NET
         shell: bash
         run: |
