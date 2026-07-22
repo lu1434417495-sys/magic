@@ -17,6 +17,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         {
             TestAssemblerAddsWhirlwindChargePathAction();
             TestChargePathAoeScoresRepeatHits();
+            TestChargePathAoeTraceBalancesWhenPreviewThrows();
             TestRuntimePlanUsesAutoWhirlwindAction();
         }
         catch (Exception exception)
@@ -147,6 +148,61 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         );
     }
 
+    private void TestChargePathAoeTraceBalancesWhenPreviewThrows()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(8, 5));
+        BattleUnitState spinner = BuildAiUnit(
+            "whirlwind_trace_scorer",
+            "旋风追踪狼",
+            "hostile",
+            new Vector2I(1, 2),
+            "melee_aggressor",
+            "engage",
+            new[] { "warrior_whirlwind_slash" },
+            36,
+            2
+        );
+        PrepareTestWhirlwindUser(spinner);
+        BattleUnitState largeTarget = BuildManualUnit(
+            "whirlwind_trace_target",
+            "旋风追踪大型目标",
+            "player",
+            new Vector2I(2, 0),
+            new[] { "warrior_heavy_strike" }
+        );
+        largeTarget.SetBodySizeCategory("large");
+        AddUnitToState(runtime, state, spinner, isEnemy: true);
+        AddUnitToState(runtime, state, largeTarget, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        var action = TestResourceOwnership.Own(
+            new UseChargePathAoeAction
+            {
+                action_id = "whirlwind_trace_exception",
+                target_selector = "nearest_enemy",
+                minimum_hit_count = 2,
+            },
+            "battle_ai_charge_path_aoe.trace_exception_action"
+        );
+        action.skill_ids.Add("warrior_whirlwind_slash");
+        BattleAiContext context = BuildAiContext(runtime, spinner);
+        UseChargePathAoeActionDefinition definition =
+            (UseChargePathAoeActionDefinition)action.ToDefinition();
+
+        BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
+            _test,
+            "charge path AOE preview failure",
+            expectedFailure =>
+            {
+                context.preview_command_callback = _ => throw expectedFailure;
+                new BattleAiChargePathAoeActionEvaluator().Evaluate(definition, context);
+            },
+            "charge_path_aoe:formal_preview"
+        );
+    }
+
     private void TestRuntimePlanUsesAutoWhirlwindAction()
     {
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
@@ -259,7 +315,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
         runtime._ensure_ai_action_plan_for_unit(unitState);
-        runtime._ai_action_plans_by_unit_id.TryGetValue(
+        runtime.TryGetAiActionPlanForUnit(
             unitState.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );

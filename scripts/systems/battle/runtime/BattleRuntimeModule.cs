@@ -307,7 +307,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public bool _ai_trace_enabled;
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
     internal int _contingencySourceEventOrdinal;
-    internal Dictionary<StringName, BattleAiRuntimeActionPlan> _ai_action_plans_by_unit_id = new();
     internal readonly Func<StringName, Vector2I, Vector2I, int> _ai_move_query_cost_callback;
     internal readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
     internal readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
@@ -605,7 +604,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         GBattleUnitArray enemyUnits = new();
         _active_loot_entries.Clear();
         _looted_defeated_unit_ids.Clear();
-        _aiDecisionBindingService.ClearAiActionPlans();
+        ClearAiDecisionBindingsAndPlans();
         calamity_by_member_id.Clear();
 
         bool hasExplicitEnemyUnits = false;
@@ -652,7 +651,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         )
         {
             ClearRuntimeBattleStateReference();
-            _aiDecisionBindingService.ClearAiActionPlans();
             _last_start_failure = new BattleStartFailureSnapshot
             {
                 Reason = "invalid_start_units",
@@ -783,7 +781,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
                         ReachabilityResult = reachability,
                     };
                     ClearRuntimeBattleStateReference();
-                    _aiDecisionBindingService.ClearAiActionPlans();
                     continue;
                 }
             }
@@ -808,7 +805,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
 
         ClearRuntimeBattleStateReference();
-        _aiDecisionBindingService.ClearAiActionPlans();
         if (_last_start_failure.IsEmpty)
         {
             _last_start_failure = new BattleStartFailureSnapshot
@@ -1609,7 +1605,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
     }
 
     internal bool HasAiRuntimeBorrowers =>
-        _ai_action_plans_by_unit_id.Count != 0 || _runtime_services.HasAiRuntimeBindings;
+        _aiDecisionBindingService.HasActionPlans || _runtime_services.HasAiRuntimeBindings;
 
     internal bool HasRuntimeSidecarBindings => _runtime_services.HasRuntimeSidecarBindings;
 
@@ -1976,6 +1972,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state) => _aiDecisionBindingService._ensure_ai_action_plan_for_unit(unit_state);
 
+    internal bool TryGetAiActionPlanForUnit(
+        StringName unitId,
+        out BattleAiRuntimeActionPlan actionPlan
+    ) => _aiDecisionBindingService.TryGetActionPlan(unitId, out actionPlan);
+
     internal void _bind_ai_helper_services_for_decision(
         BattleUnitState unit_state,
         BattleAiContext ai_context
@@ -2212,21 +2213,24 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     private void ClearRuntimeBattleStateReference()
     {
+        Exception firstFailure = null;
         if (!_disposed)
-            _runtime_services.EndBattle();
+            RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
+        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
+
         BattleState state = _state;
         _state = null;
         if (state != null)
         {
-            Exception firstFailure = null;
             RunTeardownStep(ref firstFailure, state.ClearBattleTopology);
             RunTeardownStep(ref firstFailure, state.ally_unit_ids.Clear);
             RunTeardownStep(ref firstFailure, state.enemy_unit_ids.Clear);
             RunTeardownStep(ref firstFailure, () => state.timeline?.ready_unit_ids.Clear());
-            if (firstFailure != null)
-            {
-                ExceptionDispatchInfo.Capture(firstFailure).Throw();
-            }
+        }
+
+        if (firstFailure != null)
+        {
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
         }
     }
 
@@ -2237,7 +2241,14 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return;
         }
 
-        _runtime_services.EndBattle();
+        Exception firstFailure = null;
+        RunTeardownStep(ref firstFailure, _runtime_services.EndBattle);
+        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
+        if (firstFailure != null)
+        {
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+        }
+
         _state = state;
         if (state == null)
         {

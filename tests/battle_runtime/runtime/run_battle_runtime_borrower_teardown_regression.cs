@@ -39,6 +39,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         try
         {
             TestContentRebindClearsAiBorrowers();
+            TestStateRebindClearsAiPlanAndDecisionContext();
             TestEquipmentAbilityServiceDisposeClearsBorrowersAndAllowsRebind();
             TestSuccessfulBorrowerFirstTeardownAndDoubleDispose();
             TestExceptionalFinalLeaseCloseStillClearsBorrowers();
@@ -86,6 +87,56 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             runtime.ReplaceEnemyAiBrainsTyped(new Dictionary<StringName, EnemyAiBrainDefinition>());
             _test.Eq(runtime.GetEnemyTemplateIndexTyped().Count, 0, "enemy template rebind drops old definitions");
             _test.Eq(runtime.GetEnemyAiBrainIndexTyped().Count, 0, "enemy brain rebind drops old definitions");
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
+    private void TestStateRebindClearsAiPlanAndDecisionContext()
+    {
+        ContentFixture content = LoadContentFixture();
+        var runtime = new BattleRuntimeModule();
+        try
+        {
+            SetupRuntime(runtime, content);
+            BattleState originalState = BuildState(out BattleUnitState originalActor);
+            runtime.SetupStateForTests(originalState);
+            DecisionBorrowerFixture borrower = BindDecisionBorrowers(runtime, originalActor);
+
+            _test.True(
+                borrower.Plan.HasRuntimeBorrowers,
+                "state rebind precondition: action plan holds runtime borrowers"
+            );
+            _test.True(
+                borrower.Context.HasRuntimeBindings,
+                "state rebind precondition: decision context holds runtime bindings"
+            );
+            _test.True(
+                runtime.HasAiRuntimeBorrowers,
+                "state rebind precondition: runtime reports AI borrowers"
+            );
+
+            BattleState replacementState = BuildState(out _);
+            runtime.SetupStateForTests(replacementState);
+
+            _test.True(
+                !borrower.Plan.HasRuntimeBorrowers,
+                "state rebind disposes the old action plan"
+            );
+            _test.True(
+                !borrower.Context.HasRuntimeBindings,
+                "state rebind clears the old decision context"
+            );
+            _test.True(
+                !runtime.TryGetAiActionPlanForUnit(originalActor.unit_id, out _),
+                "state rebind removes the old action plan from its owner"
+            );
+            _test.True(
+                !runtime.HasAiRuntimeBorrowers,
+                "state rebind leaves no stale AI plan or helper borrower"
+            );
         }
         finally
         {
@@ -310,11 +361,48 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         );
     }
 
-    private static void BindDecisionBorrowers(BattleRuntimeModule runtime, BattleUnitState actor)
+    private static DecisionBorrowerFixture BindDecisionBorrowers(
+        BattleRuntimeModule runtime,
+        BattleUnitState actor
+    )
     {
-        runtime._ai_action_plans_by_unit_id[actor.unit_id] = new BattleAiRuntimeActionPlan();
-        BattleAiContext context = runtime._prepare_ai_context_for_decision(actor);
-        runtime._bind_ai_helper_services_for_decision(actor, context);
+        const string formalBrainId = "melee_aggressor";
+        actor.control_mode = "ai";
+        actor.ai_brain_id = formalBrainId;
+        try
+        {
+            EnemyAiBrainDefinition brain = runtime.GetEnemyAiBrainTyped(formalBrainId);
+            if (brain == null)
+            {
+                throw new InvalidOperationException(
+                    $"Missing teardown fixture AI brain: {formalBrainId}"
+                );
+            }
+            actor.ai_state_id = brain.DefaultStateId;
+            runtime._ensure_ai_action_plan_for_unit(actor);
+            if (
+                !runtime.TryGetAiActionPlanForUnit(
+                    actor.unit_id,
+                    out BattleAiRuntimeActionPlan actionPlan
+                )
+                || actionPlan == null
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Failed to build teardown fixture AI action plan for {actor.unit_id}."
+                );
+            }
+
+            BattleAiContext context = runtime._prepare_ai_context_for_decision(actor);
+            runtime._bind_ai_helper_services_for_decision(actor, context);
+            return new DecisionBorrowerFixture(actionPlan, context);
+        }
+        finally
+        {
+            // These lifecycle fixtures intentionally remain manual so a content rebind clears
+            // the old plan without immediately rebuilding another AI plan for the same actor.
+            actor.control_mode = "manual";
+        }
     }
 
     private static BattleState BuildState(out BattleUnitState actor)
@@ -649,5 +737,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentBindings,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates,
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains
+    );
+
+    private sealed record DecisionBorrowerFixture(
+        BattleAiRuntimeActionPlan Plan,
+        BattleAiContext Context
     );
 }
