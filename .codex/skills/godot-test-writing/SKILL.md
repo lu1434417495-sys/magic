@@ -23,6 +23,7 @@ Choose the narrowest layer that proves the behavior:
 - **Headless session test**: Use `HeadlessGameTestSession` when the behavior requires `GameSession + GameRuntimeFacade` lifecycle, save locks, content catalog setup, or world loading without UI.
 - **Text command/snapshot test**: Use `GameTextCommandRunner` for automation-facing command behavior and snapshot fields. Follow `tests/text_runtime/README.md`.
 - **Scene/UI schema test**: Test scene-facing payload shape, signal/callable contracts, and stable UI data. Do not use UI tests for rule logic that belongs in services.
+- **Application E2E test**: Use `tests/e2e/` only when the contract requires the configured production main scene, canonical autoloads, real Godot input propagation, scene transitions, or a cold-process save/load journey. Drive UI through `E2eInputDriver`, isolate `user://` through `tests/run_e2e_suite.py`, and keep multi-process steps serialized in one declared sandbox group. A deterministic E2E seed may fix randomness, but must not invoke callbacks/runtime commands directly or force an outcome.
 - **Battle simulation or balance test**: Do not include routine numeric simulation, balance, benchmark, or analysis runners unless the user explicitly asks for simulation or balance work. Use `battle-sim-analysis` for that workflow.
 
 ## Reuse Shared Framework
@@ -74,16 +75,11 @@ Avoid brittle or misleading coverage:
 
 ## Validate
 
-Run the narrowest relevant command first:
-
-```bash
-godot --headless --script tests/<domain>/run_<behavior>_regression.cs
-```
-
-When C# compile surface changed, also run:
+Run the narrowest relevant validation. After editing any C# source or C# runner, build before the first Godot headless run. Godot may otherwise execute the previously compiled assembly and report a false pass for a test that was not compiled yet:
 
 ```bash
 dotnet build magic.csproj
+godot --headless --script tests/<domain>/run_<behavior>_regression.cs
 ```
 
 For a domain sweep, use:
@@ -91,6 +87,15 @@ For a domain sweep, use:
 ```bash
 python tests/run_regression_suite.py --pattern tests/<domain>
 ```
+
+For application E2E, validate the outer runner separately after the build:
+
+```bash
+python tests/tooling/test_run_e2e_suite.py
+python tests/run_e2e_suite.py --scenario <name> --fail-on-output-error
+```
+
+Do not add `tests/e2e/` to the routine regression sweep. These scenarios own isolated process-level user data and must remain explicit, serialized, and opt-in.
 
 Do not pass `--include-simulation` or `--include-benchmarks` unless the user explicitly requested those classes of tests.
 
