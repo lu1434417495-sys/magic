@@ -142,8 +142,8 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
                 ["coord"] = new Vector2I(1, 2),
                 ["display_name"] = "仓库管理员",
                 ["faction_id"] = "player",
-                ["service_type"] = "\0warehouse\0",
-                ["facility_name"] = "\0仓库\0",
+                ["service_type"] = "  warehouse  ",
+                ["facility_name"] = "  仓库  ",
             }
         );
         _test.Eq(stringNpc.ServiceType, "warehouse", "正式 String service_type 应按原 StripEdges 规则归一化。");

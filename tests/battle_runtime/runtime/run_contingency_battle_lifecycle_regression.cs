@@ -294,8 +294,9 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
 
     private void TestEndBattleResourceCommitFailureReturnsTypedResult()
     {
+        PartyState partyState = BuildPartyState(ChargedSetup("direct_resource_failure"), currentMp: 5);
         using BattleRuntimeModule battleRuntime = new();
-        FailingResourceCommitGateway gateway = new(() => new PartyState());
+        FailingResourceCommitGateway gateway = new(() => partyState);
         battleRuntime.setup(character_gateway: gateway);
         battleRuntime.SetupStateForTests(
             BuildBattleState(BattleUnit("hero_unit", "hero", alive: true, currentHp: 20, currentMp: 28))

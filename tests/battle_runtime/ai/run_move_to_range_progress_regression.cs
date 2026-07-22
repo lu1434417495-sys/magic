@@ -19,6 +19,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked();
         TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
         TestHighGroundPositionRequiresProgressWhenBeyondBand();
+        TestMoveToRangeTraceBalancesWhenMoveCostThrows();
 
         RequestTestExit(_test.Finish("Move-to-range progress regression"));
     }
@@ -316,6 +317,51 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         {
             DisposeDecision(decision);
         }
+    }
+
+    private void TestMoveToRangeTraceBalancesWhenMoveCostThrows()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        MoveToRangeActionDefinition moveAction = BuildMoveToRangeAction(
+            "trace_exception_close_in",
+            desiredMinDistance: 1,
+            desiredMaxDistance: 1,
+            aiEvaluationMode: "inline_decide",
+            screeningMode: "none"
+        );
+        BattleState state = BuildFlatState(new Vector2I(7, 3));
+        BattleUnitState mover = BuildAiUnit(
+            "trace_exception_mover",
+            "Trace exception mover",
+            "hostile",
+            new Vector2I(1, 1),
+            "melee_aggressor",
+            "engage"
+        );
+        mover.current_move_points = 2;
+        BattleUnitState player = BuildManualUnit(
+            "trace_exception_target",
+            "Trace exception target",
+            "player",
+            new Vector2I(5, 1)
+        );
+        AddUnitToState(runtime, state, mover, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+        BattleAiContext context = BuildAiContext(runtime, mover);
+
+        BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
+            _test,
+            "move-to-range move-cost failure",
+            expectedFailure =>
+            {
+                context.move_cost_callback = (_, _) => throw expectedFailure;
+                new BattleAiMoveToRangeActionEvaluator().Evaluate(moveAction, context);
+            },
+            "_build_path_progress_decision",
+            "decide:move_to_range"
+        );
     }
 
     private void TestHighGroundPositionRequiresProgressWhenBeyondBand()
@@ -621,7 +667,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
         runtime._ensure_ai_action_plan_for_unit(unitState);
-        runtime._ai_action_plans_by_unit_id.TryGetValue(
+        runtime.TryGetAiActionPlanForUnit(
             unitState.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );

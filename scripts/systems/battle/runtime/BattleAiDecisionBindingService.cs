@@ -12,6 +12,15 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrower
 {
+    private readonly Dictionary<StringName, BattleAiRuntimeActionPlan> _actionPlansByUnitId =
+        new();
+
+    internal bool HasActionPlans => _actionPlansByUnitId.Count != 0;
+
+    internal bool TryGetActionPlan(
+        StringName unitId,
+        out BattleAiRuntimeActionPlan actionPlan
+    ) => _actionPlansByUnitId.TryGetValue(unitId, out actionPlan);
 
     internal void _build_ai_action_plans()
     {
@@ -35,14 +44,14 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
                 _runtime.GetSkillDefinitionIndexTyped()
             );
             if (actionPlan != null)
-                _runtime._ai_action_plans_by_unit_id[unitState.unit_id] = actionPlan;
+                _actionPlansByUnitId[unitState.unit_id] = actionPlan;
         }
     }
 
     internal void ClearAiActionPlans()
     {
-        List<BattleAiRuntimeActionPlan> plans = new(_runtime._ai_action_plans_by_unit_id.Values);
-        _runtime._ai_action_plans_by_unit_id.Clear();
+        List<BattleAiRuntimeActionPlan> plans = new(_actionPlansByUnitId.Values);
+        _actionPlansByUnitId.Clear();
         Exception firstFailure = null;
         foreach (BattleAiRuntimeActionPlan plan in plans)
         {
@@ -54,11 +63,23 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         }
     }
 
+    internal override void DisposeRuntime()
+    {
+        try
+        {
+            ClearAiActionPlans();
+        }
+        finally
+        {
+            base.DisposeRuntime();
+        }
+    }
+
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state)
     {
         if (unit_state == null || _runtime._ai_action_assembler == null)
             return;
-        if (_runtime._ai_action_plans_by_unit_id.ContainsKey(unit_state.unit_id))
+        if (_actionPlansByUnitId.ContainsKey(unit_state.unit_id))
             return;
         if (unit_state.ControlModeKind == BattleUnitControlMode.Manual || BattleRuntimeModule.IsEmpty(unit_state.ai_brain_id))
             return;
@@ -71,7 +92,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
             _runtime.GetSkillDefinitionIndexTyped()
         );
         if (actionPlan != null)
-            _runtime._ai_action_plans_by_unit_id[unit_state.unit_id] = actionPlan;
+            _actionPlansByUnitId[unit_state.unit_id] = actionPlan;
     }
 
     internal void _bind_ai_helper_services_for_decision(
@@ -105,7 +126,7 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
 
     internal BattleAiContext _prepare_ai_context_for_decision(BattleUnitState activeUnit)
     {
-        _runtime._ai_action_plans_by_unit_id.TryGetValue(
+        _actionPlansByUnitId.TryGetValue(
             activeUnit.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );

@@ -12,10 +12,9 @@
 
 ### 中优先级
 
-1. **部分 AI evaluator 的 trace span 仍不具备异常安全。** `BattleAiChargeActionEvaluator`、`BattleAiChargePathAoeActionEvaluator`、`BattleAiMoveToRangeActionEvaluator` 仍有裸 `AiTraceRecorder.Enter/Exit`；中间异常会留下栈帧，后续 trace mismatch。项目已有 exception-safe `BattleAiTraceSpan`，不能因为旧 GDScript owner 已迁移就删除这类 finding。
-2. **AI action 与 skill 的 target mode 不匹配时内容校验仍会放行。** `EnemyAiAction.cs:42-54` 只检查 skill id；unit/ground evaluator 到运行时才跳过不匹配技能，形成“内容校验通过但 action 永远无候选”。
-3. **AI 同分目标缺少稳定 id 兜底。** `BattleAiTypedActionHelper.cs:401-416,454-483` 只比较距离和 HP，输入来自 `BattleState` 的 Dictionary values；完全同分时结果依赖枚举顺序。
-4. **AI 普通伤害估算仍绕开部分正式减伤语义。** `BattleAiScoreService.Scoring.cs:685-753` 的估算路径把 `ShieldAbsorbed` 固定为 0，可能高估打不穿目标的伤害与击杀线。
+1. **AI action 与 skill 的 target mode 不匹配时内容校验仍会放行。** `EnemyAiAction.cs:42-54` 只检查 skill id；unit/ground evaluator 到运行时才跳过不匹配技能，形成“内容校验通过但 action 永远无候选”。
+2. **AI 同分目标缺少稳定 id 兜底。** `BattleAiTypedActionHelper.cs:401-416,454-483` 只比较距离和 HP，输入来自 `BattleState` 的 Dictionary values；完全同分时结果依赖枚举顺序。
+3. **AI 普通伤害估算仍绕开部分正式减伤语义。** `BattleAiScoreService.Scoring.cs:685-753` 的估算路径把 `ShieldAbsorbed` 固定为 0，可能高估打不穿目标的伤害与击杀线。
 
 ### 低优先级但逻辑确实不闭合
 
@@ -25,6 +24,7 @@
 
 ## 已移除的过时结论
 
+- AI evaluator trace span 的异常安全缺口已于 2026-07-23 修复：`BattleAiChargeActionEvaluator`、`BattleAiChargePathAoeActionEvaluator`、`BattleAiMoveToRangeActionEvaluator` 的 15 个手写 `Enter/Exit` 区间已改用 `BattleAiTraceSpan`。三个 focused runner 会分别从正式 preview 或移动成本查询中注入异常，并验证原异常不被替换、recorder 栈恢复平衡且目标 span 确实完成。
 - 据点顶层商店 seed/刷新步数契约漂移已于 2026-07-23 解决：删除 `shop_inventory_seed` / `shop_last_refresh_step` 镜像，只由每个商店子状态持有实际 seed、刷新步数和库存；刷新仍为彼此独立的真随机，且只更新目标商店。破坏性 schema 变更归入 v15，v14 直接拒绝且不提供迁移。
 - 原 findings-first 中的晋升信号/BBCode、旧 AI trace scope 与 Variant 计时、装备 discard-all、骰子字符串虚调用、图标路径、encounter anchor 恢复等具体问题均已由当前实现覆盖。
 - simulation 终止状态现已区分 battle ended、idle stall、iteration budget exhausted 与 invalid runtime；未完成 runs 保留诊断但不再进入胜率、均值、技能/action/faction 汇总，CLI 对不完整实验返回非零。两个手写 benchmark 汇总器与冻结 6v12 runner 的分析包消费者也按相同完成态规则过滤。

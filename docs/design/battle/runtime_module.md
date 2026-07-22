@@ -26,7 +26,7 @@ GameRuntimeFacade / BattleSessionFacade
   -> GameRuntimeBattleWritebackService
 ```
 
-`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）、timeline/status 桥（`BattleTimelineStatusBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。八个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；module teardown 先关闭 AI callback consumer，再按注册逆序断开 borrower set，最后释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
+`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）、timeline/status 桥（`BattleTimelineStatusBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。八个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；`BattleAiDecisionBindingService` 私有持有 per-unit action-plan index，module 只保留单项借用查询与生命周期编排窄入口。涉及 AI plan 的 rebind/teardown 先关闭 decision context/helper consumer，再清空并释放 action plan，之后才逆序断开 borrower set 和释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
 
 ## Setup 输入
 
@@ -147,7 +147,7 @@ BattleRuntimeModule 重建时建议拆分以下 sidecar：
 - `BattleSpecialSkillGateService`：特殊技能门禁、状态写入与 resolver 桥接。
 - `BattleMovementCommandService`：移动命令、路径成本与强制位移桥接。
 - `BattleMetricsReportService`：指标、报告与 effect-origin scope；不拥有回合推进编排。
-- `BattleAiDecisionBindingService`：AI action plan、decision context/helper、评分输入与移动查询接线。
+- `BattleAiDecisionBindingService`：私有持有 per-unit AI action-plan index，并拥有 plan build/ensure/query/clear、decision context/helper、评分输入与移动查询接线；module 不暴露其可变集合。
 - `BattleContingencyBridgeService`：contingency hook、auto-cast、release queue、overlay 与 consumed 写回桥接。
 - `BattleTimelineStatusBridgeService`：timeline/status phase、stamina、状态 timing、冷却与 action threshold 桥接。
 - `BattleCommandPreviewService`：只读 command preview、skill entry 校验与 issue blocking；不提交装备技能 usage 或 reaction。
@@ -406,7 +406,8 @@ AI 决策必须使用 snapshot/value object：
 
 - `internal sealed class BattleAiDecisionBindingService`
 - `internal void Setup(BattleRuntimeModule runtime)` / `internal void DisposeRuntime()`
-- 拥有 action plan build/clear、decision helper/context 接线、三个 score-input builder、AI movement query/block 与 turn prepare/cleanup；只弱借用 module。
+- 私有持有 per-unit action-plan index，拥有 plan build/ensure/borrowed query/clear、decision helper/context 接线、三个 score-input builder、AI movement query/block 与 turn prepare/cleanup；只弱借用 module，module 不保存或暴露可变 plan map。
+- action plan 是 battle-lifetime owner，decision context/helper 是其短期 consumer。content rebind、start failure 与 module teardown 必须先清 consumer，再从 index 摘除全部 plan 并逐个 `Dispose()`；单个关闭失败不阻止其余 plan 清理，service `DisposeRuntime()` 最终仍断开 weak module borrower，重复 clear/dispose 保持幂等。
 
 ### `scripts/systems/battle/runtime/BattleContingencyBridgeService.cs`
 

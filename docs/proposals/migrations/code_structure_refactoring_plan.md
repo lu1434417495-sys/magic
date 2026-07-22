@@ -158,10 +158,10 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 
 优先切片：
 
-1. 把 `_ai_action_plans_by_unit_id` 迁入 `BattleAiDecisionBindingService`，让 AI 临时状态与 AI 行为归同一 owner；module 只保留查询/关闭所需的窄入口。
-2. 复用现有 `BattleSkillAvailabilityService` 作为共享规则类型，不再新建第二套 command-admission/availability owner。preview 与 execution 应并列依赖该规则；移除 execution 经 `BattleRuntimeModule.ResolveSkillCommandEntryLevel(...) → BattleCommandPreviewService` 查询等级的反向转发。
-3. 给 `BattleContingencySystem` 注入事件编号、同步 auto-cast 执行、批次记录等窄 capability，逐步消除 `system → module → bridge` 回环，同时保持同步递归 reaction 顺序。
-4. 复核 `BattleTimelineStatusBridgeService`：真实时序状态留下；纯转发归回已有 owner。若清理后没有独立职责，可删除 bridge，而不是为了保留拆分数量强留一层。
+1. [x] `2026-07-23`：已把 `_ai_action_plans_by_unit_id` 迁入 `BattleAiDecisionBindingService` 的私有 per-unit index，让 AI 临时状态与 AI 行为归同一 owner；module 只保留单项借用查询、聚合状态查询与生命周期编排窄入口。content rebind 与 teardown 保持 decision context/helper consumer 先退出、action plan 后清理，service 最终断开 weak module borrower。
+2. [ ] 复用现有 `BattleSkillAvailabilityService` 作为共享规则类型，不再新建第二套 command-admission/availability owner。preview 与 execution 应并列依赖该规则；移除 execution 经 `BattleRuntimeModule.ResolveSkillCommandEntryLevel(...) → BattleCommandPreviewService` 查询等级的反向转发。
+3. [ ] 给 `BattleContingencySystem` 注入事件编号、同步 auto-cast 执行、批次记录等窄 capability，逐步消除 `system → module → bridge` 回环，同时保持同步递归 reaction 顺序。
+4. [ ] 复核 `BattleTimelineStatusBridgeService`：真实时序状态留下；纯转发归回已有 owner。若清理后没有独立职责，可删除 bridge，而不是为了保留拆分数量强留一层。
 
 验收关注：
 

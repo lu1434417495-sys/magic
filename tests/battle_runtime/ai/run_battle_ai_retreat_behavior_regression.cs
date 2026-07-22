@@ -354,7 +354,7 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
         internal BattleAiContext BuildAiContext(BattleUnitState actor, bool traceEnabled)
         {
             Runtime._ensure_ai_action_plan_for_unit(actor);
-            Runtime._ai_action_plans_by_unit_id.TryGetValue(
+            Runtime.TryGetAiActionPlanForUnit(
                 actor.unit_id,
                 out BattleAiRuntimeActionPlan actionPlan
             );

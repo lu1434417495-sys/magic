@@ -315,7 +315,11 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                 HasExactKeys(projected, "version", "saves"),
                 "save index 顶层 key shape 应保持 version+saves。"
             );
-            _test.Eq(PlainInt(projected, "version", -1), 3, "save index lease version 应保持 3。");
+            _test.Eq(
+                PlainInt(projected, "version", -1),
+                SaveSchemaVersions.SaveIndexVersion,
+                "save index lease version 应保持当前版本。"
+            );
             IReadOnlyList<object> projectedEntries = PlainList(projected, "saves");
             _test.Eq(projectedEntries.Count, 1, "save index lease 应过滤缺字段的 invalid entry。");
             IReadOnlyDictionary<string, object> projectedMeta =
@@ -412,8 +416,8 @@ public partial class run_save_projection_lease_regression : LifecycleTestSceneTr
                     );
                     _test.Eq(
                         PlainInt(indexPayload, "version", -1),
-                        3,
-                        "save index version 应保持 3。"
+                        SaveSchemaVersions.SaveIndexVersion,
+                        "save index version 应保持当前版本。"
                     );
                     _test.True(
                         indexPayload.TryGetValue("saves", out object savesValue)

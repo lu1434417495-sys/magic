@@ -22,6 +22,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
+            TestChargeTraceBalancesWhenPreviewThrows();
         }
         catch (Exception exception)
         {
@@ -360,6 +361,61 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         );
     }
 
+    private void TestChargeTraceBalancesWhenPreviewThrows()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(6, 3));
+        BattleUnitState wolf = BuildAiUnit(
+            "charge_trace_wolf",
+            "冲锋追踪狼",
+            "hostile",
+            new Vector2I(0, 1),
+            "melee_aggressor",
+            "engage",
+            new[] { "charge" },
+            36,
+            2
+        );
+        wolf.current_stamina = 80;
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
+        BattleUnitState player = BuildManualUnit(
+            "charge_trace_target",
+            "冲锋追踪目标",
+            "player",
+            new Vector2I(4, 1),
+            new[] { "warrior_heavy_strike" }
+        );
+        AddUnitToState(runtime, state, wolf, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        var action = TestResourceOwnership.Own(
+            new UseChargeAction
+            {
+                action_id = "charge_trace_exception",
+                skill_id = "charge",
+                target_selector = "nearest_enemy",
+                minimum_charge_move_distance = 1,
+            },
+            "battle_ai_melee_charge.trace_exception_action"
+        );
+        BattleAiContext context = BuildAiContext(runtime, wolf);
+        UseChargeActionDefinition definition = (UseChargeActionDefinition)action.ToDefinition();
+
+        BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
+            _test,
+            "charge preview failure",
+            expectedFailure =>
+            {
+                context.preview_command_callback = _ => throw expectedFailure;
+                new BattleAiChargeActionEvaluator().Evaluate(definition, context);
+            },
+            "charge:formal_preview",
+            "charge:evaluate_variant"
+        );
+    }
+
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
@@ -409,7 +465,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
         runtime._ensure_ai_action_plan_for_unit(unitState);
-        runtime._ai_action_plans_by_unit_id.TryGetValue(
+        runtime.TryGetAiActionPlanForUnit(
             unitState.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );

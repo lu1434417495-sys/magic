@@ -148,6 +148,11 @@ public sealed partial class BattleRuntimeModule
     private void BeginContentCatalogRebind()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ClearAiDecisionBindingsAndPlans();
+    }
+
+    private void ClearAiDecisionBindingsAndPlans()
+    {
         Exception firstFailure = null;
         RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
         RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
@@ -170,8 +175,7 @@ public sealed partial class BattleRuntimeModule
         catch
         {
             Exception cleanupFailure = null;
-            RunTeardownStep(ref cleanupFailure, _runtime_services.ClearRuntimeBindings);
-            RunTeardownStep(ref cleanupFailure, _aiDecisionBindingService.ClearAiActionPlans);
+            RunTeardownStep(ref cleanupFailure, ClearAiDecisionBindingsAndPlans);
             throw;
         }
     }

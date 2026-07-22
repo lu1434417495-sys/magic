@@ -144,7 +144,7 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
     {
         runtime._ensure_ai_action_plan_for_unit(unitState);
-        runtime._ai_action_plans_by_unit_id.TryGetValue(
+        runtime.TryGetAiActionPlanForUnit(
             unitState.unit_id,
             out BattleAiRuntimeActionPlan actionPlan
         );

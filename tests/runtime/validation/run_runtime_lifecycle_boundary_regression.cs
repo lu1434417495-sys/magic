@@ -62,6 +62,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "AgeContentRegistry",
                 "AscensionContentRegistry",
                 "BarrierContentRegistry",
+                "BattleEncounterContentRegistry",
                 "BattleSpecialProfileManifestValidator",
                 "BattleSpecialProfileRegistry",
                 "BloodlineContentRegistry",
@@ -183,6 +184,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
             {
                 "BattleBoardController.OwnRenderResource",
                 "BattleBoardController.OwnsRenderResource",
+                "BattleEncounterContentRegistry._authored",
                 "BattleSpecialProfileRegistry._manifestsByProfileId",
                 "BattleSpecialProfileRuntimeView.ForMeteorSwarm",
                 "EnemyContentRegistry._enemy_ai_brains",
@@ -227,6 +229,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "SettlementServiceResultPayloadEntry._value",
                 "ShutdownReport._sync",
                 "SkillContentRegistry._skill_defs",
+                "TrueRandomSeedService.DeterministicTestLock",
             },
             StringComparer.Ordinal
         );

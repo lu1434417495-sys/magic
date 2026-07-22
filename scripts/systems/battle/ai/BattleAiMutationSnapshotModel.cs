@@ -184,7 +184,8 @@ internal sealed class StableValue
     private readonly Vector3 _vector3Value;
     private readonly StableMap _mapValue;
     private readonly List<StableValue> _arrayValue;
-    private readonly object _referenceValue;
+    private readonly SkillDefinition _skillDefinitionReference;
+    private readonly BarrierProfileDefinition _barrierProfileDefinitionReference;
 
     private StableValue(
         StableValueKind kind,
@@ -198,7 +199,8 @@ internal sealed class StableValue
         Vector3 vector3Value = default,
         StableMap mapValue = null,
         List<StableValue> arrayValue = null,
-        object referenceValue = null
+        SkillDefinition skillDefinitionReference = null,
+        BarrierProfileDefinition barrierProfileDefinitionReference = null
     )
     {
         _kind = kind;
@@ -212,7 +214,8 @@ internal sealed class StableValue
         _vector3Value = vector3Value;
         _mapValue = mapValue;
         _arrayValue = arrayValue;
-        _referenceValue = referenceValue;
+        _skillDefinitionReference = skillDefinitionReference;
+        _barrierProfileDefinitionReference = barrierProfileDefinitionReference;
     }
 
     public static StableValue Nil() => new(StableValueKind.Nil);
@@ -280,7 +283,15 @@ internal sealed class StableValue
             StableValueKind.Vector3I => _vector3IValue == other._vector3IValue,
             StableValueKind.Vector3 => _vector3Value == other._vector3Value,
             StableValueKind.ObjectId => _integerValue == other._integerValue,
-            StableValueKind.Reference => ReferenceEquals(_referenceValue, other._referenceValue),
+            StableValueKind.Reference
+                => ReferenceEquals(
+                    _skillDefinitionReference,
+                    other._skillDefinitionReference
+                )
+                    && ReferenceEquals(
+                        _barrierProfileDefinitionReference,
+                        other._barrierProfileDefinitionReference
+                    ),
             StableValueKind.Fallback => _textValue == other._textValue,
             _ => false,
         };
@@ -306,9 +317,7 @@ internal sealed class StableValue
             StableValueKind.ObjectId
                 => $"Object#{_integerValue.ToString(CultureInfo.InvariantCulture)}",
             StableValueKind.Reference
-                => _referenceValue == null
-                    ? "reference:null"
-                    : $"reference:{_referenceValue.GetType().Name}",
+                => FormatReference(),
             StableValueKind.Fallback => _textValue ?? "",
             StableValueKind.Map => "{...}",
             StableValueKind.Array => "[...]",
@@ -346,10 +355,30 @@ internal sealed class StableValue
     public static StableValue FromObjectId(long value) =>
         new(StableValueKind.ObjectId, integerValue: value);
 
-    public static StableValue FromReference(object value) =>
+    public static StableValue FromReference(SkillDefinition value) =>
         value == null
             ? Nil()
-            : new StableValue(StableValueKind.Reference, referenceValue: value);
+            : new StableValue(
+                StableValueKind.Reference,
+                skillDefinitionReference: value
+            );
+
+    public static StableValue FromReference(BarrierProfileDefinition value) =>
+        value == null
+            ? Nil()
+            : new StableValue(
+                StableValueKind.Reference,
+                barrierProfileDefinitionReference: value
+            );
+
+    private string FormatReference()
+    {
+        if (_skillDefinitionReference != null)
+            return $"reference:{nameof(SkillDefinition)}";
+        if (_barrierProfileDefinitionReference != null)
+            return $"reference:{nameof(BarrierProfileDefinition)}";
+        return "reference:null";
+    }
 }
 
 internal static class BattleAiMutationSnapshotModel

@@ -87,6 +87,20 @@ public partial class run_game_runtime_world_encounter_regression : LifecycleTest
             );
             using WildEncounterRosterDef growthRoster = BuildGrowthRoster();
             InstallWildEncounterRoster(runtime, growthRoster.ToDefinition());
+            runtime.SetBattleEncounterDefinitionForTests(
+                new BattleEncounterDefinition(
+                    "wolf_den",
+                    "Wolf Den",
+                    "wolf_den",
+                    BattleEliminationObjectiveDefinition.Instance,
+                    new BattleEncounterWorldResolutionDefinition(
+                        BattleWorldResolutionMode.Suppress,
+                        BattleWorldResolutionMode.Preserve,
+                        BattleWorldResolutionMode.Preserve,
+                        3
+                    )
+                )
+            );
 
             runtime.AdvanceWorldTimeBySteps(1);
 
