@@ -283,7 +283,7 @@ internal static bool ProjectedCoordCrossesBarrierArea(
 
 unit / terrain 分开裁剪的原因：
 
-- 当前虹光法球 `catch_all_projected_effects = true`，两者都会被挡。
+- 当前虹光法球 `catch_all_projected_effects = false`，只有命中任一未破坏色层 `blocked_categories` 的投射类别才会被挡。
 - 但通用屏障系统可能出现只挡法术单位效果、不挡地形效果，或只挡某类地形投射的 profile。
 - 分开裁剪可以避免 effect category 被另一组效果污染。
 
@@ -352,7 +352,7 @@ unit / terrain 分开裁剪的原因：
    3. 如果技能破解当前活动层，记录本层需要破除，当前 coord 阻挡。
    4. 如果技能破解更深层但不是当前层，当前 coord 阻挡，记录外层阻挡日志。
    5. 如果 categories 命中任一未破层的 `blocked_categories`，当前 coord 阻挡。
-   6. 如果未命中 categories，但 `catch_all_projected_effects = true`，当前 coord 被当前活动层阻挡。
+   6. 如果未命中任何未破坏色层的 categories，则当前 coord 穿透；虹光法球不使用 catch-all 兜底。
    7. 否则保留。
 5. 如果本次触发当前层破解，对该屏障只破一次。
 6. 聚合本屏障阻挡地格数量并输出一条日志。

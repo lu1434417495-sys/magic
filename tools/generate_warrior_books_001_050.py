@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Generate 50 warrior-themed skill books for docs/design/books/generated/warrior."""
+"""Generate 50 warrior-themed skill books for docs/content/books/generated/warrior."""
 
 import os
 import re
 
-OUTPUT_DIR = "docs/design/books/generated/warrior"
+OUTPUT_DIR = "docs/content/books/generated/warrior"
 SERIES_NAME = "战士战技"
 START_INDEX = 1
 COUNT = 50

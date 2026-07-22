@@ -6,6 +6,9 @@ This is a Godot 4.6 project. Core scenes live in `scenes/`, gameplay code in `sc
 ## Design Context Workflow
 Before writing a design plan or changing code, read `docs/design/project_context_units.md`. Use it as the repository context map for loading related scenes, scripts, data, and tests before making changes. After any code change, update `docs/design/project_context_units.md` if the affected runtime relationships, ownership boundaries, or recommended read sets have changed.
 
+## Documentation Status & Placement
+Treat `docs/design/` as current implementation truth: it may contain only code-verified architecture, module specifications, and implementation documents. Put unimplemented, partially implemented, mixed current/future, or still-debated designs under `docs/proposals/`; put gameplay/content authoring under `docs/content/`, point-in-time audits under `docs/reviews/`, exploratory work under `docs/discussions/`, and superseded material under `docs/archive/`. When a proposal lands, update or create a current system document under `docs/design/<system>/`; do not move a mixed roadmap into `docs/design/` while it still contains future phases. Keep `docs/design/project_context_units.md` as the loading index and link its context units to the relevant current detail documents.
+
 ## Build, Test, and Development Commands
 Run the game from the project root:
 

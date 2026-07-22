@@ -139,7 +139,9 @@ Prefer this structure in chat:
 If the user asks for a design doc or approves a direction and wants it written down, create a concise spec.
 
 Default path:
-`docs/design/YYYY-MM-DD-<topic>-design.md`
+`docs/proposals/<system>/YYYY-MM-DD-<topic>-design.md`
+
+Do not write an unimplemented spec into `docs/design/`. That directory is reserved for current, code-verified architecture and implementation documents. After implementation lands, create or update the corresponding current document under `docs/design/<system>/`.
 
 Use this structure:
 

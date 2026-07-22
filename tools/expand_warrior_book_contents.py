@@ -5,7 +5,7 @@
 import os
 import re
 
-OUTPUT_DIR = "docs/design/books/generated/warrior"
+OUTPUT_DIR = "docs/content/books/generated/warrior"
 SERIES_NAME = "战士战技"
 START = 1
 COUNT = 50
