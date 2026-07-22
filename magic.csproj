@@ -4,4 +4,16 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>Magic</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Architecture analyzer projects are independent tooling, not game/runtime sources. -->
+    <Compile Remove="tools/architecture/**/*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference
+      Include="tools/architecture/Magic.ArchitectureAnalyzers/Magic.ArchitectureAnalyzers.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false" />
+    <AdditionalFiles Include="tools/architecture/layer_rules.json" />
+    <AdditionalFiles Include="tools/architecture/layer_baseline.json" />
+  </ItemGroup>
 </Project>

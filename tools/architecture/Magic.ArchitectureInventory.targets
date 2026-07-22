@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <_MagicArchitectureInventoryHost
+      Condition="'$(MSBuildProjectName)' == 'magic'">true</_MagicArchitectureInventoryHost>
+    <MagicArchitectureInventorySarif
+      Condition="'$(_MagicArchitectureInventoryHost)' == 'true' and '$(MagicArchitectureInventorySarif)' == ''">$(MSBuildProjectDirectory)/tools/architecture/.inventory/dependency-inventory.sarif</MagicArchitectureInventorySarif>
+    <_MagicArchitectureInventoryErrorLog
+      Condition="'$(_MagicArchitectureInventoryHost)' == 'true'">$(MagicArchitectureInventorySarif),version=2.1</_MagicArchitectureInventoryErrorLog>
+    <ErrorLog
+      Condition="'$(_MagicArchitectureInventoryHost)' == 'true' and '$(ErrorLog)' == ''">$(_MagicArchitectureInventoryErrorLog)</ErrorLog>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_MagicArchitectureInventoryHost)' == 'true'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)layer_inventory_request.json" />
+  </ItemGroup>
+
+  <Target
+    Name="PrepareMagicArchitectureInventoryOutput"
+    BeforeTargets="PrepareForBuild"
+    Condition="'$(_MagicArchitectureInventoryHost)' == 'true'">
+    <Delete
+      Files="$(MagicArchitectureInventorySarif)"
+      Condition="Exists('$(MagicArchitectureInventorySarif)')" />
+    <Error
+      Condition="'$(ErrorLog)' != '$(_MagicArchitectureInventoryErrorLog)'"
+      Text="Architecture inventory requires ErrorLog='$(_MagicArchitectureInventoryErrorLog)', but the effective value is '$(ErrorLog)'." />
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(MagicArchitectureInventorySarif)'))" />
+  </Target>
+</Project>
