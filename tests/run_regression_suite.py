@@ -140,6 +140,8 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 	lower_path = repo_path.lower()
 	if "/tools/" in lower_path:
 		return True
+	if "/e2e/" in lower_path:
+		return True
 	if not include_simulation and "/simulation/" in lower_path:
 		return True
 	if not include_benchmarks and (
