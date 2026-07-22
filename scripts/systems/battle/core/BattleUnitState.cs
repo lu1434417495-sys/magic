@@ -103,6 +103,8 @@ public partial class BattleUnitState
         "vision_tags",
         "proficiency_tags",
         "save_advantage_tags",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
         "damage_resistances",
         "save_bonus_by_ability",
         "effective_trait_instances",
@@ -231,6 +233,8 @@ public partial class BattleUnitState
     public StringNameList vision_tags = new();
     public StringNameList proficiency_tags = new();
     public StringNameList save_advantage_tags = new();
+    public StringNameList save_disadvantage_tags = new();
+    public StringNameList save_immunity_tags = new();
     public BattleStringNameMap damage_resistances = new();
     public BattleStringNameIntMap save_bonus_by_ability = new();
     public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
@@ -461,6 +465,25 @@ public partial class BattleUnitState
         is_alive = alive;
     }
 
+    internal void RestoreCombatResourceProjectionForMutationSnapshotExact(
+        int hp,
+        int mp,
+        int stamina,
+        int aura,
+        int ap,
+        int movePoints,
+        bool alive
+    )
+    {
+        current_hp = hp;
+        current_mp = mp;
+        current_stamina = stamina;
+        current_aura = aura;
+        current_ap = ap;
+        current_move_points = movePoints;
+        is_alive = alive;
+    }
+
     internal void ClampCombatResources(BattleResourceCaps caps)
     {
         SetCurrentHpClamped(current_hp, caps.HpMax);
@@ -559,6 +582,23 @@ public partial class BattleUnitState
         body_size = IsValidBodySize(size) ? size : GetBodySizeForCategory(body_size_category);
         footprint_size = footprint;
         occupied_coords = DuplicateVector2IArray(occupiedCoords);
+    }
+
+    internal void RestoreBodyShapeProjectionForMutationSnapshotExact(
+        Vector2I anchorCoord,
+        StringName category,
+        int size,
+        Vector2I footprint,
+        IEnumerable<Vector2I> occupiedCoords
+    )
+    {
+        coord = anchorCoord;
+        body_size_category = category;
+        body_size = size;
+        footprint_size = footprint;
+        occupied_coords = occupiedCoords == null
+            ? null
+            : new Vector2IList(occupiedCoords);
     }
 
     public void NormalizeBodySizeProjection()
@@ -825,6 +865,13 @@ public partial class BattleUnitState
         }
     }
 
+    internal void RestoreKnownActiveSkillIdsForMutationSnapshotExact(
+        IEnumerable<StringName> skillIds
+    )
+    {
+        known_active_skill_ids = skillIds == null ? null : new StringNameList(skillIds);
+    }
+
     internal void AddKnownActiveSkill(StringName skillId)
     {
         StringName normalized = ToStringName(skillId);
@@ -1021,6 +1068,13 @@ public partial class BattleUnitState
 
     internal IReadOnlyList<StringName> GetConsumedContingencySetupIdsTyped() =>
         new List<StringName>(_consumedContingencySetupIds);
+
+    internal void ReplaceConsumedContingencySetupIdsTyped(IEnumerable<StringName> setupIds)
+    {
+        _consumedContingencySetupIds.Clear();
+        foreach (StringName setupId in setupIds ?? Array.Empty<StringName>())
+            MarkContingencySetupConsumed(setupId);
+    }
 
     public void NormalizeShieldState()
     {
@@ -1237,6 +1291,21 @@ public partial class BattleUnitState
         _statusEffects.Clear();
     }
 
+    internal void ReplaceStatusEffectsForMutationSnapshotExact(
+        IEnumerable<KeyValuePair<StringName, BattleStatusEffectState>> effects
+    )
+    {
+        _statusEffects = new BattleStatusEffectCollection();
+        if (effects == null)
+        {
+            return;
+        }
+        foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in effects)
+        {
+            _statusEffects.SetForMutationSnapshotExact(entry.Key, entry.Value);
+        }
+    }
+
     internal IReadOnlyDictionary<StringName, BattleStatusEffectState> CaptureStatusEffectsTyped()
     {
         var results = new Dictionary<StringName, BattleStatusEffectState>();
@@ -1248,6 +1317,10 @@ public partial class BattleUnitState
         }
         return results;
     }
+
+    internal IReadOnlyList<KeyValuePair<StringName, BattleStatusEffectState>>
+        CaptureStatusEffectsForMutationSnapshotExact() =>
+        _statusEffects.SnapshotEntriesForMutationSnapshotExact();
 
     public void ResetPerTurnCharges()
     {
@@ -1282,6 +1355,7 @@ public partial class BattleUnitState
             control_mode = control_mode,
             ai_brain_id = ai_brain_id,
             ai_state_id = ai_state_id,
+            ai_blackboard = ai_blackboard?.Clone() ?? new BattleAiBlackboard(),
             coord = coord,
             body_size = body_size,
             body_size_category = body_size_category,
@@ -1321,6 +1395,8 @@ public partial class BattleUnitState
             vision_tags = vision_tags?.Duplicate() ?? new StringNameList(),
             proficiency_tags = proficiency_tags?.Duplicate() ?? new StringNameList(),
             save_advantage_tags = save_advantage_tags?.Duplicate() ?? new StringNameList(),
+            save_disadvantage_tags = save_disadvantage_tags?.Duplicate() ?? new StringNameList(),
+            save_immunity_tags = save_immunity_tags?.Duplicate() ?? new StringNameList(),
             damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
             save_bonus_by_ability = save_bonus_by_ability?.Clone() ?? new BattleStringNameIntMap(),
             effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
@@ -1362,9 +1438,7 @@ public partial class BattleUnitState
 
     private BattleUnitState WithConsumedContingencySetupIds(IEnumerable<StringName> setupIds)
     {
-        _consumedContingencySetupIds.Clear();
-        foreach (StringName setupId in setupIds ?? Array.Empty<StringName>())
-            MarkContingencySetupConsumed(setupId);
+        ReplaceConsumedContingencySetupIdsTyped(setupIds);
         return this;
     }
 
@@ -1431,6 +1505,8 @@ public partial class BattleUnitState
             ["vision_tags"] = StringNameListToPlain(vision_tags),
             ["proficiency_tags"] = StringNameListToPlain(proficiency_tags),
             ["save_advantage_tags"] = StringNameListToPlain(save_advantage_tags),
+            ["save_disadvantage_tags"] = StringNameListToPlain(save_disadvantage_tags),
+            ["save_immunity_tags"] = StringNameListToPlain(save_immunity_tags),
             ["damage_resistances"] =
                 StringNameMapToPlain(damage_resistances),
             ["save_bonus_by_ability"] =
@@ -1747,6 +1823,20 @@ public partial class BattleUnitState
         {
             return null;
         }
+        StringNameList parsedSaveDisadvantageTags = _unique_string_name_array_from_payload(
+            GetArray(payload, "save_disadvantage_tags")
+        );
+        if (parsedSaveDisadvantageTags == null)
+        {
+            return null;
+        }
+        StringNameList parsedSaveImmunityTags = _unique_string_name_array_from_payload(
+            GetArray(payload, "save_immunity_tags")
+        );
+        if (parsedSaveImmunityTags == null)
+        {
+            return null;
+        }
         List<BattleEffectiveTraitInstanceState> parsedEffectiveTraitInstances = EffectiveTraitInstancesFromPayloadArray(
             GetArray(payload, "effective_trait_instances")
         );
@@ -1890,6 +1980,8 @@ public partial class BattleUnitState
             vision_tags = parsedVisionTags,
             proficiency_tags = parsedProficiencyTags,
             save_advantage_tags = parsedSaveAdvantageTags,
+            save_disadvantage_tags = parsedSaveDisadvantageTags,
+            save_immunity_tags = parsedSaveImmunityTags,
             damage_resistances = parsedDamageResistances,
             save_bonus_by_ability = parsedSaveBonusByAbility,
             effective_trait_instances = parsedEffectiveTraitInstances,

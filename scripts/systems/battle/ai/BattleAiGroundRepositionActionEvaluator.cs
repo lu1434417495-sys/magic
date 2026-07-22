@@ -30,20 +30,22 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
         BattleAiContext context
     )
     {
-        AiActionTrace trace = EnemyAiActionHelper.BeginActionTrace(
-            action.ActionId,
-            action.ScoreBucketId,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "ground_reposition_skill",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["minimum_safe_distance"] = action.MinimumSafeDistance,
-                ["safe_distance_margin"] = action.SafeDistanceMargin,
-                ["desired_max_distance_bonus"] = action.DesiredMaxDistanceBonus,
-                ["action_base_score"] = action.ActionBaseScore,
-            }
-        );
+        AiActionTrace trace = context?.trace_enabled == true
+            ? EnemyAiActionHelper.BeginActionTrace(
+                action.ActionId,
+                action.ScoreBucketId,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "ground_reposition_skill",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["minimum_safe_distance"] = action.MinimumSafeDistance,
+                    ["safe_distance_margin"] = action.SafeDistanceMargin,
+                    ["desired_max_distance_bonus"] = action.DesiredMaxDistanceBonus,
+                    ["action_base_score"] = action.ActionBaseScore,
+                }
+            )
+            : null;
         if (
             context?.state == null
             || context.unit_state == null
@@ -73,9 +75,12 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
             actor.coord,
             focusTarget
         );
-        trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
-        trace.Metadata["current_distance"] = currentDistance;
-        trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
+        if (trace != null)
+        {
+            trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+            trace.Metadata["current_distance"] = currentDistance;
+            trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
+        }
         if (currentDistance >= resolvedSafeDistance)
             return Fail(context, trace, "already_safe");
 
@@ -228,20 +233,23 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
                         EnemyAiActionHelper.TraceAddBlockReason(trace, "no_survival_gain");
                         continue;
                     }
-                    EnemyAiActionHelper.TraceOfferCandidate(
-                        trace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            $"{label}_to_{landingCoord.X}_{landingCoord.Y}",
-                            command,
-                            scoreInput,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["skill_id"] = skillId.ToString(),
-                                ["landing_distance"] = landingDistance,
-                                ["resolved_safe_distance"] = resolvedSafeDistance,
-                            }
-                        )
-                    );
+                    if (trace != null)
+                    {
+                        EnemyAiActionHelper.TraceOfferCandidate(
+                            trace,
+                            EnemyAiActionHelper.BuildCandidateSummary(
+                                $"{label}_to_{landingCoord.X}_{landingCoord.Y}",
+                                command,
+                                scoreInput,
+                                new Dictionary<string, object>(StringComparer.Ordinal)
+                                {
+                                    ["skill_id"] = skillId.ToString(),
+                                    ["landing_distance"] = landingDistance,
+                                    ["resolved_safe_distance"] = resolvedSafeDistance,
+                                }
+                            )
+                        );
+                    }
                     if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                         continue;
                     bestScoreInput = scoreInput;

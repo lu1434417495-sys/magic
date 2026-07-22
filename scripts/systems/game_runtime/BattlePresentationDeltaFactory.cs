@@ -12,6 +12,8 @@ internal static class BattlePresentationDeltaFactory
         BattlePresentationDirtyFlags dirtyFlags = BattlePresentationDirtyFlags.None;
         if ((changeFlags & BattleChangeFlags.Log) != 0)
             dirtyFlags |= BattlePresentationDirtyFlags.Log;
+        if ((changeFlags & BattleChangeFlags.Objective) != 0)
+            dirtyFlags |= BattlePresentationDirtyFlags.Hud;
         if (
             (changeFlags
                 & (

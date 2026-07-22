@@ -663,9 +663,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
 
     private BattleResolutionResult BuildBattleResolutionResult(StringName battleId)
     {
-        var result = new BattleResolutionResult();
+        BattleResolutionResult result =
+            BattleObjectiveTestFactory.CreateEliminationResolution("player");
         result.battle_id = battleId;
-        result.winner_faction_id = "player";
         return result;
     }
 
@@ -704,7 +704,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         StringName battleId = result != null && result.battle_id != ""
             ? result.battle_id
             : state?.battle_id ?? "";
-        bool playerWon = result != null && result.winner_faction_id == "player";
+        bool playerWon =
+            result != null && result.outcome == BattleOutcomeKind.PlayerSuccess;
         return new LowLuckBattleResolutionInput(battleId, playerWon, units);
     }
 

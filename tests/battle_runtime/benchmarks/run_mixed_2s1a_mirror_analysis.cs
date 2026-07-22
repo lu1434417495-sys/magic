@@ -86,6 +86,9 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             int totalMultishotMastery = 0;
             int totalBasicMastery = 0;
             int endedCount = 0;
+            int idleStallCount = 0;
+            int iterationBudgetExhaustedCount = 0;
+            int invalidRuntimeCount = 0;
             int totalIterations = 0;
             int totalTimelineSteps = 0;
             int totalWinsPlayer = 0;
@@ -113,37 +116,54 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                         fixture,
                         seed
                     );
-                    GDictionary metrics = GetDict(result, "metrics");
-                    GDictionary factions = GetDict(metrics, "factions");
-
-                    foreach (Variant factionKey in factions.Keys)
-                    {
-                        GDictionary factionData = GetDict(factions, factionKey);
-                        GDictionary skillAttempts = GetDict(factionData, "skill_attempt_counts");
-                        GDictionary skillSuccesses = GetDict(factionData, "skill_success_counts");
-                        totalChargeAttempts += GetInt(skillAttempts, "charge");
-                        totalChargeSuccesses += GetInt(skillSuccesses, "charge");
-                        totalHeavyAttempts += GetInt(skillAttempts, "warrior_heavy_strike");
-                        totalHeavySuccesses += GetInt(skillSuccesses, "warrior_heavy_strike");
-                        totalAimedAttempts += GetInt(skillAttempts, "archer_aimed_shot");
-                        totalAimedSuccesses += GetInt(skillSuccesses, "archer_aimed_shot");
-                        totalMultishotAttempts += GetInt(skillAttempts, "archer_multishot");
-                        totalMultishotSuccesses += GetInt(
-                            skillSuccesses,
-                            "archer_multishot"
-                        );
-                        totalBasicAttempts += GetInt(skillAttempts, "basic_attack");
-                        totalBasicSuccesses += GetInt(skillSuccesses, "basic_attack");
-                    }
-
-                    totalChargeMastery += fixture.charge_mastery;
-                    totalHeavyMastery += fixture.heavy_mastery;
-                    totalAimedMastery += fixture.aimed_mastery;
-                    totalMultishotMastery += fixture.multishot_mastery;
-                    totalBasicMastery += fixture.basic_mastery;
-
                     if (ReadExactBool(result, "battle_ended"))
                     {
+                        GDictionary metrics = GetDict(result, "metrics");
+                        GDictionary factions = GetDict(metrics, "factions");
+
+                        foreach (Variant factionKey in factions.Keys)
+                        {
+                            GDictionary factionData = GetDict(factions, factionKey);
+                            GDictionary skillAttempts = GetDict(
+                                factionData,
+                                "skill_attempt_counts"
+                            );
+                            GDictionary skillSuccesses = GetDict(
+                                factionData,
+                                "skill_success_counts"
+                            );
+                            totalChargeAttempts += GetInt(skillAttempts, "charge");
+                            totalChargeSuccesses += GetInt(skillSuccesses, "charge");
+                            totalHeavyAttempts += GetInt(
+                                skillAttempts,
+                                "warrior_heavy_strike"
+                            );
+                            totalHeavySuccesses += GetInt(
+                                skillSuccesses,
+                                "warrior_heavy_strike"
+                            );
+                            totalAimedAttempts += GetInt(skillAttempts, "archer_aimed_shot");
+                            totalAimedSuccesses += GetInt(
+                                skillSuccesses,
+                                "archer_aimed_shot"
+                            );
+                            totalMultishotAttempts += GetInt(
+                                skillAttempts,
+                                "archer_multishot"
+                            );
+                            totalMultishotSuccesses += GetInt(
+                                skillSuccesses,
+                                "archer_multishot"
+                            );
+                            totalBasicAttempts += GetInt(skillAttempts, "basic_attack");
+                            totalBasicSuccesses += GetInt(skillSuccesses, "basic_attack");
+                        }
+
+                        totalChargeMastery += fixture.charge_mastery;
+                        totalHeavyMastery += fixture.heavy_mastery;
+                        totalAimedMastery += fixture.aimed_mastery;
+                        totalMultishotMastery += fixture.multishot_mastery;
+                        totalBasicMastery += fixture.basic_mastery;
                         endedCount++;
                         string winner = GetString(result, "winner_faction_id");
                         if (winner == "player")
@@ -152,10 +172,16 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                             totalWinsHostile++;
                         else
                             totalDraws++;
-                    }
 
-                    totalIterations += GetInt(result, "iterations");
-                    totalTimelineSteps += GetInt(result, "timeline_steps");
+                        totalIterations += GetInt(result, "iterations");
+                        totalTimelineSteps += GetInt(result, "timeline_steps");
+                    }
+                    else if (ReadExactBool(result, "idle_stall"))
+                        idleStallCount++;
+                    else if (ReadExactBool(result, "iteration_budget_exhausted"))
+                        iterationBudgetExhaustedCount++;
+                    else
+                        invalidRuntimeCount++;
 
                     if (progressEnabled && string.IsNullOrEmpty(outputPath))
                     {
@@ -172,7 +198,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             }
 
             double elapsedTotal = (Time.GetTicksMsec() - startTime) / 1000.0;
-            double n = Math.Max(runCount, 1);
+            double n = Math.Max(endedCount, 1);
             var report = new GDictionary
             {
                 ["batch_id"] = startSeed,
@@ -181,6 +207,12 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 ["run_count"] = runCount,
                 ["elapsed_seconds"] = elapsedTotal,
                 ["ended_count"] = endedCount,
+                ["unfinished_count"] = idleStallCount
+                    + iterationBudgetExhaustedCount
+                    + invalidRuntimeCount,
+                ["idle_stall_count"] = idleStallCount,
+                ["iteration_budget_exhausted_count"] = iterationBudgetExhaustedCount,
+                ["invalid_runtime_count"] = invalidRuntimeCount,
                 ["avg_iterations"] = totalIterations / n,
                 ["avg_timeline_steps"] = totalTimelineSteps / n,
                 ["win_rate"] = new GDictionary
@@ -230,7 +262,7 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 WriteJsonFile(outputPath, report);
             }
 
-            return 0;
+            return endedCount == runCount ? 0 : 2;
         }
         finally
         {
@@ -317,7 +349,12 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             using GodotProjectionLease<GDictionary> contextLease =
                 fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
             GDictionary context = contextLease.Value;
-            state = runtime.StartBattle(encounterAnchor, seed, context);
+            state = runtime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                BattleEliminationObjectiveDefinition.Instance,
+                context
+            );
             fixture.ApplyStartedBattleMetadata(state);
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
@@ -328,7 +365,13 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             );
             return new GDictionary
             {
-                ["battle_ended"] = state != null && state.phase == "battle_ended",
+                ["battle_ended"] =
+                    loopResult.termination_kind == BattleSimTerminationKind.BattleEnded,
+                ["idle_stall"] =
+                    loopResult.termination_kind == BattleSimTerminationKind.IdleStall,
+                ["iteration_budget_exhausted"] =
+                    loopResult.termination_kind
+                    == BattleSimTerminationKind.IterationBudgetExhausted,
                 ["winner_faction_id"] = state != null ? state.winner_faction_id.ToString() : "",
                 ["iterations"] = loopResult.iterations,
                 ["timeline_steps"] = loopResult.timeline_steps,

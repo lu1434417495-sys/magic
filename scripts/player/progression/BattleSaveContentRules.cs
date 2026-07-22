@@ -31,6 +31,8 @@ internal enum BattleSaveTagKind
     Frightened,
     Execute,
     Temporal,
+    Petrification,
+    Antidote,
     Strength,
     Agility,
     Constitution,
@@ -77,6 +79,10 @@ internal static class BattleSaveContentRules
     private static readonly StringName SaveTagExecute = "execute";
 
     private static readonly StringName SaveTagTemporal = "temporal";
+
+    private static readonly StringName SaveTagPetrification = "petrification";
+
+    private static readonly StringName SaveTagAntidote = "antidote";
 
     private static readonly StringName SaveTagStrength = UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength);
 
@@ -155,6 +161,10 @@ internal static class BattleSaveContentRules
             return BattleSaveTagKind.Execute;
         if (value == SaveTagTemporal)
             return BattleSaveTagKind.Temporal;
+        if (value == SaveTagPetrification)
+            return BattleSaveTagKind.Petrification;
+        if (value == SaveTagAntidote)
+            return BattleSaveTagKind.Antidote;
         if (value == SaveTagStrength)
             return BattleSaveTagKind.Strength;
         if (value == SaveTagAgility)
@@ -225,6 +235,8 @@ internal static class BattleSaveContentRules
             BattleSaveTagKind.Frightened => SaveTagFrightened,
             BattleSaveTagKind.Execute => SaveTagExecute,
             BattleSaveTagKind.Temporal => SaveTagTemporal,
+            BattleSaveTagKind.Petrification => SaveTagPetrification,
+            BattleSaveTagKind.Antidote => SaveTagAntidote,
             BattleSaveTagKind.Strength => SaveTagStrength,
             BattleSaveTagKind.Agility => SaveTagAgility,
             BattleSaveTagKind.Constitution => SaveTagConstitution,

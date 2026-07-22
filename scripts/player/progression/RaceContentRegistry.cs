@@ -168,6 +168,20 @@ public class RaceContentRegistry : IdentityContentRegistryBase
                 "save_advantage_tags"
             );
 
+            _append_string_name_array_errors(
+                errors,
+                label,
+                raceDef.SaveDisadvantageTags,
+                "save_disadvantage_tags"
+            );
+
+            _append_string_name_array_errors(
+                errors,
+                label,
+                raceDef.SaveImmunityTags,
+                "save_immunity_tags"
+            );
+
             _append_string_name_to_string_name_dictionary_errors(
                 errors,
                 label,

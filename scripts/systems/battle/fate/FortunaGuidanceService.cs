@@ -74,7 +74,7 @@ internal class FortunaGuidanceService
                 : battleState.battle_id;
         if (battleId == "")
             return unlockedIds;
-        bool playerWon = battleResolutionResult.winner_faction_id == "player";
+        bool playerWon = battleResolutionResult.outcome == BattleOutcomeKind.PlayerSuccess;
         foreach (StringName allyUnitId in battleState.GetAllyUnitIdsTyped())
         {
             if (!battleState.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState))

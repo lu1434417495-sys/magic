@@ -6,6 +6,31 @@ public sealed class BattleSimExecutionLoop
     private const int DefaultTimelineTicksPerStep = 1;
 
     private static readonly StringName DefaultManualPolicy = "wait";
+    private readonly System.Func<
+        BattleRuntimeModule,
+        BattleState,
+        StringName,
+        int,
+        BattleEventBatch
+    > _stepExecutor;
+
+    public BattleSimExecutionLoop()
+    {
+    }
+
+    internal BattleSimExecutionLoop(
+        System.Func<
+            BattleRuntimeModule,
+            BattleState,
+            StringName,
+            int,
+            BattleEventBatch
+        > stepExecutor
+    )
+    {
+        _stepExecutor = stepExecutor
+            ?? throw new System.ArgumentNullException(nameof(stepExecutor));
+    }
 
     internal BattleSimExecutionLoopResult Run(
         BattleRuntimeModule runtime,
@@ -42,7 +67,7 @@ public sealed class BattleSimExecutionLoop
         int iterations = 0;
         int idleLoops = 0;
         int timelineSteps = 0;
-        bool stalled = false;
+        bool idleStalled = false;
         maxIterations = Mathf.Max(maxIterations, 0);
         maxIdleLoops = Mathf.Max(maxIdleLoops, 1);
         timelineTicksPerStep = Mathf.Max(timelineTicksPerStep, DefaultTimelineTicksPerStep);
@@ -52,8 +77,7 @@ public sealed class BattleSimExecutionLoop
             && OS.GetEnvironment("SIM_LOOP_TRACE").StripEdges() == "1";
 
         while (
-            runtime != null
-            && state != null
+            IsRuntimeStateCurrent(runtime, state)
             && state.PhaseKind != BattlePhaseKind.BattleEnded
             && iterations < maxIterations
         )
@@ -72,31 +96,33 @@ public sealed class BattleSimExecutionLoop
                     "battlesim"
                 );
             }
-            AiTraceRecorder recorder = null;
-            if (traceLoop)
+            BattleEventBatch batch;
+            if (!traceLoop)
             {
-                recorder = new AiTraceRecorder();
+                batch = ExecuteStep(runtime, state, manualPolicy, timelineTicksPerStep);
+            }
+            else
+            {
+                var recorder = new AiTraceRecorder();
                 recorder.SetEventCaptureEnabled(false);
-                AiTraceRecorder.SetInstance(recorder);
-            }
-            ulong advanceStartMsec = traceLoop ? Time.GetTicksMsec() : 0;
-            BattleEventBatch batch = AdvanceStep(runtime, state, manualPolicy, timelineTicksPerStep);
-            if (traceLoop && (iterations <= 50 || iterations % 100 == 0))
-            {
-                ulong advanceElapsedMsec = Time.GetTicksMsec() - advanceStartMsec;
-                GameLog.Debug(
-                    $"[LoopTrace] after iteration={iterations} phase={state.phase} active={state.active_unit_id} tu={state.timeline?.current_tu ?? previousTu} ready={state.timeline?.ready_unit_ids.Count ?? 0} batch_null={batch == null} advance_ms={advanceElapsedMsec}",
-                    "battlesim.loop.trace_after",
-                    "battlesim"
-                );
-                if (advanceElapsedMsec >= 250 && recorder != null)
+                using (AiTraceRecorder.PushInstance(recorder))
                 {
-                    PrintTraceStats(recorder, iterations);
+                    ulong advanceStartMsec = Time.GetTicksMsec();
+                    batch = ExecuteStep(runtime, state, manualPolicy, timelineTicksPerStep);
+                    if (iterations <= 50 || iterations % 100 == 0)
+                    {
+                        ulong advanceElapsedMsec = Time.GetTicksMsec() - advanceStartMsec;
+                        GameLog.Debug(
+                            $"[LoopTrace] after iteration={iterations} phase={state.phase} active={state.active_unit_id} tu={state.timeline?.current_tu ?? previousTu} ready={state.timeline?.ready_unit_ids.Count ?? 0} batch_null={batch == null} advance_ms={advanceElapsedMsec}",
+                            "battlesim.loop.trace_after",
+                            "battlesim"
+                        );
+                        if (advanceElapsedMsec >= 250)
+                        {
+                            PrintTraceStats(recorder, iterations);
+                        }
+                    }
                 }
-            }
-            if (traceLoop)
-            {
-                AiTraceRecorder.SetInstance(null);
             }
 
             int nextTu = state.timeline?.current_tu ?? previousTu;
@@ -112,19 +138,54 @@ public sealed class BattleSimExecutionLoop
             idleLoops++;
             if (idleLoops >= maxIdleLoops)
             {
-                stalled = true;
+                idleStalled = true;
                 break;
             }
         }
+
+        BattleSimTerminationKind terminationKind = ResolveTerminationKind(
+            runtime,
+            state,
+            iterations,
+            maxIterations,
+            idleStalled
+        );
 
         return new BattleSimExecutionLoopResult
         {
             iterations = iterations,
             idle_loops = idleLoops,
             timeline_steps = timelineSteps,
-            stalled = stalled,
+            termination_kind = terminationKind,
         };
     }
+
+    internal static BattleSimTerminationKind ResolveTerminationKind(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        int iterations,
+        int maxIterations,
+        bool idleStalled
+    )
+    {
+        if (!IsRuntimeStateCurrent(runtime, state))
+            return BattleSimTerminationKind.InvalidRuntime;
+        if (state.PhaseKind == BattlePhaseKind.BattleEnded)
+            return BattleSimTerminationKind.BattleEnded;
+        if (idleStalled)
+            return BattleSimTerminationKind.IdleStall;
+        if (iterations >= maxIterations)
+            return BattleSimTerminationKind.IterationBudgetExhausted;
+        return BattleSimTerminationKind.InvalidRuntime;
+    }
+
+    private static bool IsRuntimeStateCurrent(
+        BattleRuntimeModule runtime,
+        BattleState state
+    ) =>
+        runtime != null
+        && state != null
+        && ReferenceEquals(runtime.GetState(), state);
 
     public BattleEventBatch AdvanceStep(
         BattleRuntimeModule runtime,
@@ -155,6 +216,18 @@ public sealed class BattleSimExecutionLoop
             return runtime.advance(0);
 
         return runtime.advance(Mathf.Max(timelineTicksPerStep, DefaultTimelineTicksPerStep));
+    }
+
+    private BattleEventBatch ExecuteStep(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        StringName manualPolicy,
+        int timelineTicksPerStep
+    )
+    {
+        return _stepExecutor != null
+            ? _stepExecutor(runtime, state, manualPolicy, timelineTicksPerStep)
+            : AdvanceStep(runtime, state, manualPolicy, timelineTicksPerStep);
     }
 
     public bool HasReadyUnits(BattleState state)
@@ -240,11 +313,11 @@ public sealed class BattleSimExecutionLoop
         for (int index = 0; index < limit; index++)
         {
             var entry = entries[index];
-                GameLog.Debug(
-                    $"[LoopTraceStats] iteration={iteration} rank={index + 1} name={entry.Name} total_ms={entry.TotalUsec / 1000.0:F1} calls={entry.Calls}",
-                    "battlesim.loop.trace_stats",
-                    "battlesim"
-                );
+            GameLog.Debug(
+                $"[LoopTraceStats] iteration={iteration} rank={index + 1} name={entry.Name} total_ms={entry.TotalUsec / 1000.0:F1} calls={entry.Calls}",
+                "battlesim.loop.trace_stats",
+                "battlesim"
+            );
         }
     }
 
@@ -267,5 +340,6 @@ public sealed class BattleSimExecutionLoopResult
     public int iterations;
     public int idle_loops;
     public int timeline_steps;
-    public bool stalled;
+    public BattleSimTerminationKind termination_kind;
+    public bool stalled => termination_kind == BattleSimTerminationKind.IdleStall;
 }

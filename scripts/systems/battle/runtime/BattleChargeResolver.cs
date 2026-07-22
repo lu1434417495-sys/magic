@@ -878,7 +878,10 @@ internal sealed class BattleChargeResolver
                 ? state.timeline.DuplicateState()
                 : new BattleTimelineState();
         clonedState.active_unit_id = state.active_unit_id;
-        clonedState.winner_faction_id = state.winner_faction_id;
+        clonedState.RestoreObjectiveState(
+            state.ObjectiveRuntimeState,
+            state.FinalDecision
+        );
         clonedState.log_entries = new Godot.Collections.Array<string>(state.log_entries);
         clonedState.SetPromotionQueue(state.PromotionQueueSnapshots);
         clonedState.modal_state = state.modal_state;

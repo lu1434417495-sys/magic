@@ -138,16 +138,6 @@ public sealed partial class GameRuntimeFacade
         return result;
     }
 
-    private static GArray UntypedDictionaryArray(Godot.Collections.Array<GDictionary> values)
-    {
-        var result = new GArray();
-        if (values == null)
-            return result;
-        foreach (var value in values)
-            result.Add(value);
-        return result;
-    }
-
     private static GArray ProjectEquipmentEntries(
         IEnumerable<PartyEquipmentService.EquipmentViewEntry> values
     )

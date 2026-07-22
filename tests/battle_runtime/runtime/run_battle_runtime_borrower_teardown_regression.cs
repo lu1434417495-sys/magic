@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_runtime_borrower_teardown_regression : LifecycleTestSceneTree
 {
+    private const int EquipmentMarkInitialDurationTu = 100;
+    private const int EquipmentMarkElapsedTu = 10;
+
     private sealed class ProbeSpecialProfileView : IBattleSpecialProfileView
     {
         public bool TryGetMeteorSwarmProfile(
@@ -35,6 +39,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         try
         {
             TestContentRebindClearsAiBorrowers();
+            TestEquipmentAbilityServiceDisposeClearsBorrowersAndAllowsRebind();
             TestSuccessfulBorrowerFirstTeardownAndDoubleDispose();
             TestExceptionalFinalLeaseCloseStillClearsBorrowers();
         }
@@ -88,6 +93,111 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         }
     }
 
+    private void TestEquipmentAbilityServiceDisposeClearsBorrowersAndAllowsRebind()
+    {
+        var runtime = new BattleRuntimeModule();
+        try
+        {
+            BattleState state = BuildState(out BattleUnitState targetUnit);
+            runtime.SetupStateForTests(state);
+            BattleEquipmentAbilityRuntimeService service =
+                runtime.GetEquipmentAbilityRuntimeService();
+            BattleDamageResolver damageResolver = runtime.GetDamageResolver();
+
+            _test.True(
+                state.SetEquipmentTargetMark(
+                    BuildEquipmentLifecycleMark(targetUnit),
+                    uniquePerSource: true,
+                    out _
+                ),
+                "precondition: equipment target mark is registered"
+            );
+            _test.True(
+                CountEquipmentResolverRuntimeBindings(service) > 0,
+                "precondition: equipment child resolvers are bound"
+            );
+            _test.True(
+                DamageResolverReferencesEquipmentService(damageResolver, service),
+                "precondition: damage resolver borrows the equipment service"
+            );
+
+            service.Dispose();
+
+            using (var disposedBatch = new BattleEventBatch())
+            {
+                _test.False(
+                    service.AdvanceTargetMarkDurations(
+                        targetUnit,
+                        EquipmentMarkElapsedTu,
+                        disposedBatch
+                    ),
+                    "disposed equipment service cannot advance target marks"
+                );
+                _test.Eq(
+                    ReadOnlyEquipmentMarkDuration(state),
+                    EquipmentMarkInitialDurationTu,
+                    "disposed equipment service leaves target mark state unchanged"
+                );
+                _test.Eq(
+                    disposedBatch.ChangeFlags,
+                    BattleChangeFlags.None,
+                    "disposed equipment service emits no change flags"
+                );
+                _test.Eq(
+                    disposedBatch.ChangedUnitIdsTyped.Count,
+                    0,
+                    "disposed equipment service emits no changed units"
+                );
+            }
+            _test.Eq(
+                CountEquipmentResolverRuntimeBindings(service),
+                0,
+                "equipment service Dispose clears runtime, owner, and sibling borrowers"
+            );
+            _test.True(
+                !DamageResolverReferencesEquipmentService(damageResolver, service),
+                "equipment service Dispose releases the damage resolver borrower"
+            );
+            _test.True(service.GetBattleState() == null, "disposed equipment service releases battle state");
+            _test.True(service.DamageResolver == null, "disposed equipment service releases damage resolver");
+
+            service.Dispose();
+            BattleEquipmentAbilityRuntimeService reboundService =
+                runtime.GetEquipmentAbilityRuntimeService();
+            _test.True(
+                ReferenceEquals(reboundService, service),
+                "runtime reuses the cleared equipment service instance"
+            );
+            _test.True(
+                CountEquipmentResolverRuntimeBindings(reboundService) > 0,
+                "equipment service rebind restores child resolver dependencies"
+            );
+            _test.True(
+                DamageResolverReferencesEquipmentService(damageResolver, reboundService),
+                "equipment service rebind restores the damage resolver borrower"
+            );
+
+            using var reboundBatch = new BattleEventBatch();
+            _test.True(
+                reboundService.AdvanceTargetMarkDurations(
+                    targetUnit,
+                    EquipmentMarkElapsedTu,
+                    reboundBatch
+                ),
+                "rebound equipment service resumes target mark updates"
+            );
+            _test.Eq(
+                ReadOnlyEquipmentMarkDuration(state),
+                EquipmentMarkInitialDurationTu - EquipmentMarkElapsedTu,
+                "rebound equipment service updates only the current runtime state"
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
     private void TestSuccessfulBorrowerFirstTeardownAndDoubleDispose()
     {
         ContentFixture content = LoadContentFixture();
@@ -95,13 +205,36 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         var runtime = new BattleRuntimeModule();
         BattleTerrainGenerator ownedTerrainGenerator = runtime.GetTerrainGenerator();
         BattleState state = BuildState(out BattleUnitState actor);
+        BattleRuntimeModuleBorrowerTopologySnapshot initialBorrowerTopology =
+            runtime._moduleBorrowers.CaptureTopology(runtime);
+        AssertModuleBorrowersBound(initialBorrowerTopology, "constructor binding");
         SetupRuntime(runtime, content);
+        BattleRuntimeModuleBorrowerTopologySnapshot reboundBorrowerTopology =
+            runtime._moduleBorrowers.CaptureTopology(runtime);
+        AssertModuleBorrowerTopologyStable(
+            initialBorrowerTopology,
+            reboundBorrowerTopology,
+            "setup rebind"
+        );
         runtime.SetupStateForTests(state);
         BindDecisionBorrowers(runtime, actor);
 
         _test.True(runtime.HasContentCatalogBorrowers, "precondition: all content borrowers are populated");
         _test.True(runtime.HasAiRuntimeBorrowers, "precondition: decision/plan borrowers are populated");
         _test.True(runtime.HasRuntimeSidecarBindings, "precondition: runtime sidecars are bound");
+        AssertModuleBorrowersBound(
+            runtime._moduleBorrowers.CaptureTopology(runtime),
+            "battle-active binding"
+        );
+        _test.True(
+            runtime._ground_effect_service.ActiveDependencyCount > 0,
+            "precondition: ground-effect child borrowers are bound"
+        );
+        _test.Eq(
+            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
+            12,
+            "precondition: skill orchestrator children borrow runtime, owner, and siblings"
+        );
 
         runtime.Dispose();
         AssertRuntimeCleared(runtime, state, "successful teardown");
@@ -124,6 +257,19 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         SetupRuntime(runtime, content);
         runtime.SetupStateForTests(state);
         BindDecisionBorrowers(runtime, actor);
+        AssertModuleBorrowersBound(
+            runtime._moduleBorrowers.CaptureTopology(runtime),
+            "exceptional teardown binding"
+        );
+        _test.True(
+            runtime._ground_effect_service.ActiveDependencyCount > 0,
+            "exceptional teardown precondition: ground-effect child borrowers are bound"
+        );
+        _test.Eq(
+            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
+            12,
+            "exceptional teardown precondition: skill children hold active borrowers"
+        );
 
         bool threwExpectedFailure = false;
         try
@@ -198,6 +344,178 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         return state;
     }
 
+    private static BattleEquipmentTargetMarkState BuildEquipmentLifecycleMark(
+        BattleUnitState targetUnit
+    ) =>
+        new()
+        {
+            SourceUnitId = targetUnit.unit_id,
+            TargetUnitId = targetUnit.unit_id,
+            SourceEquipmentInstanceId = "equipment_lifecycle_instance",
+            BindingId = "equipment_lifecycle_binding",
+            StateKey = "equipment_lifecycle_mark",
+            Stacks = 1,
+            RemainingDurationTu = EquipmentMarkInitialDurationTu,
+        };
+
+    private static int ReadOnlyEquipmentMarkDuration(BattleState state)
+    {
+        IReadOnlyList<BattleEquipmentTargetMarkState> marks =
+            state.GetEquipmentTargetMarksTyped();
+        return marks.Count == 1 ? marks[0].RemainingDurationTu : int.MinValue;
+    }
+
+    private static int CountEquipmentResolverRuntimeBindings(
+        BattleEquipmentAbilityRuntimeService service
+    )
+    {
+        int count = 0;
+        foreach (
+            FieldInfo resolverField in typeof(BattleEquipmentAbilityRuntimeService).GetFields(
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )
+        )
+        {
+            if (!IsEquipmentResolverComponentType(resolverField.FieldType))
+                continue;
+            object resolver = resolverField.GetValue(service);
+            if (resolver == null)
+                continue;
+            foreach (
+                FieldInfo bindingField in resolverField.FieldType.GetFields(
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )
+            )
+            {
+                if (
+                    IsEquipmentRuntimeBindingType(bindingField.FieldType)
+                    && bindingField.GetValue(resolver) != null
+                )
+                {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private static bool IsEquipmentRuntimeBindingType(Type type) =>
+        type == typeof(BattleRuntimeModule)
+        || type == typeof(BattleEquipmentAbilityRuntimeService)
+        || IsEquipmentResolverComponentType(type);
+
+    private static bool IsEquipmentResolverComponentType(Type type) =>
+        type.Assembly == typeof(BattleEquipmentAbilityRuntimeService).Assembly
+        && type.Name.StartsWith("BattleEquipment", StringComparison.Ordinal)
+        && (
+            type.Name.EndsWith("Resolver", StringComparison.Ordinal)
+            || type.Name.EndsWith("Evaluator", StringComparison.Ordinal)
+        );
+
+    private static bool DamageResolverReferencesEquipmentService(
+        BattleDamageResolver damageResolver,
+        BattleEquipmentAbilityRuntimeService service
+    )
+    {
+        FieldInfo borrowerField = typeof(BattleDamageResolver).GetField(
+            "_equipment_ability_runtime_service",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        if (borrowerField == null)
+        {
+            throw new MissingFieldException(
+                typeof(BattleDamageResolver).FullName,
+                "_equipment_ability_runtime_service"
+            );
+        }
+        return ReferenceEquals(borrowerField.GetValue(damageResolver), service);
+    }
+
+    private void AssertModuleBorrowersBound(
+        BattleRuntimeModuleBorrowerTopologySnapshot snapshot,
+        string label
+    )
+    {
+        _test.True(snapshot.RegisteredCount > 0, $"{label}: borrower topology is non-empty");
+        _test.Eq(
+            snapshot.BoundCount,
+            snapshot.RegisteredCount,
+            $"{label}: every registered module borrower is bound"
+        );
+        _test.Eq(
+            snapshot.ActiveDependencyCount,
+            snapshot.RegisteredCount,
+            $"{label}: every registered module borrower has one active runtime dependency"
+        );
+    }
+
+    private void AssertModuleBorrowerTopologyStable(
+        BattleRuntimeModuleBorrowerTopologySnapshot expected,
+        BattleRuntimeModuleBorrowerTopologySnapshot actual,
+        string label
+    )
+    {
+        _test.Eq(actual.Signature, expected.Signature, $"{label}: topology signature");
+        _test.Eq(
+            actual.RegisteredCount,
+            expected.RegisteredCount,
+            $"{label}: registered borrower count"
+        );
+        AssertModuleBorrowersBound(actual, label);
+    }
+
+    private static int CountSkillOrchestratorChildBindings(
+        BattleSkillExecutionOrchestrator orchestrator
+    )
+    {
+        int bindingCount = 0;
+        foreach (
+            FieldInfo serviceField in typeof(BattleSkillExecutionOrchestrator).GetFields(
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )
+        )
+        {
+            if (!IsSkillOrchestratorComponentType(serviceField.FieldType))
+                continue;
+            object service = serviceField.GetValue(orchestrator);
+            if (service == null)
+                continue;
+            foreach (
+                FieldInfo bindingField in service.GetType().GetFields(
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )
+            )
+            {
+                object fieldValue = bindingField.GetValue(service);
+                if (
+                    fieldValue is BattleRuntimeModule
+                    || fieldValue is BattleSkillExecutionOrchestrator
+                    || (
+                        fieldValue != null
+                        && IsSkillOrchestratorComponentType(fieldValue.GetType())
+                    )
+                )
+                {
+                    bindingCount++;
+                }
+                else if (
+                    fieldValue is WeakReference<BattleRuntimeModule> runtimeRef
+                    && runtimeRef.TryGetTarget(out _)
+                )
+                {
+                    bindingCount++;
+                }
+            }
+        }
+        return bindingCount;
+    }
+
+    private static bool IsSkillOrchestratorComponentType(Type type) =>
+        type == typeof(BattleSkillPreviewService)
+        || type == typeof(BattleSkillTargetValidationService)
+        || type == typeof(BattleChainDamageService)
+        || type == typeof(BattleRandomChainSkillService);
+
     private ContentFixture LoadContentFixture()
     {
         SkillDef skillResource = RequireResource<SkillDef>(
@@ -269,6 +587,24 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         _test.True(runtime.IsDisposed, $"{label}: runtime reports disposed");
         _test.True(!runtime.HasAiRuntimeBorrowers, $"{label}: decision/plan borrowers clear");
         _test.True(!runtime.HasRuntimeSidecarBindings, $"{label}: sidecar runtime borrowers clear");
+        BattleRuntimeModuleBorrowerTopologySnapshot borrowerTopology =
+            runtime._moduleBorrowers.CaptureTopology(runtime);
+        _test.Eq(borrowerTopology.BoundCount, 0, $"{label}: module borrowers unbound");
+        _test.Eq(
+            borrowerTopology.ActiveDependencyCount,
+            0,
+            $"{label}: module borrower dependencies clear"
+        );
+        _test.Eq(
+            runtime._ground_effect_service.ActiveDependencyCount,
+            0,
+            $"{label}: ground-effect child dependencies clear"
+        );
+        _test.Eq(
+            CountSkillOrchestratorChildBindings(runtime._skill_orchestrator),
+            0,
+            $"{label}: skill orchestrator child borrowers clear"
+        );
         _test.True(!runtime.HasContentCatalogBorrowers, $"{label}: content borrowers clear");
         _test.Eq(runtime.GetSkillDefinitionIndexTyped().Count, 0, $"{label}: skill index zero");
         _test.Eq(runtime.GetTraitDefIndexTyped().Count, 0, $"{label}: trait index zero");

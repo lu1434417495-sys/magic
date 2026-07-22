@@ -26,19 +26,21 @@ internal sealed class BattleAiRetreatActionEvaluator
         BattleAiContext context
     )
     {
-        AiActionTrace trace = EnemyAiActionHelper.BeginActionTrace(
-            action.ActionId,
-            action.ScoreBucketId,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "retreat",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["minimum_safe_distance"] = action.MinimumSafeDistance,
-                ["use_dynamic_threat_safe_distance"] = action.UseDynamicThreatSafeDistance,
-                ["safe_distance_margin"] = action.SafeDistanceMargin,
-            }
-        );
+        AiActionTrace trace = context?.trace_enabled == true
+            ? EnemyAiActionHelper.BeginActionTrace(
+                action.ActionId,
+                action.ScoreBucketId,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "retreat",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["minimum_safe_distance"] = action.MinimumSafeDistance,
+                    ["use_dynamic_threat_safe_distance"] = action.UseDynamicThreatSafeDistance,
+                    ["safe_distance_margin"] = action.SafeDistanceMargin,
+                }
+            )
+            : null;
         List<BattleUnitState> targets = _helper.SortTargetUnits(
             context,
             "enemy",
@@ -75,9 +77,12 @@ internal sealed class BattleAiRetreatActionEvaluator
             focusTarget,
             _helper
         );
-        trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
-        trace.Metadata["threat_attack_range"] = threatAttackRange;
-        trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
+        if (trace != null)
+        {
+            trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+            trace.Metadata["threat_attack_range"] = threatAttackRange;
+            trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
+        }
 
         if (BattleAiActionEvaluatorUtilities.IsUnitMovementBlocked(context, actor))
             return Fail(context, trace, "movement_blocked");
@@ -143,21 +148,26 @@ internal sealed class BattleAiRetreatActionEvaluator
                     includeMoveCost: false
                 )
             );
-            EnemyAiActionHelper.TraceOfferCandidate(
-                trace,
-                EnemyAiActionHelper.BuildCandidateSummary(
-                    $"retreat_to_{neighbor.X}_{neighbor.Y}",
-                    command,
-                    scoreInput,
-                    new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["predicted_distance"] =
-                            BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(scoreInput),
-                        ["resolved_safe_distance"] = resolvedSafeDistance,
-                        ["threat_attack_range"] = threatAttackRange,
-                    }
-                )
-            );
+            if (trace != null)
+            {
+                EnemyAiActionHelper.TraceOfferCandidate(
+                    trace,
+                    EnemyAiActionHelper.BuildCandidateSummary(
+                        $"retreat_to_{neighbor.X}_{neighbor.Y}",
+                        command,
+                        scoreInput,
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["predicted_distance"] =
+                                BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(
+                                    scoreInput
+                                ),
+                            ["resolved_safe_distance"] = resolvedSafeDistance,
+                            ["threat_attack_range"] = threatAttackRange,
+                        }
+                    )
+                );
+            }
             if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                 continue;
             bestScoreInput = scoreInput;

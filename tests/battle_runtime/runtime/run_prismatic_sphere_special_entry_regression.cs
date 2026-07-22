@@ -374,6 +374,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
                     effectTargetTeamFilter: "enemy",
                     power: 10,
                     damageTag: "force",
+                    effectCategories: new[] { new StringName("force_effect") },
                     parameters: new Dictionary<string, object>
                     {
                         ["path_step_log_label"] = "路径测试攻击",
@@ -421,7 +422,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             effectTargetTeamFilter: "enemy",
             parameters: new Dictionary<string, object>
             {
-                ["follow_up_damage_multiplier"] = 1.0,
+                ["follow_up_damage_multiplier_percent"] = 100,
             }
         );
         return TestSkillDefinitionProjection.BuildSkill(

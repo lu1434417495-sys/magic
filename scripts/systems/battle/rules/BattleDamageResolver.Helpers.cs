@@ -150,7 +150,7 @@ public partial class BattleDamageResolver
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
+    internal static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
     {
         if (values == null || values.Count == 0 || IsEmpty(target))
         {

@@ -10,6 +10,7 @@
 [sub_resource type="Resource" id="Resource_l0g1t"]
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 max_skill_level = 0
 damage_tag = &"force"
 dice_count = 4
@@ -18,6 +19,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_ng8s8"]
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"force"
@@ -27,6 +29,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_xlsww"]
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"force"
@@ -36,6 +39,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_628t1"]
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"force"
@@ -45,6 +49,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_iuvjb"]
 script = ExtResource("3_xlsww")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 min_skill_level = 7
 damage_tag = &"force"
 dice_count = 8
@@ -183,6 +188,7 @@ params = {
 [sub_resource type="Resource" id="Resource_2ps32"]
 script = ExtResource("4_628t1")
 skill_id = &"mage_spell_disjunction"
+delivery_categories = Array[StringName]([&"spell", &"magical_missile", &"antimagic"])
 range_value = 5
 ap_cost = 1
 mp_cost = 100

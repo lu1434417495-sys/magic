@@ -326,9 +326,8 @@ internal class BattleRuntimeLootResolver
         resolutionResult.world_coord = state.world_coord;
         resolutionResult.encounter_anchor_id = state.encounter_anchor_id;
         resolutionResult.terrain_profile_id = state.terrain_profile_id;
-        resolutionResult.winner_faction_id = state.winner_faction_id;
-        resolutionResult.encounter_resolution = _ResolveEncounterResolution();
-        if (resolutionResult.winner_faction_id == "player")
+        resolutionResult.SetFinalDecision(state.FinalDecision);
+        if (resolutionResult.outcome == BattleOutcomeKind.PlayerSuccess)
         {
             resolutionResult.SetLootEntries(_BuildPlayerVictoryLootEntries());
             return resolutionResult;
@@ -575,19 +574,4 @@ internal class BattleRuntimeLootResolver
         );
     }
 
-    private StringName _ResolveEncounterResolution()
-    {
-        if (_runtime == null)
-            return "";
-        var state = _runtime._state;
-        if (state == null)
-            return "";
-        if (state.winner_faction_id == "player")
-            return "player_victory";
-        if (state.winner_faction_id == "hostile")
-            return "hostile_victory";
-        if (state.winner_faction_id == "draw")
-            return "draw";
-        return "resolved";
-    }
 }

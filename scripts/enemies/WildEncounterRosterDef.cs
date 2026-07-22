@@ -18,9 +18,6 @@ public partial class WildEncounterRosterDef : Resource
     public int growth_step_interval { get; set; } = 1;
 
     [Export]
-    public int suppression_steps_on_victory { get; set; }
-
-    [Export]
     public Godot.Collections.Array<WildEncounterRosterStageDef> stages { get; set; } = new();
 
     internal int GetMaxStage()
@@ -49,7 +46,6 @@ public partial class WildEncounterRosterDef : Resource
             display_name,
             initial_stage,
             growth_step_interval,
-            suppression_steps_on_victory,
             stageDefinitions
         );
     }
@@ -94,12 +90,6 @@ public partial class WildEncounterRosterDef : Resource
         if (growth_step_interval <= 0)
         {
             errors.Add($"Wild encounter roster {profile_id} growth_step_interval must be >= 1.");
-        }
-        if (suppression_steps_on_victory < 0)
-        {
-            errors.Add(
-                $"Wild encounter roster {profile_id} suppression_steps_on_victory must be >= 0."
-            );
         }
         if (stages.Count == 0)
         {

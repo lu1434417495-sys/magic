@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Resource_ef0"]
 script = ExtResource("3_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 power = 8
 min_skill_level = 0
 max_skill_level = -1
@@ -18,6 +19,7 @@ dice_sides = 8
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_wind_blade_slash"
+delivery_categories = Array[StringName]([&"magical_missile"])
 range_value = 3
 area_pattern = &"line"
 area_value = 3

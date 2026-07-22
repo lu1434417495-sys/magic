@@ -21,7 +21,6 @@ profile_id = &"invalid_initial_stage_roster"
 display_name = "Invalid Initial Stage Roster"
 initial_stage = 3
 growth_step_interval = 1
-suppression_steps_on_victory = 0
 stages = Array[ExtResource("3_stage")]([SubResource("Resource_invalid_initial_stage_roster_stage0")])
 
 [resource]

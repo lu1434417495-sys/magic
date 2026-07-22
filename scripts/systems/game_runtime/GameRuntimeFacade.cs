@@ -6,7 +6,10 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDisposable
+public sealed partial class GameRuntimeFacade
+    : IGameRuntimeSnapshotSource,
+        IGameRuntimeCharacterInfoQuery,
+        IDisposable
 {
     public enum RuntimeCommandCode
     {
@@ -101,20 +104,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             LifetimeDomain.Request,
             ownerPath
         );
-
-    private static void PutPlainPayloadValue(
-        Dictionary<string, object> target,
-        string key,
-        Variant value,
-        string ownerPath
-    )
-    {
-        if (string.IsNullOrEmpty(key))
-        {
-            return;
-        }
-        target[key] = RuntimePlainPayload.NormalizeVariant(value, $"{ownerPath}.{key}");
-    }
 
     private static string PlainPayloadString(
         IReadOnlyDictionary<string, object> payload,
@@ -240,14 +229,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal readonly Dictionary<string, object> _last_battle_loot_snapshot =
         new(StringComparer.Ordinal);
     internal readonly List<Dictionary<string, object>> _pending_command_battle_batches = new();
-    internal readonly Dictionary<string, object> _active_character_info_context =
-        new(StringComparer.Ordinal);
-    internal readonly Dictionary<string, object> _active_game_over_context =
-        new(StringComparer.Ordinal);
+    private GameRuntimeCharacterInfoContext _active_character_info_context;
+    private GameRuntimeGameOverContext _active_game_over_context;
     internal StringName _party_selected_member_id = "";
     private ContingencySetupMutationResult _last_contingency_command_result =
         ContingencySetupMutationResult.Failure("", "", "");
     private readonly Dictionary<StringName, WildEncounterRosterDefinition> _wild_encounter_roster_definitions = new();
+    private readonly Dictionary<StringName, BattleEncounterDefinition> _battle_encounter_definitions = new();
     private bool _disposed;
 
     internal Vector2I _battle_selected_coord
@@ -262,6 +250,30 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     {
         ArgumentNullException.ThrowIfNull(roster);
         _wild_encounter_roster_definitions[roster.ProfileId] = roster;
+    }
+
+    internal void SetBattleEncounterDefinitionForTests(
+        BattleEncounterDefinition encounter
+    )
+    {
+        ArgumentNullException.ThrowIfNull(encounter);
+        _battle_encounter_definitions[encounter.EncounterId] = encounter;
+    }
+
+    internal BattleObjectiveDefinition ResolveBattleObjectiveDefinition(
+        EncounterAnchorData encounterAnchor
+    )
+    {
+        if (
+            encounterAnchor == null
+            || encounterAnchor.encounter_profile_id == ""
+            || !_battle_encounter_definitions.TryGetValue(
+                encounterAnchor.encounter_profile_id,
+                out BattleEncounterDefinition encounterDefinition
+            )
+        )
+            return null;
+        return encounterDefinition.Objective;
     }
 
     internal StringName _selected_battle_skill_id
@@ -323,7 +335,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         RebuildWildEncounterRosterDefinitionIndex(
             _content_catalog.GetEncounterRosterDefinitions()
         );
+        RebuildBattleEncounterDefinitionIndex(
+            _content_catalog.GetBattleEncounterDefinitions()
+        );
         _encounter_roster_builder.Setup(
+            _content_catalog.GetBattleEncounterDefinitions(),
             _content_catalog.GetEncounterRosterDefinitions(),
             _content_catalog.GetEnemyTemplateDefinitions()
         );
@@ -358,7 +374,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             _party_state,
             _content_catalog.GetItemDefsTyped(),
             _party_warehouse_service,
-            GetEquipmentInstanceIdAllocator()
+            GetEquipmentInstanceIdAllocator(),
+            _character_management.GetMemberAttributeSnapshotForEquipmentView
         );
         _battle_runtime.setup(
             character_gateway: _character_management,
@@ -407,8 +424,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         _last_command_battle_presentation_delta = BattlePresentationDelta.None;
         _last_battle_loot_snapshot.Clear();
-        _active_character_info_context.Clear();
-        _active_game_over_context.Clear();
+        _active_character_info_context = null;
+        _active_game_over_context = null;
         _party_selected_member_id = "";
         _active_warehouse_entry_label = "";
         _pending_submap_prompt.Clear();
@@ -419,11 +436,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         {
             ActivateGameOver(BuildMainCharacterGameOverContext());
             UpdateStatusInternal(
-                PlainPayloadString(
-                    GetGameOverContextSnapshotPlain(),
-                    "description",
-                    "主角已阵亡，本次旅程结束。"
-                )
+                _active_game_over_context?.Description
+                ?? "主角已阵亡，本次旅程结束。"
             );
             return;
         }
@@ -458,6 +472,25 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             if (rosterId == "" || roster == null || roster.ProfileId == "")
                 continue;
             _wild_encounter_roster_definitions[roster.ProfileId] = roster;
+        }
+    }
+
+    private void RebuildBattleEncounterDefinitionIndex(
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters
+    )
+    {
+        _battle_encounter_definitions.Clear();
+        if (battleEncounters == null)
+        {
+            return;
+        }
+        foreach (
+            (StringName encounterId, BattleEncounterDefinition encounter) in battleEncounters
+        )
+        {
+            if (encounterId == "" || encounter == null || encounter.EncounterId == "")
+                continue;
+            _battle_encounter_definitions[encounter.EncounterId] = encounter;
         }
     }
 
@@ -501,13 +534,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _pending_submap_prompt.Clear();
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
+        _battle_encounter_definitions.Clear();
         _wild_encounter_roster_definitions.Clear();
         _party_state = null;
         ClearRuntimeBattleStateReference();
         _pending_promotion_prompt.Clear();
         _pending_world_promotion_prompt.Clear();
-        _active_character_info_context.Clear();
-        _active_game_over_context.Clear();
+        _active_character_info_context = null;
+        _active_game_over_context = null;
         _active_contract_board_context.Clear();
         _active_npc_quest_offer_data = null;
         _active_bounty_board_data = null;
@@ -549,12 +583,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal GodotProjectionLease<GDictionary> GetGameOverContextLease() =>
         ProjectPlainPayloadLease(
-            _active_game_over_context,
+            GetGameOverContextSnapshotPlain(),
             "GameRuntimeFacade.game_over_context"
         );
 
     public IReadOnlyDictionary<string, object> GetGameOverContextSnapshotPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_game_over_context);
+        _active_game_over_context?.BuildSnapshotPlain()
+        ?? new Dictionary<string, object>(StringComparer.Ordinal);
 
     public string GetActiveSettlementId() => _active_settlement_id;
 
@@ -948,12 +983,13 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal GodotProjectionLease<GDictionary> GetCharacterInfoContextLease() =>
         ProjectPlainPayloadLease(
-            _active_character_info_context,
+            GetCharacterInfoContextSnapshotPlain(),
             "GameRuntimeFacade.active_character_info_context"
         );
 
     public IReadOnlyDictionary<string, object> GetCharacterInfoContextSnapshotPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_character_info_context);
+        _active_character_info_context?.BuildSnapshotPlain()
+        ?? new Dictionary<string, object>(StringComparer.Ordinal);
 
     public string GetActiveWarehouseEntryLabel() => _active_warehouse_entry_label;
 
@@ -1259,6 +1295,36 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             ? GetContentCatalogTyped().GetItemDefsTyped()
             : new Dictionary<StringName, ItemDefinition>();
 
+    string IGameRuntimeCharacterInfoQuery.FormatCoord(Vector2I coord) => FormatCoord(coord);
+
+    string IGameRuntimeCharacterInfoQuery.GetSkillDisplayName(StringName skillId) =>
+        GetSkillDisplayName(skillId);
+
+    bool IGameRuntimeCharacterInfoQuery.HasPartyMember(StringName memberId) =>
+        GetPartyState()?.HasMemberState(memberId) ?? false;
+
+    bool IGameRuntimeCharacterInfoQuery.TryGetItemDefinition(
+        StringName itemId,
+        out ItemDefinition itemDefinition
+    ) => GetItemDefsTyped().TryGetValue(itemId, out itemDefinition);
+
+    bool IGameRuntimeCharacterInfoQuery.TryGetTraitDefinition(
+        StringName traitId,
+        out TraitDefinition traitDefinition
+    )
+    {
+        GameContentCatalog contentCatalog = GetContentCatalogTyped();
+        if (contentCatalog == null)
+        {
+            traitDefinition = null;
+            return false;
+        }
+        return contentCatalog.GetTraitDefsTyped().TryGetValue(traitId, out traitDefinition);
+    }
+
+    GDictionary IGameRuntimeCharacterInfoQuery.GetIdentitySummary(StringName memberId) =>
+        GetCharacterManagement()?.GetIdentitySummaryForMember(memberId) ?? new GDictionary();
+
     internal ISkillCatalog GetSkillCatalogTyped() =>
         GetContentCatalogTyped()?.GetSkillCatalogTyped();
 
@@ -1358,8 +1424,12 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void SetRuntimeBattleSelectedCoord(Vector2I coord) => _battle_selected_coord = coord;
 
-    internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind) =>
+    internal void SetRuntimeActiveModalKind(RuntimeModalKind modalKind)
+    {
+        if (modalKind != RuntimeModalKind.CharacterInfo)
+            _active_character_info_context = null;
         _active_modal_kind = modalKind;
+    }
 
     internal void SetPendingBattleStartPrompt(GDictionary prompt) =>
         ReplacePlainPayload(
@@ -1385,14 +1455,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void ClearActiveRewardState() => _active_reward = null;
 
-    internal void SetActiveCharacterInfoContext(GDictionary context) =>
-        ReplacePlainPayload(
-            _active_character_info_context,
-            context,
-            "GameRuntimeFacade.active_character_info_context"
-        );
+    internal void SetActiveCharacterInfoContext(GameRuntimeCharacterInfoContext context) =>
+        _active_character_info_context = context;
 
-    internal void ClearActiveCharacterInfoContext() => _active_character_info_context.Clear();
+    internal void ClearActiveCharacterInfoContext() => _active_character_info_context = null;
 
     internal void ClearBattleSelectionTargets() => _battle_selection_state.ClearTargets();
 
@@ -1479,9 +1545,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal bool PresentPendingRewardIfReady() =>
         _reward_flow_handler != null && _reward_flow_handler.PresentPendingRewardIfReady();
-
-    internal void SyncCharacterManagementPartyState() =>
-        _character_management?.SetPartyState(_party_state);
 
     internal void RecordMemberAchievementEvent(
         StringName member_id,
@@ -1601,11 +1664,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
     internal void ClearSettlementEntryContext(bool reset_selected) =>
         _ClearSettlementEntryContext(reset_selected);
 
-    internal bool SetActiveSettlementState(string settlement_id, GDictionary settlement_state) =>
+    internal bool SetActiveSettlementState(
+        string settlement_id,
+        WorldMapSettlementStateData settlement_state
+    ) =>
         _world_map_data_context.SetActiveSettlementState(settlement_id, settlement_state);
-
-    internal GodotProjectionLease<GDictionary> GetSettlementStateLease(string settlement_id) =>
-        _world_map_data_context.GetSettlementStateLease(settlement_id);
 
     internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
         _world_map_data_context.GetSettlementStateData(settlement_id);
@@ -1729,6 +1792,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             _world_map_data_context.GetActiveEncounterAnchors(),
             advanceResult.old_step,
             advanceResult.new_step,
+            _battle_encounter_definitions,
             _wild_encounter_roster_definitions
         );
         if (encounterGrowthChanged)
@@ -1749,24 +1813,51 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         }
     }
 
-    private void _resolve_world_encounter_after_battle(string winner_faction_id)
+    private void _resolve_world_encounter_after_battle(
+        BattleResolutionResult battleResolutionResult
+    )
     {
-        if (winner_faction_id != "player")
+        if (
+            battleResolutionResult == null
+            || battleResolutionResult.outcome == BattleOutcomeKind.Unknown
+        )
             return;
         var encounterAnchor = _get_encounter_anchor_by_id(_active_battle_encounter_id);
         if (encounterAnchor == null)
             return;
-        if (encounterAnchor.encounter_kind == EncounterKindSettlement)
-        {
-            if (_wild_encounter_growth_system.ApplyBattleVictory(
-                encounterAnchor,
-                _world_map_data_context.GetWorldStep(),
-                _wild_encounter_roster_definitions
-            ))
-                _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
+        if (
+            !_battle_encounter_definitions.TryGetValue(
+                encounterAnchor.encounter_profile_id,
+                out BattleEncounterDefinition battleEncounter
+            )
+        )
             return;
+        BattleWorldResolutionMode resolutionMode = battleResolutionResult.outcome switch
+        {
+            BattleOutcomeKind.PlayerSuccess =>
+                battleEncounter.WorldResolution.PlayerSuccessMode,
+            BattleOutcomeKind.PlayerFailure =>
+                battleEncounter.WorldResolution.PlayerFailureMode,
+            BattleOutcomeKind.Draw => battleEncounter.WorldResolution.DrawMode,
+            _ => BattleWorldResolutionMode.Preserve,
+        };
+        switch (resolutionMode)
+        {
+            case BattleWorldResolutionMode.Suppress:
+                if (_wild_encounter_growth_system.ApplyBattleSuppression(
+                    encounterAnchor,
+                    _world_map_data_context.GetWorldStep(),
+                    _battle_encounter_definitions,
+                    _wild_encounter_roster_definitions
+                ))
+                    _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
+                break;
+            case BattleWorldResolutionMode.Clear:
+                _remove_active_battle_encounter_anchor();
+                break;
+            case BattleWorldResolutionMode.Preserve:
+                break;
         }
-        _remove_active_battle_encounter_anchor();
     }
 
     public void StartBattle(EncounterAnchorData encounter_anchor) =>
@@ -1941,6 +2032,11 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         }
 
         string itemName = GetItemDisplayName(node.YieldItemId);
+        RuntimeTransaction transaction = new RuntimeTransaction()
+            .MarkPartyChanged()
+            .MarkWorldChanged();
+        RuntimeTransactionRollbackState rollbackState =
+            RuntimeTransactionRollbackState.Capture(this, transaction);
         var addResult = _party_warehouse_service.AddItemTyped(node.YieldItemId, 1);
         if (!addResult.ItemFound)
             return BuildCommandErrorResult($"采集失败：未找到【{node.YieldItemId}】的物品定义。");
@@ -1949,38 +2045,25 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
         if (!_world_map_data_context.TryHarvestResourceNodeAt(coord))
         {
-            // Node mutation should not fail after the visibility/charge checks above,
-            // but if it does, undo the warehouse add so nothing is granted for free.
-            _party_warehouse_service.RemoveItemTyped(node.YieldItemId, addResult.AddedQuantity);
+            transaction.Rollback(this, rollbackState);
             return BuildCommandErrorResult("采集失败：无法更新采集点状态。");
         }
 
-        int worldPersistError = (int)Error.Unavailable;
-        if (_game_session != null)
+        RuntimeCommitResult commitResult = CommitRuntimeTransaction(
+            transaction,
+            "resource_harvest"
+        );
+        if (!commitResult.Ok)
         {
-            _materialize_active_world_state_to_root();
-            worldPersistError = _game_session.SetWorldData(
-                _world_map_data_context.RootRuntimeData
-            );
+            transaction.Rollback(this, rollbackState);
+            _clear_pending_resource_harvest();
+            UpdateStatusInternal("采集失败：存档提交失败，操作已回滚。");
+            return BuildCommandErrorResult(_current_status_message);
         }
-        int partyPersistError = PersistPartyStateInternal();
-        int commitError = (int)Error.Ok;
-        if (worldPersistError == (int)Error.Ok && partyPersistError == (int)Error.Ok)
-            commitError = CommitRuntimeStateInternal("resource_harvest");
 
         WorldMapResourceNodeData afterNode = _world_map_data_context.GetResourceNodeAt(coord);
         int remaining = afterNode != null && afterNode.Exists ? afterNode.RemainingCharges : 0;
         _clear_pending_resource_harvest();
-
-        if (
-            worldPersistError != (int)Error.Ok
-            || partyPersistError != (int)Error.Ok
-            || commitError != (int)Error.Ok
-        )
-        {
-            UpdateStatusInternal($"已采集 1 个【{itemName}】，但状态持久化失败。");
-            return BuildCommandErrorResult(_current_status_message);
-        }
 
         string tail = remaining <= 0 ? "，采集点已耗尽。" : $"，剩余可采集 {remaining} 次。";
         UpdateStatusInternal($"已采集 1 个【{itemName}】{tail}");
@@ -2008,23 +2091,16 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             return false;
         string displayName = npc.DisplayName;
         string factionLabel = FormatFactionLabel(npc.FactionId);
-        using GodotProjectionLease<GDictionary> npcLease =
-            WorldMapDataProjection.ProjectLease(npc);
-        ReplacePlainPayload(
-            _active_character_info_context,
-            new GDictionary
-            {
-                ["display_name"] = displayName,
-                ["meta_label"] = _build_character_info_meta_label("世界 NPC", factionLabel, coord),
-                ["sections"] = _build_world_character_info_sections(
-                    npcLease.Value,
-                    coord,
-                    factionLabel
-                ),
-                ["status_label"] = "可见提示单位",
-                ["source"] = "world",
-            },
-            "GameRuntimeFacade.active_character_info_context"
+        _active_character_info_context = new GameRuntimeCharacterInfoContext(
+            GameRuntimeCharacterInfoSource.World,
+            displayName,
+            _character_info_builder.BuildCharacterInfoMetaLabel(
+                "世界 NPC",
+                factionLabel,
+                coord
+            ),
+            "可见提示单位",
+            _character_info_builder.BuildWorldCharacterInfoSections(npc, coord, factionLabel)
         );
         _active_modal_kind = RuntimeModalKind.CharacterInfo;
         UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
@@ -2043,86 +2119,27 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         string factionLabel = FormatFactionLabel(factionId);
         string statusLabel =
             unit.unit_id == _battle_state.active_unit_id ? "当前行动单位" : "战斗单位";
-        ReplacePlainPayload(
-            _active_character_info_context,
-            new GDictionary
-            {
-                ["display_name"] = displayName,
-                ["meta_label"] = _build_character_info_meta_label(typeLabel, factionLabel, unit.coord),
-                ["sections"] = _build_battle_character_info_sections(unit, typeLabel, factionLabel),
-                ["status_label"] = statusLabel,
-                ["source"] = "battle",
-                ["unit_id"] = unitId,
-            },
-            "GameRuntimeFacade.active_character_info_context"
+        _active_character_info_context = new GameRuntimeCharacterInfoContext(
+            GameRuntimeCharacterInfoSource.Battle,
+            displayName,
+            _character_info_builder.BuildCharacterInfoMetaLabel(
+                typeLabel,
+                factionLabel,
+                unit.coord
+            ),
+            statusLabel,
+            _character_info_builder.BuildBattleCharacterInfoSections(
+                unit,
+                typeLabel,
+                factionLabel
+            ),
+            unit.unit_id,
+            fate: _character_info_builder.BuildBattleCharacterInfoFate(unit)
         );
-        var fatePayload = _build_battle_character_info_fate_payload(unit);
-        if (fatePayload.Count > 0)
-        {
-            PutPlainPayloadValue(
-                _active_character_info_context,
-                "fate",
-                Variant.From(fatePayload),
-                "GameRuntimeFacade.active_character_info_context"
-            );
-        }
         _active_modal_kind = RuntimeModalKind.CharacterInfo;
         UpdateStatusInternal($"已打开 {displayName} 的人物信息窗。");
         return true;
     }
-
-    private string _build_character_info_meta_label(
-        string type_label,
-        string faction_label,
-        Vector2I coord
-    ) => _character_info_builder.BuildCharacterInfoMetaLabel(type_label, faction_label, coord);
-
-    private GArray _build_world_character_info_sections(
-        GDictionary npc,
-        Vector2I coord,
-        string faction_label
-    ) =>
-        UntypedDictionaryArray(
-            _character_info_builder.BuildWorldCharacterInfoSections(npc, coord, faction_label)
-        );
-
-    private GArray _build_battle_character_info_sections(
-        BattleUnitState unit,
-        string type_label,
-        string faction_label
-    ) =>
-        UntypedDictionaryArray(
-            _character_info_builder.BuildBattleCharacterInfoSections(
-                unit,
-                type_label,
-                faction_label
-            )
-        );
-
-    private GDictionary _build_battle_character_info_fate_payload(BattleUnitState unit) =>
-        _character_info_builder.BuildBattleCharacterInfoFatePayload(unit);
-
-    private GArray _build_battle_character_info_base_entries(
-        BattleUnitState unit,
-        string type_label,
-        string faction_label
-    ) =>
-        UntypedDictionaryArray(
-            _character_info_builder.BuildBattleCharacterInfoBaseEntries(
-                unit,
-                type_label,
-                faction_label
-            )
-        );
-
-    private GArray _build_battle_character_status_entries(BattleUnitState unit) =>
-        UntypedDictionaryArray(_character_info_builder.BuildBattleCharacterStatusEntries(unit));
-
-    private GArray _build_battle_character_skill_entries(BattleUnitState unit) =>
-        UntypedDictionaryArray(_character_info_builder.BuildBattleCharacterSkillEntries(unit));
-
-    private int _get_battle_unit_attribute_value(BattleUnitState unit, StringName attribute_id) =>
-        _character_info_builder.GetBattleUnitAttributeValue(unit, attribute_id);
 
     private EncounterAnchorData _get_encounter_anchor_at(Vector2I coord) =>
         _world_map_data_context.GetEncounterAnchorAt(coord);
@@ -2362,7 +2379,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             _party_state,
             typedItemDefs,
             _party_warehouse_service,
-            GetEquipmentInstanceIdAllocator()
+            GetEquipmentInstanceIdAllocator(),
+            _character_management.GetMemberAttributeSnapshotForEquipmentView
         );
     }
 
@@ -2419,11 +2437,6 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             () => _player_coord
         );
 
-    internal int CommitRuntimeStateInternal(StringName reason) =>
-        _game_session != null
-            ? _game_session.CommitRuntimeState(reason)
-            : (int)Error.Unavailable;
-
     internal int FlushCanonicalRuntimeState(StringName reason)
     {
         if (_game_session == null || !_game_session.HasActiveWorld())
@@ -2463,7 +2476,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
 
     internal void ClearResolvedBattleRuntimeContext()
     {
-                _active_modal_kind = RuntimeModalKind.None;
+        SetRuntimeActiveModalKind(RuntimeModalKind.None);
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
         _pending_promotion_prompt.Clear();
@@ -2476,13 +2489,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         _selected_coord = _player_coord;
     }
 
-    private void ActivateGameOver(GDictionary context)
+    private void ActivateGameOver(GameRuntimeGameOverContext context)
     {
-        ReplacePlainPayload(
-            _active_game_over_context,
-            context,
-            "GameRuntimeFacade.game_over_context"
-        );
+        _active_game_over_context = context;
         _active_modal_kind = RuntimeModalKind.GameOver;
     }
 
@@ -2514,7 +2523,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return false;
     }
 
-    private GDictionary BuildMainCharacterGameOverContext()
+    private GameRuntimeGameOverContext BuildMainCharacterGameOverContext()
     {
         var memberId =
             _party_state != null
@@ -2525,15 +2534,14 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
             memberName.Length > 0
                 ? $"{memberName} 已在战斗中阵亡，本次旅程结束。"
                 : "主角已在战斗中阵亡，本次旅程结束。";
-        return new GDictionary
-        {
-            ["title"] = "Game Over",
-            ["description"] = description,
-            ["confirm_text"] = "返回标题",
-            ["main_character_member_id"] = memberId.ToString(),
-            ["main_character_name"] = memberName,
-            ["main_character_dead"] = true,
-        };
+        return new GameRuntimeGameOverContext(
+            "Game Over",
+            description,
+            "返回标题",
+            memberId,
+            memberName,
+            true
+        );
     }
 
     private void _mark_settlement_visited(string settlement_id)
@@ -2650,6 +2658,16 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeSnapshotSource, IDis
         return Json.Stringify(new GDictionary
         {
             ["battle"] = battleSummary,
+            ["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.objective_mode
+            ),
+            ["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.outcome
+            ),
+            ["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                battleResolutionResult.end_reason
+            ),
+            ["decision_tu"] = battleResolutionResult.final_decision?.DecisionTu ?? -1,
             ["winner_faction_id"] = winnerFactionId,
             ["main_character_member_id"] =
                 _party_state != null

@@ -115,6 +115,32 @@ public class WarehouseState
         return copy;
     }
 
+    internal WarehouseState DuplicateForMutationSnapshotExact()
+    {
+        WarehouseState copy = new()
+        {
+            stacks = stacks == null ? null : new List<WarehouseStackState>(),
+            equipment_instances = equipment_instances == null
+                ? null
+                : new List<EquipmentInstanceState>(),
+        };
+        if (stacks != null)
+        {
+            foreach (WarehouseStackState stack in stacks)
+                copy.stacks.Add(stack?.DuplicateForMutationSnapshotExact());
+        }
+        if (equipment_instances != null)
+        {
+            foreach (EquipmentInstanceState instance in equipment_instances)
+            {
+                copy.equipment_instances.Add(
+                    instance?.DuplicateForMutationSnapshotExact()
+                );
+            }
+        }
+        return copy;
+    }
+
     public Godot.Collections.Dictionary ToDictionary()
     {
         var stackPayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();

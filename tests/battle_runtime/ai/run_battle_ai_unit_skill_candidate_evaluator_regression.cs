@@ -17,6 +17,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             TestAuthoredEnemyActionsResolveAvailabilityEntriesBeforeBuildingSkillCommands();
             TestEvaluatorGeneratedCommandCarriesAvailableEntryId();
             TestFastPreviewRejectsExposeOutOfRangeCounter();
+            TestLayeredBarrierForcesCanonicalPreview();
         }
         catch (Exception exception)
         {
@@ -296,6 +297,91 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             "fast preview 射程拒绝应写入细分 counter。"
         );
         _test.Eq(outOfRangeCount, 1, "fast preview 射程拒绝细分 counter 应与总拒绝数一致。");
+    }
+
+    private void TestLayeredBarrierForcesCanonicalPreview()
+    {
+        StringName skillId = "ai_barrier_canonical_preview_probe";
+        BattleUnitState actor = BuildUnit(
+            "barrier_preview_actor",
+            "hostile",
+            new Vector2I(0, 0)
+        );
+        BattleUnitState target = BuildUnit(
+            "barrier_preview_target",
+            "player",
+            new Vector2I(1, 0)
+        );
+        actor.known_active_skill_ids.Add(skillId);
+        actor.SetKnownSkillLevelTyped(skillId, 1);
+        SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 4);
+        BattleState state = new()
+        {
+            battle_id = "unit_skill_barrier_preview_regression",
+            phase = "unit_acting",
+            map_size = new Vector2I(8, 2),
+            timeline = new BattleTimelineState(),
+            active_unit_id = actor.unit_id,
+        };
+        state.SetUnit(actor);
+        state.SetUnit(target);
+        state.PutLayeredBarrierField(
+            "barrier_preview_probe",
+            new BattleBarrierInstanceState
+            {
+                BarrierInstanceId = "barrier_preview_probe",
+                ProfileId = "barrier_preview_probe",
+            }
+        );
+        int canonicalPreviewCallCount = 0;
+        BattleAiContext context = new()
+        {
+            state = state,
+            unit_state = actor,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+            preview_command_callback = command =>
+            {
+                canonicalPreviewCallCount += 1;
+                _test.Eq(
+                    command?.skill_id ?? new StringName(""),
+                    skillId,
+                    "canonical preview callback 应收到当前候选技能命令。"
+                );
+                return new BattlePreview { allowed = true };
+            },
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition> { [skillId] = skill }
+        );
+        UseUnitSkillActionDefinition action = new(
+            "barrier_preview_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            4,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit)
+        );
+
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
+            action,
+            context
+        );
+
+        _test.Eq(
+            canonicalPreviewCallCount,
+            1,
+            "存在 layered barrier 时 unit AI 必须调用 canonical PreviewCommand。"
+        );
+        _test.True(
+            decision == null,
+            "canonical preview 移除全部影响目标后，AI 不得回退到 fast preview 候选。"
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)

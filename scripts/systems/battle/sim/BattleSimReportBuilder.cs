@@ -24,10 +24,41 @@ public sealed class BattleSimReportBuilder
             foreach (BattleSimRunReport run in runs)
             {
                 if (run == null)
+                {
+                    summary.InvalidRuntimeRunCount++;
                     continue;
+                }
 
-                if (!string.IsNullOrEmpty(run.WinnerFactionId))
-                    IncrementCounter(summary.WinsByFaction, run.WinnerFactionId);
+                switch (run.TerminationKind)
+                {
+                    case BattleSimTerminationKind.BattleEnded:
+                        if (!run.HasFinalDecision)
+                        {
+                            summary.InvalidRuntimeRunCount++;
+                            continue;
+                        }
+                        summary.CompletedRunCount++;
+                        break;
+                    case BattleSimTerminationKind.IdleStall:
+                        summary.StalledRunCount++;
+                        continue;
+                    case BattleSimTerminationKind.IterationBudgetExhausted:
+                        summary.IterationBudgetExhaustedRunCount++;
+                        continue;
+                    case BattleSimTerminationKind.InvalidRuntime:
+                    default:
+                        summary.InvalidRuntimeRunCount++;
+                        continue;
+                }
+
+                switch (run.Outcome)
+                {
+                    case BattleOutcomeKind.PlayerSuccess:
+                    case BattleOutcomeKind.PlayerFailure:
+                    case BattleOutcomeKind.Draw:
+                        IncrementCounter(summary.WinsByFaction, run.WinnerFactionId);
+                        break;
+                }
 
                 totalFinalTu += run.FinalTu;
                 totalIterations += run.Iterations;
@@ -48,12 +79,14 @@ public sealed class BattleSimReportBuilder
             }
         }
 
-        int runCount = Mathf.Max(summary.RunCount, 1);
-        summary.AverageFinalTu = (float)totalFinalTu / runCount;
-        summary.AverageIterations = (float)totalIterations / runCount;
-        summary.AverageTimelineSteps = (float)totalTimelineSteps / runCount;
+        summary.UnfinishedRunCount = summary.RunCount - summary.CompletedRunCount;
 
-        foreach (KeyValuePair<string, float> entry in BuildRateDictionary(summary.WinsByFaction, summary.RunCount))
+        int completedRunCount = Mathf.Max(summary.CompletedRunCount, 1);
+        summary.AverageFinalTu = (float)totalFinalTu / completedRunCount;
+        summary.AverageIterations = (float)totalIterations / completedRunCount;
+        summary.AverageTimelineSteps = (float)totalTimelineSteps / completedRunCount;
+
+        foreach (KeyValuePair<string, float> entry in BuildRateDictionary(summary.WinsByFaction, summary.CompletedRunCount))
             summary.WinRateByFaction[entry.Key] = entry.Value;
         foreach (
             KeyValuePair<string, int> entry in BuildSkillFailureTotals(
@@ -83,13 +116,21 @@ public sealed class BattleSimReportBuilder
         for (int entryIndex = 1; entryIndex < profileEntries.Count; entryIndex++)
         {
             BattleSimProfileSummary candidateSummary = profileEntries[entryIndex]?.Summary;
-            if (candidateSummary == null)
+            if (
+                candidateSummary == null
+                || baselineSummary.CompletedRunCount <= 0
+                || candidateSummary.CompletedRunCount <= 0
+            )
                 continue;
 
             var comparison = new BattleSimProfileComparison
             {
                 BaselineProfileId = baselineSummary.ProfileId,
                 CandidateProfileId = candidateSummary.ProfileId,
+                BaselineRunCount = baselineSummary.RunCount,
+                BaselineCompletedRunCount = baselineSummary.CompletedRunCount,
+                CandidateRunCount = candidateSummary.RunCount,
+                CandidateCompletedRunCount = candidateSummary.CompletedRunCount,
                 AverageFinalTuDelta = candidateSummary.AverageFinalTu - baselineSummary.AverageFinalTu,
                 AverageIterationsDelta =
                     candidateSummary.AverageIterations - baselineSummary.AverageIterations,
@@ -195,6 +236,9 @@ public sealed class BattleSimReportBuilder
             return;
         target.UnitCount += source.UnitCount;
         target.TurnCount += source.TurnCount;
+        MergeCounters(target.ActionCounts, source.ActionCounts);
+        MergeCounters(target.SkillAttemptCounts, source.SkillAttemptCounts);
+        MergeCounters(target.SkillSuccessCounts, source.SkillSuccessCounts);
         target.SuccessfulSkillCount += source.SuccessfulSkillCount;
         target.TotalDamageDone += source.TotalDamageDone;
         target.TotalHealingDone += source.TotalHealingDone;
@@ -202,6 +246,17 @@ public sealed class BattleSimReportBuilder
         target.TotalHealingReceived += source.TotalHealingReceived;
         target.KillCount += source.KillCount;
         target.DeathCount += source.DeathCount;
+    }
+
+    private static void MergeCounters(
+        Dictionary<string, int> target,
+        IReadOnlyDictionary<string, int> source
+    )
+    {
+        if (target == null || source == null)
+            return;
+        foreach (KeyValuePair<string, int> entry in source)
+            IncrementCounter(target, entry.Key, entry.Value);
     }
 
     private static Dictionary<string, int> BuildSkillFailureTotals(

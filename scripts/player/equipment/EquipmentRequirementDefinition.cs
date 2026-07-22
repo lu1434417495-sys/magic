@@ -23,7 +23,10 @@ public sealed class EquipmentRequirementDefinition
     public int MaxBodySize { get; }
     public IReadOnlyList<EquipmentAttributeRequirementDefinition> AttributeRequirements { get; }
 
-    public EquipmentRequirementCheckResult CheckResult(PartyMemberState memberState)
+    public EquipmentRequirementCheckResult CheckResult(
+        PartyMemberState memberState,
+        AttributeSnapshot stableAttributes
+    )
     {
         var blockers = new List<string>();
         if (RequiredProfessionIds.Count > 0)
@@ -47,16 +50,18 @@ public sealed class EquipmentRequirementDefinition
         if (MaxBodySize > 0 && (memberState == null || memberState.body_size > MaxBodySize))
             blockers.Add("body_size_too_large");
 
+        if (AttributeRequirements.Count > 0 && stableAttributes == null)
+        {
+            blockers.Add("attribute_snapshot_unavailable");
+            return new EquipmentRequirementCheckResult(false, blockers);
+        }
+
         foreach (EquipmentAttributeRequirementDefinition requirement in AttributeRequirements)
         {
             StringName attributeId = ProgressionDataUtils.to_string_name(requirement.AttributeId);
             if (attributeId == "" || requirement.MinValue <= 0)
                 continue;
-            int value =
-                memberState
-                    ?.progression
-                    ?.unit_base_attributes
-                    ?.GetAttributeValue(attributeId) ?? 0;
+            int value = stableAttributes.GetValue(attributeId);
             if (value < requirement.MinValue)
                 blockers.Add("attribute_too_low");
         }

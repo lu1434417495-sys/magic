@@ -57,15 +57,17 @@ internal sealed class BattleAiChargeActionEvaluator
         if (action == null || context?.unit_state == null)
             return null;
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = ActionKindCharge.ToString(),
-                ["target_selector"] = action.TargetSelector.ToString(),
-            }
-        );
+        AiActionTrace actionTrace = context.trace_enabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = ActionKindCharge.ToString(),
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                }
+            )
+            : null;
 
         BattleAvailableSkillEntry skillEntry = ResolveSingleSkillEntry(context, action.SkillId);
         SkillDefinition skillDefinition = _helper.GetSkillDefinition(context, skillEntry);
@@ -93,13 +95,15 @@ internal sealed class BattleAiChargeActionEvaluator
             return null;
         }
 
-        AiTraceRecorder.Enter("charge:sort_targets");
-        List<BattleUnitState> targets = _helper.SortTargetUnits(
-            context,
-            "enemy",
-            action.TargetSelector
-        );
-        AiTraceRecorder.Exit("charge:sort_targets");
+        List<BattleUnitState> targets;
+        using (new BattleAiTraceSpan("charge:sort_targets"))
+        {
+            targets = _helper.SortTargetUnits(
+                context,
+                "enemy",
+                action.TargetSelector
+            );
+        }
         if (targets.Count == 0)
         {
             TraceAddBlockReason(actionTrace, "no_valid_targets");
@@ -110,9 +114,12 @@ internal sealed class BattleAiChargeActionEvaluator
         BattleUnitState focusTarget = targets[0];
         BattleUnitState actor = context.unit_state;
         int focusTargetDistance = DistanceBetweenUnits(context, actor, focusTarget);
-        actionTrace.Metadata["focus_target_distance"] = focusTargetDistance;
-        actionTrace.Metadata["minimum_charge_move_distance"] =
-            action.MinimumChargeMoveDistance;
+        if (actionTrace != null)
+        {
+            actionTrace.Metadata["focus_target_distance"] = focusTargetDistance;
+            actionTrace.Metadata["minimum_charge_move_distance"] =
+                action.MinimumChargeMoveDistance;
+        }
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         int bestFallbackScore = -999999;
@@ -137,13 +144,15 @@ internal sealed class BattleAiChargeActionEvaluator
             return distance;
         }
 
-        AiTraceRecorder.Enter("charge:get_ground_options");
-        List<CombatCastVariantDefinition> groundOptions = GetGroundOptionDefinitions(
-            context,
-            skillDefinition,
-            skillEntry.SkillLevel
-        );
-        AiTraceRecorder.Exit("charge:get_ground_options");
+        List<CombatCastVariantDefinition> groundOptions;
+        using (new BattleAiTraceSpan("charge:get_ground_options"))
+        {
+            groundOptions = GetGroundOptionDefinitions(
+                context,
+                skillDefinition,
+                skillEntry.SkillLevel
+            );
+        }
         foreach (CombatCastVariantDefinition castVariant in groundOptions)
         {
             if (castVariant == null || !IsChargeOption(castVariant))
@@ -153,7 +162,7 @@ internal sealed class BattleAiChargeActionEvaluator
                 skillDefinition,
                 castVariant
             );
-            AiTraceRecorder.Enter("charge:evaluate_variant");
+            using BattleAiTraceSpan variantTrace = new("charge:evaluate_variant");
             foreach (Vector2I targetCoord in EnumerateChargeTargetCoords(
                 context,
                 actor,
@@ -191,9 +200,9 @@ internal sealed class BattleAiChargeActionEvaluator
                     castVariant.VariantId,
                     new[] { targetCoord }
                 );
-                AiTraceRecorder.Enter("charge:formal_preview");
-                BattlePreview preview = context.PreviewCommand(command);
-                AiTraceRecorder.Exit("charge:formal_preview");
+                BattlePreview preview;
+                using (new BattleAiTraceSpan("charge:formal_preview"))
+                    preview = context.PreviewCommand(command);
                 preview ??= BuildFastChargePreview(command, chargeInfo, targetCoord);
                 if (preview?.allowed != true)
                 {
@@ -220,34 +229,39 @@ internal sealed class BattleAiChargeActionEvaluator
                     continue;
                 }
 
-                AiTraceRecorder.Enter("charge:formal_score_input");
-                BattleAiScoreInput scoreInput = BuildChargeScoreInput(
-                    action,
-                    context,
-                    skillDefinition,
-                    command,
-                    preview,
-                    castVariant,
-                    focusTarget,
-                    resolvedAnchor,
-                    resolvedMoveDistance,
-                    variantLabel
-                );
-                AiTraceRecorder.Exit("charge:formal_score_input");
-                TraceOfferCandidate(
-                    actionTrace,
-                    EnemyAiActionHelper.BuildCandidateSummary(
-                        $"{variantLabel}->{focusTarget.display_name}",
+                BattleAiScoreInput scoreInput;
+                using (new BattleAiTraceSpan("charge:formal_score_input"))
+                {
+                    scoreInput = BuildChargeScoreInput(
+                        action,
+                        context,
+                        skillDefinition,
                         command,
-                        scoreInput,
-                        new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            ["resolved_anchor_coord"] = resolvedAnchor,
-                            ["resolved_distance"] = resolvedDistance,
-                            ["resolved_move_distance"] = resolvedMoveDistance,
-                        }
-                    )
-                );
+                        preview,
+                        castVariant,
+                        focusTarget,
+                        resolvedAnchor,
+                        resolvedMoveDistance,
+                        variantLabel
+                    );
+                }
+                if (actionTrace != null)
+                {
+                    TraceOfferCandidate(
+                        actionTrace,
+                        EnemyAiActionHelper.BuildCandidateSummary(
+                            $"{variantLabel}->{focusTarget.display_name}",
+                            command,
+                            scoreInput,
+                            new Dictionary<string, object>(StringComparer.Ordinal)
+                            {
+                                ["resolved_anchor_coord"] = resolvedAnchor,
+                                ["resolved_distance"] = resolvedDistance,
+                                ["resolved_move_distance"] = resolvedMoveDistance,
+                            }
+                        )
+                    );
+                }
 
                 if (scoreInput != null)
                 {
@@ -277,7 +291,6 @@ internal sealed class BattleAiChargeActionEvaluator
                     $"{actor.display_name} 准备用冲锋逼近 {focusTarget.display_name}。"
                 );
             }
-            AiTraceRecorder.Exit("charge:evaluate_variant");
         }
 
         FinalizeActionTrace(context, actionTrace, bestDecision);

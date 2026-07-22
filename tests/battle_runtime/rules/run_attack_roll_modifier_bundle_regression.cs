@@ -11,7 +11,7 @@ public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestS
         TestTypesArePlainCSharp();
         TestPositiveAddStack();
         TestPenaltyMaxAndMinStack();
-        TestMixedSignStackHardFailsToEmpty();
+        TestMixedSignStackSumsToNetValue();
         TestBundleUsesTypedBreakdownList();
         TestExactSchemaRoundTrip();
 
@@ -68,17 +68,40 @@ public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestS
         );
     }
 
-    private void TestMixedSignStackHardFailsToEmpty()
+    private void TestMixedSignStackSumsToNetValue()
     {
         var service = new BattleAttackCheckPolicyService();
-        var specs = new List<BattleAttackRollModifierSpec>
+        var netNegativeSpecs = new List<BattleAttackRollModifierSpec>
         {
-            BuildSpec("bonus", 1, "mixed", "max"),
-            BuildSpec("penalty", -1, "mixed", "max"),
+            BuildSpec("bonus", 2, "mixed_net", "add"),
+            BuildSpec("penalty", -3, "mixed_net", "add"),
         };
+        List<BattleAttackRollModifierSpec> netResolved =
+            service.ResolveStackedSpecs(netNegativeSpecs);
+        _test.Eq(netResolved.Count, 1, "同一 stack_key 混合 bonus/penalty 应求和取净值,不整组丢弃。");
+        _test.Eq(
+            netResolved.Count > 0 ? netResolved[0].modifier_delta : 0,
+            -1,
+            "+2 与 -3 并存应得净值 -1。"
+        );
 
-        List<BattleAttackRollModifierSpec> resolved = service.ResolveStackedSpecs(specs);
-        _test.Eq(resolved.Count, 0, "同一 stack_key 混合 bonus/penalty 应 hard fail，不产生 post-stack breakdown。");
+        var canceledSpecs = new List<BattleAttackRollModifierSpec>
+        {
+            BuildSpec("bonus", 1, "mixed_zero", "max"),
+            BuildSpec("penalty", -1, "mixed_zero", "max"),
+        };
+        List<BattleAttackRollModifierSpec> canceledResolved =
+            service.ResolveStackedSpecs(canceledSpecs);
+        _test.Eq(
+            canceledResolved.Count,
+            1,
+            "正负同现不论堆叠模式都走净值求和;净 0 条目保留在 breakdown 中标记冲突相抵。"
+        );
+        _test.Eq(
+            canceledResolved.Count > 0 ? canceledResolved[0].modifier_delta : -999,
+            0,
+            "+1 与 -1 并存应得净值 0。"
+        );
     }
 
     private void TestBundleUsesTypedBreakdownList()

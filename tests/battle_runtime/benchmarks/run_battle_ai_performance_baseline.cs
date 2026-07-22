@@ -399,7 +399,6 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             runtime._initialize_battle_metrics();
             state.PhaseKind = BattlePhaseKind.TimelineRunning;
             state.active_unit_id = "";
-            state.winner_faction_id = "";
             state.ModalStateKind = BattleModalStateKind.None;
             state.attack_roll_nonce = 0;
 
@@ -533,6 +532,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 frozen = false,
             },
         };
+        state.InitializeObjective(BattleEliminationObjectiveDefinition.Instance);
 
         for (int y = 0; y < mapSize.Y; y++)
         {

@@ -7,35 +7,38 @@ public sealed class GameRuntimePartyCommandHandler
 {
     private static readonly StringName RuntimeUnavailableMessage = "运行时尚未初始化。";
 
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimePartyCommandPort> _portRef;
 
-    private GameRuntimeFacade _runtime
+    private IGameRuntimePartyCommandPort _port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_portRef);
+        set =>
+            _portRef =
+                value != null ? new WeakReference<IGameRuntimePartyCommandPort>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    internal void Setup(IGameRuntimePartyCommandPort port)
     {
-        _runtime = runtime;
+        _port = port;
     }
 
     public void Dispose()
     {
-        _runtime = null;
+        _port = null;
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (!HasGenerationDefinition())
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasGenerationDefinition)
             return CommandErrorTyped("世界地图尚未初始化。");
-        if (IsBattleActive())
+        if (snapshot.IsBattleActive)
             return CommandErrorTyped("当前处于战斗中，不能打开队伍管理。");
-        if (IsModalWindowOpen())
+        if (snapshot.IsModalWindowOpen)
             return CommandErrorTyped("当前有窗口打开，不能打开队伍管理。");
-        OpenPartyManagementWindow();
+        _port.OpenPartyManagement("已打开队伍管理窗口。");
         return CommandOkTyped();
     }
 
@@ -43,21 +46,19 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var partyState = GetPartyState();
-        if (partyState == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        if (partyState.GetMemberState(memberId) == null)
+        if (!snapshot.HasMember(memberId))
             return CommandErrorTyped(string.Format("未找到队伍成员 {0}。", memberId));
-        var activeMemberIds = partyState.active_member_ids;
-        var reserveMemberIds = partyState.reserve_member_ids;
-        if (!HasMemberId(activeMemberIds, memberId) && !HasMemberId(reserveMemberIds, memberId))
+        if (!snapshot.IsActiveMember(memberId) && !snapshot.IsReserveMember(memberId))
             return CommandErrorTyped(
                 string.Format("{0} 当前不在队伍编成中。", GetMemberDisplayName(memberId))
             );
-        if (GetActiveModalKind() == RuntimeModalKind.None)
-            SetActiveModalKind(RuntimeModalKind.Party);
-        SetPartySelectedMemberId(memberId);
-        UpdateStatus(string.Format("已选中队员 {0}。", GetMemberDisplayName(memberId)));
+        _port.SelectPartyMember(
+            memberId,
+            string.Format("已选中队员 {0}。", GetMemberDisplayName(memberId))
+        );
         return CommandOkTyped();
     }
 
@@ -65,14 +66,16 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var partyState = GetPartyState();
-        if (partyState == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        var activeMemberIds = partyState.active_member_ids;
-        if (!HasMemberId(activeMemberIds, memberId))
+        if (!snapshot.IsActiveMember(memberId))
             return CommandErrorTyped("只有上阵成员才能成为队长。");
-        OnPartyLeaderChangeRequested(memberId);
-        SetPartySelectedMemberId(memberId);
+        _port.ApplyPartyLeaderChange(
+            memberId,
+            string.Format("队长已切换为 {0}。", memberId)
+        );
+        _port.SetPartySelection(memberId);
         return CommandOkTyped();
     }
 
@@ -82,24 +85,22 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var partyState = GetPartyState();
-        if (partyState == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        var reserveMemberIds = partyState.reserve_member_ids;
-        if (!HasMemberId(reserveMemberIds, memberId))
+        if (!snapshot.IsReserveMember(memberId))
             return CommandErrorTyped(
                 string.Format("{0} 当前不在替补列表中。", GetMemberDisplayName(memberId))
             );
-        var activeMemberIds = partyState.active_member_ids;
-        if (activeMemberIds.Count >= 4)
+        if (snapshot.ActiveMemberIds.Count >= 4)
             return CommandErrorTyped("上阵人数已达到上限。");
-        var activeIds = NormalizeMemberIds(activeMemberIds);
-        var reserveIds = NormalizeMemberIds(reserveMemberIds);
+        var activeIds = NormalizeMemberIds(snapshot.ActiveMemberIds);
+        var reserveIds = NormalizeMemberIds(snapshot.ReserveMemberIds);
         reserveIds = WithoutMemberId(reserveIds, memberId);
         if (!HasMemberId(activeIds, memberId))
             activeIds.Add(memberId);
-        OnPartyRosterChangeRequested(activeIds, reserveIds);
-        SetPartySelectedMemberId(memberId);
+        _port.ApplyPartyRosterChange(activeIds, reserveIds, "队伍编成已更新。");
+        _port.SetPartySelection(memberId);
         return CommandOkTyped();
     }
 
@@ -109,25 +110,24 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var partyState = GetPartyState();
-        if (partyState == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        var activeMemberIds = partyState.active_member_ids;
-        if (!HasMemberId(activeMemberIds, memberId))
+        if (!snapshot.IsActiveMember(memberId))
             return CommandErrorTyped(
                 string.Format("{0} 当前不在上阵列表中。", GetMemberDisplayName(memberId))
             );
-        if (memberId == GetMainCharacterMemberId(partyState))
+        if (memberId == snapshot.LivingMainCharacterMemberId)
             return CommandErrorTyped("主角必须保持上阵，不能移至替补。");
-        if (activeMemberIds.Count <= 1)
+        if (snapshot.ActiveMemberIds.Count <= 1)
             return CommandErrorTyped("队伍至少需要保留一名上阵成员。");
-        var activeIds = NormalizeMemberIds(activeMemberIds);
-        var reserveIds = NormalizeMemberIds(partyState.reserve_member_ids);
+        var activeIds = NormalizeMemberIds(snapshot.ActiveMemberIds);
+        var reserveIds = NormalizeMemberIds(snapshot.ReserveMemberIds);
         activeIds = WithoutMemberId(activeIds, memberId);
         if (!HasMemberId(reserveIds, memberId))
             reserveIds.Add(memberId);
-        OnPartyRosterChangeRequested(activeIds, reserveIds);
-        SetPartySelectedMemberId(memberId);
+        _port.ApplyPartyRosterChange(activeIds, reserveIds, "队伍编成已更新。");
+        _port.SetPartySelection(memberId);
         return CommandOkTyped();
     }
 
@@ -138,17 +138,21 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var partyState = GetPartyState();
-        if (partyState == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
         var rosterError = ValidateMainCharacterRoster(
             activeMemberIds,
             reserveMemberIds,
-            partyState
+            snapshot.LivingMainCharacterMemberId
         );
         if (!string.IsNullOrEmpty(rosterError))
             return CommandErrorTyped(rosterError);
-        OnPartyRosterChangeRequested(activeMemberIds, reserveMemberIds);
+        _port.ApplyPartyRosterChange(
+            NormalizeMemberIds(activeMemberIds),
+            NormalizeMemberIds(reserveMemberIds),
+            "队伍编成已更新。"
+        );
         return CommandOkTyped();
     }
 
@@ -161,11 +165,12 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (GetPartyState() == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        if (IsBattleActive())
+        if (snapshot.IsBattleActive)
             return CommandErrorTyped("当前处于战斗中，不能调整装备。");
-        var activeModalKind = GetActiveModalKind();
+        var activeModalKind = snapshot.ActiveModalKind;
         if (
             activeModalKind == RuntimeModalKind.Reward
             || activeModalKind == RuntimeModalKind.Promotion
@@ -174,16 +179,20 @@ public sealed class GameRuntimePartyCommandHandler
         )
             return CommandErrorTyped("当前窗口会阻止装备切换。");
 
-        var result = EquipPartyItem(memberId, itemId, slotId, instanceId);
+        PartyEquipmentCommandResult result = _port.EquipPartyItemAndPersist(
+            memberId,
+            itemId,
+            slotId,
+            instanceId
+        );
         if (!result.Success)
             return CommandErrorTyped(BuildEquipmentErrorMessage(result, true));
 
-        SetPartySelectedMemberId(memberId);
-        var itemName = GetItemDisplayName(result.ItemId);
+        var itemName = result.ItemDisplayName;
         var slotLabel = result.SlotLabel;
         var successMessage = string.Format(
             "已为 {0} 装备 {1}（{2}）。",
-            GetMemberDisplayName(memberId),
+            result.MemberDisplayName,
             itemName,
             slotLabel
         );
@@ -192,18 +201,16 @@ public sealed class GameRuntimePartyCommandHandler
         {
             successMessage = string.Format(
                 "已为 {0} 装备 {1}（{2}），并卸下 {3}。",
-                GetMemberDisplayName(memberId),
+                result.MemberDisplayName,
                 itemName,
                 slotLabel,
-                GetItemDisplayName(previousItemId)
+                result.PreviousItemDisplayName
             );
         }
 
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-            UpdateStatus(successMessage);
-        else
-            UpdateStatus(string.Format("{0} 但队伍状态持久化失败。", successMessage));
+        if (result.PersistenceError != Error.Ok)
+            successMessage = string.Format("{0} 但队伍状态持久化失败。", successMessage);
+        _port.UpdatePartyStatus(successMessage);
         return CommandOkTyped();
     }
 
@@ -214,11 +221,12 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (GetPartyState() == null)
+        PartyCommandSnapshot snapshot = CapturePartyCommandSnapshot();
+        if (!snapshot.HasPartyState)
             return CommandErrorTyped("当前不存在队伍数据。");
-        if (IsBattleActive())
+        if (snapshot.IsBattleActive)
             return CommandErrorTyped("当前处于战斗中，不能调整装备。");
-        var activeModalKind = GetActiveModalKind();
+        var activeModalKind = snapshot.ActiveModalKind;
         if (
             activeModalKind == RuntimeModalKind.Reward
             || activeModalKind == RuntimeModalKind.Promotion
@@ -227,147 +235,48 @@ public sealed class GameRuntimePartyCommandHandler
         )
             return CommandErrorTyped("当前窗口会阻止装备切换。");
 
-        var result = UnequipPartyItem(memberId, slotId);
+        PartyEquipmentCommandResult result = _port.UnequipPartyItemAndPersist(
+            memberId,
+            slotId
+        );
         if (!result.Success)
             return CommandErrorTyped(BuildEquipmentErrorMessage(result, false));
 
-        SetPartySelectedMemberId(memberId);
-        var itemName = GetItemDisplayName(result.ItemId);
+        var itemName = result.ItemDisplayName;
         var slotLabel = result.SlotLabel;
         var successMessage = string.Format(
             "已从 {0} 的 {1} 卸下 {2}。",
-            GetMemberDisplayName(memberId),
+            result.MemberDisplayName,
             slotLabel,
             itemName
         );
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-            UpdateStatus(successMessage);
-        else
-            UpdateStatus(string.Format("{0} 但队伍状态持久化失败。", successMessage));
+        if (result.PersistenceError != Error.Ok)
+            successMessage = string.Format("{0} 但队伍状态持久化失败。", successMessage);
+        _port.UpdatePartyStatus(successMessage);
         return CommandOkTyped();
     }
 
-    public void OpenPartyManagementWindow()
+    internal void OnPartyManagementWindowClosed()
     {
         if (!HasRuntime())
             return;
-        if (IsBattleActive())
-            return;
-        var partyState = GetPartyState();
-        SetActiveModalKind(RuntimeModalKind.Party);
-        var selectedMemberId = GetPartySelectedMemberId();
-        if (selectedMemberId == "" && partyState != null)
-        {
-            var activeMemberIds = partyState.active_member_ids;
-            if (activeMemberIds.Count > 0)
-                SetPartySelectedMemberId(activeMemberIds[0]);
-        }
-        UpdateStatus("已打开队伍管理窗口。");
-    }
-
-    public void OnPartyLeaderChangeRequested(StringName memberId)
-    {
-        var partyState = GetPartyState();
-        if (!HasRuntime() || partyState == null)
-            return;
-        partyState.leader_member_id = memberId;
-        ApplyPartyStateToRuntime(string.Format("队长已切换为 {0}。", memberId));
-    }
-
-    public void OnPartyRosterChangeRequested(
-        IEnumerable<StringName> activeMemberIds,
-        IEnumerable<StringName> reserveMemberIds
-    )
-    {
-        var partyState = GetPartyState();
-        if (!HasRuntime() || partyState == null)
-            return;
-        var rosterError = ValidateMainCharacterRoster(
-            activeMemberIds,
-            reserveMemberIds,
-            partyState
-        );
-        if (!string.IsNullOrEmpty(rosterError))
-        {
-            UpdateStatus(rosterError);
-            return;
-        }
-        var normalizedActiveMemberIds = NormalizeMemberIds(activeMemberIds);
-        var normalizedReserveMemberIds = NormalizeMemberIds(reserveMemberIds);
-        partyState.active_member_ids = normalizedActiveMemberIds;
-        partyState.reserve_member_ids = normalizedReserveMemberIds;
-        if (
-            !HasMemberId(normalizedActiveMemberIds, partyState.leader_member_id)
-            && normalizedActiveMemberIds.Count > 0
-        )
-            partyState.leader_member_id = normalizedActiveMemberIds[0];
-        ApplyPartyStateToRuntime("队伍编成已更新。");
-    }
-
-    public void OnPartyManagementWindowClosed()
-    {
-        if (!HasRuntime())
-            return;
-        SetActiveModalKind(RuntimeModalKind.None);
-        UpdateStatus("已关闭队伍管理窗口。");
-        PresentPendingRewardIfReady();
-    }
-
-    public void OnPartyManagementWarehouseRequested()
-    {
-        if (!HasRuntime())
-            return;
-        SetActiveModalKind(RuntimeModalKind.None);
-        OpenPartyWarehouseWindow("队伍管理");
-        UpdateStatus("已从队伍管理打开共享仓库。");
-    }
-
-    public void ApplyPartyStateToRuntime(string successMessage)
-    {
-        if (!HasRuntime())
-            return;
-        SyncCharacterManagementPartyState();
-        var persistError = PersistPartyState();
-        if (persistError == Error.Ok)
-            UpdateStatus(successMessage);
-        else
-            UpdateStatus(string.Format("{0} 但队伍状态持久化失败。", successMessage));
-    }
-
-    private Error PersistPartyState()
-    {
-        if (!HasRuntime())
-            return Error.Unavailable;
-        return (Error)_runtime.PersistPartyState();
+        _port.ClosePartyManagementAndPresentPendingReward("已关闭队伍管理窗口。");
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
         if (!HasRuntime())
             return itemId.ToString();
-        return _runtime.GetItemDisplayName(itemId);
-    }
-
-    private StringName GetMainCharacterMemberId(PartyState partyState)
-    {
-        if (partyState == null)
-            return "";
-        var memberId = partyState.GetResolvedMainCharacterMemberId();
-        if (memberId == "")
-            return "";
-        if (partyState.IsMemberDead(memberId))
-            return "";
-        return memberId;
+        return _port.GetItemDisplayName(itemId);
     }
 
     private string ValidateMainCharacterRoster(
         IEnumerable<StringName> activeMemberIds,
         IEnumerable<StringName> reserveMemberIds,
-        PartyState partyState
+        StringName livingMainCharacterMemberId
     )
     {
-        var memberId = GetMainCharacterMemberId(partyState);
+        var memberId = livingMainCharacterMemberId;
         if (memberId == "")
             return "";
         if (HasMemberId(reserveMemberIds, memberId) || !HasMemberId(activeMemberIds, memberId))
@@ -427,18 +336,11 @@ public sealed class GameRuntimePartyCommandHandler
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.GetMemberDisplayName(memberId);
-    }
-
-    private string GetSkillDisplayName(StringName skillId)
-    {
-        if (!HasRuntime())
-            return skillId.ToString();
-        return _runtime.GetSkillDisplayName(skillId);
+        return _port.GetMemberDisplayName(memberId);
     }
 
     private string BuildEquipmentErrorMessage(
-        PartyEquipmentService.EquipmentActionResult result,
+        PartyEquipmentCommandResult result,
         bool isEquipAction
     )
     {
@@ -519,31 +421,12 @@ public sealed class GameRuntimePartyCommandHandler
 
     private bool HasRuntime()
     {
-        return _runtime != null;
-    }
-
-    private Dictionary CommandOk(string message = "")
-    {
-        if (!HasRuntime())
-            return new Dictionary
-            {
-                ["ok"] = true,
-                ["message"] = message,
-                ["battle_refresh_mode"] = "",
-            };
-        return _runtime.BuildCommandOk(message);
+        return _port != null;
     }
 
     private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
     {
         return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
-    }
-
-    private Dictionary CommandError(string message)
-    {
-        if (!HasRuntime())
-            return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.BuildCommandError(message);
     }
 
     private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
@@ -554,11 +437,6 @@ public sealed class GameRuntimePartyCommandHandler
         );
     }
 
-    private Dictionary RuntimeUnavailableError()
-    {
-        return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
-    }
-
     private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
         return GameRuntimeFacade.RuntimeCommandResult.Failure(
@@ -567,176 +445,17 @@ public sealed class GameRuntimePartyCommandHandler
         );
     }
 
-    private bool HasGenerationDefinition()
-    {
-        if (!HasRuntime())
-            return false;
-        return _runtime.GetGenerationDefinition() != null;
-    }
+    private PartyCommandSnapshot CapturePartyCommandSnapshot() =>
+        _port.CapturePartyCommandSnapshot();
 
-    private bool IsBattleActive()
-    {
-        if (!HasRuntime())
-            return false;
-        return _runtime.IsBattleActive();
-    }
-
-    private bool IsModalWindowOpen()
-    {
-        if (!HasRuntime())
-            return false;
-        return _runtime.IsModalWindowOpen();
-    }
-
-    private PartyState GetPartyState()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.GetPartyState();
-    }
-
-    private void SetPartyState(PartyState partyState)
-    {
-        if (HasRuntime())
-            _runtime.SetPartyState(partyState);
-    }
-
-    private RuntimeModalKind GetActiveModalKind()
-    {
-        return HasRuntime() ? _runtime.GetActiveModalKind() : RuntimeModalKind.None;
-    }
-
-    private void SetActiveModalKind(RuntimeModalKind modalKind)
-    {
-        if (HasRuntime())
-            _runtime.SetRuntimeActiveModalKind(modalKind);
-    }
-
-    private StringName GetPartySelectedMemberId()
-    {
-        if (!HasRuntime())
-            return "";
-        return _runtime.GetPartySelectedMemberId();
-    }
-
-    private void SetPartySelectedMemberId(StringName memberId)
-    {
-        if (HasRuntime())
-            _runtime.SetPartySelectedMemberId(memberId);
-    }
-
-    private PartyEquipmentService.EquipmentActionResult EquipPartyItem(
-        StringName memberId,
-        StringName itemId,
-        StringName slotId,
-        StringName instanceId
+    private static IGameRuntimePartyCommandPort ResolveWeakRef(
+        WeakReference<IGameRuntimePartyCommandPort> weakRef
     )
     {
-        if (!HasRuntime())
-            return new PartyEquipmentService.EquipmentActionResult(
-                false,
-                memberId,
-                slotId,
-                itemId,
-                "",
-                "",
-                "",
-                "runtime_unavailable"
-            );
-        var service = _runtime.GetPartyEquipmentService();
-        return service != null
-            ? service.EquipItemTyped(memberId, itemId, slotId, instanceId)
-            : new PartyEquipmentService.EquipmentActionResult(
-                false,
-                memberId,
-                slotId,
-                itemId,
-                "",
-                "",
-                "",
-                "runtime_unavailable"
-            );
-    }
-
-    private PartyEquipmentService.EquipmentActionResult UnequipPartyItem(
-        StringName memberId,
-        StringName slotId
-    )
-    {
-        if (!HasRuntime())
-            return new PartyEquipmentService.EquipmentActionResult(
-                false,
-                memberId,
-                slotId,
-                "",
-                "",
-                "",
-                "",
-                "runtime_unavailable"
-            );
-        var service = _runtime.GetPartyEquipmentService();
-        return service != null
-            ? service.UnequipItemTyped(memberId, slotId)
-            : new PartyEquipmentService.EquipmentActionResult(
-                false,
-                memberId,
-                slotId,
-                "",
-                "",
-                "",
-                "",
-                "runtime_unavailable"
-            );
-    }
-
-    private void SyncCharacterManagementPartyState()
-    {
-        if (HasRuntime())
-            _runtime.SyncCharacterManagementPartyState();
-    }
-
-    private void OpenPartyWarehouseWindow(string entryLabel)
-    {
-        if (HasRuntime())
-            _runtime.OpenPartyWarehouseWindow(entryLabel);
-    }
-
-    private bool PresentPendingRewardIfReady()
-    {
-        if (!HasRuntime())
-            return false;
-        return _runtime.PresentPendingRewardIfReady();
-    }
-
-    private void UpdateStatus(string message)
-    {
-        if (HasRuntime())
-            _runtime.UpdateStatus(message);
-    }
-
-    private string GetStatusText()
-    {
-        if (!HasRuntime())
-            return "";
-        return _runtime.GetStatusText();
-    }
-
-    private GameSession GetGameSession()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.GetGameSession();
-    }
-
-    private void RefreshFog()
-    {
-        if (HasRuntime())
-            _runtime.RefreshFog();
-    }
-
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
-    {
-        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out IGameRuntimePartyCommandPort target)
+        )
             return null;
         return target;
     }

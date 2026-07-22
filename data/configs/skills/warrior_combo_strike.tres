@@ -23,7 +23,7 @@ params = {
 "same_target_only": true,
 "cost_resource": "stamina",
 "follow_up_fixed_cost": 5,
-"follow_up_damage_multiplier": 1,
+"follow_up_damage_multiplier_percent": 100,
 "follow_up_attack_penalty": 1,
 "exponential_penalty": true,
 "penalty_free_stages_by_level": {

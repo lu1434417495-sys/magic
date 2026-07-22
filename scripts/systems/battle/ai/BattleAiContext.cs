@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -24,8 +25,8 @@ public class BattleAiContext : IBattleAiScoreContext
 
     private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitionsSource;
     private Dictionary<StringName, SkillDefinition> _skillDefinitionsById = new();
-    private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions =
-        new Dictionary<StringName, BarrierProfileDefinition>();
+    private Dictionary<StringName, BarrierProfileDefinition>
+        _barrierProfileDefinitionsById = new();
 
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
@@ -33,9 +34,9 @@ public class BattleAiContext : IBattleAiScoreContext
     public BattleAiScoreProfileDefinition active_score_profile { get; set; }
     internal ISkillCatalog skill_catalog { get; private set; }
     IReadOnlyDictionary<StringName, SkillDefinition> IBattleAiScoreContext.skill_definitions =>
-        _skillDefinitionsById;
+        BuildReadOnlySkillDefinitionView();
     IReadOnlyDictionary<StringName, BarrierProfileDefinition> IBattleAiScoreContext.barrier_profile_definitions =>
-        _barrierProfileDefinitions;
+        BuildReadOnlyBarrierProfileDefinitionView();
     ISkillCatalog IBattleAiScoreContext.skill_catalog => skill_catalog;
     public Func<
         BattleAiContext,
@@ -489,7 +490,7 @@ public class BattleAiContext : IBattleAiScoreContext
         _skillDefinitionsSource = null;
         skill_catalog = null;
         _skillDefinitionsById.Clear();
-        _barrierProfileDefinitions = new Dictionary<StringName, BarrierProfileDefinition>();
+        _barrierProfileDefinitionsById.Clear();
     }
 
     internal bool HasRuntimeBindings =>
@@ -508,7 +509,7 @@ public class BattleAiContext : IBattleAiScoreContext
         || skill_cast_block_reason_callback != null
         || _skillDefinitionsSource != null
         || _skillDefinitionsById.Count != 0
-        || _barrierProfileDefinitions.Count != 0;
+        || _barrierProfileDefinitionsById.Count != 0;
 
     private void ClearDecisionState()
     {
@@ -934,7 +935,11 @@ public class BattleAiContext : IBattleAiScoreContext
     }
 
     internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionIndexTyped() =>
-        _skillDefinitionsById;
+        BuildReadOnlySkillDefinitionView();
+
+    private IReadOnlyDictionary<StringName, SkillDefinition>
+        BuildReadOnlySkillDefinitionView() =>
+        new ReadOnlyDictionary<StringName, SkillDefinition>(_skillDefinitionsById);
 
     internal void SetSkillDefinitions(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
@@ -948,10 +953,22 @@ public class BattleAiContext : IBattleAiScoreContext
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions
     )
     {
-        _barrierProfileDefinitions =
-            barrierProfileDefinitions
-            ?? new Dictionary<StringName, BarrierProfileDefinition>();
+        _barrierProfileDefinitionsById = barrierProfileDefinitions == null
+            ? new Dictionary<StringName, BarrierProfileDefinition>()
+            : new Dictionary<StringName, BarrierProfileDefinition>(
+                barrierProfileDefinitions
+            );
     }
+
+    internal IReadOnlyDictionary<StringName, BarrierProfileDefinition>
+        GetBarrierProfileDefinitionIndexTyped() =>
+        BuildReadOnlyBarrierProfileDefinitionView();
+
+    private IReadOnlyDictionary<StringName, BarrierProfileDefinition>
+        BuildReadOnlyBarrierProfileDefinitionView() =>
+        new ReadOnlyDictionary<StringName, BarrierProfileDefinition>(
+            _barrierProfileDefinitionsById
+        );
 
     private void SetSkillDefinitionsCached(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions

@@ -150,7 +150,7 @@ public sealed partial class BattleRuntimeModule
         ObjectDisposedException.ThrowIf(_disposed, this);
         Exception firstFailure = null;
         RunTeardownStep(ref firstFailure, _runtime_services.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, ClearAiActionPlans);
+        RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
         if (firstFailure != null)
         {
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
@@ -165,13 +165,13 @@ public sealed partial class BattleRuntimeModule
         }
         try
         {
-            _build_ai_action_plans();
+            _aiDecisionBindingService._build_ai_action_plans();
         }
         catch
         {
             Exception cleanupFailure = null;
             RunTeardownStep(ref cleanupFailure, _runtime_services.ClearRuntimeBindings);
-            RunTeardownStep(ref cleanupFailure, ClearAiActionPlans);
+            RunTeardownStep(ref cleanupFailure, _aiDecisionBindingService.ClearAiActionPlans);
             throw;
         }
     }
@@ -292,7 +292,7 @@ public sealed partial class BattleRuntimeModule
         }
     }
 
-    private EnemyAiBrainDefinition GetEnemyAiBrainTyped(StringName brainId)
+    internal EnemyAiBrainDefinition GetEnemyAiBrainTyped(StringName brainId)
     {
         if (IsEmpty(brainId))
         {

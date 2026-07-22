@@ -903,9 +903,10 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_advantage_tags);
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_disadvantage_tags);
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_immunity_tags);
-                hash = hash * 31 + BuildStringNameListSignature(status?.save_tags);
             }
             hash = hash * 31 + BuildStringNameArraySignature(unitState.save_advantage_tags);
+            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_disadvantage_tags);
+            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_immunity_tags);
             return hash;
         }
     }

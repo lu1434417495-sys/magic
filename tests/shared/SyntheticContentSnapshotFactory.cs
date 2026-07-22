@@ -30,6 +30,7 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; set; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; set; }
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; set; }
+    internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; set; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; set; }
 }
 
@@ -68,6 +69,7 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.EnemyTemplates),
             OrEmpty(seed.EnemyBrains),
             OrEmpty(seed.EncounterRosters),
+            OrEmpty(seed.BattleEncounters),
             OrEmpty(seed.BattleSimProfiles)
         );
     }
@@ -103,6 +105,7 @@ internal static class SyntheticContentSnapshotFactory
             EnemyTemplates = source.EnemyTemplates,
             EnemyBrains = source.EnemyBrains,
             EncounterRosters = source.EncounterRosters,
+            BattleEncounters = source.BattleEncounters,
             BattleSimProfiles = source.BattleSimProfiles,
         };
     }

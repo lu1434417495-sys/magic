@@ -35,7 +35,7 @@ max_target_count = 1
 allow_repeat_target = false
 selection_order_mode = &"stable"
 required_weapon_families = Array[StringName]([&"bow"])
-delivery_categories = Array[StringName]([&"equipment", &"windbow", &"bow", &"wind", &"control", &"displacement", &"weapon"])
+delivery_categories = Array[StringName]([&"equipment", &"windbow", &"bow", &"wind", &"control", &"displacement", &"weapon", &"magical_missile"])
 effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_gale_push")])
 
 [resource]

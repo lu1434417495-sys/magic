@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_iijmx"]
 script = ExtResource("4_ru6u6")
 skill_id = &"mage_frozen_step"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"

@@ -75,6 +75,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_magic_shield"
+delivery_categories = Array[StringName]([&"spell", &"force_effect"])
 target_team_filter = &"ally"
 range_value = 0
 mp_cost = 80

@@ -60,5 +60,4 @@ profile_id = &"mist_hollow"
 display_name = "雾沼伏猎群"
 initial_stage = 0
 growth_step_interval = 3
-suppression_steps_on_victory = 2
 stages = Array[ExtResource("2_stage")]([SubResource("Resource_mist_hollow_stage0"), SubResource("Resource_mist_hollow_stage1"), SubResource("Resource_mist_hollow_stage2")])

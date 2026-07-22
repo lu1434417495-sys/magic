@@ -14,6 +14,9 @@ public partial class run_battle_hit_resolver_bab_regression : LifecycleTestScene
         TestAttackCheckAddsBabOnTopOfExistingAttackBonus();
         TestLockedSkillHitBonusReducesRequiredRoll();
         TestLockedSkillHitBonusAppliesToSpellControlRoll();
+        TestAttackerStatusAttackBonusesStackAdditively();
+        TestBlackStarBrandPenaltySurvivesPositiveBonuses();
+        TestAttackRollPenaltiesStackAdditively();
 
         RequestTestExit(_test.Finish("Battle hit resolver BAB regression"));
     }
@@ -115,6 +118,70 @@ public partial class run_battle_hit_resolver_bab_regression : LifecycleTestScene
         _test.Eq(metadata.LockedSkillHitBonus, 2, "法术检定元数据应记录锁定技能加值。");
         _test.Eq(metadata.HitRoll, 4, "法术检定应保留原始 d20。");
         _test.Eq(metadata.EffectiveHitRoll, 6, "法术检定应使用 d20 + 锁定加值作为有效检定值。");
+    }
+
+    private void TestAttackerStatusAttackBonusesStackAdditively()
+    {
+        BattleUnitState attacker = MakeUnitWithAttackBonuses(0, 0);
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "test_focus_buff", attack_roll_bonus = 2 }
+        );
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "test_war_chant", attack_roll_bonus = 1 }
+        );
+        BattleUnitState target = MakeUnitWithArmorClass(15);
+        var resolver = new BattleHitResolver();
+
+        AttackCheckInput attackCheck = resolver.BuildSkillAttackCheck(attacker, target, null);
+        _test.Eq(
+            attackCheck.SituationalAttackBonus,
+            3,
+            "多个正面命中加值状态应累加(+2 +1 = +3),不取大。"
+        );
+        _test.Eq(attackCheck.RequiredRoll, 12, "累加 +3 应把 required_roll 从 15 降到 12。");
+    }
+
+    private void TestBlackStarBrandPenaltySurvivesPositiveBonuses()
+    {
+        BattleUnitState attacker = MakeUnitWithAttackBonuses(0, 0);
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "black_star_brand_elite" }
+        );
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "test_war_chant", attack_roll_bonus = 2 }
+        );
+        BattleUnitState target = MakeUnitWithArmorClass(15);
+        var resolver = new BattleHitResolver();
+
+        AttackCheckInput attackCheck = resolver.BuildSkillAttackCheck(attacker, target, null);
+        _test.Eq(
+            attackCheck.SituationalAttackPenalty,
+            1,
+            "黑星烙印 -3 与 +2 buff 并存应按累加得净值 -1,不允许被正面加成整体覆盖。"
+        );
+        _test.Eq(attackCheck.SituationalAttackBonus, 0, "净值为负时不应再报正向情境加值。");
+        _test.Eq(attackCheck.RequiredRoll, 16, "净 -1 应把 required_roll 从 15 抬到 16。");
+    }
+
+    private void TestAttackRollPenaltiesStackAdditively()
+    {
+        BattleUnitState attacker = MakeUnitWithAttackBonuses(0, 0);
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "test_dazzled", attack_roll_penalty = 2 }
+        );
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState { status_id = "test_wrist_sprain", attack_roll_penalty = 1 }
+        );
+        BattleUnitState target = MakeUnitWithArmorClass(15);
+        var resolver = new BattleHitResolver();
+
+        AttackCheckInput attackCheck = resolver.BuildSkillAttackCheck(attacker, target, null);
+        _test.Eq(
+            attackCheck.SituationalAttackPenalty,
+            3,
+            "多个攻击惩罚状态默认累加(2+1=3);取大仅限语义表显式标记的特殊来源。"
+        );
+        _test.Eq(attackCheck.RequiredRoll, 18, "累加惩罚 -3 应把 required_roll 从 15 抬到 18。");
     }
 
     private static BattleUnitState MakeUnitWithAttackBonuses(int attackBonus, int baseAttackBonus)

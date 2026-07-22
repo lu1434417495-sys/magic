@@ -61,7 +61,7 @@ internal static class BattleSimReportProjection
         BattleAiTurnTraceProjection trace,
         string scenarioId,
         string profileId,
-        long seed
+        BattleSimRunReport run
     )
     {
         GDictionary root = new();
@@ -82,7 +82,18 @@ internal static class BattleSimReportProjection
             );
             root["scenario_id"] = scenarioId ?? "";
             root["profile_id"] = profileId ?? "";
-            root["seed"] = seed;
+            root["seed"] = run?.Seed ?? 0;
+            root["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                run?.ObjectiveMode ?? BattleObjectiveMode.Unknown
+            );
+            root["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                run?.Outcome ?? BattleOutcomeKind.Unknown
+            );
+            root["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                run?.EndReason ?? BattleEndReasonKind.None
+            );
+            root["decision_tu"] = run?.DecisionTu ?? -1;
+            root["winner_faction_id"] = run?.WinnerFactionId ?? "";
             return lease;
         }
         catch
@@ -104,6 +115,12 @@ internal static class BattleSimReportProjection
             return result;
         result["baseline_profile_id"] = comparison.BaselineProfileId;
         result["candidate_profile_id"] = comparison.CandidateProfileId;
+        result["baseline_run_count"] = comparison.BaselineRunCount;
+        result["baseline_completed_run_count"] = comparison.BaselineCompletedRunCount;
+        result["candidate_run_count"] = comparison.CandidateRunCount;
+        result["candidate_completed_run_count"] = comparison.CandidateCompletedRunCount;
+        result["has_unfinished_runs"] = comparison.HasUnfinishedRuns;
+        result["is_complete"] = comparison.IsComplete;
         result["average_final_tu_delta"] = comparison.AverageFinalTuDelta;
         result["average_iterations_delta"] = comparison.AverageIterationsDelta;
         result["average_timeline_steps_delta"] = comparison.AverageTimelineStepsDelta;
@@ -165,6 +182,14 @@ internal static class BattleSimReportProjection
         result["profile_id"] = summary.ProfileId;
         result["display_name"] = summary.DisplayName;
         result["run_count"] = summary.RunCount;
+        result["completed_run_count"] = summary.CompletedRunCount;
+        result["unfinished_run_count"] = summary.UnfinishedRunCount;
+        result["stalled_run_count"] = summary.StalledRunCount;
+        result["iteration_budget_exhausted_run_count"] =
+            summary.IterationBudgetExhaustedRunCount;
+        result["invalid_runtime_run_count"] = summary.InvalidRuntimeRunCount;
+        result["has_unfinished_runs"] = summary.HasUnfinishedRuns;
+        result["is_complete"] = summary.IsComplete;
         result["wins_by_faction"] = WriteIntDictionary(
             lease,
             summary.WinsByFaction,
@@ -259,6 +284,15 @@ internal static class BattleSimReportProjection
 
         target["scenario"] = WriteScenario(lease, report.Scenario, $"{reason}.scenario");
         target["generated_at_unix"] = report.GeneratedAtUnix;
+        target["run_count"] = report.RunCount;
+        target["completed_run_count"] = report.CompletedRunCount;
+        target["unfinished_run_count"] = report.UnfinishedRunCount;
+        target["stalled_run_count"] = report.StalledRunCount;
+        target["iteration_budget_exhausted_run_count"] =
+            report.IterationBudgetExhaustedRunCount;
+        target["invalid_runtime_run_count"] = report.InvalidRuntimeRunCount;
+        target["has_unfinished_runs"] = report.HasUnfinishedRuns;
+        target["is_complete"] = report.IsComplete;
         target["profile_entries"] = profileEntries;
         target["comparisons"] = comparisons;
         target["output_files"] = WriteOutputFiles(
@@ -299,13 +333,27 @@ internal static class BattleSimReportProjection
         where TLeaseRoot : class, IDisposable
     {
         GDictionary result = NewDictionary(lease, reason);
-        if (report == null)
-            return result;
+        report ??= new BattleSimRunReport();
         result["scenario_id"] = report.ScenarioId;
         result["profile_id"] = report.ProfileId;
         result["seed"] = report.Seed;
         result["battle_id"] = report.BattleId;
         result["battle_ended"] = report.BattleEnded;
+        result["termination_kind"] = BattleSimTerminationKindCodec.ToWireValue(
+            report.TerminationKind
+        );
+        result["stalled"] = report.Stalled;
+        result["start_failure"] = TraceDictionaryProjection.WriteDictionary(
+            lease,
+            BattleSimFilePayloadProjection.BuildStartFailureFacts(report.StartFailure),
+            $"{reason}.start_failure"
+        );
+        result["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+            report.ObjectiveMode
+        );
+        result["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(report.Outcome);
+        result["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(report.EndReason);
+        result["decision_tu"] = report.DecisionTu;
         result["winner_faction_id"] = report.WinnerFactionId;
         result["final_tu"] = report.FinalTu;
         result["iterations"] = report.Iterations;
@@ -384,8 +432,24 @@ internal static class BattleSimReportProjection
         GDictionary result = NewDictionary(lease, reason);
         if (metrics == null)
             return result;
+        result["faction_id"] = metrics.FactionId;
         result["unit_count"] = metrics.UnitCount;
         result["turn_count"] = metrics.TurnCount;
+        result["action_counts"] = WriteIntDictionary(
+            lease,
+            metrics.ActionCounts,
+            $"{reason}.action_counts"
+        );
+        result["skill_attempt_counts"] = WriteIntDictionary(
+            lease,
+            metrics.SkillAttemptCounts,
+            $"{reason}.skill_attempt_counts"
+        );
+        result["skill_success_counts"] = WriteIntDictionary(
+            lease,
+            metrics.SkillSuccessCounts,
+            $"{reason}.skill_success_counts"
+        );
         result["successful_skill_count"] = metrics.SuccessfulSkillCount;
         result["total_damage_done"] = metrics.TotalDamageDone;
         result["total_healing_done"] = metrics.TotalHealingDone;
@@ -475,6 +539,21 @@ internal static class BattleSimReportProjection
             return result;
         result["unit_count"] = summary.UnitCount;
         result["turn_count"] = summary.TurnCount;
+        result["action_counts"] = WriteIntDictionary(
+            lease,
+            summary.ActionCounts,
+            $"{reason}.action_counts"
+        );
+        result["skill_attempt_counts"] = WriteIntDictionary(
+            lease,
+            summary.SkillAttemptCounts,
+            $"{reason}.skill_attempt_counts"
+        );
+        result["skill_success_counts"] = WriteIntDictionary(
+            lease,
+            summary.SkillSuccessCounts,
+            $"{reason}.skill_success_counts"
+        );
         result["successful_skill_count"] = summary.SuccessfulSkillCount;
         result["total_damage_done"] = summary.TotalDamageDone;
         result["total_healing_done"] = summary.TotalHealingDone;

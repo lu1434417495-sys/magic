@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -26,6 +27,9 @@ internal class BattleGroundEffectService
     }
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private readonly BattleGroundRelocationService _relocationService = new();
+    private readonly BattleGroundSkillValidationService _validationService = new();
+    private readonly BattleGroundEffectCoordService _coordService = new();
 
     private BattleRuntimeModule _runtime
     {
@@ -36,11 +40,35 @@ internal class BattleGroundEffectService
     internal void Setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
+        _coordService.Setup(runtime, this);
+        _relocationService.Setup(runtime, this, _coordService);
+        _validationService.Setup(runtime, this, _relocationService, _coordService);
     }
+
+    internal int ActiveDependencyCount =>
+        (_runtime != null ? 1 : 0)
+        + _coordService.ActiveDependencyCount
+        + _relocationService.ActiveDependencyCount
+        + _validationService.ActiveDependencyCount;
 
     internal void Dispose()
     {
-        _runtime = null;
+        Exception firstFailure = null;
+        BattleRuntimeModule.RunTeardownStep(
+            ref firstFailure,
+            _validationService.DisposeRuntime
+        );
+        BattleRuntimeModule.RunTeardownStep(
+            ref firstFailure,
+            _relocationService.DisposeRuntime
+        );
+        BattleRuntimeModule.RunTeardownStep(
+            ref firstFailure,
+            _coordService.DisposeRuntime
+        );
+        BattleRuntimeModule.RunTeardownStep(ref firstFailure, () => _runtime = null);
+        if (firstFailure != null)
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
     }
 
     internal void append_result_report_entry(
@@ -281,7 +309,7 @@ internal class BattleGroundEffectService
         Runtime?._append_changed_coord(batch, coord);
     }
 
-    private void AppendChangedCoords(BattleEventBatch batch, IReadOnlyList<Vector2I> coords)
+    internal void AppendChangedCoords(BattleEventBatch batch, IReadOnlyList<Vector2I> coords)
     {
         if (coords == null)
         {
@@ -364,6 +392,118 @@ internal class BattleGroundEffectService
         return _runtime != null && Runtime._movement_service.IsMovementBlocked(unitView);
     }
 
+    internal bool ApplyGroundPrecastSpecialEffects(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords,
+        BattleEventBatch batch
+    ) => _relocationService.ApplyGroundPrecastSpecialEffects(activeUnit, skillDefinition, castVariantDefinition, targetCoords, batch);
+
+    internal bool ApplyGroundJumpRelocation(
+        BattleUnitState active_unit,
+        IReadOnlyList<Vector2I> target_coords,
+        BattleEventBatch batch
+    ) => _relocationService.ApplyGroundJumpRelocation(active_unit, target_coords, batch);
+
+    internal BattleGroundWindPushResult _apply_ground_wind_push_effects_result(
+        BattleUnitState sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> windPushEffects,
+        IReadOnlyList<Vector2I> effectCoords,
+        IReadOnlyList<Vector2I> targetCoords,
+        BattleEventBatch batch
+    ) => _relocationService._apply_ground_wind_push_effects_result(sourceUnit, skillDefinition, windPushEffects, effectCoords, targetCoords, batch);
+
+    internal string GetGroundSpecialEffectValidationMessage(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    ) => _validationService.GetGroundSpecialEffectValidationMessage(activeUnit, skillDefinition, castVariantDefinition, targetCoords);
+
+    internal string GetGroundSpecialEffectValidationMessage(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    ) => _validationService.GetGroundSpecialEffectValidationMessage(activeUnit, skillDefinition, castVariantDefinition, targetCoords);
+
+    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleCommand command
+    ) => _validationService._validate_ground_skill_command_result(activeUnit, skillDefinition, castVariantDefinition, command);
+
+    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleCommand command
+    ) => _validationService._validate_ground_skill_command_result(activeUnit, skillDefinition, castVariantDefinition, command);
+
+    internal bool _validate_target_coords_shape(
+        CombatCastFootprintPattern footprint_pattern,
+        IReadOnlyList<Vector2I> target_coords
+    ) => _validationService._validate_target_coords_shape(footprint_pattern, target_coords);
+
+    internal Godot.Collections.Array<Vector2I> _normalize_target_coords(BattleCommand command) => _validationService._normalize_target_coords(command);
+
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
+        SkillDefinition skillDefinition,
+        IReadOnlyList<Vector2I> targetCoords,
+        Vector2I sourceCoord,
+        BattleUnitState activeUnit,
+        CombatCastVariantDefinition castVariantDefinition
+    ) => _coordService.BuildGroundEffectCoords(skillDefinition, targetCoords, sourceCoord, activeUnit, castVariantDefinition);
+
+    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
+        SkillDefinition skillDefinition,
+        IReadOnlyList<Vector2I> targetCoords,
+        Vector2I sourceCoord,
+        BattleUnitReadView activeUnit,
+        CombatCastVariantDefinition castVariantDefinition
+    ) => _coordService.BuildGroundEffectCoords(skillDefinition, targetCoords, sourceCoord, activeUnit, castVariantDefinition);
+
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitState activeUnit
+    ) => _coordService.CollectGroundUnitEffectDefinitions(skillDefinition, castVariantDefinition, activeUnit);
+
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitReadView activeUnit
+    ) => _coordService.CollectGroundUnitEffectDefinitions(skillDefinition, castVariantDefinition, activeUnit);
+
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitState activeUnit
+    ) => _coordService.CollectGroundTerrainEffectDefinitions(skillDefinition, castVariantDefinition, activeUnit);
+
+    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleUnitReadView activeUnit
+    ) => _coordService.CollectGroundTerrainEffectDefinitions(skillDefinition, castVariantDefinition, activeUnit);
+
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
+        BattleUnitState sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
+    ) => _coordService.CollectGroundPreviewUnitIds(sourceUnit, skillDefinition, effectDefinitions, effectCoords);
+
+    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<Vector2I> effectCoords
+    ) => _coordService.CollectGroundPreviewUnitIds(sourceUnit, skillDefinition, effectDefinitions, effectCoords);
+
     internal BattleSpellControlResult ResolveGroundSpellControlAfterCostResult(
         BattleUnitState active_unit,
         SkillDefinition skillDefinition,
@@ -441,851 +581,6 @@ internal class BattleGroundEffectService
         return controlContext;
     }
 
-    internal bool ApplyGroundPrecastSpecialEffects(
-        BattleUnitState activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
-    )
-    {
-        return _get_ground_relocation_effect_definition(
-                skillDefinition,
-                castVariantDefinition
-            ) == null
-            || ApplyGroundRelocation(
-                activeUnit,
-                skillDefinition,
-                castVariantDefinition,
-                targetCoords,
-                batch
-            );
-    }
-
-    private bool ApplyGroundRelocation(
-        BattleUnitState activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
-    )
-    {
-        if (State == null || activeUnit == null || targetCoords == null || targetCoords.Count == 0)
-        {
-            return false;
-        }
-        CombatEffectDefinition effectDefinition =
-            _get_ground_relocation_effect_definition(skillDefinition, castVariantDefinition);
-        return effectDefinition != null
-            && ApplyGroundRelocationWithMode(
-                activeUnit,
-                targetCoords,
-                batch,
-                effectDefinition.ForcedMoveModeKind
-            );
-    }
-
-    private bool ApplyGroundRelocationWithMode(
-        BattleUnitState active_unit,
-        IReadOnlyList<Vector2I> target_coords,
-        BattleEventBatch batch,
-        BattleForcedMoveMode move_mode
-    )
-    {
-        BattleState state = State;
-        BattleGridService gridService = GridService;
-        if (
-            state == null
-            || gridService == null
-            || active_unit == null
-            || target_coords == null
-            || target_coords.Count == 0
-        )
-        {
-            return false;
-        }
-        Vector2I landingCoord = target_coords[0];
-        if (active_unit.coord == landingCoord)
-        {
-            return true;
-        }
-        Vector2I previousAnchor = active_unit.coord;
-        List<Vector2I> previousCoords =
-            active_unit.occupied_coords != null
-                ? new List<Vector2I>(active_unit.occupied_coords)
-                : new List<Vector2I>();
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        if (layeredBarrierService != null)
-        {
-            BattleBarrierInteractionResult barrierResult =
-                layeredBarrierService.ResolveUnitBoundaryCrossingResult(
-                    active_unit,
-                    previousAnchor,
-                    landingCoord,
-                    batch
-                );
-            if (
-                barrierResult.Blocked
-                || !active_unit.is_alive
-                || active_unit.coord != previousAnchor
-            )
-            {
-                return false;
-            }
-        }
-        if (!gridService.MoveUnitForce(state, active_unit, landingCoord))
-        {
-            return false;
-        }
-        AppendChangedCoords(batch, previousCoords);
-        _append_changed_unit_coords(batch, active_unit);
-        _append_changed_unit_id(batch, active_unit.unit_id);
-        string moveLabel = move_mode == BattleForcedMoveMode.Blink ? "闪现至" : "跳至";
-        AppendLog(
-            batch,
-            $"{DisplayName(active_unit)} 从 ({previousAnchor.X}, {previousAnchor.Y}) {moveLabel} ({landingCoord.X}, {landingCoord.Y})。"
-        );
-        return true;
-    }
-
-    internal bool ApplyGroundJumpRelocation(
-        BattleUnitState active_unit,
-        IReadOnlyList<Vector2I> target_coords,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyGroundRelocationWithMode(
-            active_unit,
-            target_coords,
-            batch,
-            BattleForcedMoveMode.Jump
-        );
-    }
-
-    internal CombatEffectDefinition _get_ground_relocation_effect_definition(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        if (castVariantDefinition != null)
-        {
-            foreach (
-                CombatEffectDefinition effectDefinition in castVariantDefinition.EffectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
-            )
-            {
-                if (_is_ground_relocation_effect(effectDefinition))
-                {
-                    return effectDefinition;
-                }
-            }
-        }
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (combatProfile != null)
-        {
-            foreach (
-                CombatEffectDefinition effectDefinition in combatProfile.EffectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
-            )
-            {
-                if (_is_ground_relocation_effect(effectDefinition))
-                {
-                    return effectDefinition;
-                }
-            }
-        }
-        return null;
-    }
-
-    internal bool _is_ground_relocation_effect(CombatEffectDefinition effectDefinition)
-    {
-        return effectDefinition != null
-            && effectDefinition.EffectKind == BattleEffectKind.ForcedMove
-            && _is_ground_relocation_mode(effectDefinition.ForcedMoveModeKind);
-    }
-
-    internal bool _is_ground_relocation_mode(BattleForcedMoveMode mode)
-    {
-        return mode == BattleForcedMoveMode.Jump || mode == BattleForcedMoveMode.Blink;
-    }
-
-    internal bool _can_use_ground_relocation(
-        BattleUnitState active_unit,
-        Vector2I landing_coord,
-        CombatEffectDefinition effectDefinition
-    )
-    {
-        if (effectDefinition == null || GridService == null)
-        {
-            return false;
-        }
-        BattleForcedMoveMode mode = effectDefinition.ForcedMoveModeKind;
-        if (mode == BattleForcedMoveMode.Jump)
-        {
-            return GridService.CanJumpArc(
-                State,
-                active_unit,
-                landing_coord,
-                effectDefinition
-            );
-        }
-        if (mode == BattleForcedMoveMode.Blink)
-        {
-            return GridService.CanBlinkToCoord(
-                State,
-                active_unit,
-                landing_coord,
-                effectDefinition
-            );
-        }
-        return false;
-    }
-
-    internal bool _can_use_ground_relocation(
-        BattleUnitReadView active_unit,
-        Vector2I landing_coord,
-        CombatEffectDefinition effectDefinition
-    )
-    {
-        if (effectDefinition == null || GridService == null)
-        {
-            return false;
-        }
-        BattleForcedMoveMode mode = effectDefinition.ForcedMoveModeKind;
-        if (mode == BattleForcedMoveMode.Jump)
-        {
-            return GridService.CanJumpArc(
-                State,
-                active_unit,
-                landing_coord,
-                effectDefinition
-            );
-        }
-        if (mode == BattleForcedMoveMode.Blink)
-        {
-            return GridService.CanBlinkToCoord(
-                State,
-                active_unit,
-                landing_coord,
-                effectDefinition
-            );
-        }
-        return false;
-    }
-
-    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
-        SkillDefinition skillDefinition,
-        IReadOnlyList<Vector2I> targetCoords,
-        Vector2I sourceCoord,
-        BattleUnitState activeUnit,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        var normalizedTargetCoords = new List<Vector2I>(
-            targetCoords ?? System.Array.Empty<Vector2I>()
-        );
-        if (
-            castVariantDefinition != null
-            && HasParameter(castVariantDefinition.Parameters, "square2_corner")
-            && normalizedTargetCoords.Count == 1
-        )
-        {
-            IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
-                normalizedTargetCoords[0],
-                ReadString(castVariantDefinition.Parameters, "square2_corner")
-            );
-            var valid = new List<Vector2I>(expanded.Count);
-            foreach (Vector2I coord in expanded)
-            {
-                if (State != null && GridService != null && GridService.IsInside(State, coord))
-                {
-                    valid.Add(coord);
-                }
-            }
-            if (valid.Count > 0)
-            {
-                return SortCoordsTyped(valid);
-            }
-        }
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (State == null || skillDefinition == null || combatProfile == null)
-        {
-            return SortCoordsTyped(normalizedTargetCoords);
-        }
-        int skillLevel = _get_unit_skill_level(activeUnit, skillDefinition.SkillId);
-        BattleTargetCollectionResult collectedTargetCoords =
-            TargetCollectionService.CollectCombatProfileTargetCoords(
-                State,
-                GridService,
-                sourceCoord,
-                combatProfile,
-                normalizedTargetCoords,
-                activeUnit,
-                System.Array.Empty<BattleUnitState>(),
-                skillLevel
-            );
-        if (collectedTargetCoords.Handled)
-        {
-            return SortCoordsTyped(collectedTargetCoords.TargetCoords);
-        }
-        return SortCoordsTyped(normalizedTargetCoords);
-    }
-
-    internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
-        SkillDefinition skillDefinition,
-        IReadOnlyList<Vector2I> targetCoords,
-        Vector2I sourceCoord,
-        BattleUnitReadView activeUnit,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        var normalizedTargetCoords = new List<Vector2I>(
-            targetCoords ?? System.Array.Empty<Vector2I>()
-        );
-        if (
-            castVariantDefinition != null
-            && HasParameter(castVariantDefinition.Parameters, "square2_corner")
-            && normalizedTargetCoords.Count == 1
-        )
-        {
-            IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
-                normalizedTargetCoords[0],
-                ReadString(castVariantDefinition.Parameters, "square2_corner")
-            );
-            var valid = new List<Vector2I>(expanded.Count);
-            foreach (Vector2I coord in expanded)
-            {
-                if (State != null && GridService != null && GridService.IsInside(State, coord))
-                {
-                    valid.Add(coord);
-                }
-            }
-            if (valid.Count > 0)
-            {
-                return SortCoordsTyped(valid);
-            }
-        }
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (State == null || skillDefinition == null || combatProfile == null)
-        {
-            return SortCoordsTyped(normalizedTargetCoords);
-        }
-        int skillLevel = activeUnit.GetKnownSkillLevel(skillDefinition.SkillId);
-        BattleTargetCollectionResult collectedTargetCoords =
-            TargetCollectionService.CollectCombatProfileTargetCoords(
-                State,
-                GridService,
-                sourceCoord,
-                combatProfile,
-                normalizedTargetCoords,
-                activeUnit,
-                System.Array.Empty<BattleUnitReadView>(),
-                skillLevel
-            );
-        if (collectedTargetCoords.Handled)
-        {
-            return SortCoordsTyped(collectedTargetCoords.TargetCoords);
-        }
-        return SortCoordsTyped(normalizedTargetCoords);
-    }
-
-    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitState activeUnit
-    )
-    {
-        return SkillResolutionRules?.CollectGroundUnitEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>();
-    }
-
-    internal IReadOnlyList<CombatEffectDefinition> CollectGroundUnitEffectDefinitions(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitReadView activeUnit
-    )
-    {
-        return SkillResolutionRules?.CollectGroundUnitEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>();
-    }
-
-    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitState activeUnit
-    )
-    {
-        return SkillResolutionRules?.CollectGroundTerrainEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>();
-    }
-
-    internal IReadOnlyList<CombatEffectDefinition> CollectGroundTerrainEffectDefinitions(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitReadView activeUnit
-    )
-    {
-        return SkillResolutionRules?.CollectGroundTerrainEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            ) ?? new List<CombatEffectDefinition>();
-    }
-
-    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyList<Vector2I> effectCoords
-    )
-    {
-        var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
-        {
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
-            )
-            {
-                if (
-                    _is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                )
-                {
-                    if (targetUnit != null)
-                    {
-                        targetUnitIds.Add(targetUnit.unit_id);
-                    }
-                    break;
-                }
-            }
-        }
-        return targetUnitIds;
-    }
-
-    internal IReadOnlyList<StringName> CollectGroundPreviewUnitIds(
-        BattleUnitReadView sourceUnit,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyList<Vector2I> effectCoords
-    )
-    {
-        var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnitState in CollectUnitsInCoords(effectCoords))
-        {
-            BattleUnitReadView targetUnit = new(targetUnitState);
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
-            )
-            {
-                if (
-                    _is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                )
-                {
-                    if (targetUnit.IsValid)
-                    {
-                        targetUnitIds.Add(targetUnit.UnitId);
-                    }
-                    break;
-                }
-            }
-        }
-        return targetUnitIds;
-    }
-
-    private List<BattleUnitState> CollectUnitsInCoords(IReadOnlyList<Vector2I> effectCoords)
-    {
-        return _runtime == null
-            ? new List<BattleUnitState>()
-            : new List<BattleUnitState>(Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords));
-    }
-
-    private static BattleForcedMoveContext BuildGroundForcedMoveContext(
-        BattleUnitState sourceUnit,
-        IReadOnlyList<Vector2I> targetCoords
-    )
-    {
-        if (sourceUnit == null || targetCoords == null || targetCoords.Count == 0)
-        {
-            return BattleForcedMoveContext.Empty;
-        }
-        return BattleForcedMoveContext.FromDirection(targetCoords[0] - sourceUnit.coord);
-    }
-
-    internal Vector2I _normalize_axis_direction(Vector2I direction)
-    {
-        if (direction == Vector2I.Zero)
-        {
-            return Vector2I.Zero;
-        }
-        int absX = Math.Abs(direction.X);
-        int absY = Math.Abs(direction.Y);
-        if (absX >= absY && absX > 0)
-        {
-            return new Vector2I(direction.X > 0 ? 1 : -1, 0);
-        }
-        if (absY > 0)
-        {
-            return new Vector2I(0, direction.Y > 0 ? 1 : -1);
-        }
-        return Vector2I.Zero;
-    }
-
-    private static IReadOnlyList<CombatEffectDefinition> CollectWindPushEffectDefinitions(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        var windPushEffects = new List<CombatEffectDefinition>();
-        var seen = new HashSet<int>();
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition == null
-                || effectDefinition.EffectKind != BattleEffectKind.ForcedMove
-                || effectDefinition.ForcedMoveModeKind != BattleForcedMoveMode.WindPush
-            )
-            {
-                continue;
-            }
-            int instanceId = RuntimeHelpers.GetHashCode(effectDefinition);
-            if (seen.Add(instanceId))
-            {
-                windPushEffects.Add(effectDefinition);
-            }
-        }
-        return windPushEffects;
-    }
-
-    private static HashSet<int> BuildEffectInstanceIdSet(
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        var result = new HashSet<int>();
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (effectDefinition != null)
-            {
-                result.Add(RuntimeHelpers.GetHashCode(effectDefinition));
-            }
-        }
-        return result;
-    }
-
-    internal int _dot_coord(Vector2I coord, Vector2I direction) =>
-        coord.X * direction.X + coord.Y * direction.Y;
-
-    internal int _perpendicular_coord(Vector2I coord, Vector2I direction) =>
-        direction.X != 0 ? coord.Y : coord.X;
-
-    private List<BattleUnitState> SortWindPushUnitsNearToFar(
-        IReadOnlyList<BattleUnitState> units,
-        Vector2I direction
-    )
-    {
-        var sorted = new List<BattleUnitState>();
-        foreach (BattleUnitState unitState in units ?? Array.Empty<BattleUnitState>())
-        {
-            if (unitState != null && unitState.is_alive)
-            {
-                sorted.Add(unitState);
-            }
-        }
-        sorted.Sort(
-            (left, right) =>
-            {
-                int leftProjection = _dot_coord(left.coord, direction);
-                int rightProjection = _dot_coord(right.coord, direction);
-                if (leftProjection != rightProjection)
-                {
-                    return leftProjection.CompareTo(rightProjection);
-                }
-                int leftSide = _perpendicular_coord(left.coord, direction);
-                int rightSide = _perpendicular_coord(right.coord, direction);
-                if (leftSide != rightSide)
-                {
-                    return leftSide.CompareTo(rightSide);
-                }
-                return string.Compare(
-                    left.unit_id.ToString(),
-                    right.unit_id.ToString(),
-                    StringComparison.Ordinal
-                );
-            }
-        );
-        return sorted;
-    }
-
-    private static void AppendAffectedUnitId(
-        HashSet<StringName> affectedUnitIds,
-        BattleUnitState unitState
-    )
-    {
-        if (unitState != null)
-        {
-            affectedUnitIds?.Add(unitState.unit_id);
-        }
-    }
-
-    private List<BattleUnitState> CollectWindPushTargetUnits(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        CombatEffectDefinition effectDefinition,
-        IReadOnlyList<Vector2I> effectCoords
-    )
-    {
-        var units = new List<BattleUnitState>();
-        if (effectDefinition == null)
-        {
-            return units;
-        }
-        StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, effectDefinition);
-        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
-        {
-            if (targetUnit == null || !targetUnit.is_alive)
-            {
-                continue;
-            }
-            if (!_is_unit_valid_for_effect(sourceUnit, targetUnit, targetFilter))
-            {
-                continue;
-            }
-            units.Add(targetUnit);
-        }
-        return units;
-    }
-
-    private bool TryWindPushUnitOneStep(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState unitState,
-        Vector2I direction,
-        HashSet<StringName> movedThisStep,
-        HashSet<StringName> affectedUnitIds,
-        HashSet<StringName> recursionStack,
-        BattleEventBatch batch
-    )
-    {
-        BattleState state = State;
-        BattleGridService gridService = GridService;
-        if (
-            Runtime == null
-            || state == null
-            || gridService == null
-            || unitState == null
-            || !unitState.is_alive
-            || direction == Vector2I.Zero
-        )
-        {
-            return false;
-        }
-        StringName unitId = unitState.unit_id;
-        if (movedThisStep.Contains(unitId))
-        {
-            return false;
-        }
-        if (Runtime._blocks_enemy_forced_move(sourceUnit, unitState))
-        {
-            AppendLog(batch, $"{unitState.display_name} 稳如金刚，未被强制位移。");
-            return false;
-        }
-        if (recursionStack.Contains(unitId))
-        {
-            return false;
-        }
-        Vector2I currentCoord = unitState.coord;
-        Vector2I nextCoord = currentCoord + direction;
-        if (!gridService.IsInside(state, nextCoord))
-        {
-            return false;
-        }
-        var nextStack = new HashSet<StringName>(recursionStack) { unitId };
-        StringName targetFilter = ResolveEffectTargetFilter(skillDefinition, effectDefinition);
-        foreach (
-            var rawBlockingUnitId in gridService.CollectBlockingUnitIds(
-                state,
-                unitState,
-                nextCoord
-            )
-        )
-        {
-            StringName blockingUnitId = ToStringName(rawBlockingUnitId);
-            if (blockingUnitId == unitId)
-            {
-                continue;
-            }
-            if (
-                !state.TryGetUnitTyped(blockingUnitId, out BattleUnitState blockingUnit)
-                || !blockingUnit.is_alive
-            )
-            {
-                return false;
-            }
-            if (!_is_unit_valid_for_effect(sourceUnit, blockingUnit, targetFilter))
-            {
-                return false;
-            }
-            if (
-                !TryWindPushUnitOneStep(
-                    sourceUnit,
-                    skillDefinition,
-                    effectDefinition,
-                    blockingUnit,
-                    direction,
-                    movedThisStep,
-                    affectedUnitIds,
-                    nextStack,
-                    batch
-                )
-            )
-            {
-                return false;
-            }
-        }
-        if (!gridService.CanTraverse(state, currentCoord, nextCoord, unitState))
-        {
-            return false;
-        }
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        BattleBarrierInteractionResult barrierResult =
-            layeredBarrierService != null
-                ? layeredBarrierService.ResolveUnitBoundaryCrossingResult(
-                    unitState,
-                    currentCoord,
-                    nextCoord,
-                    batch
-                )
-                : new BattleBarrierInteractionResult(false, false);
-        if (barrierResult.Blocked || !unitState.is_alive)
-        {
-            AppendAffectedUnitId(affectedUnitIds, unitState);
-            return false;
-        }
-        List<Vector2I> previousCoords =
-            unitState.occupied_coords != null
-                ? new List<Vector2I>(unitState.occupied_coords)
-                : new List<Vector2I>();
-        if (!gridService.MoveUnit(state, unitState, nextCoord))
-        {
-            return false;
-        }
-        movedThisStep.Add(unitId);
-        AppendAffectedUnitId(affectedUnitIds, unitState);
-        AppendChangedCoords(batch, previousCoords);
-        _append_changed_unit_coords(batch, unitState);
-        _append_changed_unit_id(batch, unitId);
-        return true;
-    }
-
-    internal BattleGroundWindPushResult _apply_ground_wind_push_effects_result(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> windPushEffects,
-        IReadOnlyList<Vector2I> effectCoords,
-        IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
-    )
-    {
-        bool applied = false;
-        if (sourceUnit == null || windPushEffects == null || windPushEffects.Count == 0)
-        {
-            return new BattleGroundWindPushResult(false, System.Array.Empty<StringName>());
-        }
-        BattleForcedMoveContext forcedMoveContext = BuildGroundForcedMoveContext(
-            sourceUnit,
-            targetCoords
-        );
-        Vector2I direction = forcedMoveContext.Direction;
-        if (direction == Vector2I.Zero)
-        {
-            return new BattleGroundWindPushResult(false, System.Array.Empty<StringName>());
-        }
-        var affectedUnitIds = new HashSet<StringName>();
-        foreach (CombatEffectDefinition effectDefinition in windPushEffects)
-        {
-            if (effectDefinition == null)
-            {
-                continue;
-            }
-            List<BattleUnitState> targetUnits = CollectWindPushTargetUnits(
-                sourceUnit,
-                skillDefinition,
-                effectDefinition,
-                effectCoords
-            );
-            if (targetUnits.Count == 0)
-            {
-                continue;
-            }
-            int moveDistance = Math.Max(effectDefinition.ForcedMoveDistance, 0);
-            for (int stepIndex = 0; stepIndex < moveDistance; stepIndex++)
-            {
-                var movedThisStep = new HashSet<StringName>();
-                bool movedAny = false;
-                List<BattleUnitState> orderedUnits = SortWindPushUnitsNearToFar(
-                    targetUnits,
-                    direction
-                );
-                foreach (BattleUnitState targetUnit in orderedUnits)
-                {
-                    if (targetUnit == null || !targetUnit.is_alive)
-                    {
-                        continue;
-                    }
-                    if (movedThisStep.Contains(targetUnit.unit_id))
-                    {
-                        continue;
-                    }
-                    if (
-                        TryWindPushUnitOneStep(
-                            sourceUnit,
-                            skillDefinition,
-                            effectDefinition,
-                            targetUnit,
-                            direction,
-                            movedThisStep,
-                            affectedUnitIds,
-                            new HashSet<StringName>(),
-                            batch
-                        )
-                    )
-                    {
-                        movedAny = true;
-                        applied = true;
-                    }
-                }
-                if (!movedAny)
-                {
-                    break;
-                }
-            }
-        }
-        return new BattleGroundWindPushResult(applied, KeysStringNameList(affectedUnitIds));
-    }
-
     internal BattleGroundUnitEffectsResult _apply_ground_unit_effects_result(
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
@@ -1303,7 +598,7 @@ internal class BattleGroundEffectService
         int totalKillCount = 0;
         var affectedUnitIds = new HashSet<StringName>();
         var shieldRollContext = new Dictionary<long, int>();
-        BattleForcedMoveContext forcedMoveContext = BuildGroundForcedMoveContext(
+        BattleForcedMoveContext forcedMoveContext = BattleGroundRelocationService.BuildGroundForcedMoveContext(
             sourceUnit,
             targetCoords
         );
@@ -1313,8 +608,8 @@ internal class BattleGroundEffectService
         IReadOnlyList<Vector2I> normalizedContingencyEffectCoords =
             contingencyEffectCoords ?? normalizedEffectCoords;
         IReadOnlyList<CombatEffectDefinition> windPushEffects =
-            CollectWindPushEffectDefinitions(effectDefinitionList);
-        HashSet<int> windPushEffectIds = BuildEffectInstanceIdSet(windPushEffects);
+            BattleGroundRelocationService.CollectWindPushEffectDefinitions(effectDefinitionList);
+        HashSet<int> windPushEffectIds = BattleGroundEffectCoordService.BuildEffectInstanceIdSet(windPushEffects);
         StringName sourceEventId =
             Runtime?.AllocateContingencySourceEventId("ground_spell") ?? Empty;
         IReadOnlyList<StringName> spellAffectedUnitIds = CollectGroundPreviewUnitIds(
@@ -1334,7 +629,7 @@ internal class BattleGroundEffectService
             );
         }
 
-        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(normalizedEffectCoords))
+        foreach (BattleUnitState targetUnit in _coordService.CollectUnitsInCoords(normalizedEffectCoords))
         {
             if (targetUnit == null || !targetUnit.is_alive)
             {
@@ -1455,7 +750,7 @@ internal class BattleGroundEffectService
             }
 
             applied = true;
-            AppendAffectedUnitId(affectedUnitIds, targetUnit);
+            BattleGroundRelocationService.AppendAffectedUnitId(affectedUnitIds, targetUnit);
             _append_changed_unit_id(batch, sourceUnit != null ? sourceUnit.unit_id : Empty);
             _append_changed_unit_id(batch, targetUnit.unit_id);
             _append_changed_unit_coords(batch, targetUnit);
@@ -1848,7 +1143,7 @@ internal class BattleGroundEffectService
         {
             return false;
         }
-        IReadOnlyList<Vector2I> edgeCoords = SortCoordsTyped(effectCoords);
+        IReadOnlyList<Vector2I> edgeCoords = BattleGroundEffectCoordService.SortCoordsTyped(effectCoords);
         Vector2I first = edgeCoords[0];
         Vector2I second = edgeCoords[1];
         if (GridService.GetDistance(first, second) != 1)
@@ -2179,634 +1474,6 @@ internal class BattleGroundEffectService
         return applied;
     }
 
-    internal string GetGroundSpecialEffectValidationMessage(
-        BattleUnitState activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        IReadOnlyList<Vector2I> targetCoords
-    )
-    {
-        CombatEffectDefinition relocationEffectDefinition =
-            _get_ground_relocation_effect_definition(
-                skillDefinition,
-                castVariantDefinition
-            );
-        if (relocationEffectDefinition == null)
-        {
-            return "";
-        }
-        if (activeUnit == null || State == null)
-        {
-            return "位移落点无效。";
-        }
-        if (_is_movement_blocked(activeUnit))
-        {
-            return "当前状态下无法移动。";
-        }
-        if (targetCoords == null || targetCoords.Count == 0)
-        {
-            return "位移落点无效。";
-        }
-        return _can_use_ground_relocation(
-            activeUnit,
-            targetCoords[0],
-            relocationEffectDefinition
-        )
-            ? ""
-            : "目标地格无法作为位移落点。";
-    }
-
-    internal string GetGroundSpecialEffectValidationMessage(
-        BattleUnitReadView activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        IReadOnlyList<Vector2I> targetCoords
-    )
-    {
-        CombatEffectDefinition relocationEffectDefinition =
-            _get_ground_relocation_effect_definition(
-                skillDefinition,
-                castVariantDefinition
-            );
-        if (relocationEffectDefinition == null)
-        {
-            return "";
-        }
-        if (!activeUnit.IsValid || State == null)
-        {
-            return "位移落点无效。";
-        }
-        if (_is_movement_blocked(activeUnit))
-        {
-            return "当前状态下无法移动。";
-        }
-        if (targetCoords == null || targetCoords.Count == 0)
-        {
-            return "位移落点无效。";
-        }
-        return _can_use_ground_relocation(
-            activeUnit,
-            targetCoords[0],
-            relocationEffectDefinition
-        )
-            ? ""
-            : "目标地格无法作为位移落点。";
-    }
-
-    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
-        BattleUnitState activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleCommand command
-    )
-    {
-        List<Vector2I> normalizedCoords = NormalizeTargetCoordsTyped(command);
-        BattleGroundSkillValidationResult deniedResult =
-            BattleGroundSkillValidationResult.Denied(
-                "地面技能目标无效。",
-                new List<Vector2I>(normalizedCoords)
-            );
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            State == null
-            || activeUnit == null
-            || skillDefinition == null
-            || combatProfile == null
-            || castVariantDefinition == null
-        )
-        {
-            return deniedResult;
-        }
-        if (ResolveGroundCastTargetMode(skillDefinition, castVariantDefinition) != BattleTargetMode.Ground)
-        {
-            return deniedResult with { Message = "该技能形态不是地面施法。" };
-        }
-        BattleSkillCastBlockReasonKind blockReason = _get_skill_cast_block_reason(
-            activeUnit,
-            skillDefinition
-        );
-        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
-        {
-            return deniedResult with
-            {
-                Message =
-                    Runtime?._get_skill_cast_block_message(activeUnit, skillDefinition)
-                    ?? "正式技能检查未绑定，无法施放该技能。",
-            };
-        }
-        int requiredCoordCount = ResolveGroundRequiredCoordCount(castVariantDefinition);
-        if (normalizedCoords.Count != requiredCoordCount)
-        {
-            return deniedResult
-                with
-                {
-                    Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
-                };
-        }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
-        if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
-        {
-            return chargeResolver.ValidateChargeCommandResult(
-                activeUnit,
-                skillDefinition,
-                castVariantDefinition,
-                normalizedCoords,
-                deniedResult
-            );
-        }
-
-        CombatEffectDefinition relocationEffectDefinition =
-            _get_ground_relocation_effect_definition(
-                skillDefinition,
-                castVariantDefinition
-            );
-        int effectiveSkillRange = _get_effective_skill_range(activeUnit, skillDefinition);
-        var seenCoords = new HashSet<Vector2I>();
-        foreach (var rawCoord in normalizedCoords)
-        {
-            Vector2I coord = rawCoord;
-            if (!seenCoords.Add(coord))
-            {
-                return deniedResult with { Message = "同一地格不能重复选择。" };
-            }
-            if (!GridService.IsInside(State, coord))
-            {
-                return deniedResult with { Message = "存在超出战场范围的目标地格。" };
-            }
-            int targetDistance =
-                relocationEffectDefinition != null
-                    ? GridService.GetChebyshevDistance(
-                        activeUnit.coord,
-                        coord
-                    )
-                    : GridService.GetDistanceFromUnitToCoord(
-                        activeUnit,
-                        coord
-                    );
-            if (targetDistance > effectiveSkillRange)
-            {
-                return deniedResult with { Message = "目标地格超出技能施放距离。" };
-            }
-            string casterLineMessage = GetCasterTargetVectorLineValidationMessage(
-                activeUnit.coord,
-                coord,
-                combatProfile
-            );
-            if (!string.IsNullOrEmpty(casterLineMessage))
-            {
-                return deniedResult with { Message = casterLineMessage };
-            }
-            if (!GridService.HasCell(State, coord))
-            {
-                return deniedResult with { Message = "目标地格数据不可用。" };
-            }
-            if (castVariantDefinition.AllowedBaseTerrains.Count > 0)
-            {
-                bool normalizedAllowed = false;
-                StringName normalizedCellTerrain = BattleTerrainRules.NormalizeTerrainId(
-                    GridService.GetCellBaseTerrainId(State, coord)
-                );
-                foreach (StringName rawAllowedTerrain in castVariantDefinition.AllowedBaseTerrains)
-                {
-                    if (
-                        BattleTerrainRules.NormalizeTerrainId(rawAllowedTerrain)
-                        == normalizedCellTerrain
-                    )
-                    {
-                        normalizedAllowed = true;
-                        break;
-                    }
-                }
-                if (!normalizedAllowed)
-                {
-                    return deniedResult with { Message = "目标地格地形不符合该技能形态的要求。" };
-                }
-            }
-            if (_is_crown_break_skill(skillDefinition.SkillId))
-            {
-                BattleUnitState targetUnit = GridService.GetUnitAtCoord(State, coord);
-                if (!_is_crown_break_target_eligible(activeUnit, targetUnit))
-                {
-                    return deniedResult
-                        with
-                        {
-                            Message = "折冠只能对已被黑星烙印的 elite / boss 施放。",
-                        };
-                }
-            }
-        }
-        if (
-            !_validate_target_coords_shape(
-                ResolveGroundFootprintPattern(castVariantDefinition),
-                normalizedCoords
-            )
-        )
-        {
-            return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
-        }
-        IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
-        string groundExecuteMessage = GetGroundExecuteValidationMessage(
-            skillDefinition,
-            castVariantDefinition,
-            activeUnit
-        );
-        if (!string.IsNullOrEmpty(groundExecuteMessage))
-        {
-            return deniedResult with { Message = groundExecuteMessage };
-        }
-        string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
-            activeUnit,
-            skillDefinition,
-            castVariantDefinition,
-            sortedTargetCoords
-        );
-        if (!string.IsNullOrEmpty(specialValidationMessage))
-        {
-            return deniedResult with { Message = specialValidationMessage };
-        }
-        return BattleGroundSkillValidationResult.AllowedResult(
-            "可施放。",
-            new List<Vector2I>(sortedTargetCoords)
-        );
-    }
-
-    internal BattleGroundSkillValidationResult _validate_ground_skill_command_result(
-        BattleUnitReadView activeUnit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleCommand command
-    )
-    {
-        List<Vector2I> normalizedCoords = NormalizeTargetCoordsTyped(command);
-        BattleGroundSkillValidationResult deniedResult =
-            BattleGroundSkillValidationResult.Denied(
-                "地面技能目标无效。",
-                new List<Vector2I>(normalizedCoords)
-            );
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        if (
-            State == null
-            || !activeUnit.IsValid
-            || skillDefinition == null
-            || combatProfile == null
-            || castVariantDefinition == null
-        )
-        {
-            return deniedResult;
-        }
-        if (ResolveGroundCastTargetMode(skillDefinition, castVariantDefinition) != BattleTargetMode.Ground)
-        {
-            return deniedResult with { Message = "该技能形态不是地面施法。" };
-        }
-        string blockReason = Runtime?._get_skill_command_block_reason(
-            activeUnit,
-            skillDefinition,
-            castVariantDefinition
-        ) ?? "正式技能检查未绑定，无法施放该技能。";
-        if (!string.IsNullOrEmpty(blockReason))
-        {
-            return deniedResult with { Message = blockReason };
-        }
-        int requiredCoordCount = ResolveGroundRequiredCoordCount(castVariantDefinition);
-        if (normalizedCoords.Count != requiredCoordCount)
-        {
-            return deniedResult
-                with
-                {
-                    Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
-                };
-        }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
-        if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
-        {
-            return chargeResolver.ValidateChargeCommandResult(
-                activeUnit,
-                skillDefinition,
-                castVariantDefinition,
-                normalizedCoords,
-                deniedResult
-            );
-        }
-
-        CombatEffectDefinition relocationEffectDefinition =
-            _get_ground_relocation_effect_definition(
-                skillDefinition,
-                castVariantDefinition
-            );
-        int effectiveSkillRange = _get_effective_skill_range(activeUnit, skillDefinition);
-        var seenCoords = new HashSet<Vector2I>();
-        foreach (var rawCoord in normalizedCoords)
-        {
-            Vector2I coord = rawCoord;
-            if (!seenCoords.Add(coord))
-            {
-                return deniedResult with { Message = "同一地格不能重复选择。" };
-            }
-            if (!GridService.IsInside(State, coord))
-            {
-                return deniedResult with { Message = "存在超出战场范围的目标地格。" };
-            }
-            int targetDistance =
-                relocationEffectDefinition != null
-                    ? GridService.GetChebyshevDistance(
-                        activeUnit.Coord,
-                        coord
-                    )
-                    : GridService.GetDistanceFromUnitToCoord(
-                        activeUnit,
-                        coord
-                    );
-            if (targetDistance > effectiveSkillRange)
-            {
-                return deniedResult with { Message = "目标地格超出技能施放距离。" };
-            }
-            string casterLineMessage = GetCasterTargetVectorLineValidationMessage(
-                activeUnit.Coord,
-                coord,
-                combatProfile
-            );
-            if (!string.IsNullOrEmpty(casterLineMessage))
-            {
-                return deniedResult with { Message = casterLineMessage };
-            }
-            if (!GridService.HasCell(State, coord))
-            {
-                return deniedResult with { Message = "目标地格数据不可用。" };
-            }
-            if (castVariantDefinition.AllowedBaseTerrains.Count > 0)
-            {
-                bool normalizedAllowed = false;
-                StringName normalizedCellTerrain = BattleTerrainRules.NormalizeTerrainId(
-                    GridService.GetCellBaseTerrainId(State, coord)
-                );
-                foreach (StringName rawAllowedTerrain in castVariantDefinition.AllowedBaseTerrains)
-                {
-                    if (
-                        BattleTerrainRules.NormalizeTerrainId(rawAllowedTerrain)
-                        == normalizedCellTerrain
-                    )
-                    {
-                        normalizedAllowed = true;
-                        break;
-                    }
-                }
-                if (!normalizedAllowed)
-                {
-                    return deniedResult with { Message = "目标地格地形不符合该技能形态的要求。" };
-                }
-            }
-            if (_is_crown_break_skill(skillDefinition.SkillId))
-            {
-                BattleUnitState targetUnit = GridService.GetUnitAtCoord(State, coord);
-                if (!_is_crown_break_target_eligible(activeUnit, new BattleUnitReadView(targetUnit)))
-                {
-                    return deniedResult
-                        with
-                        {
-                            Message = "折冠只能对已被黑星烙印的 elite / boss 施放。",
-                        };
-                }
-            }
-        }
-        if (
-            !_validate_target_coords_shape(
-                ResolveGroundFootprintPattern(castVariantDefinition),
-                normalizedCoords
-            )
-        )
-        {
-            return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
-        }
-        IReadOnlyList<Vector2I> sortedTargetCoords = SortCoordsTyped(normalizedCoords);
-        string groundExecuteMessage = GetGroundExecuteValidationMessage(
-            skillDefinition,
-            castVariantDefinition,
-            activeUnit
-        );
-        if (!string.IsNullOrEmpty(groundExecuteMessage))
-        {
-            return deniedResult with { Message = groundExecuteMessage };
-        }
-        string specialValidationMessage = GetGroundSpecialEffectValidationMessage(
-            activeUnit,
-            skillDefinition,
-            castVariantDefinition,
-            sortedTargetCoords
-        );
-        if (!string.IsNullOrEmpty(specialValidationMessage))
-        {
-            return deniedResult with { Message = specialValidationMessage };
-        }
-        return BattleGroundSkillValidationResult.AllowedResult(
-            "可施放。",
-            new List<Vector2I>(sortedTargetCoords)
-        );
-    }
-
-    private string GetGroundExecuteValidationMessage(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitState activeUnit
-    )
-    {
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectGroundUnitEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            )
-        )
-        {
-            if (effectDefinition?.EffectKind == BattleEffectKind.Execute)
-            {
-                return "地面技能不能携带律令死亡。";
-            }
-        }
-        return "";
-    }
-
-    private string GetGroundExecuteValidationMessage(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition,
-        BattleUnitReadView activeUnit
-    )
-    {
-        foreach (
-            CombatEffectDefinition effectDefinition in CollectGroundUnitEffectDefinitions(
-                skillDefinition,
-                castVariantDefinition,
-                activeUnit
-            )
-        )
-        {
-            if (effectDefinition?.EffectKind == BattleEffectKind.Execute)
-            {
-                return "地面技能不能携带律令死亡。";
-            }
-        }
-        return "";
-    }
-
-    private static BattleTargetMode ResolveGroundCastTargetMode(
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        if (castVariantDefinition == null)
-        {
-            return BattleTargetMode.Unknown;
-        }
-        BattleTargetMode targetMode = castVariantDefinition.TargetModeKind;
-        return targetMode != BattleTargetMode.Unknown
-            ? targetMode
-            : skillDefinition?.CombatProfile?.TargetModeKind ?? BattleTargetMode.Unknown;
-    }
-
-    private static int ResolveGroundRequiredCoordCount(
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        return Math.Max(castVariantDefinition?.RequiredCoordCount ?? 0, 0);
-    }
-
-    private static string GetCasterTargetVectorLineValidationMessage(
-        Vector2I sourceCoord,
-        Vector2I targetCoord,
-        CombatSkillDefinition combatProfile
-    )
-    {
-        if (
-            combatProfile == null
-            || BattleTypedNames.ToAreaPattern(combatProfile.AreaPattern) != BattleAreaPattern.Line
-            || combatProfile.AreaOriginModeKind != CombatAreaOriginMode.Caster
-            || combatProfile.AreaDirectionModeKind != CombatAreaDirectionMode.TargetVector
-        )
-        {
-            return "";
-        }
-        Vector2I delta = targetCoord - sourceCoord;
-        if (delta == Vector2I.Zero)
-        {
-            return "直线技能不能选择使用者所在格。";
-        }
-        if (delta.X != 0 && delta.Y != 0)
-        {
-            return "直线技能目标必须与使用者同行或同列。";
-        }
-        return "";
-    }
-
-    private static CombatCastFootprintPattern ResolveGroundFootprintPattern(
-        CombatCastVariantDefinition castVariantDefinition
-    )
-    {
-        return castVariantDefinition?.FootprintPatternKind ?? CombatCastFootprintPattern.Unknown;
-    }
-
-    private static bool IsChargeOption(CombatCastVariantDefinition castVariantDefinition)
-    {
-        foreach (
-            CombatEffectDefinition effectDefinition in castVariantDefinition?.EffectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (effectDefinition?.EffectKind == BattleEffectKind.Charge)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    internal bool _validate_target_coords_shape(
-        CombatCastFootprintPattern footprint_pattern,
-        IReadOnlyList<Vector2I> target_coords
-    )
-    {
-        if (footprint_pattern == CombatCastFootprintPattern.Single)
-        {
-            return target_coords != null && target_coords.Count == 1;
-        }
-        if (footprint_pattern == CombatCastFootprintPattern.Line2)
-        {
-            if (target_coords == null || target_coords.Count != 2)
-            {
-                return false;
-            }
-            Vector2I first = target_coords[0];
-            Vector2I second = target_coords[1];
-            return (first.X == second.X && Math.Abs(first.Y - second.Y) == 1)
-                || (first.Y == second.Y && Math.Abs(first.X - second.X) == 1);
-        }
-        if (footprint_pattern == CombatCastFootprintPattern.Square2)
-        {
-            if (target_coords == null || target_coords.Count != 4)
-            {
-                return false;
-            }
-            Vector2I firstCoord = target_coords[0];
-            int minX = firstCoord.X;
-            int maxX = firstCoord.X;
-            int minY = firstCoord.Y;
-            int maxY = firstCoord.Y;
-            var coordSet = new HashSet<Vector2I>();
-            foreach (Vector2I coord in target_coords)
-            {
-                minX = Math.Min(minX, coord.X);
-                maxX = Math.Max(maxX, coord.X);
-                minY = Math.Min(minY, coord.Y);
-                maxY = Math.Max(maxY, coord.Y);
-                coordSet.Add(coord);
-            }
-            if (maxX - minX != 1 || maxY - minY != 1)
-            {
-                return false;
-            }
-            for (int x = minX; x <= maxX; x++)
-            {
-                for (int y = minY; y <= maxY; y++)
-                {
-                    if (!coordSet.Contains(new Vector2I(x, y)))
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-        if (footprint_pattern == CombatCastFootprintPattern.Unordered)
-        {
-            return target_coords != null && target_coords.Count > 0;
-        }
-        return false;
-    }
-
-    internal Godot.Collections.Array<Vector2I> _normalize_target_coords(BattleCommand command)
-    {
-        var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in NormalizeTargetCoordsTyped(command))
-            result.Add(coord);
-        return result;
-    }
-
-    internal List<Vector2I> NormalizeTargetCoordsTyped(BattleCommand command)
-    {
-        var coords = new List<Vector2I>();
-        if (command == null)
-        {
-            return coords;
-        }
-        foreach (Vector2I targetCoord in command.TargetCoordsTyped)
-        {
-            coords.Add(targetCoord);
-        }
-        if (coords.Count == 0 && command.target_coord != new Vector2I(-1, -1))
-        {
-            coords.Add(command.target_coord);
-        }
-        return coords;
-    }
-
     internal StringName _build_terrain_effect_instance_id(StringName effect_id)
     {
         if (Runtime == null)
@@ -2849,7 +1516,7 @@ internal class BattleGroundEffectService
         return value == null || value.ToString().Length == 0;
     }
 
-    private static string ReadString(GDictionary source, string key, string fallback = "")
+    internal static string ReadString(GDictionary source, string key, string fallback = "")
     {
         if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
         {
@@ -2860,12 +1527,12 @@ internal class BattleGroundEffectService
         return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
-    private static bool HasParameter(IReadOnlyDictionary<string, object> source, string key)
+    internal static bool HasParameter(IReadOnlyDictionary<string, object> source, string key)
     {
         return source != null && !string.IsNullOrEmpty(key) && source.ContainsKey(key);
     }
 
-    private static string ReadString(
+    internal static string ReadString(
         IReadOnlyDictionary<string, object> source,
         string key,
         string fallback = ""
@@ -2882,40 +1549,6 @@ internal class BattleGroundEffectService
             _ => "",
         };
         return string.IsNullOrEmpty(result) ? fallback : result;
-    }
-
-    private static IReadOnlyList<Vector2I> ExpandSquare2Corner(Vector2I center, string corner)
-    {
-        var expanded = new List<Vector2I>(4);
-        if (corner == "top_left")
-        {
-            expanded.Add(center);
-            expanded.Add(new Vector2I(center.X + 1, center.Y));
-            expanded.Add(new Vector2I(center.X, center.Y + 1));
-            expanded.Add(new Vector2I(center.X + 1, center.Y + 1));
-        }
-        else if (corner == "top_right")
-        {
-            expanded.Add(new Vector2I(center.X - 1, center.Y));
-            expanded.Add(center);
-            expanded.Add(new Vector2I(center.X - 1, center.Y + 1));
-            expanded.Add(new Vector2I(center.X, center.Y + 1));
-        }
-        else if (corner == "bottom_left")
-        {
-            expanded.Add(new Vector2I(center.X, center.Y - 1));
-            expanded.Add(new Vector2I(center.X + 1, center.Y - 1));
-            expanded.Add(center);
-            expanded.Add(new Vector2I(center.X + 1, center.Y));
-        }
-        else if (corner == "bottom_right")
-        {
-            expanded.Add(new Vector2I(center.X - 1, center.Y - 1));
-            expanded.Add(new Vector2I(center.X, center.Y - 1));
-            expanded.Add(new Vector2I(center.X - 1, center.Y));
-            expanded.Add(center);
-        }
-        return expanded;
     }
 
     private static GArray ReadArray(GDictionary source, string key)
@@ -2942,14 +1575,7 @@ internal class BattleGroundEffectService
         return result;
     }
 
-    private static IReadOnlyList<Vector2I> SortCoordsTyped(IEnumerable<Vector2I> values)
-    {
-        var result = new List<Vector2I>(values ?? System.Array.Empty<Vector2I>());
-        result.Sort((a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
-        return result;
-    }
-
-    private static StringName ToStringName(object rawValue) =>
+    internal static StringName ToStringName(object rawValue) =>
         ProgressionDataUtils.to_string_name(rawValue);
 
     private static GArray KeysArray(GDictionary dictionary)
@@ -2962,7 +1588,7 @@ internal class BattleGroundEffectService
         return keys;
     }
 
-    private static List<StringName> KeysStringNameList(GDictionary dictionary)
+    internal static List<StringName> KeysStringNameList(GDictionary dictionary)
     {
         var keys = new List<StringName>();
         foreach (var key in dictionary.Keys)
@@ -2972,12 +1598,12 @@ internal class BattleGroundEffectService
         return keys;
     }
 
-    private static List<StringName> KeysStringNameList(HashSet<StringName> values)
+    internal static List<StringName> KeysStringNameList(HashSet<StringName> values)
     {
         return values != null ? new List<StringName>(values) : new List<StringName>();
     }
 
-    private static void AppendLog(BattleEventBatch batch, string line)
+    internal static void AppendLog(BattleEventBatch batch, string line)
     {
         if (batch == null || string.IsNullOrEmpty(line))
         {
@@ -2986,7 +1612,7 @@ internal class BattleGroundEffectService
         batch.AddLogLine(line);
     }
 
-    private static string DisplayName(object value)
+    internal static string DisplayName(object value)
     {
         return value switch
         {

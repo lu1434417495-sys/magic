@@ -24,7 +24,7 @@ public partial class BattleDamageResolver
 
 
 
-    private static EquipmentAbilityEquipmentTargetRef BuildEquipmentDurabilityTargetRef(
+    internal static EquipmentAbilityEquipmentTargetRef BuildEquipmentDurabilityTargetRef(
         EquipmentState equipmentView,
         BattleUnitState targetUnit,
         StringName entrySlotId,
@@ -59,7 +59,7 @@ public partial class BattleDamageResolver
         };
     }
 
-    private static bool TryBuildDurabilityCommitSelection(
+    internal static bool TryBuildDurabilityCommitSelection(
         EquipmentDurabilityCommitRequest request,
         out EquipmentDurabilitySelection selection,
         out StringName noOpReason
@@ -166,7 +166,7 @@ public partial class BattleDamageResolver
 
 
 
-    private static int GetEquipmentDurabilitySlotWeight(
+    internal static int GetEquipmentDurabilitySlotWeight(
         IReadOnlyDictionary<StringName, int> weightMap,
         StringName entrySlotId,
         IReadOnlyList<StringName> occupiedSlots,
@@ -250,7 +250,7 @@ public partial class BattleDamageResolver
             || HasStringName(occupiedSlots, normalizedSlotId);
     }
 
-    private static int GetEquipmentDurabilityWeightForSlot(
+    internal static int GetEquipmentDurabilityWeightForSlot(
         IReadOnlyDictionary<StringName, int> weightMap,
         StringName slotId
     )
@@ -266,7 +266,7 @@ public partial class BattleDamageResolver
         return 0;
     }
 
-    private readonly record struct EquipmentDurabilitySelection(
+    internal readonly record struct EquipmentDurabilitySelection(
         StringName TargetUnitId,
         StringName EntrySlotId,
         StringName SlotId,

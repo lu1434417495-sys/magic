@@ -225,6 +225,7 @@ script = ExtResource("4_reaction")
 reaction_id = &"reaction.gorgon_crossbow.petrifying_gaze.after_hit"
 trigger = &"on_hit"
 timing = &"after_hit"
+projected_effect_categories = Array[StringName]([&"petrification"])
 actions = Array[Resource]([SubResource("Action_petrifying_gaze")])
 
 [sub_resource type="Resource" id="Reaction_petrification_count"]
@@ -233,6 +234,7 @@ reaction_id = &"reaction.gorgon_crossbow.complete_petrification.count_after_hit"
 trigger = &"on_hit"
 timing = &"after_hit"
 priority = 10
+projected_effect_categories = Array[StringName]([&"petrification"])
 actions = Array[Resource]([SubResource("Action_petrification_count")])
 
 [sub_resource type="Resource" id="Reaction_complete_petrification"]
@@ -242,6 +244,7 @@ trigger = &"on_hit"
 timing = &"after_hit"
 priority = 20
 condition_group = SubResource("Condition_group_petrification_count_at_three")
+projected_effect_categories = Array[StringName]([&"petrification"])
 actions = Array[Resource]([SubResource("Action_complete_petrification"), SubResource("Action_consume_petrification_count")])
 
 [sub_resource type="Resource" id="Reaction_statue_shatter_damage"]

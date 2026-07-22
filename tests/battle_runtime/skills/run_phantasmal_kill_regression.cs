@@ -39,7 +39,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
     {
         BattleUnitState source = MakeUnit("immune_source", "player", 200, 200);
         BattleUnitState target = MakeUnit("immune_target", "enemy", 200, 40);
-        target.save_advantage_tags.Add("illusion_immunity");
+        target.save_immunity_tags.Add("illusion");
 
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,

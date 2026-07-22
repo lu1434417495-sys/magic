@@ -231,6 +231,8 @@ public partial class run_equipment_trait_roll_regression : LifecycleTestSceneTre
             0,
             Array.Empty<AttributeModifierDefinition>(),
             Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),

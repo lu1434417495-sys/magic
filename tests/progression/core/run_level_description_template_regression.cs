@@ -17,6 +17,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
     private void Run()
     {
         TestBasicSubstitution();
+        TestInvalidExpressionShowsErrorAndContinues();
+        TestExpressionExecuteFailureShowsErrorAndContinues();
+        TestSelfReferentialVariableShowsErrorAndContinues();
+        TestIndirectVariableCycleShowsErrorAndContinues();
         TestConditionalPresent();
         TestConditionalAbsent();
         TestConditionalNumericZeroAbsent();
@@ -40,6 +44,63 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             new GDictionary { ["dist"] = "3", ["dmg"] = "5" }
         );
         _test.Eq(result, "距离3，伤害5", "基本变量替换");
+    }
+
+    private void TestInvalidExpressionShowsErrorAndContinues()
+    {
+        string result = SkillLevelDescriptionFormatter.RenderTemplate(
+            "前{=(}，中{value}，后{=value + 1}",
+            new GDictionary { ["value"] = 2 }
+        );
+        _test.Eq(
+            result,
+            "前[描述配置错误]，中2，后3",
+            "非法表达式应只显示当前字段错误，后续变量和表达式仍应渲染。"
+        );
+    }
+
+    private void TestExpressionExecuteFailureShowsErrorAndContinues()
+    {
+        string result = SkillLevelDescriptionFormatter.RenderTemplate(
+            "前{=missing_value + 1}，后{tail}",
+            new GDictionary { ["tail"] = "完成" }
+        );
+        _test.Eq(
+            result,
+            "前[描述配置错误]，后完成",
+            "运行时变量缺失导致表达式执行失败时，应显示字段错误且继续渲染。"
+        );
+    }
+
+    private void TestSelfReferentialVariableShowsErrorAndContinues()
+    {
+        string result = SkillLevelDescriptionFormatter.RenderTemplate(
+            "前{loop}，后{tail}",
+            new GDictionary { ["loop"] = "{loop}", ["tail"] = "完成" }
+        );
+        _test.Eq(
+            result,
+            "前[描述配置错误]，后完成",
+            "自引用变量应显示字段错误且不得阻断后续字段。"
+        );
+    }
+
+    private void TestIndirectVariableCycleShowsErrorAndContinues()
+    {
+        string result = SkillLevelDescriptionFormatter.RenderTemplate(
+            "前{left}，后{tail}",
+            new GDictionary
+            {
+                ["left"] = "{right}",
+                ["right"] = "{left}",
+                ["tail"] = "完成",
+            }
+        );
+        _test.Eq(
+            result,
+            "前[描述配置错误]，后完成",
+            "间接循环变量应显示字段错误且不得产生递归替换。"
+        );
     }
 
     private void TestConditionalPresent()

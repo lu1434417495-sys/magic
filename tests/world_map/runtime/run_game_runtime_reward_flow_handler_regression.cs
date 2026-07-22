@@ -15,6 +15,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
     {
         TestFacadeUsesRewardFlowHandlerSurface();
         TestRewardHandlerRoutesModalCloseAndRewardPresentation();
+        TestNonCloseModalTransitionsClearCharacterInfoContext();
         TestRewardHandlerRejectsStringNamePromotionPromptValues();
 
         RequestTestExit(_test.Finish("Game runtime reward flow handler regression"));
@@ -63,7 +64,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.False(confirmMissingReward.Ok, "command_confirm_pending_reward() 应委托给 reward handler 并拒绝空奖励。");
             _test.Eq(confirmMissingReward.Message, "当前没有待确认的角色奖励。", "空奖励确认应返回正式错误文案。");
 
-            runtime.SetActiveCharacterInfoContext(new GDictionary { ["visible"] = true });
+            runtime.SetActiveCharacterInfoContext(BuildCharacterInfoContext("测试人物"));
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
             GameRuntimeFacade.RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
@@ -172,6 +173,67 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         }
     }
 
+    private void TestNonCloseModalTransitionsClearCharacterInfoContext()
+    {
+        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
+        try
+        {
+            runtime.SetActiveCharacterInfoContext(BuildCharacterInfoContext("战斗单位"));
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
+            _test.True(
+                runtime.GetCharacterInfoContextSnapshotPlain().Count > 0,
+                "测试前置：character_info context 应已写入。"
+            );
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Promotion);
+
+            using (
+                GodotProjectionLease<GDictionary> promotionLease =
+                    runtime.GetCharacterInfoContextLease()
+            )
+            {
+                _test.Eq(
+                    promotionLease.Value.Count,
+                    0,
+                    "promotion 覆盖 character_info 时应清空隐藏的人物信息上下文。"
+                );
+            }
+            _test.Eq(
+                runtime.GetActiveModalKind(),
+                RuntimeModalKind.Promotion,
+                "清空 character_info context 不应改变目标 promotion modal。"
+            );
+
+            runtime.SetActiveCharacterInfoContext(BuildCharacterInfoContext("已结算战斗单位"));
+            runtime.SetRuntimeActiveModalKind(RuntimeModalKind.CharacterInfo);
+            _test.True(
+                runtime.GetCharacterInfoContextSnapshotPlain().Count > 0,
+                "测试前置：battle resolution 前应存在 character_info context。"
+            );
+            runtime.ClearResolvedBattleRuntimeContext();
+
+            using (
+                GodotProjectionLease<GDictionary> resolutionLease =
+                    runtime.GetCharacterInfoContextLease()
+            )
+            {
+                _test.Eq(
+                    resolutionLease.Value.Count,
+                    0,
+                    "battle resolution 应清空仍打开的人物信息上下文。"
+                );
+            }
+            _test.Eq(
+                runtime.GetActiveModalKind(),
+                RuntimeModalKind.None,
+                "battle resolution 清理后应回到 none modal。"
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+    }
+
     private void TestRewardHandlerRejectsStringNamePromotionPromptValues()
     {
         GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
@@ -212,6 +274,23 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             runtime.Dispose();
         }
     }
+
+    private static GameRuntimeCharacterInfoContext BuildCharacterInfoContext(
+        string displayName
+    ) =>
+        new(
+            GameRuntimeCharacterInfoSource.World,
+            displayName,
+            "测试人物",
+            "可见提示单位",
+            new[]
+            {
+                new GameRuntimeCharacterInfoSection(
+                    "基础概览",
+                    new[] { GameRuntimeCharacterInfoEntry.Pair("类型", "测试") }
+                ),
+            }
+        );
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {

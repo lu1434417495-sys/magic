@@ -344,9 +344,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         {
             return null;
         }
-        AiTraceRecorder.Enter("decide:move_to_range");
         try
         {
+            using BattleAiTraceSpan trace = new("decide:move_to_range");
             if (UsesCandidateRequest(forceCandidateRequestEvaluation))
             {
                 BattleAiCandidateRequest request = BuildCandidateRequest(
@@ -358,7 +358,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         }
         finally
         {
-            AiTraceRecorder.Exit("decide:move_to_range");
             _action = null;
         }
     }
@@ -449,21 +448,23 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         MoveDistanceContract distanceContract = ResolveMoveDistanceContract(context);
         int resolvedMinDistance = distanceContract.DesiredMinDistance;
         int resolvedMaxDistance = distanceContract.DesiredMaxDistance;
-        var actionTrace = _begin_action_trace(
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "move_to_range",
-                ["target_selector"] = target_selector.ToString(),
-                ["desired_min_distance"] = resolvedMinDistance,
-                ["desired_max_distance"] = resolvedMaxDistance,
-                ["configured_desired_min_distance"] = desired_min_distance,
-                ["configured_desired_max_distance"] = desired_max_distance,
-                ["effective_attack_range"] = distanceContract.EffectiveAttackRange,
-                ["range_skill_ids"] = new List<StringName>(range_skill_ids),
-                ["screening_mode"] = screening_mode.ToString(),
-            }
-        );
+        AiActionTrace actionTrace = context?.trace_enabled == true
+            ? _begin_action_trace(
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "move_to_range",
+                    ["target_selector"] = target_selector.ToString(),
+                    ["desired_min_distance"] = resolvedMinDistance,
+                    ["desired_max_distance"] = resolvedMaxDistance,
+                    ["configured_desired_min_distance"] = desired_min_distance,
+                    ["configured_desired_max_distance"] = desired_max_distance,
+                    ["effective_attack_range"] = distanceContract.EffectiveAttackRange,
+                    ["range_skill_ids"] = new List<StringName>(range_skill_ids),
+                    ["screening_mode"] = screening_mode.ToString(),
+                }
+            )
+            : null;
 
         List<BattleUnitState> targets = _sort_target_units_typed(context, "enemy", target_selector);
         if (targets.Count == 0)
@@ -594,35 +595,39 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 neighbor,
                 screeningContext
             );
-            _trace_offer_candidate(
-                actionTrace,
-                _build_candidate_summary(
-                    $"move_to_{neighbor.X}_{neighbor.Y}",
-                    command,
-                    scoreInput,
-                    new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["predicted_distance"] = scoreInput is BattleAiScoreInput typed
-                            ? typed.distance_to_primary_coord
-                            : -1,
-                        ["screening_bonus"] = screeningMetrics.Bonus,
-                        ["screening_penalty"] = screeningMetrics.Penalty,
-                        ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
-                        ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
-                        ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
-                        ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
-                        ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
-                        ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
-                        ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
-                        ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
-                        ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
-                        ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
-                        ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
-                        ["screening_hard_block"] = screeningMetrics.HardBlock,
-                        ["screening_distance_band_capped"] = screeningMetrics.DistanceBandCapped,
-                    }
-                )
-            );
+            if (actionTrace != null)
+            {
+                _trace_offer_candidate(
+                    actionTrace,
+                    _build_candidate_summary(
+                        $"move_to_{neighbor.X}_{neighbor.Y}",
+                        command,
+                        scoreInput,
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["predicted_distance"] = scoreInput is BattleAiScoreInput typed
+                                ? typed.distance_to_primary_coord
+                                : -1,
+                            ["screening_bonus"] = screeningMetrics.Bonus,
+                            ["screening_penalty"] = screeningMetrics.Penalty,
+                            ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
+                            ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
+                            ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
+                            ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
+                            ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
+                            ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
+                            ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
+                            ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
+                            ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
+                            ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
+                            ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
+                            ["screening_hard_block"] = screeningMetrics.HardBlock,
+                            ["screening_distance_band_capped"] =
+                                screeningMetrics.DistanceBandCapped,
+                        }
+                    )
+                );
+            }
 
             if (
                 !MoveToRangeScoreOrdering.IsBetterCandidate(
@@ -673,10 +678,8 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
     private List<Vector2I> CollectReachableMoveCandidates(BattleAiContext context)
     {
-        AiTraceRecorder.Enter("_collect_reachable_move_candidates");
-        List<Vector2I> result = CollectReachableMoveCandidatesImpl(context);
-        AiTraceRecorder.Exit("_collect_reachable_move_candidates");
-        return result;
+        using BattleAiTraceSpan trace = new("_collect_reachable_move_candidates");
+        return CollectReachableMoveCandidatesImpl(context);
     }
 
     private List<Vector2I> CollectReachableMoveCandidatesImpl(
@@ -764,10 +767,8 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
     private ScreeningContext BuildScreeningContext(BattleAiContext context)
     {
-        AiTraceRecorder.Enter("build_screening_context");
-        ScreeningContext result = BuildScreeningContextImpl(context);
-        AiTraceRecorder.Exit("build_screening_context");
-        return result;
+        using BattleAiTraceSpan trace = new("build_screening_context");
+        return BuildScreeningContextImpl(context);
     }
 
     private ScreeningMetrics ApplyScreeningScore(
@@ -777,15 +778,13 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         ScreeningContext screeningContext
     )
     {
-        AiTraceRecorder.Enter("apply_screening_score");
-        ScreeningMetrics result = ApplyScreeningScoreImpl(
+        using BattleAiTraceSpan trace = new("apply_screening_score");
+        return ApplyScreeningScoreImpl(
             context,
             scoreInput,
             anchorCoord,
             screeningContext
         );
-        AiTraceRecorder.Exit("apply_screening_score");
-        return result;
     }
 
     private ScreeningMetrics ApplyScreeningScoreImpl(
@@ -1588,16 +1587,14 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         ScreeningContext screeningContext = null
     )
     {
-        AiTraceRecorder.Enter("_build_path_progress_decision");
-        PathProgressCandidate result = BuildPathProgressDecisionImpl(
+        using BattleAiTraceSpan trace = new("_build_path_progress_decision");
+        return BuildPathProgressDecisionImpl(
             context,
             focusTarget,
             actionTrace,
             distanceContract,
             screeningContext
         );
-        AiTraceRecorder.Exit("_build_path_progress_decision");
-        return result;
     }
 
     private PathProgressCandidate BuildPathProgressDecisionImpl(
@@ -1652,15 +1649,17 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         MovePathTreeCosts pathTreeCosts = new();
         if (destinations.Count >= PathTreeFilterMinDestinations)
         {
-            AiTraceRecorder.Enter("grid_service.build_unit_move_path_tree");
-            BattleMovePathTreeResult pathTree = grid.BuildUnitMovePathTreeTyped(
-                state,
-                actor,
-                actor.coord,
-                pathSearchBudget,
-                BuildMoveCostProvider(context)
-            );
-            AiTraceRecorder.Exit("grid_service.build_unit_move_path_tree");
+            BattleMovePathTreeResult pathTree;
+            using (new BattleAiTraceSpan("grid_service.build_unit_move_path_tree"))
+            {
+                pathTree = grid.BuildUnitMovePathTreeTyped(
+                    state,
+                    actor,
+                    actor.coord,
+                    pathSearchBudget,
+                    BuildMoveCostProvider(context)
+                );
+            }
             pathTreeCosts = MovePathTreeCosts.FromPathTreeResult(pathTree);
         }
 
@@ -1687,16 +1686,18 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             }
             else
             {
-                AiTraceRecorder.Enter("grid_service.resolve_unit_move_path");
-                BattleMovePathResult resolvedPath = grid.ResolveUnitMovePathTyped(
-                    state,
-                    actor,
-                    actor.coord,
-                    destination,
-                    pathSearchBudget,
-                    BuildMoveCostProvider(context)
-                );
-                AiTraceRecorder.Exit("grid_service.resolve_unit_move_path");
+                BattleMovePathResult resolvedPath;
+                using (new BattleAiTraceSpan("grid_service.resolve_unit_move_path"))
+                {
+                    resolvedPath = grid.ResolveUnitMovePathTyped(
+                        state,
+                        actor,
+                        actor.coord,
+                        destination,
+                        pathSearchBudget,
+                        BuildMoveCostProvider(context)
+                    );
+                }
                 if (!resolvedPath.Allowed)
                 {
                     continue;
@@ -1757,36 +1758,40 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 moveTarget,
                 screeningContext
             );
-            _trace_offer_candidate(
-                actionTrace,
-                _build_candidate_summary(
-                    $"path_to_{destination.X}_{destination.Y}_via_{moveTarget.X}_{moveTarget.Y}",
-                    command,
-                    scoreInput,
-                    new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["path_cost"] = pathCost,
-                        ["turn_move_cost"] = currentTurnMoveCost,
-                        ["path_length"] = pathLength,
-                        ["path_destination"] = destination,
-                        ["screening_bonus"] = screeningMetrics.Bonus,
-                        ["screening_penalty"] = screeningMetrics.Penalty,
-                        ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
-                        ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
-                        ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
-                        ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
-                        ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
-                        ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
-                        ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
-                        ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
-                        ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
-                        ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
-                        ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
-                        ["screening_hard_block"] = screeningMetrics.HardBlock,
-                        ["screening_distance_band_capped"] = screeningMetrics.DistanceBandCapped,
-                    }
-                )
-            );
+            if (actionTrace != null)
+            {
+                _trace_offer_candidate(
+                    actionTrace,
+                    _build_candidate_summary(
+                        $"path_to_{destination.X}_{destination.Y}_via_{moveTarget.X}_{moveTarget.Y}",
+                        command,
+                        scoreInput,
+                        new Dictionary<string, object>(StringComparer.Ordinal)
+                        {
+                            ["path_cost"] = pathCost,
+                            ["turn_move_cost"] = currentTurnMoveCost,
+                            ["path_length"] = pathLength,
+                            ["path_destination"] = destination,
+                            ["screening_bonus"] = screeningMetrics.Bonus,
+                            ["screening_penalty"] = screeningMetrics.Penalty,
+                            ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
+                            ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
+                            ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
+                            ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
+                            ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
+                            ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
+                            ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
+                            ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
+                            ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
+                            ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
+                            ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
+                            ["screening_hard_block"] = screeningMetrics.HardBlock,
+                            ["screening_distance_band_capped"] =
+                                screeningMetrics.DistanceBandCapped,
+                        }
+                    )
+                );
+            }
 
             if (
                 !MoveToRangeScoreOrdering.IsBetterCandidate(
@@ -1830,14 +1835,12 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         MoveDistanceContract distanceContract
     )
     {
-        AiTraceRecorder.Enter("_collect_distance_band_destinations");
-        List<Vector2I> result = CollectDistanceBandDestinationsImpl(
+        using BattleAiTraceSpan trace = new("_collect_distance_band_destinations");
+        return CollectDistanceBandDestinationsImpl(
             context,
             focusTarget,
             distanceContract
         );
-        AiTraceRecorder.Exit("_collect_distance_band_destinations");
-        return result;
     }
 
     private List<Vector2I> CollectDistanceBandDestinationsImpl(
@@ -1914,10 +1917,8 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         IReadOnlyList<Vector2I> path
     )
     {
-        AiTraceRecorder.Enter("_resolve_current_turn_path_target");
-        Vector2I result = ResolveCurrentTurnPathTargetImpl(context, path);
-        AiTraceRecorder.Exit("_resolve_current_turn_path_target");
-        return result;
+        using BattleAiTraceSpan trace = new("_resolve_current_turn_path_target");
+        return ResolveCurrentTurnPathTargetImpl(context, path);
     }
 
     private Vector2I ResolveCurrentTurnPathTargetImpl(

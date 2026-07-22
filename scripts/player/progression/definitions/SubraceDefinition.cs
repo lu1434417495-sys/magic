@@ -16,6 +16,8 @@ public sealed class SubraceDefinition
         IReadOnlyList<StringName> proficiencyTags,
         IReadOnlyList<StringName> visionTags,
         IReadOnlyList<StringName> saveAdvantageTags,
+        IReadOnlyList<StringName> saveDisadvantageTags,
+        IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyDictionary<StringName, StringName> damageResistances,
         IReadOnlyList<StringName> dialogueTags,
         IReadOnlyList<string> racialTraitSummary
@@ -57,6 +59,14 @@ public sealed class SubraceDefinition
             saveAdvantageTags,
             "SubraceDefinition.SaveAdvantageTags"
         );
+        SaveDisadvantageTags = IdentityDefinitionProjection.FreezeList(
+            saveDisadvantageTags,
+            "SubraceDefinition.SaveDisadvantageTags"
+        );
+        SaveImmunityTags = IdentityDefinitionProjection.FreezeList(
+            saveImmunityTags,
+            "SubraceDefinition.SaveImmunityTags"
+        );
         DamageResistances = IdentityDefinitionProjection.FreezeStringNameMap(
             damageResistances,
             "SubraceDefinition.DamageResistances"
@@ -83,6 +93,8 @@ public sealed class SubraceDefinition
     public IReadOnlyList<StringName> ProficiencyTags { get; }
     public IReadOnlyList<StringName> VisionTags { get; }
     public IReadOnlyList<StringName> SaveAdvantageTags { get; }
+    public IReadOnlyList<StringName> SaveDisadvantageTags { get; }
+    public IReadOnlyList<StringName> SaveImmunityTags { get; }
     public IReadOnlyDictionary<StringName, StringName> DamageResistances { get; }
     public IReadOnlyList<StringName> DialogueTags { get; }
     public IReadOnlyList<string> RacialTraitSummary { get; }
@@ -120,6 +132,14 @@ public sealed class SubraceDefinition
             IdentityDefinitionProjection.CopyStringNames(
                 source.SaveAdvantageTagsBorrowed,
                 $"{path}.save_advantage_tags"
+            ),
+            IdentityDefinitionProjection.CopyStringNames(
+                source.SaveDisadvantageTagsBorrowed,
+                $"{path}.save_disadvantage_tags"
+            ),
+            IdentityDefinitionProjection.CopyStringNames(
+                source.SaveImmunityTagsBorrowed,
+                $"{path}.save_immunity_tags"
             ),
             IdentityDefinitionProjection.CopyDamageResistances(
                 source.DamageResistancesBorrowed,

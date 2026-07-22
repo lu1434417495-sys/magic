@@ -22,7 +22,7 @@ creature_level = 4
 hit_die_sides = 6
 action_threshold = 45
 tags = Array[StringName]([&"wolf", &"shaman"])
-save_advantage_tags = Array[StringName]([&"willpower_advantage"])
+save_advantage_tags = Array[StringName]([&"willpower"])
 damage_resistances = {
 &"freeze": &"half",
 }

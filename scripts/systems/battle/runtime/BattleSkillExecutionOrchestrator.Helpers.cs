@@ -12,7 +12,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
 
-    private static List<Vector2I> SortCoordsTyped(IEnumerable<Vector2I> coords)
+    internal static List<Vector2I> SortCoordsTyped(IEnumerable<Vector2I> coords)
     {
         var result = new List<Vector2I>(coords ?? Array.Empty<Vector2I>());
         result.Sort((a, b) => a.Y == b.Y ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
@@ -27,7 +27,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return result;
     }
 
-    private static List<StringName> ToStringNameList(GStringNameArray src)
+    internal static List<StringName> ToStringNameList(GStringNameArray src)
     {
         var result = new List<StringName>();
         if (src == null)
@@ -72,7 +72,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return result;
     }
 
-    private BattleState RtState()
+    internal BattleState RtState()
     {
         return Runtime?._state;
     }
@@ -205,7 +205,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return ProgressionDataUtils.to_string_name(dictionary[(long)key]);
     }
 
-    private static bool StringNameIsEmpty(StringName value)
+    internal static bool StringNameIsEmpty(StringName value)
     {
         return value == null || value.ToString().Length == 0;
     }

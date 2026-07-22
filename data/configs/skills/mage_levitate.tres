@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_ammvw"]
 script = ExtResource("4_ybyso")
 skill_id = &"mage_levitate"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 3
 mp_cost = 60

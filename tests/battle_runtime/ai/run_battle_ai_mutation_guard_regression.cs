@@ -27,6 +27,28 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             TestProductionDefaultDisablesFullSnapshotGuard();
             TestTurnTraceProjectsTypedDecisionTransition();
             TestSnapshotIsPlainAndRestoresExactStateWithoutAuditGrowth();
+            TestDeclaredBattleUnitFieldsHaveStableCoverage();
+            TestBattleStatePublicFieldsHaveSnapshotSentinelCoverage();
+            TestBattleObjectiveAuthorityIsDetectedAndRestored();
+            TestObjectiveRuntimeProjectionIsTotal();
+            TestNestedAuthoritySchemasRemainExplicit();
+            TestDeclaredStatusPropertiesHaveSnapshotCoverage();
+            TestUnitAuthorityBlindSpotsAreDetectedAndRestored();
+            TestNullableUnitAuthorityFieldsAreDetectedAndRestored();
+            TestNullableBattleStateContainersAreDetectedAndRestored();
+            TestNullableBattleUnitCoreFieldsAreDetectedAndRestored();
+            TestNestedAuthorityStructuresAreDetectedAndRestored();
+            TestCanonicalContainerKeysAreDetectedAndRestored();
+            TestCellAndTerrainRawAuthorityIsDetectedAndRestored();
+            TestBarrierRawAuthorityIsDetectedAndRestored();
+            TestBlackboardRawPresenceIsDetectedAndRestored();
+            TestPlainPayloadTypeIdentityIsDetectedAndRestored();
+            TestRawUnitProjectionRestoresWithoutNormalization();
+            TestSkillDefinitionGraphIsFrozenAndIndexRestored();
+            TestNullableStatusFieldsAreDetectedAndRestored();
+            TestStatusSemanticBlindSpotsAreDetectedAndRestored();
+            TestBattleStateAuthorityBlindSpotsAreDetectedAndRestored();
+            TestStableDoubleComparisonPreservesDoublePrecision();
             TestBenignAiBookkeepingIsAllowed();
             TestActiveUnitHpMutationIsBlockedAndRestored();
             TestOtherUnitCoordMutationIsBlockedAndRestored();
@@ -480,6 +502,2966 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         AssertAuditBaseline(baseline, "mutation snapshot capture/restore");
     }
 
+    private void TestDeclaredBattleUnitFieldsHaveStableCoverage()
+    {
+        StableMap unitStable = BattleAiMutationStableProjection.StableBattleUnitState(
+            new BattleUnitState()
+        );
+        StableMap fieldStable = unitStable.GetMapOrEmpty("fields");
+        foreach (
+            FieldInfo field in typeof(BattleUnitState).GetFields(
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            )
+        )
+        {
+            if (field.IsStatic)
+                continue;
+            string fieldName = NormalizeDeclaredFieldName(field.Name);
+            bool covered = fieldName switch
+            {
+                "attribute_snapshot" => unitStable.ContainsKey("attribute_snapshot_values"),
+                "equipment_view" => unitStable.ContainsKey("equipment_view"),
+                "_statusEffects" => unitStable.ContainsKey("status_effects"),
+                "_consumedContingencySetupIds" =>
+                    fieldStable.ContainsKey("consumed_contingency_setup_ids"),
+                _ => fieldStable.ContainsKey(fieldName),
+            };
+            _test.True(
+                covered,
+                $"BattleUnitState 新增权威字段必须进入 mutation snapshot：{fieldName}"
+            );
+        }
+    }
+
+    private void TestBattleStatePublicFieldsHaveSnapshotSentinelCoverage()
+    {
+        foreach (
+            FieldInfo field in typeof(BattleState).GetFields(
+                BindingFlags.Instance | BindingFlags.Public
+            )
+        )
+        {
+            if (
+                field.IsStatic
+                || field.Name == "timeline"
+                || field.Name == "party_backpack_view"
+                || field.Name == "runtime_edges_dirty"
+            )
+            {
+                continue;
+            }
+            var state = new BattleState();
+            BattleStateFieldsSnapshot snapshot = BattleStateFieldsSnapshot.Capture(state);
+            if (!TryBuildStateFieldMutation(field.FieldType, field.Name, out object mutation))
+            {
+                _test.Fail(
+                    $"BattleState 权威字段缺少结构 mutation fixture：{field.Name} ({field.FieldType.FullName})"
+                );
+                continue;
+            }
+            field.SetValue(state, mutation);
+            StableMap mutatedStable = BattleStateFieldsSnapshot.Capture(state).ToStableMap();
+            List<StableDiff> mutationDiffs = new();
+            BattleAiMutationGuard.CollectDiffs(
+                snapshot.ToStableMap(),
+                mutatedStable,
+                $"battle_state.{field.Name}",
+                mutationDiffs
+            );
+            _test.True(
+                mutationDiffs.Count > 0,
+                $"BattleState 字段必须由 stable projection 读取真实值：{field.Name}"
+            );
+            snapshot.Restore(state);
+            List<StableDiff> restoreDiffs = new();
+            BattleAiMutationGuard.CollectDiffs(
+                snapshot.ToStableMap(),
+                BattleStateFieldsSnapshot.Capture(state).ToStableMap(),
+                $"battle_state_restore.{field.Name}",
+                restoreDiffs
+            );
+            _test.True(
+                restoreDiffs.Count == 0,
+                $"BattleState 字段必须由 snapshot 恢复：{field.Name}; diffs={string.Join(" | ", BattleAiMutationGuard.FormatStableDiffs(restoreDiffs))}"
+            );
+        }
+    }
+
+    private void TestBattleObjectiveAuthorityIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+
+        BattleAiMutationSnapshot emptyObjectiveSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        _test.True(
+            fixture.State.InitializeObjective(
+                BattleEliminationObjectiveDefinition.Instance
+            ),
+            "测试前提：elimination objective 应可初始化。"
+        );
+        AssertDiffContainsAll(
+            emptyObjectiveSnapshot.CompareCurrentState(fixture.Context),
+            "objective runtime initialization",
+            "objective_runtime_state"
+        );
+        emptyObjectiveSnapshot.Restore(fixture.Context);
+        _test.True(
+            fixture.State.ObjectiveRuntimeState == null
+                && fixture.State.FinalDecision == null,
+            "objective runtime 的 null 形态应精确恢复。"
+        );
+        AssertSnapshotMatches(
+            emptyObjectiveSnapshot,
+            fixture.Context,
+            "empty objective runtime restore"
+        );
+
+        _test.True(
+            fixture.State.InitializeObjective(
+                BattleEliminationObjectiveDefinition.Instance
+            ),
+            "测试前提：恢复后应可重新初始化 objective。"
+        );
+        var baselineDecision = new BattleFinalDecision(
+            BattleObjectiveMode.Elimination,
+            BattleOutcomeKind.PlayerSuccess,
+            BattleEndReasonKind.EliminationHostilesDefeated,
+            17
+        );
+        _test.True(
+            fixture.State.TryLatchFinalDecision(baselineDecision),
+            "测试前提：基线 final decision 应可锁存。"
+        );
+        BattleAiMutationSnapshot latchedDecisionSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+
+        fixture.State.RestoreObjectiveState(
+            new BattleEliminationObjectiveRuntimeState(),
+            new BattleFinalDecision(
+                BattleObjectiveMode.Elimination,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.EliminationAlliesDefeated,
+                91
+            )
+        );
+        AssertDiffContainsAll(
+            latchedDecisionSnapshot.CompareCurrentState(fixture.Context),
+            "final decision authority",
+            "final_decision_outcome",
+            "final_decision_end_reason",
+            "final_decision_tu",
+            "winner_faction_id"
+        );
+
+        latchedDecisionSnapshot.Restore(fixture.Context);
+        BattleFinalDecision restoredDecision = fixture.State.FinalDecision;
+        _test.True(
+            fixture.State.ObjectiveRuntimeState
+                is BattleEliminationObjectiveRuntimeState,
+            "objective runtime concrete typed owner 应恢复。"
+        );
+        _test.Eq(
+            fixture.State.ObjectiveRuntimeState?.Mode
+                ?? BattleObjectiveMode.Unknown,
+            BattleObjectiveMode.Elimination,
+            "objective runtime mode 应恢复。"
+        );
+        _test.True(restoredDecision != null, "final decision 应恢复。");
+        _test.True(
+            !ReferenceEquals(restoredDecision, baselineDecision),
+            "final decision 应以 detached copy 恢复。"
+        );
+        _test.Eq(
+            restoredDecision?.ObjectiveMode ?? BattleObjectiveMode.Unknown,
+            BattleObjectiveMode.Elimination,
+            "final decision objective mode 应恢复。"
+        );
+        _test.Eq(
+            restoredDecision?.Outcome ?? BattleOutcomeKind.Unknown,
+            BattleOutcomeKind.PlayerSuccess,
+            "final decision outcome 应恢复。"
+        );
+        _test.Eq(
+            restoredDecision?.EndReason ?? BattleEndReasonKind.None,
+            BattleEndReasonKind.EliminationHostilesDefeated,
+            "final decision end reason 应恢复。"
+        );
+        _test.Eq(restoredDecision?.DecisionTu ?? -1, 17, "decision TU 应恢复。");
+        _test.Eq(
+            fixture.State.winner_faction_id,
+            new StringName("player"),
+            "派生 winner faction 应随 final decision 恢复。"
+        );
+        AssertSnapshotMatches(
+            latchedDecisionSnapshot,
+            fixture.Context,
+            "final decision restore"
+        );
+    }
+
+    private void TestObjectiveRuntimeProjectionIsTotal()
+    {
+        foreach (
+            FieldInfo field in typeof(BattleObjectiveRuntimeState).GetFields(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            _test.Eq(
+                NormalizeDeclaredFieldName(field.Name),
+                "Mode",
+                $"objective runtime base 新增字段 {field.Name} 时必须扩展 stable projection。"
+            );
+        }
+        foreach (
+            PropertyInfo property in typeof(BattleObjectiveRuntimeState).GetProperties(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            _test.Eq(
+                property.Name,
+                "Mode",
+                $"objective runtime base 新增属性 {property.Name} 时必须扩展 stable projection。"
+            );
+        }
+
+        foreach (Type type in typeof(BattleObjectiveRuntimeState).Assembly.GetTypes())
+        {
+            if (
+                type.IsAbstract
+                || !typeof(BattleObjectiveRuntimeState).IsAssignableFrom(type)
+            )
+            {
+                continue;
+            }
+
+            _test.Eq(
+                type,
+                typeof(BattleEliminationObjectiveRuntimeState),
+                $"新增 objective runtime subtype {type.FullName} 时必须显式扩展 mutation projection。"
+            );
+            if (type != typeof(BattleEliminationObjectiveRuntimeState))
+                continue;
+
+            var runtimeState = (BattleObjectiveRuntimeState)Activator.CreateInstance(
+                type,
+                nonPublic: true
+            );
+            _test.True(
+                runtimeState != null,
+                "elimination objective runtime 应可供结构门禁实例化。"
+            );
+            BattleAiMutationStableProjection.StableObjectiveRuntimeState(runtimeState);
+
+            foreach (
+                FieldInfo field in type.GetFields(
+                    BindingFlags.Instance
+                        | BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.DeclaredOnly
+                )
+            )
+            {
+                _test.Fail(
+                    $"{type.Name} 新增字段 {field.Name} 时必须扩展 stable projection 与恢复回归。"
+                );
+            }
+            foreach (
+                PropertyInfo property in type.GetProperties(
+                    BindingFlags.Instance
+                        | BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.DeclaredOnly
+                )
+            )
+            {
+                _test.Fail(
+                    $"{type.Name} 新增属性 {property.Name} 时必须扩展 stable projection 与恢复回归。"
+                );
+            }
+        }
+
+        var finalDecisionFields = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ObjectiveMode",
+            "Outcome",
+            "EndReason",
+            "DecisionTu",
+        };
+        foreach (
+            FieldInfo field in typeof(BattleFinalDecision).GetFields(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            string fieldName = NormalizeDeclaredFieldName(field.Name);
+            _test.True(
+                finalDecisionFields.Remove(fieldName),
+                $"final decision 新增字段 {field.Name} 时必须扩展 mutation projection。"
+            );
+        }
+        _test.Eq(
+            finalDecisionFields.Count,
+            0,
+            "final decision 结构门禁应覆盖四个 canonical 字段。"
+        );
+        var finalDecisionProperties = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ObjectiveMode",
+            "Outcome",
+            "EndReason",
+            "DecisionTu",
+            "WinnerFactionId",
+        };
+        foreach (
+            PropertyInfo property in typeof(BattleFinalDecision).GetProperties(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            _test.True(
+                finalDecisionProperties.Remove(property.Name),
+                $"final decision 新增属性 {property.Name} 时必须扩展 mutation projection。"
+            );
+        }
+        _test.Eq(
+            finalDecisionProperties.Count,
+            0,
+            "final decision 结构门禁应覆盖 canonical 属性与派生 winner。"
+        );
+    }
+
+    private void TestNestedAuthoritySchemasRemainExplicit()
+    {
+        AssertDeclaredWritableProperties(
+            typeof(BattleTimelineState),
+            "current_tu",
+            "tu_per_tick",
+            "frozen",
+            "ready_unit_ids"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(WarehouseState),
+            "stacks",
+            "equipment_instances"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(WarehouseStackState),
+            "item_id",
+            "quantity"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleEffectiveTraitInstanceState),
+            "trait_id",
+            "effective_instance_key",
+            "source_type",
+            "source_id",
+            "effect_type",
+            "trigger_type",
+            "charge_scope",
+            "charge_reset_timing",
+            "rank",
+            "stacks",
+            "roll_values"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(TraitRollValueState),
+            "key",
+            "value_type",
+            "int_value",
+            "string_name_value",
+            "bool_value"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(TraitInstanceState),
+            "trait_instance_id",
+            "trait_id",
+            "source_type",
+            "source_id",
+            "rank",
+            "stacks",
+            "roll_values"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(EquipmentEntryState),
+            "item_id",
+            "occupied_slot_ids",
+            "instance_id",
+            "equipment_instance"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(EquipmentInstanceState),
+            "instance_id",
+            "item_id",
+            "rarity",
+            "current_durability",
+            "trait_instances",
+            "ability_usage_periods",
+            "ability_persistent_counters"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(EquipmentState),
+            "_equipped_slots",
+            "_slot_to_entry_slot"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattlePendingCastState),
+            "_targetUnitIds",
+            "_targetCoords",
+            "SourceUnitId",
+            "SkillId",
+            "VariantId",
+            "TargetMode",
+            "BindingMode",
+            "StartedCoord",
+            "StartedTu",
+            "BaseCastingTimeTu",
+            "RemainingCastProgress",
+            "LastMaintenanceCheckpointHp",
+            "CastSequence",
+            "CostTransaction",
+            "SpellControlMetadata"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattlePendingCastState),
+            "SourceUnitId",
+            "SkillId",
+            "VariantId",
+            "TargetMode",
+            "BindingMode",
+            "StartedCoord",
+            "StartedTu",
+            "BaseCastingTimeTu",
+            "RemainingCastProgress",
+            "LastMaintenanceCheckpointHp",
+            "CastSequence",
+            "CostTransaction",
+            "SpellControlMetadata"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(SkillCostTransaction),
+            "SkillId",
+            "SkillLevel",
+            "ApCost",
+            "MpCost",
+            "StaminaCost",
+            "AuraCost",
+            "CooldownTurns",
+            "PrecastDamage"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleSpellControlMetadata),
+            "AttackResolution",
+            "SpellControlResolution",
+            "AttackSuccess",
+            "CriticalHit",
+            "CriticalFail",
+            "OrdinaryMiss",
+            "IsDisadvantage",
+            "HiddenLuckAtBirth",
+            "FaithLuckBonus",
+            "EffectiveLuck",
+            "CritLocked",
+            "CritGateDie",
+            "CritGateRoll",
+            "HitRoll",
+            "FumbleLowEnd",
+            "CritThreshold",
+            "LockedSkillHitBonus",
+            "EffectiveHitRoll",
+            "ReverseFateDowngraded"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(EquipmentAbilityUsagePeriodState),
+            "AbilityId",
+            "PeriodKind",
+            "PeriodIndex",
+            "UsedCount"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(EquipmentAbilityPersistentCounterState),
+            "CounterId",
+            "Value"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleCellState),
+            "coord",
+            "stack_layer",
+            "base_terrain",
+            "base_height",
+            "height_offset",
+            "current_height",
+            "passable",
+            "move_cost",
+            "occupant_unit_id",
+            "prop_ids",
+            "terrain_effect_ids",
+            "timed_terrain_effects",
+            "flow_direction",
+            "edge_feature_east",
+            "edge_feature_south"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleTerrainEffectState),
+            "field_instance_id",
+            "effect_id",
+            "effect_type",
+            "RuntimeEffectKind",
+            "lifetime_policy",
+            "move_cost_delta",
+            "applied_status_id",
+            "applied_status_duration_tu",
+            "render_overlay_id",
+            "overlay_priority",
+            "display_name",
+            "accuracy_modifier_spec",
+            "does_not_stack_with_status_id",
+            "does_not_stack_with_status_ids",
+            "contact_status_id",
+            "contact_status_duration_tu",
+            "contact_stack_behavior",
+            "contact_stack_limit",
+            "contact_status_display_label",
+            "contact_counts_as_debuff_override",
+            "contact_counts_as_debuff",
+            "contact_undispellable",
+            "contact_dispellable_magic",
+            "contact_dispellable_harmful_magic",
+            "contact_dispellable_beneficial_magic",
+            "contact_save_dc",
+            "contact_save_ability",
+            "contact_save_tag",
+            "contact_apply_on_save_failure",
+            "contact_tick_interval_tu",
+            "contact_timeline_damage_dice_count",
+            "contact_timeline_damage_dice_sides",
+            "contact_timeline_damage_flat_bonus",
+            "contact_blocked_by_trait_id",
+            "source_unit_id",
+            "source_skill_id",
+            "target_team_filter",
+            "power",
+            "damage_tag",
+            "remaining_tu",
+            "tick_interval_tu",
+            "next_tick_at_tu",
+            "stack_behavior",
+            "params"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleAttackRollModifierSpec),
+            "source_domain",
+            "source_id",
+            "source_instance_id",
+            "label",
+            "modifier_delta",
+            "stack_key",
+            "stack_mode",
+            "roll_kind_filter",
+            "endpoint_mode",
+            "distance_min_exclusive",
+            "distance_max_inclusive",
+            "target_team_filter",
+            "footprint_mode",
+            "applies_to",
+            "StackModeKind",
+            "EndpointModeKind",
+            "FootprintModeKind",
+            "AppliesToKind"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleEdgeFeatureState),
+            "feature_kind",
+            "render_kind",
+            "render_layers",
+            "blocks_move",
+            "blocks_occupancy",
+            "blocks_los",
+            "interaction_kind",
+            "state_tag",
+            "FeatureKind",
+            "RenderKind",
+            "InteractionKind"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleBarrierInstanceState),
+            "BarrierInstanceId",
+            "ProfileId",
+            "DisplayName",
+            "SourceUnitId",
+            "SourceSkillId",
+            "AnchorMode",
+            "AnchorCoord",
+            "RadiusCells",
+            "AreaPattern",
+            "RemainingTu",
+            "CreatedTu",
+            "SaveDc",
+            "CatchAllProjectedEffects"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleBarrierLayerState),
+            "LayerId",
+            "DisplayName",
+            "Order",
+            "Broken",
+            "HasSaveRollOverride",
+            "SaveRollOverride"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleBarrierOutcomeState),
+            "OutcomeType",
+            "OutcomeKind",
+            "Amount",
+            "DamageTag",
+            "HalfOnSuccess",
+            "SuccessAmount",
+            "SuccessDamageTag",
+            "FatalDamage",
+            "StatusId",
+            "SaveAbility",
+            "SaveTag",
+            "SaveDc"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleAiBlackboard),
+            "last_brain_id",
+            "last_state_id",
+            "last_action_id",
+            "last_reason_text",
+            "last_transition_previous_state_id",
+            "last_transition_state_id",
+            "last_transition_rule_id",
+            "last_transition_reason",
+            "turn_started_tu",
+            "turn_decision_count",
+            "madness_ai_control",
+            "madness_target_any_team",
+            "low_luck_reverse_fate_used",
+            "low_luck_black_star_wedge_used",
+            "meteor_protected_ally",
+            "protected_ally",
+            "summoned",
+            "temporary_unit",
+            "summon_source_unit_id",
+            "summon_source_equipment_instance_id",
+            "summon_binding_id",
+            "summon_state_key",
+            "summon_expires_at_tu",
+            "_hasTurnStartedTu",
+            "_hasTurnDecisionCount"
+        );
+        AssertDeclaredInstanceFields(typeof(AttributeSnapshot), "_values");
+        AssertDeclaredWritableProperties(
+            typeof(BattleEquipmentTargetMarkState),
+            "SourceUnitId",
+            "TargetUnitId",
+            "SourceEquipmentInstanceId",
+            "BindingId",
+            "StateKey",
+            "Stacks",
+            "RemainingDurationTu",
+            "RemoveOnSourceMissing"
+        );
+        AssertDeclaredWritableProperties(
+            typeof(BattleTemporaryEdgeFeatureState),
+            "OriginCoord",
+            "Direction",
+            "SourceUnitId",
+            "SourceEquipmentInstanceId",
+            "BindingId",
+            "ActionId",
+            "CreatedAtTu",
+            "ExpiresAtTu",
+            "Sequence",
+            "Feature"
+        );
+    }
+
+    private void TestDeclaredStatusPropertiesHaveSnapshotCoverage()
+    {
+        BattleStatusEffectState baseline = BuildStatusSchemaSentinel("baseline");
+        StableMap baselineStable = BattleAiMutationStableProjection.StableStatusEffect(
+            baseline
+        );
+        BattleStatusEffectState duplicate = baseline.DuplicateState();
+        List<StableDiff> duplicateDiffs = new();
+        BattleAiMutationGuard.CollectDiffs(
+            baselineStable,
+            BattleAiMutationStableProjection.StableStatusEffect(duplicate),
+            "status_duplicate",
+            duplicateDiffs
+        );
+        _test.True(
+            duplicateDiffs.Count == 0,
+            "BattleStatusEffectState.DuplicateState 必须覆盖全部 stable 属性："
+                + string.Join(
+                    " | ",
+                    BattleAiMutationGuard.FormatStableDiffs(duplicateDiffs)
+                )
+        );
+
+        foreach (
+            PropertyInfo property in typeof(BattleStatusEffectState).GetProperties(
+                BindingFlags.Instance | BindingFlags.Public
+            )
+        )
+        {
+            if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length > 0)
+                continue;
+            BattleStatusEffectState mutated = baseline.DuplicateState();
+            if (
+                !TryBuildStatusPropertyValue(
+                    property.PropertyType,
+                    property.Name,
+                    "mutated",
+                    out object mutation
+                )
+            )
+            {
+                _test.Fail(
+                    $"BattleStatusEffectState 属性缺少结构 mutation fixture：{property.Name} ({property.PropertyType.FullName})"
+                );
+                continue;
+            }
+            property.SetValue(mutated, mutation);
+            List<StableDiff> propertyDiffs = new();
+            BattleAiMutationGuard.CollectDiffs(
+                baselineStable,
+                BattleAiMutationStableProjection.StableStatusEffect(mutated),
+                $"status.{property.Name}",
+                propertyDiffs
+            );
+            _test.True(
+                propertyDiffs.Count > 0,
+                $"BattleStatusEffectState 属性必须进入 stable projection：{property.Name}"
+            );
+        }
+
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.SetStatusEffect(baseline.DuplicateState());
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        BattleStatusEffectState live = fixture.Actor.GetStatusEffect(baseline.status_id);
+        foreach (
+            PropertyInfo property in typeof(BattleStatusEffectState).GetProperties(
+                BindingFlags.Instance | BindingFlags.Public
+            )
+        )
+        {
+            if (!property.CanWrite || property.GetIndexParameters().Length > 0)
+                continue;
+            if (
+                TryBuildStatusPropertyValue(
+                    property.PropertyType,
+                    property.Name,
+                    "mutated",
+                    out object mutation
+                )
+            )
+            {
+                property.SetValue(live, mutation);
+            }
+        }
+        live.SetParamsTyped(
+            new Dictionary<string, object> { ["residual_schema_probe"] = "mutated" }
+        );
+        _test.True(
+            snapshot.CompareCurrentState(fixture.Context).Count > 0,
+            "全属性 status mutation 应触发完整 snapshot diff。"
+        );
+        snapshot.Restore(fixture.Context);
+        BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
+        List<StableDiff> restoreDiffs = new();
+        BattleAiMutationGuard.CollectDiffs(
+            baselineStable,
+            BattleAiMutationStableProjection.StableStatusEffect(restored),
+            "status_restore",
+            restoreDiffs
+        );
+        _test.True(
+            restoreDiffs.Count == 0,
+            "BattleStatusEffectState 全属性必须恢复："
+                + string.Join(" | ", BattleAiMutationGuard.FormatStableDiffs(restoreDiffs))
+        );
+    }
+
+    private void TestUnitAuthorityBlindSpotsAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitState actor = fixture.Actor;
+        actor.battle_sprite_texture_path = "res://tests/original_guard_actor.png";
+        actor.equipment_view_initialized = false;
+        actor.ReplaceConsumedContingencySetupIdsTyped(
+            new StringName[] { "contingency_alpha", "contingency_beta" }
+        );
+        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
+        {
+            new()
+            {
+                EffectiveInstanceKey = "source_original",
+                EquipmentDefId = "equipment_original",
+                SourceEquipmentInstanceId = "instance_original",
+                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                AbilityIds = new List<StringName> { "ability_alpha", "ability_beta" },
+            },
+        };
+        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
+        {
+            new()
+            {
+                ModifierId = "modifier_original",
+                BindingId = "binding_original",
+                SourceEquipmentInstanceId = "instance_original",
+                AppliesToActionProgress = true,
+                AppliesToCastProgress = false,
+                SaveDc = 12,
+                AttributeModifierId = "wisdom",
+                SuccessRatePercent = 75,
+                FailureRatePercent = 25,
+                Label = "original modifier",
+            },
+        };
+        actor.creature_type_tags = new StringNameList(
+            new StringName[] { "humanoid", "guard" }
+        );
+        actor.weapon_range_type = "melee";
+
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+
+        actor.battle_sprite_texture_path = "res://tests/rogue_guard_actor.png";
+        actor.equipment_view_initialized = true;
+        actor.ReplaceConsumedContingencySetupIdsTyped(
+            new StringName[] { "contingency_rogue", "contingency_extra" }
+        );
+        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
+        {
+            new()
+            {
+                EffectiveInstanceKey = "source_rogue",
+                EquipmentDefId = "equipment_rogue",
+                SourceEquipmentInstanceId = "instance_rogue",
+                SourceKind = EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
+                AbilityIds = new List<StringName> { "ability_rogue", "ability_extra" },
+            },
+        };
+        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
+        {
+            new()
+            {
+                ModifierId = "modifier_rogue",
+                BindingId = "binding_rogue",
+                SourceEquipmentInstanceId = "instance_rogue",
+                AppliesToActionProgress = false,
+                AppliesToCastProgress = true,
+                SaveDc = 19,
+                AttributeModifierId = "intelligence",
+                SuccessRatePercent = 40,
+                FailureRatePercent = 60,
+                Label = "rogue modifier",
+            },
+        };
+        actor.creature_type_tags = new StringNameList(
+            new StringName[] { "construct", "rogue" }
+        );
+        actor.weapon_range_type = "ranged";
+
+        List<string> diffs = snapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            diffs,
+            "unit authority blind spots",
+            "battle_sprite_texture_path",
+            "equipment_view_initialized",
+            "consumed_contingency_setup_ids",
+            "equipment_ability_sources",
+            "effective_instance_key",
+            "equipment_def_id",
+            "source_equipment_instance_id",
+            "source_kind",
+            "ability_ids",
+            "temporal_progress_modifiers",
+            "modifier_id",
+            "binding_id",
+            "applies_to_action_progress",
+            "applies_to_cast_progress",
+            "save_dc",
+            "attribute_modifier_id",
+            "success_rate_percent",
+            "failure_rate_percent",
+            "label",
+            "creature_type_tags",
+            "weapon_range_type"
+        );
+
+        snapshot.Restore(fixture.Context);
+        _test.Eq(
+            actor.battle_sprite_texture_path,
+            "res://tests/original_guard_actor.png",
+            "battle sprite path mutation 应被恢复。"
+        );
+        _test.True(!actor.equipment_view_initialized, "equipment view 初始化标记应被恢复。");
+        AssertStringNameSequenceEq(
+            actor.GetConsumedContingencySetupIdsTyped(),
+            new StringName[] { "contingency_alpha", "contingency_beta" },
+            "consumed contingency setup ids 应按顺序恢复。"
+        );
+        _test.Eq(actor.equipment_ability_sources?.Count ?? -1, 1, "装备能力来源数量应恢复。");
+        BattleEquipmentAbilitySourceState restoredSource =
+            actor.equipment_ability_sources?.Count == 1
+                ? actor.equipment_ability_sources[0]
+                : null;
+        _test.Eq(restoredSource?.EffectiveInstanceKey ?? "", new StringName("source_original"), "装备能力来源 key 应恢复。");
+        _test.Eq(restoredSource?.EquipmentDefId ?? "", new StringName("equipment_original"), "装备定义 id 应恢复。");
+        _test.Eq(restoredSource?.SourceEquipmentInstanceId ?? "", new StringName("instance_original"), "装备实例 id 应恢复。");
+        _test.Eq(restoredSource?.SourceKind ?? EquipmentAbilitySourceKind.Unknown, EquipmentAbilitySourceKind.PlayerPersistentEquipment, "装备能力来源类型应恢复。");
+        AssertStringNameSequenceEq(
+            restoredSource?.AbilityIds,
+            new StringName[] { "ability_alpha", "ability_beta" },
+            "装备能力 id 顺序应恢复。"
+        );
+        _test.Eq(actor.temporal_progress_modifiers?.Count ?? -1, 1, "时间进度修正数量应恢复。");
+        BattleTemporalProgressModifierState restoredModifier =
+            actor.temporal_progress_modifiers?.Count == 1
+                ? actor.temporal_progress_modifiers[0]
+                : null;
+        AssertTemporalProgressModifierRestored(restoredModifier);
+        AssertStringNameSequenceEq(
+            actor.creature_type_tags,
+            new StringName[] { "humanoid", "guard" },
+            "creature type tags 应按顺序恢复。"
+        );
+        _test.Eq(actor.weapon_range_type, new StringName("melee"), "weapon range type 应恢复。");
+        AssertSnapshotMatches(snapshot, fixture.Context, "unit authority blind spots restore");
+    }
+
+    private void TestNullableUnitAuthorityFieldsAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitState actor = fixture.Actor;
+        actor.battle_sprite_texture_path = "";
+        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
+        {
+            new()
+            {
+                EffectiveInstanceKey = "nullable_source",
+                EquipmentDefId = "nullable_equipment",
+                SourceEquipmentInstanceId = "nullable_instance",
+                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                AbilityIds = new List<StringName>(),
+            },
+        };
+        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
+        {
+            BuildNullableModifier(label: ""),
+        };
+        actor.creature_type_tags = new StringNameList();
+
+        BattleAiMutationSnapshot nestedSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        actor.equipment_ability_sources[0].AbilityIds = null;
+        actor.temporal_progress_modifiers[0] = BuildNullableModifier(label: null);
+        AssertDiffContainsAll(
+            nestedSnapshot.CompareCurrentState(fixture.Context),
+            "nullable nested unit authority fields",
+            "ability_ids",
+            "label"
+        );
+        nestedSnapshot.Restore(fixture.Context);
+        _test.True(
+            actor.equipment_ability_sources[0].AbilityIds != null,
+            "空 ability ids 不应被 null mutation 留在正式状态。"
+        );
+        _test.Eq(
+            actor.temporal_progress_modifiers[0].Label,
+            "",
+            "空 label 不应被 null mutation 留在正式状态。"
+        );
+
+        BattleAiMutationSnapshot elementSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        actor.equipment_ability_sources[0] = null;
+        actor.temporal_progress_modifiers[0] = null;
+        AssertDiffContainsAll(
+            elementSnapshot.CompareCurrentState(fixture.Context),
+            "nullable unit authority elements",
+            "equipment_ability_sources",
+            "temporal_progress_modifiers"
+        );
+        elementSnapshot.Restore(fixture.Context);
+        _test.True(actor.equipment_ability_sources[0] != null, "null source 元素应被恢复。");
+        _test.True(actor.temporal_progress_modifiers[0] != null, "null modifier 元素应被恢复。");
+
+        BattleAiMutationSnapshot outerSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        actor.battle_sprite_texture_path = null;
+        actor.equipment_ability_sources = null;
+        actor.temporal_progress_modifiers = null;
+        actor.creature_type_tags = null;
+        AssertDiffContainsAll(
+            outerSnapshot.CompareCurrentState(fixture.Context),
+            "nullable unit authority collections",
+            "battle_sprite_texture_path",
+            "equipment_ability_sources",
+            "temporal_progress_modifiers",
+            "creature_type_tags"
+        );
+        outerSnapshot.Restore(fixture.Context);
+        _test.Eq(actor.battle_sprite_texture_path, "", "null battle sprite path 应被恢复。");
+        _test.True(actor.equipment_ability_sources != null, "null source list 应被恢复。");
+        _test.True(actor.temporal_progress_modifiers != null, "null modifier list 应被恢复。");
+        _test.True(actor.creature_type_tags != null, "null creature tags 应被恢复。");
+        AssertSnapshotMatches(
+            outerSnapshot,
+            fixture.Context,
+            "nullable unit authority fields restore"
+        );
+    }
+
+    private void TestNullableBattleStateContainersAreDetectedAndRestored()
+    {
+        AssertBattleStateNullRoundTrip(
+            "timeline",
+            "timeline",
+            state => state.timeline = new BattleTimelineState(),
+            state => state.timeline = null,
+            state => state.timeline != null
+        );
+        AssertBattleStateNullRoundTrip(
+            "party backpack view",
+            "party_backpack_view",
+            state => state.party_backpack_view = new WarehouseState(),
+            state => state.party_backpack_view = null,
+            state => state.party_backpack_view != null
+        );
+        AssertBattleStateNullRoundTrip(
+            "attack disadvantage tags",
+            "attack_disadvantage_tags",
+            state => state.attack_disadvantage_tags = new StringNameList(),
+            state => state.attack_disadvantage_tags = null,
+            state => state.attack_disadvantage_tags?.Count == 0
+        );
+        AssertBattleStateNullRoundTrip(
+            "ally unit ids",
+            "ally_unit_ids",
+            state => state.ally_unit_ids = new StringNameList(),
+            state => state.ally_unit_ids = null,
+            state => state.ally_unit_ids?.Count == 0
+        );
+        AssertBattleStateNullRoundTrip(
+            "enemy unit ids",
+            "enemy_unit_ids",
+            state => state.enemy_unit_ids = new StringNameList(),
+            state => state.enemy_unit_ids = null,
+            state => state.enemy_unit_ids?.Count == 0
+        );
+        AssertBattleStateNullRoundTrip(
+            "log entries",
+            "log_entries",
+            state => state.log_entries = new StringList(),
+            state => state.log_entries = null,
+            state => state.log_entries?.Count == 0
+        );
+
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.State.log_entries = new StringList { null };
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        try
+        {
+            fixture.State.log_entries = new StringList { "" };
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                "log null element versus empty text",
+                "log_entries",
+                "[0]"
+            );
+            snapshot.Restore(fixture.Context);
+            _test.True(
+                fixture.State.log_entries?.Count == 1
+                    && fixture.State.log_entries[0] == null,
+                "log 中的 null 元素必须与空字符串区分并精确恢复。"
+            );
+            AssertSnapshotMatches(snapshot, fixture.Context, "log null element restore");
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"log null element restore 不应抛异常：{exception}");
+        }
+
+        using Fixture timelineFixture = BuildFixture(MakeMutationAction("none"));
+        timelineFixture.State.timeline.ready_unit_ids = new StringNameList();
+        BattleAiMutationSnapshot timelineSnapshot = BattleAiMutationSnapshot.Capture(
+            timelineFixture.Context
+        );
+        timelineFixture.State.timeline.ready_unit_ids = null;
+        AssertDiffContainsAll(
+            timelineSnapshot.CompareCurrentState(timelineFixture.Context),
+            "timeline ready ids empty-to-null",
+            "timeline",
+            "ready_unit_ids"
+        );
+        timelineSnapshot.Restore(timelineFixture.Context);
+        _test.True(
+            timelineFixture.State.timeline?.ready_unit_ids?.Count == 0,
+            "timeline ready ids 应恢复为空的非 null owner。"
+        );
+        AssertSnapshotMatches(
+            timelineSnapshot,
+            timelineFixture.Context,
+            "timeline ready ids restore"
+        );
+    }
+
+    private void TestNullableBattleUnitCoreFieldsAreDetectedAndRestored()
+    {
+        AssertBattleUnitNullRoundTrip(
+            "display name",
+            "display_name",
+            unit => unit.display_name = "",
+            unit => unit.display_name = null,
+            unit => unit.display_name == ""
+        );
+        AssertBattleUnitNullRoundTrip(
+            "AI blackboard",
+            "ai_blackboard",
+            unit => unit.ai_blackboard = new BattleAiBlackboard(),
+            unit => unit.ai_blackboard = null,
+            unit => unit.ai_blackboard != null
+        );
+        AssertBattleUnitNullRoundTrip(
+            "occupied coords",
+            "occupied_coords",
+            unit => unit.occupied_coords = new Vector2IList(),
+            unit => unit.occupied_coords = null,
+            unit => unit.occupied_coords?.Count == 0
+        );
+        AssertBattleUnitNullRoundTrip(
+            "unlocked combat resource ids",
+            "unlocked_combat_resource_ids",
+            unit => unit.unlocked_combat_resource_ids = new StringNameList(),
+            unit => unit.unlocked_combat_resource_ids = null,
+            unit => unit.unlocked_combat_resource_ids?.Count == 0
+        );
+        AssertBattleUnitNullRoundTrip(
+            "known active skill ids",
+            "known_active_skill_ids",
+            unit => unit.known_active_skill_ids = new StringNameList(),
+            unit => unit.known_active_skill_ids = null,
+            unit => unit.known_active_skill_ids?.Count == 0
+        );
+        AssertBattleUnitNullRoundTrip(
+            "known skill level map",
+            "known_skill_level_map",
+            unit => unit.known_skill_level_map = new BattleStringNameIntMap(),
+            unit => unit.known_skill_level_map = null,
+            unit => unit.known_skill_level_map?.Count == 0
+        );
+        AssertBattleUnitNullRoundTrip(
+            "known skill lock hit bonus map",
+            "known_skill_lock_hit_bonus_map",
+            unit => unit.known_skill_lock_hit_bonus_map = new BattleStringNameIntMap(),
+            unit => unit.known_skill_lock_hit_bonus_map = null,
+            unit => unit.known_skill_lock_hit_bonus_map?.Count == 0
+        );
+
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "movement tags",
+            "movement_tags",
+            unit => unit.movement_tags = new StringNameList(),
+            unit => unit.movement_tags = null,
+            unit => unit.movement_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "vision tags",
+            "vision_tags",
+            unit => unit.vision_tags = new StringNameList(),
+            unit => unit.vision_tags = null,
+            unit => unit.vision_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "proficiency tags",
+            "proficiency_tags",
+            unit => unit.proficiency_tags = new StringNameList(),
+            unit => unit.proficiency_tags = null,
+            unit => unit.proficiency_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "save advantage tags",
+            "save_advantage_tags",
+            unit => unit.save_advantage_tags = new StringNameList(),
+            unit => unit.save_advantage_tags = null,
+            unit => unit.save_advantage_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "save disadvantage tags",
+            "save_disadvantage_tags",
+            unit => unit.save_disadvantage_tags = new StringNameList(),
+            unit => unit.save_disadvantage_tags = null,
+            unit => unit.save_disadvantage_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "save immunity tags",
+            "save_immunity_tags",
+            unit => unit.save_immunity_tags = new StringNameList(),
+            unit => unit.save_immunity_tags = null,
+            unit => unit.save_immunity_tags
+        );
+        AssertBattleUnitStringNameListNullRoundTrip(
+            "effective trait ids",
+            "effective_trait_ids",
+            unit => unit.effective_trait_ids = new StringNameList(),
+            unit => unit.effective_trait_ids = null,
+            unit => unit.effective_trait_ids
+        );
+
+        AssertBattleUnitNullRoundTrip(
+            "damage resistances",
+            "damage_resistances",
+            unit => unit.damage_resistances = new BattleStringNameMap(),
+            unit => unit.damage_resistances = null,
+            unit => unit.damage_resistances?.Count == 0
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "save bonus by ability",
+            "save_bonus_by_ability",
+            unit => unit.save_bonus_by_ability = new BattleStringNameIntMap(),
+            unit => unit.save_bonus_by_ability = null,
+            unit => unit.save_bonus_by_ability
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "cooldowns",
+            "cooldowns",
+            unit => unit.cooldowns = new BattleStringNameIntMap(),
+            unit => unit.cooldowns = null,
+            unit => unit.cooldowns
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "per battle charges",
+            "per_battle_charges",
+            unit => unit.per_battle_charges = new BattleStringNameIntMap(),
+            unit => unit.per_battle_charges = null,
+            unit => unit.per_battle_charges
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "per turn charges",
+            "per_turn_charges",
+            unit => unit.per_turn_charges = new BattleStringNameIntMap(),
+            unit => unit.per_turn_charges = null,
+            unit => unit.per_turn_charges
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "per turn charge limits",
+            "per_turn_charge_limits",
+            unit => unit.per_turn_charge_limits = new BattleStringNameIntMap(),
+            unit => unit.per_turn_charge_limits = null,
+            unit => unit.per_turn_charge_limits
+        );
+        AssertBattleUnitIntMapNullRoundTrip(
+            "fumble protection used",
+            "fumble_protection_used",
+            unit => unit.fumble_protection_used = new BattleStringNameIntMap(),
+            unit => unit.fumble_protection_used = null,
+            unit => unit.fumble_protection_used
+        );
+
+        AssertBattleUnitNullRoundTrip(
+            "attribute snapshot",
+            "attribute_snapshot_values",
+            unit => unit.attribute_snapshot = new AttributeSnapshot(),
+            unit => unit.attribute_snapshot = null,
+            unit => unit.attribute_snapshot != null
+        );
+        AssertBattleUnitNullRoundTrip(
+            "equipment view",
+            "equipment_view",
+            unit => unit.equipment_view = new EquipmentState(),
+            unit => unit.equipment_view = null,
+            unit => unit.equipment_view != null
+        );
+        AssertBattleUnitNullRoundTrip(
+            "one-handed weapon dice",
+            "weapon_one_handed_dice",
+            unit => unit.weapon_one_handed_dice = new WeaponDice(),
+            unit => unit.weapon_one_handed_dice = null,
+            unit => unit.weapon_one_handed_dice?.IsEmpty() == true
+        );
+        AssertBattleUnitNullRoundTrip(
+            "two-handed weapon dice",
+            "weapon_two_handed_dice",
+            unit => unit.weapon_two_handed_dice = new WeaponDice(),
+            unit => unit.weapon_two_handed_dice = null,
+            unit => unit.weapon_two_handed_dice?.IsEmpty() == true
+        );
+        AssertBattleUnitNullRoundTrip(
+            "pending cast",
+            "pending_cast",
+            unit => unit.pending_cast = new BattlePendingCastState(),
+            unit => unit.pending_cast = null,
+            unit => unit.pending_cast != null
+        );
+    }
+
+    private void TestNestedAuthorityStructuresAreDetectedAndRestored()
+    {
+        TestPartyBackpackExactStructureIsDetectedAndRestored();
+        TestEffectiveTraitExactStructureIsDetectedAndRestored();
+        TestPendingCastNestedNullsAreDetectedAndRestored();
+        TestEquipmentNestedStructureIsDetectedAndRestored();
+    }
+
+    private void TestPartyBackpackExactStructureIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.State.party_backpack_view = new WarehouseState
+        {
+            stacks = new List<WarehouseStackState>(),
+            equipment_instances = new List<EquipmentInstanceState>(),
+        };
+        BattleAiMutationSnapshot nullSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        fixture.State.party_backpack_view.stacks = null;
+        fixture.State.party_backpack_view.equipment_instances = null;
+        AssertDiffContainsAll(
+            nullSnapshot.CompareCurrentState(fixture.Context),
+            "party backpack nested empty-to-null",
+            "party_backpack_view",
+            "stacks",
+            "equipment_instances"
+        );
+        nullSnapshot.Restore(fixture.Context);
+        _test.True(
+            fixture.State.party_backpack_view?.stacks?.Count == 0
+                && fixture.State.party_backpack_view.equipment_instances?.Count == 0,
+            "party backpack 的空列表 owner 必须精确恢复。"
+        );
+
+        EquipmentInstanceState rawInstance = new()
+        {
+            instance_id = "",
+            item_id = "",
+            rarity = -1,
+            current_durability = -2,
+            trait_instances = null,
+            ability_usage_periods = null,
+            ability_persistent_counters = null,
+        };
+        fixture.State.party_backpack_view.stacks =
+            new List<WarehouseStackState>
+            {
+                null,
+                new() { item_id = "raw_stack", quantity = -3 },
+            };
+        fixture.State.party_backpack_view.equipment_instances =
+            new List<EquipmentInstanceState> { null, rawInstance };
+        BattleAiMutationSnapshot rawSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.State.party_backpack_view.stacks = new List<WarehouseStackState>();
+        fixture.State.party_backpack_view.equipment_instances =
+            new List<EquipmentInstanceState>();
+        AssertDiffContainsAll(
+            rawSnapshot.CompareCurrentState(fixture.Context),
+            "party backpack raw nested structure",
+            "party_backpack_view",
+            "stacks",
+            "equipment_instances"
+        );
+
+        rawSnapshot.Restore(fixture.Context);
+        WarehouseState restored = fixture.State.party_backpack_view;
+        _test.True(
+            restored?.stacks?.Count == 2
+                && restored.stacks[0] == null
+                && restored.stacks[1]?.item_id == new StringName("raw_stack")
+                && restored.stacks[1]?.quantity == -3,
+            "party backpack stack 的 null 元素和原始数量必须恢复。"
+        );
+        _test.True(
+            restored?.equipment_instances?.Count == 2
+                && restored.equipment_instances[0] == null
+                && restored.equipment_instances[1]?.rarity == -1
+                && restored.equipment_instances[1]?.current_durability == -2
+                && restored.equipment_instances[1]?.trait_instances == null
+                && restored.equipment_instances[1]?.ability_usage_periods == null
+                && restored.equipment_instances[1]?.ability_persistent_counters == null,
+            "party backpack equipment instance 的原始嵌套结构必须恢复。"
+        );
+        AssertSnapshotMatches(rawSnapshot, fixture.Context, "party backpack exact restore");
+    }
+
+    private void TestEffectiveTraitExactStructureIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var roll = new TraitRollValueState
+        {
+            key = "raw_roll",
+            value_type = "raw_type",
+            int_value = -7,
+            string_name_value = "raw_value",
+            bool_value = true,
+        };
+        fixture.Actor.effective_trait_instances =
+            new List<BattleEffectiveTraitInstanceState>
+            {
+                null,
+                new()
+                {
+                    trait_id = "raw_trait",
+                    effective_instance_key = "raw_instance",
+                    source_type = "raw_source",
+                    source_id = "raw_source_id",
+                    effect_type = "raw_effect",
+                    trigger_type = "raw_trigger",
+                    charge_scope = "raw_scope",
+                    charge_reset_timing = "raw_reset",
+                    rank = 0,
+                    stacks = -2,
+                    roll_values = new List<TraitRollValueState>
+                    {
+                        null,
+                        roll,
+                        roll.DuplicateState(),
+                    },
+                },
+            };
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "effective trait exact nested structure",
+            "effective_trait_instances"
+        );
+
+        snapshot.Restore(fixture.Context);
+        List<BattleEffectiveTraitInstanceState> restored =
+            fixture.Actor.effective_trait_instances;
+        _test.True(
+            restored?.Count == 2 && restored[0] == null && restored[1] != null,
+            "effective trait 外层 null 元素和顺序必须恢复。"
+        );
+        BattleEffectiveTraitInstanceState restoredTrait =
+            restored?.Count == 2 ? restored[1] : null;
+        _test.Eq(restoredTrait?.rank ?? int.MinValue, 0, "raw trait rank 应恢复。");
+        _test.Eq(restoredTrait?.stacks ?? int.MinValue, -2, "raw trait stacks 应恢复。");
+        _test.True(
+            restoredTrait?.roll_values?.Count == 3
+                && restoredTrait.roll_values[0] == null,
+            "trait roll_values 的 null 元素、重复项与顺序必须恢复。"
+        );
+        _test.Eq(
+            restoredTrait?.roll_values?[1]?.int_value ?? int.MinValue,
+            -7,
+            "trait roll raw value 应恢复。"
+        );
+        _test.Eq(
+            restoredTrait?.roll_values?[2]?.int_value ?? int.MinValue,
+            -7,
+            "trait roll 重复项不得被去重。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "effective trait exact restore");
+    }
+
+    private void TestPendingCastNestedNullsAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattlePendingCastState pending = new()
+        {
+            SourceUnitId = fixture.Actor.unit_id,
+            SkillId = "raw_pending_skill",
+            VariantId = "raw_pending_variant",
+            TargetMode = (BattleTargetMode)998,
+            BindingMode = (PendingCastBindingModeKind)998,
+            RemainingCastProgress = 13,
+            CostTransaction = null,
+            SpellControlMetadata = null,
+        };
+        pending.SetTargetUnitIds(new[] { fixture.Hero.unit_id });
+        pending.SetTargetCoords(new[] { new Vector2I(1, 0), new Vector2I(1, 0) });
+        fixture.Actor.pending_cast = pending;
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.pending_cast.CostTransaction = new SkillCostTransaction();
+        fixture.Actor.pending_cast.SpellControlMetadata =
+            new BattleSpellControlMetadata();
+        fixture.Actor.pending_cast.TargetMode = (BattleTargetMode)999;
+        fixture.Actor.pending_cast.BindingMode = (PendingCastBindingModeKind)999;
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "pending cast nested null structure",
+            "pending_cast",
+            "cost_transaction",
+            "spell_control_metadata",
+            "target_mode",
+            "binding_mode"
+        );
+
+        snapshot.Restore(fixture.Context);
+        BattlePendingCastState restored = fixture.Actor.pending_cast;
+        _test.True(restored != null, "pending cast 应恢复。");
+        _test.True(restored?.CostTransaction == null, "null cost transaction 应恢复。");
+        _test.True(
+            restored?.SpellControlMetadata == null,
+            "null spell-control metadata 应恢复。"
+        );
+        _test.Eq(
+            (int)(restored?.TargetMode ?? default),
+            998,
+            "未定义 target-mode 枚举的原始值应恢复。"
+        );
+        _test.Eq(
+            (int)(restored?.BindingMode ?? default),
+            998,
+            "未定义 binding-mode 枚举的原始值应恢复。"
+        );
+        _test.True(
+            restored?.TargetUnitIds.Count == 1
+                && restored.TargetUnitIds[0] == fixture.Hero.unit_id,
+            "pending cast target unit ids 应恢复。"
+        );
+        _test.True(
+            restored?.TargetCoords.Count == 2
+                && restored.TargetCoords[0] == new Vector2I(1, 0)
+                && restored.TargetCoords[1] == new Vector2I(1, 0),
+            "pending cast target coords 的重复项和顺序应恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "pending cast exact restore");
+    }
+
+    private void TestEquipmentNestedStructureIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        EquipmentState equipment = new();
+        _test.True(
+            equipment.SetEquippedEntry(
+                "main_hand",
+                "raw_guard_weapon",
+                new[] { new StringName("main_hand") },
+                EquipmentInstanceState.CreateInstance(
+                    "raw_guard_weapon",
+                    "eq_raw_guard_weapon"
+                )
+            ),
+            "测试前提：装备应可放入 main_hand。"
+        );
+        EquipmentEntryState entry = equipment.GetEntry("main_hand");
+        EquipmentInstanceState instance = entry?.equipment_instance;
+        _test.True(entry != null && instance != null, "测试前提：装备 entry 应存在。");
+        if (entry == null || instance == null)
+            return;
+
+        entry.item_id = "";
+        entry.instance_id = null;
+        entry.occupied_slot_ids = null;
+        instance.trait_instances =
+            new List<TraitInstanceState>
+            {
+                null,
+                new()
+                {
+                    trait_instance_id = "raw_equipment_trait_instance",
+                    trait_id = "raw_equipment_trait",
+                    source_type = "raw_source",
+                    source_id = "raw_source_id",
+                    rank = 0,
+                    stacks = -3,
+                    roll_values = new List<TraitRollValueState> { null },
+                },
+            };
+        instance.ability_usage_periods =
+            new List<EquipmentAbilityUsagePeriodState>
+            {
+                null,
+                new()
+                {
+                    AbilityId = null,
+                    PeriodKind = null,
+                    PeriodIndex = -4,
+                    UsedCount = -5,
+                },
+            };
+        instance.ability_persistent_counters =
+            new List<EquipmentAbilityPersistentCounterState>
+            {
+                null,
+                new() { CounterId = null, Value = -6 },
+            };
+        fixture.Actor.equipment_view = equipment;
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        entry.item_id = "normalized_weapon";
+        entry.instance_id = "normalized_instance";
+        entry.occupied_slot_ids = new List<StringName>();
+        instance.trait_instances = new List<TraitInstanceState>();
+        instance.ability_usage_periods = new List<EquipmentAbilityUsagePeriodState>();
+        instance.ability_persistent_counters =
+            new List<EquipmentAbilityPersistentCounterState>();
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "equipment exact nested structure",
+            "equipment_view",
+            "item_id",
+            "instance_id",
+            "occupied_slot_ids",
+            "trait_instances",
+            "ability_usage_periods",
+            "ability_persistent_counters"
+        );
+
+        snapshot.Restore(fixture.Context);
+        EquipmentEntryState restoredEntry = fixture.Actor.equipment_view?.GetEntry(
+            "main_hand"
+        );
+        EquipmentInstanceState restoredInstance = restoredEntry?.equipment_instance;
+        _test.True(restoredEntry != null && restoredInstance != null, "装备 entry 应恢复。");
+        _test.True(
+            restoredEntry?.item_id == new StringName("")
+                && restoredEntry?.instance_id == null,
+            "被 gameplay typed getter 视为无效的 raw equipment entry 也必须精确恢复。"
+        );
+        _test.True(
+            restoredEntry?.occupied_slot_ids == null,
+            "occupied slots 的 null 形态应恢复。"
+        );
+        _test.True(
+            restoredInstance?.trait_instances?.Count == 2
+                && restoredInstance.trait_instances[0] == null
+                && restoredInstance.trait_instances[1]?.rank == 0
+                && restoredInstance.trait_instances[1]?.stacks == -3
+                && restoredInstance.trait_instances[1]?.roll_values?.Count == 1
+                && restoredInstance.trait_instances[1].roll_values[0] == null,
+            "equipment trait nested structure 应精确恢复。"
+        );
+        _test.True(
+            restoredInstance?.ability_usage_periods?.Count == 2
+                && restoredInstance.ability_usage_periods[0] == null
+                && restoredInstance.ability_usage_periods[1]?.AbilityId == null
+                && restoredInstance.ability_usage_periods[1]?.PeriodKind == null,
+            "equipment usage periods 的 null 结构应恢复。"
+        );
+        _test.True(
+            restoredInstance?.ability_persistent_counters?.Count == 2
+                && restoredInstance.ability_persistent_counters[0] == null
+                && restoredInstance.ability_persistent_counters[1]?.CounterId == null
+                && restoredInstance.ability_persistent_counters[1]?.Value == -6,
+            "equipment counters 的 null 结构应恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "equipment exact restore");
+    }
+
+    private void TestCanonicalContainerKeysAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleStatusEffectState firstStatus = BuildStatusSchemaSentinel("canonical_first");
+        firstStatus.status_id = "canonical_status_first";
+        BattleStatusEffectState secondStatus = BuildStatusSchemaSentinel(
+            "canonical_second"
+        );
+        secondStatus.status_id = "canonical_status_second";
+        BattleStatusEffectState emptyKeyStatus = BuildStatusSchemaSentinel(
+            "empty_canonical_key"
+        );
+        emptyKeyStatus.status_id = "embedded_empty_key_status";
+        fixture.Actor.ReplaceStatusEffectsForMutationSnapshotExact(
+            new[]
+            {
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "canonical_status_first",
+                    firstStatus
+                ),
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "canonical_status_second",
+                    secondStatus
+                ),
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "raw_null_status",
+                    null
+                ),
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "",
+                    emptyKeyStatus
+                ),
+            }
+        );
+
+        StringName actorId = fixture.Actor.unit_id;
+        StringName heroId = fixture.Hero.unit_id;
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.unit_id = heroId;
+        fixture.Hero.unit_id = actorId;
+        firstStatus.status_id = "canonical_status_second";
+        secondStatus.status_id = "canonical_status_first";
+        fixture.Actor.ReplaceStatusEffectsForMutationSnapshotExact(
+            new[]
+            {
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "canonical_status_first",
+                    firstStatus
+                ),
+                new KeyValuePair<StringName, BattleStatusEffectState>(
+                    "canonical_status_second",
+                    secondStatus
+                ),
+            }
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "canonical container keys versus embedded ids",
+            "units",
+            "unit_id",
+            "status_effects",
+            "status_id",
+            "raw_null_status"
+        );
+
+        snapshot.Restore(fixture.Context);
+        _test.True(
+            fixture.State.UnitIndex.TryGetValue(
+                actorId,
+                out BattleUnitState restoredActor
+            )
+                && restoredActor?.unit_id == actorId,
+            "unit index 的 canonical key 与对象内 unit_id 必须分别恢复。"
+        );
+        _test.True(
+            fixture.State.UnitIndex.TryGetValue(
+                heroId,
+                out BattleUnitState restoredHero
+            )
+                && restoredHero?.unit_id == heroId,
+            "第二个 unit index entry 不得因 embedded id 交换而覆盖。"
+        );
+        _test.Eq(
+            fixture.Actor.GetStatusEffect("canonical_status_first")?.status_id
+                ?? new StringName(""),
+            new StringName("canonical_status_first"),
+            "status collection 的 canonical key 与 status_id 必须分别恢复。"
+        );
+        _test.Eq(
+            fixture.Actor.GetStatusEffect("canonical_status_second")?.status_id
+                ?? new StringName(""),
+            new StringName("canonical_status_second"),
+            "第二个 status entry 不得因 embedded id 交换而覆盖。"
+        );
+        IReadOnlyList<KeyValuePair<StringName, BattleStatusEffectState>> rawStatuses =
+            fixture.Actor.CaptureStatusEffectsForMutationSnapshotExact();
+        bool restoredNullStatus = false;
+        bool restoredEmptyKeyStatus = false;
+        foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in rawStatuses)
+        {
+            if (entry.Key == new StringName("raw_null_status") && entry.Value == null)
+            {
+                restoredNullStatus = true;
+            }
+            if (
+                entry.Key == new StringName("")
+                && entry.Value?.status_id
+                    == new StringName("embedded_empty_key_status")
+            )
+            {
+                restoredEmptyKeyStatus = true;
+            }
+        }
+        _test.True(
+            restoredNullStatus && restoredEmptyKeyStatus,
+            "status owner 的 null value 与 empty canonical key 必须精确恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "canonical key exact restore");
+    }
+
+    private void TestCellAndTerrainRawAuthorityIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        Vector2I canonicalCoord = Vector2I.Zero;
+        BattleCellState cell = fixture.State.GetCell(canonicalCoord);
+        _test.True(cell != null, "测试前提：原点 cell 应存在。");
+        if (cell == null)
+            return;
+
+        var modifier = new BattleAttackRollModifierSpec
+        {
+            source_domain = "terrain",
+            source_id = "raw_accuracy",
+            source_instance_id = "",
+            label = "",
+            modifier_delta = -2,
+            stack_key = "raw_stack",
+            stack_mode = "add",
+            roll_kind_filter = "attack",
+            endpoint_mode = "either",
+            distance_min_exclusive = -1,
+            distance_max_inclusive = 0,
+            target_team_filter = "any",
+            footprint_mode = "any_cell",
+            applies_to = "attack_roll",
+        };
+        var terrain = new BattleTerrainEffectState
+        {
+            field_instance_id = "raw_field",
+            effect_id = "raw_effect",
+            effect_type = "damage",
+            lifetime_policy = "timed",
+            move_cost_delta = -3,
+            applied_status_id = "raw_status",
+            applied_status_duration_tu = -4,
+            render_overlay_id = "raw_overlay",
+            overlay_priority = -5,
+            display_name = "",
+            accuracy_modifier_spec = modifier,
+            does_not_stack_with_status_id = "",
+            does_not_stack_with_status_ids = new List<StringName>(),
+            contact_status_id = "raw_contact",
+            contact_status_duration_tu = -6,
+            contact_stack_behavior = "refresh",
+            contact_stack_limit = -7,
+            contact_status_display_label = "",
+            contact_counts_as_debuff_override = false,
+            contact_counts_as_debuff = false,
+            contact_undispellable = false,
+            contact_dispellable_magic = false,
+            contact_dispellable_harmful_magic = false,
+            contact_dispellable_beneficial_magic = false,
+            contact_save_dc = -8,
+            contact_save_ability = "",
+            contact_save_tag = "",
+            contact_apply_on_save_failure = false,
+            contact_tick_interval_tu = -9,
+            contact_timeline_damage_dice_count = -10,
+            contact_timeline_damage_dice_sides = -11,
+            contact_timeline_damage_flat_bonus = -12,
+            contact_blocked_by_trait_id = "",
+            source_unit_id = null,
+            source_skill_id = "raw_skill",
+            target_team_filter = "any",
+            power = -13,
+            damage_tag = "raw_damage",
+            remaining_tu = -14,
+            tick_interval_tu = -15,
+            next_tick_at_tu = -16,
+            stack_behavior = "refresh",
+        };
+        terrain.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["number"] = 1,
+                ["name"] = "same",
+                ["color"] = new Color(0.1f, 0.2f, 0.3f, 0.4f),
+            }
+        );
+        cell.prop_ids = new List<StringName>();
+        cell.terrain_effect_ids = new List<StringName>();
+        cell.timed_terrain_effects = new List<BattleTerrainEffectState>
+        {
+            null,
+            terrain,
+        };
+        cell.edge_feature_east = new BattleEdgeFeatureState
+        {
+            feature_kind = null,
+            render_kind = "raw_render",
+            render_layers = -17,
+            blocks_move = false,
+            blocks_occupancy = true,
+            blocks_los = false,
+            interaction_kind = null,
+            state_tag = "raw_edge_state",
+        };
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        cell.SetCoord(new Vector2I(9, 9));
+        cell.base_terrain = null;
+        cell.occupant_unit_id = null;
+        cell.prop_ids = null;
+        cell.terrain_effect_ids = null;
+        terrain.applied_status_id = null;
+        terrain.display_name = null;
+        terrain.does_not_stack_with_status_ids = null;
+        terrain.contact_counts_as_debuff = true;
+        terrain.contact_save_dc = 8;
+        terrain.accuracy_modifier_spec.modifier_delta = 2;
+        cell.edge_feature_east.feature_kind = "wall";
+        cell.edge_feature_east.render_layers = 17;
+        terrain.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["number"] = 1L,
+                ["name"] = new StringName("same"),
+                ["color"] = new Color(0.1f, 0.2f, 0.3f, 0.5f),
+            }
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "cell and terrain raw authority",
+            "coord",
+            "base_terrain",
+            "occupant_unit_id",
+            "prop_ids",
+            "terrain_effect_ids",
+            "applied_status_id",
+            "display_name",
+            "does_not_stack_with_status_ids",
+            "contact_counts_as_debuff",
+            "contact_save_dc",
+            "modifier_delta",
+            "edge_feature_east",
+            "feature_kind",
+            "render_layers",
+            "number",
+            "name",
+            "color"
+        );
+
+        snapshot.Restore(fixture.Context);
+        BattleCellState restoredCell = fixture.State.GetCell(canonicalCoord);
+        _test.True(
+            restoredCell != null && restoredCell.coord == canonicalCoord,
+            "cell dictionary key 与对象内 coord 必须分别恢复。"
+        );
+        _test.True(
+            restoredCell?.prop_ids?.Count == 0
+                && restoredCell.terrain_effect_ids?.Count == 0,
+            "cell 的 empty list 不得被恢复成 null。"
+        );
+        _test.True(
+            restoredCell?.timed_terrain_effects?.Count == 2
+                && restoredCell.timed_terrain_effects[0] == null,
+            "timed terrain effect 的 null 元素和顺序必须恢复。"
+        );
+        BattleTerrainEffectState restoredTerrain =
+            restoredCell?.timed_terrain_effects?.Count == 2
+                ? restoredCell.timed_terrain_effects[1]
+                : null;
+        _test.True(restoredTerrain != null, "terrain effect 应恢复。");
+        _test.True(
+            restoredTerrain?.source_unit_id == null,
+            "nullable StringName 的 null 形态必须恢复。"
+        );
+        _test.Eq(
+            restoredTerrain?.applied_status_duration_tu ?? 0,
+            -4,
+            "terrain latent applied-status duration 不得被归一化。"
+        );
+        _test.Eq(
+            restoredTerrain?.accuracy_modifier_spec?.modifier_delta ?? 0,
+            -2,
+            "terrain nested attack-roll modifier 应恢复。"
+        );
+        _test.True(
+            restoredCell?.edge_feature_east != null
+                && restoredCell.edge_feature_east.feature_kind == null
+                && restoredCell.edge_feature_east.render_layers == -17
+                && restoredCell.edge_feature_east.blocks_occupancy,
+            "cell nested edge feature 的 nullable/raw 字段必须恢复。"
+        );
+        IReadOnlyDictionary<string, object> restoredParams =
+            restoredTerrain?.ParamsSnapshotPlain;
+        _test.True(
+            restoredParams != null
+                && restoredParams["number"] is int
+                && restoredParams["name"] is string
+                && restoredParams["color"] is Color restoredColor
+                && restoredColor == new Color(0.1f, 0.2f, 0.3f, 0.4f),
+            "terrain residual params 必须保留 CLR/Godot 值类型与精确值。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "cell and terrain exact restore");
+    }
+
+    private void TestBarrierRawAuthorityIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var outcome = new BattleBarrierOutcomeState
+        {
+            OutcomeType = "damage",
+            Amount = -2,
+            DamageTag = null,
+            HalfOnSuccess = false,
+            SuccessAmount = -3,
+            SuccessDamageTag = "",
+            FatalDamage = 0,
+            StatusId = "",
+            SaveAbility = "",
+            SaveTag = "",
+            SaveDc = -4,
+        };
+        var layer = new BattleBarrierLayerState
+        {
+            LayerId = "",
+            DisplayName = null,
+            Order = -5,
+            Broken = false,
+            HasSaveRollOverride = false,
+            SaveRollOverride = 17,
+        };
+        layer.SetBlockedCategoriesForMutationSnapshotExact(
+            new StringName[] { null, "" }
+        );
+        layer.SetBreakerSkillIdsForMutationSnapshotExact(
+            new StringName[] { "", null }
+        );
+        layer.SetPassageOutcomesForMutationSnapshotExact(
+            new BattleBarrierOutcomeState[] { null, outcome }
+        );
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = null,
+            ProfileId = "raw_profile",
+            DisplayName = null,
+            SourceUnitId = null,
+            SourceSkillId = "",
+            AnchorMode = (BarrierAnchorMode)998,
+            AnchorCoord = new Vector2I(-1, -2),
+            RadiusCells = -6,
+            AreaPattern = null,
+            RemainingTu = -7,
+            CreatedTu = -8,
+            SaveDc = -9,
+            CatchAllProjectedEffects = false,
+        };
+        barrier.SetLayersForMutationSnapshotExact(
+            new BattleBarrierLayerState[] { null, layer }
+        );
+        var barrierKey = new StringName("canonical_barrier_key");
+        fixture.State.ReplaceLayeredBarrierFieldsForMutationSnapshotExact(
+            new[]
+            {
+                new KeyValuePair<StringName, BattleBarrierInstanceState>(
+                    barrierKey,
+                    barrier
+                ),
+            }
+        );
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        BattleBarrierInstanceState mutated =
+            barrier.DuplicateForMutationSnapshotExact();
+        mutated.BarrierInstanceId = barrierKey;
+        mutated.DisplayName = "";
+        mutated.AnchorMode = (BarrierAnchorMode)999;
+        BattleBarrierLayerState mutatedLayer = mutated.GetLayersTyped()[1];
+        mutatedLayer.LayerId = "normalized_layer";
+        mutatedLayer.HasSaveRollOverride = true;
+        mutatedLayer.SaveRollOverride = 23;
+        BattleBarrierOutcomeState mutatedOutcome =
+            mutatedLayer.GetPassageOutcomesTyped()[1];
+        mutatedOutcome.FatalDamage = -1;
+        fixture.State.ReplaceLayeredBarrierFieldsForMutationSnapshotExact(
+            new[]
+            {
+                new KeyValuePair<StringName, BattleBarrierInstanceState>(
+                    barrierKey,
+                    mutated
+                ),
+            }
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "barrier raw authority",
+            "barrier_instance_id",
+            "display_name",
+            "anchor_mode",
+            "layer_id",
+            "has_save_roll_override",
+            "save_roll_override",
+            "fatal_damage"
+        );
+
+        snapshot.Restore(fixture.Context);
+        IReadOnlyList<KeyValuePair<StringName, BattleBarrierInstanceState>> entries =
+            fixture.State.LayeredBarrierStore.SnapshotEntriesForMutationSnapshotExact();
+        _test.True(
+            entries.Count == 1 && entries[0].Key == barrierKey,
+            "barrier canonical store key 必须恢复。"
+        );
+        BattleBarrierInstanceState restoredBarrier =
+            entries.Count == 1 ? entries[0].Value : null;
+        _test.True(
+            restoredBarrier != null
+                && restoredBarrier.BarrierInstanceId == null
+                && restoredBarrier.DisplayName == null
+                && (int)restoredBarrier.AnchorMode == 998,
+            "barrier 的 nullable/raw scalar 字段不得被 payload 投影归一化。"
+        );
+        IReadOnlyList<BattleBarrierLayerState> restoredLayers =
+            restoredBarrier?.Layers;
+        _test.True(
+            restoredLayers?.Count == 2
+                && restoredLayers[0] == null
+                && restoredLayers[1]?.LayerId == new StringName(""),
+            "barrier layer 的 null/invalid 元素和顺序必须恢复。"
+        );
+        BattleBarrierLayerState restoredLayer =
+            restoredLayers?.Count == 2 ? restoredLayers[1] : null;
+        _test.True(
+            restoredLayer != null
+                && !restoredLayer.HasSaveRollOverride
+                && restoredLayer.SaveRollOverride == 17
+                && restoredLayer.BlockedCategories.Count == 2
+                && restoredLayer.BlockedCategories[0] == null,
+            "barrier latent save override 与 raw category 元素必须恢复。"
+        );
+        _test.True(
+            restoredLayer?.PassageOutcomes?.Count == 2
+                && restoredLayer.PassageOutcomes[0] == null
+                && restoredLayer.PassageOutcomes[1]?.FatalDamage == 0,
+            "barrier outcome 的 null 元素与 raw fatal damage 必须恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "barrier exact restore");
+    }
+
+    private void TestBlackboardRawPresenceIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.ai_blackboard = new BattleAiBlackboard
+        {
+            last_brain_id = null,
+            turn_started_tu = 37,
+            turn_decision_count = 41,
+            summon_expires_at_tu = -9,
+        };
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.ai_blackboard.last_brain_id = "";
+        fixture.Actor.ai_blackboard.SetInt("turn_started_tu", 38);
+        fixture.Actor.ai_blackboard.SetInt("turn_decision_count", 42);
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "blackboard raw value and presence",
+            "last_brain_id",
+            "turn_started_tu",
+            "turn_decision_count",
+            "has_turn_started_tu",
+            "has_turn_decision_count"
+        );
+
+        snapshot.Restore(fixture.Context);
+        BattleAiBlackboard restored = fixture.Actor.ai_blackboard;
+        _test.True(restored?.last_brain_id == null, "blackboard nullable StringName 应恢复。");
+        _test.Eq(restored?.turn_started_tu ?? 0, 37, "blackboard raw turn TU 应恢复。");
+        _test.Eq(
+            restored?.turn_decision_count ?? 0,
+            41,
+            "blackboard raw decision count 应恢复。"
+        );
+        _test.True(
+            restored != null
+                && !restored.ContainsKey("turn_started_tu")
+                && !restored.ContainsKey("turn_decision_count"),
+            "blackboard 值与 presence flag 必须分别恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "blackboard exact restore");
+    }
+
+    private void TestPlainPayloadTypeIdentityIsDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleStatusEffectState status = BuildStatusSchemaSentinel("typed_payload");
+        status.status_id = "typed_payload_status";
+        status.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["number"] = 1,
+                ["name"] = "same",
+                ["color"] = new Color(0.25f, 0.5f, 0.75f, 1.0f),
+            }
+        );
+        fixture.Actor.SetStatusEffect(status);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        status.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["number"] = 1L,
+                ["name"] = new StringName("same"),
+                ["color"] = new Color(0.25f, 0.5f, 0.75f, 0.5f),
+            }
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "plain payload type identity",
+            "number",
+            "name",
+            "color"
+        );
+
+        snapshot.Restore(fixture.Context);
+        IReadOnlyDictionary<string, object> restored = fixture.Actor
+            .GetStatusEffect("typed_payload_status")
+            ?.ParamsSnapshotPlain;
+        _test.True(
+            restored != null
+                && restored["number"] is int
+                && restored["name"] is string
+                && restored["color"] is Color color
+                && color == new Color(0.25f, 0.5f, 0.75f, 1.0f),
+            "plain payload restore 必须保留类型标签与 Godot struct 的完整分量。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "plain payload exact restore");
+    }
+
+    private void TestRawUnitProjectionRestoresWithoutNormalization()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.RestoreCombatResourceProjectionForMutationSnapshotExact(
+            -1,
+            -2,
+            -3,
+            -4,
+            -5,
+            -6,
+            true
+        );
+        fixture.Actor.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            new Vector2I(-7, -8),
+            "raw_body_category",
+            -9,
+            new Vector2I(-10, -11),
+            null
+        );
+        var attributes = new AttributeSnapshot();
+        attributes.ReplaceValuesForMutationSnapshotExact(
+            new Dictionary<StringName, int>
+            {
+                ["strength"] = 10,
+                ["strength_modifier"] = 99,
+            }
+        );
+        fixture.Actor.attribute_snapshot = attributes;
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.SetCombatResources(10, 11, 12, 13, 14, 15);
+        fixture.Actor.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            Vector2I.Zero,
+            "medium",
+            BattleUnitState.BodySizeMedium,
+            Vector2I.One,
+            new[] { Vector2I.Zero }
+        );
+        fixture.Actor.attribute_snapshot.SetValue("strength", 20);
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "raw unit projection",
+            "current_hp",
+            "current_mp",
+            "body_size_category",
+            "body_size",
+            "footprint_size",
+            "occupied_coords",
+            "strength_modifier"
+        );
+
+        snapshot.Restore(fixture.Context);
+        _test.True(
+            fixture.Actor.current_hp == -1
+                && fixture.Actor.current_mp == -2
+                && fixture.Actor.current_stamina == -3
+                && fixture.Actor.current_aura == -4
+                && fixture.Actor.current_ap == -5
+                && fixture.Actor.current_move_points == -6,
+            "mutation rollback 不得通过 gameplay setter 夹断 raw 资源值。"
+        );
+        _test.True(
+            fixture.Actor.coord == new Vector2I(-7, -8)
+                && fixture.Actor.body_size_category
+                    == new StringName("raw_body_category")
+                && fixture.Actor.body_size == -9
+                && fixture.Actor.footprint_size == new Vector2I(-10, -11)
+                && fixture.Actor.occupied_coords == null,
+            "mutation rollback 不得归一化 raw body projection。"
+        );
+        _test.Eq(
+            fixture.Actor.attribute_snapshot.GetValue("strength_modifier"),
+            99,
+            "attribute snapshot restore 不得按 base attribute 重算派生值。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "raw unit exact restore");
+    }
+
+    private void TestSkillDefinitionGraphIsFrozenAndIndexRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var masteryCurve = new List<int> { 10, 20 };
+        var tags = new List<StringName> { "frozen_tag" };
+        var skillRequirements = new Dictionary<StringName, int>
+        {
+            ["required_skill"] = 2,
+        };
+        var aiTags = new List<StringName> { "frozen_ai_tag" };
+        var effectTags = new List<StringName> { "frozen_effect_tag" };
+        var accuracy = new BattleAttackRollModifierSpec
+        {
+            source_domain = "skill_definition",
+            source_id = "frozen_accuracy",
+            modifier_delta = 7,
+        };
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            accuracyModifierSpec: accuracy,
+            effectTags: effectTags
+        );
+        var effects = new List<CombatEffectDefinition> { effect };
+        CombatSkillDefinition combat = TestSkillDefinitionProjection.BuildCombatProfile(
+            "frozen_skill",
+            effects: effects,
+            aiTags: aiTags
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "frozen_skill",
+            combatProfile: combat,
+            maxLevel: 1,
+            tags: tags,
+            masteryCurve: masteryCurve,
+            skillLevelRequirements: skillRequirements
+        );
+
+        masteryCurve[0] = 999;
+        tags[0] = "mutated_tag";
+        skillRequirements["required_skill"] = 999;
+        aiTags[0] = "mutated_ai_tag";
+        effectTags[0] = "mutated_effect_tag";
+        effects.Clear();
+        accuracy.modifier_delta = 999;
+        BattleAttackRollModifierSpec exposedAccuracy = effect.AccuracyModifierSpec;
+        exposedAccuracy.modifier_delta = 888;
+        _test.True(
+            skill.MasteryCurve.Count == 2
+                && skill.MasteryCurve[0] == 10
+                && skill.Tags[0] == new StringName("frozen_tag")
+                && skill.SkillLevelRequirements["required_skill"] == 2
+                && combat.AiTags[0] == new StringName("frozen_ai_tag")
+                && combat.EffectDefinitions.Count == 1
+                && effect.EffectTags[0] == new StringName("frozen_effect_tag")
+                && effect.AccuracyModifierSpec.modifier_delta == 7,
+            "skill definition graph 必须防御性冻结构造输入，并以副本暴露可变 spec。"
+        );
+
+        fixture.Context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skill.SkillId] = skill,
+            }
+        );
+        IReadOnlyDictionary<StringName, SkillDefinition> readOnlyIndex =
+            fixture.Context.GetSkillDefinitionIndexTyped();
+        _test.True(
+            readOnlyIndex is not Dictionary<StringName, SkillDefinition>,
+            "AI context 不得把真实 mutable skill dictionary 暴露为 IReadOnly 接口。"
+        );
+        bool writeRejected = false;
+        try
+        {
+            ((IDictionary<StringName, SkillDefinition>)readOnlyIndex).Add(
+                "illegal_write",
+                skill
+            );
+        }
+        catch (NotSupportedException)
+        {
+            writeRejected = true;
+        }
+        _test.True(writeRejected, "skill definition read-only view 必须拒绝写入。");
+
+        var barrierProfile = new BarrierProfileDefinition(
+            "frozen_barrier_profile",
+            "Frozen barrier",
+            "fixed",
+            "diamond",
+            2,
+            120,
+            false,
+            Array.Empty<BarrierLayerDefinition>()
+        );
+        var barrierSource =
+            new Dictionary<StringName, BarrierProfileDefinition>
+            {
+                [barrierProfile.ProfileId] = barrierProfile,
+            };
+        fixture.Context.SetBarrierProfileDefinitions(barrierSource);
+        barrierSource.Clear();
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> readOnlyBarriers =
+            fixture.Context.GetBarrierProfileDefinitionIndexTyped();
+        _test.True(
+            readOnlyBarriers.Count == 1
+                && readOnlyBarriers is not Dictionary<
+                    StringName,
+                    BarrierProfileDefinition
+                >,
+            "AI context 必须复制 barrier profile index 并只暴露 read-only view。"
+        );
+        bool barrierWriteRejected = false;
+        try
+        {
+            ((IDictionary<StringName, BarrierProfileDefinition>)readOnlyBarriers).Clear();
+        }
+        catch (NotSupportedException)
+        {
+            barrierWriteRejected = true;
+        }
+        _test.True(barrierWriteRejected, "barrier profile read-only view 必须拒绝写入。");
+
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        SkillDefinition replacement = TestSkillDefinitionProjection.BuildSkill(
+            "frozen_skill",
+            maxLevel: 9
+        );
+        SkillDefinition added = TestSkillDefinitionProjection.BuildSkill(
+            "added_skill"
+        );
+        fixture.Context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [replacement.SkillId] = replacement,
+                [added.SkillId] = added,
+            }
+        );
+        var replacementBarrier = new BarrierProfileDefinition(
+            "frozen_barrier_profile",
+            "Replacement barrier",
+            "fixed",
+            "diamond",
+            9,
+            120,
+            false,
+            Array.Empty<BarrierLayerDefinition>()
+        );
+        var addedBarrier = new BarrierProfileDefinition(
+            "added_barrier_profile",
+            "Added barrier",
+            "fixed",
+            "diamond",
+            1,
+            60,
+            false,
+            Array.Empty<BarrierLayerDefinition>()
+        );
+        fixture.Context.SetBarrierProfileDefinitions(
+            new Dictionary<StringName, BarrierProfileDefinition>
+            {
+                [replacementBarrier.ProfileId] = replacementBarrier,
+                [addedBarrier.ProfileId] = addedBarrier,
+            }
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "immutable definition indexes identity",
+            "skill_definitions",
+            "frozen_skill",
+            "added_skill",
+            "barrier_profile_definitions",
+            "frozen_barrier_profile",
+            "added_barrier_profile"
+        );
+
+        snapshot.Restore(fixture.Context);
+        IReadOnlyDictionary<StringName, SkillDefinition> restoredIndex =
+            fixture.Context.GetSkillDefinitionIndexTyped();
+        _test.True(
+            restoredIndex.Count == 1
+                && restoredIndex.TryGetValue(skill.SkillId, out SkillDefinition restoredSkill)
+                && ReferenceEquals(restoredSkill, skill),
+            "skill definition index 的成员、引用 identity 与删除项必须恢复。"
+        );
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> restoredBarriers =
+            fixture.Context.GetBarrierProfileDefinitionIndexTyped();
+        _test.True(
+            restoredBarriers.Count == 1
+                && restoredBarriers.TryGetValue(
+                    barrierProfile.ProfileId,
+                    out BarrierProfileDefinition restoredBarrier
+                )
+                && ReferenceEquals(restoredBarrier, barrierProfile),
+            "barrier profile index 的成员、引用 identity 与删除项必须恢复。"
+        );
+        AssertSnapshotMatches(
+            snapshot,
+            fixture.Context,
+            "immutable definition indexes restore"
+        );
+    }
+
+    private void TestNullableStatusFieldsAreDetectedAndRestored()
+    {
+        AssertStatusNullRoundTrip(
+            "display label",
+            "display_label",
+            status => status.display_label = "",
+            status => status.display_label = null,
+            status => status.display_label == ""
+        );
+        AssertStatusNullRoundTrip(
+            "damage tags",
+            "damage_tags",
+            status => status.damage_tags = new List<StringName>(),
+            status => status.damage_tags = null,
+            status => status.damage_tags?.Count == 0
+        );
+        AssertStatusNullRoundTrip(
+            "save advantage tags",
+            "save_advantage_tags",
+            status => status.save_advantage_tags = new List<StringName>(),
+            status => status.save_advantage_tags = null,
+            status => status.save_advantage_tags?.Count == 0
+        );
+        AssertStatusNullRoundTrip(
+            "save disadvantage tags",
+            "save_disadvantage_tags",
+            status => status.save_disadvantage_tags = new List<StringName>(),
+            status => status.save_disadvantage_tags = null,
+            status => status.save_disadvantage_tags?.Count == 0
+        );
+        AssertStatusNullRoundTrip(
+            "save immunity tags",
+            "save_immunity_tags",
+            status => status.save_immunity_tags = new List<StringName>(),
+            status => status.save_immunity_tags = null,
+            status => status.save_immunity_tags?.Count == 0
+        );
+        AssertStatusNullRoundTrip(
+            "status tags",
+            "status_tags",
+            status => status.status_tags = new List<StringName>(),
+            status => status.status_tags = null,
+            status => status.status_tags?.Count == 0
+        );
+        AssertStatusNullRoundTrip(
+            "save bonus by tag",
+            "save_bonus_by_tag",
+            status => status.save_bonus_by_tag = new Dictionary<StringName, int>(),
+            status => status.save_bonus_by_tag = null,
+            status => status.save_bonus_by_tag?.Count == 0
+        );
+
+        AssertStatusStructuralMutationRoundTrip(
+            "damage tags empty key",
+            "damage_tags",
+            status => status.damage_tags = new List<StringName>(),
+            status => status.damage_tags = new List<StringName> { new StringName("") },
+            status => status.damage_tags?.Count == 0
+        );
+        AssertStatusStructuralMutationRoundTrip(
+            "save bonus empty key",
+            "save_bonus_by_tag",
+            status => status.save_bonus_by_tag = new Dictionary<StringName, int>(),
+            status =>
+                status.save_bonus_by_tag = new Dictionary<StringName, int>
+                {
+                    [new StringName("")] = 7,
+                },
+            status => status.save_bonus_by_tag?.Count == 0
+        );
+
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleStatusEffectState baseline = new() { status_id = "nullable_status_params" };
+        baseline.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["nullable_sequence"] = new List<object> { null },
+            }
+        );
+        fixture.Actor.SetStatusEffect(baseline);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        try
+        {
+            fixture.Actor.GetStatusEffect(baseline.status_id).SetParamsTyped(
+                new Dictionary<string, object>
+                {
+                    ["nullable_sequence"] = new List<object> { "" },
+                }
+            );
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                "status params null element versus empty text",
+                "params",
+                "nullable_sequence",
+                "[0]"
+            );
+            snapshot.Restore(fixture.Context);
+            BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
+            IReadOnlyDictionary<string, object> restoredParams = restored?.ParamsSnapshotPlain;
+            bool restoredNullElement =
+                restoredParams != null
+                && restoredParams.TryGetValue("nullable_sequence", out object restoredSequence)
+                && restoredSequence is IList restoredList
+                && restoredList.Count == 1
+                && restoredList[0] == null;
+            _test.True(
+                restoredNullElement,
+                "status params 的 null 元素必须与空字符串区分并精确恢复。"
+            );
+            AssertSnapshotMatches(
+                snapshot,
+                fixture.Context,
+                "status params null element restore"
+            );
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"status params null element restore 不应抛异常：{exception}");
+        }
+
+        using Fixture unitRefFixture = BuildFixture(MakeMutationAction("none"));
+        BattleStatusEffectState unitRefBaseline = new()
+        {
+            status_id = "unit_ref_status_param",
+        };
+        unitRefBaseline.SetParamsTyped(
+            new Dictionary<string, object> { ["unit_ref"] = 17 }
+        );
+        unitRefFixture.Actor.SetStatusEffect(unitRefBaseline);
+        BattleAiMutationSnapshot unitRefSnapshot = BattleAiMutationSnapshot.Capture(
+            unitRefFixture.Context
+        );
+        BattleStatusEffectState unitRefLive = unitRefFixture.Actor.GetStatusEffect(
+            unitRefBaseline.status_id
+        );
+        unitRefLive.SetParamsTyped(
+            new Dictionary<string, object> { ["unit_ref"] = 23 }
+        );
+        AssertDiffContainsAll(
+            unitRefSnapshot.CompareCurrentState(unitRefFixture.Context),
+            "status unit_ref param",
+            "unit_ref"
+        );
+        unitRefSnapshot.Restore(unitRefFixture.Context);
+        IReadOnlyDictionary<string, object> restoredUnitRefParams = unitRefFixture.Actor
+            .GetStatusEffect(unitRefBaseline.status_id)
+            ?.ParamsSnapshotPlain;
+        _test.True(
+            restoredUnitRefParams != null
+                && restoredUnitRefParams.TryGetValue("unit_ref", out object unitRefValue)
+                && unitRefValue is int restoredUnitRef
+                && restoredUnitRef == 17,
+            "名为 unit_ref 的合法 plain param 必须检测并恢复。"
+        );
+        AssertSnapshotMatches(
+            unitRefSnapshot,
+            unitRefFixture.Context,
+            "status unit_ref param restore"
+        );
+    }
+
+    private void TestStatusSemanticBlindSpotsAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "guard_semantics",
+                source_unit_id = fixture.Hero.unit_id,
+                stacks = 1,
+                duration = 3,
+                forced_move_immune = true,
+                counts_as_debuff_override = true,
+                counts_as_debuff = false,
+                lock_counterattack = true,
+                lock_guard = false,
+                lock_dodge_bonus = true,
+                lock_crit = false,
+                main_skill_lock_other_debuff_count = 2,
+            }
+        );
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+
+        BattleStatusEffectState mutated = fixture.Actor.GetStatusEffect("guard_semantics");
+        mutated.forced_move_immune = false;
+        mutated.counts_as_debuff_override = false;
+        mutated.counts_as_debuff = true;
+        mutated.lock_counterattack = false;
+        mutated.lock_guard = true;
+        mutated.lock_dodge_bonus = false;
+        mutated.lock_crit = true;
+        mutated.main_skill_lock_other_debuff_count = 9;
+
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "status semantic blind spots",
+            "forced_move_immune",
+            "counts_as_debuff_override",
+            "counts_as_debuff",
+            "lock_counterattack",
+            "lock_guard",
+            "lock_dodge_bonus",
+            "lock_crit",
+            "main_skill_lock_other_debuff_count"
+        );
+        snapshot.Restore(fixture.Context);
+        BattleStatusEffectState restored = fixture.Actor.GetStatusEffect("guard_semantics");
+        _test.True(restored?.forced_move_immune == true, "forced move immunity 应恢复。");
+        _test.True(restored?.counts_as_debuff_override == true, "debuff override 应恢复。");
+        _test.True(restored?.counts_as_debuff == false, "debuff value 应恢复。");
+        _test.True(restored?.lock_counterattack == true, "counterattack lock 应恢复。");
+        _test.True(restored?.lock_guard == false, "guard lock 应恢复。");
+        _test.True(restored?.lock_dodge_bonus == true, "dodge bonus lock 应恢复。");
+        _test.True(restored?.lock_crit == false, "crit lock 应恢复。");
+        _test.Eq(
+            restored?.main_skill_lock_other_debuff_count ?? -1,
+            2,
+            "main skill lock debuff count 应恢复。"
+        );
+        AssertSnapshotMatches(snapshot, fixture.Context, "status semantic blind spots restore");
+    }
+
+    private void TestBattleStateAuthorityBlindSpotsAreDetectedAndRestored()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleEquipmentTargetMarkState originalMark = new()
+        {
+            SourceUnitId = fixture.Actor.unit_id,
+            TargetUnitId = fixture.Hero.unit_id,
+            SourceEquipmentInstanceId = "mark_instance_original",
+            BindingId = "mark_binding_original",
+            StateKey = "mark_state_original",
+            Stacks = 2,
+            RemainingDurationTu = 30,
+            RemoveOnSourceMissing = true,
+        };
+        _test.True(
+            fixture.State.SetEquipmentTargetMark(
+                originalMark,
+                uniquePerSource: false,
+                out _
+            ),
+            "测试前提：原始 equipment target mark 应可写入。"
+        );
+        _test.True(
+            fixture.State.PutTemporaryEdgeFeature(
+                BuildTemporaryEdgeFeature("edge_baseline", 0, 100),
+                refreshExisting: false,
+                maxActiveEdges: 0
+            ),
+            "测试前提：基线 temporary edge feature 应可写入。"
+        );
+        var invalidMark = new BattleEquipmentTargetMarkState
+        {
+            SourceUnitId = null,
+            TargetUnitId = "",
+            SourceEquipmentInstanceId = null,
+            BindingId = "",
+            StateKey = null,
+            Stacks = -11,
+            RemainingDurationTu = -12,
+            RemoveOnSourceMissing = false,
+        };
+        fixture.State.ReplaceEquipmentTargetMarksForMutationSnapshotExact(
+            new BattleEquipmentTargetMarkState[] { null, invalidMark, originalMark }
+        );
+        BattleTemporaryEdgeFeatureState validBaselineEdge = fixture.State
+            .CaptureTemporaryEdgeFeaturesForMutationSnapshotExact()[0];
+        var invalidEdge = new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = new Vector2I(-1, -2),
+            Direction = Vector2I.Zero,
+            SourceUnitId = null,
+            SourceEquipmentInstanceId = null,
+            BindingId = "",
+            ActionId = null,
+            CreatedAtTu = -13,
+            ExpiresAtTu = -14,
+            Sequence = -15,
+            Feature = null,
+        };
+        fixture.State.ReplaceTemporaryEdgeFeaturesForMutationSnapshotExact(
+            new BattleTemporaryEdgeFeatureState[]
+            {
+                null,
+                invalidEdge,
+                validBaselineEdge,
+            }
+        );
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+
+        BattleEquipmentTargetMarkState rogueMark = new()
+        {
+            SourceUnitId = fixture.Hero.unit_id,
+            TargetUnitId = fixture.Actor.unit_id,
+            SourceEquipmentInstanceId = "mark_instance_rogue",
+            BindingId = "mark_binding_rogue",
+            StateKey = "mark_state_rogue",
+            Stacks = 7,
+            RemainingDurationTu = 90,
+            RemoveOnSourceMissing = false,
+        };
+        var mutatedInvalidMark = new BattleEquipmentTargetMarkState
+        {
+            SourceUnitId = "mutated_raw_source",
+            TargetUnitId = null,
+            SourceEquipmentInstanceId = "mutated_raw_instance",
+            BindingId = null,
+            StateKey = "mutated_raw_state",
+            Stacks = -21,
+            RemainingDurationTu = -22,
+            RemoveOnSourceMissing = true,
+        };
+        fixture.State.ReplaceEquipmentTargetMarksForMutationSnapshotExact(
+            new BattleEquipmentTargetMarkState[]
+            {
+                mutatedInvalidMark,
+                mutatedInvalidMark,
+                rogueMark,
+            }
+        );
+        ulong allocatedDuringMutation = fixture.State.AllocateCastSequence();
+        var mutatedInvalidEdge = new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = new Vector2I(-21, -22),
+            Direction = Vector2I.Left,
+            SourceUnitId = "mutated_raw_source",
+            SourceEquipmentInstanceId = "mutated_raw_instance",
+            BindingId = null,
+            ActionId = "mutated_raw_action",
+            CreatedAtTu = -23,
+            ExpiresAtTu = -24,
+            Sequence = -25,
+            Feature = new BattleEdgeFeatureState
+            {
+                feature_kind = null,
+                render_layers = -26,
+            },
+        };
+        fixture.State.ReplaceTemporaryEdgeFeaturesForMutationSnapshotExact(
+            new BattleTemporaryEdgeFeatureState[]
+            {
+                mutatedInvalidEdge,
+                mutatedInvalidEdge,
+                validBaselineEdge,
+            }
+        );
+        fixture.State.RestoreNextTemporaryEdgeFeatureSequence(3);
+
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "battle state authority blind spots",
+            "equipment_target_marks",
+            "source_unit_id",
+            "target_unit_id",
+            "source_equipment_instance_id",
+            "binding_id",
+            "state_key",
+            "stacks",
+            "remaining_duration_tu",
+            "remove_on_source_missing",
+            "temporary_edge_features",
+            "direction",
+            "sequence",
+            "next_cast_sequence",
+            "next_temporary_edge_feature_sequence"
+        );
+
+        snapshot.Restore(fixture.Context);
+        IReadOnlyList<BattleEquipmentTargetMarkState> restoredMarks =
+            fixture.State.GetEquipmentTargetMarksTyped();
+        _test.Eq(restoredMarks.Count, 1, "equipment target mark 数量应恢复。");
+        AssertEquipmentTargetMarkEq(
+            restoredMarks.Count == 1 ? restoredMarks[0] : null,
+            originalMark,
+            "equipment target mark"
+        );
+        List<BattleEquipmentTargetMarkState> rawRestoredMarks =
+            fixture.State.CaptureEquipmentTargetMarksForMutationSnapshotExact();
+        _test.True(
+            rawRestoredMarks.Count == 3
+                && rawRestoredMarks[0] == null
+                && rawRestoredMarks[1]?.SourceUnitId == null
+                && rawRestoredMarks[1]?.Stacks == -11,
+            "invalid/null equipment target mark 必须按原顺序精确恢复。"
+        );
+        List<BattleTemporaryEdgeFeatureState> rawRestoredEdges =
+            fixture.State.CaptureTemporaryEdgeFeaturesForMutationSnapshotExact();
+        _test.True(
+            rawRestoredEdges.Count == 3
+                && rawRestoredEdges[0] == null
+                && rawRestoredEdges[1]?.SourceUnitId == null
+                && rawRestoredEdges[1]?.Direction == Vector2I.Zero
+                && rawRestoredEdges[1]?.Sequence == -15
+                && rawRestoredEdges[1]?.Feature == null,
+            "invalid/null temporary edge feature 必须按原顺序精确恢复。"
+        );
+        _test.Eq(
+            fixture.State.AllocateCastSequence(),
+            allocatedDuringMutation,
+            "cast allocator 应恢复到捕获时的下一序列。"
+        );
+        fixture.State.PutTemporaryEdgeFeature(
+            BuildTemporaryEdgeFeature("edge_probe", 0, 100),
+            refreshExisting: false,
+            maxActiveEdges: 0
+        );
+        BattleTemporaryEdgeFeatureState probe = null;
+        foreach (
+            BattleTemporaryEdgeFeatureState feature in fixture.State.GetTemporaryEdgeFeaturesTyped()
+        )
+        {
+            if (feature?.ActionId == new StringName("edge_probe"))
+            {
+                probe = feature;
+                break;
+            }
+        }
+        _test.Eq(probe?.Sequence ?? -1, 2, "temporary edge allocator 应恢复到序列 2。");
+
+        snapshot.Restore(fixture.Context);
+        AssertSnapshotMatches(snapshot, fixture.Context, "battle state authority restore");
+    }
+
+    private void TestStableDoubleComparisonPreservesDoublePrecision()
+    {
+        double expected = 1.0d;
+        double actual = Math.BitIncrement(expected);
+        _test.Eq((float)actual, (float)expected, "测试前提：两个 double 应降为同一 float。");
+        StableMap expectedMap = new();
+        expectedMap.Set("probe", StableValue.FromFloat(expected));
+        StableMap actualMap = new();
+        actualMap.Set("probe", StableValue.FromFloat(actual));
+        List<StableDiff> diffs = new();
+        BattleAiMutationGuard.CollectDiffs(
+            expectedMap,
+            actualMap,
+            "double_precision",
+            diffs
+        );
+        _test.Eq(
+            diffs.Count,
+            1,
+            "mutation guard 不得因 float 截断或近似比较漏报 double 的位级变化。"
+        );
+    }
+
     private void AssertSnapshotGraphHasNoGodotDynamicBoundary(object root)
     {
         var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
@@ -536,6 +3518,487 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         {
             Visit(field.GetValue(value), $"{path}.{field.Name}", visited);
         }
+    }
+
+    private void AssertDeclaredInstanceFields(Type type, params string[] expectedNames)
+    {
+        var remaining = new HashSet<string>(
+            expectedNames ?? Array.Empty<string>(),
+            StringComparer.Ordinal
+        );
+        foreach (
+            FieldInfo field in type.GetFields(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            if (field.IsStatic)
+                continue;
+            string fieldName = NormalizeDeclaredFieldName(field.Name);
+            _test.True(
+                remaining.Remove(fieldName),
+                $"{type.Name} 新增字段 {field.Name} 时必须扩展 exact snapshot、stable projection 与恢复回归。"
+            );
+        }
+        _test.Eq(
+            remaining.Count,
+            0,
+            $"{type.Name} 结构门禁缺少预期字段：{string.Join(", ", remaining)}"
+        );
+    }
+
+    private void AssertDeclaredWritableProperties(
+        Type type,
+        params string[] expectedNames
+    )
+    {
+        var remaining = new HashSet<string>(
+            expectedNames ?? Array.Empty<string>(),
+            StringComparer.Ordinal
+        );
+        foreach (
+            PropertyInfo property in type.GetProperties(
+                BindingFlags.Instance
+                    | BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.DeclaredOnly
+            )
+        )
+        {
+            if (property.SetMethod == null || property.GetIndexParameters().Length > 0)
+                continue;
+            _test.True(
+                remaining.Remove(property.Name),
+                $"{type.Name} 新增可写属性 {property.Name} 时必须扩展 exact snapshot、stable projection 与恢复回归。"
+            );
+        }
+        _test.Eq(
+            remaining.Count,
+            0,
+            $"{type.Name} 结构门禁缺少预期属性：{string.Join(", ", remaining)}"
+        );
+    }
+
+    private static string NormalizeDeclaredFieldName(string fieldName)
+    {
+        string value = fieldName ?? "";
+        if (
+            value.StartsWith("<", StringComparison.Ordinal)
+            && value.EndsWith(">k__BackingField", StringComparison.Ordinal)
+        )
+        {
+            int closing = value.IndexOf('>');
+            if (closing > 1)
+                return value.Substring(1, closing - 1);
+        }
+        return value;
+    }
+
+    private static bool TryBuildStateFieldMutation(
+        Type fieldType,
+        string fieldName,
+        out object value
+    )
+    {
+        string marker = $"mutation_{fieldName}";
+        if (fieldType == typeof(StringName))
+            value = new StringName(marker);
+        else if (fieldType == typeof(long))
+            value = 101L;
+        else if (fieldType == typeof(int))
+            value = 101;
+        else if (fieldType == typeof(Vector2I))
+            value = new Vector2I(7, 9);
+        else if (fieldType == typeof(StringNameList))
+            value = new StringNameList(new StringName[] { marker });
+        else if (fieldType == typeof(StringList))
+            value = new StringList(new[] { marker });
+        else
+        {
+            value = null;
+            return false;
+        }
+        return true;
+    }
+
+    private static BattleStatusEffectState BuildStatusSchemaSentinel(string suffix)
+    {
+        var result = new BattleStatusEffectState();
+        foreach (
+            PropertyInfo property in typeof(BattleStatusEffectState).GetProperties(
+                BindingFlags.Instance | BindingFlags.Public
+            )
+        )
+        {
+            if (!property.CanWrite || property.GetIndexParameters().Length > 0)
+                continue;
+            if (
+                TryBuildStatusPropertyValue(
+                    property.PropertyType,
+                    property.Name,
+                    suffix,
+                    out object value
+                )
+            )
+            {
+                property.SetValue(result, value);
+            }
+        }
+        result.SetParamsTyped(
+            new Dictionary<string, object>
+            {
+                ["residual_schema_probe"] = $"{suffix}_residual",
+            }
+        );
+        return result;
+    }
+
+    private static bool TryBuildStatusPropertyValue(
+        Type propertyType,
+        string propertyName,
+        string suffix,
+        out object value
+    )
+    {
+        string marker = $"{suffix}_{propertyName}";
+        bool mutated = suffix == "mutated";
+        if (propertyType == typeof(StringName))
+            value = new StringName(marker);
+        else if (propertyType == typeof(string))
+            value = marker;
+        else if (propertyType == typeof(int))
+            value = mutated ? 11 : 7;
+        else if (propertyType == typeof(bool))
+            value = !mutated;
+        else if (propertyType == typeof(int?))
+            value = (int?)(mutated ? 11 : 7);
+        else if (propertyType == typeof(double?))
+            value = (double?)(mutated ? 2.5d : 1.25d);
+        else if (propertyType == typeof(List<StringName>))
+            value = new List<StringName> { marker };
+        else if (propertyType == typeof(Dictionary<StringName, int>))
+        {
+            value = new Dictionary<StringName, int>
+            {
+                [new StringName(marker)] = mutated ? 11 : 7,
+            };
+        }
+        else
+        {
+            value = null;
+            return false;
+        }
+        return true;
+    }
+
+    private static BattleTemporalProgressModifierState BuildNullableModifier(string label)
+    {
+        return new BattleTemporalProgressModifierState
+        {
+            ModifierId = "nullable_modifier",
+            BindingId = "nullable_binding",
+            SourceEquipmentInstanceId = "nullable_instance",
+            AppliesToActionProgress = true,
+            AppliesToCastProgress = false,
+            SaveDc = 10,
+            AttributeModifierId = "dexterity",
+            SuccessRatePercent = 50,
+            FailureRatePercent = 50,
+            Label = label,
+        };
+    }
+
+    private void AssertTemporalProgressModifierRestored(
+        BattleTemporalProgressModifierState restored
+    )
+    {
+        _test.True(restored != null, "时间进度修正应恢复非空对象。");
+        _test.Eq(restored?.ModifierId ?? "", new StringName("modifier_original"), "modifier id 应恢复。");
+        _test.Eq(restored?.BindingId ?? "", new StringName("binding_original"), "binding id 应恢复。");
+        _test.Eq(restored?.SourceEquipmentInstanceId ?? "", new StringName("instance_original"), "modifier source equipment id 应恢复。");
+        _test.True(restored?.AppliesToActionProgress == true, "action progress 标记应恢复。");
+        _test.True(restored?.AppliesToCastProgress == false, "cast progress 标记应恢复。");
+        _test.Eq(restored?.SaveDc ?? -1, 12, "save DC 应恢复。");
+        _test.Eq(restored?.AttributeModifierId ?? "", new StringName("wisdom"), "attribute modifier id 应恢复。");
+        _test.Eq(restored?.SuccessRatePercent ?? -1, 75, "success rate 应恢复。");
+        _test.Eq(restored?.FailureRatePercent ?? -1, 25, "failure rate 应恢复。");
+        _test.Eq(restored?.Label, "original modifier", "modifier label 应恢复。");
+    }
+
+    private static BattleTemporaryEdgeFeatureState BuildTemporaryEdgeFeature(
+        StringName actionId,
+        int createdAtTu,
+        int expiresAtTu
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = Vector2I.Zero,
+            Direction = Vector2I.Right,
+            BindingId = "mutation_guard_edge",
+            ActionId = actionId,
+            CreatedAtTu = createdAtTu,
+            ExpiresAtTu = expiresAtTu,
+            Feature = new BattleEdgeFeatureState
+            {
+                feature_kind = "wall",
+                render_kind = "wall",
+                render_layers = 1,
+                blocks_move = true,
+                blocks_occupancy = true,
+                blocks_los = true,
+                state_tag = actionId,
+            },
+        };
+    }
+
+    private void AssertEquipmentTargetMarkEq(
+        BattleEquipmentTargetMarkState actual,
+        BattleEquipmentTargetMarkState expected,
+        string label
+    )
+    {
+        _test.True(actual != null && expected != null, $"{label} 应存在。");
+        if (actual == null || expected == null)
+            return;
+        _test.Eq(actual.SourceUnitId, expected.SourceUnitId, $"{label} source unit");
+        _test.Eq(actual.TargetUnitId, expected.TargetUnitId, $"{label} target unit");
+        _test.Eq(
+            actual.SourceEquipmentInstanceId,
+            expected.SourceEquipmentInstanceId,
+            $"{label} source equipment instance"
+        );
+        _test.Eq(actual.BindingId, expected.BindingId, $"{label} binding id");
+        _test.Eq(actual.StateKey, expected.StateKey, $"{label} state key");
+        _test.Eq(actual.Stacks, expected.Stacks, $"{label} stacks");
+        _test.Eq(
+            actual.RemainingDurationTu,
+            expected.RemainingDurationTu,
+            $"{label} remaining duration"
+        );
+        _test.Eq(
+            actual.RemoveOnSourceMissing,
+            expected.RemoveOnSourceMissing,
+            $"{label} remove-on-source-missing"
+        );
+    }
+
+    private void AssertStringNameSequenceEq(
+        IEnumerable<StringName> actual,
+        IEnumerable<StringName> expected,
+        string message
+    )
+    {
+        var actualValues = new List<StringName>();
+        foreach (StringName value in actual ?? Array.Empty<StringName>())
+            actualValues.Add(value);
+        var expectedValues = new List<StringName>();
+        foreach (StringName value in expected ?? Array.Empty<StringName>())
+            expectedValues.Add(value);
+        if (actualValues.Count != expectedValues.Count)
+        {
+            _test.Fail(
+                $"{message} expected=[{string.Join(", ", expectedValues)}] actual=[{string.Join(", ", actualValues)}]"
+            );
+            return;
+        }
+        for (int index = 0; index < actualValues.Count; index++)
+        {
+            if (actualValues[index] == expectedValues[index])
+                continue;
+            _test.Fail(
+                $"{message} expected=[{string.Join(", ", expectedValues)}] actual=[{string.Join(", ", actualValues)}]"
+            );
+            return;
+        }
+    }
+
+    private void AssertBattleStateNullRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleState> prepareBaseline,
+        Action<BattleState> mutateToNull,
+        Func<BattleState, bool> isRestoredExactly
+    )
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        prepareBaseline(fixture.State);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        try
+        {
+            mutateToNull(fixture.State);
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                $"BattleState {label} empty-to-null",
+                expectedDiffFragment
+            );
+            snapshot.Restore(fixture.Context);
+            _test.True(
+                isRestoredExactly(fixture.State),
+                $"BattleState {label} 应精确恢复为空的非 null owner。"
+            );
+            AssertSnapshotMatches(
+                snapshot,
+                fixture.Context,
+                $"BattleState {label} null restore"
+            );
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"BattleState {label} null restore 不应抛异常：{exception}");
+        }
+    }
+
+    private void AssertBattleUnitNullRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleUnitState> prepareBaseline,
+        Action<BattleUnitState> mutateToNull,
+        Func<BattleUnitState, bool> isRestoredExactly
+    )
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        prepareBaseline(fixture.Actor);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        try
+        {
+            mutateToNull(fixture.Actor);
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                $"BattleUnit {label} empty-to-null",
+                expectedDiffFragment
+            );
+            snapshot.Restore(fixture.Context);
+            _test.True(
+                isRestoredExactly(fixture.Actor),
+                $"BattleUnit {label} 应精确恢复为空的非 null owner。"
+            );
+            AssertSnapshotMatches(
+                snapshot,
+                fixture.Context,
+                $"BattleUnit {label} null restore"
+            );
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"BattleUnit {label} null restore 不应抛异常：{exception}");
+        }
+    }
+
+    private void AssertBattleUnitStringNameListNullRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleUnitState> prepareBaseline,
+        Action<BattleUnitState> mutateToNull,
+        Func<BattleUnitState, StringNameList> readRestored
+    ) =>
+        AssertBattleUnitNullRoundTrip(
+            label,
+            expectedDiffFragment,
+            prepareBaseline,
+            mutateToNull,
+            unit => readRestored(unit)?.Count == 0
+        );
+
+    private void AssertBattleUnitIntMapNullRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleUnitState> prepareBaseline,
+        Action<BattleUnitState> mutateToNull,
+        Func<BattleUnitState, BattleStringNameIntMap> readRestored
+    ) =>
+        AssertBattleUnitNullRoundTrip(
+            label,
+            expectedDiffFragment,
+            prepareBaseline,
+            mutateToNull,
+            unit => readRestored(unit)?.Count == 0
+        );
+
+    private void AssertStatusNullRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleStatusEffectState> prepareBaseline,
+        Action<BattleStatusEffectState> mutateToNull,
+        Func<BattleStatusEffectState, bool> isRestoredExactly
+    ) =>
+        AssertStatusStructuralMutationRoundTrip(
+            label,
+            expectedDiffFragment,
+            prepareBaseline,
+            mutateToNull,
+            isRestoredExactly
+        );
+
+    private void AssertStatusStructuralMutationRoundTrip(
+        string label,
+        string expectedDiffFragment,
+        Action<BattleStatusEffectState> prepareBaseline,
+        Action<BattleStatusEffectState> mutate,
+        Func<BattleStatusEffectState, bool> isRestoredExactly
+    )
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleStatusEffectState baseline = new()
+        {
+            status_id = new StringName($"nullable_{label.Replace(' ', '_')}"),
+        };
+        prepareBaseline(baseline);
+        fixture.Actor.SetStatusEffect(baseline);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
+        try
+        {
+            BattleStatusEffectState live = fixture.Actor.GetStatusEffect(baseline.status_id);
+            mutate(live);
+            AssertDiffContainsAll(
+                snapshot.CompareCurrentState(fixture.Context),
+                $"status {label} mutation",
+                expectedDiffFragment
+            );
+            snapshot.Restore(fixture.Context);
+            BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
+            _test.True(
+                restored != null && isRestoredExactly(restored),
+                $"status {label} 应精确恢复基线结构。"
+            );
+            AssertSnapshotMatches(
+                snapshot,
+                fixture.Context,
+                $"status {label} restore"
+            );
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"status {label} restore 不应抛异常：{exception}");
+        }
+    }
+
+    private void AssertDiffContainsAll(
+        IReadOnlyList<string> diffs,
+        string label,
+        params string[] expectedFragments
+    )
+    {
+        string joined = string.Join(" | ", diffs ?? Array.Empty<string>());
+        _test.True((diffs?.Count ?? 0) > 0, $"{label} 应产生 mutation diff。");
+        foreach (string fragment in expectedFragments ?? Array.Empty<string>())
+            AssertContains(joined, fragment, $"{label} 应包含 {fragment} diff。");
+    }
+
+    private void AssertSnapshotMatches(
+        BattleAiMutationSnapshot snapshot,
+        BattleAiContext context,
+        string label
+    )
+    {
+        List<string> diffs = snapshot?.CompareCurrentState(context) ?? new List<string>();
+        _test.True(
+            diffs.Count == 0,
+            $"{label} 后应与捕获状态完全一致：{string.Join(" | ", diffs)}"
+        );
     }
 
     private void AssertAuditBaseline(LifecycleAuditSnapshot baseline, string label)

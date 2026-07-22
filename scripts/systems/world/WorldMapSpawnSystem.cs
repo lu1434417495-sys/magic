@@ -52,6 +52,9 @@ public sealed class WorldMapSpawnSystem
         ["service_open_trade_route"] = "service:open_trade_route",
         ["service_legend_contracts"] = "service:legend_contracts",
         ["service_hire_expert"] = "service:hire_expert",
+        ["npc_village_chief"] = "service:npc_village_chief",
+        ["npc_village_healer"] = "service:npc_village_healer",
+        ["npc_old_hunter"] = "service:npc_old_hunter",
     };
 
     private readonly RuntimeRandom _rng = new();
@@ -152,8 +155,6 @@ public sealed class WorldMapSpawnSystem
     {
         public bool Visited { get; init; }
         public int Reputation { get; init; }
-        public long ShopInventorySeed { get; init; }
-        public int ShopLastRefreshStep { get; init; }
     }
 
     internal sealed class WorldNpcInstanceData
@@ -757,7 +758,6 @@ public sealed class WorldMapSpawnSystem
     )
     {
         var services = new List<ServiceEntryData>();
-        bool hasPartyWarehouseService = false;
         foreach (FacilityInstanceData facility in facilities)
         {
             if (facility == null)
@@ -767,8 +767,6 @@ public sealed class WorldMapSpawnSystem
                 if (npc == null)
                     continue;
                 string interactionScriptId = npc.InteractionScriptId;
-                if (interactionScriptId == "party_warehouse")
-                    hasPartyWarehouseService = true;
                 services.Add(
                     new ServiceEntryData
                     {
@@ -785,24 +783,6 @@ public sealed class WorldMapSpawnSystem
                     }
                 );
             }
-        }
-        if (!hasPartyWarehouseService)
-        {
-            services.Add(
-                new ServiceEntryData
-                {
-                    SettlementId = settlementId,
-                    FacilityId = $"{settlementId}__settlement_service_desk",
-                    FacilityTemplateId = "",
-                    FacilityName = "据点服务台",
-                    NpcId = $"{settlementId}__settlement_quartermaster",
-                    NpcTemplateId = "",
-                    NpcName = "军需官",
-                    ServiceType = "仓储",
-                    ActionId = ServiceActionIdByInteraction["party_warehouse"],
-                    InteractionScriptId = "party_warehouse",
-                }
-            );
         }
         return services;
     }
@@ -826,8 +806,6 @@ public sealed class WorldMapSpawnSystem
         {
             Visited = isPlayerStart,
             Reputation = 0,
-            ShopInventorySeed = TrueRandomSeedService.GenerateSeed(),
-            ShopLastRefreshStep = 0,
         };
     }
 
@@ -1539,7 +1517,6 @@ public sealed class WorldMapSpawnSystem
                         encounterAnchors.Add(
                             BuildEncounterAnchor(
                                 new StringName($"wild_{monsterIndex}"),
-                                rule.EnemyRosterTemplateId,
                                 rule.MonsterName,
                                 spawnCoord,
                                 rule.VisionRange,
@@ -1595,7 +1572,6 @@ public sealed class WorldMapSpawnSystem
                     encounterAnchors.Add(
                         BuildEncounterAnchor(
                             new StringName($"wild_{monsterIndex}"),
-                            rule.EnemyRosterTemplateId,
                             rule.MonsterName,
                             spawnCoord,
                             rule.VisionRange,
@@ -1662,7 +1638,6 @@ public sealed class WorldMapSpawnSystem
         encounterAnchors.Add(
             BuildEncounterAnchor(
                 new StringName($"wild_{encounterAnchors.Count + 1}"),
-                rule.EnemyRosterTemplateId,
                 rule.MonsterName,
                 spawnCoord,
                 rule.VisionRange,
@@ -1750,7 +1725,7 @@ public sealed class WorldMapSpawnSystem
         }
         foreach (WildSpawnRuleDefinition rule in _resolvedWildSpawnRules)
         {
-            if (rule == null || rule.EnemyRosterTemplateId != new StringName("wolf_pack"))
+            if (rule == null || rule.SettlementEncounterProfileId == "")
                 continue;
             foreach (Vector2I chunkCoord in BuildDefaultSettlementCandidateChunks(rule))
             {
@@ -1767,13 +1742,12 @@ public sealed class WorldMapSpawnSystem
                 encounterAnchors.Add(
                     BuildEncounterAnchor(
                         new StringName($"wild_settlement_{encounterAnchors.Count + 1}"),
-                        rule.EnemyRosterTemplateId,
-                        "荒狼巢穴",
+                        rule.SettlementEncounterDisplayName,
                         spawnCoord,
                         Math.Max(rule.VisionRange, 2),
                         rule.RegionTag,
                         new StringName(EncounterKindSettlement),
-                        new StringName("wolf_den"),
+                        rule.SettlementEncounterProfileId,
                         0
                     )
                 );
@@ -1788,16 +1762,9 @@ public sealed class WorldMapSpawnSystem
             return new List<Vector2I>(rule.ChunkCoords);
         var candidateChunks = new List<Vector2I>();
         Vector2I worldChunks = _generationDefinition.WorldSizeInChunks;
-        int midpointChunkY = worldChunks.Y / 2;
         for (int chunkY = 0; chunkY < worldChunks.Y; chunkY++)
         for (int chunkX = 0; chunkX < worldChunks.X; chunkX++)
         {
-            if (
-                rule != null
-                && rule.EnemyRosterTemplateId == new StringName("wolf_pack")
-                && chunkY >= midpointChunkY
-            )
-                continue;
             candidateChunks.Add(new Vector2I(chunkX, chunkY));
         }
         return candidateChunks;
@@ -1948,7 +1915,6 @@ public sealed class WorldMapSpawnSystem
 
     private static EncounterAnchorData BuildEncounterAnchor(
         StringName entityId,
-        StringName enemyRosterTemplateId,
         string displayName,
         Vector2I worldCoord,
         int visionRange,
@@ -1964,7 +1930,6 @@ public sealed class WorldMapSpawnSystem
             display_name = displayName,
             world_coord = worldCoord,
             faction_id = new StringName("hostile"),
-            enemy_roster_template_id = enemyRosterTemplateId,
             region_tag = regionTag,
             vision_range = visionRange,
             is_cleared = false,

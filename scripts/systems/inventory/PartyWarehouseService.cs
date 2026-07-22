@@ -686,7 +686,15 @@ public sealed class PartyWarehouseService : IDisposable
             }
             else
             {
-                _process_add(itemId, 1, true, consumeAllocator);
+                var addResult = _process_add(itemId, 1, true, consumeAllocator);
+                if (addResult.AddedQuantity <= 0)
+                {
+                    return WarehouseBatchSwapResult.Blocked(
+                        "warehouse_blocked_swap",
+                        itemId,
+                        depositEntry.InstanceId
+                    );
+                }
             }
         }
 

@@ -113,6 +113,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_cold_combat")
 skill_id = &"mage_cone_of_cold"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 1
 area_pattern = &"narrow_cone"

@@ -8,6 +8,20 @@ public sealed class BattleSimProfileSummary
 
     public int RunCount { get; set; }
 
+    public int CompletedRunCount { get; set; }
+
+    public int UnfinishedRunCount { get; set; }
+
+    public int StalledRunCount { get; set; }
+
+    public int IterationBudgetExhaustedRunCount { get; set; }
+
+    public int InvalidRuntimeRunCount { get; set; }
+
+    public bool HasUnfinishedRuns => UnfinishedRunCount > 0;
+
+    public bool IsComplete => RunCount > 0 && !HasUnfinishedRuns;
+
     public float AverageFinalTu { get; set; }
 
     public float AverageIterations { get; set; }

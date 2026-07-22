@@ -29,23 +29,25 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         if (actor == null || context.state == null)
             return null;
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = ActionKindRandomChainSkill.ToString(),
-                ["target_selection_mode"] = TargetSelectionModeRandomChain.ToString(),
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["distance_reference"] = action.DistanceReference.ToString(),
-                ["desired_min_distance"] = action.DesiredMinDistance,
-                ["desired_max_distance"] = action.DesiredMaxDistance,
-                ["selection_policy"] = SelectionPolicyRandomFromLivingPool.ToString(),
-                ["pool_refresh_policy"] = PoolRefreshPolicyBeforeEachAttempt.ToString(),
-                ["score_estimate_policy"] = ScoreEstimatePolicyExpectedValue.ToString(),
-                ["minimum_candidate_count"] = action.MinimumCandidateCount,
-            }
-        );
+        AiActionTrace actionTrace = context.trace_enabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = ActionKindRandomChainSkill.ToString(),
+                    ["target_selection_mode"] = TargetSelectionModeRandomChain.ToString(),
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["distance_reference"] = action.DistanceReference.ToString(),
+                    ["desired_min_distance"] = action.DesiredMinDistance,
+                    ["desired_max_distance"] = action.DesiredMaxDistance,
+                    ["selection_policy"] = SelectionPolicyRandomFromLivingPool.ToString(),
+                    ["pool_refresh_policy"] = PoolRefreshPolicyBeforeEachAttempt.ToString(),
+                    ["score_estimate_policy"] = ScoreEstimatePolicyExpectedValue.ToString(),
+                    ["minimum_candidate_count"] = action.MinimumCandidateCount,
+                }
+            )
+            : null;
 
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
@@ -87,10 +89,15 @@ internal sealed class BattleAiRandomChainSkillEvaluator
             {
                 TraceCountIncrement(actionTrace, "evaluation_count", 1);
                 BattleCommand command = BuildRandomChainSkillCommand(context, skillEntry, castVariant);
-                BattlePreview preview = BuildFastRandomChainSkillPreview(
+                BattlePreview fastPreview = BuildFastRandomChainSkillPreview(
                     context,
                     skillDefinition,
                     command
+                );
+                BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
+                    context,
+                    command,
+                    fastPreview
                 );
                 if (preview?.allowed != true)
                 {
@@ -133,9 +140,26 @@ internal sealed class BattleAiRandomChainSkillEvaluator
                     skillDefinition,
                     command,
                     preview,
-                    CollectRandomChainEffectDefinitions(skillDefinition, castVariant),
+                    _helper.CollectUnitSkillEffectDefinitions(
+                        skillDefinition,
+                        castVariant,
+                        skillEntry.SkillLevel
+                    ),
                     scoreMetadata.ToScoreMetadata()
                 );
+
+                if (actionTrace != null)
+                {
+                    TraceOfferCandidate(
+                        actionTrace,
+                        EnemyAiActionHelper.BuildCandidateSummary(
+                            optionLabel,
+                            command,
+                            scoreInput,
+                            scoreMetadata.ToCandidateSummaryMetadata(skillId)
+                        )
+                    );
+                }
 
                 if (scoreInput == null)
                 {
@@ -145,27 +169,8 @@ internal sealed class BattleAiRandomChainSkillEvaluator
                         command,
                         $"{actor.display_name} 准备发动 {skillDefinition.DisplayName}，候选池 {scoreMetadata.CandidatePoolUnitIds.Count} 个单位。"
                     );
-                    TraceOfferCandidate(
-                        actionTrace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            optionLabel,
-                            command,
-                            null,
-                            scoreMetadata.ToCandidateSummaryMetadata(skillId)
-                        )
-                    );
                     continue;
                 }
-
-                TraceOfferCandidate(
-                    actionTrace,
-                    EnemyAiActionHelper.BuildCandidateSummary(
-                        optionLabel,
-                        command,
-                        scoreInput,
-                        scoreMetadata.ToCandidateSummaryMetadata(skillId)
-                    )
-                );
                 if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
                     continue;
 
@@ -296,7 +301,11 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         var candidateIds = new HashSet<StringName>();
         if (preview != null)
         {
-            foreach (StringName rawUnitId in preview.RandomChainCandidateUnitIdsTyped)
+            IReadOnlyList<StringName> previewCandidateIds =
+                context?.state?.LayeredBarrierFieldCount > 0
+                    ? preview.RandomChainImpactCandidateUnitIdsTyped
+                    : preview.RandomChainCandidateUnitIdsTyped;
+            foreach (StringName rawUnitId in previewCandidateIds)
             {
                 StringName unitId = ProgressionDataUtils.to_string_name(rawUnitId);
                 if (unitId != "")

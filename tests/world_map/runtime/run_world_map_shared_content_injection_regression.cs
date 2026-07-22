@@ -165,7 +165,6 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 }
                 if (
                     encounterAnchor.region_tag.ToString() == "south_wilds"
-                    && encounterAnchor.enemy_roster_template_id.ToString() == "mist_beast"
                     && encounterAnchor.encounter_profile_id.ToString() == "mist_hollow"
                 )
                 {
@@ -366,14 +365,12 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 BuildWildSpawnRuleDefinition(
                     "south_wilds",
                     "南境雾兽",
-                    "mist_beast",
                     "mist_hollow"
                 ),
                 BuildWildSpawnRuleDefinition(
                     "north_wilds",
                     "北境狼群",
-                    "wolf_pack",
-                    ""
+                    "wolf_wilds"
                 ),
             }
         );
@@ -444,13 +441,11 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 BuildWildSpawnRuleDefinition(
                     "north_wilds",
                     "北境狼群",
-                    "wolf_pack",
-                    ""
+                    "wolf_wilds"
                 ),
                 BuildWildSpawnRuleDefinition(
                     "south_wilds",
                     "南境雾兽",
-                    "mist_beast",
                     "mist_hollow"
                 ),
             }
@@ -761,19 +756,19 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     private static WildSpawnRuleDefinition BuildWildSpawnRuleDefinition(
         string regionTag,
         string monsterName,
-        string enemyRosterTemplateId,
         string encounterProfileId
     )
     {
         return new WildSpawnRuleDefinition(
             regionTag,
             monsterName,
-            enemyRosterTemplateId,
             encounterProfileId,
+            "",
+            "",
             densityPerChunk: 1,
             minDistanceToSettlement: 3,
             visionRange: 1,
-            System.Array.Empty<Vector2I>()
+            chunkCoords: System.Array.Empty<Vector2I>()
         );
     }
 

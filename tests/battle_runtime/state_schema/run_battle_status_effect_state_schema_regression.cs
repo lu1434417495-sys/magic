@@ -518,7 +518,6 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             save_advantage_tags = new List<StringName> { "poison" },
             save_disadvantage_tags = new List<StringName> { "fear" },
             save_immunity_tags = new List<StringName> { "sleep" },
-            save_tags = new List<StringName> { "charm" },
         };
 
         GDictionary payload = Project(effect);
@@ -529,7 +528,10 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
             "save_disadvantage_tags 应投影到 params 边界。"
         );
         _test.True(projectedParams.ContainsKey("save_immunity_tags"), "save_immunity_tags 应投影到 params 边界。");
-        _test.True(projectedParams.ContainsKey("save_tags"), "save_tags 应投影到 params 边界。");
+        _test.False(
+            projectedParams.ContainsKey("save_tags"),
+            "save_tags 通道已删除,不应再投影到 params 边界。"
+        );
 
         BattleStatusEffectState restored = BattleStatusEffectState.FromDictionary(payload);
         _test.True(restored != null, "save tag lists 通过 params 边界后应能恢复。");
@@ -544,8 +546,6 @@ public partial class run_battle_status_effect_state_schema_regression : Lifecycl
         _test.Eq(restored.save_disadvantage_tags[0], new StringName("fear"), "roundtrip 应保留 save_disadvantage_tags 内容。");
         _test.Eq(restored.save_immunity_tags.Count, 1, "roundtrip 应保留 save_immunity_tags。");
         _test.Eq(restored.save_immunity_tags[0], new StringName("sleep"), "roundtrip 应保留 save_immunity_tags 内容。");
-        _test.Eq(restored.save_tags.Count, 1, "roundtrip 应保留 save_tags。");
-        _test.Eq(restored.save_tags[0], new StringName("charm"), "roundtrip 应保留 save_tags 内容。");
     }
 
     private void TestFixedMitigationFieldsRoundTripThroughParamsBoundary()

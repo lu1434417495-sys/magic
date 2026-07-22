@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="BarrierLayerDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierLayerDef.cs" id="1_layer"]
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierOutcomeDef.cs" id="2_outcome"]
+
+[sub_resource type="Resource" id="Outcome_red"]
+script = ExtResource("2_outcome")
+outcome_type = &"damage"
+amount = 20
+damage_tag = &"fire"
+half_on_success = true
+save_ability = &"willpower"
+save_tag = &"magic"
+
+[resource]
+script = ExtResource("1_layer")
+layer_id = &"red"
+display_name = "红色层"
+order = 1
+blocked_categories = Array[StringName]([&"nonmagical_missile"])
+breaker_skill_ids = Array[StringName]([&"mage_cone_of_cold"])
+passage_outcomes = Array[ExtResource("2_outcome")]([SubResource("Outcome_red")])

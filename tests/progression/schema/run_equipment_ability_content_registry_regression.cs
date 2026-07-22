@@ -18,10 +18,12 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         TestAuthoringAbiAttributesAndRuntimeDtoBoundary();
         TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
         TestEmptyAndMinimalValidPacksBuildAndFindBindings();
+        TestProjectedEffectCategoriesProjectAndValidate();
         TestDependencyOrderedReplaceBinding();
         TestReplaceBindingRejectsUnrelatedBindingIdCollision();
         TestLifecycleSnapshotDoesNotRetainResourceMutations();
         TestFailedRebuildKeepsLastSuccessfulSnapshot();
+        TestInvalidNestedConditionGroupReturnsStableValidationResult();
         TestInvalidContentFailsFastWithStableCodesAndPaths();
 
         RequestTestExit(_test.Finish("Equipment ability content registry regression"));
@@ -62,6 +64,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                     "condition_group",
                     "roll_gate",
                     "outcome_table",
+                    "projected_effect_categories",
                     "actions",
                 },
             [typeof(EquipmentAbilityConditionGroupDef)] =
@@ -508,6 +511,55 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         _test.Eq(wrongTag.Count, 0, "FindBindings should reject source items missing required tags.");
     }
 
+    private void TestProjectedEffectCategoriesProjectAndValidate()
+    {
+        EquipmentAbilityContentPackDef validPack = BuildValidPack(
+            "pack.projected_effect",
+            "binding.projected_effect"
+        );
+        EquipmentAbilityReactionDef validReaction = validPack.bindings[0].reactions[0];
+        validReaction.projected_effect_categories.Add("poison");
+        ((AddDamageDiceActionPayloadDef)validReaction.actions[0].payload).damage_type =
+            "poison";
+
+        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        EquipmentAbilityRegistryBuildResult validResult = registry.Rebuild(
+            new[] { validPack },
+            BuildValidationContext()
+        );
+        _test.True(
+            validResult.Success,
+            $"projected effect categories should build: {FormatErrors(validResult.Errors)}"
+        );
+        if (validResult.Success)
+        {
+            IReadOnlyList<StringName> projected = registry
+                .GetBindingDefinitionsTyped()["binding.projected_effect"]
+                .Reactions[0]
+                .ProjectedEffectCategories;
+            _test.Eq(projected.Count, 1, "runtime DTO should retain projected categories.");
+            _test.Eq(projected[0], new StringName("poison"), "projected category should be stable.");
+        }
+
+        EquipmentAbilityContentPackDef invalidPack = BuildValidPack(
+            "pack.projected_effect_invalid",
+            "binding.projected_effect_invalid"
+        );
+        EquipmentAbilityReactionDef invalidReaction = invalidPack.bindings[0].reactions[0];
+        invalidReaction.projected_effect_categories.Add("force_effect");
+        ((AddDamageDiceActionPayloadDef)invalidReaction.actions[0].payload).damage_type =
+            "poison";
+        EquipmentAbilityRegistryBuildResult invalidResult = registry.Rebuild(
+            new[] { invalidPack },
+            BuildValidationContext()
+        );
+        AssertErrorContains(
+            invalidResult.Errors,
+            "EQA_PROJECTED_EFFECT_CATEGORY_MISSING",
+            "projected_effect_categories"
+        );
+    }
+
     private void TestDependencyOrderedReplaceBinding()
     {
         var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
@@ -645,6 +697,98 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             ).Count,
             1,
             "failed rebuild should keep lookup behavior on the last successful snapshot."
+        );
+    }
+
+    private void TestInvalidNestedConditionGroupReturnsStableValidationResult()
+    {
+        using var loader = new TestContentResourceLoader();
+        using var registry = new EquipmentAbilityContentRegistry(loader);
+        EquipmentAbilityContentPackDef baselinePack = TestResourceOwnership.Own(
+            BuildValidPack("pack.registry_baseline", "binding.registry_baseline"),
+            "equipment-ability-registry-baseline-pack"
+        );
+        EquipmentAbilityRegistryBuildResult baselineResult = registry.Rebuild(
+            new[] { baselinePack },
+            BuildValidationContext()
+        );
+        _test.True(
+            baselineResult.Success,
+            $"baseline pack should build before invalid nested group: {FormatErrors(baselineResult.Errors)}"
+        );
+        if (!baselineResult.Success)
+            return;
+
+        EquipmentAbilityConditionDef invalidNestedResource = TestResourceOwnership.Own(
+            new EquipmentAbilityConditionDef(),
+            "equipment-ability-invalid-nested-condition-resource"
+        );
+        EquipmentAbilityConditionGroupDef conditionGroup = TestResourceOwnership.Own(
+            new EquipmentAbilityConditionGroupDef { mode = "all" },
+            "equipment-ability-invalid-nested-condition-group"
+        );
+        conditionGroup.groups.Add(invalidNestedResource);
+        EquipmentAbilityContentPackDef invalidPack = TestResourceOwnership.Own(
+            BuildValidPack("pack.invalid_nested_group", "binding.invalid_nested_group"),
+            "equipment-ability-invalid-nested-pack"
+        );
+        invalidPack.bindings[0].reactions[0].condition_group = conditionGroup;
+
+        EquipmentAbilityRegistryBuildResult invalidResult;
+        try
+        {
+            invalidResult = registry.Rebuild(
+                new[] { invalidPack },
+                BuildValidationContext()
+            );
+        }
+        catch (Exception exception)
+        {
+            _test.Fail(
+                $"invalid nested condition resources should return validation errors instead of throwing: {exception}"
+            );
+            return;
+        }
+        finally
+        {
+            invalidPack.bindings[0].reactions[0].condition_group = null;
+            conditionGroup.groups.Clear();
+        }
+
+        _test.False(invalidResult.Success, "invalid nested condition resources should fail rebuild.");
+        _test.True(
+            invalidResult.Revision > baselineResult.Revision,
+            "failed nested condition rebuild should advance the build revision."
+        );
+        _test.Eq(
+            registry.GetRevision(),
+            invalidResult.Revision,
+            "failed nested condition rebuild should report the active build revision."
+        );
+        EquipmentAbilityRegistryBuildResult lastResult = registry.GetLastBuildResultTyped();
+        _test.False(lastResult.Success, "last build result should retain the failed validation result.");
+        _test.Eq(
+            lastResult.Revision,
+            invalidResult.Revision,
+            "last build result revision should match the failed rebuild."
+        );
+        AssertErrorContains(
+            lastResult.Errors,
+            "EQA_CONDITION_GROUP_TYPE_INVALID",
+            "binding.invalid_nested_group"
+        );
+        AssertErrorContains(
+            invalidResult.Errors,
+            "EQA_CONDITION_GROUP_TYPE_INVALID",
+            "equipment_ability.bindings[binding.invalid_nested_group].reactions[reaction.on_hit].condition_group.groups"
+        );
+        _test.True(
+            registry.GetBindingDefinitionsTyped().ContainsKey("binding.registry_baseline"),
+            "failed nested condition rebuild should preserve the previous successful snapshot."
+        );
+        _test.False(
+            registry.GetBindingDefinitionsTyped().ContainsKey("binding.invalid_nested_group"),
+            "invalid nested condition binding should not enter the active snapshot."
         );
     }
 
@@ -1704,7 +1848,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             KnownSkillIds = new HashSet<StringName> { "known_skill" },
             KnownItemIds = new HashSet<StringName> { "test_blade" },
             KnownStatusIds = new HashSet<StringName> { "burning" },
-            KnownDamageTypes = new HashSet<StringName> { "physical_slash" },
+            KnownDamageTypes = new HashSet<StringName> { "physical_slash", "poison" },
             KnownEquipmentSlotIds = new HashSet<StringName> { "main_hand", "off_hand", "body" },
             KnownCreatureTypeTags = new HashSet<StringName> { "undead" },
             KnownBattleEnvironmentTags = new HashSet<StringName> { "night" },

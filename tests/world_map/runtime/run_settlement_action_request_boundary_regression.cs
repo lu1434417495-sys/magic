@@ -251,8 +251,6 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
                 ["reputation"] = 0,
                 ["active_conditions"] = new GArray(),
                 ["cooldowns"] = new GDictionary(),
-                ["shop_inventory_seed"] = 0,
-                ["shop_last_refresh_step"] = 0,
                 ["shop_states"] = new GDictionary(),
             },
         };

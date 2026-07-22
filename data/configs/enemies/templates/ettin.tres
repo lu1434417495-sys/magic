@@ -21,7 +21,7 @@ creature_level = 7
 hit_die_sides = 10
 action_threshold = 50
 tags = Array[StringName]([&"giant", &"ettin"])
-save_advantage_tags = Array[StringName]([&"sleep_advantage", &"illusion_advantage"])
+save_advantage_tags = Array[StringName]([&"sleep", &"illusion"])
 attack_equipment_item_id = &"iron_greatclub"
 base_attribute_overrides = {
 &"strength": 21,

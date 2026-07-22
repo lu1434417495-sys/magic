@@ -14,6 +14,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     {
         TestValidRoundtripPreservesCurrentPayload();
         TestClonePreservesEphemeralChargeState();
+        TestClonePreservesAiBlackboardOneShotMarkers();
         TestEffectiveTraitPayloadRoundtripAndClone();
         TestEquipmentAbilitySourcePayloadRoundtripAndClone();
         TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
@@ -124,6 +125,36 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         _test.Eq(unit.per_battle_charges.Get("dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
         _test.Eq(unit.per_turn_charges.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
         _test.Eq(unit.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+    }
+
+    private void TestClonePreservesAiBlackboardOneShotMarkers()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.ai_blackboard.low_luck_reverse_fate_used = true;
+        unit.ai_blackboard.low_luck_black_star_wedge_used = true;
+        unit.ai_blackboard.madness_ai_control = true;
+
+        BattleUnitState cloned = unit.clone();
+        _test.True(
+            cloned.ai_blackboard.low_luck_reverse_fate_used,
+            "clone 应携带黑板一次性标记(逆命护符已用),否则预览把已消耗遗物当可用。"
+        );
+        _test.True(
+            cloned.ai_blackboard.low_luck_black_star_wedge_used,
+            "clone 应携带黑星楔已用标记。"
+        );
+        _test.True(cloned.ai_blackboard.madness_ai_control, "clone 应携带疯狂控制标记。");
+
+        cloned.ai_blackboard.low_luck_reverse_fate_used = false;
+        cloned.ai_blackboard.madness_ai_control = false;
+        _test.True(
+            unit.ai_blackboard.low_luck_reverse_fate_used,
+            "clone 的黑板必须是拷贝:改克隆体不应影响原单位的一次性标记。"
+        );
+        _test.True(
+            unit.ai_blackboard.madness_ai_control,
+            "clone 的黑板必须是拷贝:改克隆体不应影响原单位的疯狂标记。"
+        );
     }
 
     private void TestEffectiveTraitPayloadRoundtripAndClone()

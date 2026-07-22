@@ -361,6 +361,76 @@ public class BattleTerrainEffectState
         return duplicated;
     }
 
+    internal BattleTerrainEffectState DuplicateForMutationSnapshotExact()
+    {
+        var duplicate = new BattleTerrainEffectState
+        {
+            field_instance_id = field_instance_id,
+            effect_id = effect_id,
+            effect_type = effect_type,
+            lifetime_policy = lifetime_policy,
+            move_cost_delta = move_cost_delta,
+            applied_status_id = applied_status_id,
+            applied_status_duration_tu = applied_status_duration_tu,
+            render_overlay_id = render_overlay_id,
+            overlay_priority = overlay_priority,
+            display_name = display_name,
+            accuracy_modifier_spec = accuracy_modifier_spec?.Clone(),
+            does_not_stack_with_status_id = does_not_stack_with_status_id,
+            does_not_stack_with_status_ids = does_not_stack_with_status_ids == null
+                ? null
+                : new List<StringName>(does_not_stack_with_status_ids),
+            contact_status_id = contact_status_id,
+            contact_status_duration_tu = contact_status_duration_tu,
+            contact_stack_behavior = contact_stack_behavior,
+            contact_stack_limit = contact_stack_limit,
+            contact_status_display_label = contact_status_display_label,
+            contact_counts_as_debuff_override = contact_counts_as_debuff_override,
+            contact_counts_as_debuff = contact_counts_as_debuff,
+            contact_undispellable = contact_undispellable,
+            contact_dispellable_magic = contact_dispellable_magic,
+            contact_dispellable_harmful_magic = contact_dispellable_harmful_magic,
+            contact_dispellable_beneficial_magic = contact_dispellable_beneficial_magic,
+            contact_save_dc = contact_save_dc,
+            contact_save_ability = contact_save_ability,
+            contact_save_tag = contact_save_tag,
+            contact_apply_on_save_failure = contact_apply_on_save_failure,
+            contact_tick_interval_tu = contact_tick_interval_tu,
+            contact_timeline_damage_dice_count = contact_timeline_damage_dice_count,
+            contact_timeline_damage_dice_sides = contact_timeline_damage_dice_sides,
+            contact_timeline_damage_flat_bonus = contact_timeline_damage_flat_bonus,
+            contact_blocked_by_trait_id = contact_blocked_by_trait_id,
+            source_unit_id = source_unit_id,
+            source_skill_id = source_skill_id,
+            target_team_filter = target_team_filter,
+            power = power,
+            damage_tag = damage_tag,
+            remaining_tu = remaining_tu,
+            tick_interval_tu = tick_interval_tu,
+            next_tick_at_tu = next_tick_at_tu,
+            stack_behavior = stack_behavior,
+        };
+        duplicate.SetParamsTyped(ParamsSnapshotPlain);
+        return duplicate;
+    }
+
+    internal static List<BattleTerrainEffectState> DuplicateListForMutationSnapshotExact(
+        IEnumerable<BattleTerrainEffectState> effectStates
+    )
+    {
+        if (effectStates == null)
+        {
+            return null;
+        }
+
+        var duplicated = new List<BattleTerrainEffectState>();
+        foreach (BattleTerrainEffectState effectState in effectStates)
+        {
+            duplicated.Add(effectState?.DuplicateForMutationSnapshotExact());
+        }
+        return duplicated;
+    }
+
     private static bool HasExactSerializedFields(GDictionary data)
     {
         if (data.Count != SerializedFieldNames.Length)

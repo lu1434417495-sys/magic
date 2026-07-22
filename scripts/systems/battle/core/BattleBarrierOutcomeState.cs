@@ -28,6 +28,24 @@ public sealed class BattleBarrierOutcomeState
 
     public bool IsEmpty => OutcomeKind == BarrierOutcomeKind.None;
 
+    internal BattleBarrierOutcomeState DuplicateForMutationSnapshotExact()
+    {
+        return new BattleBarrierOutcomeState
+        {
+            OutcomeType = OutcomeType,
+            Amount = Amount,
+            DamageTag = DamageTag,
+            HalfOnSuccess = HalfOnSuccess,
+            SuccessAmount = SuccessAmount,
+            SuccessDamageTag = SuccessDamageTag,
+            FatalDamage = FatalDamage,
+            StatusId = StatusId,
+            SaveAbility = SaveAbility,
+            SaveTag = SaveTag,
+            SaveDc = SaveDc,
+        };
+    }
+
     internal static BattleBarrierOutcomeState FromDefinition(
         BarrierOutcomeDefinition definition,
         int defaultSaveDc

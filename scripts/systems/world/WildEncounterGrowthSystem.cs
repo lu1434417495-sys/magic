@@ -7,10 +7,17 @@ public sealed class WildEncounterGrowthSystem
         IEnumerable<EncounterAnchorData> encounterAnchors,
         int old_step,
         int new_step,
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
     )
     {
-        if (encounterAnchors == null || encounterRosters == null || encounterRosters.Count == 0)
+        if (
+            encounterAnchors == null
+            || battleEncounters == null
+            || battleEncounters.Count == 0
+            || encounterRosters == null
+            || encounterRosters.Count == 0
+        )
         {
             return false;
         }
@@ -30,7 +37,11 @@ public sealed class WildEncounterGrowthSystem
                 continue;
             }
 
-            var roster = GetRoster(encounterRosters, encounter.encounter_profile_id);
+            var roster = GetRoster(
+                battleEncounters,
+                encounterRosters,
+                encounter.encounter_profile_id
+            );
             if (roster == null)
             {
                 continue;
@@ -59,9 +70,10 @@ public sealed class WildEncounterGrowthSystem
         return changed;
     }
 
-    internal bool ApplyBattleVictory(
+    internal bool ApplyBattleSuppression(
         EncounterAnchorData encounter_anchor,
         int world_step,
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
     )
     {
@@ -72,12 +84,28 @@ public sealed class WildEncounterGrowthSystem
         {
             return false;
         }
-        if (encounterRosters == null || encounterRosters.Count == 0)
+        if (
+            battleEncounters == null
+            || battleEncounters.Count == 0
+            || encounterRosters == null
+            || encounterRosters.Count == 0
+        )
         {
             return false;
         }
 
-        var roster = GetRoster(encounterRosters, encounter_anchor.encounter_profile_id);
+        BattleEncounterDefinition battleEncounter = GetBattleEncounter(
+            battleEncounters,
+            encounter_anchor.encounter_profile_id
+        );
+        if (battleEncounter == null || battleEncounter.WorldResolution.SuppressionSteps <= 0)
+        {
+            return false;
+        }
+        WildEncounterRosterDefinition roster = GetRoster(
+            encounterRosters,
+            battleEncounter.RosterProfileId
+        );
         if (roster == null)
         {
             return false;
@@ -88,20 +116,61 @@ public sealed class WildEncounterGrowthSystem
         encounter_anchor.suppressed_until_step = Mathf.Max(
             encounter_anchor.suppressed_until_step,
             Mathf.Max(world_step, 0)
-                + Mathf.Max(roster.SuppressionStepsOnVictory, 0)
+                + Mathf.Max(battleEncounter.WorldResolution.SuppressionSteps, 0)
         );
         return true;
     }
 
     private static WildEncounterRosterDefinition GetRoster(
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters,
-        StringName encounterProfileId
+        StringName battleEncounterId
     )
     {
-        if (encounterProfileId == "" || !encounterRosters.ContainsKey(encounterProfileId))
+        BattleEncounterDefinition battleEncounter = GetBattleEncounter(
+            battleEncounters,
+            battleEncounterId
+        );
+        return battleEncounter == null
+            ? null
+            : GetRoster(encounterRosters, battleEncounter.RosterProfileId);
+    }
+
+    private static BattleEncounterDefinition GetBattleEncounter(
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
+        StringName battleEncounterId
+    )
+    {
+        if (
+            battleEncounters == null
+            || battleEncounterId == ""
+            || !battleEncounters.TryGetValue(
+                battleEncounterId,
+                out BattleEncounterDefinition battleEncounter
+            )
+        )
         {
             return null;
         }
-        return encounterRosters[encounterProfileId];
+        return battleEncounter;
+    }
+
+    private static WildEncounterRosterDefinition GetRoster(
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters,
+        StringName rosterProfileId
+    )
+    {
+        if (
+            encounterRosters == null
+            || rosterProfileId == ""
+            || !encounterRosters.TryGetValue(
+                rosterProfileId,
+                out WildEncounterRosterDefinition roster
+            )
+        )
+        {
+            return null;
+        }
+        return roster;
     }
 }

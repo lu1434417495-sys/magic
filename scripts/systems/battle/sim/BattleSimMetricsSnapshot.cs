@@ -62,14 +62,15 @@ public sealed class BattleSimUnitMetricsSnapshot
 
     internal static BattleSimUnitMetricsSnapshot Capture(
         string unitId,
-        BattleMetricEntry data
+        BattleMetricEntry data,
+        string forcedFactionId = ""
     )
     {
         data ??= new BattleMetricEntry();
         return new BattleSimUnitMetricsSnapshot(
             string.IsNullOrEmpty(data.UnitId) ? unitId : data.UnitId,
             data.DisplayName,
-            data.FactionId,
+            string.IsNullOrEmpty(forcedFactionId) ? data.FactionId : forcedFactionId,
             data.ControlMode,
             data.SourceMemberId,
             data.UnitCount,
@@ -121,8 +122,12 @@ public sealed class BattleSimUnitMetricsSnapshot
     internal Dictionary<string, object> BuildFactionPlain() =>
         new(System.StringComparer.Ordinal)
         {
+            ["faction_id"] = FactionId,
             ["unit_count"] = UnitCount,
             ["turn_count"] = TurnCount,
+            ["action_counts"] = ActionCounts,
+            ["skill_attempt_counts"] = SkillAttemptCounts,
+            ["skill_success_counts"] = SkillSuccessCounts,
             ["successful_skill_count"] = SuccessfulSkillCount,
             ["total_damage_done"] = TotalDamageDone,
             ["total_healing_done"] = TotalHealingDone,
@@ -188,7 +193,8 @@ public sealed class BattleSimMetricsSnapshot
                 continue;
             result._factions[entry.Key] = BattleSimUnitMetricsSnapshot.Capture(
                 "",
-                entry.Value
+                entry.Value,
+                entry.Key
             );
         }
         return result;

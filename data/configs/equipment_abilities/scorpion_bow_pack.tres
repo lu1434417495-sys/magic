@@ -63,6 +63,7 @@ script = ExtResource("4_reaction")
 reaction_id = &"reaction.scorpion_bow.scorpion_arrow.damage_after_hit"
 trigger = &"on_hit"
 timing = &"after_hit"
+projected_effect_categories = Array[StringName]([&"poison"])
 actions = Array[Resource]([SubResource("Action_scorpion_arrow_damage")])
 
 [sub_resource type="Resource" id="Reaction_scorpion_arrow_paralyze"]
@@ -70,6 +71,7 @@ script = ExtResource("4_reaction")
 reaction_id = &"reaction.scorpion_bow.scorpion_arrow.paralyze_after_hit"
 trigger = &"on_hit"
 timing = &"after_hit"
+projected_effect_categories = Array[StringName]([&"poison"])
 actions = Array[Resource]([SubResource("Action_scorpion_arrow_paralyze")])
 
 [sub_resource type="Resource" id="Binding_scorpion_arrow"]

@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Effect_heartbreak_burst_damage"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"psychic"])
 effect_target_team_filter = &"enemy"
 damage_tag = &"psychic"
 dice_count = 4

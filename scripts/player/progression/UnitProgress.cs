@@ -222,6 +222,9 @@ public class UnitProgress
         return new List<StringName>();
     }
 
+    // 当前没有生产调用；本实现依赖 merge source 图保持无环。
+    // 若未来接入生产路径，须先在递归下降前标记访问节点，并在写入/读档边界拒绝环，
+    // 否则 A -> B -> A 会持续递归直至栈溢出。
     internal List<StringName> GetMergedSourceSkillIdsRecursiveTyped(StringName sid)
     {
         var r = new List<StringName>();

@@ -346,12 +346,10 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
 
     private static BattleResolutionResult BuildBattleResolutionResult(StringName battleId)
     {
-        return new BattleResolutionResult
-        {
-            battle_id = battleId,
-            winner_faction_id = "player",
-            encounter_resolution = "player_victory",
-        };
+        BattleResolutionResult result =
+            BattleObjectiveTestFactory.CreateEliminationResolution("player");
+        result.battle_id = battleId;
+        return result;
     }
 
     private void ApplyNextPendingReward(

@@ -46,7 +46,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 skillDefinition,
                 caster,
                 command.skill_variant_id,
-                _normalize_target_unit_ids(command, allowRepeat)
+                _targetValidationService._normalize_target_unit_ids(command, allowRepeat)
             );
         if (policy == null || !policy.OptionAllowed)
         {
@@ -303,7 +303,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleEventBatch batch
     )
     {
-        BattleUnitSkillValidationResult validation = _validate_unit_skill_targets_result(
+        BattleUnitSkillValidationResult validation = _targetValidationService._validate_unit_skill_targets_result(
             caster,
             command,
             skillDefinition,
@@ -330,7 +330,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             repeatAttackResolver?.get_repeat_attack_effect_def(resolvedEffectDefinitions);
         if (isRandomChain)
         {
-            return _handle_random_chain_unit_skill_command(
+            return _randomChainSkillService._handle_random_chain_unit_skill_command(
                 caster,
                 skillDefinition,
                 castVariantDefinition,

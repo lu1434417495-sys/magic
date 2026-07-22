@@ -89,6 +89,8 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                     "second target id was preserved"
                 );
             }
+
+            TestBarrierBlockedCandidateDoesNotConsumePoolLimit();
         }
         catch (Exception exception)
         {
@@ -99,7 +101,119 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             _runtimeScope.Close();
         }
 
-        RequestTestExit(_test.Finish("enemy multi-unit command target ids persist"));
+        RequestTestExit(_test.Finish("enemy multi-unit skill candidate pool regression"));
+    }
+
+    private void TestBarrierBlockedCandidateDoesNotConsumePoolLimit()
+    {
+        StringName skillId = "barrier_pool_probe";
+        var source = _runtimeScope.OwnWrapper(
+            BuildUnit("barrier_pool_actor", "hostile", new Vector2I(0, 0)),
+            "barrier-pool-source"
+        );
+        var blockedTargetA = _runtimeScope.OwnWrapper(
+            BuildUnit("barrier_pool_blocked_a", "player", new Vector2I(1, 0)),
+            "barrier-pool-blocked-target-a"
+        );
+        var blockedTargetB = _runtimeScope.OwnWrapper(
+            BuildUnit("barrier_pool_blocked_b", "player", new Vector2I(2, 0)),
+            "barrier-pool-blocked-target-b"
+        );
+        var validTarget = _runtimeScope.OwnWrapper(
+            BuildUnit("barrier_pool_valid", "player", new Vector2I(3, 0)),
+            "barrier-pool-valid-target"
+        );
+        source.known_active_skill_ids.Add(skillId);
+        source.SetKnownSkillLevelTyped(skillId, 1);
+
+        BattleState state = _runtimeScope.OwnWrapper(
+            new BattleState
+            {
+                battle_id = "multi_unit_barrier_candidate_pool",
+                phase = "unit_acting",
+                map_size = new Vector2I(8, 2),
+                active_unit_id = source.unit_id,
+                timeline = new BattleTimelineState(),
+            },
+            "barrier-pool-state"
+        );
+        state.SetUnit(source);
+        state.SetUnit(blockedTargetA);
+        state.SetUnit(blockedTargetB);
+        state.SetUnit(validTarget);
+        var barrier = new BattleBarrierInstanceState
+        {
+            BarrierInstanceId = "barrier_pool_field",
+            ProfileId = "prismatic_sphere",
+            RemainingTu = 40,
+        };
+        barrier.SetLayers(
+            new[]
+            {
+                new BattleBarrierLayerState
+                {
+                    LayerId = "indigo",
+                    DisplayName = "Indigo",
+                    Order = 6,
+                },
+            }
+        );
+        state.PutLayeredBarrierField(barrier.BarrierInstanceId, barrier);
+
+        var context = new BattleAiContext
+        {
+            state = state,
+            unit_state = source,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+            preview_command_callback = command =>
+            {
+                var preview = new BattlePreview { allowed = true };
+                if (CommandContainsTargetUnitId(command, validTarget.unit_id))
+                    preview.AddTargetUnitId(validTarget.unit_id);
+                return preview;
+            },
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillId] = BuildMultiUnitSkill(skillId, 2, 2),
+            }
+        );
+        var action = new UseMultiUnitSkillActionDefinition(
+            "barrier_pool_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            0,
+            6,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit),
+            2,
+            1
+        );
+
+        BattleAiDecision decision = new BattleAiMultiUnitSkillEvaluator().Evaluate(action, context);
+        BattleCommand command = decision?.command;
+        _test.True(
+            command != null,
+            "a valid target behind the blocked pool candidate should remain selectable"
+        );
+        if (command == null)
+            return;
+        _test.Eq(
+            command.TargetUnitIdsTyped.Count,
+            2,
+            "min_target_count=2 should preserve a legal command shape"
+        );
+        _test.True(
+            CommandContainsTargetUnitId(command, validTarget.unit_id),
+            "the later barrier-valid target should enter after the blocked pool prefix"
+        );
+        _test.True(
+            !CommandContainsTargetUnitId(command, blockedTargetA.unit_id),
+            "the first fully blocked candidate group should not consume the canonical group limit"
+        );
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)
@@ -121,7 +235,24 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
         return unit;
     }
 
-    private static SkillDefinition BuildMultiUnitSkill(StringName skillId)
+    private static bool CommandContainsTargetUnitId(BattleCommand command, StringName targetUnitId)
+    {
+        foreach (
+            StringName candidateUnitId in command?.TargetUnitIdsTyped
+                ?? Array.Empty<StringName>()
+        )
+        {
+            if (candidateUnitId == targetUnitId)
+                return true;
+        }
+        return false;
+    }
+
+    private static SkillDefinition BuildMultiUnitSkill(
+        StringName skillId,
+        int minTargetCount = 2,
+        int maxTargetCount = 2
+    )
     {
         var castVariant = new CombatCastVariantDefinition(
             "multi",
@@ -202,8 +333,8 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                 Array.Empty<StringName>(),
                 "",
                 "multi_unit",
-                2,
-                2,
+                minTargetCount,
+                maxTargetCount,
                 false,
                 1,
                 "",

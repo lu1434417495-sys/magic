@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_pv1ns"]
 script = ExtResource("4_j687s")
 skill_id = &"mage_terra_pulse"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 0
 area_pattern = &"radius"

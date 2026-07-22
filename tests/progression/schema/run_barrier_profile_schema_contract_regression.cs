@@ -35,6 +35,17 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
         "mage_dispel_magic",
     };
 
+    private static readonly StringName[] SingleLayerProfileIds =
+    {
+        "prismatic_red_ward",
+        "prismatic_orange_ward",
+        "prismatic_yellow_ward",
+        "prismatic_green_ward",
+        "prismatic_blue_ward",
+        "prismatic_indigo_ward",
+        "prismatic_violet_ward",
+    };
+
     private static readonly StringName[] ExpectedOutcomes =
     {
         "damage",
@@ -64,8 +75,68 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
         TestBarrierProfileScriptsExist();
         TestPrismaticSphereProfileIsDataOwned();
         TestPrismaticSphereProfileDeclares2eContract();
+        TestSingleLayerProfilesReuseCanonicalLayers();
 
         RequestTestExit(_test.Finish("Barrier profile schema contract regression"));
+    }
+
+    private void TestSingleLayerProfilesReuseCanonicalLayers()
+    {
+        BarrierProfileDef sphere = LoadPrismaticSphereProfile(reportMissing: false);
+        if (sphere == null || sphere.layers.Count != ExpectedLayerIds.Length)
+            return;
+
+        for (int index = 0; index < ExpectedLayerIds.Length; index++)
+        {
+            StringName layerId = ExpectedLayerIds[index];
+            string profilePath =
+                $"res://data/configs/barriers/{SingleLayerProfileIds[index]}.tres";
+            BarrierProfileDef profile = GD.Load<BarrierProfileDef>(profilePath);
+            if (profile == null)
+            {
+                _test.Fail($"Single-layer barrier profile must load: {profilePath}.");
+                continue;
+            }
+
+            _test.Eq(
+                profile.profile_id,
+                SingleLayerProfileIds[index],
+                "Single-layer barrier profile id must match its file contract."
+            );
+            _test.Eq(profile.radius_cells, 1, $"{profile.profile_id} must use radius 1.");
+            _test.Eq(profile.duration_tu, 40, $"{profile.profile_id} base duration must be 40 TU.");
+            _test.False(
+                profile.catch_all_projected_effects,
+                $"{profile.profile_id} must not enable catch-all projected blocking."
+            );
+            _test.Eq(
+                profile.layers.Count,
+                1,
+                $"{profile.profile_id} must contain exactly one canonical layer."
+            );
+            if (profile.layers.Count != 1 || profile.layers[0] == null)
+                continue;
+
+            BarrierLayerDef singleLayer = profile.layers[0];
+            BarrierLayerDef sphereLayer = sphere.layers[index];
+            string expectedLayerPath =
+                $"res://data/configs/barrier_layers/prismatic/{layerId}.tres";
+            _test.Eq(
+                singleLayer.ResourcePath,
+                expectedLayerPath,
+                $"{profile.profile_id} must reference the shared {layerId} layer resource."
+            );
+            _test.Eq(
+                sphereLayer.ResourcePath,
+                expectedLayerPath,
+                $"Full prismatic sphere must reference the same shared {layerId} layer resource."
+            );
+            _test.Eq(
+                singleLayer.layer_id,
+                layerId,
+                $"{profile.profile_id} must expose only the {layerId} layer."
+            );
+        }
     }
 
     private void TestBarrierProfileScriptsExist()
@@ -99,9 +170,9 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
             (StringName)"prismatic_sphere",
             "Prismatic sphere profile id must be stable."
         );
-        _test.True(
+        _test.False(
             profile.catch_all_projected_effects,
-            "Prismatic sphere must explicitly declare catch-all projected effect blocking."
+            "Prismatic sphere must only block projected effects matched by a remaining layer."
         );
     }
 

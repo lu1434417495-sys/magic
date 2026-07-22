@@ -58,6 +58,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_dtgc7"]
 script = ExtResource("4_evssp")
 skill_id = &"mage_rock_armor"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 3
 mp_cost = 60

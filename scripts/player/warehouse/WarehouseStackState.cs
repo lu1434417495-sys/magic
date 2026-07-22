@@ -18,6 +18,9 @@ public class WarehouseStackState
         return new WarehouseStackState { item_id = item_id, quantity = Mathf.Max(quantity, 0) };
     }
 
+    internal WarehouseStackState DuplicateForMutationSnapshotExact() =>
+        new() { item_id = item_id, quantity = quantity };
+
     public Godot.Collections.Dictionary ToDictionary() =>
         new() { { "item_id", (string)item_id }, { "quantity", Mathf.Max(quantity, 0) } };
 

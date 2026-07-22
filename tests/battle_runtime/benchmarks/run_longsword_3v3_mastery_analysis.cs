@@ -63,6 +63,9 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             int totalChargeMastery = 0;
             int totalHeavyMastery = 0;
             int endedCount = 0;
+            int idleStallCount = 0;
+            int iterationBudgetExhaustedCount = 0;
+            int invalidRuntimeCount = 0;
             int totalIterations = 0;
             int totalTimelineSteps = 0;
             int heavyMasteryNonzeroCount = 0;
@@ -81,28 +84,48 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                     gateway,
                     seed
                 );
-                GDictionary metrics = GetDict(result, "metrics");
-                GDictionary factions = GetDict(metrics, "factions");
-
-                foreach (Variant factionKey in factions.Keys)
-                {
-                    GDictionary factionData = GetDict(factions, factionKey);
-                    GDictionary skillAttempts = GetDict(factionData, "skill_attempt_counts");
-                    GDictionary skillSuccesses = GetDict(factionData, "skill_success_counts");
-                    totalChargeAttempts += GetInt(skillAttempts, "charge");
-                    totalChargeSuccesses += GetInt(skillSuccesses, "charge");
-                    totalHeavyAttempts += GetInt(skillAttempts, "warrior_heavy_strike");
-                    totalHeavySuccesses += GetInt(skillSuccesses, "warrior_heavy_strike");
-                }
-
-                totalChargeMastery += gateway.ChargeMastery;
-                totalHeavyMastery += gateway.HeavyMastery;
                 if (ReadExactBool(result, "battle_ended"))
+                {
+                    GDictionary metrics = GetDict(result, "metrics");
+                    GDictionary factions = GetDict(metrics, "factions");
+
+                    foreach (Variant factionKey in factions.Keys)
+                    {
+                        GDictionary factionData = GetDict(factions, factionKey);
+                        GDictionary skillAttempts = GetDict(
+                            factionData,
+                            "skill_attempt_counts"
+                        );
+                        GDictionary skillSuccesses = GetDict(
+                            factionData,
+                            "skill_success_counts"
+                        );
+                        totalChargeAttempts += GetInt(skillAttempts, "charge");
+                        totalChargeSuccesses += GetInt(skillSuccesses, "charge");
+                        totalHeavyAttempts += GetInt(
+                            skillAttempts,
+                            "warrior_heavy_strike"
+                        );
+                        totalHeavySuccesses += GetInt(
+                            skillSuccesses,
+                            "warrior_heavy_strike"
+                        );
+                    }
+
+                    totalChargeMastery += gateway.ChargeMastery;
+                    totalHeavyMastery += gateway.HeavyMastery;
                     endedCount++;
-                totalIterations += GetInt(result, "iterations");
-                totalTimelineSteps += GetInt(result, "timeline_steps");
-                if (gateway.HeavyMastery > 0)
-                    heavyMasteryNonzeroCount++;
+                    totalIterations += GetInt(result, "iterations");
+                    totalTimelineSteps += GetInt(result, "timeline_steps");
+                    if (gateway.HeavyMastery > 0)
+                        heavyMasteryNonzeroCount++;
+                }
+                else if (ReadExactBool(result, "idle_stall"))
+                    idleStallCount++;
+                else if (ReadExactBool(result, "iteration_budget_exhausted"))
+                    iterationBudgetExhaustedCount++;
+                else
+                    invalidRuntimeCount++;
 
                 if (progressEnabled && string.IsNullOrEmpty(outputPath) && (runIndex + 1) % 10 == 0)
                 {
@@ -114,13 +137,19 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             }
 
             double elapsedTotal = (Time.GetTicksMsec() - startTime) / 1000.0;
-            double n = Math.Max(runCount, 1);
+            double n = Math.Max(endedCount, 1);
             var report = new GDictionary
             {
                 ["batch_id"] = startSeed,
                 ["run_count"] = runCount,
                 ["elapsed_seconds"] = elapsedTotal,
                 ["ended_count"] = endedCount,
+                ["unfinished_count"] = idleStallCount
+                    + iterationBudgetExhaustedCount
+                    + invalidRuntimeCount,
+                ["idle_stall_count"] = idleStallCount,
+                ["iteration_budget_exhausted_count"] = iterationBudgetExhaustedCount,
+                ["invalid_runtime_count"] = invalidRuntimeCount,
                 ["avg_iterations"] = totalIterations / n,
                 ["avg_timeline_steps"] = totalTimelineSteps / n,
                 ["charge"] = new GDictionary
@@ -153,7 +182,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
                 WriteJsonFile(outputPath, report);
             }
 
-            return 0;
+            return endedCount == runCount ? 0 : 2;
         }
         finally
         {
@@ -204,7 +233,12 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
 
             using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
                 scenarioDefinition.BuildStartContextLease();
-            state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
+            state = runtime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                BattleEliminationObjectiveDefinition.Instance,
+                startContextLease.Value
+            );
 
             BattleSimExecutionLoopResult loopResult = new BattleSimExecutionLoop().Run(
                 runtime,
@@ -214,7 +248,13 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             );
             return new GDictionary
             {
-                ["battle_ended"] = state != null && state.phase == "battle_ended",
+                ["battle_ended"] =
+                    loopResult.termination_kind == BattleSimTerminationKind.BattleEnded,
+                ["idle_stall"] =
+                    loopResult.termination_kind == BattleSimTerminationKind.IdleStall,
+                ["iteration_budget_exhausted"] =
+                    loopResult.termination_kind
+                    == BattleSimTerminationKind.IterationBudgetExhausted,
                 ["winner_faction_id"] = state != null ? state.winner_faction_id.ToString() : "",
                 ["iterations"] = loopResult.iterations,
                 ["timeline_steps"] = loopResult.timeline_steps,

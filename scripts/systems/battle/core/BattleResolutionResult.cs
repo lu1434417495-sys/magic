@@ -8,18 +8,41 @@ internal class BattleResolutionResult
     internal Vector2I world_coord = Vector2I.Zero;
     internal StringName encounter_anchor_id = "";
     internal StringName terrain_profile_id = "default";
-    internal StringName winner_faction_id = "";
-    internal StringName encounter_resolution = "";
+    private BattleFinalDecision _finalDecision;
+    internal BattleFinalDecision final_decision => _finalDecision;
+    internal BattleObjectiveMode objective_mode =>
+        _finalDecision?.ObjectiveMode ?? BattleObjectiveMode.Unknown;
+    internal BattleOutcomeKind outcome =>
+        _finalDecision?.Outcome ?? BattleOutcomeKind.Unknown;
+    internal BattleEndReasonKind end_reason =>
+        _finalDecision?.EndReason ?? BattleEndReasonKind.None;
+    internal StringName winner_faction_id => _finalDecision?.WinnerFactionId ?? "";
+    internal StringName encounter_resolution => outcome switch
+    {
+        BattleOutcomeKind.PlayerSuccess => "player_victory",
+        BattleOutcomeKind.PlayerFailure => "hostile_victory",
+        BattleOutcomeKind.Draw => "draw",
+        _ => "",
+    };
+    internal bool IsTerminal =>
+        _finalDecision != null
+        && objective_mode != BattleObjectiveMode.Unknown
+        && outcome != BattleOutcomeKind.Unknown
+        && end_reason != BattleEndReasonKind.None;
     internal List<BattleLootEntry> loot_entries = new();
     internal List<BattleLootEntry> overflow_entries = new();
 
     internal bool IsEmpty()
     {
         return battle_id == ""
-            && winner_faction_id == ""
-            && encounter_resolution == ""
+            && _finalDecision == null
             && loot_entries.Count == 0
             && overflow_entries.Count == 0;
+    }
+
+    internal void SetFinalDecision(BattleFinalDecision finalDecision)
+    {
+        _finalDecision = finalDecision?.DuplicateState();
     }
 
     internal void SetLootEntries(IEnumerable<BattleLootEntry> lootEntryOptions)
@@ -41,9 +64,8 @@ internal class BattleResolutionResult
             world_coord = world_coord,
             encounter_anchor_id = encounter_anchor_id,
             terrain_profile_id = terrain_profile_id,
-            winner_faction_id = winner_faction_id,
-            encounter_resolution = encounter_resolution,
         };
+        result.SetFinalDecision(_finalDecision);
         result.SetLootEntries(loot_entries);
         result.SetOverflowEntries(overflow_entries);
         return result;
@@ -58,8 +80,7 @@ internal class BattleResolutionResult
         world_coord = snapshot.world_coord;
         encounter_anchor_id = snapshot.encounter_anchor_id;
         terrain_profile_id = snapshot.terrain_profile_id;
-        winner_faction_id = snapshot.winner_faction_id;
-        encounter_resolution = snapshot.encounter_resolution;
+        SetFinalDecision(snapshot._finalDecision);
         SetLootEntries(snapshot.loot_entries);
         SetOverflowEntries(snapshot.overflow_entries);
     }

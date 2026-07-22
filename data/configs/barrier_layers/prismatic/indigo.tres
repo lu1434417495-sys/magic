@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BarrierLayerDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierLayerDef.cs" id="1_layer"]
+[ext_resource type="Script" path="res://scripts/player/progression/BarrierOutcomeDef.cs" id="2_outcome"]
+
+[sub_resource type="Resource" id="Outcome_indigo"]
+script = ExtResource("2_outcome")
+outcome_type = &"status"
+status_id = &"madness"
+save_ability = &"willpower"
+save_tag = &"willpower"
+
+[resource]
+script = ExtResource("1_layer")
+layer_id = &"indigo"
+display_name = "靛色层"
+order = 6
+blocked_categories = Array[StringName]([&"spell"])
+breaker_skill_ids = Array[StringName]([&"mage_continual_light"])
+passage_outcomes = Array[ExtResource("2_outcome")]([SubResource("Outcome_indigo")])

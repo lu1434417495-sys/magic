@@ -624,7 +624,7 @@ internal class BattleAttackCheckPolicyService
         BattleAttackCheckPolicyContext context
     )
     {
-        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+        IBattleEquipmentAbilityReactionService equipmentAbilityService =
             ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
         return equipmentAbilityService != null
             ? equipmentAbilityService.CollectAttackRollModifierCandidates(context)
@@ -635,7 +635,7 @@ internal class BattleAttackCheckPolicyService
         BattleAttackCheckPolicyContext context
     )
     {
-        BattleEquipmentAbilityRuntimeService equipmentAbilityService =
+        IBattleEquipmentAbilityReactionService equipmentAbilityService =
             ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
         return equipmentAbilityService != null
             ? equipmentAbilityService.CollectAttackDefenseAdjustment(context)
@@ -760,9 +760,12 @@ internal class BattleAttackCheckPolicyService
             hasBonus = hasBonus || spec.modifier_delta > 0;
             hasPenalty = hasPenalty || spec.modifier_delta < 0;
         }
+        // 同 stack_key 正负同现不整组丢弃:修正默认累加,直接求和取净值,
+        // 净值条目保留在 breakdown 中可见(净 0 也保留,标记冲突相抵)。
+        // 同号组继续走各自配置的堆叠模式。
         if (hasBonus && hasPenalty)
         {
-            return null;
+            return SumStackGroup(group);
         }
 
         if (first.StackModeKind == BattleAttackRollModifierStackMode.Exclusive)
@@ -931,8 +934,10 @@ internal class BattleAttackCheckPolicyService
     {
         if (source.Invalid || source.ForceHitNoCrit || context?.force_hit_no_crit == true)
             return source;
+        IBattleEquipmentAbilityReactionService equipmentAbilityService =
+            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
         BattleEquipmentAbilityCriticalHitOverrideResult criticalOverride =
-            ResolveRuntime()?.GetEquipmentAbilityRuntimeService()?.ResolveCriticalHitOverride(context);
+            equipmentAbilityService?.ResolveCriticalHitOverride(context);
         if (criticalOverride?.ForceCriticalOnHit != true)
             return source;
         return new AttackCheckInput(

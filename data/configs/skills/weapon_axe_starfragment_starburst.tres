@@ -7,6 +7,7 @@
 [sub_resource type="Resource" id="Effect_starburst_damage"]
 script = ExtResource("1_effect")
 effect_type = &"damage"
+effect_categories = Array[StringName]([&"force_effect"])
 damage_tag = &"force"
 save_dc = 14
 save_ability = &"agility"

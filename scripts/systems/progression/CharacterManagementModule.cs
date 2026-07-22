@@ -332,7 +332,8 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             _party_state,
             _item_def_index,
             _party_warehouse_service,
-            _equipment_instance_id_allocator
+            _equipment_instance_id_allocator,
+            GetMemberAttributeSnapshotForEquipmentView
         );
         _quest_progress_service.Setup(
             _party_state,
@@ -402,7 +403,8 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             _party_state,
             _item_def_index,
             _party_warehouse_service,
-            _equipment_instance_id_allocator
+            _equipment_instance_id_allocator,
+            GetMemberAttributeSnapshotForEquipmentView
         );
         _quest_progress_service.Setup(
             _party_state,
@@ -615,7 +617,18 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
                 ascension_stage_def
             ),
             ["damage_resistances"] = _collect_identity_damage_resistances(race_def, subrace_def),
-            ["save_advantage_tags"] = _collect_identity_save_advantage_tags(race_def, subrace_def),
+            ["save_advantage_tags"] = _collect_identity_save_tags(
+                race_def?.SaveAdvantageTags,
+                subrace_def?.SaveAdvantageTags
+            ),
+            ["save_disadvantage_tags"] = _collect_identity_save_tags(
+                race_def?.SaveDisadvantageTags,
+                subrace_def?.SaveDisadvantageTags
+            ),
+            ["save_immunity_tags"] = _collect_identity_save_tags(
+                race_def?.SaveImmunityTags,
+                subrace_def?.SaveImmunityTags
+            ),
             ["racial_skill_lines"] = _build_identity_granted_skill_lines(
                 race_def,
                 subrace_def,

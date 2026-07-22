@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_y83vb"]
 script = ExtResource("4_1g1qi")
 skill_id = &"mage_elemental_fusion"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 0
 area_pattern = &"self"

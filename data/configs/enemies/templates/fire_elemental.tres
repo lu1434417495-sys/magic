@@ -20,7 +20,7 @@ creature_level = 6
 hit_die_sides = 8
 action_threshold = 30
 tags = Array[StringName]([&"elemental", &"fire", &"beast"])
-save_advantage_tags = Array[StringName]([&"sleep_immunity", &"poison_immunity"])
+save_immunity_tags = Array[StringName]([&"sleep", &"poison"])
 damage_resistances = {
 &"fire": &"immune",
 &"freeze": &"double",

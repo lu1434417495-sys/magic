@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_n3b8b"]
 script = ExtResource("4_gypov")
 skill_id = &"mage_searing_orb"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

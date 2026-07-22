@@ -107,6 +107,9 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
     public IReadOnlyDictionary<string, object> GetNpcQuestOfferWindowDataSnapshotPlain() =>
         RuntimePlainPayload.CloneDictionary(NpcQuestOfferWindowData);
 
+    public IReadOnlyDictionary<string, object> GetBountyBoardWindowDataSnapshotPlain() =>
+        new Dictionary<string, object>();
+
     public IReadOnlyDictionary<string, object> GetForgeWindowDataSnapshotPlain() =>
         ForgeWindowData.Count > 0
             ? RuntimePlainPayload.CloneDictionary(ForgeWindowData)

@@ -12,27 +12,73 @@ public sealed partial class GameRuntimeFacade
 {
 
     private List<QuestProgressService.QuestProgressEventData> BuildDefaultBattleQuestProgressEventsTyped(
-        string winner_faction_id
+        BattleOutcomeKind outcome
     )
     {
-        List<QuestProgressService.QuestProgressEventData> result = new();
-        if (winner_faction_id != "player")
+        return BuildBattleDefeatQuestProgressEventsTyped(
+            _battle_state,
+            _get_encounter_anchor_by_id(_active_battle_encounter_id),
+            outcome,
+            GetWorldStep()
+        );
+    }
+
+    internal static List<QuestProgressService.QuestProgressEventData> BuildBattleDefeatQuestProgressEventsTyped(
+        BattleState battle_state,
+        EncounterAnchorData encounter_anchor,
+        BattleOutcomeKind outcome,
+        int world_step
+    )
+    {
+        var result = new List<QuestProgressService.QuestProgressEventData>();
+        if (
+            outcome != BattleOutcomeKind.PlayerSuccess
+            || battle_state == null
+            || encounter_anchor == null
+            || world_step < 0
+        )
+        {
             return result;
-        var encounterAnchor = _get_encounter_anchor_by_id(_active_battle_encounter_id);
-        if (encounterAnchor == null)
-            return result;
-        QuestProgressService.QuestProgressEventData eventData =
-            QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
-                "defeat_enemy",
-                encounterAnchor.enemy_roster_template_id,
-                1,
-                GetWorldStep(),
-                encounterAnchor.enemy_roster_template_id,
-                encounterAnchor.entity_id,
-                encounterAnchor.encounter_kind
+        }
+
+        var defeatedCountsByTemplate = new Dictionary<StringName, int>();
+        foreach (StringName enemyUnitId in battle_state.enemy_unit_ids)
+        {
+            if (
+                !battle_state.TryGetUnitTyped(enemyUnitId, out BattleUnitState enemyUnit)
+                || enemyUnit == null
+                || enemyUnit.is_alive
+                || enemyUnit.enemy_template_id == ""
+            )
+            {
+                continue;
+            }
+            defeatedCountsByTemplate.TryGetValue(
+                enemyUnit.enemy_template_id,
+                out int currentCount
             );
-        if (eventData != null && eventData.IsValid)
-            result.Add(eventData);
+            defeatedCountsByTemplate[enemyUnit.enemy_template_id] = currentCount + 1;
+        }
+
+        var defeatedTemplateIds = new List<StringName>(defeatedCountsByTemplate.Keys);
+        defeatedTemplateIds.Sort(
+            (left, right) => string.CompareOrdinal(left.ToString(), right.ToString())
+        );
+        foreach (StringName defeatedTemplateId in defeatedTemplateIds)
+        {
+            QuestProgressService.QuestProgressEventData eventData =
+                QuestProgressService.QuestProgressEventData.CreateProgressByObjectiveTarget(
+                    "defeat_enemy",
+                    defeatedTemplateId,
+                    defeatedCountsByTemplate[defeatedTemplateId],
+                    world_step,
+                    defeatedTemplateId,
+                    encounter_anchor.entity_id,
+                    encounter_anchor.encounter_kind
+                );
+            if (eventData != null && eventData.IsValid)
+                result.Add(eventData);
+        }
         return result;
     }
 

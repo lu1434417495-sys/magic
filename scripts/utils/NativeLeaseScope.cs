@@ -82,7 +82,7 @@ internal sealed class NativeLeaseScope : IDisposable
         get
         {
             lock (OwnershipSync)
-                return _owned.Count;
+                return _ownedByWrapper.Count;
         }
     }
 
@@ -92,7 +92,10 @@ internal sealed class NativeLeaseScope : IDisposable
         {
             var result = new List<IDisposable>(_owned.Count);
             foreach (OwnedEntry entry in _owned)
-                result.Add(entry.Wrapper);
+            {
+                if (entry != null)
+                    result.Add(entry.Wrapper);
+            }
             return result.AsReadOnly();
         }
     }
@@ -254,20 +257,26 @@ internal sealed class NativeLeaseScope : IDisposable
 
     public void Dispose()
     {
-        List<OwnedEntry> snapshot;
+        int ownedCount;
         lock (OwnershipSync)
         {
             if (_disposeAttempted)
                 return;
             _disposeAttempted = true;
             _closed = true;
-            snapshot = new List<OwnedEntry>(_owned);
+            ownedCount = _owned.Count;
         }
 
         var failures = new List<Exception>();
-        for (int index = snapshot.Count - 1; index >= 0; index--)
+        for (int index = ownedCount - 1; index >= 0; index--)
         {
-            OwnedEntry entry = snapshot[index];
+            OwnedEntry entry;
+            lock (OwnershipSync)
+                entry = _owned[index];
+
+            if (entry == null)
+                continue;
+
             try
             {
                 entry.Wrapper.Dispose();
@@ -283,7 +292,7 @@ internal sealed class NativeLeaseScope : IDisposable
                     {
                         throw new InvalidOperationException(releaseFailure);
                     }
-                    _owned.Remove(entry);
+                    _owned[index] = null;
                     _ownedByWrapper.Remove(entry.Wrapper);
                     LifecycleAuditRegistry.Shared.UnregisterActive(
                         LifecycleAuditActiveKind.Owner,
@@ -297,6 +306,9 @@ internal sealed class NativeLeaseScope : IDisposable
                 failures.Add(exception);
             }
         }
+
+        lock (OwnershipSync)
+            _owned.RemoveAll(static entry => entry == null);
 
         if (failures.Count == 0 && _auditScope)
         {

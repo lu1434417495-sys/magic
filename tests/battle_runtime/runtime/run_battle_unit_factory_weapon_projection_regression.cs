@@ -733,6 +733,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             0,
             Array.Empty<AttributeModifierDefinition>(),
             Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
+            Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),

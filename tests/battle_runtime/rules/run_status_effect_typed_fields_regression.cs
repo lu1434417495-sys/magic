@@ -353,7 +353,6 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
                 save_advantage_tags: new List<StringName> { "magic", "fear" },
                 save_disadvantage_tags: new List<StringName> { "poison" },
                 save_immunity_tags: new List<StringName> { "sleep" },
-                save_tags: new List<StringName> { "magic", "mind" },
                 heal_multiplier_percent: 50,
                 shield_gain_multiplier_percent: 40,
                 incoming_damage_multiplier: 1.25,
@@ -491,21 +490,6 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
                 status?.save_immunity_tags?[0] ?? new StringName(""),
                 new StringName("sleep"),
                 "runtime wrapper should preserve save_immunity_tags entry."
-            );
-            _test.Eq(
-                status?.save_tags?.Count ?? -1,
-                2,
-                "runtime wrapper should forward typed save_tags list."
-            );
-            _test.Eq(
-                status?.save_tags?[0] ?? new StringName(""),
-                new StringName("magic"),
-                "runtime wrapper should preserve first save_tags entry."
-            );
-            _test.Eq(
-                status?.save_tags?[1] ?? new StringName(""),
-                new StringName("mind"),
-                "runtime wrapper should preserve second save_tags entry."
             );
             _test.Eq(
                 status?.heal_multiplier_percent ?? -1,

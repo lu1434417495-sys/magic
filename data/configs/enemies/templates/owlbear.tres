@@ -21,7 +21,7 @@ creature_level = 5
 hit_die_sides = 10
 action_threshold = 40
 tags = Array[StringName]([&"monstrosity", &"owlbear", &"beast", &"claw"])
-save_advantage_tags = Array[StringName]([&"charm_advantage"])
+save_advantage_tags = Array[StringName]([&"charm"])
 base_attribute_overrides = {
 &"strength": 19,
 &"agility": 12,

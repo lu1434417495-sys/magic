@@ -43,6 +43,7 @@ duration_tu = 40
 [sub_resource type="Resource" id="Resource_awkmm"]
 script = ExtResource("4_giqog")
 skill_id = &"archer_pinning_shot"
+delivery_categories = Array[StringName]([&"nonmagical_missile"])
 range_value = 0
 ap_cost = 1
 stamina_cost = 24

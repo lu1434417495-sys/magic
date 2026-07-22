@@ -75,5 +75,4 @@ profile_id = &"wolf_den"
 display_name = "荒狼巢穴"
 initial_stage = 0
 growth_step_interval = 2
-suppression_steps_on_victory = 3
 stages = Array[ExtResource("2_stage")]([SubResource("Resource_wolf_den_stage0"), SubResource("Resource_wolf_den_stage1"), SubResource("Resource_wolf_den_stage2"), SubResource("Resource_wolf_den_stage3"), SubResource("Resource_wolf_den_stage4")])

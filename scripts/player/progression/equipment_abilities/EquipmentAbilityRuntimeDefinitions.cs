@@ -217,6 +217,8 @@ public sealed class EquipmentAbilityReactionDefinition
     public EquipmentConditionGroupDefinition ConditionGroup { get; init; }
     public EquipmentRollGateDefinition RollGate { get; init; }
     public EquipmentOutcomeTableDefinition OutcomeTable { get; init; }
+    public IReadOnlyList<StringName> ProjectedEffectCategories { get; init; } =
+        Array.Empty<StringName>();
     public IReadOnlyList<EquipmentAbilityActionDefinition> Actions { get; init; } =
         Array.Empty<EquipmentAbilityActionDefinition>();
 }

@@ -49,6 +49,7 @@ params = {
 [sub_resource type="Resource" id="Resource_ef2"]
 script = ExtResource("3_effect")
 effect_type = &"status"
+effect_categories = Array[StringName]([&"mental_attack"])
 status_id = &"hex_of_frailty"
 duration_tu = 40
 save_ability = &"willpower"

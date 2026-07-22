@@ -35,6 +35,11 @@ public sealed partial class GameRuntimeFacade
     {
         if (encounter_anchor == null || _battle_runtime == null)
             return "failed";
+        if (ResolveBattleObjectiveDefinition(encounter_anchor) == null)
+        {
+            UpdateStatusInternal("战斗加载失败：遭遇缺少正式胜利目标。");
+            return "failed";
+        }
         _pending_battle_generation_request.Set(encounter_anchor, seed, context);
         _pending_battle_start_prompt.Clear();
         _active_modal_kind = RuntimeModalKind.BattleLoading;
@@ -123,6 +128,13 @@ public sealed partial class GameRuntimeFacade
         var encounterAnchor = _pending_battle_generation_request.EncounterAnchor;
         if (encounterAnchor == null)
             return false;
+        BattleObjectiveDefinition objectiveDefinition =
+            ResolveBattleObjectiveDefinition(encounterAnchor);
+        if (objectiveDefinition == null)
+        {
+            UpdateStatusInternal("战斗加载失败：遭遇缺少正式胜利目标。");
+            return false;
+        }
         int seed = _pending_battle_generation_request.Seed;
         Dictionary<string, object> context =
             _pending_battle_generation_request.CloneContextPlain();
@@ -140,6 +152,7 @@ public sealed partial class GameRuntimeFacade
             runtimeState = _battle_runtime.StartBattleBorrowingContext(
                 encounterAnchor,
                 seed,
+                objectiveDefinition,
                 contextLease.Value
             );
         }
@@ -167,6 +180,7 @@ public sealed partial class GameRuntimeFacade
     {
         if (
             battle_resolution_result == null
+            || !battle_resolution_result.IsTerminal
             || _game_session == null
             || _character_management == null
             || _battle_runtime == null
@@ -321,7 +335,9 @@ public sealed partial class GameRuntimeFacade
             _character_management.EnqueuePendingCharacterRewardsTyped(resolvedPendingRewards);
             questSummary = _character_management
                 .ApplyQuestProgressEventsTyped(
-                    BuildDefaultBattleQuestProgressEventsTyped(winnerFactionId)
+                    BuildDefaultBattleQuestProgressEventsTyped(
+                        battle_resolution_result.outcome
+                    )
                 );
             _party_state = _character_management.GetPartyState();
             partyPersistError = _game_session.SetPartyState(_party_state);
@@ -350,7 +366,7 @@ public sealed partial class GameRuntimeFacade
                 RollbackBattleFinalization(rollbackTransaction, rollbackState, battleRollbackState, battle_resolution_result);
                 return false;
             }
-            _resolve_world_encounter_after_battle(winnerFactionId);
+            _resolve_world_encounter_after_battle(battle_resolution_result);
             _materialize_active_world_state_to_root();
             worldPersistError = _game_session.SetWorldData(
                 _world_map_data_context.RootRuntimeData
@@ -446,11 +462,8 @@ public sealed partial class GameRuntimeFacade
         if (mainCharacterDead)
         {
             UpdateStatusInternal(
-                PlainPayloadString(
-                    GetGameOverContextSnapshotPlain(),
-                    "description",
-                    "主角已阵亡，本次旅程结束。"
-                )
+                _active_game_over_context?.Description
+                ?? "主角已阵亡，本次旅程结束。"
             );
             _log_runtime_event(
                 GameLogLevel.Info,

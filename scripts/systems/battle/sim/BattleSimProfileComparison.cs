@@ -6,6 +6,23 @@ public sealed class BattleSimProfileComparison
 
     public string CandidateProfileId { get; set; } = "";
 
+    public int BaselineRunCount { get; set; }
+
+    public int BaselineCompletedRunCount { get; set; }
+
+    public int CandidateRunCount { get; set; }
+
+    public int CandidateCompletedRunCount { get; set; }
+
+    public bool HasUnfinishedRuns =>
+        BaselineCompletedRunCount < BaselineRunCount
+        || CandidateCompletedRunCount < CandidateRunCount;
+
+    public bool IsComplete =>
+        BaselineCompletedRunCount > 0
+        && CandidateCompletedRunCount > 0
+        && !HasUnfinishedRuns;
+
     public float AverageFinalTuDelta { get; set; }
 
     public float AverageIterationsDelta { get; set; }

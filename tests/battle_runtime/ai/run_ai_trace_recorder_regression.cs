@@ -11,6 +11,7 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
         {
             TestRecorderCapturesBalancedNestedSpans();
             TestDisablingEventCaptureClearsEvents();
+            TestInstanceScopeRestoresPreviousRecorderAfterException();
         }
         finally
         {
@@ -87,5 +88,48 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
             "disabling event capture should clear events."
         );
         _test.True(!recorder.IsTruncated(), "disabling event capture should reset truncation flag.");
+    }
+
+    private void TestInstanceScopeRestoresPreviousRecorderAfterException()
+    {
+        var previousRecorder = new AiTraceRecorder();
+        var scopedRecorder = new AiTraceRecorder();
+        var expectedFailure = new System.InvalidOperationException("expected scoped trace failure");
+        System.Exception observedFailure = null;
+        AiTraceRecorder.SetInstance(previousRecorder);
+
+        try
+        {
+            using (AiTraceRecorder.PushInstance(scopedRecorder))
+            {
+                _test.True(
+                    ReferenceEquals(AiTraceRecorder.GetInstance(), scopedRecorder),
+                    "trace instance scope should install its recorder."
+                );
+                throw expectedFailure;
+            }
+        }
+        catch (System.Exception exception)
+        {
+            observedFailure = exception;
+        }
+
+        _test.True(
+            ReferenceEquals(observedFailure, expectedFailure),
+            "trace instance scope should not replace the operation failure."
+        );
+        _test.True(
+            ReferenceEquals(AiTraceRecorder.GetInstance(), previousRecorder),
+            "trace instance scope should restore the previous recorder after an exception."
+        );
+
+        AiTraceRecorder.Enter("restored_scope_probe");
+        AiTraceRecorder.Exit("restored_scope_probe");
+        using GodotProjectionLease<GDictionary> statsLease =
+            previousRecorder.GetFuncStatsLease();
+        _test.True(
+            statsLease.Value.ContainsKey(new StringName("restored_scope_probe")),
+            "subsequent trace events should reach the restored recorder."
+        );
     }
 }

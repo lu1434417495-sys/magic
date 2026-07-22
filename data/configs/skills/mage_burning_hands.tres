@@ -115,6 +115,7 @@ duration_tu = 80
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_burning_hands"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 0
 area_pattern = &"cone"

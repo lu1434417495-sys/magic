@@ -36,6 +36,7 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyBrains = null,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters = null,
+        IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters = null,
         IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null
     )
     {
@@ -78,6 +79,7 @@ internal sealed class ContentSnapshot
         EnemyTemplates = Freeze(enemyTemplates);
         EnemyBrains = Freeze(enemyBrains);
         EncounterRosters = Freeze(encounterRosters);
+        BattleEncounters = Freeze(battleEncounters);
         BattleSimProfiles = Freeze(battleSimProfiles);
     }
 
@@ -108,6 +110,7 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; }
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; }
+    internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; }
 
     private static IReadOnlyDictionary<TKey, TValue> Freeze<TKey, TValue>(

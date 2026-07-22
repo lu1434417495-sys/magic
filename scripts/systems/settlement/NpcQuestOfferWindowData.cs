@@ -12,6 +12,9 @@ internal sealed class NpcQuestOfferEntryData
     public string AcceptDialogueText { get; set; } = "";
     public string SummaryText { get; set; } = "";
     public string CostLabel { get; set; } = "";
+    public string StateId { get; set; } = "";
+    public string StateLabel { get; set; } = "";
+    public string ActionLabel { get; set; } = "";
     public bool IsEnabled { get; set; }
     public string DisabledReason { get; set; } = "";
     public string LockReasonId { get; set; } = "";
@@ -29,6 +32,9 @@ internal sealed class NpcQuestOfferEntryData
             ["accept_dialogue_text"] = AcceptDialogueText,
             ["summary_text"] = SummaryText,
             ["cost_label"] = CostLabel,
+            ["state_id"] = StateId,
+            ["state_label"] = StateLabel,
+            ["action_label"] = ActionLabel,
             ["is_enabled"] = IsEnabled,
             ["disabled_reason"] = DisabledReason,
             ["lock_reason_id"] = LockReasonId,

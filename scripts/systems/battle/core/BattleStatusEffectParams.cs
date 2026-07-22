@@ -49,7 +49,6 @@ internal sealed class BattleStatusEffectParams
     public List<StringName> SaveAdvantageTags { get; private init; } = new();
     public List<StringName> SaveDisadvantageTags { get; private init; } = new();
     public List<StringName> SaveImmunityTags { get; private init; } = new();
-    public List<StringName> SaveTags { get; private init; } = new();
     public List<StringName> StatusTags { get; private init; } = new();
     public Dictionary<StringName, int> SaveBonusByTag { get; private init; } = new();
 
@@ -112,7 +111,6 @@ internal sealed class BattleStatusEffectParams
             SaveAdvantageTags = ReadStringNameListParam(parameters, "save_advantage_tags"),
             SaveDisadvantageTags = ReadStringNameListParam(parameters, "save_disadvantage_tags"),
             SaveImmunityTags = ReadStringNameListParam(parameters, "save_immunity_tags"),
-            SaveTags = ReadStringNameListParam(parameters, "save_tags"),
             StatusTags = ReadStringNameListParam(parameters, "status_tags"),
             SaveBonusByTag = ReadStringNameIntMapParam(parameters, "save_bonus_by_tag"),
         };
@@ -210,8 +208,6 @@ internal sealed class BattleStatusEffectParams
             status.save_disadvantage_tags = new List<StringName>(SaveDisadvantageTags);
         if ((overwriteExisting || status.save_immunity_tags.Count == 0) && SaveImmunityTags.Count > 0)
             status.save_immunity_tags = new List<StringName>(SaveImmunityTags);
-        if ((overwriteExisting || status.save_tags.Count == 0) && SaveTags.Count > 0)
-            status.save_tags = new List<StringName>(SaveTags);
         if ((overwriteExisting || status.status_tags.Count == 0) && StatusTags.Count > 0)
             status.status_tags = new List<StringName>(StatusTags);
         if ((overwriteExisting || status.save_bonus_by_tag.Count == 0) && SaveBonusByTag.Count > 0)

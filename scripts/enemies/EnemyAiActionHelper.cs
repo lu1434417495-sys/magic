@@ -193,6 +193,9 @@ internal static class EnemyAiActionHelper
         IReadOnlyDictionary<string, object> metadata = null
     )
     {
+        if (context?.trace_enabled != true)
+            return null;
+
         StringName traceId = context != null ? context.NextActionTraceId(actionId) : actionId;
         return new AiActionTrace(
             traceId,

@@ -39,6 +39,17 @@ public class EquipmentEntryState
         return entry;
     }
 
+    internal EquipmentEntryState DuplicateForMutationSnapshotExact() =>
+        new()
+        {
+            item_id = item_id,
+            occupied_slot_ids = occupied_slot_ids == null
+                ? null
+                : new List<StringName>(occupied_slot_ids),
+            instance_id = instance_id,
+            equipment_instance = equipment_instance?.DuplicateForMutationSnapshotExact(),
+        };
+
     public Godot.Collections.Dictionary ToDictionary() =>
         new()
         {

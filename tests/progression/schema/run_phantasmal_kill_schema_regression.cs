@@ -266,6 +266,13 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
             range_value = 12,
             area_pattern = "square",
             area_value = 3,
+            delivery_categories = new Godot.Collections.Array<StringName>
+            {
+                "spell",
+                "illusion",
+                "fear",
+                "psychic",
+            },
             effect_defs = new Godot.Collections.Array<CombatEffectDef>
             {
                 FormalGradedSaveExecuteEffect(),
@@ -286,6 +293,11 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         save_ability = "willpower",
         save_tag = "illusion",
         save_partial_on_success = false,
+        effect_categories = new Godot.Collections.Array<StringName>
+        {
+            "mental_attack",
+            "psychic",
+        },
         @params = new GDictionary
         {
             ["profile_id"] = "phantasmal_kill",

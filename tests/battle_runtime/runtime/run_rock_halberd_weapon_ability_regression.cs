@@ -23,7 +23,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
     private static readonly StringName ParalyzedStatusId = "paralyzed";
     private static readonly StringName StoneTearsTraitId =
         "weapon.polearm.rock_halberd.stone_tears";
-    private static readonly StringName PetrificationImmunityTag = "petrification_immunity";
+    private static readonly StringName PetrificationImmunityTag = "petrification";
 
     private readonly TestHarness _test = new();
 
@@ -153,7 +153,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
             "Removing Rock Halberd should clear Stone Tears trait."
         );
         _test.False(
-            ContainsStringName(equipped.save_advantage_tags, PetrificationImmunityTag),
+            ContainsStringName(equipped.save_immunity_tags, PetrificationImmunityTag),
             "Removing Rock Halberd should clear petrification save immunity."
         );
     }
@@ -168,7 +168,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("stone_tears_baseline");
         _test.False(
-            ContainsStringName(baseline.save_advantage_tags, PetrificationImmunityTag),
+            ContainsStringName(baseline.save_immunity_tags, PetrificationImmunityTag),
             "Baseline unit should not have petrification save immunity."
         );
         _test.Eq(
@@ -183,7 +183,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
             "Equipping Rock Halberd should project Stone Tears trait."
         );
         _test.True(
-            ContainsStringName(equipped.save_advantage_tags, PetrificationImmunityTag),
+            ContainsStringName(equipped.save_immunity_tags, PetrificationImmunityTag),
             "Stone Tears should grant petrification save immunity."
         );
         _test.Eq(
@@ -199,7 +199,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState attacker = fixture.BuildRockHalberdUnit("stone_tears_attacker");
         BattleUnitState immuneTarget = BuildTarget("stone_tears_immune", new Vector2I(1, 0));
-        immuneTarget.save_advantage_tags.Add(PetrificationImmunityTag);
+        immuneTarget.save_immunity_tags.Add(PetrificationImmunityTag);
         ResolveAfterHit(
             fixture,
             attacker,

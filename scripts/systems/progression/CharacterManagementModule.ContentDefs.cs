@@ -169,16 +169,16 @@ public sealed partial class CharacterManagementModule
         }
     }
 
-    private static GStringNameArray _collect_identity_save_advantage_tags(
-        RaceDefinition race_def,
-        SubraceDefinition subrace_def
+    private static GStringNameArray _collect_identity_save_tags(
+        IReadOnlyList<StringName> race_tags,
+        IReadOnlyList<StringName> subrace_tags
     )
     {
         var tags = new GStringNameArray();
-        if (race_def != null)
-            _append_unique_string_names(tags, race_def.SaveAdvantageTags);
-        if (subrace_def != null)
-            _append_unique_string_names(tags, subrace_def.SaveAdvantageTags);
+        if (race_tags != null)
+            _append_unique_string_names(tags, race_tags);
+        if (subrace_tags != null)
+            _append_unique_string_names(tags, subrace_tags);
         return tags;
     }
 

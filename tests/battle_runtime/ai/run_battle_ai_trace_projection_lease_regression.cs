@@ -298,16 +298,48 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         }
         AssertReturnedToBaseline(baseline, "JSON-safe scalar fixture");
 
+        BattleSimRunReport traceRun = new() { Seed = 17 };
+        traceRun.SetFinalDecision(
+            BattleObjectiveTestFactory.CreateEliminationDecision(
+                "hostile",
+                decisionTu: 23
+            )
+        );
         using (
             GodotProjectionLease<GDictionary> traceLease =
                 BattleSimFilePayloadProjection.BuildFlattenedTraceLease(
                     trace,
                     "scenario",
                     "profile",
-                    17
+                    traceRun
                 )
         )
         {
+            _test.Eq(
+                traceLease.Value["objective_mode"].AsString(),
+                "elimination",
+                "File trace should preserve objective mode."
+            );
+            _test.Eq(
+                traceLease.Value["outcome"].AsString(),
+                "player_failure",
+                "File trace should preserve typed outcome."
+            );
+            _test.Eq(
+                traceLease.Value["end_reason"].AsString(),
+                "elimination_allies_defeated",
+                "File trace should preserve typed end reason."
+            );
+            _test.Eq(
+                traceLease.Value["decision_tu"].AsInt32(),
+                23,
+                "File trace should preserve decision TU."
+            );
+            _test.Eq(
+                traceLease.Value["winner_faction_id"].AsString(),
+                "hostile",
+                "File trace winner should be a typed-outcome projection."
+            );
             using GDictionary command = traceLease.Value["command"].AsGodotDictionary();
             using GDictionary targetCoord = command["target_coord"].AsGodotDictionary();
             _test.Eq(targetCoord["x"].AsInt32(), 3, "File trace target coord x.");
@@ -777,7 +809,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             AssertKeyOrder(
                 lease.Value,
-                "unit_id,source_member_id,enemy_template_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
                 "real unit snapshot"
             );
             using GDictionary projectedCooldowns =
@@ -820,8 +852,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                2023,
-                "59260ae879f8dfe2aacdf973d483deee6d01b8b7462298a0e2a4e7d7dd8aefbb",
+                2075,
+                "032d4c35f911b427b10cf2d627be0db5f95a996badb4fdde42e5dfd86049c2c4",
                 "full real unit snapshot payload"
             );
         }
@@ -866,19 +898,22 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             using GDictionary hostile = factions["hostile"].AsGodotDictionary();
             AssertKeyOrder(
                 hostile,
-                "unit_count,turn_count,successful_skill_count,total_damage_done,total_healing_done,total_damage_taken,total_healing_received,kill_count,death_count",
-                "legacy simulation faction metrics"
+                "faction_id,unit_count,turn_count,action_counts,skill_attempt_counts,skill_success_counts,successful_skill_count,total_damage_done,total_healing_done,total_damage_taken,total_healing_received,kill_count,death_count",
+                "simulation faction metrics"
             );
-            _test.False(
-                hostile.ContainsKey("skill_attempt_counts"),
-                "Legacy simulation faction boundary must not expose internal skill maps."
-            );
+            AssertFactionCounterMaps(hostile, "simulation faction metrics");
             using GArray finalUnits = run["final_units"].AsGodotArray();
             _test.Eq(finalUnits.Count, 1, "Simulation final units golden.");
+            using GDictionary startFailure = run["start_failure"].AsGodotDictionary();
+            _test.Eq(
+                startFailure.Count,
+                0,
+                "Successful simulation runs must expose an empty start failure payload."
+            );
             AssertFingerprint(
                 reportLease.Value,
-                15395,
-                "1133a7a95f2d1c7ea593df67296ddb0e3136d1a606768c9495cbbccc29357536",
+                16054,
+                "f8a5290f16d6785ed68a285696fc81eddea4fdd8d7d014b46f17ca0b5e2f26de",
                 "full simulation report payload"
             );
         }
@@ -905,13 +940,20 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             using GArray runs = summaryLease.Value["runs"].AsGodotArray();
             using GDictionary compactRun = runs[0].AsGodotDictionary();
+            using GDictionary compactStartFailure = compactRun["start_failure"].AsGodotDictionary();
+            _test.Eq(
+                compactStartFailure.Count,
+                0,
+                "Successful compact runs must expose an empty start failure payload."
+            );
             using GDictionary compactFactions = compactRun["factions"].AsGodotDictionary();
             using GDictionary compactHostile = compactFactions["hostile"].AsGodotDictionary();
             AssertKeyOrder(
                 compactHostile,
-                "unit_count,turn_count,successful_skill_count,total_damage_done,total_healing_done,total_damage_taken,total_healing_received,kill_count,death_count",
-                "legacy compact faction metrics"
+                "faction_id,unit_count,turn_count,action_counts,skill_attempt_counts,skill_success_counts,successful_skill_count,total_damage_done,total_healing_done,total_damage_taken,total_healing_received,kill_count,death_count",
+                "compact faction metrics"
             );
+            AssertFactionCounterMaps(compactHostile, "compact faction metrics");
             using GArray turns = compactRun["focus_turns"].AsGodotArray();
             using GDictionary turn = turns[0].AsGodotDictionary();
             using GDictionary execution = turn["execution_result"].AsGodotDictionary();
@@ -924,8 +966,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 summaryLease.Value,
-                5722,
-                "7da328564955ee0fecc7f40df0731a870f242b43598c1ff42fbff5cbe842175b",
+                6222,
+                "44ec554a6468914997b939d219748a7bc18da12457c694da6fb73e4d2aada80b",
                 "full compact trace summary payload"
             );
         }
@@ -978,6 +1020,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         };
         faction.SkillAttemptCounts["arc_bolt"] = 2;
         faction.SkillSuccessCounts["arc_bolt"] = 1;
+        faction.ActionCounts["skill"] = 2;
         metricsState.Factions["hostile"] = faction;
 
         var finalUnit = new Dictionary<string, object>(
@@ -999,11 +1042,13 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             Seed = 17,
             BattleId = "sim_battle",
             BattleEnded = true,
-            WinnerFactionId = "hostile",
             MetricsSnapshot = BattleSimMetricsSnapshot.Capture(metricsState),
             AiTurnTraces = new[] { trace },
             FinalUnits = new[] { finalUnit },
         };
+        run.SetFinalDecision(
+            BattleObjectiveTestFactory.CreateEliminationDecision("hostile")
+        );
         var entry = new BattleSimProfileReportEntry
         {
             Summary = new BattleSimProfileSummary(),
@@ -1071,6 +1116,17 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             expected,
             $"{label} must preserve the fixed legacy key order."
         );
+    }
+
+    private void AssertFactionCounterMaps(GDictionary faction, string label)
+    {
+        _test.Eq(ReadText(faction, "faction_id"), "hostile", $"{label} faction id.");
+        using GDictionary actionCounts = faction["action_counts"].AsGodotDictionary();
+        using GDictionary attemptCounts = faction["skill_attempt_counts"].AsGodotDictionary();
+        using GDictionary successCounts = faction["skill_success_counts"].AsGodotDictionary();
+        _test.Eq(actionCounts["skill"].AsInt32(), 2, $"{label} action counts.");
+        _test.Eq(attemptCounts["arc_bolt"].AsInt32(), 2, $"{label} skill attempts.");
+        _test.Eq(successCounts["arc_bolt"].AsInt32(), 1, $"{label} skill successes.");
     }
 
     private static string ReadText(GDictionary dictionary, string key)

@@ -147,18 +147,19 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             return _owner.RuntimeCommandError("当前商店上下文缺失。");
         }
         string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
-        GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot = _owner.CaptureRollbackSnapshot(
-            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
-        );
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _owner._get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        using GodotProjectionLease<GDictionary> settlementLease =
-            _owner.GetSettlementRecordLease(settlementId);
+        RuntimeTransaction transaction = new RuntimeTransaction()
+            .MarkPartyChanged()
+            .MarkWorldChanged();
+        GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot =
+            _owner.CaptureRollbackSnapshot(transaction);
+        WorldMapSettlementStateData settlementState =
+            _owner.GetSettlementStateData(settlementId);
+        if (settlementState == null)
+            return _owner.RuntimeCommandError("当前据点状态无效。");
         SettlementShopTradeResult result = _owner._shop_service.BuyTyped(
             GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
             settlementState,
+            _owner.GetWorldStep(),
             _owner._GetItemDefsTyped(),
             _owner.GetPartyWarehouseService(),
             _owner.GetPartyState(),
@@ -167,12 +168,21 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         );
         if (!result.Success)
         {
-            _refresh_active_shop_context();
-            return _owner.RuntimeCommandError(
-                string.IsNullOrEmpty(result.Message) ? "购买失败。" : result.Message
-            );
+            string failureMessage = string.IsNullOrEmpty(result.Message)
+                ? "购买失败。"
+                : result.Message;
+            _owner.SetSettlementFeedbackText(failureMessage);
+            _refresh_active_shop_context(failureMessage);
+            return _owner.RuntimeCommandError(failureMessage);
         }
-        _owner.SetActiveSettlementState(settlementId, settlementState);
+        if (
+            result.UpdatedSettlementState == null
+            || !_owner.SetActiveSettlementState(settlementId, result.UpdatedSettlementState)
+        )
+        {
+            _owner.RestoreRollbackSnapshotForFailure(rollbackSnapshot, transaction);
+            return _owner.RuntimeCommandError("购买失败：无法写回据点状态。");
+        }
         GameRuntimeSettlementCommandHandler.SettlementPersistResult persistResult = _owner.PersistChangesTyped(
             true,
             true,
@@ -182,7 +192,8 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         string message = string.IsNullOrEmpty(result.Message) ? "购买成功。" : result.Message;
         if (!persistResult.Ok)
             return _owner.RuntimeCommandPersistFailure();
-        _refresh_active_shop_context();
+        _owner.SetSettlementFeedbackText(message);
+        _refresh_active_shop_context(message);
         _owner.UpdateStatus(message);
         return _owner.RuntimeCommandOk(message);
     }
@@ -204,19 +215,11 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         {
             return _owner.RuntimeCommandError("当前商店上下文缺失。");
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
-        GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot = _owner.CaptureRollbackSnapshot(
-            new RuntimeTransaction().MarkPartyChanged().MarkWorldChanged()
-        );
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _owner._get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        using GodotProjectionLease<GDictionary> settlementLease =
-            _owner.GetSettlementRecordLease(settlementId);
+        RuntimeTransaction transaction = new RuntimeTransaction().MarkPartyChanged();
+        GameRuntimeSettlementCommandHandler.SettlementCommandRollbackSnapshot rollbackSnapshot =
+            _owner.CaptureRollbackSnapshot(transaction);
         SettlementShopTradeResult result = _owner._shop_service.SellTyped(
             GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
             _owner._GetItemDefsTyped(),
             _owner.GetPartyWarehouseService(),
             _owner.GetPartyState(),
@@ -226,22 +229,24 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         );
         if (!result.Success)
         {
-            _refresh_active_shop_context();
-            return _owner.RuntimeCommandError(
-                string.IsNullOrEmpty(result.Message) ? "出售失败。" : result.Message
-            );
+            string failureMessage = string.IsNullOrEmpty(result.Message)
+                ? "出售失败。"
+                : result.Message;
+            _owner.SetSettlementFeedbackText(failureMessage);
+            _refresh_active_shop_context(failureMessage);
+            return _owner.RuntimeCommandError(failureMessage);
         }
-        _owner.SetActiveSettlementState(settlementId, settlementState);
         GameRuntimeSettlementCommandHandler.SettlementPersistResult persistResult = _owner.PersistChangesTyped(
             true,
-            true,
+            false,
             false,
             rollbackSnapshot
         );
         string message = string.IsNullOrEmpty(result.Message) ? "出售成功。" : result.Message;
         if (!persistResult.Ok)
             return _owner.RuntimeCommandPersistFailure();
-        _refresh_active_shop_context();
+        _owner.SetSettlementFeedbackText(message);
+        _refresh_active_shop_context(message);
         _owner.UpdateStatus(message);
         return _owner.RuntimeCommandOk(message);
     }
@@ -327,31 +332,59 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         return _owner.RuntimeCommandOk(message);
     }
 
-    internal void _open_shop_modal(string settlement_id, GDictionary payload)
+    internal GameRuntimeFacade.RuntimeCommandResult OpenShopModalTyped(
+        string settlementId,
+        GDictionary payload
+    )
     {
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _owner._get_or_create_settlement_state(settlement_id);
-        GDictionary settlementState = settlementStateLease.Value;
-        settlementState["world_step"] = _owner.GetWorldStep();
+        WorldMapSettlementStateData settlementState =
+            _owner.GetSettlementStateData(settlementId);
+        if (settlementState == null)
+        {
+            return _owner.RuntimeCommandError("无法打开商店：据点状态无效。");
+        }
         using GodotProjectionLease<GDictionary> settlementLease =
-            _owner.GetSettlementRecordLease(settlement_id);
-        GDictionary windowData = _owner._shop_service.BuildWindowDataTyped(
-            GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _owner._GetItemDefsTyped(),
-            _owner.GetPartyWarehouseService(),
-            _owner.GetPartyGold(),
-            _owner._GetTraitDefsTyped()
-        );
-        _owner.SetActiveSettlementState(settlement_id, settlementState);
-        windowData["settlement_id"] = settlement_id;
+            _owner.GetSettlementRecordLease(settlementId);
+        SettlementShopWindowBuildResult buildResult =
+            _owner._shop_service.BuildWindowDataTyped(
+                GameRuntimeSettlementCommandHandler.ReadString(
+                    payload,
+                    "interaction_script_id"
+                ),
+                settlementLease.Value,
+                settlementState,
+                _owner.GetWorldStep(),
+                "",
+                _owner._GetItemDefsTyped(),
+                _owner.GetPartyWarehouseService(),
+                _owner.GetPartyGold(),
+                _owner._GetTraitDefsTyped()
+            );
+        if (buildResult.WindowDataPlain.Count == 0)
+            return _owner.RuntimeCommandError("无法打开商店：商店配置无效。");
+        using GodotProjectionLease<GDictionary> windowDataLease =
+            buildResult.ProjectWindowDataLease(
+                "GameRuntimeServiceWindowCommandHandler.OpenShopModalTyped"
+            );
+        GDictionary windowData = windowDataLease.Value;
+        if (
+            buildResult.StateChanged
+            && !_owner.SetActiveSettlementState(
+                settlementId,
+                buildResult.UpdatedSettlementState
+            )
+        )
+        {
+            return _owner.RuntimeCommandError("无法打开商店：据点状态写回失败。");
+        }
+        windowData["settlement_id"] = settlementId;
         windowData["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id");
         _owner.SetActiveShopContext(windowData);
         _owner.SetActiveModalKind(RuntimeModalKind.Shop);
-        _owner.UpdateStatus(
-            $"已打开 {GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name", "据点商店")} 的商店。"
-        );
+        string message =
+            $"已打开 {GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name", "据点商店")} 的商店。";
+        _owner.UpdateStatus(message);
+        return _owner.RuntimeCommandOk(message);
     }
 
     internal void _open_forge_modal(string settlement_id, GDictionary payload)
@@ -408,7 +441,7 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
         _owner.UpdateStatus("已打开驿站路线。");
     }
 
-    private void _refresh_active_shop_context()
+    private void _refresh_active_shop_context(string feedbackText = null)
     {
         using GodotProjectionLease<GDictionary> contextLease = _owner.GetActiveShopContextLease();
         GDictionary context = contextLease.Value;
@@ -417,22 +450,46 @@ internal sealed class GameRuntimeServiceWindowCommandHandler
             return;
         }
         string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _owner._get_or_create_settlement_state(settlementId);
-        GDictionary settlementState = settlementStateLease.Value;
-        settlementState["world_step"] = _owner.GetWorldStep();
+        WorldMapSettlementStateData settlementState =
+            _owner.GetSettlementStateData(settlementId);
+        if (settlementState == null)
+            return;
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlementId);
-        GDictionary nextContext = _owner._shop_service.BuildWindowDataTyped(
-            GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id"),
-            settlementLease.Value,
-            settlementState,
-            _owner._GetItemDefsTyped(),
-            _owner.GetPartyWarehouseService(),
-            _owner.GetPartyGold(),
-            _owner._GetTraitDefsTyped()
-        );
-        _owner.SetActiveSettlementState(settlementId, settlementState);
+        string nextFeedback = feedbackText
+            ?? GameRuntimeSettlementCommandHandler.ReadString(context, "feedback_text");
+        SettlementShopWindowBuildResult buildResult =
+            _owner._shop_service.BuildWindowDataTyped(
+                GameRuntimeSettlementCommandHandler.ReadString(
+                    context,
+                    "interaction_script_id"
+                ),
+                settlementLease.Value,
+                settlementState,
+                _owner.GetWorldStep(),
+                nextFeedback,
+                _owner._GetItemDefsTyped(),
+                _owner.GetPartyWarehouseService(),
+                _owner.GetPartyGold(),
+                _owner._GetTraitDefsTyped()
+            );
+        if (buildResult.WindowDataPlain.Count == 0)
+            return;
+        using GodotProjectionLease<GDictionary> nextContextLease =
+            buildResult.ProjectWindowDataLease(
+                "GameRuntimeServiceWindowCommandHandler.refresh_active_shop_context"
+            );
+        GDictionary nextContext = nextContextLease.Value;
+        if (
+            buildResult.StateChanged
+            && !_owner.SetActiveSettlementState(
+                settlementId,
+                buildResult.UpdatedSettlementState
+            )
+        )
+        {
+            return;
+        }
         nextContext["settlement_id"] = settlementId;
         nextContext["interaction_script_id"] = GameRuntimeSettlementCommandHandler.ReadString(context, "interaction_script_id");
         _owner.SetActiveShopContext(nextContext);

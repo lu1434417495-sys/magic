@@ -56,6 +56,31 @@ public class BattleEffectiveTraitInstanceState
         };
     }
 
+    internal BattleEffectiveTraitInstanceState DuplicateForMutationSnapshotExact()
+    {
+        List<TraitRollValueState> rollValuesCopy = null;
+        if (roll_values != null)
+        {
+            rollValuesCopy = new List<TraitRollValueState>(roll_values.Count);
+            foreach (TraitRollValueState rollValue in roll_values)
+                rollValuesCopy.Add(rollValue?.DuplicateState());
+        }
+        return new BattleEffectiveTraitInstanceState
+        {
+            trait_id = trait_id,
+            effective_instance_key = effective_instance_key,
+            source_type = source_type,
+            source_id = source_id,
+            effect_type = effect_type,
+            trigger_type = trigger_type,
+            charge_scope = charge_scope,
+            charge_reset_timing = charge_reset_timing,
+            rank = rank,
+            stacks = stacks,
+            roll_values = rollValuesCopy,
+        };
+    }
+
     internal Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary

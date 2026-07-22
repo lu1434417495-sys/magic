@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="BattleEncounterContentSeed" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterContentSeed.cs" id="1_seed"]
+[ext_resource type="Resource" path="res://data/configs/battle_encounters/wolf_wilds.tres" id="2_wolf_wilds"]
+[ext_resource type="Resource" path="res://data/configs/battle_encounters/wolf_den.tres" id="3_wolf_den"]
+[ext_resource type="Resource" path="res://data/configs/battle_encounters/mist_hollow.tres" id="4_mist_hollow"]
+
+[resource]
+script = ExtResource("1_seed")
+battle_encounters = Array[Resource]([ExtResource("2_wolf_wilds"), ExtResource("3_wolf_den"), ExtResource("4_mist_hollow")])

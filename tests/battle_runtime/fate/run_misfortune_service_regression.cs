@@ -177,7 +177,6 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             world_coord = Vector2I.Zero,
             faction_id = "hostile",
             region_tag = "test_region",
-            enemy_roster_template_id = "",
             encounter_profile_id = "",
             growth_stage = 0,
         };
@@ -201,7 +200,12 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             ["battle_party"] = new GArray { heroLease.Value, buddyLease.Value },
             ["enemy_units"] = new GArray { bossLease.Value },
         };
-        BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
+        BattleState state = runtime.StartBattle(
+            encounterAnchor,
+            101,
+            BattleEliminationObjectiveDefinition.Instance,
+            context
+        );
         BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
         BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
         if (runtimeHero != null)

@@ -21,7 +21,7 @@ creature_level = 0
 hit_die_sides = 6
 action_threshold = 25
 tags = Array[StringName]([&"beast", &"bat", &"bite"])
-save_advantage_tags = Array[StringName]([&"illusion_advantage"])
+save_advantage_tags = Array[StringName]([&"illusion"])
 base_attribute_overrides = {
 &"strength": 6,
 &"agility": 16,

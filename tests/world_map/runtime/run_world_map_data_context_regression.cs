@@ -208,7 +208,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                     ["display_name"] = "Spring Village",
                     ["origin"] = new Vector2I(1, 1),
                     ["footprint_size"] = new Vector2I(2, 1),
-                    ["settlement_state"] = new GDictionary(),
+                    ["settlement_state"] = BuildSettlementState(false),
                 },
             };
             context.BindRootWorldData(rootWorldData);
@@ -250,12 +250,7 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                     ["display_name"] = "Spring Village",
                     ["origin"] = new Vector2I(1, 1),
                     ["footprint_size"] = new Vector2I(1, 1),
-                    ["settlement_state"] = new GDictionary
-                    {
-                        ["visited"] = false,
-                        ["reputation"] = 0,
-                        ["active_conditions"] = new GArray(),
-                    },
+                    ["settlement_state"] = BuildSettlementStateWithServiceData(false),
                 },
             };
             context.BindRootWorldData(rootWorldData);
@@ -269,6 +264,10 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
                 context.IsSettlementVisited("spring_village"),
                 "typed settlement state query 应反映公开 world_data 写回后的 visited。"
             );
+            AssertSettlementStatePreservedAfterVisit(
+                context.GetSettlementStateData("spring_village"),
+                "typed settlement state"
+            );
 
             GDictionary projectedRootWorldData = ProjectRootWorldData(context);
             GDictionary settlementRecord =
@@ -277,6 +276,10 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             _test.True(
                 settlementState["visited"].AsBool(),
                 "公开 settlement record 投影应返回更新后的 settlement_state。"
+            );
+            AssertSettlementStatePreservedAfterVisit(
+                WorldMapSettlementStateData.FromDictionary(settlementState),
+                "projected settlement state"
             );
         }
         finally
@@ -777,6 +780,121 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             ["world_events"] = new GArray(),
         };
 
+    private static GDictionary BuildSettlementState(bool visited) =>
+        new()
+        {
+            ["visited"] = visited,
+            ["reputation"] = 0,
+            ["active_conditions"] = new GArray(),
+            ["cooldowns"] = new GDictionary(),
+            ["shop_states"] = new GDictionary(),
+        };
+
+    private static GDictionary BuildSettlementStateWithServiceData(bool visited) =>
+        new()
+        {
+            ["visited"] = visited,
+            ["reputation"] = 7,
+            ["active_conditions"] = new GArray { "festival", "safe" },
+            ["cooldowns"] = new GDictionary
+            {
+                ["rest_basic"] = 4,
+                ["research"] = 9,
+            },
+            ["shop_states"] = new GDictionary
+            {
+                ["village_basic_supply"] = new GDictionary
+                {
+                    ["shop_id"] = "village_basic_supply",
+                    ["current_inventory"] = new GArray
+                    {
+                        new GDictionary
+                        {
+                            ["item_id"] = "healing_herb",
+                            ["quantity"] = 2,
+                            ["unit_price"] = 12,
+                            ["sold_out"] = false,
+                        },
+                        new GDictionary
+                        {
+                            ["item_id"] = "travel_ration",
+                            ["quantity"] = 3,
+                            ["unit_price"] = 8,
+                            ["sold_out"] = false,
+                        },
+                    },
+                    ["seed"] = 99L,
+                    ["last_refresh_step"] = 5,
+                },
+            },
+        };
+
+    private void AssertSettlementStatePreservedAfterVisit(
+        WorldMapSettlementStateData state,
+        string source
+    )
+    {
+        _test.True(state != null, $"{source} 应保留完整的 settlement_state。");
+        if (state == null)
+            return;
+
+        _test.True(state.Visited, $"{source} 应只把 visited 更新为 true。");
+        _test.Eq(state.Reputation, 7, $"{source} 应保留 reputation。");
+        _test.Eq(state.ActiveConditions.Count, 2, $"{source} 应保留 active_conditions 数量。");
+        if (state.ActiveConditions.Count == 2)
+        {
+            _test.Eq(state.ActiveConditions[0], "festival", $"{source} 应保留第一个 active condition。");
+            _test.Eq(state.ActiveConditions[1], "safe", $"{source} 应保留第二个 active condition。");
+        }
+
+        _test.True(
+            state.Cooldowns.TryGetValue("rest_basic", out int restCooldown)
+                && restCooldown == 4,
+            $"{source} 应保留 rest_basic cooldown。"
+        );
+        _test.True(
+            state.Cooldowns.TryGetValue("research", out int researchCooldown)
+                && researchCooldown == 9,
+            $"{source} 应保留 research cooldown。"
+        );
+        _test.Eq(state.Cooldowns.Count, 2, $"{source} 不应增删 cooldown。");
+        _test.Eq(state.ShopStates.Count, 1, $"{source} 不应增删 shop state。");
+
+        SettlementShopStateData shop = state.GetShopState("village_basic_supply");
+        _test.True(shop != null, $"{source} 应保留 village_basic_supply shop state。");
+        if (shop == null)
+            return;
+
+        _test.Eq(shop.Seed, 99L, $"{source} 应保留 shop seed。");
+        _test.Eq(shop.LastRefreshStep, 5, $"{source} 应保留 shop last_refresh_step。");
+        _test.Eq(shop.CurrentInventory.Count, 2, $"{source} 应保留完整库存。");
+        SettlementShopStockEntryData herb = FindShopStock(shop, "healing_herb");
+        SettlementShopStockEntryData ration = FindShopStock(shop, "travel_ration");
+        _test.True(
+            herb != null && herb.Quantity == 2 && herb.UnitPrice == 12 && !herb.SoldOut,
+            $"{source} 应完整保留 healing_herb 库存。"
+        );
+        _test.True(
+            ration != null && ration.Quantity == 3 && ration.UnitPrice == 8 && !ration.SoldOut,
+            $"{source} 应完整保留 travel_ration 库存。"
+        );
+    }
+
+    private static SettlementShopStockEntryData FindShopStock(
+        SettlementShopStateData shop,
+        string itemId
+    )
+    {
+        if (shop == null || string.IsNullOrEmpty(itemId))
+            return null;
+        foreach (SettlementShopStockEntryData entry in shop.CurrentInventory)
+        {
+            if (entry != null && entry.ItemId == itemId)
+                return entry;
+        }
+        return null;
+    }
+
     private static GodotProjectionLease<GDictionary> BuildEncounterRootWorldDataLease(
         params EncounterAnchorData[] encounterAnchors
     )
@@ -814,7 +932,6 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
             display_name = displayName,
             world_coord = coord,
             faction_id = "hostile",
-            enemy_roster_template_id = "test_roster",
             region_tag = "test",
             vision_range = 2,
             is_cleared = isCleared,

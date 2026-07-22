@@ -119,7 +119,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         RuntimeFixture fixture = await BuildRuntimeFixture(
             "escape",
             ChargedSetup("escape_release"),
-            winnerFactionId: "escaped",
+            winnerFactionId: "player",
             consumedSetupIds: new[] { "escape_release" }
         );
         try
@@ -441,19 +441,17 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         foreach (string setupId in consumedSetupIds ?? Array.Empty<string>())
             heroUnit.MarkContingencySetupConsumed(setupId);
         BattleState battleState = BuildBattleState(heroUnit);
-        battleState.winner_faction_id = winnerFactionId;
+        BattleObjectiveTestFactory.SetEliminationDecision(battleState, winnerFactionId);
         runtime._battle_runtime.SetupStateForTests(battleState);
         runtime.SetRuntimeBattleState(battleState);
 
-        BattleResolutionResult resolutionResult = new()
-        {
-            battle_id = battleState.battle_id,
-            seed = battleState.seed,
-            world_coord = battleState.world_coord,
-            encounter_anchor_id = battleState.encounter_anchor_id,
-            terrain_profile_id = battleState.terrain_profile_id,
-            winner_faction_id = winnerFactionId,
-        };
+        BattleResolutionResult resolutionResult =
+            BattleObjectiveTestFactory.CreateEliminationResolution(winnerFactionId);
+        resolutionResult.battle_id = battleState.battle_id;
+        resolutionResult.seed = battleState.seed;
+        resolutionResult.world_coord = battleState.world_coord;
+        resolutionResult.encounter_anchor_id = battleState.encounter_anchor_id;
+        resolutionResult.terrain_profile_id = battleState.terrain_profile_id;
         return new RuntimeFixture(runtime, gameSession, resolutionResult);
     }
 
@@ -467,7 +465,6 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             encounter_anchor_id = "contingency_lifecycle_encounter",
             terrain_profile_id = "default",
             phase = "battle_ended",
-            winner_faction_id = "player",
             timeline = new BattleTimelineState(),
         };
         battleState.SetPartyBackpackView(new WarehouseState());

@@ -22,6 +22,23 @@ internal sealed class BattleAiTypedActionHelper
     private const int RoleThreatMaxApproachDistance = 7;
     private const int RoleThreatMaxContactRange = 2;
 
+    internal BattlePreview ResolveBarrierAwareUnitSkillPreview(
+        BattleAiContext context,
+        BattleCommand command,
+        BattlePreview fastPreview
+    )
+    {
+        if (
+            fastPreview?.allowed != true
+            || context?.state == null
+            || context.state.LayeredBarrierFieldCount <= 0
+        )
+        {
+            return fastPreview;
+        }
+        return context.PreviewCommand(command) ?? new BattlePreview();
+    }
+
     public List<StringName> ResolveKnownSkillIds(
         BattleAiContext context,
         IEnumerable<StringName> preferredSkillIds

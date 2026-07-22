@@ -81,6 +81,8 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         TestPreviewEquipReturnsDisplacedEntries();
         TestArmorMaxDexBonusCapsPositiveAgilityAc();
         TestRequirementProfessionCheck();
+        TestRequirementUsesStableEffectiveAttributeSnapshot();
+        TestRequirementExcludesDisplacedAndCandidateEquipment();
         TestEquipCreatesInstanceIdInSlot();
         TestInstanceIdPreservedThroughUnequipAndReequip();
         TestTwoItemsOfSameTypeGetDifferentInstanceIds();
@@ -677,6 +679,235 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
         _test.False(preview.Success, "Preview should also fail requirement.");
         AssertStringEq(preview.ErrorCode, "missing_profession", "Preview error code.");
         _test.True(preview.Blockers.Contains("missing_profession"), "Preview blockers should contain missing_profession.");
+    }
+
+    private void TestRequirementUsesStableEffectiveAttributeSnapshot()
+    {
+        StringName mountainbreakerId = "weapon_unique_greataxe_mountainbreaker";
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = ItemDefinitions();
+        PartyState partyState = BuildPartyWithMember("titan_hero", "Titan Hero", 8);
+        PartyMemberState memberState = partyState.GetMemberState("titan_hero");
+        memberState.progression.unit_base_attributes.SetAttributeValue("strength", 17);
+        _test.True(
+            memberState.SetAscension(
+                "titan_blood_ascension",
+                "titan_avatar",
+                0,
+                memberState.race_id
+            ),
+            "Titan ascension fixture should be valid."
+        );
+
+        CharacterManagementModule manager = new();
+        manager.setup(
+            partyState,
+            _contentSnapshot.Skills,
+            _contentSnapshot.Professions,
+            _contentSnapshot.Achievements,
+            itemDefs,
+            _contentSnapshot.Quests,
+            _contentSnapshot.Traits,
+            null,
+            _contentSnapshot.IdentityCatalog
+        );
+        AttributeSnapshot stableSnapshot = manager.GetMemberAttributeSnapshotForEquipmentView(
+            "titan_hero",
+            memberState.equipment_state
+        );
+        _test.Eq(
+            stableSnapshot.GetValue("strength"),
+            20,
+            "Base strength 17 plus titan_avatar strength 3 should produce stable strength 20."
+        );
+
+        PartyWarehouseService warehouseService = BuildWarehouseService(partyState, itemDefs);
+        PartyEquipmentService missingProviderService = BuildEquipmentService(
+            partyState,
+            itemDefs,
+            warehouseService
+        );
+        warehouseService.AddItemTyped(mountainbreakerId, 1);
+        var missingProviderPreview = missingProviderService.PreviewEquipTyped(
+            "titan_hero",
+            mountainbreakerId
+        );
+        _test.False(
+            missingProviderPreview.Success,
+            "Attribute requirements should fail closed without a stable snapshot provider."
+        );
+        AssertStringEq(
+            missingProviderPreview.ErrorCode,
+            "attribute_snapshot_unavailable",
+            "Missing stable snapshot provider should return an explicit internal blocker."
+        );
+        missingProviderService.Dispose();
+
+        PartyEquipmentService equipmentService = BuildEquipmentService(
+            partyState,
+            itemDefs,
+            warehouseService,
+            manager.GetMemberAttributeSnapshotForEquipmentView
+        );
+
+        var preview = equipmentService.PreviewEquipTyped("titan_hero", mountainbreakerId);
+        _test.True(preview.Success, "Stable ascension attributes should satisfy preview requirements.");
+        var result = equipmentService.EquipItemTyped("titan_hero", mountainbreakerId);
+        _test.True(result.Success, "Commit should reuse the same stable effective requirement rule.");
+        AssertStringNameEq(
+            memberState.equipment_state.GetEquippedItemId("main_hand"),
+            mountainbreakerId,
+            "Mountainbreaker should equip when stable strength reaches 20."
+        );
+
+        equipmentService.Dispose();
+        manager.Dispose();
+    }
+
+    private void TestRequirementExcludesDisplacedAndCandidateEquipment()
+    {
+        IReadOnlyDictionary<StringName, ItemDefinition> sourceDefs = ItemDefinitions();
+        EquipmentRequirementDefinition strengthRequirement = new(
+            System.Array.Empty<string>(),
+            0,
+            0,
+            new[] { new EquipmentAttributeRequirementDefinition("strength", 20) }
+        );
+        AttributeModifierDefinition strengthBoost = new(
+            "strength",
+            AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            3,
+            0,
+            "equipment",
+            "requirement_test_strength_boost"
+        );
+
+        var displacedDefs = new Dictionary<StringName, ItemDefinition>(sourceDefs)
+        {
+            ["bronze_sword"] = WithEquipmentRuleOverrides(
+                GetItemDef(sourceDefs, "bronze_sword"),
+                new[] { strengthBoost },
+                null
+            ),
+            ["militia_axe"] = WithEquipmentRuleOverrides(
+                GetItemDef(sourceDefs, "militia_axe"),
+                System.Array.Empty<AttributeModifierDefinition>(),
+                strengthRequirement
+            ),
+            ["scout_charm"] = WithEquipmentRuleOverrides(
+                GetItemDef(sourceDefs, "scout_charm"),
+                new[] { strengthBoost },
+                null
+            ),
+        };
+        PartyState displacedParty = BuildPartyWithMember("displaced_hero", "Displaced Hero", 8);
+        displacedParty.GetMemberState("displaced_hero")
+            .progression.unit_base_attributes.SetAttributeValue("strength", 17);
+        CharacterManagementModule displacedManager = new();
+        displacedManager.setup(displacedParty, item_defs: displacedDefs);
+        PartyWarehouseService displacedWarehouse = BuildWarehouseService(
+            displacedParty,
+            displacedDefs
+        );
+        PartyEquipmentService displacedEquipment = BuildEquipmentService(
+            displacedParty,
+            displacedDefs,
+            displacedWarehouse,
+            displacedManager.GetMemberAttributeSnapshotForEquipmentView
+        );
+        displacedWarehouse.AddItemTyped("bronze_sword", 1);
+        displacedWarehouse.AddItemTyped("militia_axe", 1);
+        displacedWarehouse.AddItemTyped("scout_charm", 1);
+        _test.True(
+            displacedEquipment.EquipItemTyped("displaced_hero", "bronze_sword").Success,
+            "Strength-boosting current weapon should equip as test setup."
+        );
+        _test.Eq(
+            displacedManager.GetMemberAttributeSnapshot("displaced_hero").GetValue("strength"),
+            20,
+            "Current weapon should be the only source raising strength to 20."
+        );
+        var displacedPreview = displacedEquipment.PreviewEquipTyped(
+            "displaced_hero",
+            "militia_axe"
+        );
+        _test.False(
+            displacedPreview.Success,
+            "A weapon being displaced must not satisfy the replacement requirement."
+        );
+        AssertStringEq(
+            displacedPreview.ErrorCode,
+            "attribute_too_low",
+            "Displaced-only strength should fail the attribute requirement."
+        );
+        var displacedCommit = displacedEquipment.EquipItemTyped("displaced_hero", "militia_axe");
+        _test.False(displacedCommit.Success, "Commit must match the failed displaced-equipment preview.");
+        AssertStringNameEq(
+            displacedParty.GetMemberState("displaced_hero")
+                .equipment_state.GetEquippedItemId("main_hand"),
+            "bronze_sword",
+            "Failed replacement should preserve the currently equipped weapon."
+        );
+
+        _test.True(
+            displacedEquipment.UnequipItemTyped("displaced_hero", "main_hand").Success,
+            "Conflicting strength weapon should unequip before the non-conflicting case."
+        );
+        _test.True(
+            displacedEquipment.EquipItemTyped("displaced_hero", "scout_charm").Success,
+            "Non-conflicting strength charm should equip as test setup."
+        );
+        var nonConflictingPreview = displacedEquipment.PreviewEquipTyped(
+            "displaced_hero",
+            "militia_axe"
+        );
+        _test.True(
+            nonConflictingPreview.Success,
+            "A non-conflicting equipped modifier should remain in the stable requirement view."
+        );
+        _test.True(
+            displacedEquipment.EquipItemTyped("displaced_hero", "militia_axe").Success,
+            "Commit should allow requirements satisfied by non-conflicting equipment."
+        );
+        displacedEquipment.Dispose();
+        displacedManager.Dispose();
+
+        var candidateDefs = new Dictionary<StringName, ItemDefinition>(sourceDefs)
+        {
+            ["militia_axe"] = WithEquipmentRuleOverrides(
+                GetItemDef(sourceDefs, "militia_axe"),
+                new[] { strengthBoost },
+                strengthRequirement
+            ),
+        };
+        PartyState candidateParty = BuildPartyWithMember("candidate_hero", "Candidate Hero", 8);
+        candidateParty.GetMemberState("candidate_hero")
+            .progression.unit_base_attributes.SetAttributeValue("strength", 17);
+        CharacterManagementModule candidateManager = new();
+        candidateManager.setup(candidateParty, item_defs: candidateDefs);
+        PartyWarehouseService candidateWarehouse = BuildWarehouseService(candidateParty, candidateDefs);
+        PartyEquipmentService candidateEquipment = BuildEquipmentService(
+            candidateParty,
+            candidateDefs,
+            candidateWarehouse,
+            candidateManager.GetMemberAttributeSnapshotForEquipmentView
+        );
+        candidateWarehouse.AddItemTyped("militia_axe", 1);
+        var candidatePreview = candidateEquipment.PreviewEquipTyped("candidate_hero", "militia_axe");
+        _test.False(
+            candidatePreview.Success,
+            "A candidate's own strength modifier must not satisfy its equip requirement."
+        );
+        AssertStringEq(
+            candidatePreview.ErrorCode,
+            "attribute_too_low",
+            "Candidate self-qualification should fail the attribute requirement."
+        );
+        _test.False(
+            candidateEquipment.EquipItemTyped("candidate_hero", "militia_axe").Success,
+            "Commit must not allow candidate self-qualification."
+        );
+        candidateEquipment.Dispose();
+        candidateManager.Dispose();
     }
 
     private void TestEquipCreatesInstanceIdInSlot()
@@ -1335,16 +1566,32 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
     private static PartyEquipmentService BuildEquipmentService(
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
-        PartyWarehouseService warehouseService
+        PartyWarehouseService warehouseService,
+        System.Func<StringName, EquipmentState, AttributeSnapshot> requirementSnapshotProvider = null
     )
     {
         PartyEquipmentService equipmentService = new();
-        equipmentService.Setup(partyState, itemDefs, warehouseService);
+        equipmentService.Setup(
+            partyState,
+            itemDefs,
+            warehouseService,
+            requirementSnapshotProvider: requirementSnapshotProvider
+        );
         return equipmentService;
     }
 
     private static ItemDefinition WithEquipRequirement(
         ItemDefinition source,
+        EquipmentRequirementDefinition equipRequirement
+    )
+    {
+        System.ArgumentNullException.ThrowIfNull(source);
+        return WithEquipmentRuleOverrides(source, source.AttributeModifiers, equipRequirement);
+    }
+
+    private static ItemDefinition WithEquipmentRuleOverrides(
+        ItemDefinition source,
+        IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         EquipmentRequirementDefinition equipRequirement
     )
     {
@@ -1368,7 +1615,7 @@ public partial class run_party_equipment_regression : LifecycleTestSceneTree
             source.TraitIds,
             source.TraitRollGroups,
             source.EquipmentSlotIds,
-            source.AttributeModifiers,
+            attributeModifiers,
             source.GrantedSkillId,
             source.OccupiedSlotIds,
             equipRequirement,

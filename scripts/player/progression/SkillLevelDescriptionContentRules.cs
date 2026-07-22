@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -31,6 +32,8 @@ public static class SkillLevelDescriptionContentRules
             );
             return errors;
         }
+
+        AppendExpressionValidationErrors(skillId, template, errors);
 
         var validLevels = new List<int>();
         int lowestDeclaredLevel = -1;
@@ -80,5 +83,57 @@ public static class SkillLevelDescriptionContentRules
                 );
         }
         return errors;
+    }
+
+    private static void AppendExpressionValidationErrors(
+        StringName skillId,
+        string template,
+        List<string> errors
+    )
+    {
+        int searchIndex = 0;
+        while (true)
+        {
+            int tokenStart = template.IndexOf("{=", searchIndex, StringComparison.Ordinal);
+            if (tokenStart < 0)
+                return;
+            int tokenEnd = template.IndexOf('}', tokenStart + 2);
+            if (tokenEnd < 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} level_description_template expression starting at index {tokenStart} is missing a closing brace."
+                );
+                return;
+            }
+
+            string expressionText = template.Substring(
+                tokenStart + 2,
+                tokenEnd - tokenStart - 2
+            ).Trim();
+            if (expressionText.Length == 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} level_description_template expression at index {tokenStart} must not be empty."
+                );
+                searchIndex = tokenEnd + 1;
+                continue;
+            }
+
+            using var expressionScope = new NativeLeaseScope(
+                "skill-level-description-content-expression",
+                LifetimeDomain.Request
+            );
+            Expression expression = expressionScope.Own(
+                new Expression(),
+                "SkillLevelDescriptionContentRules.expression"
+            );
+            if (expression.Parse(expressionText, Array.Empty<string>()) != Error.Ok)
+            {
+                errors.Add(
+                    $"Skill {skillId} level_description_template expression '{{={expressionText}}}' is invalid: {expression.GetErrorText()}"
+                );
+            }
+            searchIndex = tokenEnd + 1;
+        }
     }
 }

@@ -77,6 +77,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_vqav6"]
 script = ExtResource("4_x4co0")
 skill_id = &"mage_dimension_swap"
+delivery_categories = Array[StringName]([&"spell", &"location"])
 range_value = 4
 ap_cost = 2
 mp_cost = 80

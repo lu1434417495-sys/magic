@@ -57,7 +57,7 @@ public partial class PartyMemberState
     public int current_hp { get; internal set; } = 1;
     public int current_mp { get; internal set; }
     public int current_aura { get; internal set; }
-    public bool is_dead { get; internal set; }
+    public bool is_dead => current_hp <= 0;
     public StringName race_id { get; internal set; } = "human";
     public StringName subrace_id { get; internal set; } = "common_human";
     public int age_years { get; internal set; } = 24;
@@ -154,7 +154,6 @@ public partial class PartyMemberState
             current_hp = current_hp,
             current_mp = current_mp,
             current_aura = current_aura,
-            is_dead = is_dead,
             race_id = race_id,
             subrace_id = subrace_id,
             age_years = age_years,
@@ -220,11 +219,9 @@ public partial class PartyMemberState
 
     public bool IsDead() => is_dead;
 
-    public void SetCurrentHp(int hp, bool syncDeathState = true)
+    public void SetCurrentHp(int hp)
     {
         current_hp = Mathf.Max(hp, 0);
-        if (syncDeathState)
-            is_dead = current_hp <= 0;
     }
 
     public void SetCurrentMp(int mp)
@@ -239,15 +236,9 @@ public partial class PartyMemberState
 
     public void SetVitals(int hp, int mp, int aura)
     {
-        SetVitals(hp, mp, aura, Mathf.Max(hp, 0) <= 0);
-    }
-
-    public void SetVitals(int hp, int mp, int aura, bool dead)
-    {
         current_hp = Mathf.Max(hp, 0);
         current_mp = Mathf.Max(mp, 0);
         current_aura = Mathf.Max(aura, 0);
-        is_dead = dead;
     }
 
     public void ClampVitals(int hpMax, int mpMax, int auraMax)
@@ -255,7 +246,6 @@ public partial class PartyMemberState
         current_hp = ClampResource(current_hp, hpMax);
         current_mp = ClampResource(current_mp, mpMax);
         current_aura = ClampResource(current_aura, auraMax);
-        is_dead = current_hp <= 0;
     }
 
     public void RestoreVitals(int hpMax, int mpMax, int auraMax)
@@ -268,12 +258,11 @@ public partial class PartyMemberState
         current_hp = 0;
         current_mp = 0;
         current_aura = 0;
-        is_dead = true;
     }
 
     public void ReviveWithVitals(int hp, int mp, int aura)
     {
-        SetVitals(Mathf.Max(hp, 1), mp, aura, false);
+        SetVitals(Mathf.Max(hp, 1), mp, aura);
     }
 
     public void SetIdentity(StringName raceId, StringName subraceId)
@@ -501,6 +490,8 @@ public partial class PartyMemberState
             return null;
         if (!TryReadBoolField(data, "is_dead", out bool isDeadValue))
             return null;
+        if (isDeadValue != (currentHp <= 0))
+            return null;
         var raceId = _parse_string_name_field(data["race_id"], false, out bool o5);
         if (!o5)
             return null;
@@ -624,7 +615,6 @@ public partial class PartyMemberState
             current_hp = currentHp,
             current_mp = currentMp,
             current_aura = currentAura,
-            is_dead = isDeadValue,
             race_id = raceId,
             subrace_id = subraceId,
             age_years = ageYears,

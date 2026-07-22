@@ -410,7 +410,6 @@ public static class BattleStatusSemanticTable
             effectDefinition.SaveDisadvantageTags
         );
         statusEntry.save_immunity_tags = BuildStringNameList(effectDefinition.SaveImmunityTags);
-        statusEntry.save_tags = BuildStringNameList(effectDefinition.SaveTags);
         statusEntry.status_tags = BuildStringNameList(effectDefinition.EffectTags);
         statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
             effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
@@ -584,6 +583,14 @@ public static class BattleStatusSemanticTable
             return Mathf.Max(overridePenalty, 0);
         return defaultPenalty;
     }
+
+    // 攻击惩罚默认跨状态累加;需要"同类来源不叠加、取最大"语义的状态把
+    // status_id 加入此集合(整组只生效最大值,结果再与累加池求和)。当前
+    // 没有取大来源,集合为空——这是设计预留的配置点,不是死代码。
+    private static readonly HashSet<StringName> AttackRollPenaltyTakeMaxStatusIds = new();
+
+    public static bool IsAttackRollPenaltyTakeMax(StringName statusId) =>
+        statusId != null && !statusId.IsEmpty && AttackRollPenaltyTakeMaxStatusIds.Contains(statusId);
 
     public static BattleStatusDurationAdvanceResult AdvanceTimelineDurationResult(
         BattleStatusEffectState statusEntry,

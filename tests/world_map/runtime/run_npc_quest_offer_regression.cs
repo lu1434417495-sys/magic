@@ -23,10 +23,12 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         await TestNpcQuestOfferRequiresNpcOfferChannel();
         await TestNpcQuestOfferRespectsAcceptRequirements();
         await TestNpcQuestOfferAcceptsQuest();
+        await TestNpcQuestOfferSubmitsItemsAndClaimsReward();
         await TestNpcQuestOfferConfirmationFlow();
         await TestNpcQuestOfferRejectsLockedQuest();
         await TestNpcQuestOfferRejectsSubmissionWithoutModal();
         await TestNpcQuestOfferRejectsWrongSettlement();
+        await TestNpcQuestOfferRejectsWrongAction();
         await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
         await TestNpcQuestOfferMultipleQuests();
         await TestNpcQuestOfferRejectsMissingQuestId();
@@ -105,6 +107,11 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 windowData.SettlementId,
                 "spring_village_01",
                 "NPC offer 窗口应保留 settlement_id。"
+            );
+            _test.Eq(
+                windowData.ActionId,
+                "npc_blacksmith_hrothgar",
+                "NPC offer 窗口应保留打开它的服务入口。"
             );
             _test.Eq(
                 windowData.NpcInteractionId,
@@ -426,6 +433,125 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         }
     }
 
+    private async Task TestNpcQuestOfferSubmitsItemsAndClaimsReward()
+    {
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "npc_submit_claim",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    new GArray
+                    {
+                        BuildNpcServiceEntry(
+                            "npc_village_healer",
+                            "npc_village_healer",
+                            "篝烟灶",
+                            "村医"
+                        ),
+                    }
+                ),
+            },
+            questDefs
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+            GameRuntimeFacade runtime = fixture.Runtime;
+            PartyWarehouseService.WarehouseAddItemResult addResult =
+                fixture.WarehouseService.AddItemTyped("healing_herb", 3);
+            _test.Eq(addResult.AddedQuantity, 3, "NPC 提交物品回归应能准备三份 healing_herb。");
+            _test.Eq(addResult.RemainingQuantity, 0, "准备药草时不应剩余未放入仓库的数量。");
+
+            GameRuntimeFacade.RuntimeCommandResult openResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "npc_village_healer",
+                    new GDictionary
+                    {
+                        ["interaction_script_id"] = "npc_village_healer",
+                        ["facility_name"] = "篝烟灶",
+                        ["npc_name"] = "村医",
+                    }
+                );
+            _test.True(openResult.Ok, $"村医委托应能打开。message={openResult.Message}");
+
+            NpcQuestOfferEntryData entry = runtime
+                .GetActiveNpcQuestOfferData()
+                .Entries.FirstOrDefault(e => e.QuestId == "npc_village_healer_herbs");
+            _test.True(entry != null, "村医面板应包含药草任务。");
+            _test.Eq(entry?.StateId ?? "", "available", "未接取药草任务应处于 available。");
+            _test.Eq(entry?.ActionLabel ?? "", "接受委托", "available 状态应显示接受动作。");
+
+            GameRuntimeFacade.RuntimeCommandResult acceptResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "npc_village_healer",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "npc_quest_offer",
+                        ["quest_id"] = "npc_village_healer_herbs",
+                    }
+                );
+            _test.True(acceptResult.Ok, $"药草任务应能接取。message={acceptResult.Message}");
+            entry = runtime
+                .GetActiveNpcQuestOfferData()
+                .Entries.FirstOrDefault(e => e.QuestId == "npc_village_healer_herbs");
+            _test.Eq(entry?.StateId ?? "", "active", "接取后药草任务应处于 active。");
+            _test.Eq(entry?.ActionLabel ?? "", "提交物品", "采集任务进行中应显示提交物品。");
+            _test.True(entry?.IsEnabled ?? false, "采集任务进行中应允许尝试提交物品。");
+
+            GameRuntimeFacade.RuntimeCommandResult submitResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "npc_village_healer",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "npc_quest_offer",
+                        ["quest_id"] = "npc_village_healer_herbs",
+                    }
+                );
+            _test.True(submitResult.Ok, $"三份药草应能提交。message={submitResult.Message}");
+            _test.Eq(fixture.WarehouseService.CountItem("healing_herb"), 0, "提交应消耗三份药草。");
+            _test.True(
+                runtime._party_state.HasClaimableQuest("npc_village_healer_herbs"),
+                "提交完成后药草任务应进入待领奖状态。"
+            );
+            entry = runtime
+                .GetActiveNpcQuestOfferData()
+                .Entries.FirstOrDefault(e => e.QuestId == "npc_village_healer_herbs");
+            _test.Eq(entry?.StateId ?? "", "claimable", "提交后面板应刷新为 claimable。");
+            _test.Eq(entry?.ActionLabel ?? "", "领取奖励", "claimable 状态应显示领取奖励。");
+
+            GameRuntimeFacade.RuntimeCommandResult claimResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "npc_village_healer",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "npc_quest_offer",
+                        ["quest_id"] = "npc_village_healer_herbs",
+                    }
+                );
+            _test.True(claimResult.Ok, $"村医奖励应能领取。message={claimResult.Message}");
+            _test.True(
+                runtime._party_state.HasCompletedQuest("npc_village_healer_herbs"),
+                "领奖后药草任务应进入 completed。"
+            );
+            _test.Eq(runtime._party_state.gold, 130, "领奖应发放任务配置的 30 金。");
+            entry = runtime
+                .GetActiveNpcQuestOfferData()
+                .Entries.FirstOrDefault(e => e.QuestId == "npc_village_healer_herbs");
+            _test.Eq(entry?.StateId ?? "", "completed", "领奖后面板应刷新为 completed。");
+            _test.Eq(entry?.ActionLabel ?? "", "已完成", "completed 状态应显示已完成。");
+            _test.False(entry?.IsEnabled ?? true, "completed 状态不应允许重复操作。");
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
     private async Task TestNpcQuestOfferConfirmationFlow()
     {
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
@@ -730,6 +856,68 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 submitResult.Message,
                 "当前 NPC 委托面板与请求的据点不一致。",
                 "失败应提示据点不一致。"
+            );
+        }
+        finally
+        {
+            await DisposeFixture(fixture);
+        }
+    }
+
+    private async Task TestNpcQuestOfferRejectsWrongAction()
+    {
+        IReadOnlyDictionary<StringName, QuestDefinition> questDefs = BuildNpcQuestDefs();
+        RuntimeFixture fixture = await BuildRuntimeFixture(
+            "npc_wrong_action",
+            BuildPartyState(12, 100),
+            new[]
+            {
+                BuildSettlementRecord(
+                    "spring_village_01",
+                    "春泉村",
+                    Vector2I.Zero,
+                    new GArray
+                    {
+                        BuildNpcServiceEntry(
+                            "npc_blacksmith_hrothgar",
+                            "npc_blacksmith_hrothgar",
+                            "铁匠铺",
+                            "霍斯加尔"
+                        ),
+                    }
+                ),
+            },
+            questDefs
+        );
+        try
+        {
+            GameRuntimeSettlementCommandHandler handler = fixture.Handler;
+
+            handler.CommandExecuteSettlementActionRuntimeTyped(
+                "npc_blacksmith_hrothgar",
+                new GDictionary
+                {
+                    ["interaction_script_id"] = "npc_blacksmith_hrothgar",
+                    ["facility_name"] = "铁匠铺",
+                    ["npc_name"] = "霍斯加尔",
+                }
+            );
+
+            GameRuntimeFacade.RuntimeCommandResult submitResult =
+                handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "npc_other_service",
+                    new GDictionary
+                    {
+                        ["submission_source"] = "npc_quest_offer",
+                        ["quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                    }
+                );
+
+            _test.False(submitResult.Ok, "服务入口不一致时提交应失败。");
+            _test.Eq(
+                submitResult.Message,
+                "当前 NPC 委托面板与请求的服务入口不一致。",
+                "失败应提示服务入口不一致。"
             );
         }
         finally
@@ -1524,8 +1712,6 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             ["reputation"] = 0,
             ["active_conditions"] = new GArray(),
             ["cooldowns"] = new GDictionary(),
-            ["shop_inventory_seed"] = 0,
-            ["shop_last_refresh_step"] = 0,
             ["shop_states"] = new GDictionary(),
         };
     }
@@ -1594,6 +1780,25 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             System.Array.Empty<QuestAcceptRequirementDefinition>()
         );
         questDefinitions[noOfferQuest.QuestId] = noOfferQuest;
+
+        QuestDefinition healerQuest = BuildQuestDefinition(
+            "npc_village_healer_herbs",
+            "采集药材",
+            "为村医提交三份药草。",
+            "npc_village_healer",
+            new QuestObjectiveDefinition[]
+            {
+                BuildObjective("gather_herbs", "submit_item", "healing_herb", 3),
+            },
+            new QuestRewardDefinition[] { BuildGoldReward(30) },
+            "npc",
+            new StringName[] { "npc_offer" },
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            false,
+            "带三份药草回来。",
+            "村医请你采集三份药草。"
+        );
+        questDefinitions[healerQuest.QuestId] = healerQuest;
 
         QuestDefinition lockedQuest = BuildQuestDefinition(
             "npc_elder_secret",

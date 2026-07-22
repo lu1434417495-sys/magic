@@ -447,7 +447,7 @@ internal sealed class FateRuntimeModule
 
         bool playerWon =
             battleResolutionResult != null
-            && battleResolutionResult.winner_faction_id == "player";
+            && battleResolutionResult.outcome == BattleOutcomeKind.PlayerSuccess;
 
         return new LowLuckBattleResolutionInput(
             battleId,

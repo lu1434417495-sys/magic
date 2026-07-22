@@ -274,8 +274,7 @@ internal static class BattleRuntimeEffectDefinitions
         int mainSkillLockOtherDebuffCount = 0,
         IReadOnlyList<StringName> saveAdvantageTags = null,
         IReadOnlyList<StringName> saveDisadvantageTags = null,
-        IReadOnlyList<StringName> saveImmunityTags = null,
-        IReadOnlyList<StringName> saveTags = null
+        IReadOnlyList<StringName> saveImmunityTags = null
     )
     {
         return new CombatEffectDefinition(
@@ -398,7 +397,6 @@ internal static class BattleRuntimeEffectDefinitions
             saveAdvantageTags ?? EmptyStringNames,
             saveDisadvantageTags ?? EmptyStringNames,
             saveImmunityTags ?? EmptyStringNames,
-            saveTags ?? EmptyStringNames,
             bonusConditionCreatureTypeTag: Normalize(bonusConditionCreatureTypeTag),
             mitigationBypassDamageTags: mitigationBypassDamageTags ?? EmptyStringNames,
             mitigationBypassTiers: mitigationBypassTiers ?? EmptyStringNames,

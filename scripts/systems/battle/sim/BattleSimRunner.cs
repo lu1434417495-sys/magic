@@ -5,7 +5,6 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class BattleSimRunner
 {
-    private static readonly string ReportDirectory = "user://simulation_reports";
     private const int MaxIdleLoops = 25;
 
     private BattleSimOverrideApplier _overrideApplier = new();
@@ -13,7 +12,8 @@ public sealed class BattleSimRunner
     private BattleSimContentProvider _contentProvider;
     private BattleTerrainGenerator _terrainGenerator = new();
     private BattleSimExecutionLoop _executionLoop = new();
-    private BattleSimTraceSummaryBuilder _traceSummaryBuilder = new();
+    private readonly BattleSimReportFileWriter _reportFileWriter = new();
+    private readonly System.Func<BattleRuntimeModule> _runtimeFactory;
 
     public bool progress_logging_enabled = false;
     public string progress_log_path = "";
@@ -21,9 +21,19 @@ public sealed class BattleSimRunner
     private NativeLeaseScope _progressLogScope = null;
 
     internal BattleSimRunner(BattleSimContentProvider contentProvider)
+        : this(contentProvider, static () => new BattleRuntimeModule())
+    {
+    }
+
+    internal BattleSimRunner(
+        BattleSimContentProvider contentProvider,
+        System.Func<BattleRuntimeModule> runtimeFactory
+    )
     {
         _contentProvider = contentProvider
             ?? throw new System.ArgumentNullException(nameof(contentProvider));
+        _runtimeFactory = runtimeFactory
+            ?? throw new System.ArgumentNullException(nameof(runtimeFactory));
     }
 
     public void Setup(
@@ -97,7 +107,7 @@ public sealed class BattleSimRunner
                     if (progress_logging_enabled)
                     {
                         _LogProgress(
-                            $"[BattleSim] run-done profile={profile.ProfileId} seed={seed} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} final_tu={runResult.FinalTu} iterations={runResult.Iterations} timeline_steps={runResult.TimelineSteps} idle_loops={runResult.IdleLoops} ally_alive={runResult.AllyAlive} enemy_alive={runResult.EnemyAlive}"
+                            $"[BattleSim] run-done profile={profile.ProfileId} seed={seed} termination={BattleSimTerminationKindCodec.ToWireValue(runResult.TerminationKind)} ended={runResult.BattleEnded} winner={runResult.WinnerFactionId} final_tu={runResult.FinalTu} iterations={runResult.Iterations} timeline_steps={runResult.TimelineSteps} idle_loops={runResult.IdleLoops} ally_alive={runResult.AllyAlive} enemy_alive={runResult.EnemyAlive}"
                         );
                     }
                 }
@@ -115,7 +125,7 @@ public sealed class BattleSimRunner
             report.Comparisons.AddRange(
                 _reportBuilder.BuildProfileComparisons(report.ProfileEntries)
             );
-            report.OutputFiles = _WriteReportFiles(scenarioDefinition, report);
+            report.OutputFiles = _reportFileWriter.Write(scenarioDefinition, report);
 
             if (progress_logging_enabled)
             {
@@ -228,63 +238,95 @@ public sealed class BattleSimRunner
             profile
         );
         ThrowIfOverrideErrors(profile, overrides);
-        var runtime = new BattleRuntimeModule();
+        BattleRuntimeModule runtime = _runtimeFactory()
+            ?? throw new System.InvalidOperationException(
+                "Battle simulation runtime factory returned null."
+            );
         bool useFormalTerrain = scenarioDefinition.UseFormalTerrainGeneration;
-
-        runtime.setup(
-            character_gateway: null,
-            skill_definitions: overrides.SkillDefinitions,
-            enemy_templates: enemyTemplates,
-            enemy_ai_brains: overrides.EnemyAiBrains,
-            encounter_builder: null,
-            equipment_drop_service: default,
-            item_defs: null,
-            terrain_generator: useFormalTerrain ? null : _terrainGenerator,
-            barrier_profile_definitions: barrierProfileDefinitions
-        );
-        runtime.SetAiTraceEnabled(scenarioDefinition.TraceEnabled);
-        runtime.SetAiScoreProfile(overrides.AiScoreProfile);
-        runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
-
-        EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDefinition);
-        using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
-            scenarioDefinition.BuildStartContextLease();
-        BattleState state = runtime.StartBattle(encounterAnchor, seed, startContextLease.Value);
-        BattleSimExecutionLoopResult loopResult = _executionLoop.Run(
-            runtime,
-            state,
-            scenarioDefinition,
-            MaxIdleLoops
-        );
-
-        var runResult = new BattleSimRunReport
+        BattleSimRunReport runResult;
+        try
         {
-            ScenarioId = scenarioDefinition.ScenarioId.ToString(),
-            ProfileId = profile.ProfileId.ToString(),
-            Seed = seed,
-            BattleId = state != null ? state.battle_id.ToString() : "",
-            BattleEnded = state != null && state.PhaseKind == BattlePhaseKind.BattleEnded,
-            WinnerFactionId = state != null ? state.winner_faction_id.ToString() : "",
-            FinalTu = state?.timeline?.current_tu ?? 0,
-            Iterations = loopResult.iterations,
-            IdleLoops = loopResult.idle_loops,
-            TimelineSteps = loopResult.timeline_steps,
-            AllyAlive = _CountLivingUnits(
-                state,
-                state?.ally_unit_ids
-            ),
-            EnemyAlive = _CountLivingUnits(
-                state,
-                state?.enemy_unit_ids
-            ),
-            MetricsSnapshot = BattleSimMetricsSnapshot.Capture(
-                runtime.GetBattleMetricsTyped()
-            ),
-            AiTurnTraces = CloneAiTurnTraces(runtime.GetAiTurnTracesTyped()),
-            FinalUnits = _BuildFinalUnitSnapshots(state),
-        };
+            runtime.setup(
+                character_gateway: null,
+                skill_definitions: overrides.SkillDefinitions,
+                enemy_templates: enemyTemplates,
+                enemy_ai_brains: overrides.EnemyAiBrains,
+                encounter_builder: null,
+                equipment_drop_service: default,
+                item_defs: null,
+                terrain_generator: useFormalTerrain ? null : _terrainGenerator,
+                barrier_profile_definitions: barrierProfileDefinitions
+            );
+            runtime.SetAiTraceEnabled(scenarioDefinition.TraceEnabled);
+            runtime.SetAiScoreProfile(overrides.AiScoreProfile);
+            runtime.SetFactionAiScoreProfiles(overrides.FactionAiScoreProfiles);
 
-        runtime.dispose();
+            EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDefinition);
+            using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
+                scenarioDefinition.BuildStartContextLease();
+            BattleState state = runtime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                BattleEliminationObjectiveDefinition.Instance,
+                startContextLease.Value
+            );
+            BattleSimExecutionLoopResult loopResult = _executionLoop.Run(
+                runtime,
+                state,
+                scenarioDefinition,
+                MaxIdleLoops
+            );
+            BattleStartFailureSnapshot startFailure =
+                loopResult.termination_kind == BattleSimTerminationKind.InvalidRuntime
+                    ? runtime.GetLastStartFailureSnapshot()
+                    : new BattleStartFailureSnapshot();
+
+            runResult = new BattleSimRunReport
+            {
+                ScenarioId = scenarioDefinition.ScenarioId.ToString(),
+                ProfileId = profile.ProfileId.ToString(),
+                Seed = seed,
+                BattleId = state != null ? state.battle_id.ToString() : "",
+                TerminationKind = loopResult.termination_kind,
+                StartFailure = startFailure,
+                FinalTu = state?.timeline?.current_tu ?? 0,
+                Iterations = loopResult.iterations,
+                IdleLoops = loopResult.idle_loops,
+                TimelineSteps = loopResult.timeline_steps,
+                AllyAlive = _CountLivingUnits(
+                    state,
+                    state?.ally_unit_ids
+                ),
+                EnemyAlive = _CountLivingUnits(
+                    state,
+                    state?.enemy_unit_ids
+                ),
+                MetricsSnapshot = BattleSimMetricsSnapshot.Capture(
+                    runtime.GetBattleMetricsTyped()
+                ),
+                AiTurnTraces = CloneAiTurnTraces(runtime.GetAiTurnTracesTyped()),
+                FinalUnits = _BuildFinalUnitSnapshots(state),
+            };
+            runResult.SetFinalDecision(state?.FinalDecision);
+        }
+        catch (System.Exception runFailure)
+        {
+            try
+            {
+                runtime.Dispose();
+            }
+            catch (System.Exception cleanupFailure)
+            {
+                throw new System.AggregateException(
+                    "Battle simulation and runtime cleanup both failed.",
+                    runFailure,
+                    cleanupFailure
+                );
+            }
+            throw;
+        }
+
+        runtime.Dispose();
         return runResult;
     }
 
@@ -347,155 +389,6 @@ public sealed class BattleSimRunner
         foreach (BattleAiTurnTraceProjection entry in source)
             traces.Add(entry?.Clone() ?? new BattleAiTurnTraceProjection());
         return traces;
-    }
-
-    private BattleSimOutputFiles _WriteReportFiles(
-        BattleSimScenarioDefinition scenarioDefinition,
-        BattleSimScenarioReport report
-    )
-    {
-        string scenarioKey =
-            scenarioDefinition.ScenarioId != ""
-                ? scenarioDefinition.ScenarioId.ToString()
-                : "battle_sim";
-        int timestamp = (int)Time.GetUnixTimeFromSystem();
-        string reportDir = $"{ReportDirectory}/{scenarioKey}";
-        Error ensureDirError = DirAccess.MakeDirRecursiveAbsolute(
-            ProjectSettings.GlobalizePath(reportDir)
-        );
-        if (ensureDirError != Error.Ok)
-            return new BattleSimOutputFiles();
-
-        string reportPath = $"{reportDir}/{scenarioKey}_{timestamp}_report.json";
-        string tracePath = $"{reportDir}/{scenarioKey}_{timestamp}_turn_traces.jsonl";
-        string traceSummaryPath = $"{reportDir}/{scenarioKey}_{timestamp}_trace_summary.json";
-        var outputFiles = new BattleSimOutputFiles
-        {
-            ReportJson = reportPath,
-            TurnTraceJsonl = tracePath,
-        };
-
-        bool hasTraces = _traceSummaryBuilder.HasTraces(report);
-        if (hasTraces)
-            outputFiles.TraceSummaryJson = traceSummaryPath;
-
-        report.OutputFiles = outputFiles;
-
-        using (NativeLeaseScope reportFileScope = new(
-            "battle-sim-report-file",
-            LifetimeDomain.Request
-        ))
-        {
-            FileAccess openedReportFile = FileAccess.Open(
-                reportPath,
-                FileAccess.ModeFlags.Write
-            );
-            if (openedReportFile != null)
-            {
-                try
-                {
-                    FileAccess reportFile = reportFileScope.Own(
-                        openedReportFile,
-                        $"open:{reportPath}"
-                    );
-                    using GodotProjectionLease<GDictionary> reportLease =
-                        BattleSimFilePayloadProjection.BuildReportLease(report);
-                    reportFile.StoreString(Json.Stringify(reportLease.Value, "\t"));
-                }
-                finally
-                {
-                    openedReportFile.Close();
-                }
-            }
-        }
-
-        using (NativeLeaseScope traceFileScope = new(
-            "battle-sim-trace-file",
-            LifetimeDomain.Request
-        ))
-        {
-            FileAccess openedTraceFile = FileAccess.Open(
-                tracePath,
-                FileAccess.ModeFlags.Write
-            );
-            if (openedTraceFile != null)
-            {
-                try
-                {
-                    FileAccess traceFile = traceFileScope.Own(
-                        openedTraceFile,
-                        $"open:{tracePath}"
-                    );
-                    foreach (BattleSimProfileReportEntry profileEntry in report.ProfileEntries)
-                    {
-                        string profileId = profileEntry?.Profile?.ProfileId.ToString() ?? "";
-                        if (profileEntry == null)
-                            continue;
-
-                        foreach (BattleSimRunReport runEntry in profileEntry.Runs)
-                        {
-                            if (runEntry?.AiTurnTraces == null)
-                                continue;
-
-                            foreach (
-                                BattleAiTurnTraceProjection traceEntry
-                                in runEntry.AiTurnTraces
-                            )
-                            {
-                                if (traceEntry == null)
-                                    continue;
-
-                                using GodotProjectionLease<GDictionary> traceLease =
-                                    BattleSimFilePayloadProjection.BuildFlattenedTraceLease(
-                                        traceEntry,
-                                        scenarioKey,
-                                        profileId,
-                                        runEntry.Seed
-                                    );
-                                traceFile.StoreLine(Json.Stringify(traceLease.Value));
-                            }
-                        }
-                    }
-                }
-                finally
-                {
-                    openedTraceFile.Close();
-                }
-            }
-        }
-
-        if (hasTraces)
-        {
-            using NativeLeaseScope summaryFileScope = new(
-                "battle-sim-trace-summary-file",
-                LifetimeDomain.Request
-            );
-            FileAccess openedSummaryFile = FileAccess.Open(
-                traceSummaryPath,
-                FileAccess.ModeFlags.Write
-            );
-            if (openedSummaryFile != null)
-            {
-                try
-                {
-                    FileAccess summaryFile = summaryFileScope.Own(
-                        openedSummaryFile,
-                        $"open:{traceSummaryPath}"
-                    );
-                    using GodotProjectionLease<GDictionary> traceSummaryLease =
-                        _traceSummaryBuilder.BuildFileLease(report, reportPath);
-                    summaryFile.StoreString(
-                        Json.Stringify(traceSummaryLease.Value, "\t")
-                    );
-                }
-                finally
-                {
-                    openedSummaryFile.Close();
-                }
-            }
-        }
-
-        return outputFiles;
     }
 
     private void _OpenProgressLog()

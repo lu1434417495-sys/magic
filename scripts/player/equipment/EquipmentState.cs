@@ -166,6 +166,44 @@ public class EquipmentState
         return state;
     }
 
+    internal EquipmentState DuplicateForMutationSnapshotExact()
+    {
+        EquipmentState state = new();
+        foreach ((StringName slotId, EquipmentEntryState entry) in _equipped_slots)
+        {
+            state._equipped_slots[slotId] = entry?.DuplicateForMutationSnapshotExact();
+        }
+        foreach ((StringName slotId, StringName entrySlotId) in _slot_to_entry_slot)
+            state._slot_to_entry_slot[slotId] = entrySlotId;
+        return state;
+    }
+
+    internal IReadOnlyDictionary<StringName, EquipmentEntryState>
+        CaptureEquippedSlotsForMutationSnapshotExact() =>
+        new Dictionary<StringName, EquipmentEntryState>(_equipped_slots);
+
+    internal IReadOnlyDictionary<StringName, StringName>
+        CaptureSlotMappingForMutationSnapshotExact() =>
+        new Dictionary<StringName, StringName>(_slot_to_entry_slot);
+
+    public EquipmentState DuplicateWithoutOccupiedSlots(
+        IEnumerable<StringName> occupiedSlotIds
+    )
+    {
+        EquipmentState state = DuplicateState();
+        var displacedEntrySlotIds = new HashSet<StringName>();
+        foreach (StringName rawSlotId in occupiedSlotIds ?? System.Array.Empty<StringName>())
+        {
+            StringName slotId = ProgressionDataUtils.to_string_name(rawSlotId);
+            StringName entrySlotId = state.ResolveEntrySlotForSlot(slotId);
+            if (entrySlotId != "")
+                displacedEntrySlotIds.Add(entrySlotId);
+        }
+        foreach (StringName entrySlotId in displacedEntrySlotIds)
+            state.ClearEntrySlot(entrySlotId);
+        return state;
+    }
+
     public Godot.Collections.Dictionary ToDictionary()
     {
         var sd = new Godot.Collections.Dictionary();

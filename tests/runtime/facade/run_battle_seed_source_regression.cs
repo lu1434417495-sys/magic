@@ -64,7 +64,7 @@ public partial class run_battle_seed_source_regression : LifecycleTestSceneTree
             display_name = "Battle Seed Source Test",
             world_coord = new Vector2I(3, 3),
             faction_id = "hostile",
-            enemy_roster_template_id = "wolf_pack",
+            encounter_profile_id = "wolf_wilds",
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
         };
 

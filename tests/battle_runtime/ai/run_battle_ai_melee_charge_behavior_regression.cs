@@ -18,6 +18,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         {
             TestNaturalWeaponMeleeAggressorFallsBackToBasicAttack();
             TestMeleeAggressorChargeDecisionMovesTowardTarget();
+            TestFormalAdvanceCommitsDecisionStatePatchOnce();
             TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
@@ -131,6 +132,74 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         _test.True(
             wolf.coord != new Vector2I(0, 1),
             $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.coord} log={batch.log_lines}"
+        );
+    }
+
+    private void TestFormalAdvanceCommitsDecisionStatePatchOnce()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(6, 3));
+        BattleUnitState wolf = BuildAiUnit(
+            "state_patch_wolf",
+            "状态提交荒狼",
+            "hostile",
+            new Vector2I(0, 1),
+            "melee_aggressor",
+            "pressure",
+            new[] { "charge", "warrior_heavy_strike" },
+            36,
+            2
+        );
+        wolf.current_move_points = 0;
+        wolf.current_stamina = 80;
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
+        wolf.ai_blackboard.last_action_id = "stale_action";
+        BattleUnitState player = BuildManualUnit(
+            "state_patch_target",
+            "状态提交目标",
+            "player",
+            new Vector2I(5, 1),
+            new[] { "warrior_heavy_strike" }
+        );
+        AddUnitToState(runtime, state, wolf, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+        state.phase = "unit_acting";
+        state.active_unit_id = wolf.unit_id;
+        runtime.SetupStateForTests(state);
+
+        BattleEventBatch batch = runtime.advance(0);
+
+        _test.True(batch != null, "正式 AI advance 应返回有效 batch。");
+        _test.Eq(
+            wolf.ai_state_id,
+            new StringName("engage"),
+            "远离敌人时，正式 AI turn 应提交 pressure -> engage 状态迁移。"
+        );
+        _test.Eq(
+            wolf.ai_blackboard.last_transition_previous_state_id,
+            new StringName("pressure"),
+            "正式 AI turn 应保存迁移前状态。"
+        );
+        _test.Eq(
+            wolf.ai_blackboard.last_transition_state_id,
+            new StringName("engage"),
+            "正式 AI turn 应保存迁移后状态。"
+        );
+        _test.Eq(
+            wolf.ai_blackboard.last_transition_rule_id,
+            new StringName("engage_default"),
+            "正式 AI turn 应保存命中的状态迁移规则。"
+        );
+        _test.True(
+            wolf.ai_blackboard.last_action_id != new StringName("stale_action")
+                && wolf.ai_blackboard.last_action_id != new StringName(""),
+            "正式 AI turn 应用当前 action 覆盖旧 blackboard action。"
+        );
+        _test.Eq(
+            wolf.ai_blackboard.turn_decision_count,
+            1,
+            "一次正式 AI advance 只能提交一次 decision patch。"
         );
     }
 

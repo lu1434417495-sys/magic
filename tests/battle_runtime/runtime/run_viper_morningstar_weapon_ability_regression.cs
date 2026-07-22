@@ -120,11 +120,11 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "毒抗/毒免 trait 应投影 poison damage immune。"
         );
         _test.True(
-            ContainsStringName(equipped.save_advantage_tags, "poison_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "poison"),
             "毒抗/毒免 trait 应投影 poison save immunity。"
         );
         _test.True(
-            ContainsStringName(equipped.save_advantage_tags, "antidote_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "antidote"),
             "毒抗/毒免 trait 应投影 antidote immunity。"
         );
 
@@ -162,11 +162,11 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "移除毒蛇晨星后 poison damage immune 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_advantage_tags, "poison_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "poison"),
             "移除毒蛇晨星后 poison save immunity 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_advantage_tags, "antidote_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "antidote"),
             "移除毒蛇晨星后 antidote immunity 不应残留。"
         );
     }
@@ -277,7 +277,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         target.current_hp = 100;
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
-        target.save_advantage_tags.Add("poison_immunity");
+        target.save_immunity_tags.Add("poison");
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,

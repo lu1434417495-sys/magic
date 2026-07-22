@@ -105,6 +105,7 @@ params = {
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_chain_lightning"
+delivery_categories = Array[StringName]([&"spell"])
 range_value = 5
 ap_cost = 1
 mp_cost = 120

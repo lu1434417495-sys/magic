@@ -48,7 +48,7 @@ params = {
 "cost_resource": "aura",
 "damage_multiplier_stage": "pre_resistance",
 "follow_up_cost_multiplier": 2,
-"follow_up_damage_multiplier": 2,
+"follow_up_damage_multiplier_percent": 200,
 "follow_up_attack_penalty": 2,
 "penalty_free_stages_by_level": {
 "1": 1,

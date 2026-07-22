@@ -31,6 +31,11 @@ internal class BattleAiBlackboard
     private bool _hasTurnStartedTu;
     private bool _hasTurnDecisionCount;
 
+    // 全字段均为值类型或不可变 StringName,浅拷贝即完整快照。供
+    // BattleUnitState.clone() 使用:预览克隆体必须看到真实的一次性标记
+    // (如 low_luck_*_used),否则已消耗的遗物在预览里仍显示可用。
+    public BattleAiBlackboard Clone() => (BattleAiBlackboard)MemberwiseClone();
+
     public bool ContainsKey(string key) => HasKey(NormalizeKey(key));
 
     public bool ContainsKey(StringName key) => HasKey(NormalizeKey(key));

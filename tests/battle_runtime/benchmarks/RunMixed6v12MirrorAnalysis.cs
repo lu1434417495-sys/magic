@@ -130,12 +130,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         BattleSimFormalRosterOptionsData rosterOptions = BuildRosterOptionsFromEnvironment();
 
         var rng = new RuntimeRandom(Math.Max(startSeed, 1L));
-        var accum = new BatchAccumulator();
-        var perUnitSummary = new Dictionary<string, PerUnitAggregate>(StringComparer.Ordinal);
-        var runDetails = new List<object>();
+        var rawReportAccumulator = new RawReportAccumulator();
 
         ulong batchStartMsec = Time.GetTicksMsec();
-        int completedRunCount = 0;
         bool timedOut = false;
 
         PrintProgress(
@@ -166,7 +163,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 rosterOptions,
                 seed
             );
-            MixedSimulationRunResult result;
+            BattleSimRunReport result;
             try
             {
                 result = RunSingleSimulation(
@@ -183,13 +180,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                     aiProfiler
                 );
 
-                MergePerUnitSummary(perUnitSummary, result.Metrics.Units);
-                runDetails.Add(BuildRunDetail(runIndex, seed, result, traceAi));
-                accum.AbsorbRun(result, fixture);
+                rawReportAccumulator.AbsorbRun(result, fixture, traceAi);
                 traceSummaryReport.ProfileEntries[0].Runs.Add(
-                    BuildTraceSummaryRun(seed, result, traceAi)
+                    BuildTraceSummaryRun(result, traceAi)
                 );
-                completedRunCount++;
             }
             finally
             {
@@ -202,7 +196,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 $"[Progress] run {runIndex + 1}/{requestedRunCount} done winner={result.WinnerFactionId} ended={result.BattleEnded} iterations={result.Iterations} timeline_steps={result.TimelineSteps} run_elapsed={runElapsed:F1}s batch_elapsed={elapsed:F1}s rate={(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s"
             );
 
-            if (HasReachedTimeout(batchStartMsec, timeoutSeconds) && completedRunCount < requestedRunCount)
+            if (
+                HasReachedTimeout(batchStartMsec, timeoutSeconds)
+                && rawReportAccumulator.RunCount < requestedRunCount
+            )
             {
                 timedOut = true;
                 break;
@@ -210,24 +207,22 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         }
 
         double elapsedTotal = (Time.GetTicksMsec() - batchStartMsec) / 1000.0;
-        double n = Math.Max(completedRunCount, 1);
-        var report = BuildReport(
+        var report = rawReportAccumulator.BuildReport(
             startSeed,
             startSeedSource,
             requestedRunCount,
-            completedRunCount,
             timeoutSeconds,
             timedOut,
             elapsedTotal,
             aiMutationGuardEnabled,
             validateSpawnReachability,
             validateBidirectionalSpawnReachability,
-            scenario,
-            accum,
-            perUnitSummary,
-            runDetails,
-            n
+            scenario
         );
+        bool batchIsComplete =
+            report.TryGetValue("is_complete", out object isCompleteValue)
+            && isCompleteValue is bool isComplete
+            && isComplete;
         if (traceAi)
             report["trace_summary_file"] = ResolveTraceSummaryPath(outputPath);
         if (aiProfiler != null)
@@ -238,10 +233,11 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 $"[Progress] wrote AI profile {GetPlainString(plainProfileReport, "hotspots_path")}"
             );
         }
-        traceSummaryReport.ProfileEntries[0].Summary = new BattleSimProfileSummary
-        {
-            AverageIterations = completedRunCount > 0 ? (float)(accum.TotalIterations / n) : 0.0f,
-        };
+        traceSummaryReport.ProfileEntries[0].Summary = new BattleSimReportBuilder()
+            .BuildProfileSummary(
+                baseline,
+                traceSummaryReport.ProfileEntries[0].Runs
+            );
 
         if (string.IsNullOrEmpty(outputPath))
         {
@@ -268,7 +264,17 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             string traceSummaryPath = GetPlainString(report, "trace_summary_file");
             var traceSummaryBuilder = new BattleSimTraceSummaryBuilder();
             using GodotProjectionLease<GDictionary> compactReportLease =
-                traceSummaryBuilder.BuildFileLease(traceSummaryReport, outputPath);
+                traceSummaryBuilder.BuildFileLease(
+                    traceSummaryReport,
+                    outputPath,
+                    batchFacts: new BattleSimTraceSummaryBuilder.TraceSummaryBatchFactsData
+                    {
+                        RequestedRunCount = requestedRunCount,
+                        TimeoutSeconds = timeoutSeconds,
+                        TimedOut = timedOut,
+                        IsComplete = batchIsComplete,
+                    }
+                );
             if (!WriteLeasedJsonFile(traceSummaryPath, compactReportLease.Value))
                 GameLog.Error($"[ERROR] Failed to write trace summary: {traceSummaryPath}.", "bench.trace_write_failed", "bench");
             else
@@ -281,7 +287,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             overrideApplier,
             contentProvider
         );
-        return 0;
+        return batchIsComplete ? 0 : 2;
     }
 
     private static void DisposeObjects(params object[] objects)
@@ -330,7 +336,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         return fixture;
     }
 
-    private MixedSimulationRunResult RunSingleSimulation(
+    private BattleSimRunReport RunSingleSimulation(
         BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
@@ -391,7 +397,12 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             context["validate_spawn_reachability"] = validateSpawnReachability;
             context["validate_bidirectional_spawn_reachability"] = validateBidirectionalSpawnReachability;
             PrintProgress($"[Progress] run seed={seed} start_battle start");
-            state = runtime.StartBattle(encounterAnchor, seed, context);
+            state = runtime.StartBattleBorrowingContext(
+                encounterAnchor,
+                seed,
+                BattleEliminationObjectiveDefinition.Instance,
+                context
+            );
             PrintProgress($"[Progress] run seed={seed} start_battle done phase={state?.phase}");
             BattleStartFailureSnapshot startFailure = runtime.GetLastStartFailureSnapshot();
             fixture.ApplyStartedBattleMetadata(state);
@@ -404,26 +415,26 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             BattleMetricsState metricsState = runtime.GetBattleMetricsTyped();
             BattleSimMetricsSnapshot metricsSnapshot =
                 BattleSimMetricsSnapshot.Capture(metricsState);
-            var profileSummary = new Dictionary<string, object>(StringComparer.Ordinal);
             if (aiProfileRecorder != null && aiProfiler != null)
             {
-                profileSummary = aiProfiler.EndRun(
+                aiProfiler.EndRun(
                     aiProfileRecorder,
                     CountAiTurns(metricsSnapshot)
                 );
                 aiProfileRecorderEnded = true;
             }
-            var result = new MixedSimulationRunResult
+            var result = new BattleSimRunReport
             {
-                BattleEnded = state != null && state.phase == "battle_ended",
-                WinnerFactionId = state != null ? state.winner_faction_id.ToString() : "",
+                Seed = seed,
+                TerminationKind = loopResult.termination_kind,
+                FinalTu = state?.timeline?.current_tu ?? 0,
                 Iterations = loopResult.iterations,
+                IdleLoops = loopResult.idle_loops,
                 TimelineSteps = loopResult.timeline_steps,
-                Metrics = metricsSnapshot,
-                AiProfile = profileSummary,
+                MetricsSnapshot = metricsSnapshot,
+                StartFailure = startFailure,
             };
-            if (startFailure != null && !startFailure.IsEmpty)
-                result.StartFailure = BuildStartFailurePlain(startFailure);
+            result.SetFinalDecision(state?.FinalDecision);
             if (traceAi)
                 result.AiTurnTraces = new List<BattleAiTurnTraceProjection>(
                     runtime.GetAiTurnTracesTyped()
@@ -486,34 +497,18 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
     private static Dictionary<string, object> BuildRunDetail(
         int runIndex,
-        long seed,
-        MixedSimulationRunResult result,
+        BattleSimRunReport result,
         bool traceAi
     )
     {
-        var runFactions = new Dictionary<string, object>(StringComparer.Ordinal);
-        foreach (
-            KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
-            in result.Metrics.Factions
-        )
-        {
-            BattleSimUnitMetricsSnapshot faction = entry.Value;
-            if (faction == null)
-                continue;
-            runFactions[entry.Key] = new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["total_damage_done"] = faction.TotalDamageDone,
-                ["total_damage_taken"] = faction.TotalDamageTaken,
-                ["kill_count"] = faction.KillCount,
-                ["death_count"] = faction.DeathCount,
-                ["turn_count"] = faction.TurnCount,
-            };
-        }
+        Dictionary<string, object> runFactions = BuildFactionRunDetails(
+            result.MetricsSnapshot
+        );
 
         var runUnits = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (
             KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
-            in result.Metrics.Units
+            in result.MetricsSnapshot.Units
         )
         {
             BattleSimUnitMetricsSnapshot unit = entry.Value;
@@ -536,15 +531,28 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         var detail = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["run_index"] = runIndex,
-            ["seed"] = seed,
+            ["seed"] = result.Seed,
+            ["battle_ended"] = result.BattleEnded,
+            ["termination_kind"] = BattleSimTerminationKindCodec.ToWireValue(
+                result.TerminationKind
+            ),
+            ["stalled"] = result.Stalled,
+            ["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
+                result.ObjectiveMode
+            ),
+            ["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(result.Outcome),
+            ["end_reason"] = BattleObjectiveRuntimeCodec.ToWireValue(result.EndReason),
+            ["decision_tu"] = result.DecisionTu,
             ["winner_faction_id"] = result.WinnerFactionId,
+            ["final_tu"] = result.FinalTu,
             ["iterations"] = result.Iterations,
+            ["idle_loops"] = result.IdleLoops,
             ["timeline_steps"] = result.TimelineSteps,
             ["factions"] = runFactions,
             ["units"] = runUnits,
         };
-        if (result.StartFailure.Count > 0)
-            detail["start_failure"] = result.StartFailure;
+        if (result.StartFailure != null && !result.StartFailure.IsEmpty)
+            detail["start_failure"] = BuildStartFailurePlain(result.StartFailure);
         if (traceAi)
         {
             var traces = new List<object>();
@@ -555,24 +563,47 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         return detail;
     }
 
+    internal static Dictionary<string, object> BuildFactionRunDetails(
+        BattleSimMetricsSnapshot metrics
+    )
+    {
+        var runFactions = new Dictionary<string, object>(StringComparer.Ordinal);
+        if (metrics == null)
+            return runFactions;
+        foreach (
+            KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
+            in metrics.Factions
+        )
+        {
+            BattleSimUnitMetricsSnapshot faction = entry.Value;
+            if (faction == null)
+                continue;
+            runFactions[entry.Key] = faction.BuildFactionPlain();
+        }
+        return runFactions;
+    }
+
     private static BattleSimRunReport BuildTraceSummaryRun(
-        long seed,
-        MixedSimulationRunResult result,
+        BattleSimRunReport result,
         bool traceAi
     )
     {
-        return new BattleSimRunReport
+        BattleSimRunReport traceRun = new()
         {
-            Seed = seed,
-            BattleEnded = result.BattleEnded,
-            WinnerFactionId = result.WinnerFactionId,
+            Seed = result.Seed,
+            TerminationKind = result.TerminationKind,
+            StartFailure = result.StartFailure,
+            FinalTu = result.FinalTu,
             Iterations = result.Iterations,
+            IdleLoops = result.IdleLoops,
             TimelineSteps = result.TimelineSteps,
-            MetricsSnapshot = result.Metrics,
+            MetricsSnapshot = result.MetricsSnapshot,
             AiTurnTraces = traceAi
                 ? BuildLegacyTraceSummaryViews(result.AiTurnTraces)
                 : System.Array.Empty<BattleAiTurnTraceProjection>(),
         };
+        traceRun.SetFinalDecision(result.FinalDecision);
+        return traceRun;
     }
 
     internal static IReadOnlyList<BattleAiTurnTraceProjection> BuildLegacyTraceSummaryViews(
@@ -636,7 +667,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         long startSeed,
         string startSeedSource,
         int requestedRunCount,
-        int completedRunCount,
+        int runCount,
         int timeoutSeconds,
         bool timedOut,
         double elapsedSeconds,
@@ -646,13 +677,39 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         BattleSimScenarioDefinition scenario,
         BatchAccumulator accum,
         IReadOnlyDictionary<string, PerUnitAggregate> perUnitSummary,
-        IReadOnlyList<object> runDetails,
-        double n
+        IReadOnlyList<object> runDetails
     )
     {
         var perUnitReport = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (KeyValuePair<string, PerUnitAggregate> entry in perUnitSummary)
             perUnitReport[entry.Key] = entry.Value.BuildPlain();
+
+        int completedRunCount = accum.EndedCount;
+        int unfinishedRunCount = Math.Max(runCount - completedRunCount, 0);
+        double n = Math.Max(completedRunCount, 1);
+        bool isComplete =
+            runCount > 0
+            && !timedOut
+            && runCount == requestedRunCount
+            && unfinishedRunCount == 0;
+        var winsByFaction = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["player"] = accum.TotalWinsPlayer,
+            ["hostile"] = accum.TotalWinsHostile,
+            ["draw"] = accum.TotalDraws,
+        };
+        var winRate = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["player"] = completedRunCount > 0
+                ? (double)accum.TotalWinsPlayer / completedRunCount
+                : 0.0,
+            ["hostile"] = completedRunCount > 0
+                ? (double)accum.TotalWinsHostile / completedRunCount
+                : 0.0,
+            ["draw"] = completedRunCount > 0
+                ? (double)accum.TotalDraws / completedRunCount
+                : 0.0,
+        };
 
         return new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -661,9 +718,17 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             ["batch_id"] = startSeed,
             ["start_seed"] = startSeed,
             ["start_seed_source"] = startSeedSource,
-            ["run_count"] = completedRunCount,
+            ["run_count"] = runCount,
             ["requested_run_count"] = requestedRunCount,
             ["completed_run_count"] = completedRunCount,
+            ["unfinished_run_count"] = unfinishedRunCount,
+            ["stalled_run_count"] = accum.StalledRunCount,
+            ["iteration_budget_exhausted_run_count"] =
+                accum.IterationBudgetExhaustedRunCount,
+            ["invalid_runtime_run_count"] = accum.InvalidRuntimeRunCount,
+            ["has_unfinished_runs"] = unfinishedRunCount > 0,
+            ["is_complete"] = isComplete,
+            ["aggregate_scope"] = "battle_ended_only",
             ["timeout_seconds"] = timeoutSeconds,
             ["timed_out"] = timedOut,
             ["elapsed_seconds"] = elapsedSeconds,
@@ -673,12 +738,8 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             ["ended_count"] = accum.EndedCount,
             ["avg_iterations"] = accum.TotalIterations / n,
             ["avg_timeline_steps"] = accum.TotalTimelineSteps / n,
-            ["win_rate"] = new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["player"] = accum.TotalWinsPlayer,
-                ["hostile"] = accum.TotalWinsHostile,
-                ["draw"] = accum.TotalDraws,
-            },
+            ["wins_by_faction"] = winsByFaction,
+            ["win_rate"] = winRate,
             ["global"] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
                 ["charge"] = BuildSkillReport(accum.TotalChargeAttempts, accum.TotalChargeSuccesses, accum.TotalChargeMastery, n),
@@ -978,20 +1039,64 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         return values;
     }
 
-    private sealed class MixedSimulationRunResult
+    internal sealed class RawReportAccumulator
     {
-        public bool BattleEnded { get; init; }
-        public string WinnerFactionId { get; init; } = "";
-        public int Iterations { get; init; }
-        public int TimelineSteps { get; init; }
-        public BattleSimMetricsSnapshot Metrics { get; init; } =
-            BattleSimMetricsSnapshot.Empty();
-        public Dictionary<string, object> AiProfile { get; init; } =
+        private readonly BatchAccumulator _batch = new();
+        private readonly Dictionary<string, PerUnitAggregate> _perUnitSummary =
             new(StringComparer.Ordinal);
-        public Dictionary<string, object> StartFailure { get; set; } =
-            new(StringComparer.Ordinal);
-        public IReadOnlyList<BattleAiTurnTraceProjection> AiTurnTraces { get; set; } =
-            System.Array.Empty<BattleAiTurnTraceProjection>();
+        private readonly List<object> _runDetails = new();
+
+        internal int RunCount => _runDetails.Count;
+
+        internal void AbsorbRun(
+            BattleSimRunReport result,
+            BattleSimFormalCombatFixture fixture,
+            bool traceAi
+        )
+        {
+            if (result == null)
+                throw new ArgumentNullException(nameof(result));
+
+            int runIndex = _runDetails.Count;
+            _runDetails.Add(BuildRunDetail(runIndex, result, traceAi));
+            _batch.AbsorbRun(result, fixture);
+            if (result.IsCompletedSample)
+            {
+                MergePerUnitSummary(
+                    _perUnitSummary,
+                    result.MetricsSnapshot.Units
+                );
+            }
+        }
+
+        internal Dictionary<string, object> BuildReport(
+            long startSeed,
+            string startSeedSource,
+            int requestedRunCount,
+            int timeoutSeconds,
+            bool timedOut,
+            double elapsedSeconds,
+            bool aiMutationGuardEnabled,
+            bool validateSpawnReachability,
+            bool validateBidirectionalSpawnReachability,
+            BattleSimScenarioDefinition scenario
+        ) =>
+            RunMixed6v12MirrorAnalysis.BuildReport(
+                startSeed,
+                startSeedSource,
+                requestedRunCount,
+                RunCount,
+                timeoutSeconds,
+                timedOut,
+                elapsedSeconds,
+                aiMutationGuardEnabled,
+                validateSpawnReachability,
+                validateBidirectionalSpawnReachability,
+                scenario,
+                _batch,
+                _perUnitSummary,
+                _runDetails
+            );
     }
 
     private sealed class PerUnitAggregate
@@ -1107,6 +1212,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         public int HostileDamageDone;
         public int HostileDamageTaken;
         public int EndedCount;
+        public int StalledRunCount;
+        public int IterationBudgetExhaustedRunCount;
+        public int InvalidRuntimeRunCount;
         public int TotalIterations;
         public int TotalTimelineSteps;
         public int TotalWinsPlayer;
@@ -1114,10 +1222,38 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         public int TotalDraws;
 
         public void AbsorbRun(
-            MixedSimulationRunResult result,
+            BattleSimRunReport result,
             BattleSimFormalCombatFixture fixture
         )
         {
+            if (result == null)
+            {
+                InvalidRuntimeRunCount++;
+                return;
+            }
+
+            switch (result.TerminationKind)
+            {
+                case BattleSimTerminationKind.BattleEnded:
+                    if (!result.HasFinalDecision)
+                    {
+                        InvalidRuntimeRunCount++;
+                        return;
+                    }
+                    EndedCount++;
+                    break;
+                case BattleSimTerminationKind.IdleStall:
+                    StalledRunCount++;
+                    return;
+                case BattleSimTerminationKind.IterationBudgetExhausted:
+                    IterationBudgetExhaustedRunCount++;
+                    return;
+                case BattleSimTerminationKind.InvalidRuntime:
+                default:
+                    InvalidRuntimeRunCount++;
+                    return;
+            }
+
             int chargeAttempts = 0;
             int chargeSuccesses = 0;
             int heavyAttempts = 0;
@@ -1131,7 +1267,7 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
 
             foreach (
                 KeyValuePair<string, BattleSimUnitMetricsSnapshot> entry
-                in result.Metrics.Factions
+                in result.MetricsSnapshot.Factions
             )
             {
                 BattleSimUnitMetricsSnapshot faction = entry.Value;
@@ -1221,22 +1357,23 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             TotalMultishotSuccesses += multishotSuccesses;
             TotalBasicAttempts += basicAttempts;
             TotalBasicSuccesses += basicSuccesses;
-            TotalChargeMastery += fixture.charge_mastery;
-            TotalHeavyMastery += fixture.heavy_mastery;
-            TotalAimedMastery += fixture.aimed_mastery;
-            TotalMultishotMastery += fixture.multishot_mastery;
-            TotalBasicMastery += fixture.basic_mastery;
+            TotalChargeMastery += fixture?.charge_mastery ?? 0;
+            TotalHeavyMastery += fixture?.heavy_mastery ?? 0;
+            TotalAimedMastery += fixture?.aimed_mastery ?? 0;
+            TotalMultishotMastery += fixture?.multishot_mastery ?? 0;
+            TotalBasicMastery += fixture?.basic_mastery ?? 0;
 
-            if (result.BattleEnded)
+            switch (result.Outcome)
             {
-                EndedCount++;
-                string winner = result.WinnerFactionId;
-                if (winner == "player")
+                case BattleOutcomeKind.PlayerSuccess:
                     TotalWinsPlayer++;
-                else if (winner == "hostile")
+                    break;
+                case BattleOutcomeKind.PlayerFailure:
                     TotalWinsHostile++;
-                else
+                    break;
+                case BattleOutcomeKind.Draw:
                     TotalDraws++;
+                    break;
             }
             TotalIterations += result.Iterations;
             TotalTimelineSteps += result.TimelineSteps;

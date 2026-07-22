@@ -17,6 +17,7 @@ save_tag = &"dragon_breath"
 [sub_resource type="Resource" id="Combat_profile"]
 script = ExtResource("2_combat")
 skill_id = &"dragon_breath_freeze_cone"
+delivery_categories = Array[StringName]([&"breath_weapon"])
 target_mode = &"ground"
 target_team_filter = &"enemy"
 range_value = 3

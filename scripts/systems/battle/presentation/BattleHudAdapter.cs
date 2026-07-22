@@ -1237,6 +1237,10 @@ public sealed class BattleHudAdapter : IDisposable
             BuildPartyMemberRequirementSignature(
                 activeUnit != null ? activeUnit.source_member_id : new StringName("")
             ),
+            BuildStableAttributeRequirementSignature(
+                activeUnit != null ? activeUnit.source_member_id : new StringName(""),
+                activeUnit?.GetEquipmentView()
+            ),
             BuildEquipmentViewSignature(activeUnit?.GetEquipmentView() as EquipmentState),
             BuildBackpackViewSignature(backpackView),
             _runtime != null
@@ -1270,6 +1274,25 @@ public sealed class BattleHudAdapter : IDisposable
             }
         }
         return $"{memberId}:{memberState.body_size}:{string.Join(";", professionParts)}";
+    }
+
+    private string BuildStableAttributeRequirementSignature(
+        StringName memberId,
+        EquipmentState equipmentView
+    )
+    {
+        if (IsEmpty(memberId) || equipmentView == null)
+            return "-";
+        AttributeSnapshot snapshot = _runtime
+            ?.GetCharacterManagement()
+            ?.GetMemberAttributeSnapshotForEquipmentView(memberId, equipmentView);
+        if (snapshot == null)
+            return $"{memberId}:-";
+        var parts = new List<string>();
+        foreach ((StringName attributeId, int value) in snapshot.GetAllValuesTyped())
+            parts.Add($"{attributeId}:{value}");
+        parts.Sort(StringComparer.Ordinal);
+        return $"{memberId}:{string.Join(";", parts)}";
     }
 
     private static string BuildEquipmentViewSignature(EquipmentState equipmentView)

@@ -160,7 +160,42 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
                     "character_info",
                     "battle inspect 后应打开 character_info modal。"
                 );
+                using (GodotProjectionLease<GDictionary> inspectSnapshotLease =
+                    session.BuildSnapshotLease())
+                {
+                    GDictionary characterInfo = Dict(
+                        inspectSnapshotLease.Value,
+                        "character_info"
+                    );
+                    _test.True(
+                        Bool(characterInfo, "visible"),
+                        "battle inspect snapshot 应显示 character_info。"
+                    );
+                    _test.Eq(
+                        DictString(characterInfo, "source", ""),
+                        "battle",
+                        "battle inspect snapshot 应保留 battle source。"
+                    );
+                    _test.True(
+                        !string.IsNullOrEmpty(
+                            DictString(characterInfo, "display_name", "")
+                        ),
+                        "battle inspect snapshot 应包含人物显示名。"
+                    );
+                    _test.True(
+                        DictArray(characterInfo, "sections").Count > 0,
+                        "battle inspect snapshot 应包含 typed context 投影的 sections。"
+                    );
+                }
                 AssertCommandOk(runner.ExecuteLine("close"), "close 应能关闭 battle inspect modal。");
+                using (GodotProjectionLease<GDictionary> closeSnapshotLease =
+                    session.BuildSnapshotLease())
+                {
+                    _test.False(
+                        Bool(Dict(closeSnapshotLease.Value, "character_info"), "visible"),
+                        "close 后 character_info snapshot 应不可见。"
+                    );
+                }
             }
 
             Vector2I moveTarget = FindReachableMoveTarget(runtime, activeCoord);

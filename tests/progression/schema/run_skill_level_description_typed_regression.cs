@@ -40,6 +40,93 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
         );
         _test.Eq(validErrors.Count, 0, "合法 level_description_configs 应通过 typed schema 校验。");
 
+        SkillDef validLiteralExpressionSkill = new()
+        {
+            skill_id = "valid_literal_level_description_expression_skill",
+            level_description_template = "模板{=1 + 2}",
+            max_level = 0,
+            level_description_configs = new GDictionary { ["0"] = new GDictionary() },
+        };
+        List<string> validLiteralExpressionErrors =
+            SkillLevelDescriptionContentRules.CollectValidationErrors(
+                validLiteralExpressionSkill.skill_id,
+                validLiteralExpressionSkill
+            );
+        _test.Eq(
+            validLiteralExpressionErrors.Count,
+            0,
+            "合法字面量表达式应通过加载期语法校验。"
+        );
+
+        SkillDef validRuntimeExpressionSkill = new()
+        {
+            skill_id = "valid_runtime_level_description_expression_skill",
+            level_description_template = "模板{=con_mod + 1}",
+            max_level = 0,
+            level_description_configs = new GDictionary { ["0"] = new GDictionary() },
+        };
+        List<string> validRuntimeExpressionErrors =
+            SkillLevelDescriptionContentRules.CollectValidationErrors(
+                validRuntimeExpressionSkill.skill_id,
+                validRuntimeExpressionSkill
+            );
+        _test.Eq(
+            validRuntimeExpressionErrors.Count,
+            0,
+            "加载期语法校验不应因运行时变量尚未绑定而拒绝表达式。"
+        );
+
+        SkillDef invalidExpressionSkill = new()
+        {
+            skill_id = "invalid_level_description_expression_skill",
+            level_description_template = "模板{=(}",
+            max_level = 0,
+            level_description_configs = new GDictionary { ["0"] = new GDictionary() },
+        };
+        List<string> invalidExpressionErrors =
+            SkillLevelDescriptionContentRules.CollectValidationErrors(
+                invalidExpressionSkill.skill_id,
+                invalidExpressionSkill
+            );
+        _test.True(
+            invalidExpressionErrors.Exists(error => error.Contains("expression '{=(}' is invalid")),
+            $"非法表达式应在内容加载期被拒绝。实际错误：{string.Join(" | ", invalidExpressionErrors)}"
+        );
+
+        SkillDef emptyExpressionSkill = new()
+        {
+            skill_id = "empty_level_description_expression_skill",
+            level_description_template = "模板{=}",
+            max_level = 0,
+            level_description_configs = new GDictionary { ["0"] = new GDictionary() },
+        };
+        List<string> emptyExpressionErrors =
+            SkillLevelDescriptionContentRules.CollectValidationErrors(
+                emptyExpressionSkill.skill_id,
+                emptyExpressionSkill
+            );
+        _test.True(
+            emptyExpressionErrors.Exists(error => error.Contains("must not be empty")),
+            "空表达式应在内容加载期被拒绝。"
+        );
+
+        SkillDef unclosedExpressionSkill = new()
+        {
+            skill_id = "unclosed_level_description_expression_skill",
+            level_description_template = "模板{=1 + 2",
+            max_level = 0,
+            level_description_configs = new GDictionary { ["0"] = new GDictionary() },
+        };
+        List<string> unclosedExpressionErrors =
+            SkillLevelDescriptionContentRules.CollectValidationErrors(
+                unclosedExpressionSkill.skill_id,
+                unclosedExpressionSkill
+            );
+        _test.True(
+            unclosedExpressionErrors.Exists(error => error.Contains("missing a closing brace")),
+            "未闭合表达式应在内容加载期被拒绝。"
+        );
+
         SkillDef invalidIntKeySkill = new()
         {
             skill_id = "invalid_level_description_int_key_skill",

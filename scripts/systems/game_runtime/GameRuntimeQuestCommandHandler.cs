@@ -11,22 +11,24 @@ public sealed class GameRuntimeQuestCommandHandler
     private static readonly StringName InvalidQuestDisplayNameMessage =
         "任务配置缺少 display_name，当前无法执行命令。";
 
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeQuestCommandPort> _portRef;
 
-    private GameRuntimeFacade _runtime
+    private IGameRuntimeQuestCommandPort _port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_portRef);
+        set =>
+            _portRef =
+                value != null ? new WeakReference<IGameRuntimeQuestCommandPort>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    internal void Setup(IGameRuntimeQuestCommandPort port)
     {
-        _runtime = runtime;
+        _port = port;
     }
 
     public void Dispose()
     {
-        _runtime = null;
+        _port = null;
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandAcceptQuestTyped(
@@ -36,8 +38,7 @@ public sealed class GameRuntimeQuestCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var characterManagement = GetCharacterManagement();
-        if (characterManagement == null)
+        if (!IsRuntimeAvailable())
             return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
             return CommandErrorTyped("任务 ID 不能为空。");
@@ -50,25 +51,24 @@ public sealed class GameRuntimeQuestCommandHandler
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameTypedError();
-        var partyState = GetPartyState();
-        if (partyState != null && partyState.HasActiveQuest(questId))
+        QuestCommandStateData questState = GetQuestCommandStateData(questId);
+        if (questState.IsActive)
             return CommandErrorTyped(
                 string.Format("任务《{0}》已在进行中，不能重复接取。", questLabel)
             );
-        if (partyState != null && partyState.HasClaimableQuest(questId))
+        if (questState.IsClaimable)
             return CommandErrorTyped(
                 string.Format("任务《{0}》已完成，奖励待领取，当前不可再次接取。", questLabel)
             );
-        var hasCompleted = partyState != null && partyState.HasCompletedQuest(questId);
+        bool hasCompleted = questState.IsCompleted;
         var isRepeatable = questDef.IsRepeatable;
         var effectiveAllowReaccept = allowReaccept || (hasCompleted && isRepeatable);
         if (hasCompleted && !effectiveAllowReaccept)
             return CommandErrorTyped(
                 string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel)
             );
-        if (!characterManagement.AcceptQuest(questId, GetWorldStep(), effectiveAllowReaccept))
+        if (!AcceptQuestAndSyncParty(questId, effectiveAllowReaccept))
             return CommandErrorTyped(string.Format("当前无法接取任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var message =
             hasCompleted && effectiveAllowReaccept
@@ -109,7 +109,7 @@ public sealed class GameRuntimeQuestCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        if (GetCharacterManagement() == null)
+        if (!IsRuntimeAvailable())
             return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "" || objectiveId == "")
             return CommandErrorTyped("任务 ID 和目标 ID 不能为空。");
@@ -122,22 +122,16 @@ public sealed class GameRuntimeQuestCommandHandler
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameTypedError();
-        var characterManagement = GetCharacterManagement();
         if (!progressPayload.IsValid)
             return CommandErrorTyped(
                 string.Format("当前无法推进任务《{0}》的目标 {1}。", questLabel, objectiveId)
             );
-        QuestProgressApplyResultData progressSummary =
-            characterManagement.ApplyDirectQuestProgressTyped(
-                questId,
-                objectiveId,
-                Mathf.Max(progressDelta, 0),
-                progressPayload.WorldStep,
-                progressPayload.HasTargetValue,
-                progressPayload.TargetValue,
-                progressPayload.BuildContextData()
-            );
-        SetPartyState(characterManagement.GetPartyState());
+        QuestProgressApplyResultData progressSummary = ApplyDirectQuestProgressAndSyncParty(
+            questId,
+            objectiveId,
+            progressDelta,
+            progressPayload
+        );
         bool hasProgressed = progressSummary.ContainsProgressedQuest(questId);
         if (!hasProgressed)
             return CommandErrorTyped(
@@ -162,8 +156,7 @@ public sealed class GameRuntimeQuestCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var characterManagement = GetCharacterManagement();
-        if (characterManagement == null)
+        if (!IsRuntimeAvailable())
             return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
             return CommandErrorTyped("任务 ID 不能为空。");
@@ -176,9 +169,8 @@ public sealed class GameRuntimeQuestCommandHandler
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameTypedError();
-        if (!characterManagement.CompleteQuest(questId, GetWorldStep()))
+        if (!CompleteQuestAndSyncParty(questId))
             return CommandErrorTyped(string.Format("当前无法完成任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var message = string.Format("已完成任务《{0}》，奖励待领取。", questLabel);
         if (persistError != Error.Ok)
@@ -201,8 +193,7 @@ public sealed class GameRuntimeQuestCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var characterManagement = GetCharacterManagement();
-        if (characterManagement == null)
+        if (!IsRuntimeAvailable())
             return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
             return CommandErrorTyped("任务 ID 不能为空。");
@@ -215,10 +206,9 @@ public sealed class GameRuntimeQuestCommandHandler
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameTypedError();
-        QuestSubmitItemResultData submitData = characterManagement.SubmitItemObjectiveTyped(
+        QuestSubmitItemResultData submitData = SubmitItemObjectiveAndSyncParty(
             questId,
-            objectiveId,
-            GetWorldStep()
+            objectiveId
         );
         if (!submitData.Ok)
         {
@@ -270,7 +260,6 @@ public sealed class GameRuntimeQuestCommandHandler
                     );
             }
         }
-        SetPartyState(characterManagement.GetPartyState());
         var itemId = submitData.ItemId;
         var itemLabel = GetItemDisplayName(itemId);
         var submittedQuantity = Mathf.Max(submitData.SubmittedQuantity, 0);
@@ -305,8 +294,7 @@ public sealed class GameRuntimeQuestCommandHandler
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
-        var characterManagement = GetCharacterManagement();
-        if (characterManagement == null)
+        if (!IsRuntimeAvailable())
             return CommandErrorTyped("运行时尚未初始化。");
         if (questId == "")
             return CommandErrorTyped("任务 ID 不能为空。");
@@ -319,10 +307,7 @@ public sealed class GameRuntimeQuestCommandHandler
         string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameTypedError();
-        QuestClaimResultData claimData = characterManagement.ClaimQuestRewardTyped(
-            questId,
-            GetWorldStep()
-        );
+        QuestClaimResultData claimData = ClaimQuestRewardAndSyncParty(questId);
         if (!claimData.Ok)
         {
             var errorCode = claimData.ErrorCode;
@@ -403,7 +388,6 @@ public sealed class GameRuntimeQuestCommandHandler
                     return CommandErrorTyped(string.Format("当前无法领取任务《{0}》奖励。", questLabel));
             }
         }
-        SetPartyState(characterManagement.GetPartyState());
         var persistError = PersistPartyState();
         var goldDelta = claimData.GoldDelta;
         var rewardSummary = claimData.BuildRewardSummaryText();
@@ -425,7 +409,12 @@ public sealed class GameRuntimeQuestCommandHandler
 
     private bool HasRuntime()
     {
-        return _runtime != null;
+        return _port != null;
+    }
+
+    private bool IsRuntimeAvailable()
+    {
+        return HasRuntime() && _port.IsAvailable();
     }
 
     private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
@@ -454,51 +443,80 @@ public sealed class GameRuntimeQuestCommandHandler
         return CommandErrorTyped(InvalidQuestDisplayNameMessage);
     }
 
-    private CharacterManagementModule GetCharacterManagement()
+    private QuestCommandStateData GetQuestCommandStateData(StringName questId)
     {
-        return HasRuntime() ? _runtime.GetCharacterManagement() : null;
+        return HasRuntime() ? _port.GetQuestCommandStateData(questId) : default;
     }
 
-    private PartyState GetPartyState()
+    private bool AcceptQuestAndSyncParty(StringName questId, bool allowReaccept)
     {
-        return HasRuntime() ? _runtime.GetPartyState() : null;
+        return HasRuntime() && _port.AcceptQuestAndSyncParty(questId, allowReaccept);
     }
 
-    private void SetPartyState(PartyState partyState)
+    private QuestProgressApplyResultData ApplyDirectQuestProgressAndSyncParty(
+        StringName questId,
+        StringName objectiveId,
+        int progressDelta,
+        QuestProgressCommandPayloadData progressPayload
+    )
     {
-        if (HasRuntime())
-            _runtime.SetPartyState(partyState);
+        return HasRuntime()
+            ? _port.ApplyDirectQuestProgressAndSyncParty(
+                questId,
+                objectiveId,
+                progressDelta,
+                progressPayload
+            )
+            : new QuestProgressApplyResultData();
+    }
+
+    private bool CompleteQuestAndSyncParty(StringName questId)
+    {
+        return HasRuntime() && _port.CompleteQuestAndSyncParty(questId);
+    }
+
+    private QuestSubmitItemResultData SubmitItemObjectiveAndSyncParty(
+        StringName questId,
+        StringName objectiveId
+    )
+    {
+        return HasRuntime()
+            ? _port.SubmitItemObjectiveAndSyncParty(questId, objectiveId)
+            : QuestSubmitItemResultData.Failed("runtime_unavailable");
+    }
+
+    private QuestClaimResultData ClaimQuestRewardAndSyncParty(StringName questId)
+    {
+        return HasRuntime()
+            ? _port.ClaimQuestRewardAndSyncParty(questId)
+            : QuestClaimResultData.Failed("runtime_unavailable");
     }
 
     private int GetWorldStep()
     {
-        return HasRuntime() ? _runtime.GetWorldStep() : 0;
+        return HasRuntime() ? _port.GetWorldStep() : 0;
     }
 
     private Error PersistPartyState()
     {
-        return HasRuntime()
-            ? (Error)_runtime.PersistPartyState()
-            : Error.Unavailable;
+        return HasRuntime() ? _port.PersistQuestPartyState() : Error.Unavailable;
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.UpdateStatus(message);
+            _port.UpdateStatus(message);
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
-        return HasRuntime()
-            ? _runtime.GetItemDisplayName(itemId)
-            : itemId.ToString();
+        return HasRuntime() ? _port.GetItemDisplayName(itemId) : itemId.ToString();
     }
 
     private QuestCommandDefData GetQuestCommandDefData(StringName questId) =>
-        QuestCommandDefData.FromQuestDefinition(
-            HasRuntime() ? _runtime.GetQuestDef(questId) : null
-        );
+        HasRuntime()
+            ? _port.GetQuestCommandDefData(questId)
+            : QuestCommandDefData.FromQuestDefinition(null);
 
     private Godot.Collections.Array<String> StringNameArrayToStringArray(
         Godot.Collections.Array<StringName> values
@@ -512,9 +530,14 @@ public sealed class GameRuntimeQuestCommandHandler
         return result;
     }
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static IGameRuntimeQuestCommandPort ResolveWeakRef(
+        WeakReference<IGameRuntimeQuestCommandPort> weakRef
+    )
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out IGameRuntimeQuestCommandPort target)
+        )
             return null;
         return target;
     }

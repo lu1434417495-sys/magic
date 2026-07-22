@@ -10,6 +10,7 @@ public class PartyEquipmentService
     private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private PartyWarehouseService _warehouse_service;
     private bool _ownsWarehouseService;
+    private Func<StringName, EquipmentState, AttributeSnapshot> _requirementSnapshotProvider;
 
     internal sealed class EquipmentDisplacedEntry
     {
@@ -150,7 +151,8 @@ public class PartyEquipmentService
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         PartyWarehouseService warehouseService = null,
-        Func<StringName> equipmentInstanceIdAllocator = null
+        Func<StringName> equipmentInstanceIdAllocator = null,
+        Func<StringName, EquipmentState, AttributeSnapshot> requirementSnapshotProvider = null
     )
     {
         ReleaseOwnedWarehouseService();
@@ -161,6 +163,7 @@ public class PartyEquipmentService
                 : new Dictionary<StringName, ItemDefinition>();
         _warehouse_service = warehouseService ?? new PartyWarehouseService();
         _ownsWarehouseService = warehouseService == null;
+        _requirementSnapshotProvider = requirementSnapshotProvider;
         _warehouse_service.Setup(
             _party_state,
             _itemDefinitions,
@@ -173,6 +176,7 @@ public class PartyEquipmentService
         ReleaseOwnedWarehouseService();
         _warehouse_service = null;
         _party_state = null;
+        _requirementSnapshotProvider = null;
         _itemDefinitions.Clear();
     }
 
@@ -346,7 +350,17 @@ public class PartyEquipmentService
         }
         if (id.EquipRequirement is EquipmentRequirementDefinition requirement)
         {
-            var cr = requirement.CheckResult(ms);
+            AttributeSnapshot stableAttributes = null;
+            if (requirement.AttributeRequirements.Count > 0)
+            {
+                EquipmentState requirementEquipmentView =
+                    es.DuplicateWithoutOccupiedSlots(occupiedSlots);
+                stableAttributes = _requirementSnapshotProvider?.Invoke(
+                    nm,
+                    requirementEquipmentView
+                );
+            }
+            var cr = requirement.CheckResult(ms, stableAttributes);
             if (!cr.Allowed)
             {
                 var fcode = cr.Blockers.Count > 0 ? cr.Blockers[0] : "requirement_failed";

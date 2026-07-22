@@ -78,10 +78,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
             battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
 
-            BattleResolutionResult resolutionResult = new()
-            {
-                winner_faction_id = "player",
-            };
+            BattleResolutionResult resolutionResult =
+                BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             int equipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
@@ -207,10 +205,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             );
             battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
-            BattleResolutionResult resolutionResult = new()
-            {
-                winner_faction_id = "player",
-            };
+            BattleResolutionResult resolutionResult =
+                BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
@@ -288,10 +284,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             );
             battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
 
-            BattleResolutionResult resolutionResult = new()
-            {
-                winner_faction_id = "player",
-            };
+            BattleResolutionResult resolutionResult =
+                BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult

@@ -121,6 +121,7 @@ tick_interval_tu = 10
 [sub_resource type="Resource" id="Resource_oewuj"]
 script = ExtResource("4_32ilr")
 skill_id = &"mage_molten_burst"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 4
 area_pattern = &"radius"

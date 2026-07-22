@@ -37,9 +37,10 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         {
             return new GDictionary();
         }
-        using GodotProjectionLease<GDictionary> settlementStateLease =
-            _owner._get_or_create_settlement_state(targetId);
-        GDictionary settlementState = settlementStateLease.Value;
+        WorldMapSettlementStateData settlementState =
+            _owner.GetSettlementStateData(targetId);
+        if (settlementState == null)
+            return new GDictionary();
         return new GDictionary
         {
             ["settlement_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "settlement_id"),
@@ -48,7 +49,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
             ["footprint_size"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "footprint_size"),
             ["faction_id"] = GameRuntimeSettlementCommandHandler.ReadString(settlement, "faction_id"),
             ["facilities"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "facilities"),
-            ["available_services"] = _build_service_entries(settlement, settlementState),
+            ["available_services"] = _build_service_entries(settlement),
             ["service_npcs"] = GameRuntimeSettlementCommandHandler.ReadVariant(settlement, "service_npcs"),
             ["member_options"] = _build_member_options(),
             ["default_member_id"] = _owner.ResolveDefaultSettlementMemberId().ToString(),
@@ -83,7 +84,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         };
     }
 
-    private GDictArray _build_service_entries(GDictionary settlement, GDictionary settlement_state)
+    private GDictArray _build_service_entries(GDictionary settlement)
     {
         var entries = new GDictArray();
         foreach (
@@ -95,8 +96,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
             GDictionary serviceData = sourceService;
             SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
                 settlement,
-                serviceData,
-                settlement_state
+                serviceData
             );
             SettlementServiceMetadataProjection.ApplyToServiceData(serviceData, metadata);
             bool isEnabled = metadata.IsEnabled;
@@ -160,8 +160,7 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
 
     internal SettlementServiceMetadata BuildServiceMetadataTyped(
         GDictionary settlement,
-        GDictionary service_data,
-        GDictionary settlement_state
+        GDictionary service_data
     )
     {
         string interactionScriptId = GameRuntimeSettlementCommandHandler.ReadString(service_data, "interaction_script_id");
@@ -244,10 +243,8 @@ internal sealed class GameRuntimeSettlementWindowDataBuilder
         return new SettlementServiceMetadata("", true);
     }
 
-    private string _build_settlement_state_summary(GDictionary settlement_state)
+    private string _build_settlement_state_summary(WorldMapSettlementStateData stateData)
     {
-        WorldMapSettlementStateData stateData =
-            WorldMapSettlementStateData.FromDictionary(settlement_state);
         IReadOnlyList<string> conditionStrings = stateData.ActiveConditions;
         return string.Join(
             "\n",

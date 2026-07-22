@@ -158,7 +158,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
         );
 
         target.save_advantage_tags.Clear();
-        target.save_advantage_tags.Add("illusion_disadvantage");
+        target.save_disadvantage_tags.Add("illusion");
         BattleGradedSaveGradeDistribution disadvantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
@@ -176,7 +176,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
     {
         BattleUnitState source = MakeUnit("immune_distribution_source");
         BattleUnitState target = MakeUnit("immune_distribution_target");
-        target.save_advantage_tags.Add("illusion_immunity");
+        target.save_immunity_tags.Add("illusion");
 
         BattleGradedSaveGradeDistribution distribution =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(
@@ -238,7 +238,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
         );
 
         target.save_advantage_tags.Clear();
-        target.save_advantage_tags.Add("illusion_disadvantage");
+        target.save_disadvantage_tags.Add("illusion");
         BattleGradedSaveGradeDistribution selectedDisadvantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,

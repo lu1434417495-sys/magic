@@ -12,7 +12,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
 
-    private List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+    internal List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         BattleUnitState active_unit = null
@@ -27,7 +27,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             : new List<CombatEffectDefinition>();
     }
 
-    private List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
+    internal List<CombatEffectDefinition> CollectUnitSkillEffectDefinitions(
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         BattleUnitReadView active_unit
@@ -86,7 +86,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return CollectUnitsInCoords(ToVector2IList(effect_coords));
     }
 
-    private StringName ResolveEffectTargetFilter(
+    internal StringName ResolveEffectTargetFilter(
         SkillDefinition skillDefinition,
         CombatEffectDefinition effectDefinition
     )

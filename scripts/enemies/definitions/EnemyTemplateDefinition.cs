@@ -88,6 +88,8 @@ internal sealed class EnemyTemplateDefinition
         int actionThreshold,
         IReadOnlyList<StringName> tags,
         IReadOnlyList<StringName> saveAdvantageTags,
+        IReadOnlyList<StringName> saveDisadvantageTags,
+        IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyDictionary<StringName, StringName> damageResistances,
         StringName attackEquipmentItemId,
         StringName naturalWeaponDamageTag,
@@ -116,6 +118,8 @@ internal sealed class EnemyTemplateDefinition
         ActionThreshold = actionThreshold;
         Tags = EnemyDefinitionCollections.FreezeList(tags);
         SaveAdvantageTags = EnemyDefinitionCollections.FreezeList(saveAdvantageTags);
+        SaveDisadvantageTags = EnemyDefinitionCollections.FreezeList(saveDisadvantageTags);
+        SaveImmunityTags = EnemyDefinitionCollections.FreezeList(saveImmunityTags);
         DamageResistances = EnemyDefinitionCollections.FreezeDictionary(damageResistances);
         AttackEquipmentItemId = attackEquipmentItemId;
         NaturalWeaponDamageTag = naturalWeaponDamageTag;
@@ -144,6 +148,8 @@ internal sealed class EnemyTemplateDefinition
     internal int ActionThreshold { get; }
     internal IReadOnlyList<StringName> Tags { get; }
     internal IReadOnlyList<StringName> SaveAdvantageTags { get; }
+    internal IReadOnlyList<StringName> SaveDisadvantageTags { get; }
+    internal IReadOnlyList<StringName> SaveImmunityTags { get; }
     internal IReadOnlyDictionary<StringName, StringName> DamageResistances { get; }
     internal StringName AttackEquipmentItemId { get; }
     internal StringName NaturalWeaponDamageTag { get; }
@@ -229,6 +235,8 @@ internal sealed class EnemyTemplateDefinition
             source.action_threshold,
             source.tags,
             source.save_advantage_tags,
+            source.save_disadvantage_tags,
+            source.save_immunity_tags,
             source.GetDamageResistancesTyped(),
             source.attack_equipment_item_id,
             source.natural_weapon_damage_tag,

@@ -26,7 +26,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         await TestSettlementServiceRollbackOnPersistFailure();
         await TestWorldOnlyServiceRollsBackQuestSideEffectsOnPersistFailure();
         await TestWarehouseSettlementServiceRollbackOnPersistFailure();
-        await TestPartyOnlyCommitStagesDelayedWorldOwner();
+        await TestShopBuyCommitPreservesStateAcrossReopenAndLoad();
         await TestRuntimeDisposeStagesCanonicalWorldWithoutPriorSessionDirty();
         await TestPartyOnlyRollbackScopeSkipsWorldSnapshot();
         TestRuntimeTransactionRollbackStateUsesTypedSessionSnapshot();
@@ -237,6 +237,13 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             int goldBefore = runtime._party_state.GetGold();
             int herbCountBefore = fixture.WarehouseService.CountItem("healing_herb");
+            WorldMapSettlementStateData settlementStateBefore =
+                runtime.GetSettlementStateData("spring_village_01");
+            int stockBefore = FindStockQuantity(
+                settlementStateBefore,
+                "village_basic_supply",
+                "healing_herb"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult result =
                 handler.CommandShopBuyTyped("healing_herb", 1);
@@ -247,6 +254,61 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 fixture.WarehouseService.CountItem("healing_herb"),
                 herbCountBefore,
                 "购买失败后仓库物品不应增加。"
+            );
+            WorldMapSettlementStateData settlementStateAfter =
+                runtime.GetSettlementStateData("spring_village_01");
+            _test.Eq(
+                FindStockQuantity(
+                    settlementStateAfter,
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBefore,
+                "购买持久化失败后 canonical shop stock 应回滚。"
+            );
+            SettlementShopStateData settlementShopAfter = settlementStateAfter?.GetShopState(
+                "village_basic_supply"
+            );
+            _test.True(
+                settlementShopAfter != null
+                    && settlementShopAfter.Seed == 1L
+                    && settlementShopAfter.LastRefreshStep == 0,
+                "购买持久化失败后应保留具体商店的 seed 与刷新步。"
+            );
+            _test.Eq(
+                settlementStateAfter.Cooldowns["rest_basic"],
+                4,
+                "购买持久化失败后无关 cooldown 应保留。"
+            );
+            WorldMapSettlementStateData sessionStateAfter = ReadSessionSettlementState(
+                fixture.GameSession,
+                "spring_village_01"
+            );
+            _test.Eq(
+                FindStockQuantity(
+                    sessionStateAfter,
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBefore,
+                "购买持久化失败后 GameSession world owner 也必须回滚。"
+            );
+            SettlementShopStateData sessionShopAfter = sessionStateAfter?.GetShopState(
+                "village_basic_supply"
+            );
+            _test.True(
+                sessionShopAfter != null
+                    && sessionShopAfter.Seed == 1L
+                    && sessionShopAfter.LastRefreshStep == 0,
+                "购买持久化失败后 GameSession 不得丢失具体商店的 seed 与刷新步。"
+            );
+            _test.Eq(
+                FindWindowBuyQuantity(
+                    runtime.GetShopWindowDataSnapshotPlain(),
+                    "healing_herb"
+                ),
+                stockBefore,
+                "购买持久化失败后商店窗口上下文必须恢复购买前库存。"
             );
             _test.Eq(
                 result.Message,
@@ -510,10 +572,10 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         }
     }
 
-    private async Task TestPartyOnlyCommitStagesDelayedWorldOwner()
+    private async Task TestShopBuyCommitPreservesStateAcrossReopenAndLoad()
     {
         RuntimeFixture fixture = await BuildRuntimeFixture(
-            "party_only_total_save",
+            "shop_buy_state_round_trip",
             BuildPartyState(12, 200),
             new[]
             {
@@ -539,34 +601,143 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         );
         try
         {
-            fixture.Runtime._world_map_data_context.SetWorldStep(37);
             fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
             GameRuntimeFacade.RuntimeCommandResult openResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
                 );
-            _test.True(openResult.Ok, "party-only total-save 回归前置：应能打开商店。");
+            _test.True(openResult.Ok, "商店状态 round-trip 回归前置：应能打开商店。");
+            int stockBeforeBuy = FindStockQuantity(
+                fixture.Runtime.GetSettlementStateData("spring_village_01"),
+                "village_basic_supply",
+                "healing_herb"
+            );
+            _test.Eq(
+                stockBeforeBuy,
+                2,
+                "未到刷新周期时首次打开必须沿用持久化库存。"
+            );
 
             GameRuntimeFacade.RuntimeCommandResult buyResult =
                 fixture.Handler.CommandShopBuyTyped("healing_herb", 1);
-            _test.True(buyResult.Ok, "party-only 动作应成功提交 total-save。");
-
-            using GodotProjectionLease<GDictionary> worldDataLease =
-                fixture.GameSession.GetWorldDataLease();
-            GDictionary worldData = worldDataLease.Value;
+            _test.True(buyResult.Ok, "购买应成功提交 party + world total-save。");
             _test.Eq(
-                worldData["world_step"].AsInt32(),
-                37,
-                "party-only commit 前必须 staging 延迟更新的 canonical world owner。"
+                FindStockQuantity(
+                    fixture.Runtime.GetSettlementStateData("spring_village_01"),
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBeforeBuy - 1,
+                "购买成功后 canonical runtime shop stock 应扣减。"
             );
-            using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
-                .AsGodotDictionary();
-            var restoredFog = new WorldMapFogSystem();
-            restoredFog.Setup(new Vector2I(8, 8), fogState);
+
+            fixture.Runtime.CloseShopModal();
+            GameRuntimeFacade.RuntimeCommandResult reopenResult =
+                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                    "service:basic_supply",
+                    new GDictionary()
+                );
+            _test.True(reopenResult.Ok, "未到刷新周期时应能重新打开商店。");
+            _test.Eq(
+                FindStockQuantity(
+                    fixture.Runtime.GetSettlementStateData("spring_village_01"),
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBeforeBuy - 1,
+                "关闭并重开商店不得重建或恢复已购买库存。"
+            );
+            _test.Eq(
+                FindWindowBuyQuantity(
+                    fixture.Runtime.GetShopWindowDataSnapshotPlain(),
+                    "healing_herb"
+                ),
+                stockBeforeBuy - 1,
+                "重开后的窗口 projection 应显示持久化库存。"
+            );
+
+            WorldMapSettlementStateData persistedState = ReadSessionSettlementState(
+                fixture.GameSession,
+                "spring_village_01"
+            );
+            _test.Eq(
+                FindStockQuantity(
+                    persistedState,
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBeforeBuy - 1,
+                "购买成功后 canonical session world 应保存扣减后的 shop stock。"
+            );
+            SettlementShopStateData persistedShop = persistedState?.GetShopState(
+                "village_basic_supply"
+            );
             _test.True(
-                restoredFog.IsExplored(new Vector2I(7, 7), "player"),
-                "party-only total-save 不得丢失尚未物化的 fog revision。"
+                persistedShop != null
+                    && persistedShop.Seed == 1L
+                    && persistedShop.LastRefreshStep == 0,
+                "购买写回应保留具体商店的 seed 与刷新步。"
+            );
+            _test.Eq(
+                persistedState.Cooldowns["rest_basic"],
+                4,
+                "购买写回不能删除无关 cooldown。"
+            );
+            using (GodotProjectionLease<GDictionary> worldDataLease =
+                fixture.GameSession.GetWorldDataLease())
+            {
+                GDictionary worldData = worldDataLease.Value;
+                using GDictionary fogState = worldData[WorldMapFogSystem.WorldDataFogStatesKey]
+                    .AsGodotDictionary();
+                var restoredFog = new WorldMapFogSystem();
+                restoredFog.Setup(new Vector2I(8, 8), fogState);
+                _test.True(
+                    restoredFog.IsExplored(new Vector2I(7, 7), "player"),
+                    "商店 total-save 不得丢失尚未物化的 fog revision。"
+                );
+            }
+
+            int readError = fixture.GameSession.ReadSavePayload(
+                fixture.GameSession.GetActiveSavePath(),
+                out Dictionary<string, object> persistedPayload,
+                false
+            );
+            _test.Eq(
+                readError,
+                (int)Error.Ok,
+                "购买成功后应能从磁盘读回 v15 save payload。"
+            );
+            _test.Eq(
+                Convert.ToInt32(persistedPayload["version"]),
+                SaveSchemaVersions.SaveVersion,
+                "购买成功后磁盘 payload 应使用当前 save version。"
+            );
+            int loadError = fixture.GameSession.LoadSave(
+                fixture.GameSession.GetActiveSaveId()
+            );
+            _test.Eq(
+                loadError,
+                (int)Error.Ok,
+                "带非空 shop_states 的 v15 存档必须能完整 LoadSave。"
+            );
+            WorldMapSettlementStateData reloadedState = ReadSessionSettlementState(
+                fixture.GameSession,
+                "spring_village_01"
+            );
+            _test.Eq(
+                FindStockQuantity(
+                    reloadedState,
+                    "village_basic_supply",
+                    "healing_herb"
+                ),
+                stockBeforeBuy - 1,
+                "磁盘 LoadSave 后仍应保留扣减后的 shop stock。"
+            );
+            _test.Eq(
+                reloadedState.Cooldowns["rest_basic"],
+                4,
+                "磁盘 LoadSave 后仍应保留无关 cooldown。"
             );
         }
         finally
@@ -936,10 +1107,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             ["visited"] = true,
             ["reputation"] = 0,
             ["active_conditions"] = new GArray(),
-            ["cooldowns"] = new GDictionary(),
-            ["world_step"] = 0,
-            ["shop_inventory_seed"] = 0,
-            ["shop_last_refresh_step"] = 0,
+            ["cooldowns"] = new GDictionary { ["rest_basic"] = 4 },
             ["shop_states"] = new GDictionary
             {
                 ["village_basic_supply"] = new GDictionary
@@ -951,6 +1119,64 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 },
             },
         };
+    }
+
+    private static WorldMapSettlementStateData ReadSessionSettlementState(
+        GameSession gameSession,
+        string settlementId
+    )
+    {
+        if (gameSession == null)
+            return null;
+        using GodotProjectionLease<GDictionary> worldDataLease =
+            gameSession.GetWorldDataLease();
+        WorldRuntimeData worldData = WorldRuntimeData.FromDictionary(worldDataLease.Value);
+        return worldData?.GetSettlementStateData(settlementId);
+    }
+
+    private static int FindStockQuantity(
+        WorldMapSettlementStateData settlementState,
+        string shopId,
+        string itemId
+    )
+    {
+        SettlementShopStateData shopState = settlementState?.GetShopState(shopId);
+        if (shopState == null)
+            return -1;
+        foreach (SettlementShopStockEntryData entry in shopState.CurrentInventory)
+        {
+            if (string.Equals(entry.ItemId, itemId, StringComparison.Ordinal))
+                return entry.Quantity;
+        }
+        return -1;
+    }
+
+    private static int FindWindowBuyQuantity(
+        IReadOnlyDictionary<string, object> windowData,
+        string itemId
+    )
+    {
+        if (windowData == null
+            || !windowData.TryGetValue("buy_entries", out object rawEntries)
+            || rawEntries is not IReadOnlyList<object> entries)
+        {
+            return -1;
+        }
+        foreach (object rawEntry in entries)
+        {
+            if (rawEntry is not IReadOnlyDictionary<string, object> entry)
+                continue;
+            if (!string.Equals(
+                    GameRuntimeSettlementCommandHandler.ReadPlainString(entry, "item_id"),
+                    itemId,
+                    StringComparison.Ordinal
+                ))
+            {
+                continue;
+            }
+            return GameRuntimeSettlementCommandHandler.ReadPlainInt(entry, "quantity", -1);
+        }
+        return -1;
     }
 
     private static GArray BuildBasicSettlementServices(bool includeStagecoach)

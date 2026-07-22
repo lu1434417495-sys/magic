@@ -6,7 +6,8 @@ public static class BattleEffectCategoryResolver
 {
     public static IReadOnlyList<StringName> ResolveCategories(
         SkillDefinition skillDefinition,
-        IEnumerable<CombatEffectDefinition> effectDefinitions
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        IEnumerable<StringName> additionalCategories = null
     )
     {
         var categories = new List<StringName>();
@@ -18,19 +19,19 @@ public static class BattleEffectCategoryResolver
             AppendCategories(categories, seen, combatProfile.DeliveryCategories);
         }
 
-        if (effectDefinitions == null)
+        if (effectDefinitions != null)
         {
-            return categories;
+            foreach (CombatEffectDefinition effect in effectDefinitions)
+            {
+                if (effect == null)
+                {
+                    continue;
+                }
+                AppendCategories(categories, seen, effect.EffectCategories);
+            }
         }
 
-        foreach (CombatEffectDefinition effect in effectDefinitions)
-        {
-            if (effect == null)
-            {
-                continue;
-            }
-            AppendCategories(categories, seen, effect.EffectCategories);
-        }
+        AppendCategories(categories, seen, additionalCategories);
 
         return categories;
     }

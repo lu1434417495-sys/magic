@@ -72,18 +72,20 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         if (action == null || context?.unit_state == null || context.state == null)
             return null;
 
-        AiActionTrace actionTrace = BeginActionTrace(
-            action,
-            context,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["action_kind"] = "charge_path_aoe",
-                ["target_selector"] = action.TargetSelector.ToString(),
-                ["minimum_hit_count"] = action.MinimumHitCount,
-                ["desired_min_distance"] = action.DesiredMinDistance,
-                ["desired_max_distance"] = action.DesiredMaxDistance,
-            }
-        );
+        AiActionTrace actionTrace = context.trace_enabled
+            ? BeginActionTrace(
+                action,
+                context,
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["action_kind"] = "charge_path_aoe",
+                    ["target_selector"] = action.TargetSelector.ToString(),
+                    ["minimum_hit_count"] = action.MinimumHitCount,
+                    ["desired_min_distance"] = action.DesiredMinDistance,
+                    ["desired_max_distance"] = action.DesiredMaxDistance,
+                }
+            )
+            : null;
         List<BattleUnitState> targets = _helper.SortTargetUnits(
             context,
             "enemy",
@@ -166,9 +168,9 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
                         castVariant.VariantId,
                         new[] { targetCoord }
                     );
-                    AiTraceRecorder.Enter("charge_path_aoe:formal_preview");
-                    BattlePreview preview = context.PreviewCommand(command);
-                    AiTraceRecorder.Exit("charge_path_aoe:formal_preview");
+                    BattlePreview preview;
+                    using (new BattleAiTraceSpan("charge_path_aoe:formal_preview"))
+                        preview = context.PreviewCommand(command);
                     preview ??= BuildFastChargePathPreview(
                         actor,
                         command,
@@ -224,22 +226,25 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
                         castVariant.EffectDefinitions,
                         positionMetadata
                     );
-                    TraceOfferCandidate(
-                        actionTrace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            variantLabel,
-                            command,
-                            scoreInput,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["path_step_hit_count"] = pathHitCount,
-                                ["path_step_unique_target_count"] = metrics.UniqueTargetCount,
-                                ["resolved_anchor_coord"] = resolvedAnchor,
-                                ["resolved_move_distance"] = resolvedMoveDistance,
-                                ["skill_id"] = skillId.ToString(),
-                            }
-                        )
-                    );
+                    if (actionTrace != null)
+                    {
+                        TraceOfferCandidate(
+                            actionTrace,
+                            EnemyAiActionHelper.BuildCandidateSummary(
+                                variantLabel,
+                                command,
+                                scoreInput,
+                                new Dictionary<string, object>(StringComparer.Ordinal)
+                                {
+                                    ["path_step_hit_count"] = pathHitCount,
+                                    ["path_step_unique_target_count"] = metrics.UniqueTargetCount,
+                                    ["resolved_anchor_coord"] = resolvedAnchor,
+                                    ["resolved_move_distance"] = resolvedMoveDistance,
+                                    ["skill_id"] = skillId.ToString(),
+                                }
+                            )
+                        );
+                    }
 
                     if (scoreInput == null)
                     {

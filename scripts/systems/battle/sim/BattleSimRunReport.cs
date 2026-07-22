@@ -7,6 +7,9 @@ public sealed class BattleSimRunReport
 {
     private BattleSimMetricsSnapshot _metricsSnapshot = BattleSimMetricsSnapshot.Empty();
     private List<Dictionary<string, object>> _finalUnits = new();
+    private BattleSimTerminationKind _terminationKind = BattleSimTerminationKind.InvalidRuntime;
+    private BattleStartFailureSnapshot _startFailure = new();
+    private BattleFinalDecision _finalDecision;
     public string ScenarioId { get; set; } = "";
 
     public string ProfileId { get; set; } = "";
@@ -15,9 +18,55 @@ public sealed class BattleSimRunReport
 
     public string BattleId { get; set; } = "";
 
-    public bool BattleEnded { get; set; }
+    public BattleSimTerminationKind TerminationKind
+    {
+        get => _terminationKind;
+        set => _terminationKind = value;
+    }
 
-    public string WinnerFactionId { get; set; } = "";
+    public bool BattleEnded
+    {
+        get => _terminationKind == BattleSimTerminationKind.BattleEnded;
+        set
+        {
+            if (value)
+                _terminationKind = BattleSimTerminationKind.BattleEnded;
+            else if (_terminationKind == BattleSimTerminationKind.BattleEnded)
+                _terminationKind = BattleSimTerminationKind.InvalidRuntime;
+        }
+    }
+
+    public bool Stalled => _terminationKind == BattleSimTerminationKind.IdleStall;
+
+    public BattleStartFailureSnapshot StartFailure
+    {
+        get => _startFailure;
+        set => _startFailure = value ?? new BattleStartFailureSnapshot();
+    }
+
+    internal BattleFinalDecision FinalDecision => _finalDecision?.DuplicateState();
+
+    internal bool HasFinalDecision => _finalDecision != null;
+
+    internal bool IsCompletedSample => BattleEnded && HasFinalDecision;
+
+    internal BattleObjectiveMode ObjectiveMode =>
+        _finalDecision?.ObjectiveMode ?? BattleObjectiveMode.Unknown;
+
+    internal BattleOutcomeKind Outcome =>
+        _finalDecision?.Outcome ?? BattleOutcomeKind.Unknown;
+
+    internal BattleEndReasonKind EndReason =>
+        _finalDecision?.EndReason ?? BattleEndReasonKind.None;
+
+    internal int DecisionTu => _finalDecision?.DecisionTu ?? -1;
+
+    public string WinnerFactionId => _finalDecision?.WinnerFactionId.ToString() ?? "";
+
+    internal void SetFinalDecision(BattleFinalDecision finalDecision)
+    {
+        _finalDecision = finalDecision?.DuplicateState();
+    }
 
     public int FinalTu { get; set; }
 

@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_utev8"]
 script = ExtResource("4_6gola")
 skill_id = &"mage_mislead"
+delivery_categories = Array[StringName]([&"spell"])
 target_team_filter = &"ally"
 range_value = 3
 mp_cost = 60

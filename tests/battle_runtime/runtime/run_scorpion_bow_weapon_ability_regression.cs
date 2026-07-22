@@ -97,7 +97,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "未装备蝎子之弓时不应拥有 poison damage immune。"
         );
         _test.False(
-            ContainsStringName(baseline.save_advantage_tags, "poison_immunity"),
+            ContainsStringName(baseline.save_immunity_tags, "poison"),
             "未装备蝎子之弓时不应拥有 poison save immunity。"
         );
 
@@ -132,7 +132,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "毒素免疫 trait 应投影 poison damage immune。"
         );
         _test.True(
-            ContainsStringName(equipped.save_advantage_tags, "poison_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "poison"),
             "毒素免疫 trait 应投影 poison save immunity。"
         );
 
@@ -154,7 +154,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "移除蝎子之弓后 poison damage immune 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_advantage_tags, "poison_immunity"),
+            ContainsStringName(equipped.save_immunity_tags, "poison"),
             "移除蝎子之弓后 poison save immunity 不应残留。"
         );
     }

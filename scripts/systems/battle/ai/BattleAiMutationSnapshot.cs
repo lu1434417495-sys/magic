@@ -3,20 +3,20 @@ using Godot;
 
 internal sealed class BattleAiMutationSnapshot
 {
-    private readonly BattleAiMutationGuard.SnapshotState _state;
+    private readonly SnapshotState _state;
 
-    private BattleAiMutationSnapshot(BattleAiMutationGuard.SnapshotState state)
+    private BattleAiMutationSnapshot(SnapshotState state)
     {
-        _state = state ?? BattleAiMutationGuard.SnapshotState.Empty();
+        _state = state ?? SnapshotState.Empty();
     }
 
     internal bool IsEmpty => _state.IsEmpty;
 
     internal static BattleAiMutationSnapshot Empty() =>
-        new(BattleAiMutationGuard.SnapshotState.Empty());
+        new(SnapshotState.Empty());
 
     internal static BattleAiMutationSnapshot Capture(BattleAiContext context) =>
-        new(BattleAiMutationGuard.SnapshotState.Capture(context));
+        new(SnapshotState.Capture(context));
 
     internal void Restore(BattleAiContext context)
     {

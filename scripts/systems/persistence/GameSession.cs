@@ -11,10 +11,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 {
     private const string ApplicationShutdownParticipantId = "game-session";
     private const int ApplicationShutdownOrder = 0;
-    private const int SaveVersion = 12;
+    private const int SaveVersion = SaveSchemaVersions.SaveVersion;
     internal static int CurrentSaveVersion => SaveVersion;
-    private const int SaveIndexVersion = 3;
-    private const int MaxActiveMemberCount = 4;
+    private const int SaveIndexVersion = SaveSchemaVersions.SaveIndexVersion;
+    private const int MaxActiveMemberCount = SaveSchemaVersions.MaxActiveMemberCount;
     private static readonly int SaveFileCompressionMode = (int)FileAccess.CompressionMode.Zstd;
 
     private static readonly string[] ContentValidationDomainOrder =
@@ -1327,6 +1327,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         return RequireContentSnapshot().EncounterRosters;
     }
 
+    internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> GetBattleEncounterDefinitions()
+    {
+        return RequireContentSnapshot().BattleEncounters;
+    }
+
     public int SaveWorldState() => SaveGameState();
 
     public int SaveGameState()
@@ -1440,7 +1445,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         if (string.IsNullOrEmpty(generation_config_path))
             return false;
 
-        bool attemptedCandidate = false;
         foreach (Dictionary<string, object> saveMeta in LoadSaveIndexEntriesPlain())
         {
             if (
@@ -1451,7 +1455,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                 )
             )
                 continue;
-            attemptedCandidate = true;
             string candidateSaveId = ReadPlainString(saveMeta, "save_id");
             if (LoadSave(candidateSaveId) == (int)Error.Ok)
                 return true;
@@ -1468,7 +1471,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
                 )
             );
         }
-        return attemptedCandidate ? false : false;
+        return false;
     }
 
     private int PrepareNewWorld(

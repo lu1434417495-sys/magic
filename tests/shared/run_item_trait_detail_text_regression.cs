@@ -98,6 +98,8 @@ public partial class run_item_trait_detail_text_regression : LifecycleTestSceneT
             0,
             System.Array.Empty<AttributeModifierDefinition>(),
             System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),

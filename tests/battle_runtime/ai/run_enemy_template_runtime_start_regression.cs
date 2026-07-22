@@ -175,13 +175,14 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         );
         enemyTemplates[templateId] = customTemplate.ToDefinition(itemDefs);
 
+        using EncounterRosterBuilder encounterBuilder = BuildEncounterRosterBuilder(enemyTemplates);
         using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
             gameSession.GetSkillDefinitionsTyped(),
             enemyTemplates,
             gameSession.GetEnemyAiBrainDefinitions(),
-            null,
+            encounterBuilder,
             null,
             itemDefs
         );
@@ -258,12 +259,12 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         itemDefs[customWeapon.ItemId] = customWeapon;
 
         EnemyTemplateDef template = BuildCustomEnemyTemplate(templateId, customWeapon.ItemId);
-        SetSaveAdvantageTags(template, "illusion_immunity");
+        template.save_immunity_tags = new GStringNameArray { "illusion" };
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
             [templateId] = template.ToDefinition(itemDefs),
         };
-        using var builder = new EncounterRosterBuilder();
+        using EncounterRosterBuilder builder = BuildEncounterRosterBuilder(enemyTemplates);
         EncounterAnchorData anchor = BuildEncounterAnchor(
             "encounter_runtime_start_illusion_immune_enemy",
             templateId,
@@ -289,8 +290,8 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
 
         _test.True(
-            enemyUnit.save_advantage_tags.Contains(new StringName("illusion_immunity")),
-            "EnemyTemplateDef.save_advantage_tags 应投影到 BattleUnitState.save_advantage_tags。"
+            enemyUnit.save_immunity_tags.Contains(new StringName("illusion")),
+            "EnemyTemplateDef.save_immunity_tags 应投影到 BattleUnitState.save_immunity_tags。"
         );
 
         BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
@@ -301,7 +302,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         );
         _test.True(
             saveResult.Immune,
-            "投影出的 illusion_immunity 应让 illusion 豁免在掷骰前免疫。"
+            "投影出的 illusion 免疫标签应让 illusion 豁免在掷骰前免疫。"
         );
     }
 
@@ -345,7 +346,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         {
             [templateId] = template.ToDefinition(itemDefs),
         };
-        using var builder = new EncounterRosterBuilder();
+        using EncounterRosterBuilder builder = BuildEncounterRosterBuilder(enemyTemplates);
         EncounterAnchorData anchor = BuildEncounterAnchor(
             "encounter_runtime_start_formula_dragonling",
             templateId,
@@ -421,7 +422,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         {
             [templateId] = template.ToDefinition(itemDefs),
         };
-        using var builder = new EncounterRosterBuilder();
+        using EncounterRosterBuilder builder = BuildEncounterRosterBuilder(enemyTemplates);
         EncounterAnchorData anchor = BuildEncounterAnchor(
             "encounter_runtime_start_damage_resist_enemy",
             templateId,
@@ -528,17 +529,97 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
+            gameSession.GetEnemyTemplateDefinitions();
+        EncounterRosterBuilder encounterBuilder = BuildEncounterRosterBuilder(enemyTemplates);
         var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            gameSession.GetSkillDefinitionsTyped(),
-            gameSession.GetEnemyTemplateDefinitions(),
-            gameSession.GetEnemyAiBrainDefinitions(),
-            null
-        );
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        return new BattleRuntimeScope(runtime, gameSession);
+        try
+        {
+            runtime.setup(
+                null,
+                gameSession.GetSkillDefinitionsTyped(),
+                enemyTemplates,
+                gameSession.GetEnemyAiBrainDefinitions(),
+                encounterBuilder
+            );
+            runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+            return new BattleRuntimeScope(runtime, encounterBuilder, gameSession);
+        }
+        catch
+        {
+            runtime.Dispose();
+            encounterBuilder.Dispose();
+            gameSession.Dispose();
+            throw;
+        }
     }
+
+    private static EncounterRosterBuilder BuildEncounterRosterBuilder(
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
+    )
+    {
+        var encounters = new Dictionary<StringName, BattleEncounterDefinition>();
+        var rosters = new Dictionary<StringName, WildEncounterRosterDefinition>();
+        if (enemyTemplates != null)
+        {
+            foreach (
+                KeyValuePair<StringName, EnemyTemplateDefinition> entry in enemyTemplates
+            )
+            {
+                StringName templateId = entry.Key;
+                EnemyTemplateDefinition template = entry.Value;
+                if (templateId == "" || template == null)
+                {
+                    continue;
+                }
+
+                StringName rosterProfileId = BuildRosterProfileId(templateId);
+                StringName encounterProfileId = BuildEncounterProfileId(templateId);
+                rosters[rosterProfileId] = new WildEncounterRosterDefinition(
+                    rosterProfileId,
+                    template.DisplayName,
+                    0,
+                    0,
+                    new[]
+                    {
+                        new WildEncounterRosterStageDefinition(
+                            0,
+                            new[]
+                            {
+                                new WildEncounterRosterUnitEntryDefinition(
+                                    templateId,
+                                    Mathf.Max(template.EnemyCount, 1),
+                                    template.DisplayName
+                                ),
+                            }
+                        ),
+                    }
+                );
+                encounters[encounterProfileId] = new BattleEncounterDefinition(
+                    encounterProfileId,
+                    template.DisplayName,
+                    rosterProfileId,
+                    BattleEliminationObjectiveDefinition.Instance,
+                    new BattleEncounterWorldResolutionDefinition(
+                        BattleWorldResolutionMode.Clear,
+                        BattleWorldResolutionMode.Preserve,
+                        BattleWorldResolutionMode.Preserve,
+                        0
+                    )
+                );
+            }
+        }
+
+        var builder = new EncounterRosterBuilder();
+        builder.Setup(encounters, rosters, enemyTemplates);
+        return builder;
+    }
+
+    private static StringName BuildEncounterProfileId(StringName templateId) =>
+        new($"test_enemy_template_runtime_start_encounter_{templateId}");
+
+    private static StringName BuildRosterProfileId(StringName templateId) =>
+        new($"test_enemy_template_runtime_start_roster_{templateId}");
 
     private static BattleState StartTemplateBattle(
         BattleRuntimeModule runtime,
@@ -552,6 +633,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         return runtime.StartBattle(
             anchor,
             seed,
+            BattleEliminationObjectiveDefinition.Instance,
             new GDictionary
             {
                 ["ally_member_ids"] = new GStringNameArray { "ally_a", "ally_b" },
@@ -573,11 +655,10 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             display_name = displayName,
             world_coord = Vector2I.Zero,
             faction_id = "hostile",
-            enemy_roster_template_id = templateId,
             region_tag = "mistwood",
             vision_range = 4,
             encounter_kind = EncounterAnchorData.ToStringName(EncounterAnchorKind.Single),
-            encounter_profile_id = "test_enemy_template_runtime_start",
+            encounter_profile_id = BuildEncounterProfileId(templateId),
         };
     }
 
@@ -699,11 +780,17 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
 
     private sealed class BattleRuntimeScope : IDisposable
     {
+        private readonly EncounterRosterBuilder _encounterBuilder;
         private readonly GameSession _gameSession;
 
-        internal BattleRuntimeScope(BattleRuntimeModule runtime, GameSession gameSession)
+        internal BattleRuntimeScope(
+            BattleRuntimeModule runtime,
+            EncounterRosterBuilder encounterBuilder,
+            GameSession gameSession
+        )
         {
             Runtime = runtime;
+            _encounterBuilder = encounterBuilder;
             _gameSession = gameSession;
         }
 
@@ -711,8 +798,15 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
 
         public void Dispose()
         {
-            BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
-            _gameSession?.Dispose();
+            try
+            {
+                BattleTestFixture.DisposeBattleFixture(Runtime, Runtime?._state);
+            }
+            finally
+            {
+                _encounterBuilder?.Dispose();
+                _gameSession?.Dispose();
+            }
         }
     }
 

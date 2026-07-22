@@ -14,9 +14,41 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
 
     private void Run()
     {
+        TestMissingObjectiveFailsWithoutPendingRequest();
         TestPendingBattleGenerationRequestUsesTypedState();
 
         RequestTestExit(_test.Finish("Game runtime pending battle request regression"));
+    }
+
+    private void TestMissingObjectiveFailsWithoutPendingRequest()
+    {
+        GameRuntimeFacade runtime = new();
+        try
+        {
+            EncounterAnchorData anchor = new()
+            {
+                entity_id = "missing_objective_anchor",
+                display_name = "Missing Objective",
+                encounter_profile_id = "missing_objective",
+            };
+            using GDictionary context = new();
+
+            StringName startResult = runtime.BeginBattleStart(anchor, 1, context);
+
+            _test.Eq(
+                startResult.ToString(),
+                "failed",
+                "缺少正式目标的遭遇应立即失败。"
+            );
+            _test.False(
+                runtime.HasPendingBattleGenerationRequest(),
+                "缺少正式目标不应遗留永久 pending 请求。"
+            );
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
     }
 
     private void TestPendingBattleGenerationRequestUsesTypedState()
@@ -29,7 +61,22 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
                 entity_id = "pending_anchor",
                 display_name = "Pending Anchor",
                 world_coord = new Vector2I(2, 3),
+                encounter_profile_id = "pending_encounter",
             };
+            runtime.SetBattleEncounterDefinitionForTests(
+                new BattleEncounterDefinition(
+                    "pending_encounter",
+                    "Pending Encounter",
+                    "pending_roster",
+                    BattleEliminationObjectiveDefinition.Instance,
+                    new BattleEncounterWorldResolutionDefinition(
+                        BattleWorldResolutionMode.Clear,
+                        BattleWorldResolutionMode.Preserve,
+                        BattleWorldResolutionMode.Preserve,
+                        0
+                    )
+                )
+            );
             BattleUnitState ally = BuildUnit("pending_ally", "player", new Vector2I(0, 0));
             BattleUnitState enemy = BuildUnit("pending_enemy", "hostile", new Vector2I(1, 0));
             using GodotProjectionLease<GDictionary> allyLease = ally.ToDictionaryLease(

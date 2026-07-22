@@ -118,6 +118,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_7hifr"]
 script = ExtResource("4_ku10o")
 skill_id = &"mage_plasma_beam"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 range_value = 6
 area_pattern = &"line"

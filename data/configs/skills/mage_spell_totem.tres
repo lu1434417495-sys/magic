@@ -57,6 +57,7 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_bn8sx"]
 script = ExtResource("4_oy4st")
 skill_id = &"mage_spell_totem"
+delivery_categories = Array[StringName]([&"spell"])
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4
