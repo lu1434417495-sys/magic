@@ -77,7 +77,7 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             sourceUnit,
             resolvedTarget,
             effects,
-            DamageResolutionContext.Empty()
+            DamageResolutionContext.Empty().WithBattleState(battleState)
         );
         return resolvedTarget;
     }
@@ -114,7 +114,7 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             sourceUnit,
             resolvedTarget,
             effects,
-            DamageResolutionContext.Empty()
+            DamageResolutionContext.Empty().WithBattleState(battleState)
         );
         if (resolvedTarget.current_hp == previousHp && resolvedTarget.is_alive == previousAlive)
             return null;

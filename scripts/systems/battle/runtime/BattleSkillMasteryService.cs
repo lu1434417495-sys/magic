@@ -313,8 +313,6 @@ internal sealed class BattleSkillMasteryService : IDisposable
             return null;
         if (!result.AttackSuccess)
             return null;
-        if (result.Damage <= 0)
-            return null;
         SkillDefinition guardDefinition =
             skillDefinitions != null
             && skillDefinitions.TryGetValue(

@@ -1,23 +1,23 @@
 # 九种战斗模式后续落地提案
 
-> 状态：`Proposal / Partially implemented`
-> 更新日期：`2026-07-23`
+> 状态：`Proposal / Partially implemented (7/9)`
+> 更新日期：`2026-07-24`
 
 ## 已落地的公共底座
 
-P0 已实现正式 `BattleEncounter`、typed objective mode、原子终局、typed outcome/end reason、按结果分支的世界处理，以及歼灭模式。以下八种模式仍未实现 authoring schema、运行态和 UI；本文件只描述后续切片，不是当前实现真相。
+P0 已实现正式 `BattleEncounter`、typed objective mode、原子终局、typed outcome/end reason、按结果分支的世界处理和歼灭模式。P1 已落地 `boss` 与 `escape`；P2 已落地 `rescue`、`escort` 与 `intercept`；P3 已先落地 `defense` 的 scenario actor、冻结 TU deadline、目标 AI、HUD/快照和正式回归。其余两种模式仍只属于 proposal；当前实现真相见 `docs/design/battle/objective_runtime.md`。
 
 ## 九种模式定义
 
 | Mode | 玩家成功条件 | 典型失败条件 | 核心运行事实 |
 |---|---|---|---|
 | `elimination` | 指定敌对阵营无存活单位 | 玩家要求存活的阵营无存活单位 | 阵营存活数；P0 已实现 |
-| `boss` | 指定首领目标被击败 | 玩家队伍覆灭，或首领达成特殊阶段条件 | boss actor id、阶段、可选护卫规则 |
-| `rescue` | 被困目标获救并到达安全状态/区域 | 救援目标死亡或超时 | rescue actor、牢笼/交互状态、安全区 |
-| `escape` | 要求撤离的玩家单位到达出口 | 必须撤离者死亡、出口失效或超时 | required evac actors、出口、已撤离集合 |
-| `escort` | 被护送者从入口抵达出口 | 护送目标死亡或超时 | escort actor、入口、出口、路径/跟随状态 |
-| `defense` | 保护目标存活到指定 TU/波次结束 | 防守目标被摧毁或关键区域失守 | protected actor/node、deadline、wave facts |
-| `intercept` | 在目标抵达逃脱点或完成动作前将其阻止 | 截击目标逃离/完成投送 | moving target、逃脱点、deadline |
+| `boss` | 指定首领目标被击败 | 玩家持久队伍覆灭 | boss actor id、冻结目标 unit；P1 已实现，阶段/护卫规则未实现 |
+| `rescue` | 被困目标被初始持久队员相邻交互解救 | 救援目标死亡或初始持久队伍覆灭 | scenario actor、稳定目标、typed 交互；P2 已实现，安全区/超时未实现 |
+| `escape` | 所有初始持久队员完整进入出口区 | 任一必须撤离者死亡 | required party、类型化出口；P1 已实现“同时到达”，逐个离场/超时未实现 |
+| `escort` | 被护送者从入口抵达出口 | 护送目标死亡或初始持久队伍覆灭 | scenario actor、入口、出口、自动寻路；P2 已实现，中途检查点/超时未实现 |
+| `defense` | 保护指定场景单位存活到冻结的截止 TU | 防守目标死亡或初始持久队伍在到时前覆灭 | scenario actor、冻结目标/队伍、start/deadline TU；P3 已实现，波次/静态节点未实现 |
+| `intercept` | 在目标抵达逃脱点前将其击败 | 截击目标逃离或初始持久队伍覆灭 | roster actor、冻结目标/队伍、类型化出口；P2 已实现，投送动作/超时未实现 |
 | `node_operation` | 对一组战场节点完成规定交互流程 | 操作者全灭、关键节点毁坏或超时 | node ids、每节点进度、顺序/并行规则 |
 | `control` | 在区域中累计达到占领分数或连续控制时长 | 对方先达阈值或时间结束时领先 | control zones、各阵营占领进度、争夺状态 |
 
@@ -27,10 +27,16 @@ P0 已实现正式 `BattleEncounter`、typed objective mode、原子终局、typ
 
 ## 建议实现顺序
 
-1. P1：`boss`、`escape`。它们主要复用 actor id、出口区域和现有单位死亡/移动事实。
-2. P2：`rescue`、`escort`、`intercept`。加入 scenario actor、入口/出口、AI 跟随与到达事件。
-3. P3：`defense`、`node_operation`、`control`。加入 objective node、交互命令、计时/计分和 HUD 进度。
+1. P1（已落地）：`boss`、`escape`。复用稳定 actor id、类型化出口区域和现有单位死亡/移动事实。
+2. P2（已落地）：`rescue`、`escort`、`intercept`。公共底座包含 scenario actor、稳定 roster actor、入口/出口、相邻交互、目标 AI 与到达事件。
+3. P3（部分落地）：`defense` 已实现单位保护与 TU 计时；后续实现 `node_operation`、`control` 的 objective node、交互命令、计分和 HUD 进度。
 4. P4：组合目标。定义 `All / Any / Ordered` 组合器和 required/optional objective，仍只产生一个 final decision。
+
+P1 明确不包含：多阶段 Boss、逐个撤离后从 active battle index 离场、撤离超时，以及把 canonical encounter 加入默认世界随机权重。这些扩展都需要独立规则和回归，不能通过隐藏 fallback 混入当前模式。
+
+当前 P2 明确不包含：救援后再移动到安全区、内容可配置的护送中途检查点链、护送跟随对象切换、救援/护送/截击超时和波次事件，以及截击目标的“完成投送动作”替代失败条件。当前护送目标在类型化入口区生成，护送和截击目标都使用正式 footprint 寻路到类型化出口；阻路时等待并在下一次行动重新寻路。
+
+当前 Defense 切片只保护 encounter 自有 battle-only scenario actor，并以相对 `duration_tu` 冻结绝对 deadline。它不生成敌人波次、不接受静态节点或区域作为目标，也不把“敌军全灭”当成提前成功；这些能力需要独立 schema、运行事实与回归，不能塞进 actor 字段。
 
 每个切片都必须同时增加 Resource schema、immutable definition、runtime state/evaluator、HUD snapshot、AI affordance、world resolution、内容 validator 和 headless regression。未完成这些层级的 mode 不得加入正式 encounter seed。
 
@@ -41,4 +47,3 @@ P0 已实现正式 `BattleEncounter`、typed objective mode、原子终局、typ
 - success、failure、draw 都有明确 end reason 和世界处理分支。
 - scenario actor 与召唤物不能写回玩家队伍成长、装备、HP/MP 或死亡状态。
 - 不增加旧 encounter/save schema 兼容路径。
-

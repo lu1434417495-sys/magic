@@ -151,6 +151,7 @@ internal sealed class BattleChainDamageService
                         chainTargetEffects,
                         DamageResolutionContext
                             .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
+                            .WithBattleState(Runtime?.GetState())
                             .WithSourceSkillLevel(
                                 Math.Max(
                                     source_unit.GetKnownSkillLevelTyped(
@@ -410,8 +411,6 @@ internal sealed class BattleChainDamageService
         {
             return false;
         }
-        primary_target.RefreshFootprint();
-        candidate.RefreshFootprint();
         BattleGridService gridService = Runtime?.GetGridService();
         foreach (Vector2I primaryCoord in primary_target.occupied_coords)
         {
@@ -466,8 +465,6 @@ internal sealed class BattleChainDamageService
         {
             return false;
         }
-        source_unit.RefreshFootprint();
-        target_unit.RefreshFootprint();
         foreach (Vector2I sourceCoord in source_unit.occupied_coords)
         {
             BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);

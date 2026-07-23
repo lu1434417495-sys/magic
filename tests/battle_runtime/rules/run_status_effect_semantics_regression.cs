@@ -33,6 +33,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         TestMeteorConcussedSharesStaggeredApPenaltyGroup();
         TestMeteorConcussedConsumesWithoutZeroApLog();
         TestBurningStacksAndTicksOnTimelineInterval();
+        TestBurningAppliedMidTimelineAnchorsNextTickToCurrentTu();
         TestShortBurningCanExpireBeforeFirstTick();
         TestSlowIncreasesMoveCostAndExpiresOnTuProgress();
         TestRefreshTimelineStatusesKeepSingleStackAndMaxDuration();
@@ -237,7 +238,8 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         }
 
         var batch = new BattleEventBatch();
-        BattleStatusTickResult result = runtime._apply_turn_start_statuses_result(target, batch);
+        BattleStatusTickResult result =
+            runtime._skill_turn_resolver.ApplyTurnStartStatusesResult(target, batch);
         _test.True(result.Changed, "meteor_concussed 参与回合开始结算后应报告 changed。");
         _test.Eq(target.current_ap, 1, "meteor_concussed 与 staggered 同组时应只扣最高 AP 惩罚，而不是叠加扣 3。");
         _test.False(target.HasStatusEffect("meteor_concussed"), "meteor_concussed 应在参与回合开始 AP 惩罚后消耗。");
@@ -271,7 +273,8 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         }
 
         var batch = new BattleEventBatch();
-        BattleStatusTickResult result = runtime._apply_turn_start_statuses_result(target, batch);
+        BattleStatusTickResult result =
+            runtime._skill_turn_resolver.ApplyTurnStartStatusesResult(target, batch);
         _test.True(result.Changed, "meteor_concussed 即使目标 AP 为 0，也应因状态消耗报告 changed。");
         _test.Eq(target.current_ap, 0, "AP 为 0 时 meteor_concussed 不应产生负 AP。");
         _test.False(target.HasStatusEffect("meteor_concussed"), "AP 为 0 时 meteor_concussed 仍应完成一次性消耗。");
@@ -328,6 +331,51 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         AdvanceTimelineTu(runtime, state, 10);
         _test.False(target.HasStatusEffect("burning"), "burning 到期后应按 TU 正式移除。");
         _test.Eq(target.current_hp, 16, "2 层 burning 应在到期边界完成第二个周期 tick。");
+    }
+
+    private void TestBurningAppliedMidTimelineAnchorsNextTickToCurrentTu()
+    {
+        BattleRuntimeModule runtime = BuildRuntime();
+        BattleState state = BuildState(new Vector2I(4, 3));
+        BattleUnitState caster = BuildUnit(
+            "mid_timeline_burning_source",
+            new Vector2I(0, 1),
+            2
+        );
+        BattleUnitState target = BuildUnit(
+            "mid_timeline_burning_target",
+            new Vector2I(2, 1),
+            2
+        );
+        target.faction_id = "enemy";
+        target.current_hp = 20;
+        target.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.HpMax),
+            20
+        );
+
+        AddUnit(runtime, state, caster);
+        AddUnit(runtime, state, target);
+        state.ally_unit_ids = new GStringNameArray { caster.unit_id };
+        state.enemy_unit_ids = new GStringNameArray { target.unit_id };
+        runtime.SetupStateForTests(state);
+        state.timeline.current_tu = 25;
+
+        ApplyStatus(runtime, caster, target, "burning", 20, 1, 10);
+        BattleStatusEffectState burningEntry = target.GetStatusEffect("burning");
+        _test.Eq(
+            burningEntry?.next_tick_at_tu ?? -1,
+            35,
+            "非零时间轴施加 burning 时，首次 tick 应锚定为 current TU 加 interval。"
+        );
+
+        AdvanceTimelineTu(runtime, state, 5);
+        _test.Eq(state.timeline.current_tu, 30, "第一步时间轴应推进到 30 TU。");
+        _test.Eq(target.current_hp, 20, "30 TU 尚未到首次 tick，不应提前造成伤害。");
+
+        AdvanceTimelineTu(runtime, state, 5);
+        _test.Eq(state.timeline.current_tu, 35, "第二步时间轴应推进到 35 TU。");
+        _test.Eq(target.current_hp, 19, "35 TU 到达首次 tick，应结算 1 点 burning 伤害。");
     }
 
     private void TestShortBurningCanExpireBeforeFirstTick()

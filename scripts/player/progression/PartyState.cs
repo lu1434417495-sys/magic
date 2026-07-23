@@ -279,12 +279,22 @@ public partial class PartyState
             q.quest_id = qid;
         if (q.quest_id == "")
             return;
-        if (q.status_id == QuestState.ToStringName(QuestStatusKind.Completed))
-            SetClaimableQuestState(q);
-        else if (q.status_id == QuestState.ToStringName(QuestStatusKind.Rewarded))
-            AddCompletedQuestId(q.quest_id);
-        else
+        QuestStatusKind statusKind = QuestState.ToStatusKind(q.status_id);
+        if (statusKind == QuestStatusKind.Active)
+        {
             SetActiveQuestState(q);
+        }
+        else if (statusKind == QuestStatusKind.Completed)
+        {
+            SetClaimableQuestState(q);
+        }
+        else if (statusKind == QuestStatusKind.Rewarded)
+        {
+            AddCompletedQuestId(q.quest_id);
+        }
+        // Failed quests do not yet have a canonical PartyState collection or save
+        // contract. Reject failed/inactive/unknown states instead of placing them
+        // in active_quests, where strict save loading would reject them.
     }
 
     public void SetActiveQuestState(QuestState q)

@@ -226,6 +226,85 @@ public sealed class EncounterRosterBuilder : IDisposable
         }
     }
 
+    internal IReadOnlyList<BattleScenarioActorSpawnRequest>
+        BuildScenarioActorUnitsFromDefinitions(
+            EncounterAnchorData encounterAnchor,
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+            IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+            IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+            IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
+            IReadOnlyDictionary<
+                StringName,
+                EquipmentAbilityBindingDefinition
+            > equipmentAbilityBindings = null,
+            int? growthStageOverride = null
+        )
+    {
+        BattleEncounterDefinition encounter = ResolveBattleEncounter(
+            encounterAnchor
+        );
+        if (encounter == null || encounter.ScenarioActors.Count == 0)
+            return Array.Empty<BattleScenarioActorSpawnRequest>();
+
+        EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
+            encounterAnchor,
+            skillDefinitions,
+            enemyTemplates,
+            enemyAiBrains,
+            itemDefs,
+            traitDefs,
+            equipmentAbilityBindings,
+            growthStageOverride,
+            null,
+            allowSetupEnemyTemplateFallback: false
+        );
+        var requests = new List<BattleScenarioActorSpawnRequest>();
+        foreach (BattleScenarioActorDefinition actorDefinition in encounter.ScenarioActors)
+        {
+            if (
+                actorDefinition == null
+                || !buildContext.EnemyTemplates.TryGetValue(
+                    actorDefinition.TemplateId,
+                    out EnemyTemplateDefinition template
+                )
+            )
+            {
+                continue;
+            }
+            List<BattleUnitState> builtUnits = BuildUnitsFromTemplate(
+                encounterAnchor,
+                template,
+                buildContext,
+                0,
+                1,
+                actorDefinition.DisplayName,
+                actorDefinition.ActorId,
+                false
+            );
+            if (builtUnits.Count != 1 || builtUnits[0] == null)
+                continue;
+            BattleUnitState unit = builtUnits[0];
+            string anchorId =
+                encounterAnchor?.entity_id.ToString() ?? "battle";
+            unit.unit_id =
+                $"{anchorId}_scenario_{actorDefinition.ActorId}";
+            unit.source_member_id = "";
+            unit.encounter_actor_id = actorDefinition.ActorId;
+            unit.faction_id = "player";
+            unit.ControlModeKind = BattleUnitControlMode.Ai;
+            requests.Add(
+                new BattleScenarioActorSpawnRequest(
+                    unit,
+                    actorDefinition.SpawnZoneId,
+                    actorDefinition.SpawnEdge,
+                    actorDefinition.SpawnDepth
+                )
+            );
+        }
+        return requests.AsReadOnly();
+    }
+
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> BuildLootEntriesPlain(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = null,
@@ -276,20 +355,13 @@ public sealed class EncounterRosterBuilder : IDisposable
         EncounterAnchorData encounterAnchor
     )
     {
+        BattleEncounterDefinition battleEncounter = ResolveBattleEncounter(
+            encounterAnchor
+        );
         if (
-            _battleEncounterIndex == null
-            || _battleEncounterIndex.Count == 0
+            battleEncounter == null
             || _wildEncounterRosterIndex == null
             || _wildEncounterRosterIndex.Count == 0
-        )
-            return null;
-        if (
-            encounterAnchor == null
-            || encounterAnchor.encounter_profile_id == ""
-            || !_battleEncounterIndex.TryGetValue(
-                encounterAnchor.encounter_profile_id,
-                out BattleEncounterDefinition battleEncounter
-            )
         )
             return null;
         return _wildEncounterRosterIndex.TryGetValue(
@@ -297,6 +369,27 @@ public sealed class EncounterRosterBuilder : IDisposable
             out WildEncounterRosterDefinition roster
         )
             ? roster
+            : null;
+    }
+
+    private BattleEncounterDefinition ResolveBattleEncounter(
+        EncounterAnchorData encounterAnchor
+    )
+    {
+        if (
+            _battleEncounterIndex == null
+            || _battleEncounterIndex.Count == 0
+            || encounterAnchor == null
+            || encounterAnchor.encounter_profile_id == ""
+        )
+        {
+            return null;
+        }
+        return _battleEncounterIndex.TryGetValue(
+            encounterAnchor.encounter_profile_id,
+            out BattleEncounterDefinition battleEncounter
+        )
+            ? battleEncounter
             : null;
     }
 
@@ -564,6 +657,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                 nextUnitIndex,
                 unitCount,
                 unitEntry.DisplayName,
+                unitEntry.ActorId,
                 true
             );
             nextUnitIndex += builtUnits.Count;
@@ -584,6 +678,7 @@ public sealed class EncounterRosterBuilder : IDisposable
         int startIndex,
         int unitCount,
         string displayNameOverride,
+        StringName encounterActorId,
         bool useNumericSuffix
     )
     {
@@ -613,6 +708,7 @@ public sealed class EncounterRosterBuilder : IDisposable
             {
                 unit_id = BuildEnemyUnitId(encounterAnchor, globalIndex),
                 enemy_template_id = template != null ? template.TemplateId : new StringName(""),
+                encounter_actor_id = encounterActorId,
                 display_name = ResolveEnemyUnitDisplayName(
                     baseDisplayName,
                     localIndex,
@@ -862,7 +958,9 @@ public sealed class EncounterRosterBuilder : IDisposable
         {
             return;
         }
-        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+        foreach (
+            StringName componentId in AttributeContentRules.ArmorClassComponentAttributeIds
+        )
         {
             if (stats.TryGetValue(componentId, out int componentValue))
             {

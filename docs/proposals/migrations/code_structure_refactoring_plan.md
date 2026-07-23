@@ -23,13 +23,13 @@
 
 ## 2. 当前代码复核结论
 
-| 旧计划假设 | 2026-07-21 当前事实 | 本提案处理 |
+| 旧计划假设 | 当前事实（更新至 2026-07-24） | 本提案处理 |
 |---|---|---|
 | namespace 是编译期边界的地基 | `magic.csproj` 仍是单程序集；namespace 只影响命名，不收紧 `internal` | 取消 namespace P0，改为源码路径驱动的 Roslyn 语义门禁 |
 | 普通反射可枚举完整依赖 | 标准 `Type` 没有 `GetReferencedTypes()`；签名反射看不到方法体调用、对象创建、常量访问等依赖 | 不使用普通反射门禁 |
 | 42 个空 partial 可直接删除 | 42/42 文件被 53 个正式 `.tres` 以 663 条 `ext_resource` 引用 | 保留全部路径；不再把“文件数 -42”列为任务 |
 | production 存在约 15 个散布的 `CommitRuntimeState` 调用 | runtime 业务提交已经经 `RuntimeTransaction`/facade 单点进入 session；资源采集绕过也已在当前工作树收口 | 从待办移除，不新建事务抽象 |
-| `BattleRuntimeModule` 尚无统一 borrower 接线 | 当前工作树已有 `BattleRuntimeModuleBorrowerSet`，统一 8 个直属 split borrower 的初绑、重绑和逆序 teardown | 记为组合根治理的已完成前置切片；后续转向状态 owner 和窄能力 |
+| `BattleRuntimeModule` 尚无统一 borrower 接线 | 当前工作树已有 `BattleRuntimeModuleBorrowerSet`，统一 7 个直属 split borrower 的初绑、重绑和逆序 teardown | 记为组合根治理的已完成前置切片；后续转向状态 owner 和窄能力 |
 | `BattleUnitState` 的 status/pending cast 尚待抽取 | `BattleStatusEffectCollection` 与 `BattlePendingCastState` 已是独立 owner | 禁止重复抽取；先盘点剩余直接/反射消费者 |
 | 文件数、行数、WeakReference 数可作为主要验收 | 这些数值可能因正确拆分、测试或生命周期修复上升 | 仅作观察值，不设“只能下降”门禁 |
 
@@ -91,23 +91,23 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 4. 给 analyzer 增加独立单元测试，并在 CI 显式执行；不依赖 Godot 的 `run_*.cs` 发现规则。
 5. 门禁稳定后再按风险清理 baseline。namespace 只在以后作为可读性/命名冲突治理选项；若需要语言级强制，再单独评估多程序集。
 
-### 当前进度（2026-07-22）
+### 基线建立进度（2026-07-22；收敛更新至 2026-07-24）
 
 - [x] 第 1 项 semantic spike：已新增独立 `Magic.ArchitectureAnalyzers` 与轻量合成编译测试，覆盖 invocation、object creation、const/field、generic argument、inheritance、`nameof`、允许边、精确 baseline、稳定去重、跨层 partial、未分类源码和配置 fail-closed。
 - [x] 主程序集隔离：`magic.csproj` 已排除 `tools/architecture/**/*.cs`；工具及其生成源码不会被 Godot 项目默认 glob 编入。
 - [x] 第 2 项完整当前边清单：有序路径映射已覆盖主项目参与编译的 C# 源码；混合 authoring/contract 文件只使用经当前 owner 复核的少量 symbol override。外置 MSBuild target 可生成 SARIF，并导出确定性 JSON 清单。
-- [x] 第 3 项精确债务 baseline：2026-07-22 当前清单有 39,341 个跨层 symbol pair，其中 172 个禁止边已经逐组回到当前 owner 人工核验并精确登记；不存在目录级或 namespace 级白名单。
+- [x] 第 3 项精确债务 baseline：2026-07-22 初始清单有 39,341 个跨层 symbol pair，其中 172 个禁止边已经逐组回到当时 owner 人工核验并精确登记；不存在目录级或 namespace 级白名单。
 - [x] 第 4 项正式门禁：`magic.csproj` 已通过 analyzer `ProjectReference` 和 `AdditionalFiles` 加载规则与 baseline，普通主项目构建会拒绝新增禁止边；CI 显式运行独立 analyzer 测试。完整 inventory request 仍由 `Magic.ArchitectureInventory.targets` 按需注入，不污染日常构建输出。
 - [ ] 第 5 项必须等待正式门禁稳定后再开始。
 
-当前 172 个 baseline tuple 的 owner 分布为：
+2026-07-22 初始 172 个 baseline tuple 的 owner 分布为：
 
 - 72 个 `domain_runtime → composition`：7 个领域 owner 直接回借 `BattleRuntimeModule` 或 `CharacterManagementModule`；
 - 61 个 `domain_state → misplaced_progression_state`：`PartyState`、save snapshot 和 payload 投影依赖仍位于 `scripts/systems/progression/` 的 pending reward DTO；
 - 30 个 `domain_runtime → content_authoring`：27 个 progression runtime 对 `ProgressionContentRegistry` 的遗留入口，以及 3 个 runtime 对 `AttributeModifier` authoring converter 的调用；
 - 9 个 `content_authoring → domain_runtime`：contingency smoke validation、装备属性常量、misfortune 判定与 temporal status 内容校验直接调用 runtime owner。
 
-172 是 symbol pair 数，不是 172 个独立重构任务；移动一个 DTO owner 或用一个窄 capability 替换 hub，可能同时删除一组 tuple。当前 analyzer 契约验证命令为 `dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj`；仓库清单命令记录在 `tools/architecture/README.md`。二者都不属于游戏全量回归。
+172 是 symbol pair 数，不是 172 个独立重构任务；移动一个 DTO owner 或用一个窄 capability 替换 hub，可能同时删除一组 tuple。完成 P1-C/2、P1-C/4 与 attack-check query port 收敛后，61 个临时 `misplaced_progression_state` tuple、1 个装备属性常量 tuple 和 10 个 attack-policy 回借 composition root 的 tuple 已删除；2026-07-24 的 checked-in baseline 为 100 个精确 tuple（62 + 30 + 8）。当前 analyzer 契约验证命令为 `dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj`；仓库清单命令记录在 `tools/architecture/README.md`。二者都不属于游戏全量回归。
 
 ### Acceptance
 
@@ -154,14 +154,14 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 
 ## 6. P1-B：深化 `BattleRuntimeModule` 的真实 owner
 
-当前 8 个直属 split borrower 已由 owner-local `BattleRuntimeModuleBorrowerSet` 管理生命周期。后续不再扩成全局 service registry，也不把 parent-owned children 扁平登记到 module。
+当前 7 个直属 split borrower 已由 owner-local `BattleRuntimeModuleBorrowerSet` 管理生命周期。后续不再扩成全局 service registry，也不把 parent-owned children 扁平登记到 module。
 
 优先切片：
 
 1. [x] `2026-07-23`：已把 `_ai_action_plans_by_unit_id` 迁入 `BattleAiDecisionBindingService` 的私有 per-unit index，让 AI 临时状态与 AI 行为归同一 owner；module 只保留单项借用查询、聚合状态查询与生命周期编排窄入口。content rebind 与 teardown 保持 decision context/helper consumer 先退出、action plan 后清理，service 最终断开 weak module borrower。
-2. [ ] 复用现有 `BattleSkillAvailabilityService` 作为共享规则类型，不再新建第二套 command-admission/availability owner。preview 与 execution 应并列依赖该规则；移除 execution 经 `BattleRuntimeModule.ResolveSkillCommandEntryLevel(...) → BattleCommandPreviewService` 查询等级的反向转发。
-3. [ ] 给 `BattleContingencySystem` 注入事件编号、同步 auto-cast 执行、批次记录等窄 capability，逐步消除 `system → module → bridge` 回环，同时保持同步递归 reaction 顺序。
-4. [ ] 复核 `BattleTimelineStatusBridgeService`：真实时序状态留下；纯转发归回已有 owner。若清理后没有独立职责，可删除 bridge，而不是为了保留拆分数量强留一层。
+2. [x] `2026-07-23`：复用现有 caller-scoped `BattleSkillAvailabilityService` 作为共享规则类型，没有新增或缓存第二套 command-admission owner。preview 继续在当前同步时点校验 entry identity/selectability，execution 现在独立重新校验并解析 entry level，不再经 `BattleRuntimeModule → BattleCommandPreviewService` 反向查询；保留 commit 前重新校验和原同步调用顺序。
+3. [x] `2026-07-24`：给 `BattleContingencySystem` 注入弱引用的 `IBattleContingencyRuntimePort`，由 `BattleContingencyBridgeService` 提供 current state/grid/skill 查询、玩家学习来源复核、source-event 编号、同步 auto-cast 与 owner overlay 刷新；移除 system 对 module 的直接依赖和 module 的 auto-cast/overlay 反向转发。批次记录继续由 system 直接写入调用方传入的 `BattleEventBatch`，不增加会改变 report schema 的通用 sink。source-event ordinal 迁到 bridge，teardown 在解绑 bridge borrower 前先清除 system capability；auto-cast 继续在原调用栈、同一 `BattleEventBatch` 与完整 `BattleEffectOrigin.AutoCast` scope 内进入 orchestrator，递归 reaction 顺序不变。
+4. [x] `2026-07-24`：复核确认 `BattleTimelineStatusBridgeService` 没有独立状态或 capability，已删除该 bridge，并将直属 borrower 从 8 个收敛为 7 个。timeline phase、current TU、`tu_per_tick`、ready unit、action threshold 与 stamina 直接归 `BattleTimelineDriver`；cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则及 applied status 的 `next_tick_at_tu` 初始化直接归 `BattleRuntimeSkillTurnResolver`；module 只在 `MarkAppliedStatusesForTurnTiming(...)` 保留“先初始化 tick anchor，再通知 Fate”的跨 owner 编排。timeline step 与 turn-start 的原同步调用顺序未调整，不为保留拆分数量强留无状态转发层。
 
 验收关注：
 
@@ -176,12 +176,12 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 
 | 建议顺序 | 当前边 | 处理方向 | 风险 |
 |---|---|---|---|
-| 1 | `ContentSnapshotBuilder → scripts/utils WorldMapContentValidator/WorldPresetRegistry` | 将内容校验/预设 owner 归入 content/world content 边界；不以 namespace 包装代替移动 owner | 中 |
-| 2 | `EquipmentAbilityContentRegistry → AttributeService` 常量 | 将 authoring 校验需要的固定值下沉到 typed 数据契约/规则 owner | 中 |
-| 3 | `CombatEffectDef → BattleAttackRollModifierSpec` | 先判断 spec 是否纯数据契约；纯契约下沉，否则为 authoring 建独立 DTO，不能直接引用 runtime 行为 owner | 中 |
-| 4 | `PartyState → PendingCharacterReward` | 将 save graph 所需数据载体放回数据/schema owner，服务逻辑留在 progression | 高，涉及 save |
+| 1（已完成，2026-07-24） | `ContentSnapshotBuilder → scripts/systems/content/world WorldMapContentValidator/WorldPresetRegistry` | 两个真实 owner 已从 `scripts/utils` 物理迁入 world content 边界；保留原 typed API，删除旧路径的 layer 特例，不增加 namespace wrapper | 中 |
+| 2（已完成，2026-07-24） | `EquipmentAbilityPayloadValidators → AttributeContentRules` | 五种 AC component id、typed kind、双向映射、只读顺序与 membership 已从 `AttributeService` 下沉到 content-definition 规则；authoring、attribute、world、battle 共用同一 owner，并删除原精确 baseline tuple | 中 |
+| 3（已完成，2026-07-24） | `CombatEffectDef → BattleAttackRollModifierSpec` | 已确认 spec 只包含 typed 字段、枚举映射、克隆与字典编解码，不持有 battle state/service 或执行战斗规则；文件已从 `battle/core` 物理迁入 `scripts/systems/content/skills`，复用同一类型与 payload schema，并删除旧路径的 layer 特判 | 中 |
+| 4（已完成，2026-07-24） | `PartyState → PendingCharacterReward` | `PendingCharacterReward` / `PendingCharacterRewardEntry` 已从 `scripts/systems/progression` 物理迁入 `scripts/player/progression`，与 `PartyState` 和 payload codec 共处 save graph owner；类型名、字段、PartyState v7、顶层 SaveVersion 15 与 payload 形状均未改变，progression service 逻辑保持原位；删除临时 quarantine layer 及其 61 条精确 baseline | 高，涉及 save |
 
-每条边独立处理并从精确 baseline 删除。第四条若改变序列化类型名、字段或 payload 形状，必须先说明不兼容会造成的具体读档问题，再由用户确认是否需要兼容路径和 SaveVersion 处理。
+每条边均独立处理，并删除对应的精确 baseline 或路径特判。第四条经核对只移动源码物理 owner，没有改变任何持久化身份或 schema，因此不需要兼容路径、迁移逻辑或 SaveVersion 调整。
 
 ## 8. P2：按状态与职责拆 owner
 
@@ -192,6 +192,20 @@ P3   诊断隔离、utils 归位、序列化风险收敛
 - 每次只选一个尚未独立的字段簇，先建立 typed API、迁移消费者，再移动存储 owner。
 - 不承诺“公开字段完全不变且透明转发”；这会让新 owner 只成为第二份存储或无意义壳层。
 - 验收使用字段不变量、snapshot 等价和对应战斗规则回归，不使用主文件行数目标。结构改造默认不跑 battle simulation。
+
+2026-07-24 已完成首轮字段簇与消费者盘点：
+
+| 字段簇 | 主要直接消费者 / 边界 | snapshot 与风险 | 顺序 |
+|---|---|---|---|
+| status effects / pending cast | 已分别归 `BattleStatusEffectCollection` / `BattlePendingCastState` | 前者进 canonical codec，后者仅 runtime clone / exact diagnostic | 已有 owner，不重复抽取 |
+| consumed contingency setup ids | `BattleContingencySystem`、`BattleContingencyBridgeService`、headless overlay、AI mutation snapshot；生产消费者已全部走 typed gateway | 有序去重、gameplay clone、stable diff；不进 69-key unit codec 或 detached trace | **P2-A/1 已完成** |
+| per-battle / per-turn charge 与 limit / fumble counter | `TraitTriggerHooks` 仍有 direct map 操作；skill/equipment runtime 多数已走 typed helper；clone 与 mutation exact 覆盖 public nullable map | runtime-only，但必须保留 null/key/value exact diagnostic 与 map 深拷贝 | 下一候选 |
+| shield 六字段 | `BattleShieldService`、`BattleDamageResolver`、AI score/trace、read view、game runtime snapshot | 同时进入 clone、strict codec、detached trace 和 mutation snapshot，且 Normalize 有可见副作用 | 后置 |
+| action clock / turn flags | timeline、casting、turn resolver、AI 与 snapshot | reset/推进顺序敏感，部分字段进入 codec | 后置 |
+| known skills / cooldowns | unit factory、availability、turn resolver、AI 与 snapshot | cooldown 进入 canonical codec，不能与 runtime-only charge 簇混抽 | 后置 |
+| weapon / body / footprint / resources / tags 与投影 | factory、grid、movement、damage、equipment、AI、UI/trace 等广泛消费者 | strict codec、detached snapshot、mutable nested value 与归一化规则交叠 | 最后分成更小切片 |
+
+P2-A/1 将原 `_consumedContingencySetupIds` 唯一存储迁入 plain C# `BattleConsumedContingencySetupCollection`；保留首次插入顺序、去重、空 id 过滤、typed gateway、clone 隔离与 stable diff key，不修改 `ToDictFields`、`BuildSnapshotPlain()`、`BuildPlainSnapshotDetached()` 或 `FromDictionary()`。字段级 owner 仍属于 CU-16，未改变 context-unit 读集。
 
 ### P2-B handler / UI
 

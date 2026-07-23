@@ -5,7 +5,6 @@
     { "id": "content_authoring", "analyzeOutgoingDependencies": true },
     { "id": "content_definition", "analyzeOutgoingDependencies": true },
     { "id": "domain_state", "analyzeOutgoingDependencies": true },
-    { "id": "misplaced_progression_state", "analyzeOutgoingDependencies": true },
     { "id": "domain_runtime", "analyzeOutgoingDependencies": true },
     { "id": "application", "analyzeOutgoingDependencies": true },
     { "id": "presentation", "analyzeOutgoingDependencies": true },
@@ -64,7 +63,6 @@
     { "glob": "scripts/systems/content/skills/SkillCatalog.cs", "layer": "application" },
     { "glob": "scripts/systems/content/skills/**/*.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/world/*Definition.cs", "layer": "content_definition" },
-    { "glob": "scripts/systems/battle/core/BattleAttackRollModifierSpec.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/battle/core/special_profiles/BattleSpecialProfileRuntimeView.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/battle/objectives/*Definition.cs", "layer": "content_definition" },
     { "glob": "scripts/systems/battle/sim/BattleSimScenarioDef.cs", "layer": "tooling" },
@@ -95,6 +93,8 @@
     { "glob": "scripts/player/progression/*Choice.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/*Record.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/PartyState.*.cs", "layer": "domain_state" },
+    { "glob": "scripts/player/progression/PendingCharacterReward.cs", "layer": "domain_state" },
+    { "glob": "scripts/player/progression/PendingCharacterRewardEntry.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/UnitBaseAttributes.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/DerivedAttributeRule.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/QuestProgressContext.cs", "layer": "domain_state" },
@@ -110,9 +110,6 @@
     { "glob": "scripts/systems/world/*State.cs", "layer": "domain_state" },
     { "glob": "scripts/utils/VisionSourceData.cs", "layer": "domain_state" },
     { "glob": "scripts/utils/WorldMapCellData.cs", "layer": "domain_state" },
-
-    { "glob": "scripts/systems/progression/PendingCharacterReward.cs", "layer": "misplaced_progression_state" },
-    { "glob": "scripts/systems/progression/PendingCharacterRewardEntry.cs", "layer": "misplaced_progression_state" },
 
     { "glob": "scripts/player/progression/equipment_abilities/**/*.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/progression/**/*.cs", "layer": "content_authoring" },
@@ -132,8 +129,6 @@
     { "glob": "scripts/utils/*Rule.cs", "layer": "content_authoring" },
     { "glob": "scripts/utils/WeightedFacilityEntry.cs", "layer": "content_authoring" },
     { "glob": "scripts/utils/WorldMapSettlementNamePool.cs", "layer": "content_authoring" },
-    { "glob": "scripts/utils/WorldMapContentValidator.cs", "layer": "content_authoring" },
-    { "glob": "scripts/utils/WorldPresetRegistry.cs", "layer": "content_authoring" },
     { "glob": "scripts/systems/content/GameContentCatalog.cs", "layer": "application" },
     { "glob": "scripts/systems/content/**/*.cs", "layer": "content_authoring" },
 
@@ -207,7 +202,7 @@
     {
       "id": "production-to-nonproduction",
       "fromLayers": [
-        "content_authoring", "content_definition", "domain_state", "misplaced_progression_state", "domain_runtime",
+        "content_authoring", "content_definition", "domain_state", "domain_runtime",
         "application", "presentation", "composition", "infrastructure"
       ],
       "toLayers": ["tests", "tooling"]
@@ -216,11 +211,6 @@
       "id": "content-definition-to-runtime",
       "fromLayers": ["content_definition"],
       "toLayers": ["domain_runtime", "application", "presentation", "composition"]
-    },
-    {
-      "id": "domain-state-to-misplaced-progression-state",
-      "fromLayers": ["domain_state"],
-      "toLayers": ["misplaced_progression_state"]
     },
     {
       "id": "authoring-to-runtime",

@@ -89,10 +89,7 @@ internal sealed class BattleTimelineDriver
 
     private void _AdvanceUnitTurnTimers(BattleUnitState unitState, BattleEventBatch batch)
     {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return;
-        runtime._advance_unit_turn_timers(unitState, batch);
+        _ResolveRuntime()?._skill_turn_resolver?.AdvanceUnitTurnTimers(unitState, batch);
     }
 
     private BattleStatusTickResult _ApplyTurnStartStatuses(
@@ -100,10 +97,10 @@ internal sealed class BattleTimelineDriver
         BattleEventBatch batch
     )
     {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return BattleStatusTickResult.Empty();
-        return runtime._apply_turn_start_statuses_result(unitState, batch);
+        return _ResolveRuntime()
+                ?._skill_turn_resolver
+                ?.ApplyTurnStartStatusesResult(unitState, batch)
+            ?? BattleStatusTickResult.Empty();
     }
 
     private BattleStatusTickResult _ApplyUnitStatusPeriodicTicks(
@@ -112,10 +109,10 @@ internal sealed class BattleTimelineDriver
         BattleEventBatch batch
     )
     {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return BattleStatusTickResult.Empty();
-        return runtime._apply_unit_status_periodic_ticks_result(unitState, elapsedTu, batch);
+        return _ResolveRuntime()
+                ?._skill_turn_resolver
+                ?.ApplyUnitStatusPeriodicTicksResult(unitState, elapsedTu, batch)
+            ?? BattleStatusTickResult.Empty();
     }
 
     private bool _AdvanceUnitStatusDurations(
@@ -124,10 +121,10 @@ internal sealed class BattleTimelineDriver
         BattleEventBatch batch = null
     )
     {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return false;
-        return runtime._advance_unit_status_durations(unitState, elapsedTu, batch);
+        return _ResolveRuntime()
+                ?._skill_turn_resolver
+                ?.AdvanceUnitStatusDurations(unitState, elapsedTu, batch)
+            == true;
     }
 
     private void _PrepareAiTurn(BattleUnitState unitState)

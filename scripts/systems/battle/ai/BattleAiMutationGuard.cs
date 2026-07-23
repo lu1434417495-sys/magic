@@ -23,75 +23,6 @@ internal sealed class BattleAiMutationGuard
             "last_transition_reason",
         };
 
-    internal static readonly HashSet<string> ReportEntrySnapshotKeys =
-        new(StringComparer.Ordinal)
-        {
-            "type",
-            "entry_type",
-            "event_type",
-            "reason_id",
-            "reason_text",
-            "error_code",
-            "ok",
-            "source_unit_id",
-            "target_unit_id",
-            "source_unit_name",
-            "target_unit_name",
-            "attacker_unit_id",
-            "defender_unit_id",
-            "attacker_name",
-            "defender_name",
-            "skill_id",
-            "skill_name",
-            "effect_id",
-            "status_id",
-            "item_id",
-            "instance_id",
-            "slot_id",
-            "damage",
-            "healing",
-            "shield_absorbed",
-            "total_damage",
-            "target_count",
-            "crit_gate_die",
-            "crit_gate_roll",
-            "hit_roll",
-            "required_roll",
-            "display_required_roll",
-            "attack_resolution",
-            "critical_source",
-            "execute_outcome",
-            "mitigation_tier",
-            "absorb_reason_text",
-            "fixed_mitigation_total",
-            "fixed_mitigation_source_text",
-            "world_step",
-            "amount",
-            "quantity",
-        };
-
-    internal static readonly HashSet<string> PromotionQueueSnapshotKeys =
-        new(StringComparer.Ordinal)
-        {
-            "reward_type",
-            "entry_type",
-            "member_id",
-            "unit_id",
-            "profession_id",
-            "skill_id",
-            "race_id",
-            "subrace_id",
-            "ascension_id",
-            "bloodline_id",
-            "choice_id",
-            "display_name",
-            "description",
-            "amount",
-            "quantity",
-            "source",
-            "reason_id",
-        };
-
     private BattleAiMutationSnapshot _before_snapshot = BattleAiMutationSnapshot.Empty();
     private StringName _active_unit_id = "";
 
@@ -107,16 +38,16 @@ internal sealed class BattleAiMutationGuard
         return true;
     }
 
-    internal List<string> ValidateAndRestoreTyped(BattleAiContext context)
+    internal List<string> ValidateTyped(BattleAiContext context)
     {
         if (_before_snapshot.IsEmpty || !TryGetContextState(context, out _, out _))
         {
             return new List<string>();
         }
-        return _before_snapshot.ValidateAndRestore(context, _active_unit_id);
+        return _before_snapshot.Validate(context, _active_unit_id);
     }
 
-    internal BattleAiMutationViolationReport ValidateAndRestoreReportTyped(
+    internal BattleAiMutationViolationReport ValidateReportTyped(
         BattleAiContext context,
         string stage,
         BattleAiRuntimeActionEntry actionEntry = null,
@@ -124,7 +55,7 @@ internal sealed class BattleAiMutationGuard
         string callSite = null
     )
     {
-        List<string> violations = ValidateAndRestoreTyped(context);
+        List<string> violations = ValidateTyped(context);
         return violations.Count == 0
             ? null
             : new BattleAiMutationViolationReport(

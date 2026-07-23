@@ -40,7 +40,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         {
             TestContentRebindClearsAiBorrowers();
             TestStateRebindClearsAiPlanAndDecisionContext();
-            TestEquipmentAbilityServiceDisposeClearsBorrowersAndAllowsRebind();
+            TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
             TestSuccessfulBorrowerFirstTeardownAndDoubleDispose();
             TestExceptionalFinalLeaseCloseStillClearsBorrowers();
         }
@@ -144,13 +144,14 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         }
     }
 
-    private void TestEquipmentAbilityServiceDisposeClearsBorrowersAndAllowsRebind()
+    private void TestEquipmentAbilityServiceDisposeRequiresExplicitRebind()
     {
         var runtime = new BattleRuntimeModule();
         try
         {
             BattleState state = BuildState(out BattleUnitState targetUnit);
             runtime.SetupStateForTests(state);
+            runtime.ConfigureDamageResolverForTests(runtime.GetDamageResolver());
             BattleEquipmentAbilityRuntimeService service =
                 runtime.GetEquipmentAbilityRuntimeService();
             BattleDamageResolver damageResolver = runtime.GetDamageResolver();
@@ -219,13 +220,24 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
                 ReferenceEquals(reboundService, service),
                 "runtime reuses the cleared equipment service instance"
             );
+            _test.Eq(
+                CountEquipmentResolverRuntimeBindings(reboundService),
+                0,
+                "side-effect-free getter must not rebind disposed equipment child resolvers"
+            );
+            _test.True(
+                !DamageResolverReferencesEquipmentService(damageResolver, reboundService),
+                "side-effect-free getter must not restore damage resolver borrowers"
+            );
+
+            runtime.ConfigureDamageResolverForTests(damageResolver);
             _test.True(
                 CountEquipmentResolverRuntimeBindings(reboundService) > 0,
-                "equipment service rebind restores child resolver dependencies"
+                "explicit damage resolver configuration rebinds equipment child resolvers"
             );
             _test.True(
                 DamageResolverReferencesEquipmentService(damageResolver, reboundService),
-                "equipment service rebind restores the damage resolver borrower"
+                "explicit damage resolver configuration restores both equipment ports"
             );
 
             using var reboundBatch = new BattleEventBatch();
@@ -273,6 +285,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         _test.True(runtime.HasContentCatalogBorrowers, "precondition: all content borrowers are populated");
         _test.True(runtime.HasAiRuntimeBorrowers, "precondition: decision/plan borrowers are populated");
         _test.True(runtime.HasRuntimeSidecarBindings, "precondition: runtime sidecars are bound");
+        _test.True(
+            runtime._contingency_system.HasRuntimeCapabilityBinding,
+            "precondition: contingency system borrows the runtime capability port"
+        );
         AssertModuleBorrowersBound(
             runtime._moduleBorrowers.CaptureTopology(runtime),
             "battle-active binding"
@@ -505,18 +521,23 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         BattleEquipmentAbilityRuntimeService service
     )
     {
-        FieldInfo borrowerField = typeof(BattleDamageResolver).GetField(
-            "_equipment_ability_runtime_service",
+        FieldInfo damageQueryField = typeof(BattleDamageResolver).GetField(
+            "_equipment_ability_damage_query",
             BindingFlags.Instance | BindingFlags.NonPublic
         );
-        if (borrowerField == null)
+        FieldInfo reactionSinkField = typeof(BattleDamageResolver).GetField(
+            "_equipment_ability_reaction_sink",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        if (damageQueryField == null || reactionSinkField == null)
         {
             throw new MissingFieldException(
                 typeof(BattleDamageResolver).FullName,
-                "_equipment_ability_runtime_service"
+                "_equipment_ability_damage_query/_equipment_ability_reaction_sink"
             );
         }
-        return ReferenceEquals(borrowerField.GetValue(damageResolver), service);
+        return ReferenceEquals(damageQueryField.GetValue(damageResolver), service.DamageQuery)
+            && ReferenceEquals(reactionSinkField.GetValue(damageResolver), service.ReactionSink);
     }
 
     private void AssertModuleBorrowersBound(
@@ -675,6 +696,10 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         _test.True(runtime.IsDisposed, $"{label}: runtime reports disposed");
         _test.True(!runtime.HasAiRuntimeBorrowers, $"{label}: decision/plan borrowers clear");
         _test.True(!runtime.HasRuntimeSidecarBindings, $"{label}: sidecar runtime borrowers clear");
+        _test.True(
+            !runtime._contingency_system.HasRuntimeCapabilityBinding,
+            $"{label}: contingency runtime capability clears"
+        );
         BattleRuntimeModuleBorrowerTopologySnapshot borrowerTopology =
             runtime._moduleBorrowers.CaptureTopology(runtime);
         _test.Eq(borrowerTopology.BoundCount, 0, $"{label}: module borrowers unbound");

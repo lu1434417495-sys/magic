@@ -19,10 +19,10 @@ public class IdentityContentRegistryBase : System.IDisposable
     private static readonly StringName[] CombatAttributeIds =
     {
         "armor_class",
-        "armor_ac_bonus",
-        "shield_ac_bonus",
-        "dodge_bonus",
-        "deflection_bonus",
+        AttributeContentRules.ArmorAcBonus,
+        AttributeContentRules.ShieldAcBonus,
+        AttributeContentRules.DodgeBonus,
+        AttributeContentRules.DeflectionBonus,
         "armor_max_dex_bonus",
     };
 

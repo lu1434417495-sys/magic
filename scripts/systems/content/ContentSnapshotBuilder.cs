@@ -65,7 +65,10 @@ internal sealed class ContentSnapshotBuilder
         EnemyContentDefinitionGraph enemyDefinitions = enemies.ProjectDefinitions(
             itemDefinitions
         );
-        battleEncounters.Rebuild(enemyDefinitions.EncounterRosters);
+        battleEncounters.Rebuild(
+            enemyDefinitions.EncounterRosters,
+            enemyDefinitions.EnemyTemplates
+        );
         IReadOnlyList<string> battleEncounterValidationErrors =
             battleEncounters.ValidateTyped();
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounterDefinitions =

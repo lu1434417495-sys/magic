@@ -77,11 +77,14 @@ because an up-to-date `Build` may skip `CoreCompile`; the target deletes the
 requested old SARIF before reference resolution, so a skipped compiler cannot
 silently feed the exporter a stale inventory.
 
-The reviewed 2026-07-22 snapshot contains 39,341 cross-layer symbol pairs and
-172 forbidden pairs. All 172 are exact baseline tuples: 72 child-to-composition
-root dependencies, 61 pending-reward DTO owner dependencies, 30 runtime-to-
-authoring dependencies, and 9 authoring-to-runtime dependencies. A baseline
-entry is not a directory exemption: it suppresses only one
+The reviewed 2026-07-22 snapshot contained 39,341 cross-layer symbol pairs and
+172 forbidden pairs. After owner corrections through 2026-07-24, the checked-in
+baseline contains 100 exact tuples: 62 child-to-composition root dependencies,
+30 runtime-to-authoring dependencies, and 8 authoring-to-runtime dependencies.
+The resolved 61 pending-reward DTO owner tuples, 10 attack-policy-to-composition
+root tuples, and one authoring-to-runtime tuple are intentionally absent. A
+baseline entry is not a directory exemption:
+it suppresses only one
 `(rule, source symbol, target symbol)` tuple, while `MAGICARCH100` continues to
 report and annotate it.
 
@@ -91,14 +94,16 @@ currently be classified with high confidence. A cross-layer pair that is not
 forbidden is not automatically an endorsed architecture direction—the full
 inventory remains the review source for expanding rules later.
 
-`misplaced_progression_state` is a temporary quarantine layer for exactly
-`PendingCharacterReward.cs` and `PendingCharacterRewardEntry.cs`. It makes the
-save graph's physical owner error visible without banning every normal
-`domain_state -> domain_runtime` call. Remove the layer and its baseline tuples
-when those DTO files move to the player state/schema owner. Symbol overrides
-serve the other unavoidable mixed-file case: a Godot authoring `Resource` and
-a small runtime-facing enum or DTO currently share one source file. Keep those
-overrides type-specific; do not reclassify the whole authoring file.
+`PendingCharacterReward.cs` and `PendingCharacterRewardEntry.cs` use exact
+`domain_state` path mappings because their filenames intentionally omit the
+`State` suffix. Keep those mappings ahead of the broad
+`scripts/player/progression/**/*.cs` authoring mapping; do not widen them to
+`PendingCharacterReward*.cs`, because the sibling content rules belong to
+`content_definition`; the payload codec already matches the domain-state
+`*Payload.cs` rule. Symbol overrides serve the unavoidable
+mixed-file case where a Godot authoring `Resource` and a small runtime-facing
+enum or DTO share one source file. Keep those overrides type-specific; do not
+reclassify the whole authoring file.
 
 Do not generate baseline entries from every diagnostic. First correct path
 classification and the small set of mixed-file symbol overrides, then inspect

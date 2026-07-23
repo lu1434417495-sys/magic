@@ -60,211 +60,224 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
             "enemy",
             action.TargetSelector
         );
-        if (targets.Count == 0 || targets[0] == null)
+        if (targets.Count == 0)
             return Fail(context, trace, "no_valid_targets");
 
-        BattleUnitState focusTarget = targets[0];
         BattleUnitState actor = context.unit_state;
         int resolvedSafeDistance = Mathf.Max(
             action.MinimumSafeDistance + action.SafeDistanceMargin,
             1
         );
-        int currentDistance = BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
-            context,
-            actor,
-            actor.coord,
-            focusTarget
-        );
-        if (trace != null)
+        foreach (BattleUnitState focusTarget in targets)
         {
-            trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
-            trace.Metadata["current_distance"] = currentDistance;
-            trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
-        }
-        if (currentDistance >= resolvedSafeDistance)
-            return Fail(context, trace, "already_safe");
-
-        BattleAiDecision bestDecision = null;
-        BattleAiScoreInput bestScoreInput = null;
-        foreach (
-            BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(
+            if (focusTarget == null)
+                continue;
+            int currentDistance = BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
                 context,
-                action.SkillIds
-            )
-        )
-        {
-            StringName skillId = skillEntry?.EntryRef.SkillId ?? "";
-            if (skillId == "")
-                continue;
-            EnemyAiActionHelper.TraceCountIncrement(trace, "skill_considered_count");
-            SkillDefinition skill = _helper.GetSkillDefinition(context, skillEntry);
-            if (
-                skill?.CombatProfile == null
-                || skill.CombatProfile.TargetModeKind != BattleTargetMode.Ground
-            )
-            {
-                EnemyAiActionHelper.TraceAddBlockReason(
-                    trace,
-                    skill == null ? "missing_skill_definition" : "non_ground_skill"
-                );
-                continue;
-            }
-            BattleSkillCastBlockReasonKind blockReason = _helper.GetSkillCastBlockReason(
-                context,
-                skill
-            );
-            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
-            {
-                EnemyAiActionHelper.TraceAddBlockReason(
-                    trace,
-                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
-                );
-                continue;
-            }
-            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
                 actor,
-                skill,
-                context.skill_catalog
+                actor.coord,
+                focusTarget
             );
+            if (trace != null)
+            {
+                trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+                trace.Metadata["current_distance"] = currentDistance;
+                trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
+            }
+            if (currentDistance >= resolvedSafeDistance)
+            {
+                EnemyAiActionHelper.TraceAddBlockReason(trace, "already_safe");
+                continue;
+            }
+
+            BattleAiDecision bestDecision = null;
+            BattleAiScoreInput bestScoreInput = null;
             foreach (
-                CombatCastVariantDefinition castVariant in _ground.GetGroundOptionDefinitions(
+                BattleAvailableSkillEntry skillEntry in _helper.ResolveAvailableSkillEntries(
                     context,
-                    skill,
-                    skillEntry.SkillLevel
+                    action.SkillIds
                 )
             )
             {
+                StringName skillId = skillEntry?.EntryRef.SkillId ?? "";
+                if (skillId == "")
+                    continue;
+                EnemyAiActionHelper.TraceCountIncrement(trace, "skill_considered_count");
+                SkillDefinition skill = _helper.GetSkillDefinition(context, skillEntry);
                 if (
-                    castVariant == null
-                    || BattleAiGroundSkillActionEvaluator.IsChargeOption(castVariant)
+                    skill?.CombatProfile == null
+                    || skill.CombatProfile.TargetModeKind != BattleTargetMode.Ground
                 )
                 {
+                    EnemyAiActionHelper.TraceAddBlockReason(
+                        trace,
+                        skill == null ? "missing_skill_definition" : "non_ground_skill"
+                    );
                     continue;
                 }
-                if (!HasRepositionEffect(castVariant.EffectDefinitions))
+                BattleSkillCastBlockReasonKind blockReason = _helper.GetSkillCastBlockReason(
+                    context,
+                    skill
+                );
+                if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
                 {
-                    EnemyAiActionHelper.TraceAddBlockReason(trace, "missing_reposition_effect");
+                    EnemyAiActionHelper.TraceAddBlockReason(
+                        trace,
+                        BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                    );
                     continue;
                 }
+                int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
+                    actor,
+                    skill,
+                    context.skill_catalog
+                );
                 foreach (
-                    List<Vector2I> targetCoords in _ground.EnumerateGroundTargetCoordSetsTyped(
+                    CombatCastVariantDefinition castVariant in _ground.GetGroundOptionDefinitions(
                         context,
-                        castVariant
+                        skill,
+                        skillEntry.SkillLevel
                     )
                 )
                 {
-                    if (targetCoords.Count != 1)
-                        continue;
-                    Vector2I landingCoord = targetCoords[0];
-                    int castDistance = context.grid_service.GetDistanceFromUnitToCoord(
-                        actor,
-                        landingCoord
-                    );
-                    if (effectiveRange >= 0 && castDistance > effectiveRange)
-                        continue;
-                    int landingDistance = BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
-                        context,
-                        actor,
-                        landingCoord,
-                        focusTarget
-                    );
-                    if (landingDistance <= currentDistance)
-                    {
-                        EnemyAiActionHelper.TraceAddBlockReason(
-                            trace,
-                            "does_not_improve_safety"
-                        );
-                        continue;
-                    }
-                    EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
-                    BattleCommand command =
-                        BattleAiGroundSkillActionEvaluator.BuildTypedGroundSkillCommand(
-                            context,
-                            skillEntry,
-                            castVariant.VariantId,
-                            new[] { landingCoord }
-                        );
-                    BattlePreview preview =
-                        BattleAiGroundSkillActionEvaluator.BuildFastGroundSkillPreview(
-                            context,
-                            command,
-                            new[] { landingCoord },
-                            Array.Empty<StringName>()
-                        );
-                    if (preview?.allowed != true)
-                    {
-                        EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
-                        continue;
-                    }
-                    string label = EnemyAiActionHelper.FormatSkillVariantLabel(
-                        skill,
-                        castVariant
-                    );
-                    BattleAiScoreInput scoreInput =
-                        BattleAiActionEvaluatorUtilities.BuildSkillScoreInput(
-                            action,
-                            context,
-                            skill,
-                            command,
-                            preview,
-                            castVariant.EffectDefinitions,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["action_label"] = label,
-                                ["action_base_score"] = action.ActionBaseScore,
-                                ["position_target_unit_id"] = focusTarget.unit_id,
-                                ["position_anchor_coord"] = landingCoord,
-                                ["position_current_distance"] = currentDistance,
-                                ["position_safe_distance"] = resolvedSafeDistance,
-                                ["desired_min_distance"] = resolvedSafeDistance,
-                                ["desired_max_distance"] =
-                                    resolvedSafeDistance
-                                    + Mathf.Max(action.DesiredMaxDistanceBonus, 0),
-                                ["position_objective_kind"] = "distance_band_progress",
-                            }
-                        );
                     if (
-                        BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
-                            scoreInput,
-                            action.MinSurvivalMarginGainToEscape
+                        castVariant == null
+                        || BattleAiGroundSkillActionEvaluator.IsChargeOption(castVariant)
+                    )
+                    {
+                        continue;
+                    }
+                    if (!HasRepositionEffect(castVariant.EffectDefinitions))
+                    {
+                        EnemyAiActionHelper.TraceAddBlockReason(trace, "missing_reposition_effect");
+                        continue;
+                    }
+                    foreach (
+                        List<Vector2I> targetCoords in _ground.EnumerateGroundTargetCoordSetsTyped(
+                            context,
+                            castVariant
                         )
                     )
                     {
-                        EnemyAiActionHelper.TraceAddBlockReason(trace, "no_survival_gain");
-                        continue;
-                    }
-                    if (trace != null)
-                    {
-                        EnemyAiActionHelper.TraceOfferCandidate(
-                            trace,
-                            EnemyAiActionHelper.BuildCandidateSummary(
-                                $"{label}_to_{landingCoord.X}_{landingCoord.Y}",
+                        if (targetCoords.Count != 1)
+                            continue;
+                        Vector2I landingCoord = targetCoords[0];
+                        int castDistance = context.grid_service.GetDistanceFromUnitToCoord(
+                            actor,
+                            landingCoord
+                        );
+                        if (effectiveRange >= 0 && castDistance > effectiveRange)
+                            continue;
+                        int landingDistance = BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
+                            context,
+                            actor,
+                            landingCoord,
+                            focusTarget
+                        );
+                        if (landingDistance <= currentDistance)
+                        {
+                            EnemyAiActionHelper.TraceAddBlockReason(
+                                trace,
+                                "does_not_improve_safety"
+                            );
+                            continue;
+                        }
+                        EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
+                        BattleCommand command =
+                            BattleAiGroundSkillActionEvaluator.BuildTypedGroundSkillCommand(
+                                context,
+                                skillEntry,
+                                castVariant.VariantId,
+                                new[] { landingCoord }
+                            );
+                        BattlePreview preview =
+                            BattleAiGroundSkillActionEvaluator.BuildFastGroundSkillPreview(
+                                context,
                                 command,
-                                scoreInput,
+                                new[] { landingCoord },
+                                Array.Empty<StringName>()
+                            );
+                        if (preview?.allowed != true)
+                        {
+                            EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
+                            continue;
+                        }
+                        string label = EnemyAiActionHelper.FormatSkillVariantLabel(
+                            skill,
+                            castVariant
+                        );
+                        BattleAiScoreInput scoreInput =
+                            BattleAiActionEvaluatorUtilities.BuildSkillScoreInput(
+                                action,
+                                context,
+                                skill,
+                                command,
+                                preview,
+                                castVariant.EffectDefinitions,
                                 new Dictionary<string, object>(StringComparer.Ordinal)
                                 {
-                                    ["skill_id"] = skillId.ToString(),
-                                    ["landing_distance"] = landingDistance,
-                                    ["resolved_safe_distance"] = resolvedSafeDistance,
+                                    ["action_label"] = label,
+                                    ["action_base_score"] = action.ActionBaseScore,
+                                    ["position_target_unit_id"] = focusTarget.unit_id,
+                                    ["position_anchor_coord"] = landingCoord,
+                                    ["position_current_distance"] = currentDistance,
+                                    ["position_safe_distance"] = resolvedSafeDistance,
+                                    ["desired_min_distance"] = resolvedSafeDistance,
+                                    ["desired_max_distance"] =
+                                        resolvedSafeDistance
+                                        + Mathf.Max(action.DesiredMaxDistanceBonus, 0),
+                                    ["position_objective_kind"] = "distance_band_progress",
                                 }
+                            );
+                        if (
+                            BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
+                                scoreInput,
+                                action.MinSurvivalMarginGainToEscape
                             )
+                        )
+                        {
+                            EnemyAiActionHelper.TraceAddBlockReason(trace, "no_survival_gain");
+                            continue;
+                        }
+                        if (trace != null)
+                        {
+                            EnemyAiActionHelper.TraceOfferCandidate(
+                                trace,
+                                EnemyAiActionHelper.BuildCandidateSummary(
+                                    $"{label}_to_{landingCoord.X}_{landingCoord.Y}",
+                                    command,
+                                    scoreInput,
+                                    new Dictionary<string, object>(StringComparer.Ordinal)
+                                    {
+                                        ["skill_id"] = skillId.ToString(),
+                                        ["landing_distance"] = landingDistance,
+                                        ["resolved_safe_distance"] = resolvedSafeDistance,
+                                    }
+                                )
+                            );
+                        }
+                        if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                            continue;
+                        bestScoreInput = scoreInput;
+                        bestDecision = EnemyAiActionHelper.CreateScoredDecision(
+                            action.ActionId,
+                            action.ScoreBucketId,
+                            command,
+                            scoreInput,
+                            $"{actor.display_name} 准备用 {skill.DisplayName} 拉开到 {landingDistance} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
                         );
                     }
-                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
-                        continue;
-                    bestScoreInput = scoreInput;
-                    bestDecision = EnemyAiActionHelper.CreateScoredDecision(
-                        action.ActionId,
-                        action.ScoreBucketId,
-                        command,
-                        scoreInput,
-                        $"{actor.display_name} 准备用 {skill.DisplayName} 拉开到 {landingDistance} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
-                    );
                 }
             }
+            if (bestDecision != null)
+            {
+                EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
+                return bestDecision;
+            }
         }
-        EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
-        return bestDecision;
+
+        EnemyAiActionHelper.FinalizeActionTrace(context, trace);
+        return null;
     }
 
     private static bool HasRepositionEffect(

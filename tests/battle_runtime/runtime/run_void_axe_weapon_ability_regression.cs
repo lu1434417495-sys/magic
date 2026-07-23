@@ -140,7 +140,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             "断界裂隙生成后，相邻两格之间应不能跨边移动。"
         );
 
-        fixture.Runtime._apply_timeline_step(new BattleEventBatch(), 40);
+        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
         attacker.ResetPerTurnCharges();
         ResolveAfterHit(
             fixture.Runtime.GetEquipmentAbilityRuntimeService(),
@@ -148,9 +148,9 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             attacker,
             target
         );
-        fixture.Runtime._apply_timeline_step(new BattleEventBatch(), 40);
+        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
         AssertRiftEdge(state, fixture.Runtime.GetGridService(), Vector2I.Zero, new Vector2I(1, 0), true);
-        fixture.Runtime._apply_timeline_step(new BattleEventBatch(), 40);
+        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
 
         AssertRiftEdge(state, fixture.Runtime.GetGridService(), Vector2I.Zero, new Vector2I(1, 0), false);
     }

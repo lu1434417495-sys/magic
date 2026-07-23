@@ -299,7 +299,6 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     {
         if (unitState == null)
             return new ChargeTargetInfo(false);
-        unitState.RefreshFootprint();
         int minX = unitState.coord.X;
         int maxX = unitState.coord.X + unitState.footprint_size.X - 1;
         int minY = unitState.coord.Y;
@@ -475,7 +474,6 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         if (unitState == null || coords == null || coords.Count == 0)
             return false;
         var coordSet = new HashSet<Vector2I>(coords);
-        unitState.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unitState.occupied_coords)
         {
             if (coordSet.Contains(occupiedCoord))

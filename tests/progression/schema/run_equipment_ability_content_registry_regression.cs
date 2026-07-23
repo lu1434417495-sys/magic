@@ -16,6 +16,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
     private void Run()
     {
         TestAuthoringAbiAttributesAndRuntimeDtoBoundary();
+        TestArmorClassComponentContentRulesContract();
         TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
         TestEmptyAndMinimalValidPacksBuildAndFindBindings();
         TestProjectedEffectCategoriesProjectAndValidate();
@@ -382,6 +383,68 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                 $"{type.Name} should be a plain C# runtime type, not a Resource."
             );
             AssertRuntimeTypeHasNoResourceOrGodotDictionaryMembers(type);
+        }
+    }
+
+    private void TestArmorClassComponentContentRulesContract()
+    {
+        (ArmorClassComponentKind Kind, StringName Id)[] expected =
+        {
+            (ArmorClassComponentKind.ArmorBonus, "armor_ac_bonus"),
+            (ArmorClassComponentKind.ShieldBonus, "shield_ac_bonus"),
+            (ArmorClassComponentKind.DodgeBonus, "dodge_bonus"),
+            (ArmorClassComponentKind.DeflectionBonus, "deflection_bonus"),
+            (ArmorClassComponentKind.NaturalArmorBonus, "natural_armor_ac_bonus"),
+        };
+
+        _test.Eq(
+            AttributeContentRules.ArmorClassComponentAttributeIds.Count,
+            expected.Length,
+            "AC component content rules should expose the complete fixed domain."
+        );
+        for (int index = 0; index < expected.Length; index++)
+        {
+            (ArmorClassComponentKind kind, StringName id) = expected[index];
+            _test.Eq(
+                AttributeContentRules.ArmorClassComponentAttributeIds[index],
+                id,
+                $"AC component order should remain stable at index {index}."
+            );
+            _test.True(
+                AttributeContentRules.IsArmorClassComponentAttributeId(id),
+                $"{id} should be a registered AC component."
+            );
+            _test.Eq(
+                AttributeContentRules.ToArmorClassComponentKind(id),
+                kind,
+                $"{id} should map to its typed AC component kind."
+            );
+            _test.Eq(
+                AttributeContentRules.ToStringName(kind),
+                id,
+                $"{kind} should map back to its stable AC component id."
+            );
+        }
+
+        foreach (
+            StringName invalidId in new StringName[]
+            {
+                "",
+                "unknown_ac_component",
+                "armor_class",
+                "armor_max_dex_bonus",
+            }
+        )
+        {
+            _test.False(
+                AttributeContentRules.IsArmorClassComponentAttributeId(invalidId),
+                $"{invalidId} should remain outside the AC component domain."
+            );
+            _test.Eq(
+                AttributeContentRules.ToArmorClassComponentKind(invalidId),
+                ArmorClassComponentKind.Unknown,
+                $"{invalidId} should map to the unknown AC component kind."
+            );
         }
     }
 

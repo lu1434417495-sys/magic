@@ -73,7 +73,7 @@ objective_1: defeat_enemy(无限波次, N只) → 坚持X回合
   - 敌人HP降至30%时会尝试逃跑（向地图边缘移动）
   - 击败第一只后，剩余两只进入"包抄"模式，试图绕到玩家侧翼
 
-**奖励**：50金 + `skill_unlock: charge`
+**奖励**：50金 + `skill_mastery: warrior_heavy_strike ×80`
 
 ---
 
@@ -2549,4 +2549,3 @@ defeat_enemy(wolf_alpha, 1) + defeat_enemy(mist_weaver, 1) + defeat_enemy(mist_b
 | Q198 | 巫妖之匣 | 信仰-不死 | 战斗+Boss | 巫妖机制 |
 | Q199 | 不死军团 | 信仰-不死 | 大规模战斗 | 军团机制 |
 | Q200 | 神之死·终章 | 信仰-终章 | Boss战+选择 | 终焉机制 |
-

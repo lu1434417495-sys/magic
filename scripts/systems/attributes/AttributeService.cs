@@ -62,11 +62,6 @@ public sealed class AttributeService
     internal static readonly StringName WILLPOWER_MODIFIER =
         AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.WillpowerModifier);
     internal static readonly StringName ARMOR_CLASS = "armor_class";
-    internal static readonly StringName ARMOR_AC_BONUS = "armor_ac_bonus";
-    internal static readonly StringName SHIELD_AC_BONUS = "shield_ac_bonus";
-    internal static readonly StringName DODGE_BONUS = "dodge_bonus";
-    internal static readonly StringName DEFLECTION_BONUS = "deflection_bonus";
-    internal static readonly StringName NATURAL_ARMOR_AC_BONUS = "natural_armor_ac_bonus";
     internal static readonly StringName ARMOR_MAX_DEX_BONUS = "armor_max_dex_bonus";
     internal static readonly StringName BASE_ATTACK_BONUS =
         AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.BaseAttackBonus);
@@ -92,21 +87,12 @@ public sealed class AttributeService
     internal static readonly StringName[] COMBAT_ATTRIBUTE_IDS =
     {
         ARMOR_CLASS,
-        ARMOR_AC_BONUS,
-        SHIELD_AC_BONUS,
-        DODGE_BONUS,
-        DEFLECTION_BONUS,
-        NATURAL_ARMOR_AC_BONUS,
+        AttributeContentRules.ArmorAcBonus,
+        AttributeContentRules.ShieldAcBonus,
+        AttributeContentRules.DodgeBonus,
+        AttributeContentRules.DeflectionBonus,
+        AttributeContentRules.NaturalArmorAcBonus,
         ARMOR_MAX_DEX_BONUS,
-    };
-
-    internal static readonly StringName[] AC_COMPONENT_ATTRIBUTE_IDS =
-    {
-        ARMOR_AC_BONUS,
-        SHIELD_AC_BONUS,
-        DODGE_BONUS,
-        DEFLECTION_BONUS,
-        NATURAL_ARMOR_AC_BONUS,
     };
 
     internal static readonly StringName[] PROTECTED_CUSTOM_STAT_KEYS =
@@ -135,11 +121,11 @@ public sealed class AttributeService
             AttributeIdKind.IntelligenceModifier => INTELLIGENCE_MODIFIER,
             AttributeIdKind.WillpowerModifier => WILLPOWER_MODIFIER,
             AttributeIdKind.ArmorClass => ARMOR_CLASS,
-            AttributeIdKind.ArmorAcBonus => ARMOR_AC_BONUS,
-            AttributeIdKind.ShieldAcBonus => SHIELD_AC_BONUS,
-            AttributeIdKind.DodgeBonus => DODGE_BONUS,
-            AttributeIdKind.DeflectionBonus => DEFLECTION_BONUS,
-            AttributeIdKind.NaturalArmorAcBonus => NATURAL_ARMOR_AC_BONUS,
+            AttributeIdKind.ArmorAcBonus => AttributeContentRules.ArmorAcBonus,
+            AttributeIdKind.ShieldAcBonus => AttributeContentRules.ShieldAcBonus,
+            AttributeIdKind.DodgeBonus => AttributeContentRules.DodgeBonus,
+            AttributeIdKind.DeflectionBonus => AttributeContentRules.DeflectionBonus,
+            AttributeIdKind.NaturalArmorAcBonus => AttributeContentRules.NaturalArmorAcBonus,
             AttributeIdKind.ArmorMaxDexBonus => ARMOR_MAX_DEX_BONUS,
             AttributeIdKind.BaseAttackBonus => BASE_ATTACK_BONUS,
             AttributeIdKind.SpellProficiencyBonus => SPELL_PROFICIENCY_BONUS,
@@ -806,7 +792,9 @@ public sealed class AttributeService
     private int ResolvePersistentAcComponentTotal()
     {
         int total = 0;
-        foreach (StringName componentId in AC_COMPONENT_ATTRIBUTE_IDS)
+        foreach (
+            StringName componentId in AttributeContentRules.ArmorClassComponentAttributeIds
+        )
             total += Mathf.Max(GetPersistentBaseValue(componentId), 0);
         return total;
     }
@@ -840,7 +828,7 @@ public sealed class AttributeService
         if (modifierAttributeId == attributeId)
             return true;
         return attributeId == ARMOR_CLASS
-            && ContainsAttributeId(AC_COMPONENT_ATTRIBUTE_IDS, modifierAttributeId);
+            && AttributeContentRules.IsArmorClassComponentAttributeId(modifierAttributeId);
     }
 
     private static bool HasModifierEntryForAttribute(
@@ -870,13 +858,7 @@ public sealed class AttributeService
             return NormalizeActionThreshold(value);
         if (attributeId == ARMOR_CLASS)
             return Mathf.Clamp(value, 1, 99);
-        if (
-            attributeId == ARMOR_AC_BONUS
-            || attributeId == SHIELD_AC_BONUS
-            || attributeId == DODGE_BONUS
-            || attributeId == DEFLECTION_BONUS
-            || attributeId == NATURAL_ARMOR_AC_BONUS
-        )
+        if (AttributeContentRules.IsArmorClassComponentAttributeId(attributeId))
             return Mathf.Max(value, 0);
         if (attributeId == ARMOR_MAX_DEX_BONUS)
             return Mathf.Max(value, -1);

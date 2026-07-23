@@ -445,7 +445,9 @@ public class BattleHitResolver : IDisposable
     {
         if (defense_adjustment == null || defense_adjustment.IsEmpty)
             return targetArmorClass;
-        foreach (StringName componentId in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+        foreach (
+            StringName componentId in AttributeContentRules.ArmorClassComponentAttributeIds
+        )
         {
             int componentValue = Math.Max(_get_unit_attribute_value(target_unit, componentId, 0), 0);
             targetArmorClass -= componentValue - _get_remaining_ac_component_value(

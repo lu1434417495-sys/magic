@@ -22,7 +22,7 @@ public partial class BattleUnitState
 {
     internal Dictionary<string, object> BuildPlainSnapshotDetached()
     {
-        NormalizeBodySizeProjection();
+        EnsureBodySizeProjectionInvariant();
         NormalizeShieldState();
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
@@ -31,6 +31,7 @@ public partial class BattleUnitState
             ("unit_id", unit_id.ToString()),
             ("source_member_id", source_member_id.ToString()),
             ("enemy_template_id", enemy_template_id.ToString()),
+            ("encounter_actor_id", encounter_actor_id.ToString()),
             ("display_name", display_name ?? ""),
             ("battle_sprite_texture_path", battle_sprite_texture_path ?? ""),
             ("faction_id", faction_id.ToString()),

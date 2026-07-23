@@ -1678,7 +1678,8 @@ public sealed class CombatEffectDefinition
         bool attackRollAdvantage = false,
         int sourceBoundWeaponBonusDamageDiceCount = 0,
         int sourceBoundWeaponBonusDamageDiceSides = 0,
-        int sourceBoundWeaponBonusDamageDiceBonus = 0
+        int sourceBoundWeaponBonusDamageDiceBonus = 0,
+        int chargeTrapImmunityMinSkillLevel = -1
     )
     {
         EffectType = effectType;
@@ -1711,6 +1712,7 @@ public sealed class CombatEffectDefinition
         SourceBoundWeaponBonusDamageDiceCount = sourceBoundWeaponBonusDamageDiceCount;
         SourceBoundWeaponBonusDamageDiceSides = sourceBoundWeaponBonusDamageDiceSides;
         SourceBoundWeaponBonusDamageDiceBonus = sourceBoundWeaponBonusDamageDiceBonus;
+        ChargeTrapImmunityMinSkillLevel = chargeTrapImmunityMinSkillLevel;
         SaveDc = saveDc;
         SaveDcMode = saveDcMode;
         SaveDcSourceAbility = saveDcSourceAbility;
@@ -1865,6 +1867,7 @@ public sealed class CombatEffectDefinition
     public int SourceBoundWeaponBonusDamageDiceCount { get; }
     public int SourceBoundWeaponBonusDamageDiceSides { get; }
     public int SourceBoundWeaponBonusDamageDiceBonus { get; }
+    public int ChargeTrapImmunityMinSkillLevel { get; }
     public int SaveDc { get; }
     public StringName SaveDcMode { get; }
     public StringName SaveDcSourceAbility { get; }
@@ -2242,7 +2245,8 @@ public sealed class CombatEffectDefinition
             consumeOnNextSave: ConsumeOnNextSave,
             sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
             sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
-            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus
+            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus,
+            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel
         );
     }
 
@@ -2381,7 +2385,8 @@ public sealed class CombatEffectDefinition
             consumeOnNextSave: ConsumeOnNextSave,
             sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
             sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
-            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus
+            sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus,
+            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel
         );
     }
 
@@ -2535,7 +2540,9 @@ public sealed class CombatEffectDefinition
                 sourceBoundWeaponBonusDamageDiceSides:
                     source.source_bound_weapon_bonus_damage_dice_sides,
                 sourceBoundWeaponBonusDamageDiceBonus:
-                    source.source_bound_weapon_bonus_damage_dice_bonus
+                    source.source_bound_weapon_bonus_damage_dice_bonus,
+                chargeTrapImmunityMinSkillLevel:
+                    source.charge_trap_immunity_min_skill_level
             );
     }
 

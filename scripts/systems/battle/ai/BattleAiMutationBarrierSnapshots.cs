@@ -24,21 +24,6 @@ internal sealed class LayeredBarrierFieldsSnapshot
         return result;
     }
 
-    public IReadOnlyList<KeyValuePair<StringName, BattleBarrierInstanceState>> ToBarrierEntries()
-    {
-        var result = new List<KeyValuePair<StringName, BattleBarrierInstanceState>>();
-        foreach (KeyValuePair<StringName, BarrierInstanceSnapshot> entry in _barriers)
-        {
-            result.Add(
-                new KeyValuePair<StringName, BattleBarrierInstanceState>(
-                    entry.Key,
-                    entry.Value?.ToBarrierState()
-                )
-            );
-        }
-        return result;
-    }
-
     public StableMap ToStableMap()
     {
         StableMap result = new();
@@ -99,33 +84,6 @@ internal sealed class BarrierInstanceSnapshot
             );
         }
         return snapshot;
-    }
-
-    public BattleBarrierInstanceState ToBarrierState()
-    {
-        var barrier = new BattleBarrierInstanceState
-        {
-            BarrierInstanceId = _barrierInstanceId,
-            ProfileId = _profileId,
-            DisplayName = _displayName,
-            SourceUnitId = _sourceUnitId,
-            SourceSkillId = _sourceSkillId,
-            AnchorMode = _anchorMode,
-            AnchorCoord = _anchorCoord,
-            RadiusCells = _radiusCells,
-            AreaPattern = _areaPattern,
-            RemainingTu = _remainingTu,
-            CreatedTu = _createdTu,
-            SaveDc = _saveDc,
-            CatchAllProjectedEffects = _catchAllProjectedEffects,
-        };
-        var layers = new List<BattleBarrierLayerState>();
-        foreach (BarrierLayerSnapshot layer in _layers)
-        {
-            layers.Add(layer?.ToLayerState());
-        }
-        barrier.SetLayersForMutationSnapshotExact(layers);
-        return barrier;
     }
 
     public StableMap ToStableMap()
@@ -197,28 +155,6 @@ internal sealed class BarrierLayerSnapshot
         return snapshot;
     }
 
-    public BattleBarrierLayerState ToLayerState()
-    {
-        var layer = new BattleBarrierLayerState
-        {
-            LayerId = _layerId,
-            DisplayName = _displayName,
-            Order = _order,
-            Broken = _broken,
-            HasSaveRollOverride = _hasSaveRollOverride,
-            SaveRollOverride = _saveRollOverride,
-        };
-        layer.SetBlockedCategoriesForMutationSnapshotExact(_blockedCategories);
-        layer.SetBreakerSkillIdsForMutationSnapshotExact(_breakerSkillIds);
-        var outcomes = new List<BattleBarrierOutcomeState>();
-        foreach (BarrierOutcomeSnapshot outcome in _passageOutcomes)
-        {
-            outcomes.Add(outcome?.ToOutcomeState());
-        }
-        layer.SetPassageOutcomesForMutationSnapshotExact(outcomes);
-        return layer;
-    }
-
     public StableMap ToStableMap()
     {
         StableMap result = new();
@@ -277,24 +213,6 @@ internal sealed class BarrierOutcomeSnapshot
         snapshot._saveTag = outcome.SaveTag;
         snapshot._saveDc = outcome.SaveDc;
         return snapshot;
-    }
-
-    public BattleBarrierOutcomeState ToOutcomeState()
-    {
-        return new BattleBarrierOutcomeState
-        {
-            OutcomeType = _outcomeType,
-            Amount = _amount,
-            DamageTag = _damageTag,
-            HalfOnSuccess = _halfOnSuccess,
-            SuccessAmount = _successAmount,
-            SuccessDamageTag = _successDamageTag,
-            FatalDamage = _fatalDamage,
-            StatusId = _statusId,
-            SaveAbility = _saveAbility,
-            SaveTag = _saveTag,
-            SaveDc = _saveDc,
-        };
     }
 
     public StableMap ToStableMap()

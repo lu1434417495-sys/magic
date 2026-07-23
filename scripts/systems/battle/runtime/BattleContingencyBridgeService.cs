@@ -1,17 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.ExceptionServices;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-internal sealed class BattleContingencyBridgeService : BattleRuntimeModuleBorrower
+internal sealed class BattleContingencyBridgeService
+    : BattleRuntimeModuleBorrower,
+        IBattleContingencyRuntimePort
 {
+    private int _sourceEventOrdinal;
 
     internal BattleContingencySystem GetContingencySystemTyped()
     {
@@ -21,11 +16,11 @@ internal sealed class BattleContingencyBridgeService : BattleRuntimeModuleBorrow
 
     internal StringName AllocateContingencySourceEventId(StringName prefix)
     {
-        _runtime._contingencySourceEventOrdinal += 1;
+        _sourceEventOrdinal += 1;
         string normalizedPrefix = ProgressionDataUtils.to_string_name(prefix).ToString();
         if (string.IsNullOrEmpty(normalizedPrefix))
             normalizedPrefix = "battle_fact";
-        return new StringName($"{normalizedPrefix}:{_runtime._contingencySourceEventOrdinal}");
+        return new StringName($"{normalizedPrefix}:{_sourceEventOrdinal}");
     }
 
     internal void EmitContingencyHpAndStatusHooks(
@@ -205,6 +200,43 @@ internal sealed class BattleContingencyBridgeService : BattleRuntimeModuleBorrow
             return;
         _runtime._ensure_sidecars_ready();
         _runtime._unit_factory.RefreshBattleUnit(unitState);
+    }
+
+    BattleState IBattleContingencyRuntimePort.GetBattleState() =>
+        _runtime?.GetState();
+
+    BattleGridService IBattleContingencyRuntimePort.GetGridService() =>
+        _runtime?.GetGridService();
+
+    SkillDefinition IBattleContingencyRuntimePort.GetSkillDefinition(StringName skillId) =>
+        _runtime?.GetSkillDefinitionTyped(skillId);
+
+    UnitSkillGrantSourceType IBattleContingencyRuntimePort.ResolveSourceSkillGrantSourceType(
+        StringName memberId,
+        StringName skillId
+    )
+    {
+        UnitSkillProgress progress = _runtime
+            ?.GetCharacterGatewayTyped()
+            ?.GetPartyState()
+            ?.GetMemberState(memberId)
+            ?.progression
+            ?.GetSkillProgress(skillId);
+        return progress?.GrantedSourceTypeKind ?? UnitSkillGrantSourceType.Unknown;
+    }
+
+    StringName IBattleContingencyRuntimePort.AllocateSourceEventId(StringName prefix) =>
+        _runtime != null ? AllocateContingencySourceEventId(prefix) : "";
+
+    bool IBattleContingencyRuntimePort.ExecuteAutoCast(
+        AutoCastRequest request,
+        BattleEventBatch batch
+    ) => _runtime != null && ExecuteAutoCast(request, batch);
+
+    void IBattleContingencyRuntimePort.RefreshUnitOverlay(BattleUnitState unitState)
+    {
+        if (_runtime != null)
+            RefreshBattleUnitForContingencyOverlay(unitState);
     }
 
     internal ContingencyConsumedCommitResult ValidateContingencyConsumedSetupsForBattleUnit(

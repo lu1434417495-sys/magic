@@ -85,6 +85,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                         sourceSkillLevel: Math.Max(payload.SkillLevel, 1),
                         saveRollOverrides: saveContext.SaveRollOverrides
                     )
+                    .WithBattleState(state)
                     .WithDamageApplicationHookContext(
                         batch,
                         _runtime?.CurrentEffectOriginForContingency

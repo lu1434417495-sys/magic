@@ -1,9 +1,9 @@
 # 战斗运行时模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-23`
+> 核对日期：`2026-07-24`
 
-更新日期：`2026-07-23`
+更新日期：`2026-07-24`
 
 ## 目标与边界
 
@@ -26,7 +26,7 @@ GameRuntimeFacade / BattleSessionFacade
   -> GameRuntimeBattleWritebackService
 ```
 
-`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）、timeline/status 桥（`BattleTimelineStatusBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。八个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；`BattleAiDecisionBindingService` 私有持有 per-unit action-plan index，module 只保留单项借用查询与生命周期编排窄入口。涉及 AI plan 的 rebind/teardown 先关闭 decision context/helper consumer，再清空并释放 action plan，之后才逆序断开 borrower set 和释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
+`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。七个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；原 `BattleTimelineStatusBridgeService` 经 owner 复核确认没有独立状态或 capability，已于 `2026-07-24` 删除。装备规则端口由 module 的 `BindEquipmentRulePorts()` 集中装配：`BattleEquipmentAttackModifierResolver` 提供 attack-check/damage 两个只读 query，`BattleEquipmentAbilityRuntimeService` 提供同步 reaction sink，policy/damage resolver 不再反向定位 module；service getter 只返回已装配实例，不执行 `Setup`。timeline phase、current TU、`tu_per_tick`、ready unit、action threshold 与 stamina 归 `BattleTimelineDriver`，cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则及新状态的 `next_tick_at_tu` 初始化归 `BattleRuntimeSkillTurnResolver`；module 只在 `MarkAppliedStatusesForTurnTiming(...)` 中保持“先初始化 tick anchor，再通知 Fate”的跨 owner 编排。`BattleAiDecisionBindingService` 私有持有 per-unit action-plan index，module 只保留单项借用查询与生命周期编排窄入口。涉及 AI plan 的 rebind/teardown 先关闭 decision context/helper consumer，再清空并释放 action plan，之后才逆序断开 borrower set 和释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。`BattleContingencySystem` 只弱借用由 bridge 实现的 `IBattleContingencyRuntimePort`，不再经 module 反向转发 auto-cast；回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
 
 ## Setup 输入
 
@@ -40,21 +40,23 @@ BattleState 至少包含：battle id、map size、terrain/cells、units dictiona
 
 `known_skill_level_map`、damage resistance map 等 dictionary 边界必须严格类型化投影；runtime 内部优先 typed owner。
 
+战斗内已消耗的 contingency setup id 由 `BattleConsumedContingencySetupCollection` 作为唯一有序、去重存储；`BattleUnitState` 只保留 Mark/Has/Get/Replace typed gateway。该集合随 gameplay clone 深拷贝并进入 AI mutation stable projection，但仍是 runtime-only overlay，不进入 BattleUnitState 的 canonical codec 或 detached trace snapshot。
+
 ## 战斗启动流程
 
 1. World encounter anchor 命中后，GameRuntimeFacade 设置 battle save lock 并保存 world/player。
 2. BattleSessionFacade 构建 battle start context；GameRuntimeFacade 以 anchor 的 `encounter_profile_id` 解析正式 `BattleEncounterDefinition`，取得 roster 与 objective。缺失 objective 时立即失败，不创建永久 pending 请求。
-3. BattleRuntimeModule 以显式 `BattleObjectiveDefinition` 生成 BattleState：地形、玩家单位、敌人单位、objective runtime、timeline、初始 selection。
+3. BattleRuntimeModule 以显式 `BattleObjectiveDefinition` 生成 BattleState：先生成地形并放置双方单位，再从 encounter 的 `scenario_actors` 构建 battle-only 友方 NPC、按类型化入口区放置，随后绑定依赖实际 actor/地图的 objective runtime，最后初始化 timeline 与 selection；绑定失败不得回退为歼灭。
 4. 进入 BattleLoading modal；生成完成后进入 BattleStartConfirm，timeline frozen。
 5. 玩家确认后清 pending prompt、unfreeze timeline，战斗 tick 开始推进。
 
-失败时必须清 active battle id/name、pending generation、modal、battle state，并释放 save lock。
+确定失败时必须清 active battle id/name、pending generation、modal、battle state，并释放 save lock。只有地形生成器显式声明空结果代表异步 pending 时，空地形才可跨 frame 重试。
 
-`BattleRuntimeModule.StartBattle*` 的成功判据不是“返回值非空”，而是返回的 state 与 `GetState()` 为同一引用。单位非法、地形/布阵尝试耗尽或出生不可达且所有重试均失败时，module 会清空 runtime-owned state，并通过 `BattleStartFailureSnapshot` 保留结构化原因；若前一轮出生可达性失败、后续轮次成功，成功返回前必须清空这份瞬态失败快照。模拟执行循环在进入推进前强制检查 state 引用身份；失败启动直接归类为 `invalid_runtime`，不得经过 idle guard 或污染 stalled 统计。
+`BattleRuntimeModule.StartBattle*` 的成功判据不是“返回值非空”，而是返回的 state 与 `GetState()` 为同一引用。单位非法、普通地形/布阵尝试耗尽或出生不可达且所有重试均失败时，module 会清空 runtime-owned state，并通过 `BattleStartFailureSnapshot` 保留结构化原因；每次 placement attempt 必须覆盖上一次的瞬态原因，最终快照反映最新尝试。GameRuntime 将确定原因视为终端失败，不能保留永久 BattleLoading；只有显式 opt-in 的异步生成器可返回 `terrain_generation_pending`。后续 frame 才确定失败时，GameRuntime 在解锁后还必须执行 canonical world-sync flush。若前一轮出生可达性失败、后续轮次成功，成功返回前必须清空这份瞬态失败快照。模拟执行循环在进入推进前强制检查 state 引用身份；失败启动直接归类为 `invalid_runtime`，不得经过 idle guard 或污染 stalled 统计。
 
 ## 战斗目标与终局
 
-当前正式内容只支持歼灭目标。九种 mode 的稳定 id 与 P0 原子结算边界见 [objective_runtime.md](./objective_runtime.md)；其余八种仍在 [multi_objective_modes.md](../../proposals/battle/multi_objective_modes.md)，不得当成当前可玩内容。
+当前正式内容支持歼灭、击败首领、拯救、逃离、护送、防守和截击七种目标。九种 mode 的稳定 id、当前运行规则与原子结算边界见 [objective_runtime.md](./objective_runtime.md)；其余两种仍在 [multi_objective_modes.md](../../proposals/battle/multi_objective_modes.md)，不得当成当前可玩内容。
 
 命令、timeline step、开战 reaction 与 promotion choice 都是 objective mutation 根。同步递归反应或多目标结算期间只标记 objective dirty，最外层 `EndObjectiveMutation` 才执行 `FlushBattleOutcomeEvaluation`。final decision 一旦锁存不可替换；存在 promotion/start-confirm modal 时先冻结 timeline，等 modal 完成后再从唯一 `CompleteBattle` 入口生成 result、奖励、phase/batch 和终局日志。`BattleResolutionResult`、Fate、掉落、任务、世界回写与 BattleSim 消费 typed `Outcome/EndReason`；winner 字符串只保留为输出投影。
 
@@ -118,6 +120,9 @@ dotnet build magic.csproj
 godot --headless -s res://tests/world_map/runtime/run_world_map_battle_start_confirm_regression.cs
 godot --headless -s res://tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.cs
 godot --headless -s res://tests/battle_runtime/objectives/run_battle_elimination_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_boss_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_escape_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_rescue_escort_objective_regression.cs
 python tests/run_regression_suite.py
 ```
 
@@ -137,10 +142,12 @@ BattleRuntimeModule 重建时建议拆分以下 sidecar：
 - `BattleUnitFactory`：party/enemy -> BattleUnitState。
 - `BattleMovementQueryService` / `BattleMovementService`：reachable/path/move commit。
 - `BattleTargetCollectionService`：根据 skill target config 收集 coord/unit。
+- `BattleSkillAvailabilityService`：caller-scoped 的共享技能入口规则；preview 在当前时点校验 entry identity/selectability，execution 独立解析 entry level，不由 module 缓存，也不把 execution 反向转发给 preview owner。
 - `BattleSkillExecutionOrchestrator`：技能执行主编排。
 - `BattleSkillPreviewService` / `BattleSkillTargetValidationService` / `BattleChainDamageService` / `BattleRandomChainSkillService`：预览、目标校验、链式伤害与随机链子职责。
 - `BattleDamageResolver` / `BattleHitResolver` / `BattleSaveResolver`：命中、豁免、伤害。
-- `BattleTimelineDriver`：TU、ready actor、turn start/end。
+- `BattleTimelineDriver`：timeline phase、current TU、`tu_per_tick`、ready actor、action threshold、stamina 与 turn start/end。
+- `BattleRuntimeSkillTurnResolver`：cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则，以及新应用状态的 `next_tick_at_tu` 初始化。
 - `BattleAiService`：AI decision -> command。
 - `BattleRuntimeLootResolver`、`BattleSkillMasteryService`、`BattleContributionLedger`：结算。
 - `BattleSpawnPlacementService`：spawn side、footprint、可达性与失败回滚。
@@ -148,11 +155,10 @@ BattleRuntimeModule 重建时建议拆分以下 sidecar：
 - `BattleMovementCommandService`：移动命令、路径成本与强制位移桥接。
 - `BattleMetricsReportService`：指标、报告与 effect-origin scope；不拥有回合推进编排。
 - `BattleAiDecisionBindingService`：私有持有 per-unit AI action-plan index，并拥有 plan build/ensure/query/clear、decision context/helper、评分输入与移动查询接线；module 不暴露其可变集合。
-- `BattleContingencyBridgeService`：contingency hook、auto-cast、release queue、overlay 与 consumed 写回桥接。
-- `BattleTimelineStatusBridgeService`：timeline/status phase、stamina、状态 timing、冷却与 action threshold 桥接。
+- `BattleContingencyBridgeService`：contingency hook、auto-cast、release queue、overlay 与 consumed 写回桥接，并实现 `IBattleContingencyRuntimePort`。
 - `BattleCommandPreviewService`：只读 command preview、skill entry 校验与 issue blocking；不提交装备技能 usage 或 reaction。
 
-这些 helper 优先保持 plain C# typed surface；Godot payload 只在最外层 UI/headless adapter 投影。由 module 持有且需要反向访问 module 的 service 使用弱 borrower；八个直属 split service 只登记在 owner-local `BattleRuntimeModuleBorrowerSet`，由同一拓扑负责初次绑定、重复 setup 与逆序 teardown。AI callback consumer 先退出，随后断开该 set，最后释放它们依赖的 runtime sidecar。`BattleSkillExecutionOrchestrator` 与 `BattleGroundEffectService` 各自管理直属 child，并在 parent teardown 时清空 runtime、owner 与 sibling borrower。
+这些 helper 优先保持 plain C# typed surface；Godot payload 只在最外层 UI/headless adapter 投影。由 module 持有且需要反向访问 module 的 service 使用弱 borrower；七个直属 split service 只登记在 owner-local `BattleRuntimeModuleBorrowerSet`，由同一拓扑负责初次绑定、重复 setup 与逆序 teardown。`BattleContingencySystem` 的端口绑定同样是弱引用，module teardown 先清除 system 的 capability，再断开 bridge 的 module borrower。AI callback consumer 先退出，随后断开该 set，最后释放它们依赖的 runtime sidecar。`BattleSkillExecutionOrchestrator` 与 `BattleGroundEffectService` 各自管理直属 child，并在 parent teardown 时清空 runtime、owner 与 sibling borrower。
 
 ## 实现级补充：BattleState 不变量
 
@@ -271,22 +277,13 @@ AI 决策必须使用 snapshot/value object：
 - `internal void _prepare_ai_turn(BattleUnitState unit_state)` / `internal void _cleanup_ai_turn(BattleUnitState unit_state)`
 - `internal StringName _resolve_formal_terrain_profile_id(GDictionary terrain_data)`
 - `public BattleEventBatch advance(int tick_count)`
-- `internal void _apply_timeline_step(BattleEventBatch batch, int tu_delta)`
 - `internal BattleContingencySystem GetContingencySystemTyped()`
 - `internal StringName AllocateContingencySourceEventId(StringName prefix)`
 - `internal void EmitContingencyHpAndStatusHooks(...)` / `EmitContingencySpellAffected(...)` / `EmitContingencyPositionChanged(...)`
-- `internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)`
 - `internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(...)`
 - `internal void OnBattleConfirmed(BattleEventBatch batch = null)` / `OnOwnerTurnStarted(...)`
-- `internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState)`
 - `internal void MarkAppliedStatusesForTurnTiming(...)`（三个 typed overload）
-- `internal void _advance_unit_turn_timers(BattleUnitState unit_state, BattleEventBatch batch)`
-- `internal BattleStatusTickResult _apply_turn_start_statuses_result(...)`
-- `internal BattleStatusTickResult _apply_unit_status_periodic_ticks_result(...)`
-- `internal bool _advance_unit_status_durations(..., BattleEventBatch batch = null)`
-- `internal void _initialize_unit_action_thresholds()`
 - `public BattlePreview PreviewCommand(BattleCommand command)`
-- `internal int ResolveSkillCommandEntryLevel(BattleCommand command, BattleSkillAvailabilityConsumer consumer, int fallback = 0)`
 - `internal bool CommitEquipmentSkillUsageIfNeeded(...)`
 - `public BattleEventBatch IssueCommand(BattleCommand command)`
 - `internal void _append_batch_logs_to_state(BattleEventBatch batch) =>`
@@ -319,6 +316,7 @@ AI 决策必须使用 snapshot/value object：
 - `internal BattleFateEventBus GetFateEventBus() =>`
 - `public BattleHitResolver GetHitResolver() => _hit_resolver;`
 - `internal BattleAttackCheckPolicyService GetAttackCheckPolicyService()`
+- `internal BattleEquipmentAbilityRuntimeService GetEquipmentAbilityRuntimeService()`
 - `public void ConfigureHitResolverForTests(BattleHitResolver hit_resolver)`
 - `internal BattleTerrainGenerator GetTerrainGenerator() => _terrain_generator;`
 - `internal SkillDefinition GetSkillDefinitionTyped(StringName skill_id)`
@@ -372,7 +370,7 @@ AI 决策必须使用 snapshot/value object：
 
 - `internal sealed class BattleRuntimeModuleBorrowerSet`
 - `internal void Setup(BattleRuntimeModule runtime)` / `internal void DisposeRuntime(ref Exception firstFailure)`
-- 作为八个直属 split service 的唯一 owner-local 有序组合源；依赖方排在后面，绑定失败或 module teardown 时按逆序 best-effort 清理。
+- 作为七个直属 split service 的唯一 owner-local 有序组合源；依赖方排在后面，绑定失败或 module teardown 时按逆序 best-effort 清理。
 - `CaptureTopology(...)` 只报告 typed 注册拓扑与活动依赖数，供 borrower 生命周期回归验证，不统计 `WeakReference` 实例数量。
 
 ### `scripts/systems/battle/runtime/BattleSpawnPlacementService.cs`
@@ -413,24 +411,26 @@ AI 决策必须使用 snapshot/value object：
 
 - `internal sealed class BattleContingencyBridgeService`
 - `internal void Setup(BattleRuntimeModule runtime)` / `internal void DisposeRuntime()`
-- 拥有 HP/status/spell/position hook、auto-cast、stored-target/release queue、battle/turn hook、overlay 与 consumed validate/commit 桥接；只弱借用 module。
+- 显式实现 `IBattleContingencyRuntimePort`，拥有 current state/grid/skill 查询、玩家学习来源复核、source-event 编号、同步 auto-cast 和 owner overlay 刷新；source-event ordinal 由 bridge 按 runtime 实例生命周期持有。
+- 其余职责是 HP/status/spell/position hook、stored-target/release queue、battle/turn hook 与 consumed validate/commit 桥接；只弱借用 module。
+- auto-cast 保持原同步调用栈：先复核玩家已学来源，再建立覆盖完整 orchestrator 调用的 `BattleEffectOrigin.AutoCast` scope，使用调用方同一 `BattleEventBatch` 直接执行；不改成异步 event bus 或延迟队列。
 
-### `scripts/systems/battle/runtime/BattleTimelineStatusBridgeService.cs`
+### `scripts/systems/battle/runtime/IBattleContingencyRuntimePort.cs`
 
-- `internal sealed class BattleTimelineStatusBridgeService`
-- `internal void Setup(BattleRuntimeModule runtime)` / `internal void DisposeRuntime()`
-- 拥有 timeline/status phase、stamina、status timing overload、action threshold、cooldown、turn timer 与 status tick 桥接；只弱借用 module。
+- `internal interface IBattleContingencyRuntimePort`
+- 只向 `BattleContingencySystem` 暴露 state/grid/skill 查询、来源复核、source-event 编号、同步 auto-cast 与 overlay 刷新七项 capability。
+- `BattleContingencySystem` 弱借用该端口，不持有或引用 `BattleRuntimeModule`；销毁时显式清除端口绑定。
+- contingency lifecycle report 仍由 system 直接调用传入 `BattleEventBatch.AddReportEntry(...)`；不经 metrics/report bridge，避免给既有 report schema 注入额外 effect-origin 字段。
 
 ### `scripts/systems/battle/runtime/BattleCommandPreviewService.cs`
 
 - `internal sealed class BattleCommandPreviewService`
 - `internal void Setup(BattleRuntimeModule runtime)` / `internal void DisposeRuntime()`
 - `public BattlePreview PreviewCommand(BattleCommand command)`
-- `internal int ResolveSkillCommandEntryLevel(...)`
 - `internal string _get_battle_interaction_block_message()`
 - `internal bool _should_block_skill_issue_from_preview(...)`
 - `internal void _preview_change_equipment_command(...)`
-- 拥有只读 command preview、interaction/issue blocking 与 equipment-change preview；装备技能 usage/reaction commit 不属于该 service。
+- 拥有只读 command preview、interaction/issue blocking 与 equipment-change preview；skill entry 校验直接调用 caller-scoped `BattleSkillAvailabilityService`，不为 execution 提供等级转发；装备技能 usage/reaction commit 不属于该 service。
 
 ### `scripts/systems/battle/runtime/BattleGroundEffectService.cs`
 
@@ -544,6 +544,7 @@ AI 决策必须使用 snapshot/value object：
 - `internal sealed partial class BattleSkillExecutionOrchestrator`
 - `internal void Setup(BattleRuntimeModule runtime)`
 - `internal void DisposeRuntime()`
+- execution 在同步调用点通过 `BattleSkillAvailabilityService` 重新解析 entry level；availability result 不从 preview 缓存到 commit，装备授予等级继续进入原有 scoped skill-level execution 规则。
 - `internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)`
 - `internal void _record_unit_defeated(BattleUnitState unit_state)`
 - `internal bool _is_doom_shift_skill(StringName skill_id)`
@@ -626,12 +627,25 @@ AI 决策必须使用 snapshot/value object：
 - `internal int GetUnitTurnOrderAttribute(BattleUnitState unitState, StringName attributeId)`
 - `internal int GetUnitTurnOrderActionPoints(BattleUnitState unitState)`
 - `internal GStringNameArray GetUnitsInOrder()`
+- 真实拥有 timeline phase、current TU、`tu_per_tick`、ready unit、action threshold 与 stamina 推进，不经 module 或独立 bridge 反向转发。
+- `ApplyTimelineStep(...)` 保持 current TU → 状态周期 tick/duration → 临时边/延迟区域/地形/屏障 → pending cast reconcile/advance/complete → ready 收集与排序的原同步顺序。
+- `ActivateNextReadyUnit(...)` 保持 trait turn-start → cooldown/turn timer → module 的 metrics/contingency/sequential auto-cast 编排 → AP/移动点重置 → turn-start status/control 的原同步顺序。
+
+### `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
+
+- `internal sealed class BattleRuntimeSkillTurnResolver`
+- `internal void EnsureUnitTurnAnchor(...)` / `AdvanceUnitCooldowns(...)` / `ConsumeTurnCooldownDelta(...)` / `AdvanceUnitTurnTimers(...)`
+- `internal void InitializeAppliedStatusTimelineTicks(...)`（Godot collection 与 plain typed overload）
+- `internal BattleStatusTickResult ApplyTurnStartStatusesResult(...)` / `ApplyUnitStatusPeriodicTicksResult(...)`
+- `internal bool AdvanceUnitStatusDurations(...)`
+- 真实拥有 cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则，并以状态应用时的 current TU 为基准初始化 `next_tick_at_tu`。
+- `BattleRuntimeModule.MarkAppliedStatusesForTurnTiming(...)` 只负责先调用该 resolver 初始化 tick anchor，再通知 Fate runtime；不成为状态计时 owner。
 
 ### `scripts/systems/battle/runtime/BattleObjectiveEvaluationService.cs`
 
 - `internal sealed class BattleObjectiveEvaluationService`
 - `internal BattleObjectiveEvaluationResult Evaluate(BattleState state)`
-- P0 只实现歼灭目标；它读取正式 objective runtime state，并产出类型化 `BattleFinalDecision`，不直接修改阶段、日志或结算结果。
+- 当前 evaluator 实现歼灭、击败首领、拯救、逃离、护送、防守和截击；它读取正式 objective runtime state，并产出类型化 `BattleFinalDecision`，不直接修改阶段、日志或结算结果。
 
 ### `scripts/systems/battle/runtime/BattleRuntimeModule.Objectives.cs`
 
@@ -708,11 +722,12 @@ AI 决策必须使用 snapshot/value object：
 - `internal BattlePendingCastState ClearPendingCast()`
 - `internal void ClearCastingTurnFlags()`
 - `public void SetAnchorCoord(Vector2I anchor_coord)`
-- `public void RefreshFootprint()`
+- `internal void RefreshFootprint()`
 - `public bool OccupiesCoord(Vector2I target_coord)`
 - `public bool HasMovementTag(StringName tag)`
 - `public bool SetBodySizeCategory(StringName category)`
-- `public void NormalizeBodySizeProjection()`
+- `internal void NormalizeBodySizeProjectionForOwnerWrite()`
+- `internal void EnsureBodySizeProjectionInvariant()`
 - `public bool HasStatusEffect(StringName status_id)`
 - `public bool HasShield()`
 - `public int GetAuraMax()`

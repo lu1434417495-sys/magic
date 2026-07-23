@@ -132,213 +132,223 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
             "enemy",
             action.TargetSelector
         );
-        BattleUnitState focusTarget = targets.Count > 0 ? targets[0] : null;
-        int currentFocusDistance = focusTarget != null
-            ? BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
-                context,
-                actor,
-                actor.coord,
-                focusTarget
-            )
-            : -1;
-        if (positioningMode == PositioningMode.Survival && focusTarget != null)
-        {
-            int currentSafeDistance = BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
-                context,
-                focusTarget,
-                action.MinimumSafeDistance,
-                action.SafeDistanceMargin,
-                _helper
-            );
-            if (currentFocusDistance >= currentSafeDistance)
-            {
-                EnemyAiActionHelper.TraceAddBlockReason(trace, "already_safe");
-                EnemyAiActionHelper.FinalizeActionTrace(context, trace);
-                return null;
-            }
-        }
-
-        BattleAiDecision bestDecision = null;
-        BattleAiScoreInput bestScoreInput = null;
         BattleGridService grid = context.grid_service;
         BattleState state = context.state;
         int currentHeight = grid.GetCellState(state, actor.coord)?.current_height ?? 0;
-
-        bool useFastCandidates = TryCollectFastMoveCandidates(
-            action,
-            context,
-            focusTarget,
-            currentHeight,
-            positioningMode,
-            out List<MoveCandidate> fastCandidates
-        );
-        IEnumerable<MoveCandidate> candidateSequence = fastCandidates;
-        if (!useFastCandidates)
+        int focusTargetCount = Math.Max(targets.Count, 1);
+        for (int focusTargetIndex = 0; focusTargetIndex < focusTargetCount; focusTargetIndex++)
         {
-            var candidates = new List<(Vector2I Coord, int Distance, int Safety, int Height)>();
-            for (int y = 0; y < state.map_size.Y; y++)
+            BattleUnitState focusTarget =
+                targets.Count > 0 ? targets[focusTargetIndex] : null;
+            int currentFocusDistance = focusTarget != null
+                ? BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
+                    context,
+                    actor,
+                    actor.coord,
+                    focusTarget
+                )
+                : -1;
+            if (positioningMode == PositioningMode.Survival && focusTarget != null)
             {
-                for (int x = 0; x < state.map_size.X; x++)
+                int currentSafeDistance = BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
+                    context,
+                    focusTarget,
+                    action.MinimumSafeDistance,
+                    action.SafeDistanceMargin,
+                    _helper
+                );
+                if (currentFocusDistance >= currentSafeDistance)
                 {
-                    var coord = new Vector2I(x, y);
-                    if (
-                        !grid.CanPlaceFootprint(
-                            state,
-                            coord,
-                            actor.footprint_size,
-                            actor.unit_id,
-                            actor
-                        )
-                    )
-                    {
-                        continue;
-                    }
-                    int height = grid.GetCellState(state, coord)?.current_height ?? 0;
-                    if (
-                        positioningMode == PositioningMode.HighGround
-                        && height <= currentHeight
-                    )
-                    {
-                        continue;
-                    }
-                    int distance = focusTarget != null
-                        ? BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
-                            context,
-                            actor,
-                            coord,
-                            focusTarget
-                        )
-                        : 0;
-                    int safety = BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
-                        context,
-                        focusTarget,
-                        action.MinimumSafeDistance,
-                        action.SafeDistanceMargin,
-                        _helper
-                    );
-                    candidates.Add((coord, distance, safety, height));
+                    EnemyAiActionHelper.TraceAddBlockReason(trace, "already_safe");
+                    continue;
                 }
             }
-            SortFullScanCandidates(action, candidates, positioningMode);
-            candidateSequence = candidates.Select(
-                candidate =>
-                    new MoveCandidate(
-                        candidate.Coord,
-                        candidate.Distance,
-                        candidate.Safety,
-                        candidate.Height,
-                        0
-                    )
-            );
-        }
 
-        int evaluationCount = 0;
-        foreach (MoveCandidate candidate in candidateSequence)
-        {
-            if (evaluationCount >= action.CandidateLimit)
-                break;
-            evaluationCount++;
-            EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
-            if (
-                ShouldSkipCandidateWithoutDistanceProgress(
-                    action,
-                    positioningMode,
-                    currentFocusDistance,
-                    candidate.Distance,
-                    resolvedMaxDistance
-                )
-            )
-            {
-                EnemyAiActionHelper.TraceCountIncrement(
-                    trace,
-                    "no_distance_progress_skip_count"
-                );
-                continue;
-            }
+            BattleAiDecision bestDecision = null;
+            BattleAiScoreInput bestScoreInput = null;
 
-            BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(
+            bool useFastCandidates = TryCollectFastMoveCandidates(
+                action,
                 context,
-                candidate.Coord
+                focusTarget,
+                currentHeight,
+                positioningMode,
+                out List<MoveCandidate> fastCandidates
             );
-            BattlePreview preview = BuildFastMovePreview(
-                context,
-                candidate.Coord,
-                candidate.MoveCost
-            );
-            if (preview?.allowed != true)
+            IEnumerable<MoveCandidate> candidateSequence = fastCandidates;
+            if (!useFastCandidates)
             {
-                EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
-                continue;
-            }
-
-            BattleAiScoreInput scoreInput =
-                BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
-                    action,
-                    context,
-                    "move",
-                    action.ActionId.ToString(),
-                    command,
-                    preview,
-                    new Dictionary<string, object>(StringComparer.Ordinal)
+                var candidates = new List<(Vector2I Coord, int Distance, int Safety, int Height)>();
+                for (int y = 0; y < state.map_size.Y; y++)
+                {
+                    for (int x = 0; x < state.map_size.X; x++)
                     {
-                        ["position_target_unit_id"] =
-                            focusTarget?.unit_id ?? new StringName(""),
-                        ["position_anchor_coord"] = candidate.Coord,
-                        ["desired_min_distance"] = resolvedMinDistance,
-                        ["desired_max_distance"] = resolvedMaxDistance,
-                        ["position_current_distance"] = candidate.Distance,
-                        ["position_safe_distance"] = candidate.Safety,
-                        ["position_objective_kind"] = "distance_band_progress",
-                        ["high_ground_weight"] = action.HighGroundWeight,
-                        ["safety_weight"] = action.SafetyWeight,
-                        ["distance_band_weight"] = action.DistanceBandWeight,
-                        ["move_cost"] = candidate.MoveCost,
+                        var coord = new Vector2I(x, y);
+                        if (
+                            !grid.CanPlaceFootprint(
+                                state,
+                                coord,
+                                actor.footprint_size,
+                                actor.unit_id,
+                                actor
+                            )
+                        )
+                        {
+                            continue;
+                        }
+                        int height = grid.GetCellState(state, coord)?.current_height ?? 0;
+                        if (
+                            positioningMode == PositioningMode.HighGround
+                            && height <= currentHeight
+                        )
+                        {
+                            continue;
+                        }
+                        int distance = focusTarget != null
+                            ? BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
+                                context,
+                                actor,
+                                coord,
+                                focusTarget
+                            )
+                            : 0;
+                        int safety = BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
+                            context,
+                            focusTarget,
+                            action.MinimumSafeDistance,
+                            action.SafeDistanceMargin,
+                            _helper
+                        );
+                        candidates.Add((coord, distance, safety, height));
                     }
+                }
+                SortFullScanCandidates(action, candidates, positioningMode);
+                candidateSequence = candidates.Select(
+                    candidate =>
+                        new MoveCandidate(
+                            candidate.Coord,
+                            candidate.Distance,
+                            candidate.Safety,
+                            candidate.Height,
+                            0
+                        )
                 );
-            if (
-                positioningMode == PositioningMode.Survival
-                && BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
-                    scoreInput,
-                    action.MinSurvivalMarginGainToEscape
-                )
-            )
-            {
-                EnemyAiActionHelper.TraceCountIncrement(
-                    trace,
-                    "no_survival_gain_skip_count"
-                );
-                continue;
             }
-            if (trace != null)
+
+            int evaluationCount = 0;
+            foreach (MoveCandidate candidate in candidateSequence)
             {
-                EnemyAiActionHelper.TraceOfferCandidate(
-                    trace,
-                    EnemyAiActionHelper.BuildCandidateSummary(
-                        $"move_to_{candidate.Coord.X}_{candidate.Coord.Y}",
+                if (evaluationCount >= action.CandidateLimit)
+                    break;
+                evaluationCount++;
+                EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
+                if (
+                    ShouldSkipCandidateWithoutDistanceProgress(
+                        action,
+                        positioningMode,
+                        currentFocusDistance,
+                        candidate.Distance,
+                        resolvedMaxDistance
+                    )
+                )
+                {
+                    EnemyAiActionHelper.TraceCountIncrement(
+                        trace,
+                        "no_distance_progress_skip_count"
+                    );
+                    continue;
+                }
+
+                BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(
+                    context,
+                    candidate.Coord
+                );
+                BattlePreview preview = BuildFastMovePreview(
+                    context,
+                    candidate.Coord,
+                    candidate.MoveCost
+                );
+                if (preview?.allowed != true)
+                {
+                    EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
+                    continue;
+                }
+
+                BattleAiScoreInput scoreInput =
+                    BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
+                        action,
+                        context,
+                        "move",
+                        action.ActionId.ToString(),
                         command,
-                        scoreInput,
+                        preview,
                         new Dictionary<string, object>(StringComparer.Ordinal)
                         {
-                            ["coord"] = candidate.Coord,
-                            ["dist"] = candidate.Distance,
-                            ["height"] = candidate.Height,
+                            ["position_target_unit_id"] =
+                                focusTarget?.unit_id ?? new StringName(""),
+                            ["position_anchor_coord"] = candidate.Coord,
+                            ["desired_min_distance"] = resolvedMinDistance,
+                            ["desired_max_distance"] = resolvedMaxDistance,
+                            ["position_current_distance"] = candidate.Distance,
+                            ["position_safe_distance"] = candidate.Safety,
+                            ["position_objective_kind"] = "distance_band_progress",
+                            ["high_ground_weight"] = action.HighGroundWeight,
+                            ["safety_weight"] = action.SafetyWeight,
+                            ["distance_band_weight"] = action.DistanceBandWeight,
+                            ["move_cost"] = candidate.MoveCost,
                         }
+                    );
+                if (
+                    positioningMode == PositioningMode.Survival
+                    && BattleAiActionEvaluatorUtilities.IsUnthreatenedReposition(
+                        scoreInput,
+                        action.MinSurvivalMarginGainToEscape
                     )
+                )
+                {
+                    EnemyAiActionHelper.TraceCountIncrement(
+                        trace,
+                        "no_survival_gain_skip_count"
+                    );
+                    continue;
+                }
+                if (trace != null)
+                {
+                    EnemyAiActionHelper.TraceOfferCandidate(
+                        trace,
+                        EnemyAiActionHelper.BuildCandidateSummary(
+                            $"move_to_{candidate.Coord.X}_{candidate.Coord.Y}",
+                            command,
+                            scoreInput,
+                            new Dictionary<string, object>(StringComparer.Ordinal)
+                            {
+                                ["coord"] = candidate.Coord,
+                                ["dist"] = candidate.Distance,
+                                ["height"] = candidate.Height,
+                            }
+                        )
+                    );
+                }
+                if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                    continue;
+                bestScoreInput = scoreInput;
+                bestDecision = EnemyAiActionHelper.CreateScoredDecision(
+                    action.ActionId,
+                    action.ScoreBucketId,
+                    command,
+                    scoreInput,
+                    $"{actor.display_name} 移动到 ({candidate.Coord.X},{candidate.Coord.Y})（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
                 );
             }
-            if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
-                continue;
-            bestScoreInput = scoreInput;
-            bestDecision = EnemyAiActionHelper.CreateScoredDecision(
-                action.ActionId,
-                action.ScoreBucketId,
-                command,
-                scoreInput,
-                $"{actor.display_name} 移动到 ({candidate.Coord.X},{candidate.Coord.Y})（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
-            );
+            if (bestDecision != null)
+            {
+                EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
+                return bestDecision;
+            }
         }
-        EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
-        return bestDecision;
+
+        EnemyAiActionHelper.FinalizeActionTrace(context, trace);
+        return null;
     }
 
     private bool TryCollectFastMoveCandidates(

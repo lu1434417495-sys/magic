@@ -31,7 +31,6 @@ public static class SkillLevelDescriptionFormatter
         _merge_matching_effect_params(config, skillDefinition, level);
         _merge_matching_effect_typed_fields(config, skillDefinition, level);
         _merge_level_overrides(config, skillDefinition, level);
-        _resolve_charge_distance(config, level);
         if (runtimeContext != null)
             MergePlainMap(
                 config,
@@ -427,39 +426,6 @@ public static class SkillLevelDescriptionFormatter
             if (!config.ContainsKey(fieldKey))
                 config[fieldKey] = value;
         }
-    }
-
-    private static void _resolve_charge_distance(Dictionary<string, object> config, int level)
-    {
-        if (config.ContainsKey("distance"))
-            return;
-        if (!config.ContainsKey("base_distance") && !config.ContainsKey("distance_by_level"))
-            return;
-        int baseDist = config.TryGetValue("base_distance", out object baseDistance)
-            ? ReadPlainInt(baseDistance)
-            : 0;
-        object distanceMap = config.TryGetValue("distance_by_level", out object distanceByLevel)
-            ? distanceByLevel
-            : null;
-        if (distanceMap is not IReadOnlyDictionary<string, object> distanceByLevelMap)
-        {
-            config["distance"] = baseDist;
-            return;
-        }
-        int dist = baseDist;
-        var keys = new List<int>();
-        foreach (string key in distanceByLevelMap.Keys)
-            if (int.TryParse(key, out int parsedKey))
-                keys.Add(parsedKey);
-        keys.Sort();
-        foreach (int k in keys)
-        {
-            if (k > level)
-                break;
-            if (distanceByLevelMap.TryGetValue(k.ToString(), out object value))
-                dist = ReadPlainInt(value, dist);
-        }
-        config["distance"] = dist;
     }
 
     private static void _apply_description_derived_fields(Dictionary<string, object> config)

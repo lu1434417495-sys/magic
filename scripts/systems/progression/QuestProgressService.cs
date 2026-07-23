@@ -164,7 +164,7 @@ public sealed class QuestProgressService
         questState.RecordObjectiveProgress(objectiveId, delta, resolvedTarget, context);
         QuestDefinition questDef = GetQuestDefObject(questId);
         if (questDef != null && questState.HasCompletedAllObjectives(questDef))
-            questState.MarkCompleted(GetWorldStep());
+            return CompleteQuest(questId, GetWorldStep());
         return true;
     }
 

@@ -728,7 +728,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         AssertDeathSentenceMark(state, holder, target, "到期测试前应存在判决标记。");
 
         using BattleEventBatch firstBatch = new();
-        bool firstChanged = fixture.Runtime._advance_unit_status_durations(target, 60, firstBatch);
+        bool firstChanged = fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            60,
+            firstBatch
+        );
         _test.True(firstChanged, "推进 60TU 应使判决状态到期。");
         _test.Eq(holder.current_hp, 96, "未使用的判决到期应触发一次 2D12+2 自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "判决到期后应清除 typed target mark。");
@@ -736,7 +740,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         _test.True(HasLogLineContaining(firstBatch, "自我处刑意志检定"), "到期日志应显示自我处刑检定。");
 
         using BattleEventBatch secondBatch = new();
-        fixture.Runtime._advance_unit_status_durations(target, 60, secondBatch);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            60,
+            secondBatch
+        );
         _test.Eq(holder.current_hp, 96, "已清理的判决继续推进时间不得重复自我处刑。");
         AssertNoInternalSkillIdentity(firstBatch);
         AssertNoInternalSkillIdentity(secondBatch);
@@ -793,7 +801,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         );
 
         using BattleEventBatch afterExpiryWindow = new();
-        fixture.Runtime._advance_unit_status_durations(target, 60, afterExpiryWindow);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            60,
+            afterExpiryWindow
+        );
         _test.Eq(holder.current_hp, holderHpBefore, "卸装清理后再推进 60TU 也不得延迟触发反噬。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "卸装清理后不得残留延迟到期的 typed mark。");
         AssertNoInternalSkillIdentity(unequipBatch);
@@ -916,7 +928,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             FindDeathSentenceEntry(fixture, firstHolder, state)
         );
         using BattleEventBatch firstHalf = new();
-        fixture.Runtime._advance_unit_status_durations(target, 30, firstHalf);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            30,
+            firstHalf
+        );
         _test.Eq(firstHolder.current_hp, 100, "首个判决推进 30TU 时不应提前反噬。");
 
         IssueDeathSentence(
@@ -929,14 +945,22 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         MoveDeathSentenceMarkToEnd(state, firstHolder);
 
         using BattleEventBatch firstExpiry = new();
-        fixture.Runtime._advance_unit_status_durations(target, 30, firstExpiry);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            30,
+            firstExpiry
+        );
         _test.Eq(firstHolder.current_hp, 96, "首个来源累计 60TU 后应独立触发自我处刑。");
         _test.Eq(secondHolder.current_hp, 100, "后施放来源只经过 30TU，不应提前反噬。");
         _test.Eq(state.EquipmentTargetMarkCount, 1, "首个来源到期后应仅保留第二个判决标记。");
         AssertDeathSentenceMark(state, secondHolder, target, "第二个来源的判决标记应继续存在。");
 
         using BattleEventBatch secondExpiry = new();
-        fixture.Runtime._advance_unit_status_durations(target, 30, secondExpiry);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            30,
+            secondExpiry
+        );
         _test.Eq(secondHolder.current_hp, 96, "第二个来源累计 60TU 后应触发自己的自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "两个来源分别到期后不应残留 typed mark。");
         AssertNoInternalSkillIdentity(firstHalf);
@@ -972,7 +996,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             FindDeathSentenceEntry(fixture, firstHolder, state)
         );
         using BattleEventBatch firstHalf = new();
-        fixture.Runtime._advance_unit_status_durations(target, 30, firstHalf);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            30,
+            firstHalf
+        );
         IssueDeathSentence(
             fixture.Runtime,
             secondHolder,
@@ -998,7 +1026,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         _test.Eq(restoredMirror?.duration ?? -1, 30, "恢复后的镜像状态应显示首个来源剩余 30TU。");
 
         using BattleEventBatch firstExpiry = new();
-        fixture.Runtime._advance_unit_status_durations(target, 30, firstExpiry);
+        fixture.Runtime._skill_turn_resolver.AdvanceUnitStatusDurations(
+            target,
+            30,
+            firstExpiry
+        );
         _test.Eq(firstHolder.current_hp, 96, "首个来源剩余 30TU 到期后应正常自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "恢复显示的最后一份判决到期后应完整清理。");
         _test.False(target.HasStatusEffect(DeathSentenceStatusId), "最后一份判决到期后镜像应消失。");

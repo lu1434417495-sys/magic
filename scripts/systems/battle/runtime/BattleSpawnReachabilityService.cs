@@ -327,7 +327,6 @@ internal sealed class BattleSpawnReachabilityService
             BattleUnitState sameSideUnit = TryGetUnit(state, unitId);
             if (sameSideUnit == null)
                 continue;
-            sameSideUnit.RefreshFootprint();
             foreach (Vector2I occupiedCoord in sameSideUnit.occupied_coords)
             {
                 var cell = state.GetCell(occupiedCoord);
@@ -478,7 +477,6 @@ internal sealed class BattleSpawnReachabilityService
                     && attackSkill.GroundAreaPattern != BattleAreaPattern.Self
                 )
                 {
-                    targetUnit.RefreshFootprint();
                     fastGroundTargetCoords = BuildGroundTargetCoordCandidates(
                         state,
                         gridService,
@@ -551,7 +549,6 @@ internal sealed class BattleSpawnReachabilityService
             || attackSkill.CombatProfile == null
         )
             return false;
-        targetUnit.RefreshFootprint();
         if (
             _TryCanGroundSkillHitTargetFast(
                 state,
@@ -732,7 +729,6 @@ internal sealed class BattleSpawnReachabilityService
     {
         if (gridService == null || sourceUnit == null || targetUnit == null)
             return 999999;
-        targetUnit.RefreshFootprint();
         int bestDistance = 999999;
         var sourceCoords = gridService.GetUnitTargetCoords(sourceUnit, sourceAnchor);
         foreach (Vector2I sourceCoord in sourceCoords)
@@ -794,6 +790,11 @@ internal sealed class BattleSpawnReachabilityService
                 unitState,
                 combatProfile.RequiredWeaponFamilies
             )
+        )
+            return false;
+        if (
+            BattleRangeService.RequiresCurrentWeapon(skillDefinition)
+            && !BattleRangeService.UnitHasEquippedWeapon(unitState)
         )
             return false;
         if (

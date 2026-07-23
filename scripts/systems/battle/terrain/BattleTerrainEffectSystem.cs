@@ -324,7 +324,9 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             sourceUnit,
             targetUnit,
             new[] { tickEffect },
-            DamageResolutionContext.ForSkill(effectState.source_skill_id)
+            DamageResolutionContext
+                .ForSkill(effectState.source_skill_id)
+                .WithBattleState(runtime.GetState())
         );
         if (!damageResult.Applied)
             return;
@@ -442,7 +444,6 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (state == null || gridService == null)
             return;
 
-        targetUnit.RefreshFootprint();
         List<Vector2I> targetCoords = gridService.GetUnitTargetCoords(
             targetUnit,
             targetUnit.coord

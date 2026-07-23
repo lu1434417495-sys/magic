@@ -36,6 +36,14 @@ public partial class run_battle_state_owner_api_regression : LifecycleTestSceneT
         long revisionBefore = state.MovementGeometryRevision;
 
         BattleUnitState hero = new() { unit_id = "hero" };
+        hero.SetAnchorCoord(new Vector2I(5, 6));
+        hero.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            hero.coord,
+            new StringName("medium"),
+            BattleUnitState.BodySizeMedium,
+            new Vector2I(2, 2),
+            new[] { new Vector2I(99, 99) }
+        );
         BattleUnitState missingId = new();
         state.SetUnits(new[] { hero, null, missingId });
 
@@ -47,5 +55,12 @@ public partial class run_battle_state_owner_api_regression : LifecycleTestSceneT
         BattleUnitReadView view = state.GetUnitView("hero");
         _test.True(view.IsValid, "GetUnitView 应返回有效只读单位视图。");
         _test.Eq(view.UnitId, new StringName("hero"), "GetUnitView 应读取 state 持有的 unit。");
+        _test.Eq(hero.footprint_size, Vector2I.One, "SetUnit admission 应重建派生 footprint_size。");
+        _test.Eq(hero.occupied_coords.Count, 1, "SetUnit admission 应重建 occupied_coords。");
+        _test.Eq(
+            hero.occupied_coords[0],
+            new Vector2I(5, 6),
+            "SetUnit admission 应按 authoritative anchor 重建 occupied_coords。"
+        );
     }
 }

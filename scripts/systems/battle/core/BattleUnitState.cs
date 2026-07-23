@@ -62,6 +62,7 @@ public partial class BattleUnitState
         "unit_id",
         "source_member_id",
         "enemy_template_id",
+        "encounter_actor_id",
         "display_name",
         "battle_sprite_texture_path",
         "faction_id",
@@ -188,6 +189,7 @@ public partial class BattleUnitState
     public StringName unit_id = "";
     public StringName source_member_id = "";
     public StringName enemy_template_id = "";
+    public StringName encounter_actor_id = "";
     public string display_name = "";
     public string battle_sprite_texture_path = "";
     public StringName faction_id = "";
@@ -223,7 +225,7 @@ public partial class BattleUnitState
     public StringName shield_family = "";
     public StringName shield_source_unit_id = "";
     public StringName shield_source_skill_id = "";
-    private readonly List<StringName> _consumedContingencySetupIds = new();
+    private BattleConsumedContingencySetupCollection _consumedContingencySetups = new();
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
     public StringNameList known_active_skill_ids { get; internal set; } = new();
@@ -268,6 +270,11 @@ public partial class BattleUnitState
         get => _statusEffects;
         set => _statusEffects = value ?? new();
     }
+    private BattleConsumedContingencySetupCollection ConsumedContingencySetups
+    {
+        get => _consumedContingencySetups;
+        set => _consumedContingencySetups = value ?? new();
+    }
     public BattleStringNameIntMap per_battle_charges = new();
     public BattleStringNameIntMap per_turn_charges = new();
     public BattleStringNameIntMap per_turn_charge_limits = new();
@@ -311,7 +318,7 @@ public partial class BattleUnitState
         RefreshFootprint();
     }
 
-    public void RefreshFootprint()
+    internal void RefreshFootprint()
     {
         Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
         if (
@@ -601,13 +608,33 @@ public partial class BattleUnitState
             : new Vector2IList(occupiedCoords);
     }
 
-    public void NormalizeBodySizeProjection()
+    internal void NormalizeBodySizeProjectionForOwnerWrite()
+    {
+        EnsureBodySizeIdentityInvariant();
+        RefreshFootprint();
+    }
+
+    internal void EnsureBodySizeProjectionInvariant()
+    {
+        EnsureBodySizeIdentityInvariant();
+        Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
+        if (
+            footprint_size != resolvedFootprint
+            || !OccupiedCoordsMatch(coord, resolvedFootprint, occupied_coords)
+        )
+        {
+            throw new InvalidOperationException(
+                $"BattleUnitState footprint 投影不一致: unit_id='{unit_id}', " +
+                $"coord={coord}, body_size={body_size}, footprint_size={footprint_size}。 " +
+                "请通过 owner 写入口修改坐标或体型。"
+            );
+        }
+    }
+
+    private void EnsureBodySizeIdentityInvariant()
     {
         if (BodySizeMatchesCategory(body_size_category, body_size))
-        {
-            RefreshFootprint();
             return;
-        }
         throw new InvalidOperationException(
             $"BattleUnitState body_size/body_size_category 不一致: " +
             $"body_size={body_size}, body_size_category='{body_size_category}'。 " +
@@ -1054,26 +1081,20 @@ public partial class BattleUnitState
 
     internal void MarkContingencySetupConsumed(StringName setupId)
     {
-        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
-        if (normalized == "" || _consumedContingencySetupIds.Contains(normalized))
-            return;
-        _consumedContingencySetupIds.Add(normalized);
+        ConsumedContingencySetups.MarkConsumed(setupId);
     }
 
     internal bool HasConsumedContingencySetup(StringName setupId)
     {
-        StringName normalized = ProgressionDataUtils.to_string_name(setupId);
-        return normalized != "" && _consumedContingencySetupIds.Contains(normalized);
+        return ConsumedContingencySetups.Contains(setupId);
     }
 
     internal IReadOnlyList<StringName> GetConsumedContingencySetupIdsTyped() =>
-        new List<StringName>(_consumedContingencySetupIds);
+        ConsumedContingencySetups.GetIds();
 
     internal void ReplaceConsumedContingencySetupIdsTyped(IEnumerable<StringName> setupIds)
     {
-        _consumedContingencySetupIds.Clear();
-        foreach (StringName setupId in setupIds ?? Array.Empty<StringName>())
-            MarkContingencySetupConsumed(setupId);
+        ConsumedContingencySetups.Replace(setupIds);
     }
 
     public void NormalizeShieldState()
@@ -1339,7 +1360,7 @@ public partial class BattleUnitState
 
     public BattleUnitState clone()
     {
-        NormalizeBodySizeProjection();
+        EnsureBodySizeProjectionInvariant();
         NormalizeShieldState();
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
@@ -1349,6 +1370,7 @@ public partial class BattleUnitState
             unit_id = unit_id,
             source_member_id = source_member_id,
             enemy_template_id = enemy_template_id,
+            encounter_actor_id = encounter_actor_id,
             display_name = display_name,
             battle_sprite_texture_path = battle_sprite_texture_path,
             faction_id = faction_id,
@@ -1433,13 +1455,8 @@ public partial class BattleUnitState
             turn_casting_exhausted = turn_casting_exhausted,
             action_progress_rate_remainder = action_progress_rate_remainder,
             cast_progress_rate_remainder = cast_progress_rate_remainder,
-        }.WithConsumedContingencySetupIds(_consumedContingencySetupIds);
-    }
-
-    private BattleUnitState WithConsumedContingencySetupIds(IEnumerable<StringName> setupIds)
-    {
-        ReplaceConsumedContingencySetupIdsTyped(setupIds);
-        return this;
+            ConsumedContingencySetups = ConsumedContingencySetups.DuplicateState(),
+        };
     }
 
     public static Vector2I GetFootprintSizeForBodySize(int size_value)
@@ -1449,7 +1466,7 @@ public partial class BattleUnitState
 
     internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
-        NormalizeBodySizeProjection();
+        EnsureBodySizeProjectionInvariant();
         NormalizeShieldState();
         NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
@@ -1459,6 +1476,7 @@ public partial class BattleUnitState
             ["unit_id"] = unit_id.ToString(),
             ["source_member_id"] = source_member_id.ToString(),
             ["enemy_template_id"] = enemy_template_id.ToString(),
+            ["encounter_actor_id"] = encounter_actor_id.ToString(),
             ["display_name"] = display_name,
             ["battle_sprite_texture_path"] = battle_sprite_texture_path,
             ["faction_id"] = faction_id.ToString(),
@@ -1663,6 +1681,7 @@ public partial class BattleUnitState
             {
                 "source_member_id",
                 "enemy_template_id",
+                "encounter_actor_id",
                 "ai_brain_id",
                 "ai_state_id",
                 "shield_family",
@@ -1935,6 +1954,7 @@ public partial class BattleUnitState
             unit_id = ToStringName(payload["unit_id"]),
             source_member_id = ToStringName(payload["source_member_id"]),
             enemy_template_id = ToStringName(payload["enemy_template_id"]),
+            encounter_actor_id = ToStringName(payload["encounter_actor_id"]),
             display_name = payload["display_name"].AsString(),
             battle_sprite_texture_path = payload["battle_sprite_texture_path"].AsString(),
             faction_id = ToStringName(payload["faction_id"]),
@@ -2011,7 +2031,7 @@ public partial class BattleUnitState
         };
         unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
         unitState.NormalizeShieldState();
-        unitState.RefreshFootprint();
+        unitState.EnsureBodySizeProjectionInvariant();
         return unitState;
     }
 

@@ -10,6 +10,13 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 // Pure physical split: same class, no behavior change. See GameRuntimeFacade.cs.
 public sealed partial class GameRuntimeFacade
 {
+    private enum PendingBattleStartAttemptKind
+    {
+        None = 0,
+        Pending,
+        Started,
+        Failed,
+    }
 
     internal void PrepareBattleStart(EncounterAnchorData encounter_anchor)
     {
@@ -34,10 +41,14 @@ public sealed partial class GameRuntimeFacade
     )
     {
         if (encounter_anchor == null || _battle_runtime == null)
+        {
+            HandleBattleStartFailure();
             return "failed";
+        }
         if (ResolveBattleObjectiveDefinition(encounter_anchor) == null)
         {
             UpdateStatusInternal("战斗加载失败：遭遇缺少正式胜利目标。");
+            HandleBattleStartFailure();
             return "failed";
         }
         _pending_battle_generation_request.Set(encounter_anchor, seed, context);
@@ -57,7 +68,16 @@ public sealed partial class GameRuntimeFacade
                 ["runtime"] = _build_runtime_log_state(),
             })
         );
-        return _try_complete_pending_battle_start() ? "started" : "pending";
+        PendingBattleStartAttemptKind attemptKind =
+            _try_complete_pending_battle_start();
+        if (attemptKind == PendingBattleStartAttemptKind.Started)
+            return "started";
+        if (attemptKind == PendingBattleStartAttemptKind.Failed)
+        {
+            HandleBattleStartFailure();
+            return "failed";
+        }
+        return "pending";
     }
 
     internal void HandleBattleStartFailure()
@@ -70,6 +90,7 @@ public sealed partial class GameRuntimeFacade
         _pending_battle_generation_request.Clear();
         _active_modal_kind = RuntimeModalKind.None;
         ClearRuntimeBattleStateReference();
+        _release_battle_save_lock();
         _battle_auto_tick_remainder_msec = 0;
         _battle_selected_coord = new Vector2I(-1, -1);
         UpdateStatusInternal("遭遇战生成失败。");
@@ -84,6 +105,19 @@ public sealed partial class GameRuntimeFacade
                 ["encounter_name"] = failedEncounterName,
                 ["runtime"] = _build_runtime_log_state(),
             })
+        );
+    }
+
+    private void HandleDeferredBattleStartFailure()
+    {
+        HandleBattleStartFailure();
+        if (_game_session == null || !_game_session.HasActiveWorld())
+            return;
+        int flushError = _flush_game_state_with_world_sync();
+        UpdateStatusInternal(
+            flushError == (int)Error.Ok
+                ? "遭遇战未能开始，已保留玩家当前位置与世界时间。"
+                : "遭遇战未能开始，且玩家位置或世界时间持久化失败。"
         );
     }
 
@@ -121,19 +155,19 @@ public sealed partial class GameRuntimeFacade
         );
     }
 
-    private bool _try_complete_pending_battle_start()
+    private PendingBattleStartAttemptKind _try_complete_pending_battle_start()
     {
         if (_pending_battle_generation_request.IsEmpty || _battle_runtime == null)
-            return false;
+            return PendingBattleStartAttemptKind.None;
         var encounterAnchor = _pending_battle_generation_request.EncounterAnchor;
         if (encounterAnchor == null)
-            return false;
+            return PendingBattleStartAttemptKind.Failed;
         BattleObjectiveDefinition objectiveDefinition =
             ResolveBattleObjectiveDefinition(encounterAnchor);
         if (objectiveDefinition == null)
         {
             UpdateStatusInternal("战斗加载失败：遭遇缺少正式胜利目标。");
-            return false;
+            return PendingBattleStartAttemptKind.Failed;
         }
         int seed = _pending_battle_generation_request.Seed;
         Dictionary<string, object> context =
@@ -157,14 +191,37 @@ public sealed partial class GameRuntimeFacade
             );
         }
         if (runtimeState == null || runtimeState.IsEmpty())
-            return false;
+        {
+            BattleStartFailureSnapshot failure =
+                _battle_runtime.GetLastStartFailureSnapshot();
+            return IsTerminalBattleStartFailure(failure)
+                ? PendingBattleStartAttemptKind.Failed
+                : PendingBattleStartAttemptKind.Pending;
+        }
         _pending_battle_generation_request.Clear();
         if (_battle_session_facade != null)
             _battle_session_facade.RefreshBattleRuntimeState();
         else
             _battle_state = runtimeState;
         PresentBattleStartConfirmation();
-        return true;
+        return PendingBattleStartAttemptKind.Started;
+    }
+
+    private static bool IsTerminalBattleStartFailure(
+        BattleStartFailureSnapshot failure
+    )
+    {
+        if (failure == null || failure.IsEmpty)
+            return false;
+        return failure.Reason switch
+        {
+            "missing_objective_definition" => true,
+            "invalid_start_units" => true,
+            "invalid_objective_binding" => true,
+            "spawn_reachability" => true,
+            "placement_exhausted" => true,
+            _ => false,
+        };
     }
 
     private string _resolve_battle_encounter_display_name(EncounterAnchorData encounter_anchor)

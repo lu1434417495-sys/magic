@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
+// Canonical content owner for the immutable world-preset manifest and its projections.
 internal static class WorldPresetRegistry
 {
     private static readonly StringName DefaultPresetId = new("test");

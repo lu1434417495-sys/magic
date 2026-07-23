@@ -125,16 +125,16 @@ public partial class BattleDamageResolver
             return BuildInvalidDamageTagOutcome(sourceUnit, effectDefinition);
         }
         StringName rollMode = damageContext.DamageRollMode;
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
-        if (equipmentAbilityService != null)
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
+        if (equipmentAbilityDamageQuery != null)
         {
-            rollMode = equipmentAbilityService.ResolveDamageRollModeOverride(
+            rollMode = equipmentAbilityDamageQuery.ResolveDamageRollModeOverride(
                 new BattleEquipmentAbilityDamageRollModeContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = equipmentAbilityService.GetBattleState(),
+                    BattleState = damageContext?.BattleState,
                     CurrentRollMode = rollMode,
                     AttackSucceeded = damageContext.AttackSuccess,
                     CriticalHit = damageContext.CriticalHit,
@@ -395,16 +395,16 @@ public partial class BattleDamageResolver
         }
 
         StringName rollMode = (damageContext ?? DamageResolutionContext.Empty()).DamageRollMode;
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
-        if (equipmentAbilityService != null)
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
+        if (equipmentAbilityDamageQuery != null)
         {
-            rollMode = equipmentAbilityService.ResolveDamageRollModeOverride(
+            rollMode = equipmentAbilityDamageQuery.ResolveDamageRollModeOverride(
                 new BattleEquipmentAbilityDamageRollModeContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = equipmentAbilityService.GetBattleState(),
+                    BattleState = damageContext?.BattleState,
                     CurrentRollMode = rollMode,
                     AttackSucceeded = damageContext.AttackSuccess,
                     CriticalHit = false,

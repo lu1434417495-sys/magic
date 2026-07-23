@@ -812,6 +812,8 @@ public sealed class GameRuntimeSnapshotBuilder
             hudSnapshot.CanonicalFacts,
             "GameRuntimeSnapshotBuilder.battle.hud"
         );
+        BattleObjectiveProgressSnapshot objectiveProgress =
+            new BattleStateReadView(battleState).ObjectiveProgress;
 
         var units = new PlainList();
         foreach ((StringName _, BattleUnitState unitState) in battleState.UnitEntries(sorted: true))
@@ -867,6 +869,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["objective_mode"] = BattleObjectiveRuntimeCodec.ToWireValue(
                 battleState.ObjectiveRuntimeState?.Mode ?? BattleObjectiveMode.Unknown
             ),
+            ["objective"] = BuildBattleObjectiveProgressSnapshot(objectiveProgress),
             ["outcome"] = BattleObjectiveRuntimeCodec.ToWireValue(
                 battleState.FinalDecision?.Outcome ?? BattleOutcomeKind.Unknown
             ),
@@ -903,6 +906,77 @@ public sealed class GameRuntimeSnapshotBuilder
             ["report_entries"] = reportEntries,
             ["units"] = units,
         };
+    }
+
+    private static PlainDictionary BuildBattleObjectiveProgressSnapshot(
+        BattleObjectiveProgressSnapshot progress
+    )
+    {
+        progress ??= BattleObjectiveProgressSnapshot.Empty;
+        return new PlainDictionary(StringComparer.Ordinal)
+        {
+            ["mode"] = BattleObjectiveRuntimeCodec.ToWireValue(progress.Mode),
+            ["target_actor_id"] = progress.TargetActorId.ToString(),
+            ["target_unit_id"] = progress.TargetUnitId.ToString(),
+            ["target_display_name"] = progress.TargetDisplayName,
+            ["target_alive"] = progress.TargetAlive,
+            ["target_secured"] = progress.TargetSecured,
+            ["target_reached_exit"] = progress.TargetReachedExit,
+            ["required_unit_ids"] = StringNameArrayToStringArray(
+                progress.RequiredUnitIds
+            ),
+            ["alive_required_unit_ids"] = StringNameArrayToStringArray(
+                progress.AliveRequiredUnitIds
+            ),
+            ["reached_exit_unit_ids"] = StringNameArrayToStringArray(
+                progress.ReachedExitUnitIds
+            ),
+            ["required_unit_count"] = progress.RequiredUnitCount,
+            ["alive_required_unit_count"] = progress.AliveRequiredUnitCount,
+            ["reached_exit_unit_count"] = progress.ReachedExitUnitCount,
+            ["exit_zone_id"] = progress.ExitZoneId.ToString(),
+            ["exit_edge"] = progress.ExitEdgeWireValue,
+            ["exit_depth"] = progress.ExitDepth,
+            ["exit_coords"] = CoordEnumerableToDictArray(progress.ExitCoords),
+            ["current_tu"] = progress.CurrentTu,
+            ["start_tu"] = progress.StartTu,
+            ["deadline_tu"] = progress.DeadlineTu,
+            ["remaining_tu"] = progress.RemainingTu,
+            ["enemy_unit_count"] = progress.EnemyUnitCount,
+            ["alive_enemy_unit_count"] = progress.AliveEnemyUnitCount,
+            ["operation_nodes"] = BuildOperationNodeSnapshots(
+                progress.OperationNodes
+            ),
+            ["operation_node_count"] = progress.OperationNodeCount,
+            ["completed_operation_node_count"] =
+                progress.CompletedOperationNodeCount,
+            ["incomplete_operation_node_count"] =
+                progress.IncompleteOperationNodeCount,
+        };
+    }
+
+    private static PlainList BuildOperationNodeSnapshots(
+        IEnumerable<BattleObjectiveNodeProgressSnapshot> nodes
+    )
+    {
+        var result = new PlainList();
+        foreach (
+            BattleObjectiveNodeProgressSnapshot node in
+            nodes ?? Array.Empty<BattleObjectiveNodeProgressSnapshot>()
+        )
+        {
+            result.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["node_id"] = node.NodeId.ToString(),
+                    ["display_name"] = node.DisplayName,
+                    ["zone_id"] = node.ZoneId.ToString(),
+                    ["coord"] = CoordToDict(node.Coord),
+                    ["is_completed"] = node.IsCompleted,
+                }
+            );
+        }
+        return result;
     }
 
     private PlainDictionary BuildPendingCastSnapshot(BattlePendingCastState pendingCast)

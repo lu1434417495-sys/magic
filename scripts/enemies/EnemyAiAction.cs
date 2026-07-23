@@ -48,12 +48,64 @@ public partial class EnemyAiAction : Resource
         foreach (StringName skillId in GetDeclaredSkillIds())
         {
             if (skillId == "")
+            {
                 errors.Add($"AI action {action_id} references an empty skill_id.");
-            else if (!skillDefinitions.ContainsKey(skillId))
+            }
+            else if (
+                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
+                || skillDefinition == null
+            )
+            {
                 errors.Add($"AI action {action_id} references missing skill {skillId}.");
+            }
+            else
+            {
+                EnemyAiActionSkillCompatibilityResult compatibility =
+                    EvaluateSkillCompatibility(skillDefinition);
+                if (!compatibility.IsCompatible)
+                {
+                    errors.Add(
+                        $"AI action {action_id} ({GetType().Name}) references incompatible "
+                            + $"skill {skillId}: {compatibility.Reason}."
+                    );
+                }
+            }
         }
         return errors;
     }
+
+    internal EnemyAiActionSkillCompatibilityResult EvaluateSkillCompatibility(
+        SkillDefinition skillDefinition,
+        int? skillLevel = null
+    ) =>
+        EnemyAiActionSkillCompatibilityRules.Evaluate(
+            GetActionKind(),
+            skillDefinition,
+            this is UseMultiUnitSkillAction multiUnitAction
+                ? multiUnitAction.candidate_pool_limit
+                : int.MaxValue,
+            skillLevel
+        );
+
+    internal EnemyAiActionKind GetActionKind() =>
+        this switch
+        {
+            MoveToMultiUnitSkillPositionAction => EnemyAiActionKind.MoveToMultiUnitSkillPosition,
+            UseUnitSkillAction => EnemyAiActionKind.UseUnitSkill,
+            UseGroundSkillAction => EnemyAiActionKind.UseGroundSkill,
+            UseMultiUnitSkillAction => EnemyAiActionKind.UseMultiUnitSkill,
+            UseRandomChainSkillAction => EnemyAiActionKind.UseRandomChainSkill,
+            UseChargeAction => EnemyAiActionKind.UseCharge,
+            UseChargePathAoeAction => EnemyAiActionKind.UseChargePathAoe,
+            MoveToRangeAction => EnemyAiActionKind.MoveToRange,
+            MoveToAdvantagePositionAction => EnemyAiActionKind.MoveToAdvantagePosition,
+            UseGroundRepositionSkillAction => EnemyAiActionKind.UseGroundRepositionSkill,
+            RetreatAction => EnemyAiActionKind.Retreat,
+            WaitAction => EnemyAiActionKind.Wait,
+            _ => throw new System.InvalidOperationException(
+                $"Unsupported EnemyAiAction authoring type {GetType().Name}."
+            ),
+        };
 
     protected Godot.Collections.Array<string> _collect_base_validation_errors()
     {

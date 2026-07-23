@@ -502,10 +502,7 @@ public sealed class BattleSessionFacade : IDisposable
             BuildBattleStartContext(encounterAnchor)
         );
         if (startState == "failed")
-        {
-            _runtime.HandleBattleStartFailure();
             return;
-        }
     }
 
     internal GameRuntimeFacade.RuntimeCommandResult ResolveActiveBattleTyped()

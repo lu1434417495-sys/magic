@@ -105,7 +105,7 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
         }
 
         _test.True(
-            runtime._advance_unit_status_durations(titan, 80, null),
+            runtime._skill_turn_resolver.AdvanceUnitStatusDurations(titan, 80, null),
             "巨神化持续时间耗尽时应产生状态变化。"
         );
         _test.True(
@@ -149,7 +149,7 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
         };
         shrunken.SetStatusEffect(status);
 
-        runtime._advance_unit_status_durations(shrunken, 5, null);
+        runtime._skill_turn_resolver.AdvanceUnitStatusDurations(shrunken, 5, null);
 
         _test.True(
             shrunken.HasStatusEffect("blocked_body_restore"),

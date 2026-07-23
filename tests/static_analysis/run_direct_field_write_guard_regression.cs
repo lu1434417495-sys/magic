@@ -50,6 +50,8 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                 "coord",
                 "body_size",
                 "body_size_category",
+                "footprint_size",
+                "occupied_coords",
                 "status_effects",
                 "known_active_skill_ids",
                 "versatility_pick"
@@ -128,7 +130,15 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
     );
 
     private const string ProtectedFieldPattern =
-        "current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|is_alive|is_dead|coord|body_size|body_size_category|status_effects|known_active_skill_ids|member_states|race_id|subrace_id|age_years|birth_at_world_step|age_profile_id|natural_age_stage_id|effective_age_stage_id|effective_age_stage_source_type|effective_age_stage_source_id|bloodline_id|bloodline_stage_id|ascension_id|ascension_stage_id|ascension_started_at_world_step|original_race_id_before_ascension|biological_age_years|astral_memory_years|versatility_pick|active_stage_advancement_modifier_ids";
+        "current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|is_alive|is_dead|coord|body_size|body_size_category|footprint_size|occupied_coords|status_effects|known_active_skill_ids|member_states|race_id|subrace_id|age_years|birth_at_world_step|age_profile_id|natural_age_stage_id|effective_age_stage_id|effective_age_stage_source_type|effective_age_stage_source_id|bloodline_id|bloodline_stage_id|ascension_id|ascension_stage_id|ascension_started_at_world_step|original_race_id_before_ascension|biological_age_years|astral_memory_years|versatility_pick|active_stage_advancement_modifier_ids";
+
+    private const string BattleUnitStateOwnerPath =
+        "scripts/systems/battle/core/BattleUnitState.cs";
+
+    private static readonly Regex ExternalFootprintRefreshPattern = new(
+        @"\.\s*RefreshFootprint\s*\(",
+        RegexOptions.Compiled
+    );
 
     public override void _Initialize()
     {
@@ -142,6 +152,7 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         TestScannerRejectsProtectedOwnerObjectInitializers();
         TestScannerResolvesProtectedOwnerThroughMemberChain();
         TestScannerAllowsOwnerInternalWrites();
+        TestScannerRejectsExternalFootprintRefresh();
         TestRepositoryScripts();
 
         RequestTestExit(_test.Finish("Direct field write guard regression"));
@@ -192,6 +203,8 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                     var unit = new BattleUnitState();
                     unit.current_hp = 1;
                     unit.coord = Vector2I.Zero;
+                    unit.footprint_size = Vector2I.One;
+                    unit.occupied_coords = new();
                     PartyState party = new();
                     party.member_states = new();
                 }
@@ -201,7 +214,7 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         List<string> violations = FindViolationsForSource("tests/synthetic/protected_owner.cs", source);
         _test.Eq(
             violations.Count,
-            4,
+            6,
             $"受保护 owner 字段直接写入应被识别。violations={string.Join("\n", violations)}"
         );
         _test.True(
@@ -215,6 +228,14 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         _test.True(
             ContainsViolation(violations, "BattleUnitState.coord"),
             "BattleUnitState.coord 直接写入应被 guard 拦截。"
+        );
+        _test.True(
+            ContainsViolation(violations, "BattleUnitState.footprint_size"),
+            "BattleUnitState.footprint_size 直接写入应被 guard 拦截。"
+        );
+        _test.True(
+            ContainsViolation(violations, "BattleUnitState.occupied_coords"),
+            "BattleUnitState.occupied_coords 直接写入应被 guard 拦截。"
         );
         _test.True(
             ContainsViolation(violations, "PartyState.member_states"),
@@ -317,6 +338,34 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         );
     }
 
+    private void TestScannerRejectsExternalFootprintRefresh()
+    {
+        string source = """
+            public sealed class Probe
+            {
+                public void Run(BattleUnitState unit)
+                {
+                    unit.RefreshFootprint();
+                }
+            }
+            """;
+
+        List<string> violations = FindExternalFootprintRefreshViolations(
+            "tests/synthetic/external_footprint_refresh.cs",
+            source
+        );
+        _test.Eq(
+            violations.Count,
+            1,
+            "BattleUnitState 之外不得重新引入 RefreshFootprint 查询式调用。"
+        );
+        _test.Eq(
+            FindExternalFootprintRefreshViolations(BattleUnitStateOwnerPath, source).Count,
+            0,
+            "BattleUnitState owner 文件内部允许维护自身投影。"
+        );
+    }
+
     private void TestRepositoryScripts()
     {
         string repoRoot = ProjectSettings.GlobalizePath("res://");
@@ -328,13 +377,36 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         ))
         {
             string repoPath = Path.GetRelativePath(repoRoot, path).Replace('\\', '/');
-            violations.AddRange(FindViolationsForSource(repoPath, File.ReadAllText(path)));
+            string source = File.ReadAllText(path);
+            violations.AddRange(FindViolationsForSource(repoPath, source));
+            violations.AddRange(FindExternalFootprintRefreshViolations(repoPath, source));
         }
 
         if (violations.Count > 0)
         {
             _test.Fail("Direct field write guard failed:\n" + string.Join("\n", violations));
         }
+    }
+
+    private static List<string> FindExternalFootprintRefreshViolations(
+        string repoPath,
+        string source
+    )
+    {
+        var violations = new List<string>();
+        if (string.Equals(repoPath, BattleUnitStateOwnerPath, StringComparison.Ordinal))
+            return violations;
+
+        string[] lines = SanitizeSource(source).Replace("\r\n", "\n").Split('\n');
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (!ExternalFootprintRefreshPattern.IsMatch(lines[index]))
+                continue;
+            violations.Add(
+                $"{repoPath}:{index + 1}: 禁止在 BattleUnitState owner 外调用 RefreshFootprint；读路径必须保持纯只读。"
+            );
+        }
+        return violations;
     }
 
     private static List<string> FindViolationsForSource(string repoPath, string source)

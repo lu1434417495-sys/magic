@@ -15,6 +15,8 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestGroundSkillScoreInputExposesMetrics();
             TestRepeatAttackScoreUsesStageSuccessRate();
             TestChainSkillScoresFriendlyBounceRisk();
+            TestDamageScoreUsesFormalResistanceAndShieldRules();
+            TestMultiHitDamageScoreConsumesPreviewShieldSequentially();
             TestLayeredBarrierProjectionTracksLayersAndLifetime();
             TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat();
         }
@@ -220,6 +222,131 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         }
         _test.True(score.estimated_chain_ally_target_count >= 1, "链闪评分应预估会弹射到友军。");
         _test.True(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。");
+    }
+
+    private void TestDamageScoreUsesFormalResistanceAndShieldRules()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_formal_damage_mitigation",
+            new Vector2I(5, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 20,
+            damageTag: "fire"
+        );
+        SkillDefinition skill = BuildSkill(
+            "formal_damage_mitigation_probe",
+            "Formal Damage Mitigation Probe",
+            effect
+        );
+        fixture.AddSkill(skill);
+
+        BattleUnitState caster = BuildUnit(
+            "formal_damage_mitigation_caster",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState target = BuildUnit(
+            "formal_damage_mitigation_target",
+            "player",
+            new Vector2I(2, 1),
+            hp: 10
+        );
+        target.damage_resistances["fire"] = "half";
+        target.current_shield_hp = 5;
+        target.shield_max_hp = 5;
+        target.shield_duration = 100;
+        fixture.AddUnit(caster);
+        fixture.AddUnit(target);
+
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, target.coord, target),
+            BuildPreview(target),
+            new[] { effect },
+            BuildPositionMetadata(target, 1, 1)
+        );
+
+        _test.True(score != null, "正式减伤评分应生成 score input。");
+        if (score == null)
+        {
+            return;
+        }
+        _test.Eq(score.estimated_post_save_damage, 10, "AI 应复用正式 fire half 抗性结果。");
+        _test.Eq(score.estimated_shield_absorbed, 5, "AI 应记录正式护盾吸收量。");
+        _test.Eq(score.estimated_damage, 5, "AI 应只把穿透护盾的部分计为生命伤害。");
+        _test.Eq(score.estimated_lethal_target_count, 0, "护盾后的 5 点生命伤害不应误判为击杀。");
+        _test.Eq(target.current_hp, 10, "AI 伤害预览不得修改真实目标生命。");
+        _test.Eq(target.current_shield_hp, 5, "AI 伤害预览不得修改真实目标护盾。");
+    }
+
+    private void TestMultiHitDamageScoreConsumesPreviewShieldSequentially()
+    {
+        using Fixture fixture = BuildFixture(
+            "score_input_sequential_shield_consumption",
+            new Vector2I(5, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        CombatEffectDefinition firstHit = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 4,
+            damageTag: "force"
+        );
+        CombatEffectDefinition secondHit = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            effectTargetTeamFilter: "enemy",
+            power: 4,
+            damageTag: "force"
+        );
+        SkillDefinition skill = BuildSkill(
+            "sequential_shield_probe",
+            "Sequential Shield Probe",
+            firstHit,
+            secondHit
+        );
+        fixture.AddSkill(skill);
+
+        BattleUnitState caster = BuildUnit(
+            "sequential_shield_caster",
+            "hostile",
+            new Vector2I(1, 1)
+        );
+        BattleUnitState target = BuildUnit(
+            "sequential_shield_target",
+            "player",
+            new Vector2I(2, 1),
+            hp: 10
+        );
+        target.current_shield_hp = 5;
+        target.shield_max_hp = 5;
+        target.shield_duration = 100;
+        fixture.AddUnit(caster);
+        fixture.AddUnit(target);
+
+        BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, target.coord, target),
+            BuildPreview(target),
+            new[] { firstHit, secondHit },
+            BuildPositionMetadata(target, 1, 1)
+        );
+
+        _test.True(score != null, "多段护盾评分应生成 score input。");
+        if (score == null)
+        {
+            return;
+        }
+        _test.Eq(score.estimated_post_save_damage, 8, "两段正式伤害预算应累计为 8。");
+        _test.Eq(score.estimated_shield_absorbed, 5, "两段预览只能消耗现有的 5 点护盾。");
+        _test.Eq(score.estimated_damage, 3, "第二段应穿透已被第一段消耗的护盾并造成 3 点生命伤害。");
+        _test.Eq(target.current_hp, 10, "多段 AI 预览不得修改真实目标生命。");
+        _test.Eq(target.current_shield_hp, 5, "多段 AI 预览不得修改真实目标护盾。");
     }
 
     private void TestLayeredBarrierProjectionTracksLayersAndLifetime()

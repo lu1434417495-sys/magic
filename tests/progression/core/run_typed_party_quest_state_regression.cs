@@ -17,6 +17,7 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         TestQuestProgressRejectsNonIntValues();
         TestQuestContextRejectsNonIntValues();
         TestQuestStateSafelyRejectsInvalidProgressContext();
+        TestSetQuestStateRejectsUnsupportedFailedState();
         TestCustomStatsRejectNonIntValues();
         TestReputationsRejectNonIntValues();
         TestValidTypedPayloadsRoundTrip();
@@ -78,6 +79,29 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         _test.True(
             parsedState == null,
             "QuestState 应将损坏的 last_progress_context 判为无效 payload。"
+        );
+    }
+
+    private void TestSetQuestStateRejectsUnsupportedFailedState()
+    {
+        PartyState partyState = new();
+        QuestState failedQuest = new() { quest_id = "unsupported_failed_quest" };
+        failedQuest.MarkAccepted(2);
+        failedQuest.MarkFailed();
+
+        partyState.SetQuestState(failedQuest.quest_id, failedQuest);
+
+        _test.True(
+            !partyState.HasActiveQuest(failedQuest.quest_id),
+            "尚无正式失败任务容器时，SetQuestState 不得把 failed 状态塞进 active_quests。"
+        );
+        _test.True(
+            !partyState.HasClaimableQuest(failedQuest.quest_id),
+            "failed 状态不能伪装成 claimable 任务。"
+        );
+        _test.True(
+            !partyState.HasCompletedQuest(failedQuest.quest_id),
+            "failed 状态不能伪装成已领奖任务。"
         );
     }
 

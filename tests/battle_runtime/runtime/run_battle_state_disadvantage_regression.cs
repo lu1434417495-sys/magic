@@ -8,7 +8,7 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
     public override void _Initialize()
     {
         TestAttackDisadvantageTriggersOnTwoAdjacentEnemies();
-        TestReadViewDisadvantageNormalizesStaleCandidateFootprints();
+        TestReadViewDisadvantageDoesNotRepairStaleCandidateFootprints();
         TestAttackDisadvantageTriggersOnLowHp();
         TestAttackDisadvantageTriggersOnStrongAttackDebuff();
         TestAttackDisadvantageTriggersOnFrightenedAndKeepsFearFamilyStatuses();
@@ -21,7 +21,7 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
         RequestTestExit(_test.Finish("Battle state disadvantage regression"));
     }
 
-    private void TestReadViewDisadvantageNormalizesStaleCandidateFootprints()
+    private void TestReadViewDisadvantageDoesNotRepairStaleCandidateFootprints()
     {
         var state = new BattleState();
         BattleUnitState attacker = BuildUnit("read_view_attacker", "player", new Vector2I(2, 2));
@@ -29,17 +29,43 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
         BattleUnitState sideEnemy = BuildUnit("read_view_side_enemy", "enemy", new Vector2I(9, 8));
         AddUnits(state, attacker, defender, sideEnemy);
 
-        // Simulate an external state writer that changed anchors without rebuilding the
-        // derived occupied-coord snapshot. The read-view route must preserve State-route parity.
-        defender.coord = new Vector2I(3, 2);
-        sideEnemy.coord = new Vector2I(2, 1);
+        defender.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            new Vector2I(3, 2),
+            new StringName("medium"),
+            BattleUnitState.BodySizeMedium,
+            Vector2I.One,
+            new[] { new Vector2I(8, 8) }
+        );
+        sideEnemy.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            new Vector2I(2, 1),
+            new StringName("medium"),
+            BattleUnitState.BodySizeMedium,
+            Vector2I.One,
+            new[] { new Vector2I(9, 8) }
+        );
+        Vector2IList defenderOccupiedBefore = defender.occupied_coords;
+        Vector2IList sideEnemyOccupiedBefore = sideEnemy.occupied_coords;
+        long revisionBefore = state.MovementGeometryRevision;
 
-        _test.True(
+        _test.False(
             state.IsAttackDisadvantage(
                 (BattleUnitReadView)attacker,
                 (BattleUnitReadView)defender
             ),
-            "read-view 包夹判定应先归一化所有候选单位的 stale footprint。"
+            "read-view 查询不得把无效投影静默修复成一次有效包夹。"
+        );
+        _test.True(
+            ReferenceEquals(defender.occupied_coords, defenderOccupiedBefore),
+            "read-view 查询不得替换 defender occupied_coords。"
+        );
+        _test.True(
+            ReferenceEquals(sideEnemy.occupied_coords, sideEnemyOccupiedBefore),
+            "read-view 查询不得替换候选单位 occupied_coords。"
+        );
+        _test.Eq(
+            state.MovementGeometryRevision,
+            revisionBefore,
+            "read-view 查询不得推进 movement geometry revision。"
         );
     }
 

@@ -392,27 +392,25 @@ public partial class GameSession
         {
             skill_id = starting_skill_id,
             is_learned = true,
-            is_core = true,
-            assigned_profession_id = "warrior",
+            is_core = false,
             granted_source_type = UnitSkillProgress.ToStringName(
-                UnitSkillGrantSourceType.Profession
+                UnitSkillGrantSourceType.Player
             ),
-            granted_source_id = "warrior",
+            granted_source_id = "character_creation",
         };
         progression.SetSkillProgress(starterSkill);
 
-        var warriorProgress = new UnitProfessionProgress
-        {
-            profession_id = "warrior",
-            rank = 0,
-            is_active = false,
-        };
-        warriorProgress.AddCoreSkill(starting_skill_id);
-        progression.SetProfessionProgress(warriorProgress);
         SkillDefinition randomStartingSkillDefinition = GrantRandomStartingBookSkill(progression);
+        memberState.progression = progression;
+        var randomStartingSkillSupport = new RandomStartingSkillResourceSupportService(
+            GetRandomStartSkillDefinitions()
+        );
+        randomStartingSkillSupport.ApplyManaSupport(
+            memberState,
+            randomStartingSkillDefinition
+        );
         RefreshProgressionRuntimeState(progression);
 
-        memberState.progression = progression;
         EquipStartingWeaponForSkill(memberState, randomStartingSkillDefinition);
         return memberState;
     }

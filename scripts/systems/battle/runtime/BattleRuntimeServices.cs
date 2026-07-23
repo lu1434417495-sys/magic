@@ -239,13 +239,16 @@ internal sealed class BattleRuntimeServices : IDisposable
         Rethrow(firstFailure);
     }
 
-    internal void SetupRuntimeSidecars(BattleRuntimeModule runtime)
+    internal void SetupRuntimeSidecars(
+        BattleRuntimeModule runtime,
+        IBattleContingencyRuntimePort contingencyRuntimePort
+    )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         GroundEffects.Setup(runtime);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
-        Contingencies.Setup(runtime);
+        Contingencies.Setup(contingencyRuntimePort);
         _runtimeSidecarsBound = runtime != null;
     }
 

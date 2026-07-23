@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_red_dragon"]
+script = ExtResource("3_entry")
+template_id = &"red_dragon"
+count = 1
+actor_id = &"red_dragon_boss"
+
+[sub_resource type="Resource" id="Resource_kobold_guard"]
+script = ExtResource("3_entry")
+template_id = &"kobold_skirmisher"
+count = 2
+
+[sub_resource type="Resource" id="Resource_stage0"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_red_dragon"), SubResource("Resource_kobold_guard")])
+
+[resource]
+script = ExtResource("1_roster")
+profile_id = &"red_dragon_lair"
+display_name = "红龙巢穴"
+initial_stage = 0
+growth_step_interval = 1
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_stage0")])

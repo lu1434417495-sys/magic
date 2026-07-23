@@ -15,10 +15,6 @@ public partial class BattleSimUnitSpec : Resource
     private static readonly StringName ActionThreshold = "action_threshold";
     private static readonly StringName AttackBonus = "attack_bonus";
     private static readonly StringName ArmorClass = "armor_class";
-    private static readonly StringName ArmorAcBonus = "armor_ac_bonus";
-    private static readonly StringName ShieldAcBonus = "shield_ac_bonus";
-    private static readonly StringName DodgeBonus = "dodge_bonus";
-    private static readonly StringName DeflectionBonus = "deflection_bonus";
     private static readonly StringName SpellProficiencyBonus = "spell_proficiency_bonus";
 
     private static readonly StringName Strength = "strength";
@@ -40,10 +36,10 @@ public partial class BattleSimUnitSpec : Resource
 
     private static readonly StringName[] AcComponentAttributeIds =
     {
-        ArmorAcBonus,
-        ShieldAcBonus,
-        DodgeBonus,
-        DeflectionBonus,
+        AttributeContentRules.ArmorAcBonus,
+        AttributeContentRules.ShieldAcBonus,
+        AttributeContentRules.DodgeBonus,
+        AttributeContentRules.DeflectionBonus,
     };
 
     private const int DefaultCharacterActionThreshold = 30;
@@ -291,23 +287,23 @@ public partial class BattleSimUnitSpec : Resource
         );
         SetSnapshotValue(
             unitState.attribute_snapshot,
-            ArmorAcBonus,
-            GetAttributeOverride("armor_ac_bonus", 0)
+            AttributeContentRules.ArmorAcBonus,
+            GetAttributeOverride(AttributeContentRules.ArmorAcBonus, 0)
         );
         SetSnapshotValue(
             unitState.attribute_snapshot,
-            ShieldAcBonus,
-            GetAttributeOverride("shield_ac_bonus", 0)
+            AttributeContentRules.ShieldAcBonus,
+            GetAttributeOverride(AttributeContentRules.ShieldAcBonus, 0)
         );
         SetSnapshotValue(
             unitState.attribute_snapshot,
-            DodgeBonus,
-            GetAttributeOverride("dodge_bonus", 0)
+            AttributeContentRules.DodgeBonus,
+            GetAttributeOverride(AttributeContentRules.DodgeBonus, 0)
         );
         SetSnapshotValue(
             unitState.attribute_snapshot,
-            DeflectionBonus,
-            GetAttributeOverride("deflection_bonus", 0)
+            AttributeContentRules.DeflectionBonus,
+            GetAttributeOverride(AttributeContentRules.DeflectionBonus, 0)
         );
         SetSnapshotValue(
             unitState.attribute_snapshot,

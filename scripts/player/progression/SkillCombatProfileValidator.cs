@@ -88,6 +88,10 @@ internal sealed class SkillCombatProfileValidator
             { "main_skill_lock_other_debuff_count", "main_skill_lock_other_debuff_count" },
             { "ap_gain", "ap_gain" },
             { "free_move_points_gain", "free_move_points_gain" },
+            {
+                "charge_trap_immunity_min_skill_level",
+                "charge_trap_immunity_min_skill_level"
+            },
         };
 
     internal void AppendCombatProfileValidationErrors(
@@ -431,7 +435,8 @@ internal sealed class SkillCombatProfileValidator
                 errors,
                 skillId,
                 combatProfile.effect_defs[effectIndex],
-                $"combat_profile.effect_defs[{effectIndex}]"
+                $"combat_profile.effect_defs[{effectIndex}]",
+                skillDef
             );
 
         if (
@@ -460,7 +465,8 @@ internal sealed class SkillCombatProfileValidator
                     errors,
                     skillId,
                     passiveEffect,
-                    $"combat_profile.passive_effect_defs[{passiveIndex}]"
+                    $"combat_profile.passive_effect_defs[{passiveIndex}]",
+                    skillDef
                 );
             }
         }
@@ -527,7 +533,8 @@ internal sealed class SkillCombatProfileValidator
                     errors,
                     skillId,
                     castVariant.effect_defs[effectIndex],
-                    $"combat_profile.cast_variants[{optionIndex}].effect_defs[{effectIndex}]"
+                    $"combat_profile.cast_variants[{optionIndex}].effect_defs[{effectIndex}]",
+                    skillDef
                 );
         }
     }
@@ -612,7 +619,8 @@ internal sealed class SkillCombatProfileValidator
         Array<string> errors,
         StringName skillId,
         CombatEffectDef effectDef,
-        string contextLabel
+        string contextLabel,
+        SkillDef skillDef = null
     )
     {
         if (effectDef == null)
@@ -946,12 +954,40 @@ internal sealed class SkillCombatProfileValidator
         }
         else if (effectKind == BattleEffectKind.Charge)
         {
-            if (
-                SkillContentRegistry.DictStringName(parameters, "skill_id").ToString().Length == 0
+            foreach (
+                string legacyParam in new[]
+                {
+                    "skill_id",
+                    "base_distance",
+                    "distance_by_level",
+                    "trap_immunity_level",
+                    "collision_base_damage",
+                    "collision_size_gap_damage",
+                }
             )
+            {
+                if (parameters.ContainsKey(legacyParam))
+                {
+                    errors.Add(
+                        $"Skill {skillId} charge effect in {contextLabel} params.{legacyParam} is unsupported; charge distance comes from combat_profile range_value/level_overrides and collision damage comes from terrain interaction."
+                    );
+                }
+            }
+            if (effectDef.charge_trap_immunity_min_skill_level < -1)
+            {
                 errors.Add(
-                    $"Skill {skillId} charge effect in {contextLabel} is missing params.skill_id."
+                    $"Skill {skillId} charge effect in {contextLabel} charge_trap_immunity_min_skill_level must be -1 or a non-negative skill level."
                 );
+            }
+            else if (
+                skillDef != null
+                && effectDef.charge_trap_immunity_min_skill_level > skillDef.max_level
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} charge effect in {contextLabel} charge_trap_immunity_min_skill_level must not exceed max_level {skillDef.max_level}."
+                );
+            }
         }
         else if (effectKind == BattleEffectKind.PathStepAoe)
         {

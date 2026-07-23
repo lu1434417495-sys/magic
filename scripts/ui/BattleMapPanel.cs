@@ -117,6 +117,7 @@ public partial class BattleMapPanel : Control
     public PanelContainer top_bar;
     public PanelContainer bottom_panel;
     public Label header_title_label;
+    public Label objective_status_label;
     public HBoxContainer timeline_row;
     public PanelContainer round_chip;
     public Label tu_label;
@@ -178,6 +179,7 @@ public partial class BattleMapPanel : Control
         top_bar = GetNode<PanelContainer>("%TopBar");
         bottom_panel = GetNode<PanelContainer>("%BottomPanel");
         header_title_label = GetNode<Label>("%HeaderTitleLabel");
+        objective_status_label = GetNode<Label>("%ObjectiveStatusLabel");
         timeline_row = GetNode<HBoxContainer>("%TimelineRow");
         round_chip = GetNode<PanelContainer>("%RoundChip");
         tu_label = GetNode<Label>("%TuLabel");
@@ -1129,6 +1131,11 @@ public partial class BattleMapPanel : Control
             BattleUiTheme.FONT_HEADING(),
             BattleUiTheme.TEXT_PRIMARY()
         );
+        _style_header_label(
+            objective_status_label,
+            BattleUiTheme.FONT_LABEL(),
+            BattleUiTheme.TEXT_SECONDARY()
+        );
         _style_header_label(tu_label, BattleUiTheme.FONT_HEADING(), BattleUiTheme.TEXT_PRIMARY());
         _style_header_label(
             ready_label,
@@ -1193,6 +1200,9 @@ public partial class BattleMapPanel : Control
         _selected_backpack_instance_id = "";
         _selected_backpack_slot_id = "";
         header_title_label.Text = "遭遇战";
+        objective_status_label.Text = "";
+        objective_status_label.TooltipText = "";
+        objective_status_label.Visible = false;
         tu_label.Text = "TU --";
         ready_label.Text = "READY 0";
         mode_value_label.Text = "手动";
@@ -1234,6 +1244,16 @@ public partial class BattleMapPanel : Control
         header_title_label.Text = string.IsNullOrEmpty(snapshot.HeaderTitle)
             ? "遭遇战"
             : snapshot.HeaderTitle;
+        BattleHudObjectiveProgressSnapshot objectiveProgress =
+            snapshot.ObjectiveProgress;
+        bool hasObjectiveProgress = objectiveProgress?.IsValid == true;
+        objective_status_label.Text = hasObjectiveProgress
+            ? $"{objectiveProgress.Title} · {objectiveProgress.ProgressText}"
+            : "";
+        objective_status_label.TooltipText = hasObjectiveProgress
+            ? objectiveProgress.ProgressText
+            : "";
+        objective_status_label.Visible = hasObjectiveProgress;
         tu_label.Text = snapshot.RoundBadge?.TuText ?? "TU --";
         ready_label.Text = snapshot.RoundBadge?.ReadyText ?? "READY 0";
         mode_value_label.Text = string.IsNullOrEmpty(snapshot.ModeText)

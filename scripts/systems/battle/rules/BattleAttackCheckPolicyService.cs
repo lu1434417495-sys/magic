@@ -12,26 +12,31 @@ internal class BattleAttackCheckPolicyService
     private static readonly StringName ROLL_KIND_REPEAT_WEAPON_STAGE = "repeat_weapon_stage";
 
     private const int RepeatAttackPreviewStageGuard = 32;
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleHitResolver _hitResolver;
     private BattleTerrainEffectSystem _terrainEffectSystem;
+    private IBattleEquipmentAttackCheckQuery _equipmentAttackCheckQuery;
 
     internal void Setup(
-        BattleRuntimeModule runtime,
         BattleHitResolver hit_resolver,
-        BattleTerrainEffectSystem terrain_effect_system
+        BattleTerrainEffectSystem terrain_effect_system,
+        IBattleEquipmentAttackCheckQuery equipmentAttackCheckQuery = null
     )
     {
-        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
         _hitResolver = hit_resolver;
         _terrainEffectSystem = terrain_effect_system;
+        _equipmentAttackCheckQuery = equipmentAttackCheckQuery;
     }
 
     internal void Dispose()
     {
-        _runtimeRef = null;
         _hitResolver = null;
         _terrainEffectSystem = null;
+        _equipmentAttackCheckQuery = null;
+    }
+
+    internal void UnbindEquipmentAttackCheckQuery()
+    {
+        _equipmentAttackCheckQuery = null;
     }
 
     public BattleAttackRollModifierBundle BuildModifierBundle(
@@ -165,8 +170,7 @@ internal class BattleAttackCheckPolicyService
         BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         EquipmentAttackDefenseAdjustment defenseAdjustment = BuildAttackDefenseAdjustment(context);
         bool hasCriticalOverride =
-            ResolveRuntime()
-                ?.GetEquipmentAbilityRuntimeService()
+            _equipmentAttackCheckQuery
                 ?.ResolveCriticalHitOverride(context)
                 ?.ForceCriticalOnHit == true;
         if (modifierBundle.IsEmpty() && defenseAdjustment.IsEmpty && !hasCriticalOverride)
@@ -453,8 +457,8 @@ internal class BattleAttackCheckPolicyService
         StringName traceSource
     )
     {
-        // 统一交给 read-view builder 归一化 footprint，再回填 State 引用供
-        // 不纯消费方（装备能力运行时）使用。
+        // read view 只消费写入口已维护好的 footprint，再回填 State 引用供
+        // 不纯消费方（装备能力运行时）使用；此处不得修复 live state。
         BattleAttackCheckPolicyContext context = BuildContext(
             battleState,
             (BattleUnitReadView)activeUnit,
@@ -479,11 +483,9 @@ internal class BattleAttackCheckPolicyService
         StringName traceSource
     )
     {
-        activeUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
-        targetUnit.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
         return new BattleAttackCheckPolicyContext
         {
-            battle_state = battleState ?? ResolveBattleState(),
+            battle_state = battleState,
             attacker_view = activeUnit,
             target_view = targetUnit,
             skill_definition = skillDefinition,
@@ -620,25 +622,21 @@ internal class BattleAttackCheckPolicyService
         return string.IsNullOrWhiteSpace(label) ? status.StatusId.ToString() : label;
     }
 
-    private List<BattleAttackRollModifierSpec> CollectEquipmentAbilityModifierCandidates(
+    private IReadOnlyList<BattleAttackRollModifierSpec> CollectEquipmentAbilityModifierCandidates(
         BattleAttackCheckPolicyContext context
     )
     {
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
-        return equipmentAbilityService != null
-            ? equipmentAbilityService.CollectAttackRollModifierCandidates(context)
-            : new List<BattleAttackRollModifierSpec>();
+        return _equipmentAttackCheckQuery != null
+            ? _equipmentAttackCheckQuery.CollectAttackRollModifierCandidates(context)
+            : Array.Empty<BattleAttackRollModifierSpec>();
     }
 
     private EquipmentAttackDefenseAdjustment BuildAttackDefenseAdjustment(
         BattleAttackCheckPolicyContext context
     )
     {
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
-        return equipmentAbilityService != null
-            ? equipmentAbilityService.CollectAttackDefenseAdjustment(context)
+        return _equipmentAttackCheckQuery != null
+            ? _equipmentAttackCheckQuery.CollectAttackDefenseAdjustment(context)
             : new EquipmentAttackDefenseAdjustment();
     }
 
@@ -934,10 +932,8 @@ internal class BattleAttackCheckPolicyService
     {
         if (source.Invalid || source.ForceHitNoCrit || context?.force_hit_no_crit == true)
             return source;
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            ResolveRuntime()?.GetEquipmentAbilityRuntimeService();
         BattleEquipmentAbilityCriticalHitOverrideResult criticalOverride =
-            equipmentAbilityService?.ResolveCriticalHitOverride(context);
+            _equipmentAttackCheckQuery?.ResolveCriticalHitOverride(context);
         if (criticalOverride?.ForceCriticalOnHit != true)
             return source;
         return new AttackCheckInput(
@@ -1147,21 +1143,6 @@ internal class BattleAttackCheckPolicyService
             }
         }
         return bestDistance;
-    }
-
-    private BattleState ResolveBattleState()
-    {
-        BattleRuntimeModule runtime = ResolveRuntime();
-        return runtime?.GetState();
-    }
-
-    private BattleRuntimeModule ResolveRuntime()
-    {
-        if (_runtimeRef == null)
-        {
-            return null;
-        }
-        return _runtimeRef.TryGetTarget(out BattleRuntimeModule runtime) ? runtime : null;
     }
 
     private static string BuildSortKey(BattleAttackRollModifierSpec spec)

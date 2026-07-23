@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
+// Canonical content owner for validating immutable world-generation definitions.
 public class WorldMapContentValidator
 {
     private static readonly StringName WorldEventTypeEnterSubmap = new("enter_submap");

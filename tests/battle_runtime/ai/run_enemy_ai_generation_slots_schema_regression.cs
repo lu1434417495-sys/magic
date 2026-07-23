@@ -205,7 +205,13 @@ public partial class run_enemy_ai_generation_slots_schema_regression : Lifecycle
     private static IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions() =>
         new Dictionary<StringName, SkillDefinition>
         {
-            ["dummy_skill"] = null,
+            ["dummy_skill"] = TestSkillDefinitionProjection.BuildSkill(
+                "dummy_skill",
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    "dummy_skill",
+                    targetMode: "unit"
+                )
+            ),
         };
 
     private static string FormatErrors(GStringArray errors) => string.Join("; ", errors);

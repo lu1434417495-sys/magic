@@ -343,21 +343,16 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
         BattleUnitState target = BuildTarget(unitId, coord);
         target.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 20);
         target.attribute_snapshot.SetValue(NaturalArmorAcBonus, 4);
-        target.attribute_snapshot.SetValue(AttributeService.ARMOR_AC_BONUS, 3);
-        target.attribute_snapshot.SetValue(AttributeService.SHIELD_AC_BONUS, 2);
-        target.attribute_snapshot.SetValue(AttributeService.DODGE_BONUS, 1);
-        target.attribute_snapshot.SetValue(AttributeService.DEFLECTION_BONUS, 2);
+        target.attribute_snapshot.SetValue(AttributeContentRules.ArmorAcBonus, 3);
+        target.attribute_snapshot.SetValue(AttributeContentRules.ShieldAcBonus, 2);
+        target.attribute_snapshot.SetValue(AttributeContentRules.DodgeBonus, 1);
+        target.attribute_snapshot.SetValue(AttributeContentRules.DeflectionBonus, 2);
         return target;
     }
 
     private static bool ContainsAcComponent(StringName componentId)
     {
-        foreach (StringName value in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
-        {
-            if (value == componentId)
-                return true;
-        }
-        return false;
+        return AttributeContentRules.IsArmorClassComponentAttributeId(componentId);
     }
 
     private static bool BindingHasActionKind(

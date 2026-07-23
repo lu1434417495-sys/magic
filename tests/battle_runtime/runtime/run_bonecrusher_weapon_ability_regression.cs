@@ -404,11 +404,11 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
     {
         BattleUnitState target = BuildTarget(unitId, coord, "humanoid");
         target.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 20);
-        target.attribute_snapshot.SetValue(AttributeService.ARMOR_AC_BONUS, 4);
-        target.attribute_snapshot.SetValue(AttributeService.SHIELD_AC_BONUS, 2);
+        target.attribute_snapshot.SetValue(AttributeContentRules.ArmorAcBonus, 4);
+        target.attribute_snapshot.SetValue(AttributeContentRules.ShieldAcBonus, 2);
         target.attribute_snapshot.SetValue(NaturalArmorAcBonus, 4);
-        target.attribute_snapshot.SetValue(AttributeService.DODGE_BONUS, 1);
-        target.attribute_snapshot.SetValue(AttributeService.DEFLECTION_BONUS, 2);
+        target.attribute_snapshot.SetValue(AttributeContentRules.DodgeBonus, 1);
+        target.attribute_snapshot.SetValue(AttributeContentRules.DeflectionBonus, 2);
         return target;
     }
 

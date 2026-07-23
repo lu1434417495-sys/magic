@@ -8,19 +8,7 @@
 [sub_resource type="Resource" id="Resource_charge_effect"]
 script = ExtResource("3_charge_effect")
 effect_type = &"charge"
-params = {
-"base_distance": 3,
-"collision_base_damage": 0,
-"collision_size_gap_damage": 0,
-"distance_by_level": {
-"1": 4,
-"3": 5,
-"5": 6,
-"7": 7
-},
-"skill_id": &"charge",
-"trap_immunity_level": 7
-}
+charge_trap_immunity_min_skill_level = 7
 
 [sub_resource type="Resource" id="Resource_charge_line"]
 script = ExtResource("2_charge_option")
@@ -34,19 +22,31 @@ script = ExtResource("4_charge_combat")
 skill_id = &"charge"
 target_mode = &"ground"
 target_team_filter = &"any"
-range_value = 6
+range_value = 3
 ap_cost = 1
 stamina_cost = 50
 cooldown_tu = 50
 level_overrides = {
+1: {
+"range_value": 4
+},
 2: {
 "stamina_cost": 35
+},
+3: {
+"range_value": 5
 },
 4: {
 "stamina_cost": 30
 },
+5: {
+"range_value": 6
+},
 6: {
 "stamina_cost": 25
+},
+7: {
+"range_value": 7
 }
 }
 cast_variants = Array[ExtResource("2_charge_option")]([SubResource("Resource_charge_line")])
@@ -56,10 +56,16 @@ script = ExtResource("5_charge_skill")
 skill_id = &"charge"
 display_name = "冲锋"
 icon_id = &"charge"
-description = "朝四个正交方向发起位移。基础距离 3，0/1 级消耗 50 体力；2/4/6 级降低体力消耗；1/3/5/7 级各加 1 距离；7 级免疫陷阱。"
+description = "朝四个正交方向发起位移并推挤沿途单位。技能本身不造成伤害；推挤可能触发地形碰撞或坠落伤害。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600, 2350, 3250)
+level_description_template = "直线冲锋{range_value}格，消耗{ap_cost}AP/{stamina_cost}体力，冷却{cooldown_tu}TU。技能本身不造成伤害；推挤可能触发地形碰撞或坠落伤害。{{?trap_immunity}}免疫陷阱造成的冲锋中断。{{/trap_immunity}}"
+level_description_configs = {
+"7": {
+"trap_immunity": "true"
+}
+}
 growth_tier = &"intermediate"
 attribute_requirements = {
 "agility": 14,

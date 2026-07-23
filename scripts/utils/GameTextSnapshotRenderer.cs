@@ -724,6 +724,7 @@ public static class GameTextSnapshotRenderer
         var calamitySnapshot = GetDictionary(battle, "calamity_by_member_id");
         if (!IsEmpty(calamitySnapshot))
             lines.Add($"calamity={FormatKeyValuePairs(calamitySnapshot)}");
+        AppendBattleObjectiveProgressLine(lines, GetDictionary(battle, "objective"));
         AppendHudLines(lines, GetDictionary(battle, "hud"));
         lines.Add($"report_entry_count={GetInt(battle, "report_entry_count")}");
         AppendReportLines(lines, GetArray(battle, "report_entries"));
@@ -731,6 +732,61 @@ public static class GameTextSnapshotRenderer
         AppendBattleContingencyLines(lines, GetDictionary(battle, "contingency"));
         AppendUnitLines(lines, GetArray(battle, "units"));
         return lines;
+    }
+
+    private static void AppendBattleObjectiveProgressLine(
+        List<string> lines,
+        GDictionary objective
+    )
+    {
+        if (IsEmpty(objective))
+            return;
+        string mode = GetString(objective, "mode");
+        switch (mode)
+        {
+            case "elimination":
+                lines.Add(
+                    $"objective_progress=mode=elimination | enemies_alive={GetInt(objective, "alive_enemy_unit_count")}/{GetInt(objective, "enemy_unit_count")}"
+                );
+                break;
+            case "boss":
+                lines.Add(
+                    $"objective_progress=mode=boss | target_actor={GetString(objective, "target_actor_id")} | target_unit={GetString(objective, "target_unit_id")} | target_alive={FormatBool(ReadExactBool(objective, "target_alive"))} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))}"
+                );
+                break;
+            case "escape":
+                lines.Add(
+                    $"objective_progress=mode=escape | exit_zone={GetString(objective, "exit_zone_id")} | edge={GetString(objective, "exit_edge")} | depth={GetInt(objective, "exit_depth")} | reached={GetInt(objective, "reached_exit_unit_count")}/{GetInt(objective, "required_unit_count")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))} | reached_ids={FormatArray(GetArray(objective, "reached_exit_unit_ids"))} | exit_coords={FormatCoordArray(GetArray(objective, "exit_coords"))}"
+                );
+                break;
+            case "defense":
+                lines.Add(
+                    $"objective_progress=mode=defense | target_actor={GetString(objective, "target_actor_id")} | target_unit={GetString(objective, "target_unit_id")} | target_alive={FormatBool(ReadExactBool(objective, "target_alive"))} | current_tu={GetInt(objective, "current_tu")} | start_tu={GetInt(objective, "start_tu")} | deadline_tu={GetInt(objective, "deadline_tu")} | remaining_tu={GetInt(objective, "remaining_tu")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))}"
+                );
+                break;
+            case "intercept":
+                lines.Add(
+                    $"objective_progress=mode=intercept | target_actor={GetString(objective, "target_actor_id")} | target_unit={GetString(objective, "target_unit_id")} | target_alive={FormatBool(ReadExactBool(objective, "target_alive"))} | target_reached_exit={FormatBool(ReadExactBool(objective, "target_reached_exit"))} | exit_zone={GetString(objective, "exit_zone_id")} | edge={GetString(objective, "exit_edge")} | depth={GetInt(objective, "exit_depth")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))} | exit_coords={FormatCoordArray(GetArray(objective, "exit_coords"))}"
+                );
+                break;
+            case "node_operation":
+                lines.Add(
+                    $"objective_progress=mode=node_operation | completed={GetInt(objective, "completed_operation_node_count")}/{GetInt(objective, "operation_node_count")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))} | nodes={FormatOperationNodes(GetArray(objective, "operation_nodes"))}"
+                );
+                break;
+        }
+    }
+
+    private static string FormatOperationNodes(GArray nodes)
+    {
+        var values = new List<string>();
+        foreach (GDictionary node in Dictionaries(nodes))
+        {
+            values.Add(
+                $"{GetString(node, "node_id")}@{FormatCoord(GetDictionary(node, "coord"))}:{(ReadExactBool(node, "is_completed") ? "done" : "pending")}"
+            );
+        }
+        return $"[{string.Join(",", values)}]";
     }
 
     private static void AppendBattleContingencyLines(List<string> lines, GDictionary contingency)

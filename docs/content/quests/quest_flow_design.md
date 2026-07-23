@@ -44,7 +44,7 @@
 
 | 任务 ID | 名称 | 目标 | 奖励 | 叙事功能 |
 |---------|------|------|------|----------|
-| `tutorial_first_blood` | 初阵 | 击败 `wolf_pack` ×3 | 50金 + 解锁 `charge` | 教学战斗，熟悉 d20 命中 |
+| `tutorial_first_blood` | 初阵 | 击败 `wolf_pack` ×3 | 50金 + `warrior_heavy_strike` 熟练度 80 | 教学战斗，熟悉 d20 命中 |
 | `tutorial_gather_herbs` | 采集药材 | 提交 `healing_herb` ×3 | 30金 + `bandage_roll` ×2 | 教学采集与物品系统 |
 | `tutorial_wolf_alpha` | 狼群首领 | 击败 `wolf_alpha` ×1 | 150金 + 解锁 `guard` | 教学精英战，AP 管理 |
 
@@ -171,7 +171,6 @@
 
 | 解锁技能 | 来源任务 | 适用职业 |
 |---------|---------|---------|
-| `charge` | `tutorial_first_blood` | 战士/通用 |
 | `guard` | `tutorial_wolf_alpha` | 战士/通用 |
 | `warrior_backstep` / `mage_blink` | `main_ashen_gate` | 战士/法师分支 |
 | `mage_black_flame` / `priest_aid` | `ashen_mist_weaver` | 法师/牧师分支 |

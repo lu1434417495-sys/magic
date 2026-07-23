@@ -169,12 +169,11 @@ public partial class BattleState
 
     internal bool InitializeObjective(BattleObjectiveDefinition objectiveDefinition)
     {
-        _objectiveRuntimeState = objectiveDefinition switch
-        {
-            BattleEliminationObjectiveDefinition =>
-                new BattleEliminationObjectiveRuntimeState(),
-            _ => null,
-        };
+        BattleObjectiveRuntimeStateFactory.TryCreate(
+            this,
+            objectiveDefinition,
+            out _objectiveRuntimeState
+        );
         _finalDecision = null;
         return _objectiveRuntimeState != null;
     }
@@ -611,6 +610,7 @@ public partial class BattleState
         if (unitId == "")
             return;
         unitState.unit_id = unitId;
+        unitState.NormalizeBodySizeProjectionForOwnerWrite();
         _unitsById[unitId] = unitState;
         MarkMovementGeometryChanged();
     }
@@ -746,6 +746,7 @@ public partial class BattleState
                 ownedUnit.unit_id = NormalizeUnitId(ownedUnit.unit_id) != ""
                     ? NormalizeUnitId(ownedUnit.unit_id)
                     : unitId;
+                ownedUnit.NormalizeBodySizeProjectionForOwnerWrite();
                 _unitsById[unitId] = ownedUnit;
             }
         }
@@ -765,6 +766,7 @@ public partial class BattleState
                 if (unitId == "")
                     continue;
                 unitState.unit_id = unitId;
+                unitState.NormalizeBodySizeProjectionForOwnerWrite();
                 _unitsById[unitId] = unitState;
             }
         }
@@ -1514,15 +1516,12 @@ public partial class BattleState
         if (attacker == null)
             return 0;
 
-        attacker.RefreshFootprint();
-
         var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState c in GetUnitsTyped())
         {
             if (!_is_enemy_unit(attacker, c))
                 continue;
-            c.RefreshFootprint();
             if (_are_units_adjacent(attacker, c))
                 adjacentEnemyIds.Add(c.unit_id);
         }
@@ -1535,13 +1534,10 @@ public partial class BattleState
         if (!attacker.IsValid)
             return 0;
 
-        attacker.UnsafeUnitForReadOnlyRules?.RefreshFootprint();
-
         var adjacentEnemyIds = new HashSet<StringName>();
 
         foreach (BattleUnitState candidateState in GetUnitsTyped())
         {
-            candidateState?.RefreshFootprint();
             BattleUnitReadView candidate = new(candidateState);
             if (!_is_enemy_unit(attacker, candidate))
                 continue;

@@ -362,6 +362,10 @@ internal sealed class BattleRuntimeSkillTurnResolver
         {
             return BattleSkillCastBlockReasonKind.ShieldRequired;
         }
+        if (RequiresCurrentWeapon(skillDefinition) && !UnitHasEquippedWeapon(active_unit))
+        {
+            return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
+        }
         if (RequiresMeleeWeapon(skillDefinition) && !UnitHasMeleeWeapon(active_unit))
         {
             return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
@@ -489,6 +493,16 @@ internal sealed class BattleRuntimeSkillTurnResolver
     internal bool UnitHasMeleeWeapon(BattleUnitReadView active_unit) =>
         active_unit.IsValid
         && active_unit.WeaponProfileKind == new StringName("equipped")
+        && active_unit.WeaponRangeType == new StringName("melee")
+        && active_unit.WeaponAttackRange > 0
+        && active_unit.WeaponPhysicalDamageTag != "";
+
+    internal bool UnitHasEquippedWeapon(BattleUnitState active_unit) =>
+        BattleRangeService.UnitHasEquippedWeapon(active_unit);
+
+    internal bool UnitHasEquippedWeapon(BattleUnitReadView active_unit) =>
+        active_unit.IsValid
+        && active_unit.WeaponProfileKind == new StringName("equipped")
         && active_unit.WeaponAttackRange > 0
         && active_unit.WeaponPhysicalDamageTag != "";
 
@@ -520,7 +534,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 continue;
             }
             hasRequiredFamily = true;
-            if (!UnitHasMeleeWeapon(active_unit))
+            if (!UnitHasEquippedWeapon(active_unit))
             {
                 return false;
             }
@@ -569,7 +583,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 continue;
             }
             hasRequiredFamily = true;
-            if (!UnitHasMeleeWeapon(active_unit))
+            if (!UnitHasEquippedWeapon(active_unit))
             {
                 return false;
             }
@@ -602,7 +616,7 @@ internal sealed class BattleRuntimeSkillTurnResolver
                 continue;
             }
             hasRequiredFamily = true;
-            if (!UnitHasMeleeWeapon(active_unit))
+            if (!UnitHasEquippedWeapon(active_unit))
             {
                 return false;
             }
@@ -700,6 +714,9 @@ internal sealed class BattleRuntimeSkillTurnResolver
 
     internal bool RequiresMeleeWeapon(SkillDefinition skillDefinition) =>
         BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition);
+
+    internal bool RequiresCurrentWeapon(SkillDefinition skillDefinition) =>
+        BattleRangeService.RequiresCurrentWeapon(skillDefinition);
 
     internal string GetSkillCommandBlockReason(
         BattleUnitState active_unit,
@@ -1492,6 +1509,76 @@ internal sealed class BattleRuntimeSkillTurnResolver
         }
         _runtime._append_changed_unit_id(batch, active_unit.unit_id);
         return true;
+    }
+
+    internal static IReadOnlyList<StringName> NormalizeAppliedStatusIds(GArray statusEffectIds)
+    {
+        var normalized = new List<StringName>();
+        if (statusEffectIds == null)
+            return normalized;
+        var seenStatusIds = new HashSet<StringName>();
+        foreach (Variant statusIdValue in statusEffectIds)
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
+            if (statusId == "" || !seenStatusIds.Add(statusId))
+                continue;
+            normalized.Add(statusId);
+        }
+        return normalized;
+    }
+
+    internal static IReadOnlyList<StringName> NormalizeAppliedStatusIds(
+        IEnumerable<StringName> statusEffectIds
+    )
+    {
+        var normalized = new List<StringName>();
+        if (statusEffectIds == null)
+            return normalized;
+        var seenStatusIds = new HashSet<StringName>();
+        foreach (StringName statusIdValue in statusEffectIds)
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
+            if (statusId == "" || !seenStatusIds.Add(statusId))
+                continue;
+            normalized.Add(statusId);
+        }
+        return normalized;
+    }
+
+    internal void InitializeAppliedStatusTimelineTicks(
+        BattleUnitState target_unit,
+        GArray status_effect_ids
+    )
+    {
+        InitializeAppliedStatusTimelineTicks(
+            target_unit,
+            NormalizeAppliedStatusIds(status_effect_ids)
+        );
+    }
+
+    internal void InitializeAppliedStatusTimelineTicks(
+        BattleUnitState target_unit,
+        IReadOnlyList<StringName> status_effect_ids
+    )
+    {
+        if (target_unit == null || status_effect_ids == null || status_effect_ids.Count == 0)
+            return;
+        int currentTu = _runtime?._state?.timeline?.current_tu ?? 0;
+        var seenStatusIds = new HashSet<StringName>();
+        foreach (StringName rawStatusId in status_effect_ids)
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(rawStatusId);
+            if (statusId == "" || !seenStatusIds.Add(statusId))
+                continue;
+            BattleStatusEffectState statusEntry = target_unit.GetStatusEffect(statusId);
+            if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+                continue;
+            if (statusEntry.next_tick_at_tu <= currentTu)
+            {
+                statusEntry.next_tick_at_tu = currentTu + statusEntry.tick_interval_tu;
+                target_unit.SetStatusEffect(statusEntry);
+            }
+        }
     }
 
     internal void EnsureUnitTurnAnchor(BattleUnitState unit_state)

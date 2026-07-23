@@ -7,7 +7,9 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_hud_typed_projection_regression : LifecycleTestSceneTree
 {
     private const string HudRootKeys =
-        "header_title|header_subtitle|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel|barriers|barrier_summary_text";
+        "header_title|header_subtitle|objective_progress|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel|barriers|barrier_summary_text";
+    private const string ObjectiveProgressKeys =
+        "mode|title|progress_text|target_actor_id|target_unit_id|target_display_name|target_alive|target_secured|target_reached_exit|required_unit_ids|alive_required_unit_ids|reached_exit_unit_ids|required_unit_count|alive_required_unit_count|reached_exit_unit_count|exit_zone_id|exit_edge|exit_depth|exit_coords|current_tu|start_tu|deadline_tu|remaining_tu|enemy_unit_count|alive_enemy_unit_count|operation_nodes|operation_node_count|completed_operation_node_count|incomplete_operation_node_count";
     private const string HoverRootKeys =
         "hover_coord|hover_is_valid_target|has_selected_skill|hit_preview|hit_stage_rates|hit_badge_text|fate_badges|save_branch_preview|save_branch_preview_text|damage_min|damage_max|damage_text|target_unit";
     private const string QueueEntryKeys =
@@ -37,6 +39,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         {
             TestFixedProjectionSchemaAndMutationIsolation();
             TestAdapterReadsStayManaged();
+            TestBossObjectiveAdapterProjection();
+            TestInterceptObjectiveAdapterProjection();
+            TestDefenseObjectiveAdapterProjection();
             await TestPanelPresentationOwnership();
         }
         catch (Exception exception)
@@ -198,6 +203,11 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         {
             GDictionary root = lease.Value;
             _test.Eq(KeyOrder(root), HudRootKeys, "HUD root key order must match the frozen outward schema.");
+            _test.Eq(
+                KeyOrder(Dict(lease, root, "objective_progress")),
+                ObjectiveProgressKeys,
+                "objective progress schema must remain fixed."
+            );
             _test.Eq(KeyOrder(Dict(lease, root, "round_badge")), "tu_text|ready_text", "round badge schema must remain fixed.");
 
             GArray queue = ArrayValue(lease, root, "queue_entries");
@@ -267,9 +277,10 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         BattleUnitState caster = BattleTestFixture.BuildUnit(
             "hud_typed_caster",
             "player",
-            new Vector2I(1, 1),
+            new Vector2I(3, 1),
             currentAp: 2
         );
+        caster.source_member_id = "hud_member";
         BattleUnitState enemy = BattleTestFixture.BuildUnit(
             "hud_typed_enemy",
             "enemy",
@@ -280,6 +291,16 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             new Vector2I(4, 4),
             new[] { caster },
             new[] { enemy }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleEscapeObjectiveDefinition(
+                    "right_exit",
+                    BattleMapEdge.Right,
+                    1
+                )
+            ),
+            "escape objective should initialize for HUD projection."
         );
         using var adapter = new BattleHudAdapter();
         var barrier = new BattleBarrierInstanceState
@@ -314,6 +335,45 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             }
         );
         fixture.State.PutLayeredBarrierField(barrier.BarrierInstanceId, barrier);
+        BattleHudSnapshot detachedObjectiveSnapshot = adapter.BuildSnapshot(
+            fixture.State,
+            caster.coord,
+            "",
+            "",
+            "",
+            Array.Empty<Vector2I>(),
+            1,
+            Array.Empty<StringName>(),
+            "",
+            "测试遭遇",
+            null
+        );
+        caster.SetAnchorCoord(new Vector2I(2, 1));
+        _test.Eq(
+            detachedObjectiveSnapshot.ObjectiveProgress.ReachedExitUnitCount,
+            1,
+            "HUD objective snapshot should remain detached from later unit movement."
+        );
+        BattleHudSnapshot movedSnapshot = adapter.BuildSnapshot(
+            fixture.State,
+            caster.coord,
+            "",
+            "",
+            "",
+            Array.Empty<Vector2I>(),
+            1,
+            Array.Empty<StringName>(),
+            "",
+            "测试遭遇",
+            null
+        );
+        _test.Eq(
+            movedSnapshot.ObjectiveProgress.ReachedExitUnitCount,
+            0,
+            "a new HUD snapshot should reflect current escape progress."
+        );
+        caster.SetAnchorCoord(new Vector2I(3, 1));
+
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         for (int index = 0; index < 12; index++)
         {
@@ -332,12 +392,226 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             );
             _test.Eq(snapshot.HeaderTitle, "测试遭遇", "adapter should return a named typed HUD snapshot.");
             _test.True(snapshot.CanonicalFacts is IReadOnlyDictionary<string, object>, "adapter canonical facts should remain managed/read-only.");
+            _test.Eq(snapshot.ObjectiveProgress.Title, "逃离战场", "adapter should project the escape objective title.");
+            _test.Eq(snapshot.ObjectiveProgress.ReachedExitUnitCount, 1, "adapter should project required-unit exit progress.");
             _test.Eq(snapshot.Barriers.Count, 1, "adapter should project active layered barriers.");
             _test.Eq(snapshot.Barriers[0].CurrentLayerId, "orange", "adapter should project the first unbroken layer.");
             _test.Eq(snapshot.Barriers[0].BrokenLayerCount, 1, "adapter should project broken layer count.");
             _test.True(snapshot.BarrierSummaryText.Contains("剩余 90 TU", StringComparison.Ordinal), "visible barrier summary should expose remaining TU.");
         }
         AssertAuditBaseline(baseline, "repeated adapter reads");
+    }
+
+    private void TestBossObjectiveAdapterProjection()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "hud_boss_ally",
+            "player",
+            new Vector2I(1, 1)
+        );
+        ally.source_member_id = "hud_boss_member";
+        BattleUnitState boss = BattleTestFixture.BuildUnit(
+            "hud_boss_target",
+            "enemy",
+            new Vector2I(3, 1)
+        );
+        boss.encounter_actor_id = "hud_boss_actor";
+        boss.display_name = "红龙首领";
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "hud_boss_objective",
+            new Vector2I(5, 4),
+            new[] { ally },
+            new[] { boss }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleBossObjectiveDefinition("hud_boss_actor")
+            ),
+            "boss objective should initialize for HUD projection."
+        );
+        using var adapter = new BattleHudAdapter();
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
+            fixture.State,
+            ally.coord,
+            "",
+            "",
+            "",
+            Array.Empty<Vector2I>(),
+            0,
+            Array.Empty<StringName>(),
+            "",
+            "首领遭遇",
+            null
+        );
+        _test.Eq(snapshot.ObjectiveProgress.Title, "击败首领", "boss HUD 应显示目标标题。");
+        _test.Eq(
+            snapshot.ObjectiveProgress.TargetActorId,
+            "hud_boss_actor",
+            "boss HUD 应暴露稳定 actor id。"
+        );
+        _test.True(
+            snapshot.ObjectiveProgress.ProgressText.Contains(
+                "红龙首领：存活",
+                StringComparison.Ordinal
+            ),
+            $"boss HUD 应显示当前首领状态，actual={snapshot.ObjectiveProgress.ProgressText}"
+        );
+    }
+
+    private void TestInterceptObjectiveAdapterProjection()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "hud_intercept_ally",
+            "player",
+            new Vector2I(1, 1)
+        );
+        ally.source_member_id = "hud_intercept_member";
+        BattleUnitState target = BattleTestFixture.BuildUnit(
+            "hud_intercept_target",
+            "enemy",
+            new Vector2I(3, 1)
+        );
+        target.encounter_actor_id = "hud_intercept_actor";
+        target.display_name = "迷雾信使";
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "hud_intercept_objective",
+            new Vector2I(5, 4),
+            new[] { ally },
+            new[] { target }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleInterceptObjectiveDefinition(
+                    "hud_intercept_actor",
+                    "west_breakthrough",
+                    BattleMapEdge.Left,
+                    1
+                )
+            ),
+            "intercept objective should initialize for HUD projection."
+        );
+        using var adapter = new BattleHudAdapter();
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
+            fixture.State,
+            ally.coord,
+            "",
+            "",
+            "",
+            Array.Empty<Vector2I>(),
+            0,
+            Array.Empty<StringName>(),
+            "",
+            "截击遭遇",
+            null
+        );
+
+        _test.Eq(
+            snapshot.ObjectiveProgress.Title,
+            "截击目标",
+            "intercept HUD 应显示目标标题。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.TargetActorId,
+            "hud_intercept_actor",
+            "intercept HUD 应暴露稳定 actor id。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.ExitEdge,
+            "left",
+            "intercept HUD 应暴露逃脱区边。"
+        );
+        _test.True(
+            snapshot.ObjectiveProgress.ProgressText.Contains(
+                "迷雾信使：突围中",
+                StringComparison.Ordinal
+            ),
+            $"intercept HUD 应显示当前目标状态，actual={snapshot.ObjectiveProgress.ProgressText}"
+        );
+    }
+
+    private void TestDefenseObjectiveAdapterProjection()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "hud_defense_ally",
+            "player",
+            Vector2I.Zero
+        );
+        ally.source_member_id = "hud_defense_member";
+        BattleUnitState target = BattleTestFixture.BuildUnit(
+            "hud_defense_target",
+            "player",
+            Vector2I.Right
+        );
+        target.encounter_actor_id = "hud_defense_actor";
+        target.display_name = "迷雾守望者";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "hud_defense_enemy",
+            "enemy",
+            new Vector2I(3, 0)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "hud_defense_objective",
+            new Vector2I(4, 2),
+            new[] { ally, target },
+            new[] { enemy }
+        );
+        fixture.State.timeline.current_tu = 40;
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleDefenseObjectiveDefinition(
+                    "hud_defense_actor",
+                    100
+                )
+            ),
+            "defense objective should initialize for HUD projection."
+        );
+        using var adapter = new BattleHudAdapter();
+        BattleHudSnapshot snapshot = adapter.BuildSnapshot(
+            fixture.State,
+            ally.coord,
+            "",
+            "",
+            "",
+            Array.Empty<Vector2I>(),
+            0,
+            Array.Empty<StringName>(),
+            "",
+            "防守遭遇",
+            null
+        );
+
+        _test.Eq(
+            snapshot.ObjectiveProgress.Title,
+            "坚守防线",
+            "defense HUD 应显示目标标题。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.TargetActorId,
+            "hud_defense_actor",
+            "defense HUD 应暴露稳定 actor id。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.StartTu,
+            40,
+            "defense HUD 应暴露冻结的开始 TU。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.DeadlineTu,
+            140,
+            "defense HUD 应暴露冻结的截止 TU。"
+        );
+        _test.Eq(
+            snapshot.ObjectiveProgress.RemainingTu,
+            100,
+            "defense HUD 应显示剩余 TU。"
+        );
+        _test.True(
+            snapshot.ObjectiveProgress.ProgressText.Contains(
+                "迷雾守望者：坚守中 · 剩余 100 TU",
+                StringComparison.Ordinal
+            ),
+            $"defense HUD 应显示目标与倒计时，actual={snapshot.ObjectiveProgress.ProgressText}"
+        );
     }
 
     private async System.Threading.Tasks.Task TestPanelPresentationOwnership()

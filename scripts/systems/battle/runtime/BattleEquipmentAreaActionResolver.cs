@@ -384,8 +384,6 @@ internal sealed class BattleEquipmentAreaActionResolver
         toCoord = Vector2I.Zero;
         if (fromUnit == null || toUnit == null)
             return false;
-        fromUnit.RefreshFootprint();
-        toUnit.RefreshFootprint();
         foreach (Vector2I sourceCoord in fromUnit.occupied_coords)
         {
             foreach (Vector2I targetCoord in toUnit.occupied_coords)

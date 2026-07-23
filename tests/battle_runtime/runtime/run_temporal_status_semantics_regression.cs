@@ -19,6 +19,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
     {
         TestStasisFreezesPersonalTimeline();
         TestStasisFreezesCooldownProgress();
+        TestReadyUnitActivationConsumesCooldownElapsedTu();
         TestTimeSlowAccumulatesProgressWithRemainder();
         TestStasisBlocksMovementFailClosed();
         TestStasisUnitSkipsReadyQueueActivation();
@@ -134,6 +135,34 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             25,
             "静滞前已流逝的 5 TU 应在解除后被惰性消费，静滞时段不计入。"
         );
+    }
+
+    private void TestReadyUnitActivationConsumesCooldownElapsedTu()
+    {
+        Fixture fixture = BuildFixture();
+        BattleUnitState unit = fixture.AddUnit(
+            "ready_cooldown_unit",
+            "enemy",
+            new Vector2I(1, 1)
+        );
+        unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["skill_a"] = 30 });
+        unit.last_turn_tu = 0;
+        fixture.State.timeline.current_tu = 10;
+        fixture.State.timeline.ready_unit_ids.Add(unit.unit_id);
+
+        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+
+        _test.Eq(
+            fixture.State.active_unit_id,
+            unit.unit_id,
+            "ready unit 应通过真实时间轴激活路径进入行动窗口。"
+        );
+        _test.Eq(
+            unit.GetCooldownsTyped().GetValueOrDefault(new StringName("skill_a"), 0),
+            20,
+            "激活行动窗口时应消费自上次回合锚点起流逝的 10 TU 冷却。"
+        );
+        _test.Eq(unit.last_turn_tu, 10, "真实激活路径应把回合锚点推进到当前 10 TU。");
     }
 
     private void TestTimeSlowAccumulatesProgressWithRemainder()

@@ -123,7 +123,7 @@ growth_tier = &"basic"
 attribute_growth_progress = {
 "constitution": 60
 }
-level_description_template = "guarding 物理伤害减{guard_power}{{?slow_power}}，移动力-{slow_power}{{/slow_power}}，持续{duration}TU，体力消耗{stamina}，冷却{cooldown}TU"
+level_description_template = "格挡姿态：物理伤害减{guard_power}{{?slow_power}}，移动力-{slow_power}{{/slow_power}}，持续{duration}TU，体力消耗{stamina}，冷却{cooldown}TU"
 level_description_configs = {
 "0": {
 "guard_power": "1",

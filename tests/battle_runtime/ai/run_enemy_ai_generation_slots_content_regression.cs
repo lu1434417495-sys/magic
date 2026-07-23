@@ -69,6 +69,9 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
     private void TestFormalBrainsDeclareGenerationSlots()
     {
         using var loader = new TestContentResourceLoader();
+        using var skills = new SkillContentRegistry(loader);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skills.GetSkillDefinitionsTyped();
         foreach (string brainPath in BrainPaths)
         {
             EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
@@ -87,7 +90,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
 
                 GStringArray stateErrors = stateDef.ValidateSchema(
                     brain.brain_id,
-                    CollectDeclaredSkillDefinitions(stateDef)
+                    skillDefinitions
                 );
                 _test.True(
                     stateErrors.Count == 0,
@@ -139,6 +142,9 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
     private void TestFormalBrainsDeclareTransitionRules()
     {
         using var loader = new TestContentResourceLoader();
+        using var skills = new SkillContentRegistry(loader);
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+            skills.GetSkillDefinitionsTyped();
         foreach (string brainPath in BrainPaths)
         {
             EnemyAiBrainDef brain = loader.LoadCanonical<EnemyAiBrainDef>(brainPath);
@@ -152,7 +158,7 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
                 brain.transition_rules != null && brain.transition_rules.Count > 0,
                 $"{brainPath} 应声明 transition_rules。"
             );
-            GStringArray brainErrors = brain.ValidateSchema(CollectDeclaredSkillDefinitionsForBrain(brain));
+            GStringArray brainErrors = brain.ValidateSchema(skillDefinitions);
             _test.True(
                 brainErrors.Count == 0,
                 $"{brainPath} transition/full schema 应合法: {FormatErrors(brainErrors)}"
@@ -164,48 +170,6 @@ public partial class run_enemy_ai_generation_slots_content_regression : Lifecycl
                 $"{brainPath} transition rules 应完整投影到 immutable brain definition。"
             );
         }
-    }
-
-    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitions(
-        EnemyAiStateDef stateDef
-    )
-    {
-        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
-        if (stateDef == null)
-        {
-            return skillDefinitions;
-        }
-        foreach (EnemyAiAction action in stateDef.GetTypedActions())
-        {
-            if (action == null)
-            {
-                continue;
-            }
-            foreach (StringName skillId in action.GetDeclaredSkillIds())
-            {
-                skillDefinitions[skillId] = null;
-            }
-        }
-        return skillDefinitions;
-    }
-
-    private static Dictionary<StringName, SkillDefinition> CollectDeclaredSkillDefinitionsForBrain(
-        EnemyAiBrainDef brain
-    )
-    {
-        var skillDefinitions = new Dictionary<StringName, SkillDefinition>();
-        if (brain == null)
-        {
-            return skillDefinitions;
-        }
-        foreach (EnemyAiStateDef stateDef in brain.GetResolvedStates())
-        {
-            foreach (StringName key in CollectDeclaredSkillDefinitions(stateDef).Keys)
-            {
-                skillDefinitions[key] = null;
-            }
-        }
-        return skillDefinitions;
     }
 
     private static string FormatErrors(IEnumerable errors)

@@ -19,6 +19,8 @@ internal readonly struct BattleStateReadView
         _state?.ModalStateKind ?? BattleModalStateKind.None;
     internal BattleObjectiveMode ObjectiveMode =>
         _state?.ObjectiveRuntimeState?.Mode ?? BattleObjectiveMode.Unknown;
+    internal BattleObjectiveProgressSnapshot ObjectiveProgress =>
+        BattleObjectiveProgressSnapshot.Capture(_state);
     internal bool HasFinalDecision => _state?.FinalDecision != null;
     internal BattleOutcomeKind Outcome =>
         _state?.FinalDecision?.Outcome ?? BattleOutcomeKind.Unknown;
@@ -107,6 +109,7 @@ internal readonly struct BattleUnitReadView
     internal StringName WeaponFamily => _unit?.weapon_family ?? "";
     internal StringName WeaponProfileTypeId => _unit?.weapon_profile_type_id ?? "";
     internal StringName WeaponProfileKind => _unit?.weapon_profile_kind ?? "";
+    internal StringName WeaponRangeType => _unit?.weapon_range_type ?? "";
     internal StringName WeaponCurrentGrip => _unit?.weapon_current_grip ?? "";
     internal int WeaponAttackRange => _unit?.weapon_attack_range ?? 0;
     internal bool WeaponUsesTwoHands => _unit?.weapon_uses_two_hands ?? false;
@@ -278,8 +281,7 @@ internal readonly struct BattleUnitReadView
     internal bool HasMovementTag(StringName tag) =>
         _unit != null && tag != "" && _unit.movement_tags != null && _unit.movement_tags.Contains(tag);
 
-    // 零拷贝：直接暴露底层列表。RefreshFootprint 是整体替换引用而非原地改，
-    // 持有者读到的是一致快照；规则层同帧只读，安全。
+    // 零拷贝：读取写入口已经维护好的稳定投影；read view 不归一化或替换引用。
     internal IReadOnlyList<Vector2I> GetOccupiedCoords() =>
         (IReadOnlyList<Vector2I>)_unit?.occupied_coords ?? System.Array.Empty<Vector2I>();
 

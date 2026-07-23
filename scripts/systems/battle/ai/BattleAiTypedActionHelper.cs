@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 internal sealed class BattleAiTypedActionHelper
@@ -183,6 +184,11 @@ internal sealed class BattleAiTypedActionHelper
         BattleUnitState forcedTarget = context?.ResolveForcedTargetUnit(effectiveFilter);
         if (forcedTarget != null)
             return new List<BattleUnitState> { forcedTarget };
+        BattleUnitState objectiveTarget = ResolvePriorityObjectiveTarget(
+            context,
+            actor,
+            units
+        );
         if (selector == SelectorSelf)
             return units;
 
@@ -191,7 +197,57 @@ internal sealed class BattleAiTypedActionHelper
         sorted.Sort(
             (left, right) => CompareTargets(context, left, right, selector, nearestDistance)
         );
+        if (objectiveTarget != null)
+        {
+            sorted.Remove(objectiveTarget);
+            sorted.Insert(0, objectiveTarget);
+        }
         return sorted;
+    }
+
+    private static BattleUnitState ResolvePriorityObjectiveTarget(
+        BattleAiContext context,
+        BattleUnitState actor,
+        IReadOnlyList<BattleUnitState> candidates
+    )
+    {
+        if (actor == null)
+            return null;
+
+        StringName targetUnitId;
+        IReadOnlyList<StringName> priorityActorUnitIds;
+        switch (context?.state?.ObjectiveRuntimeState)
+        {
+            case BattleBossObjectiveRuntimeState bossObjective:
+                targetUnitId = bossObjective.TargetUnitId;
+                priorityActorUnitIds = bossObjective.RequiredPartyUnitIds;
+                break;
+            case BattleInterceptObjectiveRuntimeState interceptObjective:
+                targetUnitId = interceptObjective.TargetUnitId;
+                priorityActorUnitIds = interceptObjective.RequiredPartyUnitIds;
+                break;
+            case BattleDefenseObjectiveRuntimeState defenseObjective:
+                targetUnitId = defenseObjective.TargetUnitId;
+                priorityActorUnitIds = context.state.GetEnemyUnitIdsTyped();
+                break;
+            default:
+                return null;
+        }
+        if (!priorityActorUnitIds.Contains(actor.unit_id))
+        {
+            return null;
+        }
+        foreach (BattleUnitState candidate in candidates ?? Array.Empty<BattleUnitState>())
+        {
+            if (
+                candidate?.unit_id == targetUnitId
+                && candidate.is_alive
+            )
+            {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     public List<CombatCastVariantDefinition> GetUnitCastVariantDefinitions(
@@ -476,12 +532,24 @@ internal sealed class BattleAiTypedActionHelper
         {
             if (leftHp != rightHp)
                 return leftHp.CompareTo(rightHp);
-            return leftDistance.CompareTo(rightDistance);
+            if (leftDistance != rightDistance)
+                return leftDistance.CompareTo(rightDistance);
         }
-        if (leftDistance == rightDistance)
-            return leftHp.CompareTo(rightHp);
-        return leftDistance.CompareTo(rightDistance);
+        else
+        {
+            if (leftDistance != rightDistance)
+                return leftDistance.CompareTo(rightDistance);
+            if (leftHp != rightHp)
+                return leftHp.CompareTo(rightHp);
+        }
+        return CompareTargetUnitIds(left, right);
     }
+
+    private static int CompareTargetUnitIds(BattleUnitState left, BattleUnitState right) =>
+        string.CompareOrdinal(
+            left?.unit_id.ToString() ?? "",
+            right?.unit_id.ToString() ?? ""
+        );
 
     private int GetRoleThreatSelectorScore(
         BattleAiContext context,

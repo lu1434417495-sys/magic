@@ -270,7 +270,7 @@ internal sealed class BattleEquipmentAbilityImmediateWeaponAttackResult
     public int Damage { get; init; }
 }
 
-internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentAbilityReactionService
+internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCombatReactionSink
 {
     internal static readonly StringName ActionKindAddDamageDice = "add_damage_dice";
     private static readonly StringName ActionKindImmediateWeaponAttack =
@@ -442,7 +442,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentAbi
         _targetMarkResolver.DisposeRuntime();
         _summonResolver.DisposeRuntime();
         _abilityStateResolver.DisposeRuntime();
-        _damageResolver?.SetEquipmentAbilityRuntimeService(null);
+        _damageResolver?.SetEquipmentAbilityPorts(null, null);
         _damageResolver = null;
         _runtime = null;
         _forcedRollGateValuesForTests.Clear();
@@ -451,58 +451,33 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentAbi
 
     internal BattleState GetBattleState() => _runtime?.GetState();
 
-    List<BattleAttackRollModifierSpec>
-        IBattleEquipmentAbilityReactionService.CollectAttackRollModifierCandidates(
-            BattleAttackCheckPolicyContext context
-        ) => CollectAttackRollModifierCandidates(context);
+    internal IBattleEquipmentAttackCheckQuery AttackCheckQuery => _attackModifierResolver;
 
-    EquipmentAttackDefenseAdjustment
-        IBattleEquipmentAbilityReactionService.CollectAttackDefenseAdjustment(
-            BattleAttackCheckPolicyContext context
-        ) => CollectAttackDefenseAdjustment(context);
+    internal IBattleEquipmentDamageQuery DamageQuery => _attackModifierResolver;
 
-    BattleEquipmentAbilityCriticalHitOverrideResult
-        IBattleEquipmentAbilityReactionService.ResolveCriticalHitOverride(
-            BattleAttackCheckPolicyContext context
-        ) => ResolveCriticalHitOverride(context);
+    internal IBattleEquipmentCombatReactionSink ReactionSink => this;
 
-    bool IBattleEquipmentAbilityReactionService.ResolveAttackCheck(
+    bool IBattleEquipmentCombatReactionSink.ResolveAttackCheck(
         BattleEquipmentAbilityAttackCheckContext context
     ) => ResolveAttackCheck(context);
 
-    BattleEquipmentAbilityAfterHitResult IBattleEquipmentAbilityReactionService.ResolveAfterHit(
+    BattleEquipmentAbilityAfterHitResult IBattleEquipmentCombatReactionSink.ResolveAfterHit(
         BattleEquipmentAbilityAfterHitContext context
     ) => ResolveAfterHit(context);
 
-    BattleEquipmentAbilityAfterHitResult IBattleEquipmentAbilityReactionService.ResolveHitReceived(
+    BattleEquipmentAbilityAfterHitResult IBattleEquipmentCombatReactionSink.ResolveHitReceived(
         BattleEquipmentAbilityAfterHitContext context
     ) => ResolveHitReceived(context);
 
     IReadOnlyList<StringName>
-        IBattleEquipmentAbilityReactionService.RefreshEquipmentProjectionAfterDurabilityDestruction(
+        IBattleEquipmentCombatReactionSink.RefreshEquipmentProjectionAfterDurabilityDestruction(
             BattleUnitState targetUnit,
             BattleEventBatch batch
         ) => RefreshEquipmentProjectionAfterDurabilityDestruction(targetUnit, batch);
 
-    IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
-        IBattleEquipmentAbilityReactionService.CollectBonusDamageDiceOnHit(
-            BattleEquipmentAbilityBonusDamageDiceContext context
-        ) => CollectBonusDamageDiceOnHit(context);
-
-    StringName IBattleEquipmentAbilityReactionService.ResolveDamageRollModeOverride(
-        BattleEquipmentAbilityDamageRollModeContext context
-    ) => ResolveDamageRollModeOverride(context);
-
-    IReadOnlyList<BattleEquipmentAbilityDamageReductionResult>
-        IBattleEquipmentAbilityReactionService.CollectDamageReductions(
-            BattleEquipmentAbilityDamageReductionContext context
-        ) => CollectDamageReductions(context);
-
-    bool IBattleEquipmentAbilityReactionService.ResolveDamageApplied(
+    bool IBattleEquipmentCombatReactionSink.ResolveDamageApplied(
         BattleEquipmentAbilityDamageAppliedContext context
     ) => ResolveDamageApplied(context);
-
-    BattleState IBattleEquipmentAbilityReactionService.GetBattleState() => GetBattleState();
 
     internal BattleDamageResolver DamageResolver => _damageResolver;
 

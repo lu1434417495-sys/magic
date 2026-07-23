@@ -20,6 +20,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             TestMeleeAggressorChargeDecisionMovesTowardTarget();
             TestFormalAdvanceCommitsDecisionStatePatchOnce();
             TestFrontlineBulwarkChargeDecisionMovesTowardTarget();
+            TestFrontlineBulwarkTauntProducesGroundSkillCommand();
             TestShortRegularMovePrefersCloseInOverCharge();
             TestChargeActionScoresWithResolvedStopAnchor();
             TestChargeTraceBalancesWhenPreviewThrows();
@@ -242,6 +243,62 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         _test.True(
             vanguard.coord != new Vector2I(0, 1),
             $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.coord} log={batch.log_lines}"
+        );
+    }
+
+    private void TestFrontlineBulwarkTauntProducesGroundSkillCommand()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(3, 3));
+        BattleUnitState vanguard = BuildAiUnit(
+            "taunt_vanguard",
+            "嘲讽先锋",
+            "hostile",
+            new Vector2I(0, 1),
+            "frontline_bulwark",
+            "pressure",
+            new[] { "warrior_taunt" },
+            42,
+            2
+        );
+        vanguard.current_stamina = 80;
+        vanguard.attribute_snapshot.SetValue("stamina_max", 80);
+        BattleUnitState player = BuildManualUnit(
+            "taunt_target",
+            "嘲讽目标",
+            "player",
+            new Vector2I(1, 1),
+            new[] { "basic_attack" }
+        );
+        AddUnitToState(runtime, state, vanguard, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        BattleAiContext context = BuildAiContext(runtime, vanguard);
+        context.trace_enabled = true;
+        BattleAiDecisionResult decisionResult = runtime._ai_service.ChooseCommand(
+            context,
+            captureTrace: true
+        );
+        BattleAiDecision decision = decisionResult?.Decision;
+        string traceSummary = FormatActionTraces(
+            decisionResult?.TurnTrace?.ActionTraces
+        );
+
+        _test.Eq(
+            decision?.command?.skill_id ?? (StringName)"",
+            new StringName("warrior_taunt"),
+            $"frontline_bulwark 只有嘲讽可用时应产出嘲讽指令。 trace={traceSummary}"
+        );
+        _test.True(
+            decision?.command?.TargetCoordsTyped.Count > 0
+                && decision.command.target_unit_id == (StringName)"",
+            $"嘲讽指令应使用 ground target coords，而不是 unit target id。 trace={traceSummary}"
+        );
+        _test.True(
+            runtime.PreviewCommand(decision?.command)?.allowed == true,
+            "frontline_bulwark 生成的嘲讽 ground 指令应通过正式 preview。"
         );
     }
 
@@ -522,6 +579,33 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
         }
         return unit;
+    }
+
+    private static string FormatActionTraces(
+        IReadOnlyList<AiActionTrace> traces
+    )
+    {
+        var parts = new List<string>();
+        foreach (AiActionTrace trace in traces ?? Array.Empty<AiActionTrace>())
+        {
+            var blockReasons = new List<string>();
+            foreach ((string reason, int count) in trace.BlockReasons)
+            {
+                blockReasons.Add($"{reason}={count}");
+            }
+            var candidateScores = new List<string>();
+            foreach (AiCandidateSummary candidate in trace.TopCandidates)
+            {
+                candidateScores.Add($"{candidate.Label}:{candidate.TotalScore}");
+            }
+            parts.Add(
+                $"{trace.ActionId}[eval={trace.EvaluationCount},candidates={trace.CandidateCount},"
+                    + $"blocked={trace.BlockedCount},preview_reject={trace.PreviewRejectCount},"
+                    + $"chosen={trace.Chosen},scores={string.Join(",", candidateScores)},"
+                    + $"reasons={string.Join(",", blockReasons)}]"
+            );
+        }
+        return string.Join(";", parts);
     }
 
     private static BattleUnitState BuildManualUnit(

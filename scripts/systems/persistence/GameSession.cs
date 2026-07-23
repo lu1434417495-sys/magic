@@ -723,11 +723,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
 
         Dictionary<string, object> saveMeta = GetSaveMetaByIdPlain(save_id);
         if (saveMeta.Count == 0)
-        {
-            throw new InvalidOperationException(
-                $"GameSession could not find save slot {save_id}."
-            );
-        }
+            return (int)Error.DoesNotExist;
 
         string savePath = BuildSaveFilePath(save_id);
         int readError = ReadSavePayload(
@@ -735,7 +731,11 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             out Dictionary<string, object> plainPayload
         );
         if (readError != (int)Error.Ok)
+        {
+            if (readError == (int)Error.DoesNotExist)
+                RemoveMissingSaveMetaPlain(save_id);
             return readError;
+        }
 
         if (plainPayload.Count == 0)
         {

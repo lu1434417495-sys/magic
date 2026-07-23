@@ -55,6 +55,12 @@ public sealed class BattleBoardController : IDisposable
         0.84f,
         1.0f
     );
+    private static readonly Color OBJECTIVE_EXIT_MARKER_COLOR = new(
+        0.18f,
+        0.88f,
+        0.64f,
+        1.0f
+    );
     private static readonly Color VALID_TARGET_HIGHLIGHT_COLOR = new(0.92f, 0.12f, 0.08f, 0.42f);
     private static readonly Color LOCKED_TARGET_HIGHLIGHT_COLOR = new(0.96f, 0.82f, 0.28f, 0.54f);
     private static readonly Color CONFIRM_READY_TARGET_HIGHLIGHT_COLOR = new(
@@ -93,6 +99,7 @@ public sealed class BattleBoardController : IDisposable
     private static readonly StringName SOURCE_SELECTED = "selected";
     private static readonly StringName SOURCE_ACTIVE_SELECTED = "active_selected";
     private static readonly StringName SOURCE_MOVE_REACHABLE = "move_reachable";
+    private static readonly StringName SOURCE_OBJECTIVE_EXIT = "objective_exit";
     private static readonly StringName SOURCE_PREVIEW = "preview";
     private static readonly Vector2I INVALID_OPTION_COORD = new(-999999, -999999);
     private static readonly StringName PROP_SPIKE_BARRICADE = "spike_barricade";
@@ -272,7 +279,6 @@ public sealed class BattleBoardController : IDisposable
             BattleUnitState unitState = GetUnit(_battle_state, unitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
-            unitState.RefreshFootprint();
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode == null)
                 continue;
@@ -564,6 +570,7 @@ public sealed class BattleBoardController : IDisposable
         if (_marker_layers.Count == 0)
             return;
         _clear_marker_layers();
+        _draw_objective_exit_markers();
         if (_selected_coord != new Vector2I(-1, -1) && _is_cell_inside_battle(_selected_coord))
             _set_marker_cell(_selected_coord, _get_selected_marker_source_id(_selected_coord));
         if (_target_selection_mode == "movement")
@@ -582,6 +589,50 @@ public sealed class BattleBoardController : IDisposable
                 continue;
             _set_marker_cell(previewCoord, _get_source_id(SOURCE_PREVIEW));
         }
+    }
+
+    private void _draw_objective_exit_markers()
+    {
+        IReadOnlyList<Vector2I> exitCoords =
+            _battle_state?.ObjectiveRuntimeState switch
+            {
+                BattleEscapeObjectiveRuntimeState escapeObjective =>
+                    escapeObjective.ExitCoords,
+                BattleEscortObjectiveRuntimeState escortObjective =>
+                    escortObjective.ExitCoords,
+                BattleInterceptObjectiveRuntimeState interceptObjective =>
+                    interceptObjective.ExitCoords,
+                BattleNodeOperationObjectiveRuntimeState nodeOperationObjective =>
+                    ResolveIncompleteOperationNodeCoords(nodeOperationObjective),
+                _ => null,
+            };
+        if (exitCoords == null)
+            return;
+        int sourceId = _get_source_id(SOURCE_OBJECTIVE_EXIT);
+        if (sourceId < 0)
+            return;
+        foreach (Vector2I exitCoord in exitCoords)
+        {
+            if (_is_cell_inside_battle(exitCoord))
+                _set_marker_cell(exitCoord, sourceId);
+        }
+    }
+
+    private static IReadOnlyList<Vector2I> ResolveIncompleteOperationNodeCoords(
+        BattleNodeOperationObjectiveRuntimeState objective
+    )
+    {
+        var result = new List<Vector2I>();
+        foreach (
+            BattleOperationNodeRuntimeState node in
+            objective?.OperationNodes
+            ?? System.Array.Empty<BattleOperationNodeRuntimeState>()
+        )
+        {
+            if (!node.IsCompleted)
+                result.Add(node.Coord);
+        }
+        return result;
     }
 
     private void _draw_props(List<BattleCellState> cells)
@@ -629,7 +680,6 @@ public sealed class BattleBoardController : IDisposable
             BattleUnitState unitState = GetUnit(_battle_state, unitIdValue);
             if (unitState == null || !unitState.is_alive)
                 continue;
-            unitState.RefreshFootprint();
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode != null)
             {
@@ -917,7 +967,6 @@ public sealed class BattleBoardController : IDisposable
     {
         if (unit_state == null || _input_layer == null || _battle_state == null)
             return 0;
-        unit_state.RefreshFootprint();
         int bestDepth = int.MinValue;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -933,7 +982,6 @@ public sealed class BattleBoardController : IDisposable
     {
         if (unit_state == null)
             return 0.0f;
-        unit_state.RefreshFootprint();
         float bestKey = (float)unit_state.coord.Y * 1000.0f + (float)unit_state.coord.X;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -1604,6 +1652,18 @@ public sealed class BattleBoardController : IDisposable
             new[] { _build_move_reachable_marker_texture(render_profile) },
             generatedMarkerSpec
         );
+        _register_source_options(
+            SOURCE_OBJECTIVE_EXIT,
+            new[]
+            {
+                _build_diamond_texture(
+                    OBJECTIVE_EXIT_MARKER_COLOR,
+                    0.32f,
+                    render_profile.board_tile_size
+                ),
+            },
+            generatedMarkerSpec
+        );
     }
 
     private int _add_atlas_source(
@@ -1955,7 +2015,6 @@ public sealed class BattleBoardController : IDisposable
         BattleUnitState activeUnit = GetUnit(_battle_state, _battle_state.active_unit_id);
         if (activeUnit == null || !activeUnit.is_alive)
             return false;
-        activeUnit.RefreshFootprint();
         return activeUnit.occupied_coords.Contains(coord);
     }
 

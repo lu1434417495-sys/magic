@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="BattleEncounterDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterDef.cs" id="1_encounter"]
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleInterceptObjectiveDef.cs" id="2_objective"]
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterWorldResolutionDef.cs" id="3_resolution"]
+
+[sub_resource type="Resource" id="Resource_objective"]
+script = ExtResource("2_objective")
+target_actor_id = &"mist_courier"
+exit_zone_id = &"west_breakthrough"
+exit_edge = 1
+exit_depth = 2
+
+[sub_resource type="Resource" id="Resource_resolution"]
+script = ExtResource("3_resolution")
+player_success_mode = 0
+player_failure_mode = 0
+draw_mode = 0
+suppression_steps = 0
+
+[resource]
+script = ExtResource("1_encounter")
+encounter_id = &"mist_hollow_intercept"
+display_name = "截击迷雾信使"
+roster_profile_id = &"mist_hollow_intercept"
+objective = SubResource("Resource_objective")
+world_resolution = SubResource("Resource_resolution")

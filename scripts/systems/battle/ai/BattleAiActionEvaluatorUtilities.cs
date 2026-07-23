@@ -65,8 +65,6 @@ internal static class BattleAiActionEvaluatorUtilities
         if (context?.grid_service == null || actor == null || target == null)
             return 999999;
         BattleGridService grid = context.grid_service;
-        actor.RefreshFootprint();
-        target.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
         foreach (Vector2I targetCoord in target.occupied_coords)

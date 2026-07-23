@@ -935,7 +935,11 @@ public partial class BattleDamageResolver
         );
     }
 
-    private bool TriggerLastStand(BattleUnitState targetUnit, BattleUnitState sourceUnit = null)
+    private bool TriggerLastStand(
+        BattleUnitState targetUnit,
+        BattleUnitState sourceUnit = null,
+        BattleState battleState = null
+    )
     {
         BattleStatusEffectState deathWardEntry = targetUnit.GetStatusEffect("death_ward");
         if (deathWardEntry == null)
@@ -986,6 +990,7 @@ public partial class BattleDamageResolver
                 new[] { effectDefinition },
                 DamageResolutionContext
                     .ForSkill(sourceSkillId)
+                    .WithBattleState(battleState)
                     .WithSourceSkillLevel(Math.Max(skillLevel, 1))
             );
         }

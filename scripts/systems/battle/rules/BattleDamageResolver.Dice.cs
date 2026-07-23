@@ -89,7 +89,7 @@ public partial class BattleDamageResolver
     )
     {
         if (
-            _equipment_ability_runtime_service == null
+            _equipment_ability_damage_query == null
             || sourceUnit == null
             || targetUnit == null
             || damageContext?.AttackSuccess != true
@@ -100,12 +100,12 @@ public partial class BattleDamageResolver
         }
 
         IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> diceResults =
-            _equipment_ability_runtime_service.CollectBonusDamageDiceOnHit(
+            _equipment_ability_damage_query.CollectBonusDamageDiceOnHit(
                 new BattleEquipmentAbilityBonusDamageDiceContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = _equipment_ability_runtime_service.GetBattleState(),
+                    BattleState = damageContext?.BattleState,
                     AttackSucceeded = true,
                     CriticalHit = damageContext.CriticalHit,
                 }

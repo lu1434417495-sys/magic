@@ -104,12 +104,12 @@
     },
     {
       "reward_type": "pending_character_reward",
-      "member_id": "hero",
+      "member_id": "player_sword_01",
       "entries": [
         {
-          "entry_type": "skill_unlock",
-          "target_id": "charge",
-          "amount": 1
+          "entry_type": "skill_mastery",
+          "target_id": "warrior_heavy_strike",
+          "amount": 80
         }
       ]
     }
