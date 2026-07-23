@@ -24,6 +24,8 @@ internal sealed class BattleAiObjectiveActionEvaluator
                 EvaluateIntercept(context, interceptObjective),
             BattleNodeOperationObjectiveRuntimeState nodeOperationObjective =>
                 EvaluateNodeOperation(context, nodeOperationObjective),
+            BattleControlObjectiveRuntimeState controlObjective =>
+                EvaluateControl(context, controlObjective),
             _ => null,
         };
     }
@@ -255,6 +257,146 @@ internal sealed class BattleAiObjectiveActionEvaluator
             "objective_node_operation",
             moveCommand,
             $"{actor.display_name} 向未完成的任务节点移动。"
+        );
+    }
+
+    private static BattleAiDecision EvaluateControl(
+        BattleAiContext context,
+        BattleControlObjectiveRuntimeState objective
+    )
+    {
+        BattleUnitState actor = context.unit_state;
+        bool isPlayer = context.state.GetAllyUnitIdsTyped().Contains(actor.unit_id);
+        bool isHostile = context.state.GetEnemyUnitIdsTyped().Contains(actor.unit_id);
+        if (!isPlayer && !isHostile)
+            return null;
+
+        BattleControlZoneOccupancyKind ownOccupancy =
+            isPlayer
+                ? BattleControlZoneOccupancyKind.Player
+                : BattleControlZoneOccupancyKind.Hostile;
+        BattleControlZoneOccupancyKind opposingOccupancy =
+            isPlayer
+                ? BattleControlZoneOccupancyKind.Hostile
+                : BattleControlZoneOccupancyKind.Player;
+        foreach (BattleControlZoneRuntimeState zone in objective.ControlZones)
+        {
+            if (
+                BattleControlObjectiveRules.IsUnitFullyInside(actor, zone)
+                && BattleControlObjectiveRules.ResolveOccupancy(
+                    context.state,
+                    zone
+                ) == BattleControlZoneOccupancyKind.Contested
+            )
+            {
+                return null;
+            }
+        }
+
+        BattleControlZoneOccupancyKind[] priorities =
+        {
+            opposingOccupancy,
+            BattleControlZoneOccupancyKind.Neutral,
+            BattleControlZoneOccupancyKind.Contested,
+        };
+        foreach (BattleControlZoneOccupancyKind priority in priorities)
+        {
+            BattleAiDecision decision = TryBuildControlMoveDecision(
+                context,
+                objective,
+                priority
+            );
+            if (decision != null)
+                return decision;
+        }
+
+        foreach (BattleControlZoneRuntimeState zone in objective.ControlZones)
+        {
+            if (
+                BattleControlObjectiveRules.IsUnitFullyInside(actor, zone)
+                && BattleControlObjectiveRules.ResolveOccupancy(
+                    context.state,
+                    zone
+                ) == ownOccupancy
+            )
+            {
+                return BuildWaitDecision(
+                    context,
+                    "objective_control_hold",
+                    "objective_control",
+                    $"{actor.display_name} 正在守住 {zone.DisplayName}。"
+                );
+            }
+        }
+        return null;
+    }
+
+    private static BattleAiDecision TryBuildControlMoveDecision(
+        BattleAiContext context,
+        BattleControlObjectiveRuntimeState objective,
+        BattleControlZoneOccupancyKind desiredOccupancy
+    )
+    {
+        BattleUnitState actor = context.unit_state;
+        if (actor.current_move_points <= 0 || context.ai_query_service == null)
+            return null;
+
+        var anchors = new List<Vector2I>();
+        foreach (BattleControlZoneRuntimeState zone in objective.ControlZones)
+        {
+            if (
+                BattleControlObjectiveRules.ResolveOccupancy(
+                    context.state,
+                    zone
+                ) != desiredOccupancy
+                || BattleControlObjectiveRules.IsUnitFullyInside(actor, zone)
+            )
+            {
+                continue;
+            }
+            foreach (
+                Vector2I anchor in ResolveExitLandingAnchors(
+                    context.state,
+                    actor,
+                    zone.Coords,
+                    zone.ContainsCoord
+                )
+            )
+            {
+                if (!anchors.Contains(anchor))
+                    anchors.Add(anchor);
+            }
+        }
+        if (anchors.Count == 0)
+            return null;
+
+        MovementReachabilityResult pathResult =
+            context.ai_query_service.GetCurrentTurnPathToBestAnchor(
+                anchors,
+                actor.current_move_points
+            );
+        if (pathResult?.Ok != true || !pathResult.TargetCoordValid)
+            return null;
+
+        BattleCommand moveCommand = EnemyAiActionHelper.BuildMoveCommand(
+            context,
+            pathResult.TargetCoord
+        );
+        BattlePreview preview = context.preview_command_callback?.Invoke(
+            moveCommand
+        );
+        if (
+            context.preview_command_callback != null
+            && preview?.allowed != true
+        )
+        {
+            return null;
+        }
+        return EnemyAiActionHelper.CreateDecision(
+            "objective_control_move",
+            "objective_control",
+            moveCommand,
+            $"{actor.display_name} 向争夺区移动。"
         );
     }
 

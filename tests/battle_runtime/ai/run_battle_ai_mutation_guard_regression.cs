@@ -949,6 +949,23 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                         ),
                     }
                 ),
+            [typeof(BattleControlObjectiveRuntimeState)] =
+                new BattleControlObjectiveRuntimeState(
+                    new StringName[] { "party_unit" },
+                    new[]
+                    {
+                        new BattleControlZoneRuntimeState(
+                            "control_zone",
+                            "Control Zone",
+                            BattleMapEdge.Left,
+                            1,
+                            new Vector2I[] { new(0, 0) }
+                        ),
+                    },
+                    100,
+                    15,
+                    20
+                ),
         };
         foreach (Type type in typeof(BattleObjectiveRuntimeState).Assembly.GetTypes())
         {
@@ -1027,6 +1044,33 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "_nodesByCoord",
             "RequiredPartyUnitIds",
             "OperationNodes"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleOperationNodeRuntimeState),
+            "NodeId",
+            "DisplayName",
+            "ZoneId",
+            "PlacementEdge",
+            "PlacementDepth",
+            "Coord",
+            "IsCompleted"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleControlObjectiveRuntimeState),
+            "RequiredPartyUnitIds",
+            "ControlZones",
+            "ScoreTarget",
+            "PlayerScore",
+            "HostileScore"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleControlZoneRuntimeState),
+            "_coordSet",
+            "ZoneId",
+            "DisplayName",
+            "PlacementEdge",
+            "PlacementDepth",
+            "Coords"
         );
 
         var finalDecisionFields = new HashSet<string>(StringComparer.Ordinal)

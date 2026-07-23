@@ -774,6 +774,11 @@ public static class GameTextSnapshotRenderer
                     $"objective_progress=mode=node_operation | completed={GetInt(objective, "completed_operation_node_count")}/{GetInt(objective, "operation_node_count")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))} | nodes={FormatOperationNodes(GetArray(objective, "operation_nodes"))}"
                 );
                 break;
+            case "control":
+                lines.Add(
+                    $"objective_progress=mode=control | player_score={GetInt(objective, "player_control_score")}/{GetInt(objective, "control_score_target")} | hostile_score={GetInt(objective, "hostile_control_score")}/{GetInt(objective, "control_score_target")} | party_alive={GetInt(objective, "alive_required_unit_count")}/{GetInt(objective, "required_unit_count")} | required={FormatArray(GetArray(objective, "required_unit_ids"))} | zones={FormatControlZones(GetArray(objective, "control_zones"))}"
+                );
+                break;
         }
     }
 
@@ -784,6 +789,18 @@ public static class GameTextSnapshotRenderer
         {
             values.Add(
                 $"{GetString(node, "node_id")}@{FormatCoord(GetDictionary(node, "coord"))}:{(ReadExactBool(node, "is_completed") ? "done" : "pending")}"
+            );
+        }
+        return $"[{string.Join(",", values)}]";
+    }
+
+    private static string FormatControlZones(GArray zones)
+    {
+        var values = new List<string>();
+        foreach (GDictionary zone in Dictionaries(zones))
+        {
+            values.Add(
+                $"{GetString(zone, "zone_id")}:{GetString(zone, "occupancy")}@{FormatCoordArray(GetArray(zone, "coords"))}"
             );
         }
         return $"[{string.Join(",", values)}]";

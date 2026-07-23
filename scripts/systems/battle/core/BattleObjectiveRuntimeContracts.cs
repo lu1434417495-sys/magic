@@ -38,6 +38,10 @@ internal enum BattleEndReasonKind
     DefensePartyDefeated,
     NodeOperationAllNodesCompleted,
     NodeOperationPartyDefeated,
+    ControlPlayerScoreReached,
+    ControlHostileScoreReached,
+    ControlScoresTied,
+    ControlPartyDefeated,
 }
 
 internal enum BattleObjectiveEvaluationKind
@@ -712,6 +716,258 @@ internal sealed class BattleNodeOperationObjectiveRuntimeState
         );
 }
 
+internal sealed class BattleControlZoneRuntimeState
+{
+    private readonly HashSet<Vector2I> _coordSet;
+
+    internal BattleControlZoneRuntimeState(
+        StringName zoneId,
+        string displayName,
+        BattleMapEdge placementEdge,
+        int placementDepth,
+        IEnumerable<Vector2I> coords
+    )
+    {
+        if (zoneId == "")
+            throw new ArgumentException(
+                "Control zone id must not be empty.",
+                nameof(zoneId)
+            );
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException(
+                "Control zone display name must not be empty.",
+                nameof(displayName)
+            );
+        if (
+            !Enum.IsDefined(placementEdge)
+            || placementEdge == BattleMapEdge.Unknown
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(placementEdge));
+        }
+        if (placementDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(placementDepth));
+
+        List<Vector2I> normalizedCoords = (coords ?? Array.Empty<Vector2I>())
+            .Distinct()
+            .OrderBy(coord => coord.Y)
+            .ThenBy(coord => coord.X)
+            .ToList();
+        if (normalizedCoords.Count == 0)
+        {
+            throw new ArgumentException(
+                "Control zone must contain at least one valid cell.",
+                nameof(coords)
+            );
+        }
+
+        ZoneId = zoneId;
+        DisplayName = displayName;
+        PlacementEdge = placementEdge;
+        PlacementDepth = placementDepth;
+        Coords = new ReadOnlyCollection<Vector2I>(normalizedCoords);
+        _coordSet = new HashSet<Vector2I>(normalizedCoords);
+    }
+
+    internal StringName ZoneId { get; }
+    internal string DisplayName { get; }
+    internal BattleMapEdge PlacementEdge { get; }
+    internal int PlacementDepth { get; }
+    internal IReadOnlyList<Vector2I> Coords { get; }
+
+    internal bool ContainsCoord(Vector2I coord) => _coordSet.Contains(coord);
+
+    internal BattleControlZoneRuntimeState DuplicateState() =>
+        new(
+            ZoneId,
+            DisplayName,
+            PlacementEdge,
+            PlacementDepth,
+            Coords
+        );
+}
+
+internal sealed class BattleControlObjectiveRuntimeState
+    : BattleObjectiveRuntimeState
+{
+    internal BattleControlObjectiveRuntimeState(
+        IEnumerable<StringName> requiredPartyUnitIds,
+        IEnumerable<BattleControlZoneRuntimeState> controlZones,
+        int scoreTarget,
+        int playerScore = 0,
+        int hostileScore = 0
+    )
+        : base(BattleObjectiveMode.Control)
+    {
+        List<StringName> normalizedPartyIds = (
+            requiredPartyUnitIds ?? Array.Empty<StringName>()
+        )
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedPartyIds.Count == 0)
+        {
+            throw new ArgumentException(
+                "Control objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        }
+
+        List<BattleControlZoneRuntimeState> normalizedZones = (
+            controlZones ?? Array.Empty<BattleControlZoneRuntimeState>()
+        )
+            .Where(zone => zone != null)
+            .OrderBy(zone => zone.ZoneId.ToString(), StringComparer.Ordinal)
+            .Select(zone => zone.DuplicateState())
+            .ToList();
+        if (normalizedZones.Count == 0)
+        {
+            throw new ArgumentException(
+                "Control objective requires at least one control zone.",
+                nameof(controlZones)
+            );
+        }
+        if (
+            normalizedZones
+                .Select(zone => zone.ZoneId.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .Count()
+            != normalizedZones.Count
+        )
+        {
+            throw new ArgumentException(
+                "Control objective runtime zone ids must be unique.",
+                nameof(controlZones)
+            );
+        }
+        var occupiedCoords = new HashSet<Vector2I>();
+        foreach (BattleControlZoneRuntimeState zone in normalizedZones)
+        {
+            foreach (Vector2I coord in zone.Coords)
+            {
+                if (!occupiedCoords.Add(coord))
+                {
+                    throw new ArgumentException(
+                        "Control objective runtime zones must not overlap.",
+                        nameof(controlZones)
+                    );
+                }
+            }
+        }
+        if (
+            scoreTarget <= 0
+            || scoreTarget % BattleTimelineState.TuGranularity != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(scoreTarget));
+        }
+        if (
+            playerScore < 0
+            || playerScore > scoreTarget
+            || hostileScore < 0
+            || hostileScore > scoreTarget
+        )
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(playerScore),
+                "Control objective scores must stay inside the configured target range."
+            );
+        }
+
+        RequiredPartyUnitIds = new ReadOnlyCollection<StringName>(
+            normalizedPartyIds
+        );
+        ControlZones = new ReadOnlyCollection<BattleControlZoneRuntimeState>(
+            normalizedZones
+        );
+        ScoreTarget = scoreTarget;
+        PlayerScore = playerScore;
+        HostileScore = hostileScore;
+    }
+
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal IReadOnlyList<BattleControlZoneRuntimeState> ControlZones { get; }
+    internal int ScoreTarget { get; }
+    internal int PlayerScore { get; private set; }
+    internal int HostileScore { get; private set; }
+
+    internal bool TryAdvanceScores(
+        int playerControlledZoneCount,
+        int hostileControlledZoneCount,
+        int tuDelta
+    )
+    {
+        if (
+            playerControlledZoneCount < 0
+            || playerControlledZoneCount > ControlZones.Count
+        )
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(playerControlledZoneCount)
+            );
+        }
+        if (
+            hostileControlledZoneCount < 0
+            || hostileControlledZoneCount > ControlZones.Count
+        )
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(hostileControlledZoneCount)
+            );
+        }
+        if (
+            tuDelta <= 0
+            || tuDelta % BattleTimelineState.TuGranularity != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(tuDelta));
+        }
+
+        int nextPlayerScore = ClampScoreIncrement(
+            PlayerScore,
+            playerControlledZoneCount,
+            tuDelta
+        );
+        int nextHostileScore = ClampScoreIncrement(
+            HostileScore,
+            hostileControlledZoneCount,
+            tuDelta
+        );
+        if (
+            nextPlayerScore == PlayerScore
+            && nextHostileScore == HostileScore
+        )
+        {
+            return false;
+        }
+        PlayerScore = nextPlayerScore;
+        HostileScore = nextHostileScore;
+        return true;
+    }
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleControlObjectiveRuntimeState(
+            RequiredPartyUnitIds,
+            ControlZones,
+            ScoreTarget,
+            PlayerScore,
+            HostileScore
+        );
+
+    private int ClampScoreIncrement(
+        int currentScore,
+        int controlledZoneCount,
+        int tuDelta
+    )
+    {
+        long increment = (long)controlledZoneCount * tuDelta;
+        return (int)Math.Min((long)ScoreTarget, currentScore + increment);
+    }
+}
+
 internal sealed class BattleFinalDecision
 {
     internal BattleFinalDecision(
@@ -874,6 +1130,26 @@ internal sealed class BattleFinalDecision
                 BattleObjectiveMode.NodeOperation,
                 BattleOutcomeKind.PlayerFailure,
                 BattleEndReasonKind.NodeOperationPartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.ControlPlayerScoreReached
+            ) => true,
+            (
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.ControlHostileScoreReached
+            ) => true,
+            (
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.Draw,
+                BattleEndReasonKind.ControlScoresTied
+            ) => true,
+            (
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.ControlPartyDefeated
             ) => true,
             _ => false,
         };

@@ -194,6 +194,7 @@ internal sealed class BattleTimelineDriver
         if (tuDelta > 0)
         {
             state.timeline.current_tu += tuDelta;
+            runtime?.AdvanceControlObjectiveProgress(tuDelta, batch);
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
         state.RemoveExpiredTemporaryEdgeFeatures();

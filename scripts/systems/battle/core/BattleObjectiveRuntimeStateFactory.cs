@@ -42,6 +42,12 @@ internal static class BattleObjectiveRuntimeStateFactory
                     nodeOperationDefinition,
                     out runtimeState
                 );
+            case BattleControlObjectiveDefinition controlDefinition:
+                return TryCreateControl(
+                    state,
+                    controlDefinition,
+                    out runtimeState
+                );
             default:
                 return false;
         }
@@ -345,6 +351,104 @@ internal static class BattleObjectiveRuntimeStateFactory
             runtimeNodes
         );
         return true;
+    }
+
+    private static bool TryCreateControl(
+        BattleState state,
+        BattleControlObjectiveDefinition definition,
+        out BattleObjectiveRuntimeState runtimeState
+    )
+    {
+        runtimeState = null;
+        List<StringName> requiredPartyUnitIds = ResolveRequiredPartyUnitIds(state);
+        if (requiredPartyUnitIds.Count == 0)
+            return false;
+
+        var usedCoords = new HashSet<Vector2I>();
+        var runtimeZones = new List<BattleControlZoneRuntimeState>();
+        using var gridService = new BattleGridService();
+        foreach (BattleControlZoneDefinition zoneDefinition in definition.ControlZones)
+        {
+            if (
+                !TryResolveEdgeZoneCoords(
+                    state,
+                    zoneDefinition.PlacementEdge,
+                    zoneDefinition.PlacementDepth,
+                    out List<Vector2I> zoneCoords
+                )
+            )
+            {
+                return false;
+            }
+            foreach (Vector2I coord in zoneCoords)
+            {
+                if (!usedCoords.Add(coord))
+                    return false;
+            }
+
+            var zoneCoordSet = new HashSet<Vector2I>(zoneCoords);
+            if (
+                !HasLegalZonePlacement(
+                    state,
+                    state.GetAllyUnitIdsTyped(),
+                    zoneCoordSet,
+                    gridService
+                )
+                || !HasLegalZonePlacement(
+                    state,
+                    state.GetEnemyUnitIdsTyped(),
+                    zoneCoordSet,
+                    gridService
+                )
+            )
+            {
+                return false;
+            }
+
+            runtimeZones.Add(
+                new BattleControlZoneRuntimeState(
+                    zoneDefinition.ZoneId,
+                    zoneDefinition.DisplayName,
+                    zoneDefinition.PlacementEdge,
+                    zoneDefinition.PlacementDepth,
+                    zoneCoords
+                )
+            );
+        }
+
+        runtimeState = new BattleControlObjectiveRuntimeState(
+            requiredPartyUnitIds,
+            runtimeZones,
+            definition.ScoreTarget
+        );
+        return true;
+    }
+
+    private static bool HasLegalZonePlacement(
+        BattleState state,
+        IEnumerable<StringName> unitIds,
+        IReadOnlySet<Vector2I> zoneCoords,
+        BattleGridService gridService
+    )
+    {
+        foreach (StringName unitId in unitIds ?? Array.Empty<StringName>())
+        {
+            BattleUnitState unit = state.GetUnit(unitId);
+            if (
+                unit?.is_alive == true
+                && ResolveExitPlacements(
+                    state,
+                    unit,
+                    ResolveFootprint(unit),
+                    zoneCoords,
+                    gridService
+                ).Count > 0
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static List<StringName> ResolveRequiredPartyUnitIds(BattleState state)

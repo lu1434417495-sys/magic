@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BattleEncounterContentSeed" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="BattleEncounterContentSeed" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterContentSeed.cs" id="1_seed"]
 [ext_resource type="Resource" path="res://data/configs/battle_encounters/wolf_wilds.tres" id="2_wolf_wilds"]
@@ -11,7 +11,8 @@
 [ext_resource type="Resource" path="res://data/configs/battle_encounters/mist_hollow_intercept.tres" id="9_mist_hollow_intercept"]
 [ext_resource type="Resource" path="res://data/configs/battle_encounters/mist_hollow_defense.tres" id="10_mist_hollow_defense"]
 [ext_resource type="Resource" path="res://data/configs/battle_encounters/mist_hollow_node_operation.tres" id="11_mist_hollow_node_operation"]
+[ext_resource type="Resource" path="res://data/configs/battle_encounters/mist_hollow_control.tres" id="12_mist_hollow_control"]
 
 [resource]
 script = ExtResource("1_seed")
-battle_encounters = Array[Resource]([ExtResource("2_wolf_wilds"), ExtResource("3_wolf_den"), ExtResource("4_mist_hollow"), ExtResource("5_red_dragon_lair"), ExtResource("6_mist_hollow_escape"), ExtResource("7_mist_hollow_rescue"), ExtResource("8_mist_hollow_escort"), ExtResource("9_mist_hollow_intercept"), ExtResource("10_mist_hollow_defense"), ExtResource("11_mist_hollow_node_operation")])
+battle_encounters = Array[Resource]([ExtResource("2_wolf_wilds"), ExtResource("3_wolf_den"), ExtResource("4_mist_hollow"), ExtResource("5_red_dragon_lair"), ExtResource("6_mist_hollow_escape"), ExtResource("7_mist_hollow_rescue"), ExtResource("8_mist_hollow_escort"), ExtResource("9_mist_hollow_intercept"), ExtResource("10_mist_hollow_defense"), ExtResource("11_mist_hollow_node_operation"), ExtResource("12_mist_hollow_control")])

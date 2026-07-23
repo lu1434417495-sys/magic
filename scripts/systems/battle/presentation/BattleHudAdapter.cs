@@ -1969,6 +1969,13 @@ public sealed class BattleHudAdapter : IDisposable
             {
                 return "保护防守目标直到倒计时结束；Enter 结束行动";
             }
+            if (
+                battleState.ObjectiveRuntimeState
+                    is BattleControlObjectiveRuntimeState
+            )
+            {
+                return "进入绿色占领区持续得分；争夺区不会计分；Enter 结束行动";
+            }
             return "点选技能或移动；Enter 结束行动";
         }
         if (selectionInfo.IsMultiUnit)

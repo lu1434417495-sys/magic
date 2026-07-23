@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="BattleEncounterDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterDef.cs" id="1_encounter"]
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleControlObjectiveDef.cs" id="2_objective"]
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleControlZoneDef.cs" id="3_zone"]
+[ext_resource type="Script" path="res://scripts/systems/battle/content/BattleEncounterWorldResolutionDef.cs" id="4_resolution"]
+
+[sub_resource type="Resource" id="Resource_west_zone"]
+script = ExtResource("3_zone")
+zone_id = &"west_control_zone"
+display_name = "西侧占领区"
+placement_edge = 1
+placement_depth = 2
+
+[sub_resource type="Resource" id="Resource_east_zone"]
+script = ExtResource("3_zone")
+zone_id = &"east_control_zone"
+display_name = "东侧占领区"
+placement_edge = 2
+placement_depth = 2
+
+[sub_resource type="Resource" id="Resource_objective"]
+script = ExtResource("2_objective")
+control_zones = Array[ExtResource("3_zone")]([SubResource("Resource_west_zone"), SubResource("Resource_east_zone")])
+score_target = 100
+
+[sub_resource type="Resource" id="Resource_resolution"]
+script = ExtResource("4_resolution")
+player_success_mode = 0
+player_failure_mode = 0
+draw_mode = 0
+suppression_steps = 0
+
+[resource]
+script = ExtResource("1_encounter")
+encounter_id = &"mist_hollow_control"
+display_name = "争夺迷雾据点"
+roster_profile_id = &"mist_hollow"
+objective = SubResource("Resource_objective")
+world_resolution = SubResource("Resource_resolution")

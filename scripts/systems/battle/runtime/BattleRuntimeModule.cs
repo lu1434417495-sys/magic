@@ -816,6 +816,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 if (
                     objectiveDefinition is BattleEscapeObjectiveDefinition
                     or BattleEscortObjectiveDefinition
+                    or BattleControlObjectiveDefinition
                 )
                     continue;
                 return new BattleState();

@@ -305,6 +305,100 @@ internal sealed class BattleNodeOperationObjectiveDefinition
     internal IReadOnlyList<BattleOperationNodeDefinition> OperationNodes { get; }
 }
 
+internal sealed class BattleControlZoneDefinition
+{
+    internal BattleControlZoneDefinition(
+        StringName zoneId,
+        string displayName,
+        BattleMapEdge placementEdge,
+        int placementDepth
+    )
+    {
+        if (zoneId == "")
+            throw new ArgumentException(
+                "Control zone id must not be empty.",
+                nameof(zoneId)
+            );
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException(
+                "Control zone display name must not be empty.",
+                nameof(displayName)
+            );
+        if (
+            !Enum.IsDefined(placementEdge)
+            || placementEdge == BattleMapEdge.Unknown
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(placementEdge));
+        }
+        if (placementDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(placementDepth));
+
+        ZoneId = zoneId;
+        DisplayName = displayName;
+        PlacementEdge = placementEdge;
+        PlacementDepth = placementDepth;
+    }
+
+    internal StringName ZoneId { get; }
+    internal string DisplayName { get; }
+    internal BattleMapEdge PlacementEdge { get; }
+    internal int PlacementDepth { get; }
+}
+
+internal sealed class BattleControlObjectiveDefinition
+    : BattleObjectiveDefinition
+{
+    internal BattleControlObjectiveDefinition(
+        IEnumerable<BattleControlZoneDefinition> controlZones,
+        int scoreTarget
+    )
+        : base(BattleObjectiveMode.Control)
+    {
+        List<BattleControlZoneDefinition> normalizedZones = (
+            controlZones ?? Array.Empty<BattleControlZoneDefinition>()
+        )
+            .Where(zone => zone != null)
+            .OrderBy(zone => zone.ZoneId.ToString(), StringComparer.Ordinal)
+            .ToList();
+        if (normalizedZones.Count == 0)
+        {
+            throw new ArgumentException(
+                "Control objective requires at least one control zone.",
+                nameof(controlZones)
+            );
+        }
+        if (
+            normalizedZones
+                .Select(zone => zone.ZoneId.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .Count()
+            != normalizedZones.Count
+        )
+        {
+            throw new ArgumentException(
+                "Control objective zone ids must be unique.",
+                nameof(controlZones)
+            );
+        }
+        if (
+            scoreTarget <= 0
+            || scoreTarget % BattleTimelineState.TuGranularity != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(scoreTarget));
+        }
+
+        ControlZones = new ReadOnlyCollection<BattleControlZoneDefinition>(
+            normalizedZones
+        );
+        ScoreTarget = scoreTarget;
+    }
+
+    internal IReadOnlyList<BattleControlZoneDefinition> ControlZones { get; }
+    internal int ScoreTarget { get; }
+}
+
 internal sealed class BattleScenarioActorDefinition
 {
     internal BattleScenarioActorDefinition(

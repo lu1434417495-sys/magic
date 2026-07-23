@@ -250,6 +250,9 @@ internal sealed class BattleEncounterContentRegistry : IDisposable
                     nodeOperationObjective
                 );
                 return;
+            case BattleControlObjectiveDef controlObjective:
+                ValidateControlObjective(encounterId, controlObjective);
+                return;
             default:
                 _validationErrors.Add(
                     $"Battle encounter {encounterId} uses unsupported objective type {objective.GetType().Name}."
@@ -324,6 +327,69 @@ internal sealed class BattleEncounterContentRegistry : IDisposable
                 node.zone_id,
                 node.placement_edge,
                 node.placement_depth
+            );
+        }
+    }
+
+    private void ValidateControlObjective(
+        StringName encounterId,
+        BattleControlObjectiveDef objective
+    )
+    {
+        IReadOnlyList<BattleControlZoneDef> zones =
+            objective.control_zones
+            ?? new Godot.Collections.Array<BattleControlZoneDef>();
+        if (zones.Count == 0)
+        {
+            _validationErrors.Add(
+                $"Battle encounter {encounterId} control objective requires at least one control zone."
+            );
+            return;
+        }
+        if (
+            objective.score_target <= 0
+            || objective.score_target % BattleTimelineState.TuGranularity != 0
+        )
+        {
+            _validationErrors.Add(
+                $"Battle encounter {encounterId} control score_target must be a positive multiple of {BattleTimelineState.TuGranularity}."
+            );
+        }
+
+        var seenZoneIds = new HashSet<StringName>();
+        foreach (BattleControlZoneDef zone in zones)
+        {
+            if (zone == null)
+            {
+                _validationErrors.Add(
+                    $"Battle encounter {encounterId} control objective contains a null control zone."
+                );
+                continue;
+            }
+            if (zone.zone_id == "")
+            {
+                _validationErrors.Add(
+                    $"Battle encounter {encounterId} control objective contains a zone without zone_id."
+                );
+            }
+            else if (!seenZoneIds.Add(zone.zone_id))
+            {
+                _validationErrors.Add(
+                    $"Battle encounter {encounterId} control objective declares duplicate zone id {zone.zone_id}."
+                );
+            }
+            if (string.IsNullOrWhiteSpace(zone.display_name))
+            {
+                _validationErrors.Add(
+                    $"Battle encounter {encounterId} control zone {zone.zone_id} is missing display_name."
+                );
+            }
+            ValidateExitZone(
+                encounterId,
+                $"control zone {zone.zone_id}",
+                zone.zone_id,
+                zone.placement_edge,
+                zone.placement_depth
             );
         }
     }

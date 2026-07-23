@@ -101,6 +101,48 @@ public sealed partial class BattleRuntimeModule
         _objectiveEvaluationDirty = true;
     }
 
+    internal void AdvanceControlObjectiveProgress(
+        int tuDelta,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            _state?.ObjectiveRuntimeState
+                is not BattleControlObjectiveRuntimeState objective
+            || tuDelta <= 0
+        )
+        {
+            return;
+        }
+
+        int playerControlledZoneCount = 0;
+        int hostileControlledZoneCount = 0;
+        foreach (BattleControlZoneRuntimeState zone in objective.ControlZones)
+        {
+            switch (BattleControlObjectiveRules.ResolveOccupancy(_state, zone))
+            {
+                case BattleControlZoneOccupancyKind.Player:
+                    playerControlledZoneCount++;
+                    break;
+                case BattleControlZoneOccupancyKind.Hostile:
+                    hostileControlledZoneCount++;
+                    break;
+            }
+        }
+        if (
+            !objective.TryAdvanceScores(
+                playerControlledZoneCount,
+                hostileControlledZoneCount,
+                tuDelta
+            )
+        )
+        {
+            return;
+        }
+        batch?.MarkChanged(BattleChangeFlags.Objective);
+        MarkObjectiveEvaluationDirty();
+    }
+
     internal void PreviewObjectiveInteraction(
         BattleUnitReadView activeUnit,
         BattleCommand command,
