@@ -27,6 +27,45 @@ internal sealed class BattleObjectiveNodeProgressSnapshot
     internal bool IsCompleted { get; }
 }
 
+internal sealed class BattleObjectiveControlZoneProgressSnapshot
+{
+    private readonly ReadOnlyCollection<Vector2I> _coords;
+
+    internal BattleObjectiveControlZoneProgressSnapshot(
+        StringName zoneId,
+        string displayName,
+        BattleMapEdge placementEdge,
+        int placementDepth,
+        IEnumerable<Vector2I> coords,
+        BattleControlZoneOccupancyKind occupancy
+    )
+    {
+        ZoneId = zoneId;
+        DisplayName = displayName ?? "";
+        PlacementEdge = placementEdge;
+        PlacementDepth = Math.Max(placementDepth, 0);
+        _coords = new List<Vector2I>(
+            coords ?? Array.Empty<Vector2I>()
+        ).AsReadOnly();
+        Occupancy = occupancy;
+    }
+
+    internal StringName ZoneId { get; }
+    internal string DisplayName { get; }
+    internal BattleMapEdge PlacementEdge { get; }
+    internal int PlacementDepth { get; }
+    internal IReadOnlyList<Vector2I> Coords => _coords;
+    internal BattleControlZoneOccupancyKind Occupancy { get; }
+    internal string OccupancyWireValue =>
+        Occupancy switch
+        {
+            BattleControlZoneOccupancyKind.Player => "player",
+            BattleControlZoneOccupancyKind.Hostile => "hostile",
+            BattleControlZoneOccupancyKind.Contested => "contested",
+            _ => "neutral",
+        };
+}
+
 internal sealed class BattleObjectiveProgressSnapshot
 {
     private readonly ReadOnlyCollection<StringName> _requiredUnitIds;
@@ -35,6 +74,8 @@ internal sealed class BattleObjectiveProgressSnapshot
     private readonly ReadOnlyCollection<Vector2I> _exitCoords;
     private readonly ReadOnlyCollection<BattleObjectiveNodeProgressSnapshot>
         _operationNodes;
+    private readonly ReadOnlyCollection<BattleObjectiveControlZoneProgressSnapshot>
+        _controlZones;
 
     internal static BattleObjectiveProgressSnapshot Empty { get; } = new();
 
@@ -46,6 +87,8 @@ internal sealed class BattleObjectiveProgressSnapshot
         _exitCoords = new List<Vector2I>().AsReadOnly();
         _operationNodes =
             new List<BattleObjectiveNodeProgressSnapshot>().AsReadOnly();
+        _controlZones =
+            new List<BattleObjectiveControlZoneProgressSnapshot>().AsReadOnly();
     }
 
     private BattleObjectiveProgressSnapshot(
@@ -68,7 +111,11 @@ internal sealed class BattleObjectiveProgressSnapshot
         int currentTu = 0,
         int startTu = 0,
         int deadlineTu = 0,
-        IEnumerable<BattleObjectiveNodeProgressSnapshot> operationNodes = null
+        IEnumerable<BattleObjectiveNodeProgressSnapshot> operationNodes = null,
+        IEnumerable<BattleObjectiveControlZoneProgressSnapshot> controlZones = null,
+        int playerControlScore = 0,
+        int hostileControlScore = 0,
+        int controlScoreTarget = 0
     )
     {
         Mode = mode;
@@ -93,6 +140,13 @@ internal sealed class BattleObjectiveProgressSnapshot
         _operationNodes = new List<BattleObjectiveNodeProgressSnapshot>(
             operationNodes ?? Array.Empty<BattleObjectiveNodeProgressSnapshot>()
         ).AsReadOnly();
+        _controlZones = new List<BattleObjectiveControlZoneProgressSnapshot>(
+            controlZones
+                ?? Array.Empty<BattleObjectiveControlZoneProgressSnapshot>()
+        ).AsReadOnly();
+        PlayerControlScore = Math.Max(playerControlScore, 0);
+        HostileControlScore = Math.Max(hostileControlScore, 0);
+        ControlScoreTarget = Math.Max(controlScoreTarget, 0);
     }
 
     internal bool IsValid => Mode != BattleObjectiveMode.Unknown;
@@ -137,6 +191,12 @@ internal sealed class BattleObjectiveProgressSnapshot
     }
     internal int IncompleteOperationNodeCount =>
         OperationNodeCount - CompletedOperationNodeCount;
+    internal IReadOnlyList<BattleObjectiveControlZoneProgressSnapshot>
+        ControlZones => _controlZones;
+    internal int ControlZoneCount => _controlZones.Count;
+    internal int PlayerControlScore { get; }
+    internal int HostileControlScore { get; }
+    internal int ControlScoreTarget { get; }
 
     internal string ExitEdgeWireValue =>
         ExitEdge switch
@@ -230,6 +290,13 @@ internal sealed class BattleObjectiveProgressSnapshot
                 CaptureNodeOperation(
                     state,
                     nodeOperationObjective,
+                    enemyUnitCount,
+                    aliveEnemyUnitCount
+                ),
+            BattleControlObjectiveRuntimeState controlObjective =>
+                CaptureControl(
+                    state,
+                    controlObjective,
                     enemyUnitCount,
                     aliveEnemyUnitCount
                 ),
@@ -472,6 +539,52 @@ internal sealed class BattleObjectiveProgressSnapshot
             enemyUnitCount,
             aliveEnemyUnitCount,
             operationNodes: nodes
+        );
+    }
+
+    private static BattleObjectiveProgressSnapshot CaptureControl(
+        BattleState state,
+        BattleControlObjectiveRuntimeState objective,
+        int enemyUnitCount,
+        int aliveEnemyUnitCount
+    )
+    {
+        var zones = new List<BattleObjectiveControlZoneProgressSnapshot>();
+        foreach (BattleControlZoneRuntimeState zone in objective.ControlZones)
+        {
+            zones.Add(
+                new BattleObjectiveControlZoneProgressSnapshot(
+                    zone.ZoneId,
+                    zone.DisplayName,
+                    zone.PlacementEdge,
+                    zone.PlacementDepth,
+                    zone.Coords,
+                    BattleControlObjectiveRules.ResolveOccupancy(state, zone)
+                )
+            );
+        }
+        return new BattleObjectiveProgressSnapshot(
+            BattleObjectiveMode.Control,
+            "",
+            "",
+            "",
+            false,
+            false,
+            false,
+            "",
+            BattleMapEdge.Unknown,
+            0,
+            objective.RequiredPartyUnitIds,
+            AliveUnitIds(state, objective.RequiredPartyUnitIds),
+            Array.Empty<StringName>(),
+            Array.Empty<Vector2I>(),
+            enemyUnitCount,
+            aliveEnemyUnitCount,
+            currentTu: state.timeline?.current_tu ?? 0,
+            controlZones: zones,
+            playerControlScore: objective.PlayerScore,
+            hostileControlScore: objective.HostileScore,
+            controlScoreTarget: objective.ScoreTarget
         );
     }
 

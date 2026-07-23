@@ -1182,6 +1182,69 @@ internal static class BattleAiMutationStableProjection
                     StableValue.FromArray(stableNodes)
                 );
                 return StableValue.FromMap(result);
+            case BattleControlObjectiveRuntimeState controlObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleControlObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)controlObjective.Mode)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            controlObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                result.Set(
+                    "score_target",
+                    StableValue.FromInteger(controlObjective.ScoreTarget)
+                );
+                result.Set(
+                    "player_score",
+                    StableValue.FromInteger(controlObjective.PlayerScore)
+                );
+                result.Set(
+                    "hostile_score",
+                    StableValue.FromInteger(controlObjective.HostileScore)
+                );
+                var stableControlZones = new List<StableValue>();
+                foreach (
+                    BattleControlZoneRuntimeState zone in
+                    controlObjective.ControlZones
+                )
+                {
+                    StableMap stableZone = new();
+                    stableZone.Set(
+                        "zone_id",
+                        StableNullableStringName(zone.ZoneId)
+                    );
+                    stableZone.Set(
+                        "display_name",
+                        StableNullableText(zone.DisplayName)
+                    );
+                    stableZone.Set(
+                        "placement_edge",
+                        StableValue.FromInteger((int)zone.PlacementEdge)
+                    );
+                    stableZone.Set(
+                        "placement_depth",
+                        StableValue.FromInteger(zone.PlacementDepth)
+                    );
+                    stableZone.Set(
+                        "coords",
+                        StableValue.FromArray(StableVector2IList(zone.Coords))
+                    );
+                    stableControlZones.Add(StableValue.FromMap(stableZone));
+                }
+                result.Set(
+                    "control_zones",
+                    StableValue.FromArray(stableControlZones)
+                );
+                return StableValue.FromMap(result);
             default:
                 throw new InvalidOperationException(
                     $"Unsupported battle objective runtime state '{objectiveRuntimeState.GetType().FullName}'."

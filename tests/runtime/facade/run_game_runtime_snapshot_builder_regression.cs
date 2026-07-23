@@ -56,6 +56,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         TestInterceptObjectiveProgressSnapshot();
         TestDefenseObjectiveProgressSnapshot();
         TestNodeOperationObjectiveProgressSnapshot();
+        TestControlObjectiveProgressSnapshot();
     }
 
     private void TestBossObjectiveProgressSnapshot()
@@ -576,6 +577,105 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
                     "objective_progress=mode=node_operation | completed=0/1"
                 ),
                 "文本快照应暴露 node_operation 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private void TestControlObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_control_ally",
+            "player",
+            Vector2I.Zero
+        );
+        ally.source_member_id = "snapshot_control_member";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "snapshot_control_enemy",
+            "enemy",
+            new Vector2I(4, 0)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_control_battle",
+            new Vector2I(5, 1),
+            new[] { ally },
+            new[] { enemy }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleControlObjectiveDefinition(
+                    new[]
+                    {
+                        new BattleControlZoneDefinition(
+                            "snapshot_control_zone",
+                            "快照占领区",
+                            BattleMapEdge.Left,
+                            2
+                        ),
+                    },
+                    100
+                )
+            ),
+            "control objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_control_encounter",
+            ActiveBattleEncounterName = "区域占领快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(
+                StringValue(objective, "mode"),
+                "control",
+                "区域占领快照应暴露目标模式。"
+            );
+            _test.Eq(
+                IntValue(objective, "control_zone_count"),
+                1,
+                "区域占领快照应暴露区域总数。"
+            );
+            _test.Eq(
+                IntValue(objective, "player_control_score"),
+                0,
+                "区域占领快照应暴露我方分数。"
+            );
+            _test.Eq(
+                IntValue(objective, "hostile_control_score"),
+                0,
+                "区域占领快照应暴露敌方分数。"
+            );
+            _test.Eq(
+                IntValue(objective, "control_score_target"),
+                100,
+                "区域占领快照应暴露目标分数。"
+            );
+            PlainArray zones = ArrayValue(objective, "control_zones");
+            _test.Eq(zones.Count, 1, "区域占领快照应暴露逐区域事实。");
+            _test.Eq(
+                StringValue((PlainDictionary)zones[0], "occupancy"),
+                "player",
+                "逐区域事实应暴露稳定归属值。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=control | player_score=0/100"
+                ),
+                "文本快照应暴露 control 目标过程事实。"
             );
         }
         finally

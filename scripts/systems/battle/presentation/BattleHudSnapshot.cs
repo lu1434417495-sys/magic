@@ -730,6 +730,8 @@ internal sealed class BattleHudObjectiveProgressSnapshot
     private readonly ReadOnlyCollection<Vector2I> _exitCoords;
     private readonly ReadOnlyCollection<BattleHudObjectiveNodeSnapshot>
         _operationNodes;
+    private readonly ReadOnlyCollection<BattleHudControlZoneSnapshot>
+        _controlZones;
 
     internal static BattleHudObjectiveProgressSnapshot Empty { get; } =
         new(BattleObjectiveProgressSnapshot.Empty);
@@ -760,12 +762,23 @@ internal sealed class BattleHudObjectiveProgressSnapshot
         foreach (BattleObjectiveNodeProgressSnapshot node in progress.OperationNodes)
             operationNodes.Add(new BattleHudObjectiveNodeSnapshot(node));
         _operationNodes = operationNodes.AsReadOnly();
+        var controlZones = new List<BattleHudControlZoneSnapshot>();
+        foreach (
+            BattleObjectiveControlZoneProgressSnapshot zone in progress.ControlZones
+        )
+        {
+            controlZones.Add(new BattleHudControlZoneSnapshot(zone));
+        }
+        _controlZones = controlZones.AsReadOnly();
         EnemyUnitCount = progress.EnemyUnitCount;
         AliveEnemyUnitCount = progress.AliveEnemyUnitCount;
         CurrentTu = progress.CurrentTu;
         StartTu = progress.StartTu;
         DeadlineTu = progress.DeadlineTu;
         RemainingTu = progress.RemainingTu;
+        PlayerControlScore = progress.PlayerControlScore;
+        HostileControlScore = progress.HostileControlScore;
+        ControlScoreTarget = progress.ControlScoreTarget;
     }
 
     internal bool IsValid => Mode != BattleObjectiveMode.Unknown;
@@ -813,6 +826,12 @@ internal sealed class BattleHudObjectiveProgressSnapshot
     }
     internal int IncompleteOperationNodeCount =>
         OperationNodeCount - CompletedOperationNodeCount;
+    internal IReadOnlyList<BattleHudControlZoneSnapshot> ControlZones =>
+        _controlZones;
+    internal int ControlZoneCount => _controlZones.Count;
+    internal int PlayerControlScore { get; }
+    internal int HostileControlScore { get; }
+    internal int ControlScoreTarget { get; }
 
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
         BattlePresentationSnapshotFacts.Map(
@@ -844,7 +863,12 @@ internal sealed class BattleHudObjectiveProgressSnapshot
             ("operation_nodes", _operationNodes),
             ("operation_node_count", OperationNodeCount),
             ("completed_operation_node_count", CompletedOperationNodeCount),
-            ("incomplete_operation_node_count", IncompleteOperationNodeCount)
+            ("incomplete_operation_node_count", IncompleteOperationNodeCount),
+            ("control_zones", _controlZones),
+            ("control_zone_count", ControlZoneCount),
+            ("player_control_score", PlayerControlScore),
+            ("hostile_control_score", HostileControlScore),
+            ("control_score_target", ControlScoreTarget)
         );
 
     private static string BuildTitle(BattleObjectiveMode mode) =>
@@ -858,6 +882,7 @@ internal sealed class BattleHudObjectiveProgressSnapshot
             BattleObjectiveMode.Defense => "坚守防线",
             BattleObjectiveMode.Intercept => "截击目标",
             BattleObjectiveMode.NodeOperation => "节点作业",
+            BattleObjectiveMode.Control => "区域占领",
             _ => "",
         };
 
@@ -922,8 +947,45 @@ internal sealed class BattleHudObjectiveProgressSnapshot
             BattleObjectiveMode.NodeOperation =>
                 $"已完成 {progress.CompletedOperationNodeCount}/{progress.OperationNodeCount}"
                 + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Control =>
+                $"我方 {progress.PlayerControlScore}/{progress.ControlScoreTarget}"
+                + $" · 敌方 {progress.HostileControlScore}/{progress.ControlScoreTarget}"
+                + $" · {BuildControlZoneSummary(progress.ControlZones)}"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
             _ => "",
         };
+    }
+
+    private static string BuildControlZoneSummary(
+        IEnumerable<BattleObjectiveControlZoneProgressSnapshot> zones
+    )
+    {
+        int player = 0;
+        int hostile = 0;
+        int contested = 0;
+        int neutral = 0;
+        foreach (
+            BattleObjectiveControlZoneProgressSnapshot zone in
+            zones ?? Array.Empty<BattleObjectiveControlZoneProgressSnapshot>()
+        )
+        {
+            switch (zone.Occupancy)
+            {
+                case BattleControlZoneOccupancyKind.Player:
+                    player++;
+                    break;
+                case BattleControlZoneOccupancyKind.Hostile:
+                    hostile++;
+                    break;
+                case BattleControlZoneOccupancyKind.Contested:
+                    contested++;
+                    break;
+                default:
+                    neutral++;
+                    break;
+            }
+        }
+        return $"区域 我方{player}/敌方{hostile}/争夺{contested}/中立{neutral}";
     }
 
     private static string ResolveTargetName(
@@ -985,6 +1047,46 @@ internal sealed class BattleHudObjectiveNodeSnapshot
             ("zone_id", ZoneId),
             ("coord", Coord),
             ("is_completed", IsCompleted)
+        );
+}
+
+internal sealed class BattleHudControlZoneSnapshot
+    : IBattlePresentationSnapshotValue
+{
+    private readonly ReadOnlyCollection<Vector2I> _coords;
+
+    internal BattleHudControlZoneSnapshot(
+        BattleObjectiveControlZoneProgressSnapshot zone
+    )
+    {
+        ZoneId = zone?.ZoneId.ToString() ?? "";
+        DisplayName = zone?.DisplayName ?? "";
+        PlacementEdge =
+            zone == null
+                ? "unknown"
+                : BattleObjectiveRuntimeCodec.ToWireValue(zone.PlacementEdge);
+        PlacementDepth = zone?.PlacementDepth ?? 0;
+        _coords = new List<Vector2I>(
+            zone?.Coords ?? Array.Empty<Vector2I>()
+        ).AsReadOnly();
+        Occupancy = zone?.OccupancyWireValue ?? "neutral";
+    }
+
+    internal string ZoneId { get; }
+    internal string DisplayName { get; }
+    internal string PlacementEdge { get; }
+    internal int PlacementDepth { get; }
+    internal IReadOnlyList<Vector2I> Coords => _coords;
+    internal string Occupancy { get; }
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("zone_id", ZoneId),
+            ("display_name", DisplayName),
+            ("placement_edge", PlacementEdge),
+            ("placement_depth", PlacementDepth),
+            ("coords", _coords),
+            ("occupancy", Occupancy)
         );
 }
 

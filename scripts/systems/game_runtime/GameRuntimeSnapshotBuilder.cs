@@ -952,6 +952,13 @@ public sealed class GameRuntimeSnapshotBuilder
                 progress.CompletedOperationNodeCount,
             ["incomplete_operation_node_count"] =
                 progress.IncompleteOperationNodeCount,
+            ["control_zones"] = BuildControlZoneSnapshots(
+                progress.ControlZones
+            ),
+            ["control_zone_count"] = progress.ControlZoneCount,
+            ["player_control_score"] = progress.PlayerControlScore,
+            ["hostile_control_score"] = progress.HostileControlScore,
+            ["control_score_target"] = progress.ControlScoreTarget,
         };
     }
 
@@ -973,6 +980,34 @@ public sealed class GameRuntimeSnapshotBuilder
                     ["zone_id"] = node.ZoneId.ToString(),
                     ["coord"] = CoordToDict(node.Coord),
                     ["is_completed"] = node.IsCompleted,
+                }
+            );
+        }
+        return result;
+    }
+
+    private static PlainList BuildControlZoneSnapshots(
+        IEnumerable<BattleObjectiveControlZoneProgressSnapshot> zones
+    )
+    {
+        var result = new PlainList();
+        foreach (
+            BattleObjectiveControlZoneProgressSnapshot zone in
+            zones ?? Array.Empty<BattleObjectiveControlZoneProgressSnapshot>()
+        )
+        {
+            result.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["zone_id"] = zone.ZoneId.ToString(),
+                    ["display_name"] = zone.DisplayName,
+                    ["placement_edge"] =
+                        BattleObjectiveRuntimeCodec.ToWireValue(
+                            zone.PlacementEdge
+                        ),
+                    ["placement_depth"] = zone.PlacementDepth,
+                    ["coords"] = CoordEnumerableToDictArray(zone.Coords),
+                    ["occupancy"] = zone.OccupancyWireValue,
                 }
             );
         }

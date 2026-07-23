@@ -26,7 +26,7 @@ GameRuntimeFacade / BattleSessionFacade
   -> GameRuntimeBattleWritebackService
 ```
 
-`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。七个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；原 `BattleTimelineStatusBridgeService` 经 owner 复核确认没有独立状态或 capability，已于 `2026-07-24` 删除。装备规则端口由 module 的 `BindEquipmentRulePorts()` 集中装配：`BattleEquipmentAttackModifierResolver` 提供 attack-check/damage 两个只读 query，`BattleEquipmentAbilityRuntimeService` 提供同步 reaction sink，policy/damage resolver 不再反向定位 module；service getter 只返回已装配实例，不执行 `Setup`。timeline phase、current TU、`tu_per_tick`、ready unit、action threshold 与 stamina 归 `BattleTimelineDriver`，cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则及新状态的 `next_tick_at_tu` 初始化归 `BattleRuntimeSkillTurnResolver`；module 只在 `MarkAppliedStatusesForTurnTiming(...)` 中保持“先初始化 tick anchor，再通知 Fate”的跨 owner 编排。`BattleAiDecisionBindingService` 私有持有 per-unit action-plan index，module 只保留单项借用查询与生命周期编排窄入口。涉及 AI plan 的 rebind/teardown 先关闭 decision context/helper consumer，再清空并释放 action plan，之后才逆序断开 borrower set 和释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。`BattleContingencySystem` 只弱借用由 bridge 实现的 `IBattleContingencyRuntimePort`，不再经 module 反向转发 auto-cast；回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
+`BattleSessionFacade` 是世界 runtime 到 battle runtime 的窄门面；`BattleRuntimeModule` 拥有战斗规则与 state；UI 只展示 state 和发送 command。module 主文件第一批拆出 spawn 放置（`BattleSpawnPlacementService`）、特殊技能门禁与状态写入（`BattleSpecialSkillGateService`）、移动与强制位移命令（`BattleMovementCommandService`）、metrics/报告/effect origin（`BattleMetricsReportService`），第二批拆出 AI 决策绑定（`BattleAiDecisionBindingService`）、contingency 桥（`BattleContingencyBridgeService`）与只读命令 preview/entry 校验（`BattleCommandPreviewService`）。七个 module-owned service 都只弱借用 module，并由 owner-local `BattleRuntimeModuleBorrowerSet` 作为构造和 `FinishSetup` 的单一有序接线源；原 `BattleTimelineStatusBridgeService` 经 owner 复核确认没有独立状态或 capability，已于 `2026-07-24` 删除。装备规则端口由 module 的 `BindEquipmentRulePorts()` 集中装配：`BattleEquipmentAttackModifierResolver` 提供 attack-check/damage 两个只读 query，`BattleEquipmentAbilityRuntimeService` 提供同步 reaction sink，policy/damage resolver 不再反向定位 module；service getter 只返回已装配实例，不执行 `Setup`。timeline phase、current TU、`tu_per_tick`、ready unit、action threshold、stamina 与 Control objective 分数推进归 `BattleTimelineDriver`，cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则及新状态的 `next_tick_at_tu` 初始化归 `BattleRuntimeSkillTurnResolver`；module 只在 `MarkAppliedStatusesForTurnTiming(...)` 中保持“先初始化 tick anchor，再通知 Fate”的跨 owner 编排。`BattleAiDecisionBindingService` 私有持有 per-unit action-plan index，module 只保留单项借用查询与生命周期编排窄入口。涉及 AI plan 的 rebind/teardown 先关闭 decision context/helper consumer，再清空并释放 action plan，之后才逆序断开 borrower set 和释放底层 sidecar。装备技能 usage 与 granted-skill reaction 的真实提交仍归 `BattleSkillExecutionOrchestrator`，preview service 不执行提交副作用；兄弟服务/测试需要的 internal 入口由 module 保留窄委托。`BattleContingencySystem` 只弱借用由 bridge 实现的 `IBattleContingencyRuntimePort`，不再经 module 反向转发 auto-cast；回合开始的 contingency 与 sequential auto-cast 编排仍归 module/timeline owner，metrics service 只记录指标。`BattleGroundEffectService` 同样拆出风力推移/位移（`BattleGroundRelocationService`）、地面技能校验（`BattleGroundSkillValidationService`）、坐标构建与效果收集（`BattleGroundEffectCoordService`），主 service 在 `Setup` 正序接线，并在 `Dispose` 逆序断开三个 child 的 runtime/owner/sibling borrower。
 
 ## Setup 输入
 
@@ -56,7 +56,7 @@ BattleState 至少包含：battle id、map size、terrain/cells、units dictiona
 
 ## 战斗目标与终局
 
-当前正式内容支持歼灭、击败首领、拯救、逃离、护送、防守和截击七种目标。九种 mode 的稳定 id、当前运行规则与原子结算边界见 [objective_runtime.md](./objective_runtime.md)；其余两种仍在 [multi_objective_modes.md](../../proposals/battle/multi_objective_modes.md)，不得当成当前可玩内容。
+当前正式内容支持歼灭、击败首领、拯救、逃离、护送、防守、截击、节点作业和区域占领九种目标。稳定 id、运行规则与原子结算边界见 [objective_runtime.md](./objective_runtime.md)；尚未实现的组合目标和模式扩展见 [multi_objective_modes.md](../../proposals/battle/multi_objective_modes.md)，不得当成当前可玩内容。
 
 命令、timeline step、开战 reaction 与 promotion choice 都是 objective mutation 根。同步递归反应或多目标结算期间只标记 objective dirty，最外层 `EndObjectiveMutation` 才执行 `FlushBattleOutcomeEvaluation`。final decision 一旦锁存不可替换；存在 promotion/start-confirm modal 时先冻结 timeline，等 modal 完成后再从唯一 `CompleteBattle` 入口生成 result、奖励、phase/batch 和终局日志。`BattleResolutionResult`、Fate、掉落、任务、世界回写与 BattleSim 消费 typed `Outcome/EndReason`；winner 字符串只保留为输出投影。
 
@@ -123,6 +123,10 @@ godot --headless -s res://tests/battle_runtime/objectives/run_battle_elimination
 godot --headless -s res://tests/battle_runtime/objectives/run_battle_boss_objective_regression.cs
 godot --headless -s res://tests/battle_runtime/objectives/run_battle_escape_objective_regression.cs
 godot --headless -s res://tests/battle_runtime/objectives/run_battle_rescue_escort_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_intercept_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_defense_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_node_operation_objective_regression.cs
+godot --headless -s res://tests/battle_runtime/objectives/run_battle_control_objective_regression.cs
 python tests/run_regression_suite.py
 ```
 
@@ -146,7 +150,7 @@ BattleRuntimeModule 重建时建议拆分以下 sidecar：
 - `BattleSkillExecutionOrchestrator`：技能执行主编排。
 - `BattleSkillPreviewService` / `BattleSkillTargetValidationService` / `BattleChainDamageService` / `BattleRandomChainSkillService`：预览、目标校验、链式伤害与随机链子职责。
 - `BattleDamageResolver` / `BattleHitResolver` / `BattleSaveResolver`：命中、豁免、伤害。
-- `BattleTimelineDriver`：timeline phase、current TU、`tu_per_tick`、ready actor、action threshold、stamina 与 turn start/end。
+- `BattleTimelineDriver`：timeline phase、current TU、`tu_per_tick`、ready actor、action threshold、stamina、Control objective 分数与 turn start/end。
 - `BattleRuntimeSkillTurnResolver`：cooldown anchor、turn timer、状态周期 tick/duration/turn-start 规则，以及新应用状态的 `next_tick_at_tu` 初始化。
 - `BattleAiService`：AI decision -> command。
 - `BattleRuntimeLootResolver`、`BattleSkillMasteryService`、`BattleContributionLedger`：结算。
@@ -627,8 +631,8 @@ AI 决策必须使用 snapshot/value object：
 - `internal int GetUnitTurnOrderAttribute(BattleUnitState unitState, StringName attributeId)`
 - `internal int GetUnitTurnOrderActionPoints(BattleUnitState unitState)`
 - `internal GStringNameArray GetUnitsInOrder()`
-- 真实拥有 timeline phase、current TU、`tu_per_tick`、ready unit、action threshold 与 stamina 推进，不经 module 或独立 bridge 反向转发。
-- `ApplyTimelineStep(...)` 保持 current TU → 状态周期 tick/duration → 临时边/延迟区域/地形/屏障 → pending cast reconcile/advance/complete → ready 收集与排序的原同步顺序。
+- 真实拥有 timeline phase、current TU、`tu_per_tick`、ready unit、action threshold、stamina 与 Control objective 分数推进，不经 module 或独立 bridge 反向转发。
+- `ApplyTimelineStep(...)` 保持 current TU → Control 区域归属/计分 → 状态周期 tick/duration → 临时边/延迟区域/地形/屏障 → pending cast reconcile/advance/complete → ready 收集与排序的原同步顺序。
 - `ActivateNextReadyUnit(...)` 保持 trait turn-start → cooldown/turn timer → module 的 metrics/contingency/sequential auto-cast 编排 → AP/移动点重置 → turn-start status/control 的原同步顺序。
 
 ### `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
@@ -645,7 +649,7 @@ AI 决策必须使用 snapshot/value object：
 
 - `internal sealed class BattleObjectiveEvaluationService`
 - `internal BattleObjectiveEvaluationResult Evaluate(BattleState state)`
-- 当前 evaluator 实现歼灭、击败首领、拯救、逃离、护送、防守和截击；它读取正式 objective runtime state，并产出类型化 `BattleFinalDecision`，不直接修改阶段、日志或结算结果。
+- 当前 evaluator 实现歼灭、击败首领、拯救、逃离、护送、防守、截击、节点作业和区域占领；它读取正式 objective runtime state，并产出类型化 `BattleFinalDecision`，不直接修改阶段、日志或结算结果。
 
 ### `scripts/systems/battle/runtime/BattleRuntimeModule.Objectives.cs`
 

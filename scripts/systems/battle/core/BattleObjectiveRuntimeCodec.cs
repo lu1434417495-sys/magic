@@ -82,6 +82,14 @@ internal static class BattleObjectiveRuntimeCodec
                 "node_operation_all_nodes_completed",
             BattleEndReasonKind.NodeOperationPartyDefeated =>
                 "node_operation_party_defeated",
+            BattleEndReasonKind.ControlPlayerScoreReached =>
+                "control_player_score_reached",
+            BattleEndReasonKind.ControlHostileScoreReached =>
+                "control_hostile_score_reached",
+            BattleEndReasonKind.ControlScoresTied =>
+                "control_scores_tied",
+            BattleEndReasonKind.ControlPartyDefeated =>
+                "control_party_defeated",
             _ => "none",
         };
 

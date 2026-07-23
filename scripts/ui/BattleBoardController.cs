@@ -604,6 +604,8 @@ public sealed class BattleBoardController : IDisposable
                     interceptObjective.ExitCoords,
                 BattleNodeOperationObjectiveRuntimeState nodeOperationObjective =>
                     ResolveIncompleteOperationNodeCoords(nodeOperationObjective),
+                BattleControlObjectiveRuntimeState controlObjective =>
+                    ResolveControlZoneCoords(controlObjective),
                 _ => null,
             };
         if (exitCoords == null)
@@ -631,6 +633,26 @@ public sealed class BattleBoardController : IDisposable
         {
             if (!node.IsCompleted)
                 result.Add(node.Coord);
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<Vector2I> ResolveControlZoneCoords(
+        BattleControlObjectiveRuntimeState objective
+    )
+    {
+        var result = new List<Vector2I>();
+        foreach (
+            BattleControlZoneRuntimeState zone in
+            objective?.ControlZones
+            ?? System.Array.Empty<BattleControlZoneRuntimeState>()
+        )
+        {
+            foreach (Vector2I coord in zone.Coords)
+            {
+                if (!result.Contains(coord))
+                    result.Add(coord);
+            }
         }
         return result;
     }

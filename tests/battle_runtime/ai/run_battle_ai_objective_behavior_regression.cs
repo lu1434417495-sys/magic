@@ -25,6 +25,7 @@ public partial class run_battle_ai_objective_behavior_regression
             TestDefenseHostileAiPrioritizesTarget();
             TestRescueTargetWaitsForInteraction();
             TestNodeOperationAiInteractsAndMovesTowardNodes();
+            TestControlAiMovesTowardHostileZoneAndFightsWhenContested();
             TestBossAiFallsBackToUsableMinionWhenBossIsUnavailable();
         }
         catch (Exception exception)
@@ -334,6 +335,104 @@ public partial class run_battle_ai_objective_behavior_regression
             moveDecision?.action_id ?? (StringName)"",
             (StringName)"objective_node_operation_move",
             "节点移动应由专用 objective evaluator 产出。"
+        );
+    }
+
+    private void TestControlAiMovesTowardHostileZoneAndFightsWhenContested()
+    {
+        EnemyAiBrainDefinition brain = BuildObjectiveProbeBrain();
+        using BattleRuntimeScope moveScope = BuildRuntimeWithEnemyContent(brain);
+        BattleRuntimeModule moveRuntime = moveScope.Runtime;
+        BattleUnitState movingActor = BuildPersistentAiAlly(
+            "control_ai_move_actor",
+            Vector2I.Zero,
+            brain.BrainId
+        );
+        BattleUnitState remoteEnemy = BuildManualUnit(
+            "control_ai_move_enemy",
+            "enemy",
+            new Vector2I(5, 0)
+        );
+        BattleState moveState = BattleTestFixture.BuildFlatState(
+            "control_ai_move",
+            new Vector2I(6, 1)
+        );
+        BattleTestFixture.InstallUnits(
+            moveState,
+            new[] { movingActor },
+            new[] { remoteEnemy }
+        );
+        moveRuntime.SetupStateForTests(moveState);
+        _test.True(
+            moveRuntime.InitializeBattleObjective(
+                BuildControlDefinition()
+            ),
+            "占领移动 AI 场景应成功初始化。"
+        );
+
+        BattleAiDecision moveDecision = ChooseAiDecision(
+            moveRuntime,
+            movingActor
+        );
+
+        _test.True(
+            moveDecision?.command?.IsMove() == true,
+            "AI 应优先向敌方占领区移动。"
+        );
+        _test.Eq(
+            moveDecision?.action_id ?? (StringName)"",
+            (StringName)"objective_control_move",
+            "占领移动应由专用 objective evaluator 产出。"
+        );
+
+        using BattleRuntimeScope contestedScope =
+            BuildRuntimeWithEnemyContent(brain);
+        BattleRuntimeModule contestedRuntime = contestedScope.Runtime;
+        BattleUnitState contestedActor = BuildPersistentAiAlly(
+            "control_ai_contested_actor",
+            new Vector2I(4, 0),
+            brain.BrainId
+        );
+        BattleUnitState adjacentEnemy = BuildManualUnit(
+            "control_ai_contested_enemy",
+            "enemy",
+            new Vector2I(5, 0)
+        );
+        BattleState contestedState = BattleTestFixture.BuildFlatState(
+            "control_ai_contested",
+            new Vector2I(6, 1)
+        );
+        BattleTestFixture.InstallUnits(
+            contestedState,
+            new[] { contestedActor },
+            new[] { adjacentEnemy }
+        );
+        contestedRuntime.SetupStateForTests(contestedState);
+        _test.True(
+            contestedRuntime.InitializeBattleObjective(
+                BuildControlDefinition()
+            ),
+            "占领争夺 AI 场景应成功初始化。"
+        );
+
+        BattleAiDecision attackDecision = ChooseAiDecision(
+            contestedRuntime,
+            contestedActor
+        );
+
+        _test.True(
+            attackDecision?.command?.IsSkill() == true,
+            "AI 身处争夺区时应回落到常规战斗行为。"
+        );
+        _test.Eq(
+            attackDecision?.action_id ?? (StringName)"",
+            (StringName)"objective_probe_basic_attack",
+            "争夺区内应由正式基础攻击 action 处理相邻敌人。"
+        );
+        _test.Eq(
+            attackDecision?.command?.target_unit_id ?? (StringName)"",
+            adjacentEnemy.unit_id,
+            "争夺区内的常规攻击应选择相邻敌人。"
         );
     }
 
@@ -758,6 +857,20 @@ public partial class run_battle_ai_objective_behavior_regression
             Array.Empty<EnemyAiTransitionRuleDefinition>()
         );
     }
+
+    private static BattleControlObjectiveDefinition BuildControlDefinition() =>
+        new(
+            new[]
+            {
+                new BattleControlZoneDefinition(
+                    "east_control_zone",
+                    "东侧占领区",
+                    BattleMapEdge.Right,
+                    2
+                ),
+            },
+            100
+        );
 
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent(
         params EnemyAiBrainDefinition[] extraBrains

@@ -18,6 +18,7 @@ internal sealed class BattleObjectiveEvaluationService
             BattleObjectiveMode.Defense => EvaluateDefense(state),
             BattleObjectiveMode.Intercept => EvaluateIntercept(state),
             BattleObjectiveMode.NodeOperation => EvaluateNodeOperation(state),
+            BattleObjectiveMode.Control => EvaluateControl(state),
             _ => BattleObjectiveEvaluationResult.Invalid(),
         };
     }
@@ -329,6 +330,61 @@ internal sealed class BattleObjectiveEvaluationService
                 BattleObjectiveMode.NodeOperation,
                 BattleOutcomeKind.PlayerFailure,
                 BattleEndReasonKind.NodeOperationPartyDefeated
+            );
+        }
+        return BattleObjectiveEvaluationResult.InProgress();
+    }
+
+    private static BattleObjectiveEvaluationResult EvaluateControl(
+        BattleState state
+    )
+    {
+        if (
+            state.ObjectiveRuntimeState
+                is not BattleControlObjectiveRuntimeState objective
+        )
+        {
+            return BattleObjectiveEvaluationResult.Invalid();
+        }
+
+        bool playerReachedTarget =
+            objective.PlayerScore >= objective.ScoreTarget;
+        bool hostileReachedTarget =
+            objective.HostileScore >= objective.ScoreTarget;
+        if (playerReachedTarget && hostileReachedTarget)
+        {
+            return Terminal(
+                state,
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.Draw,
+                BattleEndReasonKind.ControlScoresTied
+            );
+        }
+        if (playerReachedTarget)
+        {
+            return Terminal(
+                state,
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.ControlPlayerScoreReached
+            );
+        }
+        if (hostileReachedTarget)
+        {
+            return Terminal(
+                state,
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.ControlHostileScoreReached
+            );
+        }
+        if (CountLivingUnits(state, objective.RequiredPartyUnitIds) <= 0)
+        {
+            return Terminal(
+                state,
+                BattleObjectiveMode.Control,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.ControlPartyDefeated
             );
         }
         return BattleObjectiveEvaluationResult.InProgress();
