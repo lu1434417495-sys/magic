@@ -386,6 +386,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             {
                 return IssueBattleCommand(skillCommand);
             }
+
         }
         else if (GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit)
         {
@@ -399,6 +400,20 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                     return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
                 }
             }
+        }
+
+        BattleCommand interactionCommand = BuildObjectiveInteractionCommand(
+            activeUnit,
+            target_coord,
+            targetUnit
+        );
+        if (interactionCommand != null)
+        {
+            BattlePreview interactionPreview = PreviewBattleCommand(
+                interactionCommand
+            );
+            if (interactionPreview?.allowed == true)
+                return IssueBattleCommand(interactionCommand);
         }
 
         if (activeUnit.OccupiesCoord(target_coord))
@@ -430,6 +445,55 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             UpdateStatus($"已选中战斗格 {FormatCoord(target_coord)}。");
         }
         return BattleRefreshMode.Overlay;
+    }
+
+    private BattleCommand BuildObjectiveInteractionCommand(
+        BattleUnitState activeUnit,
+        Vector2I targetCoord,
+        BattleUnitState targetUnit
+    )
+    {
+        if (
+            activeUnit == null
+            || GetSelectedSkillId() != ""
+        )
+        {
+            return null;
+        }
+
+        BattleObjectiveRuntimeState objective = GetBattleState()?.ObjectiveRuntimeState;
+        if (
+            objective is BattleRescueObjectiveRuntimeState rescueObjective
+            && targetUnit != null
+            && !rescueObjective.TargetSecured
+            && rescueObjective.TargetUnitId == targetUnit.unit_id
+        )
+        {
+            return new BattleCommand
+            {
+                CommandKind = BattleCommandKind.Interact,
+                unit_id = activeUnit.unit_id,
+                target_unit_id = targetUnit.unit_id,
+                target_coord = targetUnit.coord,
+            };
+        }
+        if (
+            objective is BattleNodeOperationObjectiveRuntimeState nodeObjective
+            && nodeObjective.TryGetNodeAtCoord(
+                targetCoord,
+                out BattleOperationNodeRuntimeState node
+            )
+            && !node.IsCompleted
+        )
+        {
+            return new BattleCommand
+            {
+                CommandKind = BattleCommandKind.Interact,
+                unit_id = activeUnit.unit_id,
+                target_coord = targetCoord,
+            };
+        }
+        return null;
     }
 
     internal BattleRefreshMode ResetBattleMovement()
@@ -1044,7 +1108,6 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             }
             else
             {
-                targetUnit.RefreshFootprint();
                 foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
                 {
                     coordSet.Add(occupiedCoord);

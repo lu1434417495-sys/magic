@@ -100,6 +100,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
+        BattleHudObjectiveProgressSnapshot objectiveProgress =
+            BuildEscapeObjectiveProgress();
         panel._apply_snapshot(
             BuildSnapshot(
                 roundBadge: new BattleHudRoundBadgeSnapshot("TU 12", "READY 3"),
@@ -135,7 +137,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
                     }
                 ),
                 skillSubtitle: "预计命中率 75%",
-                tooltipText: "需要掷出 6+"
+                tooltipText: "需要掷出 6+",
+                objectiveProgress: objectiveProgress
             )
         );
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
@@ -145,6 +148,12 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         _test.Eq((int)panel.hp_bar.MaxValue, 30, "BattleMapPanel 应应用 formal focus_unit.hp_max。");
         _test.Eq((int)panel.mp_bar.Value, 6, "BattleMapPanel 应应用 formal focus_unit.mp_current。");
         _test.Eq((int)panel.mp_bar.MaxValue, 10, "BattleMapPanel 应应用 formal focus_unit.mp_max。");
+        _test.True(panel.objective_status_label.Visible, "有效目标进度应显示 ObjectiveStatusLabel。");
+        _test.True(
+            panel.objective_status_label.Text.Contains("逃离战场", StringComparison.Ordinal)
+                && panel.objective_status_label.Text.Contains("已到达 1/1", StringComparison.Ordinal),
+            $"ObjectiveStatusLabel 应显示逃离目标及进度，actual={panel.objective_status_label.Text}"
+        );
 
         var statusRow = panel.GetNodeOrNull<HFlowContainer>(
             "HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/StatusBadgeRow"
@@ -175,7 +184,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         bool confirmReady = false,
         string hintText = "",
         IEnumerable<string> recentLogLines = null,
-        BattleHudCommandDockSnapshot commandDock = null
+        BattleHudCommandDockSnapshot commandDock = null,
+        BattleHudObjectiveProgressSnapshot objectiveProgress = null
     ) =>
         new(
             "战斗地图",
@@ -212,8 +222,43 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             recentLogLines ?? Array.Empty<string>(),
             new BattleHudEquipmentPanelSnapshot(
                 "", "", "", "", 0, false, "", null, null, ""
-            )
+            ),
+            objectiveProgress: objectiveProgress
         );
+
+    private BattleHudObjectiveProgressSnapshot BuildEscapeObjectiveProgress()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "panel_escape_ally",
+            "player",
+            new Vector2I(3, 1)
+        );
+        ally.source_member_id = "panel_escape_member";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "panel_escape_enemy",
+            "enemy",
+            new Vector2I(1, 1)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "panel_escape_objective",
+            new Vector2I(4, 3),
+            new[] { ally },
+            new[] { enemy }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleEscapeObjectiveDefinition(
+                    "right_exit",
+                    BattleMapEdge.Right,
+                    1
+                )
+            ),
+            "BattleMapPanel objective fixture should initialize."
+        );
+        return new BattleHudObjectiveProgressSnapshot(
+            new BattleStateReadView(fixture.State).ObjectiveProgress
+        );
+    }
 
     private static BattleHudResourceInfoSnapshot EmptyResourceInfo()
     {

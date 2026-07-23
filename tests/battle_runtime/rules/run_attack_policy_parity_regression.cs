@@ -7,25 +7,80 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_attack_policy_parity_regression : LifecycleTestSceneTree
 {
+    private sealed class ProbeAttackCheckQuery : IBattleEquipmentAttackCheckQuery
+    {
+        internal int ModifierQueryCount { get; private set; }
+        internal int DefenseQueryCount { get; private set; }
+        internal int CriticalQueryCount { get; private set; }
+
+        public IReadOnlyList<BattleAttackRollModifierSpec> CollectAttackRollModifierCandidates(
+            BattleAttackCheckPolicyContext context
+        )
+        {
+            ModifierQueryCount++;
+            return new List<BattleAttackRollModifierSpec>
+            {
+                new()
+                {
+                    source_domain = "equipment_ability",
+                    source_id = "probe_attack_query",
+                    source_instance_id = "probe_equipment",
+                    label = "probe modifier",
+                    modifier_delta = 3,
+                    stack_key = "probe_attack_query",
+                    stack_mode = "max",
+                    target_team_filter = "any",
+                    endpoint_mode = "target",
+                    footprint_mode = "any_cell",
+                    applies_to = "attack_roll",
+                },
+            };
+        }
+
+        public EquipmentAttackDefenseAdjustment CollectAttackDefenseAdjustment(
+            BattleAttackCheckPolicyContext context
+        )
+        {
+            DefenseQueryCount++;
+            var adjustment = new EquipmentAttackDefenseAdjustment();
+            adjustment.AddLockDodgeBonus();
+            return adjustment;
+        }
+
+        public BattleEquipmentAbilityCriticalHitOverrideResult ResolveCriticalHitOverride(
+            BattleAttackCheckPolicyContext context
+        )
+        {
+            CriticalQueryCount++;
+            return new BattleEquipmentAbilityCriticalHitOverrideResult
+            {
+                ForceCriticalOnHit = true,
+                SourceEquipmentInstanceId = "probe_equipment",
+                BindingId = "probe_attack_query",
+                ActionId = "probe_critical",
+            };
+        }
+    }
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
-        policy.Setup(null, hitResolver, null);
+        policy.Setup(hitResolver, null);
         var battleState = new BattleState();
         var activeUnit = new BattleUnitState
         {
             unit_id = "caster",
-            coord = new Vector2I(1, 1),
         };
+        activeUnit.SetAnchorCoord(new Vector2I(1, 1));
         activeUnit.known_skill_level_map[new StringName("parity_skill")] = 3;
         var targetUnit = new BattleUnitState
         {
             unit_id = "target",
-            coord = new Vector2I(3, 1),
         };
+        targetUnit.SetAnchorCoord(new Vector2I(3, 1));
         targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
         SkillDefinition skillDefinition = BuildParitySkill();
         CombatEffectDefinition repeatEffectDefinition = BuildRepeatEffect();
@@ -158,8 +213,119 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             ),
             "policy repeat stage fate-aware check 应与 BattleHitResolver 零漂移。"
         );
+        AssertNarrowEquipmentQueryInjection(
+            hitResolver,
+            battleState,
+            activeUnit,
+            targetUnit,
+            skillDefinition
+        );
+        AssertAttackContextQueryDoesNotRepairFootprint(
+            policy,
+            battleState,
+            activeUnit,
+            targetUnit,
+            skillDefinition
+        );
 
         RequestTestExit(_test.Finish("Attack policy parity regression"));
+    }
+
+    private void AssertAttackContextQueryDoesNotRepairFootprint(
+        BattleAttackCheckPolicyService policy,
+        BattleState battleState,
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        targetUnit.RestoreBodyShapeProjectionForMutationSnapshotExact(
+            targetUnit.coord,
+            new StringName("medium"),
+            BattleUnitState.BodySizeMedium,
+            new Vector2I(2, 2),
+            new[] { new Vector2I(9, 9) }
+        );
+        Vector2IList occupiedBefore = targetUnit.occupied_coords;
+        long revisionBefore = battleState.MovementGeometryRevision;
+
+        policy.BuildSkillDefinitionAttackContext(
+            battleState,
+            activeUnit,
+            targetUnit,
+            skillDefinition,
+            "skill_attack_preview",
+            "query_no_write_probe",
+            false
+        );
+
+        _test.True(
+            ReferenceEquals(targetUnit.occupied_coords, occupiedBefore),
+            "attack context query must not replace a live occupied-coord projection."
+        );
+        _test.Eq(
+            targetUnit.footprint_size,
+            new Vector2I(2, 2),
+            "attack context query must not repair a stale footprint_size."
+        );
+        _test.Eq(
+            battleState.MovementGeometryRevision,
+            revisionBefore,
+            "attack context query must not advance movement geometry revision."
+        );
+    }
+
+    private void AssertNarrowEquipmentQueryInjection(
+        BattleHitResolver hitResolver,
+        BattleState battleState,
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        var query = new ProbeAttackCheckQuery();
+        var policy = new BattleAttackCheckPolicyService();
+        policy.Setup(hitResolver, null, query);
+        BattleAttackCheckPolicyContext context = policy.BuildSkillDefinitionAttackContext(
+            battleState,
+            activeUnit,
+            targetUnit,
+            skillDefinition,
+            "skill_attack_check",
+            "probe",
+            false
+        );
+        AttackCheckInput result = policy.BuildAttackCheck(context, 0, 0);
+
+        _test.Eq(query.ModifierQueryCount, 1, "attack policy should query the injected modifier capability once.");
+        _test.Eq(query.DefenseQueryCount, 1, "attack policy should query the injected defense capability once.");
+        _test.Eq(query.CriticalQueryCount, 1, "attack policy should query the injected critical capability once.");
+        _test.Eq(result.SituationalAttackBonus, 3, "injected equipment modifier should reach the canonical attack check.");
+        _test.True(result.ForceCriticalOnHit, "injected equipment critical override should reach the canonical attack check.");
+        _test.Eq(
+            result.ForcedCriticalSourceEquipmentInstanceId,
+            new StringName("probe_equipment"),
+            "critical override provenance should remain typed."
+        );
+        _test.True(
+            ReferenceEquals(context.battle_state, battleState),
+            "attack policy should preserve the explicitly supplied battle state."
+        );
+
+        BattleAttackCheckPolicyContext noStateContext = policy.BuildSkillDefinitionAttackContext(
+            null,
+            activeUnit,
+            targetUnit,
+            skillDefinition,
+            "skill_attack_preview",
+            "probe",
+            false
+        );
+        _test.True(
+            noStateContext.battle_state == null,
+            "attack policy must not recover hidden battle state from a runtime owner."
+        );
+        policy.Dispose();
     }
 
     private static SkillDefinition BuildParitySkill()

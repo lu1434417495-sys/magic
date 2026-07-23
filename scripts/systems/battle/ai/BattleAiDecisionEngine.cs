@@ -18,6 +18,7 @@ internal sealed class BattleAiDecisionEngine
     private readonly BattleAiGroundRepositionActionEvaluator _groundReposition = new();
     private readonly BattleAiRetreatActionEvaluator _retreat = new();
     private readonly BattleAiWaitActionEvaluator _wait = new();
+    private readonly BattleAiObjectiveActionEvaluator _objective = new();
 
     private sealed class ScoreInputFacts
     {
@@ -67,6 +68,13 @@ internal sealed class BattleAiDecisionEngine
         if (unitState == null)
         {
             return null;
+        }
+
+        BattleAiDecision objectiveDecision = _objective.Evaluate(context);
+        if (objectiveDecision != null)
+        {
+            AttachPatchAndMark(context, objectiveDecision);
+            return objectiveDecision;
         }
 
         StringName unitBrainId = unitState.ai_brain_id;

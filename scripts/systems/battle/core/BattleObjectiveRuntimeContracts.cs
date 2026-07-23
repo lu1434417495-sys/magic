@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using Godot;
 
 internal enum BattleOutcomeKind
@@ -15,6 +18,26 @@ internal enum BattleEndReasonKind
     EliminationHostilesDefeated,
     EliminationAlliesDefeated,
     EliminationMutualDestruction,
+    BossTargetDefeated,
+    BossPartyDefeated,
+    BossMutualDestruction,
+    RescueTargetSecured,
+    RescueTargetDefeated,
+    RescuePartyDefeated,
+    EscapeRequiredUnitsReachedExit,
+    EscapeRequiredUnitDefeated,
+    EscortTargetReachedExit,
+    EscortTargetDefeated,
+    EscortPartyDefeated,
+    InterceptTargetDefeated,
+    InterceptTargetEscaped,
+    InterceptPartyDefeated,
+    InterceptMutualDestruction,
+    DefenseDeadlineReached,
+    DefenseTargetDefeated,
+    DefensePartyDefeated,
+    NodeOperationAllNodesCompleted,
+    NodeOperationPartyDefeated,
 }
 
 internal enum BattleObjectiveEvaluationKind
@@ -53,6 +76,640 @@ internal sealed class BattleEliminationObjectiveRuntimeState
 
     internal override BattleObjectiveRuntimeState DuplicateState() =>
         new BattleEliminationObjectiveRuntimeState();
+}
+
+internal sealed class BattleBossObjectiveRuntimeState : BattleObjectiveRuntimeState
+{
+    internal BattleBossObjectiveRuntimeState(
+        StringName targetActorId,
+        StringName targetUnitId,
+        IEnumerable<StringName> requiredPartyUnitIds
+    )
+        : base(BattleObjectiveMode.Boss)
+    {
+        if (targetActorId == "")
+            throw new ArgumentException(
+                "Boss objective target actor id must not be empty.",
+                nameof(targetActorId)
+            );
+        if (targetUnitId == "")
+            throw new ArgumentException(
+                "Boss objective target unit id must not be empty.",
+                nameof(targetUnitId)
+            );
+        IReadOnlyList<StringName> normalizedPartyIds = NormalizeUnitIds(
+            requiredPartyUnitIds
+        );
+        if (normalizedPartyIds.Count == 0)
+            throw new ArgumentException(
+                "Boss objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        TargetActorId = targetActorId;
+        TargetUnitId = targetUnitId;
+        RequiredPartyUnitIds = normalizedPartyIds;
+    }
+
+    internal StringName TargetActorId { get; }
+    internal StringName TargetUnitId { get; }
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleBossObjectiveRuntimeState(
+            TargetActorId,
+            TargetUnitId,
+            RequiredPartyUnitIds
+        );
+
+    private static IReadOnlyList<StringName> NormalizeUnitIds(
+        IEnumerable<StringName> unitIds
+    )
+    {
+        var normalized = (unitIds ?? Array.Empty<StringName>())
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        return new ReadOnlyCollection<StringName>(normalized);
+    }
+}
+
+internal sealed class BattleEscapeObjectiveRuntimeState : BattleObjectiveRuntimeState
+{
+    private readonly HashSet<Vector2I> _exitCoordSet;
+
+    internal BattleEscapeObjectiveRuntimeState(
+        StringName exitZoneId,
+        BattleMapEdge exitEdge,
+        int exitDepth,
+        IEnumerable<StringName> requiredUnitIds,
+        IEnumerable<Vector2I> exitCoords
+    )
+        : base(BattleObjectiveMode.Escape)
+    {
+        if (exitZoneId == "")
+            throw new ArgumentException(
+                "Escape objective exit zone id must not be empty.",
+                nameof(exitZoneId)
+            );
+        if (!Enum.IsDefined(exitEdge) || exitEdge == BattleMapEdge.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(exitEdge));
+        if (exitDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(exitDepth));
+
+        List<StringName> normalizedUnitIds = (requiredUnitIds ?? Array.Empty<StringName>())
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedUnitIds.Count == 0)
+            throw new ArgumentException(
+                "Escape objective requires at least one persistent party unit.",
+                nameof(requiredUnitIds)
+            );
+
+        List<Vector2I> normalizedExitCoords = (exitCoords ?? Array.Empty<Vector2I>())
+            .Distinct()
+            .OrderBy(coord => coord.Y)
+            .ThenBy(coord => coord.X)
+            .ToList();
+        if (normalizedExitCoords.Count == 0)
+            throw new ArgumentException(
+                "Escape objective exit zone must contain at least one valid cell.",
+                nameof(exitCoords)
+            );
+
+        ExitZoneId = exitZoneId;
+        ExitEdge = exitEdge;
+        ExitDepth = exitDepth;
+        RequiredUnitIds = new ReadOnlyCollection<StringName>(normalizedUnitIds);
+        ExitCoords = new ReadOnlyCollection<Vector2I>(normalizedExitCoords);
+        _exitCoordSet = new HashSet<Vector2I>(normalizedExitCoords);
+    }
+
+    internal StringName ExitZoneId { get; }
+    internal BattleMapEdge ExitEdge { get; }
+    internal int ExitDepth { get; }
+    internal IReadOnlyList<StringName> RequiredUnitIds { get; }
+    internal IReadOnlyList<Vector2I> ExitCoords { get; }
+
+    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleEscapeObjectiveRuntimeState(
+            ExitZoneId,
+            ExitEdge,
+            ExitDepth,
+            RequiredUnitIds,
+            ExitCoords
+        );
+}
+
+internal sealed class BattleRescueObjectiveRuntimeState : BattleObjectiveRuntimeState
+{
+    internal BattleRescueObjectiveRuntimeState(
+        StringName targetActorId,
+        StringName targetUnitId,
+        IEnumerable<StringName> requiredPartyUnitIds,
+        bool targetSecured = false
+    )
+        : base(BattleObjectiveMode.Rescue)
+    {
+        if (targetActorId == "")
+            throw new ArgumentException(
+                "Rescue objective target actor id must not be empty.",
+                nameof(targetActorId)
+            );
+        if (targetUnitId == "")
+            throw new ArgumentException(
+                "Rescue objective target unit id must not be empty.",
+                nameof(targetUnitId)
+            );
+        IReadOnlyList<StringName> normalizedPartyIds = NormalizeUnitIds(
+            requiredPartyUnitIds
+        );
+        if (normalizedPartyIds.Count == 0)
+            throw new ArgumentException(
+                "Rescue objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        TargetActorId = targetActorId;
+        TargetUnitId = targetUnitId;
+        RequiredPartyUnitIds = normalizedPartyIds;
+        TargetSecured = targetSecured;
+    }
+
+    internal StringName TargetActorId { get; }
+    internal StringName TargetUnitId { get; }
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal bool TargetSecured { get; private set; }
+
+    internal bool TrySecureTarget()
+    {
+        if (TargetSecured)
+            return false;
+        TargetSecured = true;
+        return true;
+    }
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleRescueObjectiveRuntimeState(
+            TargetActorId,
+            TargetUnitId,
+            RequiredPartyUnitIds,
+            TargetSecured
+        );
+
+    private static IReadOnlyList<StringName> NormalizeUnitIds(
+        IEnumerable<StringName> unitIds
+    )
+    {
+        List<StringName> normalized = (unitIds ?? Array.Empty<StringName>())
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        return new ReadOnlyCollection<StringName>(normalized);
+    }
+}
+
+internal sealed class BattleEscortObjectiveRuntimeState : BattleObjectiveRuntimeState
+{
+    private readonly HashSet<Vector2I> _exitCoordSet;
+
+    internal BattleEscortObjectiveRuntimeState(
+        StringName targetActorId,
+        StringName targetUnitId,
+        StringName exitZoneId,
+        BattleMapEdge exitEdge,
+        int exitDepth,
+        IEnumerable<StringName> requiredPartyUnitIds,
+        IEnumerable<Vector2I> exitCoords
+    )
+        : base(BattleObjectiveMode.Escort)
+    {
+        if (targetActorId == "")
+            throw new ArgumentException(
+                "Escort objective target actor id must not be empty.",
+                nameof(targetActorId)
+            );
+        if (targetUnitId == "")
+            throw new ArgumentException(
+                "Escort objective target unit id must not be empty.",
+                nameof(targetUnitId)
+            );
+        if (exitZoneId == "")
+            throw new ArgumentException(
+                "Escort objective exit zone id must not be empty.",
+                nameof(exitZoneId)
+            );
+        if (!Enum.IsDefined(exitEdge) || exitEdge == BattleMapEdge.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(exitEdge));
+        if (exitDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(exitDepth));
+        List<StringName> normalizedPartyIds = (
+            requiredPartyUnitIds ?? Array.Empty<StringName>()
+        )
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedPartyIds.Count == 0)
+            throw new ArgumentException(
+                "Escort objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        List<Vector2I> normalizedExitCoords = (
+            exitCoords ?? Array.Empty<Vector2I>()
+        )
+            .Distinct()
+            .OrderBy(coord => coord.Y)
+            .ThenBy(coord => coord.X)
+            .ToList();
+        if (normalizedExitCoords.Count == 0)
+            throw new ArgumentException(
+                "Escort objective exit zone must contain at least one valid cell.",
+                nameof(exitCoords)
+            );
+        TargetActorId = targetActorId;
+        TargetUnitId = targetUnitId;
+        ExitZoneId = exitZoneId;
+        ExitEdge = exitEdge;
+        ExitDepth = exitDepth;
+        RequiredPartyUnitIds = new ReadOnlyCollection<StringName>(
+            normalizedPartyIds
+        );
+        ExitCoords = new ReadOnlyCollection<Vector2I>(normalizedExitCoords);
+        _exitCoordSet = new HashSet<Vector2I>(normalizedExitCoords);
+    }
+
+    internal StringName TargetActorId { get; }
+    internal StringName TargetUnitId { get; }
+    internal StringName ExitZoneId { get; }
+    internal BattleMapEdge ExitEdge { get; }
+    internal int ExitDepth { get; }
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal IReadOnlyList<Vector2I> ExitCoords { get; }
+
+    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleEscortObjectiveRuntimeState(
+            TargetActorId,
+            TargetUnitId,
+            ExitZoneId,
+            ExitEdge,
+            ExitDepth,
+            RequiredPartyUnitIds,
+            ExitCoords
+        );
+}
+
+internal sealed class BattleDefenseObjectiveRuntimeState
+    : BattleObjectiveRuntimeState
+{
+    internal BattleDefenseObjectiveRuntimeState(
+        StringName targetActorId,
+        StringName targetUnitId,
+        IEnumerable<StringName> requiredPartyUnitIds,
+        int startTu,
+        int deadlineTu
+    )
+        : base(BattleObjectiveMode.Defense)
+    {
+        if (targetActorId == "")
+            throw new ArgumentException(
+                "Defense objective target actor id must not be empty.",
+                nameof(targetActorId)
+            );
+        if (targetUnitId == "")
+            throw new ArgumentException(
+                "Defense objective target unit id must not be empty.",
+                nameof(targetUnitId)
+            );
+        if (startTu < 0)
+            throw new ArgumentOutOfRangeException(nameof(startTu));
+        if (
+            deadlineTu <= startTu
+            || (deadlineTu - startTu) % BattleTimelineState.TuGranularity != 0
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(deadlineTu));
+        }
+        List<StringName> normalizedPartyIds = (
+            requiredPartyUnitIds ?? Array.Empty<StringName>()
+        )
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedPartyIds.Count == 0)
+            throw new ArgumentException(
+                "Defense objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+
+        TargetActorId = targetActorId;
+        TargetUnitId = targetUnitId;
+        RequiredPartyUnitIds = new ReadOnlyCollection<StringName>(
+            normalizedPartyIds
+        );
+        StartTu = startTu;
+        DeadlineTu = deadlineTu;
+    }
+
+    internal StringName TargetActorId { get; }
+    internal StringName TargetUnitId { get; }
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal int StartTu { get; }
+    internal int DeadlineTu { get; }
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleDefenseObjectiveRuntimeState(
+            TargetActorId,
+            TargetUnitId,
+            RequiredPartyUnitIds,
+            StartTu,
+            DeadlineTu
+        );
+}
+
+internal sealed class BattleInterceptObjectiveRuntimeState
+    : BattleObjectiveRuntimeState
+{
+    private readonly HashSet<Vector2I> _exitCoordSet;
+
+    internal BattleInterceptObjectiveRuntimeState(
+        StringName targetActorId,
+        StringName targetUnitId,
+        StringName exitZoneId,
+        BattleMapEdge exitEdge,
+        int exitDepth,
+        IEnumerable<StringName> requiredPartyUnitIds,
+        IEnumerable<Vector2I> exitCoords
+    )
+        : base(BattleObjectiveMode.Intercept)
+    {
+        if (targetActorId == "")
+            throw new ArgumentException(
+                "Intercept objective target actor id must not be empty.",
+                nameof(targetActorId)
+            );
+        if (targetUnitId == "")
+            throw new ArgumentException(
+                "Intercept objective target unit id must not be empty.",
+                nameof(targetUnitId)
+            );
+        if (exitZoneId == "")
+            throw new ArgumentException(
+                "Intercept objective exit zone id must not be empty.",
+                nameof(exitZoneId)
+            );
+        if (!Enum.IsDefined(exitEdge) || exitEdge == BattleMapEdge.Unknown)
+            throw new ArgumentOutOfRangeException(nameof(exitEdge));
+        if (exitDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(exitDepth));
+
+        List<StringName> normalizedPartyIds = (
+            requiredPartyUnitIds ?? Array.Empty<StringName>()
+        )
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedPartyIds.Count == 0)
+            throw new ArgumentException(
+                "Intercept objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        List<Vector2I> normalizedExitCoords = (
+            exitCoords ?? Array.Empty<Vector2I>()
+        )
+            .Distinct()
+            .OrderBy(coord => coord.Y)
+            .ThenBy(coord => coord.X)
+            .ToList();
+        if (normalizedExitCoords.Count == 0)
+            throw new ArgumentException(
+                "Intercept objective exit zone must contain at least one valid cell.",
+                nameof(exitCoords)
+            );
+
+        TargetActorId = targetActorId;
+        TargetUnitId = targetUnitId;
+        ExitZoneId = exitZoneId;
+        ExitEdge = exitEdge;
+        ExitDepth = exitDepth;
+        RequiredPartyUnitIds = new ReadOnlyCollection<StringName>(
+            normalizedPartyIds
+        );
+        ExitCoords = new ReadOnlyCollection<Vector2I>(normalizedExitCoords);
+        _exitCoordSet = new HashSet<Vector2I>(normalizedExitCoords);
+    }
+
+    internal StringName TargetActorId { get; }
+    internal StringName TargetUnitId { get; }
+    internal StringName ExitZoneId { get; }
+    internal BattleMapEdge ExitEdge { get; }
+    internal int ExitDepth { get; }
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal IReadOnlyList<Vector2I> ExitCoords { get; }
+
+    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleInterceptObjectiveRuntimeState(
+            TargetActorId,
+            TargetUnitId,
+            ExitZoneId,
+            ExitEdge,
+            ExitDepth,
+            RequiredPartyUnitIds,
+            ExitCoords
+        );
+}
+
+internal sealed class BattleOperationNodeRuntimeState
+{
+    internal BattleOperationNodeRuntimeState(
+        StringName nodeId,
+        string displayName,
+        StringName zoneId,
+        BattleMapEdge placementEdge,
+        int placementDepth,
+        Vector2I coord,
+        bool isCompleted = false
+    )
+    {
+        if (nodeId == "")
+            throw new ArgumentException(
+                "Operation node id must not be empty.",
+                nameof(nodeId)
+            );
+        if (string.IsNullOrWhiteSpace(displayName))
+            throw new ArgumentException(
+                "Operation node display name must not be empty.",
+                nameof(displayName)
+            );
+        if (zoneId == "")
+            throw new ArgumentException(
+                "Operation node zone id must not be empty.",
+                nameof(zoneId)
+            );
+        if (
+            !Enum.IsDefined(placementEdge)
+            || placementEdge == BattleMapEdge.Unknown
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(placementEdge));
+        }
+        if (placementDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(placementDepth));
+
+        NodeId = nodeId;
+        DisplayName = displayName;
+        ZoneId = zoneId;
+        PlacementEdge = placementEdge;
+        PlacementDepth = placementDepth;
+        Coord = coord;
+        IsCompleted = isCompleted;
+    }
+
+    internal StringName NodeId { get; }
+    internal string DisplayName { get; }
+    internal StringName ZoneId { get; }
+    internal BattleMapEdge PlacementEdge { get; }
+    internal int PlacementDepth { get; }
+    internal Vector2I Coord { get; }
+    internal bool IsCompleted { get; private set; }
+
+    internal bool TryComplete()
+    {
+        if (IsCompleted)
+            return false;
+        IsCompleted = true;
+        return true;
+    }
+
+    internal BattleOperationNodeRuntimeState DuplicateState() =>
+        new(
+            NodeId,
+            DisplayName,
+            ZoneId,
+            PlacementEdge,
+            PlacementDepth,
+            Coord,
+            IsCompleted
+        );
+}
+
+internal sealed class BattleNodeOperationObjectiveRuntimeState
+    : BattleObjectiveRuntimeState
+{
+    private readonly Dictionary<StringName, BattleOperationNodeRuntimeState>
+        _nodesById;
+    private readonly Dictionary<Vector2I, BattleOperationNodeRuntimeState>
+        _nodesByCoord;
+
+    internal BattleNodeOperationObjectiveRuntimeState(
+        IEnumerable<StringName> requiredPartyUnitIds,
+        IEnumerable<BattleOperationNodeRuntimeState> operationNodes
+    )
+        : base(BattleObjectiveMode.NodeOperation)
+    {
+        List<StringName> normalizedPartyIds = (
+            requiredPartyUnitIds ?? Array.Empty<StringName>()
+        )
+            .Where(unitId => unitId != "")
+            .Select(unitId => unitId.ToString())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(unitId => unitId, StringComparer.Ordinal)
+            .Select(unitId => new StringName(unitId))
+            .ToList();
+        if (normalizedPartyIds.Count == 0)
+        {
+            throw new ArgumentException(
+                "Node operation objective requires at least one persistent party unit.",
+                nameof(requiredPartyUnitIds)
+            );
+        }
+
+        List<BattleOperationNodeRuntimeState> normalizedNodes = (
+            operationNodes ?? Array.Empty<BattleOperationNodeRuntimeState>()
+        )
+            .Where(node => node != null)
+            .OrderBy(node => node.NodeId.ToString(), StringComparer.Ordinal)
+            .Select(node => node.DuplicateState())
+            .ToList();
+        if (normalizedNodes.Count == 0)
+        {
+            throw new ArgumentException(
+                "Node operation objective requires at least one operation node.",
+                nameof(operationNodes)
+            );
+        }
+        if (
+            normalizedNodes
+                .Select(node => node.NodeId.ToString())
+                .Distinct(StringComparer.Ordinal)
+                .Count()
+            != normalizedNodes.Count
+            || normalizedNodes.Select(node => node.Coord).Distinct().Count()
+                != normalizedNodes.Count
+        )
+        {
+            throw new ArgumentException(
+                "Node operation runtime node ids and coordinates must be unique.",
+                nameof(operationNodes)
+            );
+        }
+
+        RequiredPartyUnitIds = new ReadOnlyCollection<StringName>(
+            normalizedPartyIds
+        );
+        OperationNodes = new ReadOnlyCollection<BattleOperationNodeRuntimeState>(
+            normalizedNodes
+        );
+        _nodesById = normalizedNodes.ToDictionary(node => node.NodeId);
+        _nodesByCoord = normalizedNodes.ToDictionary(node => node.Coord);
+    }
+
+    internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
+    internal IReadOnlyList<BattleOperationNodeRuntimeState> OperationNodes { get; }
+    internal int CompletedNodeCount =>
+        OperationNodes.Count(node => node.IsCompleted);
+    internal int IncompleteNodeCount => OperationNodes.Count - CompletedNodeCount;
+    internal bool AllNodesCompleted => IncompleteNodeCount == 0;
+
+    internal bool TryGetNodeAtCoord(
+        Vector2I coord,
+        out BattleOperationNodeRuntimeState node
+    ) => _nodesByCoord.TryGetValue(coord, out node);
+
+    internal bool TryCompleteNode(StringName nodeId)
+    {
+        return nodeId != ""
+            && _nodesById.TryGetValue(nodeId, out BattleOperationNodeRuntimeState node)
+            && node.TryComplete();
+    }
+
+    internal override BattleObjectiveRuntimeState DuplicateState() =>
+        new BattleNodeOperationObjectiveRuntimeState(
+            RequiredPartyUnitIds,
+            OperationNodes
+        );
 }
 
 internal sealed class BattleFinalDecision
@@ -101,23 +758,122 @@ internal sealed class BattleFinalDecision
         BattleEndReasonKind endReason
     )
     {
-        // P0 only owns elimination semantics. Future objective evaluators must add
-        // their own outcome/reason matrix before their decisions can be constructed.
-        if (objectiveMode != BattleObjectiveMode.Elimination)
-            return false;
-        return (outcome, endReason) switch
+        return (objectiveMode, outcome, endReason) switch
         {
             (
+                BattleObjectiveMode.Elimination,
                 BattleOutcomeKind.PlayerSuccess,
                 BattleEndReasonKind.EliminationHostilesDefeated
             ) => true,
             (
+                BattleObjectiveMode.Elimination,
                 BattleOutcomeKind.PlayerFailure,
                 BattleEndReasonKind.EliminationAlliesDefeated
             ) => true,
             (
+                BattleObjectiveMode.Elimination,
                 BattleOutcomeKind.Draw,
                 BattleEndReasonKind.EliminationMutualDestruction
+            ) => true,
+            (
+                BattleObjectiveMode.Boss,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.BossTargetDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Boss,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.BossPartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Boss,
+                BattleOutcomeKind.Draw,
+                BattleEndReasonKind.BossMutualDestruction
+            ) => true,
+            (
+                BattleObjectiveMode.Rescue,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.RescueTargetSecured
+            ) => true,
+            (
+                BattleObjectiveMode.Rescue,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.RescueTargetDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Rescue,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.RescuePartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Escape,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.EscapeRequiredUnitsReachedExit
+            ) => true,
+            (
+                BattleObjectiveMode.Escape,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.EscapeRequiredUnitDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Escort,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.EscortTargetReachedExit
+            ) => true,
+            (
+                BattleObjectiveMode.Escort,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.EscortTargetDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Escort,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.EscortPartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Defense,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.DefenseDeadlineReached
+            ) => true,
+            (
+                BattleObjectiveMode.Defense,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.DefenseTargetDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Defense,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.DefensePartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Intercept,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.InterceptTargetDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Intercept,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.InterceptTargetEscaped
+            ) => true,
+            (
+                BattleObjectiveMode.Intercept,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.InterceptPartyDefeated
+            ) => true,
+            (
+                BattleObjectiveMode.Intercept,
+                BattleOutcomeKind.Draw,
+                BattleEndReasonKind.InterceptMutualDestruction
+            ) => true,
+            (
+                BattleObjectiveMode.NodeOperation,
+                BattleOutcomeKind.PlayerSuccess,
+                BattleEndReasonKind.NodeOperationAllNodesCompleted
+            ) => true,
+            (
+                BattleObjectiveMode.NodeOperation,
+                BattleOutcomeKind.PlayerFailure,
+                BattleEndReasonKind.NodeOperationPartyDefeated
             ) => true,
             _ => false,
         };

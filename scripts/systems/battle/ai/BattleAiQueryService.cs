@@ -277,6 +277,91 @@ internal sealed class BattleAiQueryService
         return _state != null ? _state.map_size : Vector2I.Zero;
     }
 
+    internal BattleObjectiveProgressSnapshot GetObjectiveProgress() =>
+        BattleObjectiveProgressSnapshot.Capture(_state);
+
+    internal MovementReachabilityResult GetCurrentTurnPathToBestAnchor(
+        IEnumerable<Vector2I> destinationAnchors,
+        int maxCost
+    )
+    {
+        if (_movementQueryService == null || _state == null || IsEmpty(_actorUnitId))
+        {
+            return MovementReachabilityResult.Failure(
+                "objective_path_target",
+                "missing_runtime_binding"
+            );
+        }
+        BattleUnitState actor = _state.GetUnit(_actorUnitId);
+        if (actor == null)
+        {
+            return MovementReachabilityResult.Failure(
+                "objective_path_target",
+                "missing_unit"
+            );
+        }
+
+        var destinations = new List<Vector2I>();
+        var seenDestinations = new HashSet<Vector2I>();
+        foreach (Vector2I destination in destinationAnchors ?? Array.Empty<Vector2I>())
+        {
+            if (seenDestinations.Add(destination))
+                destinations.Add(destination);
+        }
+        destinations.Sort(CompareCoords);
+
+        MovementReachabilityResult bestResult = null;
+        Vector2I bestDestination = new(-1, -1);
+        foreach (Vector2I destination in destinations)
+        {
+            MovementReachabilityResult candidate =
+                _movementQueryService.resolve_current_turn_path_target(
+                    _actorUnitId,
+                    actor.coord,
+                    destination,
+                    Math.Max(maxCost, 0),
+                    options: BattleMovementQueryService.MovementQueryOptions.ForPathSearchBudget(
+                        maxCandidateCount: 0,
+                        includeOrigin: false,
+                        preferProgress: true
+                    )
+                );
+            if (
+                candidate?.Ok != true
+                || !candidate.TargetCoordValid
+                || candidate.TargetCoord == actor.coord
+            )
+            {
+                continue;
+            }
+            if (
+                bestResult != null
+                && (
+                    candidate.Cost > bestResult.Cost
+                    || (
+                        candidate.Cost == bestResult.Cost
+                        && candidate.Path.Count > bestResult.Path.Count
+                    )
+                    || (
+                        candidate.Cost == bestResult.Cost
+                        && candidate.Path.Count == bestResult.Path.Count
+                        && CompareCoords(destination, bestDestination) >= 0
+                    )
+                )
+            )
+            {
+                continue;
+            }
+            bestResult = candidate;
+            bestDestination = destination;
+        }
+        return bestResult
+            ?? MovementReachabilityResult.Failure(
+                "objective_path_target",
+                "unreachable"
+            );
+    }
+
     internal int DistanceFromAnchorToTarget(
         Vector2I anchorCoord,
         Vector2I anchorFootprintSize,
@@ -653,5 +738,11 @@ internal sealed class BattleAiQueryService
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private static int CompareCoords(Vector2I left, Vector2I right)
+    {
+        int yCompare = left.Y.CompareTo(right.Y);
+        return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
     }
 }

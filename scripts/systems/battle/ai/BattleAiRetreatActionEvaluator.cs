@@ -50,7 +50,7 @@ internal sealed class BattleAiRetreatActionEvaluator
             return Fail(context, trace, "no_valid_targets");
 
         BattleUnitState actor = context.unit_state;
-        BattleUnitState focusTarget = action.UseDynamicThreatSafeDistance
+        BattleUnitState dynamicFocusTarget = action.UseDynamicThreatSafeDistance
             ? BattleAiActionEvaluatorUtilities.SelectMostUnsafeTarget(
                 context,
                 targets,
@@ -59,30 +59,9 @@ internal sealed class BattleAiRetreatActionEvaluator
                 action.SafeDistanceMargin,
                 _helper
             )
-            : targets[0];
-        if (focusTarget == null)
+            : null;
+        if (action.UseDynamicThreatSafeDistance && dynamicFocusTarget == null)
             return Fail(context, trace, "no_valid_targets");
-
-        int resolvedSafeDistance = action.UseDynamicThreatSafeDistance
-            ? BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
-                context,
-                focusTarget,
-                action.MinimumSafeDistance,
-                action.SafeDistanceMargin,
-                _helper
-            )
-            : action.MinimumSafeDistance;
-        int threatAttackRange = BattleAiActionEvaluatorUtilities.ResolveUnitEffectiveThreatRange(
-            context,
-            focusTarget,
-            _helper
-        );
-        if (trace != null)
-        {
-            trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
-            trace.Metadata["threat_attack_range"] = threatAttackRange;
-            trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
-        }
 
         if (BattleAiActionEvaluatorUtilities.IsUnitMovementBlocked(context, actor))
             return Fail(context, trace, "movement_blocked");
@@ -98,89 +77,124 @@ internal sealed class BattleAiRetreatActionEvaluator
             );
         }
 
-        BattleAiScoreInput bestScoreInput = BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
-            action,
-            context,
-            "retreat",
-            action.ActionId.ToString(),
-            null,
-            null,
-            BuildPositionMetadata(
-                focusTarget,
-                actor.coord,
-                resolvedSafeDistance,
-                includeMoveCost: true
-            )
-        );
-        BattleAiDecision bestDecision = null;
-        BattleGridService grid = context.grid_service;
-        BattleState state = context.state;
-        foreach (Vector2I neighbor in grid.GetNeighbors4(state, actor.coord))
+        IEnumerable<BattleUnitState> focusTargets = action.UseDynamicThreatSafeDistance
+            ? new[] { dynamicFocusTarget }
+            : targets;
+        foreach (BattleUnitState focusTarget in focusTargets)
         {
-            if (!grid.CanTraverse(state, actor.coord, neighbor, actor))
+            if (focusTarget == null)
                 continue;
-            int moveCost = Mathf.Max(context.GetMoveCost(actor, neighbor), 1);
-            if (moveCost > moveBudget)
-                continue;
-            EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
-            BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(context, neighbor);
-            BattlePreview preview = BattleAiActionEvaluatorUtilities.BuildFastMovePreview(
+            int resolvedSafeDistance = action.UseDynamicThreatSafeDistance
+                ? BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
+                    context,
+                    focusTarget,
+                    action.MinimumSafeDistance,
+                    action.SafeDistanceMargin,
+                    _helper
+                )
+                : action.MinimumSafeDistance;
+            int threatAttackRange = BattleAiActionEvaluatorUtilities.ResolveUnitEffectiveThreatRange(
                 context,
-                neighbor,
-                moveCost
+                focusTarget,
+                _helper
             );
-            if (preview?.allowed != true)
+            if (trace != null)
             {
-                EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
-                continue;
+                trace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+                trace.Metadata["threat_attack_range"] = threatAttackRange;
+                trace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
             }
-            BattleAiScoreInput scoreInput = BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
+
+            BattleAiScoreInput bestScoreInput = BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
                 action,
                 context,
                 "retreat",
                 action.ActionId.ToString(),
-                command,
-                preview,
+                null,
+                null,
                 BuildPositionMetadata(
                     focusTarget,
-                    neighbor,
+                    actor.coord,
                     resolvedSafeDistance,
-                    includeMoveCost: false
+                    includeMoveCost: true
                 )
             );
-            if (trace != null)
+            BattleAiDecision bestDecision = null;
+            BattleGridService grid = context.grid_service;
+            BattleState state = context.state;
+            foreach (Vector2I neighbor in grid.GetNeighbors4(state, actor.coord))
             {
-                EnemyAiActionHelper.TraceOfferCandidate(
-                    trace,
-                    EnemyAiActionHelper.BuildCandidateSummary(
-                        $"retreat_to_{neighbor.X}_{neighbor.Y}",
-                        command,
-                        scoreInput,
-                        new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            ["predicted_distance"] =
-                                BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(
-                                    scoreInput
-                                ),
-                            ["resolved_safe_distance"] = resolvedSafeDistance,
-                            ["threat_attack_range"] = threatAttackRange,
-                        }
+                if (!grid.CanTraverse(state, actor.coord, neighbor, actor))
+                    continue;
+                int moveCost = Mathf.Max(context.GetMoveCost(actor, neighbor), 1);
+                if (moveCost > moveBudget)
+                    continue;
+                EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
+                BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(context, neighbor);
+                BattlePreview preview = BattleAiActionEvaluatorUtilities.BuildFastMovePreview(
+                    context,
+                    neighbor,
+                    moveCost
+                );
+                if (preview?.allowed != true)
+                {
+                    EnemyAiActionHelper.TraceCountIncrement(trace, "preview_reject_count");
+                    continue;
+                }
+                BattleAiScoreInput scoreInput = BattleAiActionEvaluatorUtilities.BuildActionScoreInput(
+                    action,
+                    context,
+                    "retreat",
+                    action.ActionId.ToString(),
+                    command,
+                    preview,
+                    BuildPositionMetadata(
+                        focusTarget,
+                        neighbor,
+                        resolvedSafeDistance,
+                        includeMoveCost: false
                     )
                 );
+                if (trace != null)
+                {
+                    EnemyAiActionHelper.TraceOfferCandidate(
+                        trace,
+                        EnemyAiActionHelper.BuildCandidateSummary(
+                            $"retreat_to_{neighbor.X}_{neighbor.Y}",
+                            command,
+                            scoreInput,
+                            new Dictionary<string, object>(StringComparer.Ordinal)
+                            {
+                                ["predicted_distance"] =
+                                    BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(
+                                        scoreInput
+                                    ),
+                                ["resolved_safe_distance"] = resolvedSafeDistance,
+                                ["threat_attack_range"] = threatAttackRange,
+                            }
+                        )
+                    );
+                }
+                if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                    continue;
+                bestScoreInput = scoreInput;
+                bestDecision = EnemyAiActionHelper.CreateScoredDecision(
+                    action.ActionId,
+                    action.ScoreBucketId,
+                    command,
+                    scoreInput,
+                    $"{actor.display_name} 准备与 {focusTarget.display_name} 拉开到 {BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(scoreInput)} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
+                );
             }
-            if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
-                continue;
-            bestScoreInput = scoreInput;
-            bestDecision = EnemyAiActionHelper.CreateScoredDecision(
-                action.ActionId,
-                action.ScoreBucketId,
-                command,
-                scoreInput,
-                $"{actor.display_name} 准备与 {focusTarget.display_name} 拉开到 {BattleAiActionEvaluatorUtilities.ScoreDistanceToPrimaryCoord(scoreInput)} 格（评分 {BattleAiActionEvaluatorUtilities.ScoreTotal(scoreInput)}）。"
-            );
+            if (bestDecision != null)
+            {
+                EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
+                return bestDecision;
+            }
         }
-        EnemyAiActionHelper.FinalizeActionTrace(context, trace, bestDecision);
-        return bestDecision;
+
+        EnemyAiActionHelper.FinalizeActionTrace(context, trace);
+        return null;
     }
 
     private static Dictionary<string, object> BuildPositionMetadata(

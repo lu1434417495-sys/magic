@@ -528,7 +528,7 @@ internal sealed class BattleMeteorSwarmResolver
                         false,
                         skillId: plan.skill_id,
                         dispatchEvents: false
-                    )
+                    ).WithBattleState(State())
                 );
             outcome.AddComponent(component);
             outcome.total_damage += damageResolution.Damage;
@@ -700,7 +700,7 @@ internal sealed class BattleMeteorSwarmResolver
                 plan.source_unit,
                 target_unit,
                 new[] { effectDefinition },
-                DamageResolutionContext.ForSkill(plan.skill_id)
+                DamageResolutionContext.ForSkill(plan.skill_id).WithBattleState(State())
             );
     }
 
@@ -1817,7 +1817,6 @@ internal sealed class BattleMeteorSwarmResolver
             {
                 continue;
             }
-            targetUnit.RefreshFootprint();
             int bestDistance = 999999;
             Vector2I bestCoord = plan.GetPrimaryCoordForUnit(targetUnitId);
             IEnumerable<Vector2I> occupiedCoords = targetUnit.occupied_coords;
@@ -1950,7 +1949,6 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return false;
         }
-        unit_state.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
             if (occupiedCoord == coord)

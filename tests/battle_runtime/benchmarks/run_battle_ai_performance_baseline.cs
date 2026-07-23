@@ -393,7 +393,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             }
             runtime.SetupStateForTests(state);
             runtime._initialize_unit_trait_hooks();
-            runtime._initialize_unit_action_thresholds();
+            runtime._timeline_driver.InitializeUnitActionThresholds();
             runtime._battle_rating_system.InitializeBattleRatingStats();
             runtime._fate_runtime.BeginBattle(runtime.calamity_by_member_id);
             runtime._initialize_battle_metrics();

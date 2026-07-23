@@ -13,7 +13,7 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     public override void _Initialize()
     {
         TestValidRoundtripPreservesCurrentPayload();
-        TestClonePreservesEphemeralChargeState();
+        TestClonePreservesEphemeralRuntimeState();
         TestClonePreservesAiBlackboardOneShotMarkers();
         TestEffectiveTraitPayloadRoundtripAndClone();
         TestEquipmentAbilitySourcePayloadRoundtripAndClone();
@@ -79,6 +79,11 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             "large",
             "body_size_category 应随 body_size round-trip。"
         );
+        _test.Eq(
+            restored?.encounter_actor_id.ToString() ?? "",
+            "schema_actor",
+            "encounter_actor_id 应随当前 payload round-trip。"
+        );
         AssertVariantEq(
             restored?.vision_tags,
             new GStringNameArray { "darkvision" },
@@ -101,13 +106,15 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         );
     }
 
-    private void TestClonePreservesEphemeralChargeState()
+    private void TestClonePreservesEphemeralRuntimeState()
     {
         BattleUnitState unit = BuildMinimalUnit();
+        unit.encounter_actor_id = "clone_actor";
         unit.current_move_points = 5;
         unit.per_battle_charges.Put("dragon_breath", 1);
         unit.per_turn_charges.Put("nimble_escape", 1);
         unit.per_turn_charge_limits.Put("nimble_escape", 1);
+        unit.MarkContingencySetupConsumed("contingency_alpha");
 
         BattleUnitState cloned = unit.clone();
         _test.True(cloned != null, "BattleUnitState.clone() 应返回可用副本。");
@@ -116,15 +123,35 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
 
         AssertVariantEq(Project(cloned), Project(unit), "clone 应保留序列化字段。");
         _test.Eq(cloned.per_battle_charges.Get("dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
+        _test.Eq(
+            cloned.encounter_actor_id,
+            new StringName("clone_actor"),
+            "clone 应保留 encounter_actor_id。"
+        );
         _test.Eq(cloned.per_turn_charges.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
         _test.Eq(cloned.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
+        _test.True(
+            cloned.HasConsumedContingencySetup("contingency_alpha"),
+            "clone 应保留 consumed contingency setup。"
+        );
 
         cloned.per_battle_charges["dragon_breath"] = 0;
         cloned.per_turn_charges["nimble_escape"] = 0;
         cloned.per_turn_charge_limits["nimble_escape"] = 0;
+        cloned.ReplaceConsumedContingencySetupIdsTyped(
+            new StringName[] { "contingency_clone_only" }
+        );
         _test.Eq(unit.per_battle_charges.Get("dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
         _test.Eq(unit.per_turn_charges.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
         _test.Eq(unit.per_turn_charge_limits.Get("nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+        _test.True(
+            unit.HasConsumedContingencySetup("contingency_alpha"),
+            "clone 不应共享 consumed contingency setup owner。"
+        );
+        _test.False(
+            unit.HasConsumedContingencySetup("contingency_clone_only"),
+            "clone 的 consumed contingency 修改不应回写原 unit。"
+        );
     }
 
     private void TestClonePreservesAiBlackboardOneShotMarkers()
@@ -497,6 +524,10 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         GDictionary badDamageValue = Payload();
         DictDictionary(badDamageValue, "damage_resistances")["fire"] = "quarter";
         AssertRejected(badDamageValue, "damage_resistances 非法 mitigation tier 应拒绝。");
+
+        GDictionary badEncounterActorId = Payload();
+        badEncounterActorId["encounter_actor_id"] = 7;
+        AssertRejected(badEncounterActorId, "encounter_actor_id 非 String/StringName 应拒绝。");
     }
 
     private void TestRejectsBadEffectiveTraitPayloads()
@@ -746,12 +777,11 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         {
             unit_id = "schema_unit",
             source_member_id = "member_1",
+            enemy_template_id = "schema_template",
+            encounter_actor_id = "schema_actor",
             display_name = "Schema Unit",
             faction_id = "player",
             control_mode = "manual",
-            coord = new Vector2I(3, 4),
-            body_size = 3,
-            body_size_category = "large",
             current_hp = 21,
             current_mp = 4,
             current_stamina = 13,
@@ -776,6 +806,8 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             versatility_pick = "strength",
             last_turn_tu = 50,
         };
+        unit.SetBodySizeProjection(BattleUnitState.BodySizeLarge);
+        unit.SetAnchorCoord(new Vector2I(3, 4));
         unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["slash"] = 2 });
         unit.damage_resistances.Put("fire", "half");
         unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["slash"] = 12 });

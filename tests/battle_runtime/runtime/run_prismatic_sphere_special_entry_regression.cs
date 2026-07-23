@@ -358,12 +358,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
     private static SkillDefinition BuildChargeSkill(StringName skillId, bool includePathAoe)
     {
         CombatEffectDefinition chargeEffect = TestSkillDefinitionProjection.BuildEffect(
-            "charge",
-            parameters: new Dictionary<string, object>
-            {
-                ["base_distance"] = 3,
-                ["skill_id"] = skillId,
-            }
+            "charge"
         );
         var effects = new List<CombatEffectDefinition> { chargeEffect };
         if (includePathAoe)
@@ -399,7 +394,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
                 skillId,
                 targetMode: "ground",
                 targetTeamFilter: "any",
-                rangeValue: 6,
+                rangeValue: 3,
                 castVariants: new[] { variant }
             )
         );

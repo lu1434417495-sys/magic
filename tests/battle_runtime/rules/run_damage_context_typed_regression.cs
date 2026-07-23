@@ -1,9 +1,64 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_damage_context_typed_regression : LifecycleTestSceneTree
 {
+    private sealed class ProbeEquipmentPorts
+        : IBattleEquipmentDamageQuery,
+          IBattleEquipmentCombatReactionSink
+    {
+        internal BattleState LastDamageQueryState { get; private set; }
+        internal BattleState LastReactionState { get; private set; }
+        internal int DamageAppliedCount { get; private set; }
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceOnHit(BattleEquipmentAbilityBonusDamageDiceContext context)
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
+
+        public StringName ResolveDamageRollModeOverride(
+            BattleEquipmentAbilityDamageRollModeContext context
+        )
+        {
+            LastDamageQueryState = context?.BattleState;
+            return context?.CurrentRollMode ?? new StringName("");
+        }
+
+        public IReadOnlyList<BattleEquipmentAbilityDamageReductionResult> CollectDamageReductions(
+            BattleEquipmentAbilityDamageReductionContext context
+        )
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityDamageReductionResult>();
+        }
+
+        public bool ResolveAttackCheck(BattleEquipmentAbilityAttackCheckContext context) => false;
+
+        public BattleEquipmentAbilityAfterHitResult ResolveAfterHit(
+            BattleEquipmentAbilityAfterHitContext context
+        ) => new();
+
+        public BattleEquipmentAbilityAfterHitResult ResolveHitReceived(
+            BattleEquipmentAbilityAfterHitContext context
+        ) => new();
+
+        public IReadOnlyList<StringName> RefreshEquipmentProjectionAfterDurabilityDestruction(
+            BattleUnitState targetUnit,
+            BattleEventBatch batch = null
+        ) => Array.Empty<StringName>();
+
+        public bool ResolveDamageApplied(BattleEquipmentAbilityDamageAppliedContext context)
+        {
+            DamageAppliedCount++;
+            LastReactionState = context?.BattleState;
+            return false;
+        }
+    }
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -16,8 +71,72 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
         TestPartialDictionaryContextIsRejectedAtBoundary();
         TestTypedContextDrivesCriticalDamageAndVirtualDice();
         TestFixedMitigationSourcesRemainStructured();
+        TestEquipmentPortsReceiveExplicitBattleState();
 
         RequestTestExit(_test.Finish("Damage context typed regression"));
+    }
+
+    private void TestEquipmentPortsReceiveExplicitBattleState()
+    {
+        using var resolver = new BattleDamageResolver();
+        var ports = new ProbeEquipmentPorts();
+        resolver.SetEquipmentAbilityPorts(ports, ports);
+        var state = new BattleState();
+        BattleUnitState source = BuildUnit("equipment_port_source");
+        BattleUnitState target = BuildUnit("equipment_port_target");
+        try
+        {
+            resolver.ResolveEffects(
+                source,
+                target,
+                new[] { BuildDamageEffect(power: 5, damageTag: "physical_slash") },
+                DamageResolutionContext
+                    .Create(
+                        criticalHit: false,
+                        attackSuccess: true,
+                        secondaryHitSuccess: false
+                    )
+                    .WithBattleState(state)
+            );
+
+            _test.True(
+                ReferenceEquals(ports.LastDamageQueryState, state),
+                "damage query should receive the explicitly supplied battle state."
+            );
+            _test.True(
+                ReferenceEquals(ports.LastReactionState, state),
+                "damage reaction should receive the explicitly supplied battle state."
+            );
+            _test.Eq(
+                ports.DamageAppliedCount,
+                1,
+                "damage reaction should remain synchronous with committed hp damage."
+            );
+
+            int directDamage = resolver.ApplyTaggedDirectDamageToTargetTyped(
+                target,
+                3,
+                "physical_slash",
+                source,
+                state
+            );
+            _test.True(directDamage > 0, "tagged direct damage fixture should commit hp damage.");
+            _test.Eq(
+                ports.DamageAppliedCount,
+                2,
+                "tagged direct damage should synchronously dispatch through the reaction sink."
+            );
+            _test.True(
+                ReferenceEquals(ports.LastReactionState, state),
+                "tagged direct damage should forward its explicit battle state."
+            );
+        }
+        finally
+        {
+            resolver.SetEquipmentAbilityPorts(null, null);
+            BattleTestFixture.DisposeBattleUnit(source);
+            BattleTestFixture.DisposeBattleUnit(target);
+        }
     }
 
     private void TestPartialDictionaryContextIsRejectedAtBoundary()

@@ -28,6 +28,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
     {
         TestSnapshotBuilderMatchesFacadeOutputs();
         TestHeadlessSnapshotLeaseLifecycle();
+        TestSnapshotBuilderExposesBattleObjectiveProgress();
         TestGameTextCommandResultLifecycle();
         TestTextSnapshotRedactsHostLogPaths();
         TestSnapshotBuilderExposesPartyQuestSnapshot();
@@ -46,6 +47,351 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         TestSnapshotBuilderOmitsLootSectionWhenEmpty();
 
         return _test.Finish("Game runtime snapshot builder regression");
+    }
+
+    private void TestSnapshotBuilderExposesBattleObjectiveProgress()
+    {
+        TestBossObjectiveProgressSnapshot();
+        TestEscapeObjectiveProgressSnapshot();
+        TestInterceptObjectiveProgressSnapshot();
+        TestDefenseObjectiveProgressSnapshot();
+        TestNodeOperationObjectiveProgressSnapshot();
+    }
+
+    private void TestBossObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_boss_ally",
+            "player",
+            new Vector2I(1, 1)
+        );
+        ally.source_member_id = "snapshot_boss_member";
+        BattleUnitState boss = BattleTestFixture.BuildUnit(
+            "snapshot_boss_target",
+            "enemy",
+            new Vector2I(3, 1)
+        );
+        boss.encounter_actor_id = "red_dragon_boss";
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_boss_battle",
+            new Vector2I(5, 4),
+            new[] { ally },
+            new[] { boss }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleBossObjectiveDefinition("red_dragon_boss")
+            ),
+            "boss objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_boss_encounter",
+            ActiveBattleEncounterName = "首领快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(StringValue(objective, "mode"), "boss", "boss 快照应暴露目标模式。");
+            _test.Eq(
+                StringValue(objective, "target_actor_id"),
+                "red_dragon_boss",
+                "boss 快照应暴露稳定 actor id。"
+            );
+            _test.Eq(
+                StringValue(objective, "target_unit_id"),
+                "snapshot_boss_target",
+                "boss 快照应暴露本场解析后的 unit id。"
+            );
+            _test.True(BoolValue(objective, "target_alive"), "boss 快照应暴露首领存活状态。");
+            _test.Eq(
+                IntValue(objective, "alive_required_unit_count"),
+                1,
+                "boss 快照应暴露冻结队伍的存活进度。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=boss | target_actor=red_dragon_boss"
+                ),
+                "文本快照应暴露 boss 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private void TestEscapeObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_escape_ally",
+            "player",
+            new Vector2I(3, 1)
+        );
+        ally.source_member_id = "snapshot_escape_member";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "snapshot_escape_enemy",
+            "enemy",
+            new Vector2I(1, 1)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_escape_battle",
+            new Vector2I(4, 3),
+            new[] { ally },
+            new[] { enemy }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleEscapeObjectiveDefinition(
+                    "east_exit",
+                    BattleMapEdge.Right,
+                    1
+                )
+            ),
+            "escape objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_escape_encounter",
+            ActiveBattleEncounterName = "逃离快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(StringValue(objective, "mode"), "escape", "escape 快照应暴露目标模式。");
+            _test.Eq(
+                StringValue(objective, "exit_zone_id"),
+                "east_exit",
+                "escape 快照应暴露稳定出口区域 id。"
+            );
+            _test.Eq(StringValue(objective, "exit_edge"), "right", "escape 快照应暴露出口边缘。");
+            _test.Eq(IntValue(objective, "exit_depth"), 1, "escape 快照应暴露出口纵深。");
+            _test.Eq(
+                IntValue(objective, "reached_exit_unit_count"),
+                1,
+                "escape 快照应暴露已完整进入出口的单位数。"
+            );
+            _test.Eq(
+                ArrayValue(objective, "exit_coords").Count,
+                3,
+                "escape 快照应暴露初始化时冻结的出口坐标。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=escape | exit_zone=east_exit | edge=right | depth=1 | reached=1/1"
+                ),
+                "文本快照应暴露 escape 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private void TestInterceptObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_intercept_ally",
+            "player",
+            new Vector2I(1, 1)
+        );
+        ally.source_member_id = "snapshot_intercept_member";
+        BattleUnitState target = BattleTestFixture.BuildUnit(
+            "snapshot_intercept_target",
+            "enemy",
+            new Vector2I(3, 1)
+        );
+        target.encounter_actor_id = "snapshot_intercept_actor";
+        target.display_name = "迷雾信使";
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_intercept_battle",
+            new Vector2I(5, 3),
+            new[] { ally },
+            new[] { target }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleInterceptObjectiveDefinition(
+                    "snapshot_intercept_actor",
+                    "west_breakthrough",
+                    BattleMapEdge.Left,
+                    1
+                )
+            ),
+            "intercept objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_intercept_encounter",
+            ActiveBattleEncounterName = "截击快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(
+                StringValue(objective, "mode"),
+                "intercept",
+                "intercept 快照应暴露目标模式。"
+            );
+            _test.Eq(
+                StringValue(objective, "target_actor_id"),
+                "snapshot_intercept_actor",
+                "intercept 快照应暴露稳定 actor id。"
+            );
+            _test.Eq(
+                StringValue(objective, "exit_zone_id"),
+                "west_breakthrough",
+                "intercept 快照应暴露逃脱区 id。"
+            );
+            _test.Eq(
+                StringValue(objective, "exit_edge"),
+                "left",
+                "intercept 快照应暴露逃脱区边缘。"
+            );
+            _test.False(
+                BoolValue(objective, "target_reached_exit"),
+                "尚未逃脱的截击目标应投影为未到达。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=intercept | target_actor=snapshot_intercept_actor"
+                ),
+                "文本快照应暴露 intercept 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
+    }
+
+    private void TestDefenseObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_defense_ally",
+            "player",
+            Vector2I.Zero
+        );
+        ally.source_member_id = "snapshot_defense_member";
+        BattleUnitState target = BattleTestFixture.BuildUnit(
+            "snapshot_defense_target",
+            "player",
+            Vector2I.Right
+        );
+        target.encounter_actor_id = "snapshot_defense_actor";
+        target.display_name = "迷雾守望者";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "snapshot_defense_enemy",
+            "enemy",
+            new Vector2I(3, 0)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_defense_battle",
+            new Vector2I(4, 2),
+            new[] { ally, target },
+            new[] { enemy }
+        );
+        fixture.State.timeline.current_tu = 40;
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleDefenseObjectiveDefinition(
+                    "snapshot_defense_actor",
+                    100
+                )
+            ),
+            "defense objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_defense_encounter",
+            ActiveBattleEncounterName = "防守快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(
+                StringValue(objective, "mode"),
+                "defense",
+                "defense 快照应暴露目标模式。"
+            );
+            _test.Eq(
+                StringValue(objective, "target_actor_id"),
+                "snapshot_defense_actor",
+                "defense 快照应暴露稳定 actor id。"
+            );
+            _test.Eq(
+                IntValue(objective, "current_tu"),
+                40,
+                "defense 快照应暴露当前 TU。"
+            );
+            _test.Eq(
+                IntValue(objective, "start_tu"),
+                40,
+                "defense 快照应暴露冻结的开始 TU。"
+            );
+            _test.Eq(
+                IntValue(objective, "deadline_tu"),
+                140,
+                "defense 快照应暴露冻结的截止 TU。"
+            );
+            _test.Eq(
+                IntValue(objective, "remaining_tu"),
+                100,
+                "defense 快照应暴露剩余 TU。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=defense | target_actor=snapshot_defense_actor"
+                ),
+                "文本快照应暴露 defense 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
+        }
     }
 
     private void TestSnapshotBuilderMatchesFacadeOutputs()
@@ -148,6 +494,93 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         {
             facade.Dispose();
             CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestNodeOperationObjectiveProgressSnapshot()
+    {
+        BattleUnitState ally = BattleTestFixture.BuildUnit(
+            "snapshot_node_operation_ally",
+            "player",
+            Vector2I.Zero
+        );
+        ally.source_member_id = "snapshot_node_operation_member";
+        BattleUnitState enemy = BattleTestFixture.BuildUnit(
+            "snapshot_node_operation_enemy",
+            "enemy",
+            new Vector2I(4, 0)
+        );
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "snapshot_node_operation_battle",
+            new Vector2I(5, 1),
+            new[] { ally },
+            new[] { enemy }
+        );
+        _test.True(
+            fixture.State.InitializeObjective(
+                new BattleNodeOperationObjectiveDefinition(
+                    new[]
+                    {
+                        new BattleOperationNodeDefinition(
+                            "snapshot_node",
+                            "快照节点",
+                            "snapshot_zone",
+                            BattleMapEdge.Left,
+                            2
+                        ),
+                    }
+                )
+            ),
+            "node operation objective should initialize for runtime snapshot projection."
+        );
+
+        var runtime = new SnapshotTestRuntime
+        {
+            BattleState = fixture.State,
+            BattleRuntime = fixture.Runtime,
+            ActiveBattleEncounterId = "snapshot_node_operation_encounter",
+            ActiveBattleEncounterName = "节点作业快照遭遇",
+        };
+        var builder = new GameRuntimeSnapshotBuilder();
+        builder.Setup(runtime);
+        try
+        {
+            PlainDictionary battle = Dict(
+                builder.BuildHeadlessSnapshotPlain(),
+                "battle"
+            );
+            PlainDictionary objective = Dict(battle, "objective");
+            _test.Eq(
+                StringValue(objective, "mode"),
+                "node_operation",
+                "节点作业快照应暴露目标模式。"
+            );
+            _test.Eq(
+                IntValue(objective, "operation_node_count"),
+                1,
+                "节点作业快照应暴露节点总数。"
+            );
+            _test.Eq(
+                IntValue(objective, "completed_operation_node_count"),
+                0,
+                "节点作业快照应暴露已完成数量。"
+            );
+            _test.Eq(
+                ArrayValue(objective, "operation_nodes").Count,
+                1,
+                "节点作业快照应暴露逐节点事实。"
+            );
+            _test.True(
+                HasTextLinePrefix(
+                    TextSnapshotLines(builder.BuildTextSnapshot()),
+                    "objective_progress=mode=node_operation | completed=0/1"
+                ),
+                "文本快照应暴露 node_operation 目标过程事实。"
+            );
+        }
+        finally
+        {
+            builder.Dispose();
         }
     }
 

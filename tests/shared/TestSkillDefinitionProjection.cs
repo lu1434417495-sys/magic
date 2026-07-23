@@ -260,7 +260,9 @@ internal static class TestSkillDefinitionProjection
         int conModBase = 2,
         int conModPer2Levels = 1,
         IReadOnlyList<StringName> effectTags = null,
-        IReadOnlyList<StringName> effectCategories = null
+        IReadOnlyList<StringName> effectCategories = null,
+        int minSkillLevel = 0,
+        int maxSkillLevel = -1
     )
     {
         return new CombatEffectDefinition(
@@ -275,8 +277,8 @@ internal static class TestSkillDefinitionProjection
             addWeaponDice: addWeaponDice,
             preventRepeatTarget: preventRepeatTarget,
             forcedMoveMode: forcedMoveMode,
-            minSkillLevel: 0,
-            maxSkillLevel: -1,
+            minSkillLevel: minSkillLevel,
+            maxSkillLevel: maxSkillLevel,
             damageTag: damageTag,
             damageRatioPercent: 100,
             preResistanceDamageMultiplier: 1.0,

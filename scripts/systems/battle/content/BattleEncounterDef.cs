@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class BattleEncounterDef : Resource
@@ -16,14 +17,30 @@ public partial class BattleEncounterDef : Resource
     public BattleObjectiveDef objective { get; set; }
 
     [Export]
+    public Godot.Collections.Array<BattleScenarioActorDef> scenario_actors { get; set; } =
+        new();
+
+    [Export]
     public BattleEncounterWorldResolutionDef world_resolution { get; set; }
 
-    internal BattleEncounterDefinition ToDefinition() =>
-        new(
+    internal BattleEncounterDefinition ToDefinition()
+    {
+        var scenarioActorDefinitions = new List<BattleScenarioActorDefinition>();
+        foreach (
+            BattleScenarioActorDef scenarioActor in
+            scenario_actors ?? new Godot.Collections.Array<BattleScenarioActorDef>()
+        )
+        {
+            if (scenarioActor != null)
+                scenarioActorDefinitions.Add(scenarioActor.ToDefinition());
+        }
+        return new BattleEncounterDefinition(
             encounter_id,
             display_name,
             roster_profile_id,
             objective?.ToDefinition(),
-            world_resolution?.ToDefinition()
+            world_resolution?.ToDefinition(),
+            scenarioActorDefinitions
         );
+    }
 }

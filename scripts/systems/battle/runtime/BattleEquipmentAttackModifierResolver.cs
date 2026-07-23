@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleEquipmentAttackModifierResolver
+    : IBattleEquipmentAttackCheckQuery,
+      IBattleEquipmentDamageQuery
 {
     private BattleEquipmentAbilityRuntimeService _owner;
     private BattleEquipmentAbilityConditionEvaluator _conditionEvaluator;
@@ -29,6 +31,35 @@ internal sealed class BattleEquipmentAttackModifierResolver
         _summonResolver = null;
         _directEffectActionResolver = null;
     }
+
+    IReadOnlyList<BattleAttackRollModifierSpec>
+        IBattleEquipmentAttackCheckQuery.CollectAttackRollModifierCandidates(
+            BattleAttackCheckPolicyContext context
+        ) => CollectAttackRollModifierCandidates(context);
+
+    EquipmentAttackDefenseAdjustment
+        IBattleEquipmentAttackCheckQuery.CollectAttackDefenseAdjustment(
+            BattleAttackCheckPolicyContext context
+        ) => CollectAttackDefenseAdjustment(context);
+
+    BattleEquipmentAbilityCriticalHitOverrideResult
+        IBattleEquipmentAttackCheckQuery.ResolveCriticalHitOverride(
+            BattleAttackCheckPolicyContext context
+        ) => ResolveCriticalHitOverride(context);
+
+    IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+        IBattleEquipmentDamageQuery.CollectBonusDamageDiceOnHit(
+            BattleEquipmentAbilityBonusDamageDiceContext context
+        ) => CollectBonusDamageDiceOnHit(context);
+
+    StringName IBattleEquipmentDamageQuery.ResolveDamageRollModeOverride(
+        BattleEquipmentAbilityDamageRollModeContext context
+    ) => ResolveDamageRollModeOverride(context);
+
+    IReadOnlyList<BattleEquipmentAbilityDamageReductionResult>
+        IBattleEquipmentDamageQuery.CollectDamageReductions(
+            BattleEquipmentAbilityDamageReductionContext context
+        ) => CollectDamageReductions(context);
 
     internal List<BattleAttackRollModifierSpec> CollectAttackRollModifierCandidates(
         BattleAttackCheckPolicyContext context

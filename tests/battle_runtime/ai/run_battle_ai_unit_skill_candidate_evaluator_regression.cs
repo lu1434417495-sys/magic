@@ -18,6 +18,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             TestEvaluatorGeneratedCommandCarriesAvailableEntryId();
             TestFastPreviewRejectsExposeOutOfRangeCounter();
             TestLayeredBarrierForcesCanonicalPreview();
+            TestEqualTargetMetricsUseStableUnitIdTieBreak();
         }
         catch (Exception exception)
         {
@@ -382,6 +383,95 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             decision == null,
             "canonical preview 移除全部影响目标后，AI 不得回退到 fast preview 候选。"
         );
+    }
+
+    private void TestEqualTargetMetricsUseStableUnitIdTieBreak()
+    {
+        StringName reverseInsertionTarget = ChooseEqualTarget(
+            "target_z",
+            "target_a"
+        );
+        StringName forwardInsertionTarget = ChooseEqualTarget(
+            "target_a",
+            "target_z"
+        );
+
+        _test.Eq(
+            reverseInsertionTarget,
+            new StringName("target_a"),
+            "等距、等血的正式 AI 决策应按 unit_id ordinal 选择，不能继承反向插入顺序。"
+        );
+        _test.Eq(
+            forwardInsertionTarget,
+            reverseInsertionTarget,
+            "同一战术状态的正式目标不应随 BattleState 单位插入顺序变化。"
+        );
+    }
+
+    private static StringName ChooseEqualTarget(
+        StringName firstTargetId,
+        StringName secondTargetId
+    )
+    {
+        StringName skillId = "stable_target_tie_skill";
+        BattleUnitState actor = BuildUnit(
+            "stable_tie_actor",
+            "hostile",
+            new Vector2I(0, 0)
+        );
+        actor.known_active_skill_ids.Add(skillId);
+        actor.SetKnownSkillLevelTyped(skillId, 1);
+        BattleState state = new()
+        {
+            battle_id = "stable_target_tie_break_regression",
+            phase = "unit_acting",
+            map_size = new Vector2I(4, 4),
+            timeline = new BattleTimelineState(),
+            active_unit_id = actor.unit_id,
+        };
+        state.SetUnit(actor);
+        state.SetUnit(BuildEqualTarget(firstTargetId));
+        state.SetUnit(BuildEqualTarget(secondTargetId));
+
+        BattleAiContext context = new()
+        {
+            state = state,
+            unit_state = actor,
+            grid_service = new BattleGridService(),
+            skill_cast_block_reason_callback = (_, _) => BattleSkillCastBlockReasonKind.None,
+        };
+        context.SetSkillDefinitions(
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillId] = BuildUnitSkill(skillId, rangeValue: 4),
+            }
+        );
+        UseUnitSkillActionDefinition action = new(
+            "stable_target_tie_action",
+            "test",
+            BattleAiActionIntent.Positioning,
+            new[] { skillId },
+            "nearest_enemy",
+            1,
+            0,
+            false,
+            0,
+            4,
+            EnemyAiDistanceReferences.ToStringName(EnemyAiDistanceReference.TargetUnit)
+        );
+        BattleAiDecision decision = new BattleAiUnitSkillCandidateEvaluator().Evaluate(
+            action,
+            context
+        );
+        return decision?.command?.target_unit_id ?? new StringName("");
+    }
+
+    private static BattleUnitState BuildEqualTarget(StringName unitId)
+    {
+        Vector2I coord = unitId == new StringName("target_a")
+            ? new Vector2I(2, 0)
+            : new Vector2I(0, 2);
+        return BuildUnit(unitId, "player", coord);
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)

@@ -945,6 +945,7 @@ internal class BattleGroundEffectService
                     normalizedEffectDefinitions,
                     DamageResolutionContext
                         .ForSkill(skillId)
+                        .WithBattleState(State)
                         .WithDamageApplicationHookContext(
                             batch,
                             Runtime?.CurrentEffectOriginForContingency
@@ -1357,7 +1358,8 @@ internal class BattleGroundEffectService
             AttackEffectResolutionResult fallDamageResult =
                 Runtime.GetDamageResolver().ResolveFallDamageResult(
                     occupantUnitState,
-                    fallLayers
+                    fallLayers,
+                    State
                 );
             int fallDamage = fallDamageResult.Damage;
             int shieldAbsorbed = fallDamageResult.ShieldAbsorbed;

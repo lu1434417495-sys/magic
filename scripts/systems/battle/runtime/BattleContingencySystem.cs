@@ -42,12 +42,34 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     private readonly Queue<ContingencyReleaseContext> _releaseQueue = new();
     private readonly Queue<AutoCastRequest> _sequentialAutoCastQueue = new();
     private readonly ContingencyTargetResolverService _targetResolver = new();
-    private BattleRuntimeModule _runtime;
+    private WeakReference<IBattleContingencyRuntimePort> _runtimePortRef;
     private bool _disposed;
 
-    internal void Setup(BattleRuntimeModule runtime)
+    private IBattleContingencyRuntimePort RuntimePort
     {
-        _runtime = runtime;
+        get =>
+            _runtimePortRef != null
+            && _runtimePortRef.TryGetTarget(out IBattleContingencyRuntimePort runtimePort)
+                ? runtimePort
+                : null;
+        set =>
+            _runtimePortRef =
+                value != null
+                    ? new WeakReference<IBattleContingencyRuntimePort>(value)
+                    : null;
+    }
+
+    internal void Setup(IBattleContingencyRuntimePort runtimePort)
+    {
+        ArgumentNullException.ThrowIfNull(runtimePort);
+        RuntimePort = runtimePort;
+    }
+
+    internal bool HasRuntimeCapabilityBinding => RuntimePort != null;
+
+    internal void ClearRuntimeCapabilityBinding()
+    {
+        RuntimePort = null;
     }
 
     internal void ResetForBattle(PartyState partyState, BattleState battleState)
@@ -296,7 +318,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                 continue;
             }
             foreach (AutoCastRequest request in requests)
-                if (_runtime?.ExecuteAutoCast(request, batch) == true)
+                if (RuntimePort?.ExecuteAutoCast(request, batch) == true)
                     executed += 1;
         }
         return executed;
@@ -320,7 +342,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             if (request?.IsValid == true)
                 _sequentialAutoCastQueue.Enqueue(request);
         }
-        return selected != null && _runtime?.ExecuteAutoCast(selected, batch) == true ? 1 : 0;
+        return selected != null && RuntimePort?.ExecuteAutoCast(selected, batch) == true ? 1 : 0;
     }
 
     internal void OnBattleConfirmed(BattleEventBatch batch = null)
@@ -363,7 +385,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
                     instance,
                     triggerType,
                     fact.SourceUnitId,
-                    fact.ToFrozenFacts(_runtime?.GetState(), instance.OwnerUnitId),
+                    fact.ToFrozenFacts(RuntimePort?.GetBattleState(), instance.OwnerUnitId),
                     fact.SourceEventId
                 )
             );
@@ -385,10 +407,11 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             return BattleDamageApplicationHookResult.None;
         }
 
+        IBattleContingencyRuntimePort runtimePort = RuntimePort;
         StringName sourceEventId =
-            _runtime?.AllocateContingencySourceEventId("damage_hook") ?? "";
+            runtimePort?.AllocateSourceEventId("damage_hook") ?? "";
         StringName damageEventId =
-            _runtime?.AllocateContingencySourceEventId("damage_event") ?? sourceEventId;
+            runtimePort?.AllocateSourceEventId("damage_event") ?? sourceEventId;
         ContingencyFrozenTriggerFacts facts = BuildDamageFrozenFacts(context);
         int executed = 0;
         int matched = 0;
@@ -445,7 +468,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             }
             foreach (AutoCastRequest request in requests)
             {
-                if (_runtime?.ExecuteAutoCast(request, context.Batch) == true)
+                if (runtimePort?.ExecuteAutoCast(request, context.Batch) == true)
                 {
                     executed += 1;
                     if (request.TargetResolution?.MovedOutsideCurrentDamageEvent == true)
@@ -599,7 +622,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
             return;
         _disposed = true;
         ClearBattleState();
-        _runtime = null;
+        ClearRuntimeCapabilityBinding();
     }
 
     private void AddInstance(
@@ -646,12 +669,11 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (instance == null)
             return UnitSkillGrantSourceType.Unknown;
-        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.GetPartyState();
-        PartyMemberState memberState = partyState?.GetMemberState(instance.OwnerMemberId);
-        UnitSkillProgress progress = memberState?.progression?.GetSkillProgress(
-            instance.Setup?.SourceSkillId ?? ""
-        );
-        return progress?.GrantedSourceTypeKind ?? UnitSkillGrantSourceType.Unknown;
+        return RuntimePort?.ResolveSourceSkillGrantSourceType(
+                instance.OwnerMemberId,
+                instance.Setup?.SourceSkillId ?? ""
+            )
+            ?? UnitSkillGrantSourceType.Unknown;
     }
 
     private IEnumerable<BattleContingencyInstance> GetInstancesForMember(StringName memberId)
@@ -939,7 +961,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (fact.SourceUnitId == "" || fact.SourceUnitId == instance.OwnerUnitId)
             return false;
-        BattleState state = _runtime?.GetState();
+        BattleState state = RuntimePort?.GetBattleState();
         if (
             state == null
             || !state.TryGetUnitTyped(instance.OwnerUnitId, out BattleUnitState ownerUnit)
@@ -960,7 +982,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     {
         if (fact.SourceUnitId == "" || fact.SourceUnitId == instance.OwnerUnitId)
             return false;
-        BattleState state = _runtime?.GetState();
+        BattleState state = RuntimePort?.GetBattleState();
         if (
             state == null
             || !state.TryGetUnitTyped(instance.OwnerUnitId, out BattleUnitState ownerUnit)
@@ -979,7 +1001,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
 
     private bool IsOwnerLive(StringName ownerUnitId)
     {
-        BattleState state = _runtime?.GetState();
+        BattleState state = RuntimePort?.GetBattleState();
         return state != null
             && ownerUnitId != ""
             && state.TryGetUnitTyped(ownerUnitId, out BattleUnitState ownerUnit)
@@ -1079,12 +1101,12 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         BattleUnitState ownerUnit = FindOwnerUnit(ownerUnitId);
         if (ownerUnit == null)
             return;
-        _runtime?.RefreshBattleUnitForContingencyOverlay(ownerUnit);
+        RuntimePort?.RefreshUnitOverlay(ownerUnit);
     }
 
     private BattleUnitState FindOwnerUnit(StringName ownerUnitId)
     {
-        BattleState state = _runtime?.GetState();
+        BattleState state = RuntimePort?.GetBattleState();
         return state != null && state.TryGetUnitTyped(ownerUnitId, out BattleUnitState unitState)
             ? unitState
             : null;
@@ -1105,11 +1127,12 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         if (!_instancesById.TryGetValue(context.InstanceId, out BattleContingencyInstance instance))
             return results;
 
-        BattleState state = _runtime?.GetState();
-        BattleGridService gridService = _runtime?.GetGridService();
+        IBattleContingencyRuntimePort runtimePort = RuntimePort;
+        BattleState state = runtimePort?.GetBattleState();
+        BattleGridService gridService = runtimePort?.GetGridService();
         foreach (ContingencyStoredSpellEntryState spell in instance.Setup?.StoredSpells ?? Array.Empty<ContingencyStoredSpellEntryState>())
         {
-            SkillDefinition skillDefinition = _runtime?.GetSkillDefinitionTyped(
+            SkillDefinition skillDefinition = runtimePort?.GetSkillDefinition(
                 spell?.StoredSkillId ?? ""
             );
             ContingencyTargetResolutionResult result = _targetResolver.ResolveTarget(

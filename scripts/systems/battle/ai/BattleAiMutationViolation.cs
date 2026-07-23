@@ -5,8 +5,14 @@ using Godot;
 
 internal sealed class BattleAiMutationViolationException : InvalidOperationException
 {
-    internal BattleAiMutationViolationException(BattleAiMutationViolationReport report)
-        : base(report?.Message ?? "AI mutation guard detected an implicit state mutation.")
+    internal BattleAiMutationViolationException(
+        BattleAiMutationViolationReport report,
+        Exception innerException = null
+    )
+        : base(
+            report?.Message ?? "AI mutation guard detected an implicit state mutation.",
+            innerException
+        )
     {
         Report = report;
     }

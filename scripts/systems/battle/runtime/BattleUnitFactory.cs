@@ -364,7 +364,6 @@ internal sealed class BattleUnitFactory
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
-        us.RefreshFootprint();
     }
 
     internal void RefreshKnownSkills(BattleUnitState us)
@@ -457,7 +456,6 @@ internal sealed class BattleUnitFactory
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
-        us.RefreshFootprint();
         return changedUnitIds;
     }
 
@@ -733,10 +731,10 @@ internal sealed class BattleUnitFactory
         _sv(us, "stamina_max", stamMax);
         _sv(us, "action_points", ap);
         _sv(us, AttributeService.ATTACK_BONUS, defaults.AttackBonus);
-        _sv(us, AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
-        _sv(us, AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
-        _sv(us, AttributeService.DODGE_BONUS, defaults.DodgeBonus);
-        _sv(us, AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
+        _sv(us, AttributeContentRules.ArmorAcBonus, defaults.ArmorAcBonus);
+        _sv(us, AttributeContentRules.ShieldAcBonus, defaults.ShieldAcBonus);
+        _sv(us, AttributeContentRules.DodgeBonus, defaults.DodgeBonus);
+        _sv(us, AttributeContentRules.DeflectionBonus, defaults.DeflectionBonus);
         _sv(us, AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(_snap(us)));
         _sv(us, AttributeService.SPELL_PROFICIENCY_BONUS, defaults.SpellProficiencyBonus);
         if (defaults.Weapon.HasExplicitProjection)
@@ -834,6 +832,11 @@ internal sealed class BattleUnitFactory
             )
                 continue;
             if (
+                BattleRangeService.RequiresCurrentWeapon(skillDefinition)
+                && !BattleRangeService.UnitHasEquippedWeapon(us)
+            )
+                continue;
+            if (
                 BattleRangeService.RequiresCurrentMeleeWeapon(skillDefinition)
                 && !BattleRangeService.UnitHasMeleeWeapon(us)
             )
@@ -896,10 +899,10 @@ internal sealed class BattleUnitFactory
             snap.SetValue(AttributeService.ACTION_POINTS, defaults.ActionPoints);
             snap.SetValue(AttributeService.ACTION_THRESHOLD, defaults.ActionThreshold);
             snap.SetValue(AttributeService.ATTACK_BONUS, defaults.AttackBonus);
-            snap.SetValue(AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
-            snap.SetValue(AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
-            snap.SetValue(AttributeService.DODGE_BONUS, defaults.DodgeBonus);
-            snap.SetValue(AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
+            snap.SetValue(AttributeContentRules.ArmorAcBonus, defaults.ArmorAcBonus);
+            snap.SetValue(AttributeContentRules.ShieldAcBonus, defaults.ShieldAcBonus);
+            snap.SetValue(AttributeContentRules.DodgeBonus, defaults.DodgeBonus);
+            snap.SetValue(AttributeContentRules.DeflectionBonus, defaults.DeflectionBonus);
             snap.SetValue(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
             return snap;
         }
@@ -933,10 +936,10 @@ internal sealed class BattleUnitFactory
         snap.SetValue(AttributeService.ACTION_POINTS, defaults.ActionPoints);
         snap.SetValue(AttributeService.ACTION_THRESHOLD, defaults.ActionThreshold);
         snap.SetValue(AttributeService.ATTACK_BONUS, defaults.AttackBonus);
-        snap.SetValue(AttributeService.ARMOR_AC_BONUS, defaults.ArmorAcBonus);
-        snap.SetValue(AttributeService.SHIELD_AC_BONUS, defaults.ShieldAcBonus);
-        snap.SetValue(AttributeService.DODGE_BONUS, defaults.DodgeBonus);
-        snap.SetValue(AttributeService.DEFLECTION_BONUS, defaults.DeflectionBonus);
+        snap.SetValue(AttributeContentRules.ArmorAcBonus, defaults.ArmorAcBonus);
+        snap.SetValue(AttributeContentRules.ShieldAcBonus, defaults.ShieldAcBonus);
+        snap.SetValue(AttributeContentRules.DodgeBonus, defaults.DodgeBonus);
+        snap.SetValue(AttributeContentRules.DeflectionBonus, defaults.DeflectionBonus);
         snap.SetValue(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
         return snap;
     }
@@ -1020,7 +1023,7 @@ internal sealed class BattleUnitFactory
             + AttributeSnapshot.CalculateScoreModifier(
                 snap.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             );
-        foreach (var c in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
+        foreach (StringName c in AttributeContentRules.ArmorClassComponentAttributeIds)
             t += Mathf.Max(snap.GetValue(c), 0);
         return Mathf.Clamp(t, 1, 99);
     }

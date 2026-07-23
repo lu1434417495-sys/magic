@@ -57,6 +57,8 @@ public class BattleCommand
 
     public bool IsWait() => CommandKind == BattleCommandKind.Wait;
 
+    public bool IsInteract() => CommandKind == BattleCommandKind.Interact;
+
     public bool IsChangeEquipment() => CommandKind == BattleCommandKind.ChangeEquipment;
 
     public bool IsCancelCast() => CommandKind == BattleCommandKind.CancelCast;

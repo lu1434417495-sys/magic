@@ -330,7 +330,8 @@ public partial class BattleDamageResolver : IDisposable
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
     private BattleHitResolver _hit_resolver = new();
     private IBattleDamageApplicationHook _damage_application_hook;
-    private IBattleEquipmentAbilityReactionService _equipment_ability_runtime_service;
+    private IBattleEquipmentDamageQuery _equipment_ability_damage_query;
+    private IBattleEquipmentCombatReactionSink _equipment_ability_reaction_sink;
     private readonly BattleEquipmentDurabilityResolver _equipmentDurabilityResolver = new();
 
     internal static BattleDamagePreviewRollMode ToDamagePreviewRollMode(StringName value)
@@ -409,9 +410,13 @@ public partial class BattleDamageResolver : IDisposable
         _damage_application_hook = hook;
     }
 
-    internal void SetEquipmentAbilityRuntimeService(IBattleEquipmentAbilityReactionService service)
+    internal void SetEquipmentAbilityPorts(
+        IBattleEquipmentDamageQuery damageQuery,
+        IBattleEquipmentCombatReactionSink reactionSink
+    )
     {
-        _equipment_ability_runtime_service = service;
+        _equipment_ability_damage_query = damageQuery;
+        _equipment_ability_reaction_sink = reactionSink;
     }
 
     internal static DamageApplicationProjection ProjectDamageApplication(
@@ -428,7 +433,8 @@ public partial class BattleDamageResolver : IDisposable
     internal AttackEffectResolutionResult ResolveSkillResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        BattleState battleState = null
     )
     {
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
@@ -444,6 +450,7 @@ public partial class BattleDamageResolver : IDisposable
             FilterEffectDefinitionsForSkillLevel(combatProfile.EffectDefinitions, skillLevel),
             DamageResolutionContext
                 .ForSkill(skillDefinition.SkillId)
+                .WithBattleState(battleState)
                 .WithSourceSkillLevel(
                     Math.Max(skillLevel, 1)
                 )
@@ -571,7 +578,9 @@ public partial class BattleDamageResolver : IDisposable
             secondaryHitDcBase
         );
         DamageResolutionContext attackEffectContext =
-            DamageResolutionContext.FromDictionary(BuildAttackEffectContext(attackMetadata));
+            DamageResolutionContext
+                .FromDictionary(BuildAttackEffectContext(attackMetadata))
+                .WithBattleState(normalizedAttackContext.BattleState);
 
         AttackEffectResolutionResult resolvedResult = ApplyAttackMetadataResult(
             ResolveEffectsDefinitionCore(
@@ -632,7 +641,7 @@ public partial class BattleDamageResolver : IDisposable
             {
                 continue;
             }
-            _equipment_ability_runtime_service?.RefreshEquipmentProjectionAfterDurabilityDestruction(
+            _equipment_ability_reaction_sink?.RefreshEquipmentProjectionAfterDurabilityDestruction(
                 targetUnit,
                 batch
             );
@@ -663,10 +672,10 @@ public partial class BattleDamageResolver : IDisposable
         bool attackIncludesWeaponDamage
     )
     {
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
+        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
+            _equipment_ability_reaction_sink;
         if (
-            equipmentAbilityService == null
+            equipmentAbilityReactions == null
             || sourceUnit == null
             || targetUnit == null
             || !attackIncludesWeaponDamage
@@ -675,12 +684,12 @@ public partial class BattleDamageResolver : IDisposable
             return;
         }
 
-        equipmentAbilityService.ResolveAttackCheck(
+        equipmentAbilityReactions.ResolveAttackCheck(
             new BattleEquipmentAbilityAttackCheckContext
             {
                 SourceUnit = sourceUnit,
                 TargetUnit = targetUnit,
-                BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                BattleState = attackContext?.BattleState,
                 AttackSucceeded = attackMetadata.AttackSuccess,
                 CriticalHit = attackMetadata.CriticalHit,
                 SkillId = attackMetadata.SkillId,
@@ -713,10 +722,10 @@ public partial class BattleDamageResolver : IDisposable
         AttackEffectResolutionResult result
     )
     {
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
+        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
+            _equipment_ability_reaction_sink;
         if (
-            equipmentAbilityService == null
+            equipmentAbilityReactions == null
             || sourceUnit == null
             || targetUnit == null
             || attackMetadata.AttackSuccess != true
@@ -728,12 +737,12 @@ public partial class BattleDamageResolver : IDisposable
 
         int weaponHpDamage = ComputeWeaponHpDamage(result);
         BattleEquipmentAbilityAfterHitResult afterHitResult =
-            equipmentAbilityService.ResolveAfterHit(
+            equipmentAbilityReactions.ResolveAfterHit(
                 new BattleEquipmentAbilityAfterHitContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                    BattleState = attackContext?.BattleState,
                     AttackSucceeded = true,
                     CriticalHit = attackMetadata.CriticalHit,
                     ApplyDamageDiceActions = false,
@@ -744,12 +753,12 @@ public partial class BattleDamageResolver : IDisposable
             );
         BattleEquipmentAbilityAfterHitResult hitReceivedResult =
             targetUnit.unit_id != sourceUnit.unit_id
-                ? equipmentAbilityService.ResolveHitReceived(
+                ? equipmentAbilityReactions.ResolveHitReceived(
                     new BattleEquipmentAbilityAfterHitContext
                     {
                         SourceUnit = targetUnit,
                         TargetUnit = sourceUnit,
-                        BattleState = attackContext?.BattleState ?? equipmentAbilityService.GetBattleState(),
+                        BattleState = attackContext?.BattleState,
                         AttackSucceeded = true,
                         CriticalHit = attackMetadata.CriticalHit,
                         ApplyDamageDiceActions = false,
@@ -1644,7 +1653,8 @@ public partial class BattleDamageResolver : IDisposable
 
     internal AttackEffectResolutionResult ResolveFallDamageResult(
         BattleUnitState targetUnit,
-        int fallLayers
+        int fallLayers,
+        BattleState battleState = null
     )
     {
         if (targetUnit == null || fallLayers <= 0 || !targetUnit.is_alive)
@@ -1659,7 +1669,8 @@ public partial class BattleDamageResolver : IDisposable
         int damagePerLayer = Math.Max((maxHp + 19) / 20, 1);
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetUnit,
-            damagePerLayer * fallLayers
+            damagePerLayer * fallLayers,
+            battleState: battleState
         );
         targetUnit.SetCurrentHp(targetUnit.current_hp);
         return BuildEnvironmentalDamageResult(damageResult);
@@ -1668,7 +1679,8 @@ public partial class BattleDamageResolver : IDisposable
     private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         int rawDamage,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        BattleState battleState = null
     )
     {
         int normalizedDamage = Math.Max(rawDamage, 0);
@@ -1700,24 +1712,32 @@ public partial class BattleDamageResolver : IDisposable
                 normalizedDamage,
                 shieldAbsorptionPercent: 100.0
             ),
-            sourceUnit
+            sourceUnit,
+            DamageResolutionContext.Empty().WithBattleState(battleState)
         );
     }
 
     internal int ApplyDirectDamageToTargetTyped(
         BattleUnitState targetUnit,
         int rawDamage,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        BattleState battleState = null
     )
     {
-        return ApplyDamageToTargetResult(targetUnit, rawDamage, sourceUnit).Damage;
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            rawDamage,
+            sourceUnit,
+            battleState
+        ).Damage;
     }
 
     internal int ApplyTaggedDirectDamageToTargetTyped(
         BattleUnitState targetUnit,
         int rawDamage,
         StringName damageTag,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        BattleState battleState = null
     )
     {
         int normalizedDamage = Math.Max(rawDamage, 0);
@@ -1777,17 +1797,24 @@ public partial class BattleDamageResolver : IDisposable
                 resolvedDamage,
                 shieldAbsorptionPercent: 100.0
             ),
-            sourceUnit
+            sourceUnit,
+            DamageResolutionContext.Empty().WithBattleState(battleState)
         ).Damage;
     }
 
     internal int ApplyDirectDamageToTargetTyped(
         BattleUnitState targetUnit,
         GDictionary resolvedDamageInput,
-        BattleUnitState sourceUnit = null
+        BattleUnitState sourceUnit = null,
+        BattleState battleState = null
     )
     {
-        return ApplyDamageToTargetResult(targetUnit, resolvedDamageInput, sourceUnit).Damage;
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            DamageApplicationInput.FromDictionary(resolvedDamageInput),
+            sourceUnit,
+            DamageResolutionContext.Empty().WithBattleState(battleState)
+        ).Damage;
     }
 
     private static bool DoesEffectTrigger(
@@ -2142,7 +2169,13 @@ public partial class BattleDamageResolver : IDisposable
                     else if (TryGetBlockingDeathWard(targetUnit, applicationEvent, out _))
                     {
                         targetUnit.MarkDead();
-                        if (!TriggerLastStand(targetUnit, sourceUnit))
+                        if (
+                            !TriggerLastStand(
+                                targetUnit,
+                                sourceUnit,
+                                damageContext?.BattleState
+                            )
+                        )
                         {
                             targetUnit.MarkDead();
                         }
@@ -2160,16 +2193,16 @@ public partial class BattleDamageResolver : IDisposable
         }
 
         int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.current_hp, 0), 0);
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
-        if (actualHpDamage > 0 && sourceUnit != null && equipmentAbilityService != null)
+        IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
+            _equipment_ability_reaction_sink;
+        if (actualHpDamage > 0 && sourceUnit != null && equipmentAbilityReactions != null)
         {
-            equipmentAbilityService.ResolveDamageApplied(
+            equipmentAbilityReactions.ResolveDamageApplied(
                 new BattleEquipmentAbilityDamageAppliedContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = equipmentAbilityService.GetBattleState(),
+                    BattleState = damageContext?.BattleState,
                     HpDamage = actualHpDamage,
                 }
             );
@@ -2188,7 +2221,6 @@ public partial class BattleDamageResolver : IDisposable
     {
         if (targetUnit == null)
             return Array.Empty<Vector2I>();
-        targetUnit.RefreshFootprint();
         if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
             return Array.AsReadOnly(new[] { targetUnit.coord });
 

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
 
 public sealed partial class BattleRuntimeModule
 {
@@ -15,6 +18,52 @@ public sealed partial class BattleRuntimeModule
         _objectiveEvaluationDirty = true;
         _objectiveFlushInProgress = false;
         return _state?.InitializeObjective(objectiveDefinition) == true;
+    }
+
+    private bool TryPlaceScenarioActors(
+        IReadOnlyList<BattleScenarioActorSpawnRequest> requests
+    )
+    {
+        if (requests == null || requests.Count == 0)
+            return true;
+        var placedUnits = new List<BattleUnitState>();
+        foreach (BattleScenarioActorSpawnRequest prototype in requests)
+        {
+            if (
+                prototype?.Unit == null
+                || !BattleObjectiveRuntimeStateFactory.TryResolveEdgeZoneCoords(
+                    _state,
+                    prototype.SpawnEdge,
+                    prototype.SpawnDepth,
+                    out List<Vector2I> spawnCoords
+                )
+            )
+            {
+                _spawnPlacementService._clear_spawn_placed_units(
+                    placedUnits,
+                    true
+                );
+                return false;
+            }
+            BattleScenarioActorSpawnRequest request =
+                prototype.DuplicateForBattleStart();
+            if (
+                !_spawnPlacementService.PlaceUnitsTyped(
+                    new[] { request.Unit },
+                    spawnCoords,
+                    true
+                )
+            )
+            {
+                _spawnPlacementService._clear_spawn_placed_units(
+                    placedUnits,
+                    true
+                );
+                return false;
+            }
+            placedUnits.Add(request.Unit);
+        }
+        return true;
     }
 
     internal void BeginObjectiveMutation()
@@ -50,6 +99,243 @@ public sealed partial class BattleRuntimeModule
     internal void MarkObjectiveEvaluationDirty()
     {
         _objectiveEvaluationDirty = true;
+    }
+
+    internal void PreviewObjectiveInteraction(
+        BattleUnitReadView activeUnit,
+        BattleCommand command,
+        BattlePreview preview
+    )
+    {
+        if (preview == null)
+            return;
+        if (
+            _state?.ObjectiveRuntimeState
+                is BattleNodeOperationObjectiveRuntimeState
+        )
+        {
+            if (
+                !TryResolveNodeOperationInteraction(
+                    activeUnit.UnitId,
+                    command,
+                    out _,
+                    out BattleOperationNodeRuntimeState node,
+                    out string nodeMessage
+                )
+            )
+            {
+                preview.AddLogLine(nodeMessage);
+                return;
+            }
+            preview.allowed = true;
+            preview.AddLogLine($"可以操作 {node.DisplayName}，消耗 1 点行动力。");
+            return;
+        }
+        if (
+            !TryResolveRescueInteraction(
+                activeUnit.UnitId,
+                command,
+                out _,
+                out BattleUnitState target,
+                out string message
+            )
+        )
+        {
+            preview.AddLogLine(message);
+            return;
+        }
+        preview.allowed = true;
+        preview.AddLogLine($"可以解救 {target.display_name}，消耗 1 点行动力。");
+    }
+
+    internal void HandleObjectiveInteraction(
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        BattleEventBatch batch
+    )
+    {
+        if (batch == null)
+            return;
+        if (
+            _state?.ObjectiveRuntimeState
+                is BattleNodeOperationObjectiveRuntimeState
+        )
+        {
+            HandleNodeOperationInteraction(activeUnit, command, batch);
+            return;
+        }
+        if (
+            !TryResolveRescueInteraction(
+                activeUnit?.unit_id ?? "",
+                command,
+                out BattleRescueObjectiveRuntimeState rescueObjective,
+                out BattleUnitState target,
+                out string message
+            )
+        )
+        {
+            batch.AddLogLine(message);
+            return;
+        }
+        if (!rescueObjective.TrySecureTarget())
+        {
+            batch.AddLogLine($"{target.display_name} 已经获救。");
+            return;
+        }
+        activeUnit.current_ap = Math.Max(activeUnit.current_ap - 1, 0);
+        _record_action_issued(
+            activeUnit,
+            BattleTypedNames.ToStringName(BattleCommandKind.Interact),
+            1
+        );
+        batch.AddChangedUnitId(activeUnit.unit_id);
+        batch.MarkChanged(BattleChangeFlags.Objective);
+        batch.AddLogLine($"{activeUnit.display_name} 解救了 {target.display_name}。");
+        MarkObjectiveEvaluationDirty();
+    }
+
+    private void HandleNodeOperationInteraction(
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            !TryResolveNodeOperationInteraction(
+                activeUnit?.unit_id ?? "",
+                command,
+                out BattleNodeOperationObjectiveRuntimeState objective,
+                out BattleOperationNodeRuntimeState node,
+                out string message
+            )
+        )
+        {
+            batch.AddLogLine(message);
+            return;
+        }
+        if (!objective.TryCompleteNode(node.NodeId))
+        {
+            batch.AddLogLine($"{node.DisplayName} 已经完成作业。");
+            return;
+        }
+
+        activeUnit.current_ap = Math.Max(activeUnit.current_ap - 1, 0);
+        _record_action_issued(
+            activeUnit,
+            BattleTypedNames.ToStringName(BattleCommandKind.Interact),
+            1
+        );
+        batch.AddChangedUnitId(activeUnit.unit_id);
+        batch.MarkChanged(BattleChangeFlags.Objective);
+        batch.AddLogLine(
+            $"{activeUnit.display_name} 完成了 {node.DisplayName} 的节点作业。"
+        );
+        MarkObjectiveEvaluationDirty();
+    }
+
+    private bool TryResolveNodeOperationInteraction(
+        StringName activeUnitId,
+        BattleCommand command,
+        out BattleNodeOperationObjectiveRuntimeState objective,
+        out BattleOperationNodeRuntimeState node,
+        out string message
+    )
+    {
+        objective = _state?.ObjectiveRuntimeState
+            as BattleNodeOperationObjectiveRuntimeState;
+        node = null;
+        message = "当前没有可执行的目标交互。";
+        if (_state == null || objective == null || command == null)
+            return false;
+        if (_state.active_unit_id != activeUnitId)
+        {
+            message = "只有当前行动单位能够执行节点作业。";
+            return false;
+        }
+        BattleUnitState activeUnit = _state.GetUnit(activeUnitId);
+        if (
+            activeUnit?.is_alive != true
+            || activeUnit.current_ap <= 0
+            || activeUnit.source_member_id == ""
+            || !objective.RequiredPartyUnitIds.Contains(activeUnit.unit_id)
+        )
+        {
+            message = "只有仍可行动的初始持久队员能够执行节点作业。";
+            return false;
+        }
+        if (!objective.TryGetNodeAtCoord(command.target_coord, out node))
+        {
+            message = "该位置没有可操作的任务节点。";
+            return false;
+        }
+        if (node.IsCompleted)
+        {
+            message = $"{node.DisplayName} 已经完成作业。";
+            return false;
+        }
+        if (
+            BattleGridDistanceService.GetDistanceFromUnitToCoord(
+                activeUnit,
+                node.Coord
+            ) > 1
+        )
+        {
+            message = $"需要移动到 {node.DisplayName} 同格或相邻位置才能操作。";
+            return false;
+        }
+        return true;
+    }
+
+    private bool TryResolveRescueInteraction(
+        StringName activeUnitId,
+        BattleCommand command,
+        out BattleRescueObjectiveRuntimeState rescueObjective,
+        out BattleUnitState target,
+        out string message
+    )
+    {
+        rescueObjective = _state?.ObjectiveRuntimeState
+            as BattleRescueObjectiveRuntimeState;
+        target = null;
+        message = "当前没有可执行的目标交互。";
+        if (_state == null || rescueObjective == null || command == null)
+            return false;
+        if (_state.active_unit_id != activeUnitId)
+        {
+            message = "只有当前行动单位能够执行解救。";
+            return false;
+        }
+        if (rescueObjective.TargetSecured)
+        {
+            message = "救援目标已经获救。";
+            return false;
+        }
+        BattleUnitState activeUnit = _state.GetUnit(activeUnitId);
+        target = _state.GetUnit(rescueObjective.TargetUnitId);
+        if (
+            activeUnit?.is_alive != true
+            || activeUnit.current_ap <= 0
+            || !rescueObjective.RequiredPartyUnitIds.Contains(activeUnit.unit_id)
+            || activeUnit.source_member_id == ""
+        )
+        {
+            message = "只有仍可行动的初始持久队员能够执行解救。";
+            return false;
+        }
+        if (
+            target?.is_alive != true
+            || command.target_unit_id != rescueObjective.TargetUnitId
+        )
+        {
+            message = "救援目标无效或已经倒下。";
+            return false;
+        }
+        if (BattleGridDistanceService.GetDistanceBetweenUnits(activeUnit, target) > 1)
+        {
+            message = $"需要移动到 {target.display_name} 相邻位置才能解救。";
+            return false;
+        }
+        return true;
     }
 
     internal BattleOutcomeFlushResult FlushBattleOutcomeEvaluation(

@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiGenerationSlotDef.cs" id="8_slot"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionRuleDef.cs" id="9_transition_rule"]
 [ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionConditionDef.cs" id="10_transition_condition"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseGroundSkillAction.cs" id="11_ground"]
 
 [sub_resource type="Resource" id="Action_engage_charge"]
 script = ExtResource("3_charge")
@@ -19,13 +20,14 @@ skill_id = &"charge"
 target_selector = &"nearest_enemy"
 
 [sub_resource type="Resource" id="Action_engage_taunt"]
-script = ExtResource("4_unit")
+script = ExtResource("11_ground")
 action_id = &"vanguard_taunt_open"
+score_bucket_id = &"frontline_guard"
 skill_ids = Array[StringName]([&"warrior_taunt"])
-target_selector = &"nearest_enemy"
+minimum_hit_count = 1
 desired_min_distance = 1
 desired_max_distance = 1
-distance_reference = &"target_unit"
+distance_reference = &"target_coord"
 
 [sub_resource type="Resource" id="Action_engage_move"]
 script = ExtResource("5_move")
@@ -105,13 +107,14 @@ desired_max_distance = 1
 distance_reference = &"target_unit"
 
 [sub_resource type="Resource" id="Action_pressure_taunt"]
-script = ExtResource("4_unit")
+script = ExtResource("11_ground")
 action_id = &"vanguard_taunt_pressure"
+score_bucket_id = &"frontline_guard"
 skill_ids = Array[StringName]([&"warrior_taunt"])
-target_selector = &"nearest_enemy"
+minimum_hit_count = 1
 desired_min_distance = 1
 desired_max_distance = 1
-distance_reference = &"target_unit"
+distance_reference = &"target_coord"
 
 [sub_resource type="Resource" id="Action_pressure_move"]
 script = ExtResource("5_move")

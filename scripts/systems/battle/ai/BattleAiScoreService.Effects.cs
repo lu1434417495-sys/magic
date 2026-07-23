@@ -1724,7 +1724,6 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        unitState.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unitState.occupied_coords)
         {
             BattleCellState cell = gridService.GetCellState(state, occupiedCoord);
@@ -1759,8 +1758,6 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        primaryTarget.RefreshFootprint();
-        candidate.RefreshFootprint();
         foreach (Vector2I primaryCoord in primaryTarget.occupied_coords)
         {
             foreach (Vector2I candidateCoord in candidate.occupied_coords)
@@ -1818,8 +1815,6 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        sourceUnit.RefreshFootprint();
-        targetUnit.RefreshFootprint();
         foreach (Vector2I sourceCoord in sourceUnit.occupied_coords)
         {
             BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);

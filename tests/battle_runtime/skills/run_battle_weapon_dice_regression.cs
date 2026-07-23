@@ -39,6 +39,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         RunCase("TestDiceEventFieldsSplitByDiceGroup", TestDiceEventFieldsSplitByDiceGroup);
         RunCase("TestDiceEventFieldsStayFalseWithoutDiceGroups", TestDiceEventFieldsStayFalseWithoutDiceGroups);
         RunCase("TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate", TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate);
+        RunCase("TestWarriorHeavyStrikeWeaponAndArmorBreakContract", TestWarriorHeavyStrikeWeaponAndArmorBreakContract);
 
         return _test.Finish("Battle weapon dice regression");
     }
@@ -861,6 +862,102 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         }
     }
 
+    private void TestWarriorHeavyStrikeWeaponAndArmorBreakContract()
+    {
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
+        skillDefinitions.TryGetValue("warrior_heavy_strike", out SkillDefinition skillDefinition);
+        _test.True(
+            skillDefinition?.CombatProfile != null,
+            "重击武器与破甲契约回归需要加载正式技能配置。"
+        );
+        if (skillDefinition?.CombatProfile == null)
+        {
+            return;
+        }
+
+        var armorBreakEffects = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
+        {
+            if (effect?.EffectType == "status" && effect.StatusId == "armor_break")
+            {
+                armorBreakEffects.Add(effect);
+            }
+        }
+        _test.Eq(armorBreakEffects.Count, 3, "重击应有 3级、4级、5级 三段破甲效果。");
+        AssertArmorBreakEffect(armorBreakEffects, 3, 3, 40);
+        AssertArmorBreakEffect(armorBreakEffects, 4, 4, 70);
+        AssertArmorBreakEffect(armorBreakEffects, 5, -1, 120);
+
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            null,
+            new Dictionary<StringName, SkillDefinition>
+            {
+                [skillDefinition.SkillId] = skillDefinition,
+            }
+        );
+        BattleUnitState attacker = BuildUnit("heavy_strike_weapon_gate_user");
+        attacker.current_stamina = 100;
+
+        ApplyWeapon(attacker, 1, 6, 0, "bow", 3, "ranged");
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            "装备 ranged 类型弓时，melee 重击应在正式施放门禁被拒绝。"
+        );
+
+        ApplyWeapon(attacker, 1, 10, 0, "firearm", 5, "ranged");
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            "未来新增的 ranged 武器家族也应自动被 melee 重击拒绝。"
+        );
+
+        ApplyWeapon(attacker, 1, 8, 0, "sword", 1, "melee");
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.None,
+            "装备近战剑时重击应保持可用。"
+        );
+
+        skillDefinitions.TryGetValue("archer_aimed_shot", out SkillDefinition aimedShotDefinition);
+        _test.True(aimedShotDefinition?.CombatProfile != null, "弓系正向门禁回归需要加载精准射击。");
+        if (aimedShotDefinition?.CombatProfile != null)
+        {
+            ApplyWeapon(attacker, 1, 6, 0, "bow", 3, "ranged");
+            _test.Eq(
+                runtime.GetSkillCastBlockReason(attacker, aimedShotDefinition),
+                BattleSkillCastBlockReasonKind.None,
+                "弓系技能的 required_weapon_families 不应被近战类型门禁误伤。"
+            );
+        }
+    }
+
+    private void AssertArmorBreakEffect(
+        IReadOnlyList<CombatEffectDefinition> effects,
+        int minSkillLevel,
+        int maxSkillLevel,
+        int durationTu
+    )
+    {
+        CombatEffectDefinition match = null;
+        foreach (CombatEffectDefinition effect in effects)
+        {
+            if (effect.MinSkillLevel == minSkillLevel)
+            {
+                match = effect;
+                break;
+            }
+        }
+        _test.True(match != null, $"重击应包含 {minSkillLevel}级 破甲效果。");
+        if (match == null)
+        {
+            return;
+        }
+        _test.Eq(match.MaxSkillLevel, maxSkillLevel, $"{minSkillLevel}级 破甲等级窗口应正确。");
+        _test.Eq(match.DurationTu, durationTu, $"{minSkillLevel}级 破甲持续时间应正确。");
+    }
+
     private static CombatEffectDefinition BuildDamageEffect(
         int power,
         bool addWeaponDice,
@@ -1024,7 +1121,15 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         return unit;
     }
 
-    private static void ApplyWeapon(BattleUnitState unit, int diceCount, int diceSides, int flatBonus)
+    private static void ApplyWeapon(
+        BattleUnitState unit,
+        int diceCount,
+        int diceSides,
+        int flatBonus,
+        StringName weaponFamily = default,
+        int attackRange = 1,
+        StringName weaponRangeType = default
+    )
     {
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
@@ -1032,8 +1137,13 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
                 weapon_item_id = "weapon_dice_test_weapon",
                 weapon_profile_type_id = "test_weapon",
+                weapon_family = weaponFamily,
+                weapon_range_type =
+                    weaponRangeType == default || weaponRangeType == ""
+                        ? new StringName("melee")
+                        : weaponRangeType,
                 weapon_current_grip = BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
-                weapon_attack_range = 1,
+                weapon_attack_range = attackRange,
                 weapon_one_handed_dice = new WeaponDice
                 {
                     dice_count = diceCount,

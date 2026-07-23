@@ -37,18 +37,6 @@ internal sealed class BattleAiChargeActionEvaluator
         }
     }
 
-    private readonly struct ChargeDistanceBreakpoint
-    {
-        public readonly int Level;
-        public readonly int Distance;
-
-        public ChargeDistanceBreakpoint(int level, int distance)
-        {
-            Level = level;
-            Distance = distance;
-        }
-    }
-
     internal BattleAiDecision Evaluate(
         UseChargeActionDefinition action,
         BattleAiContext context
@@ -111,203 +99,214 @@ internal sealed class BattleAiChargeActionEvaluator
             return null;
         }
 
-        BattleUnitState focusTarget = targets[0];
         BattleUnitState actor = context.unit_state;
-        int focusTargetDistance = DistanceBetweenUnits(context, actor, focusTarget);
-        if (actionTrace != null)
+        foreach (BattleUnitState focusTarget in targets)
         {
-            actionTrace.Metadata["focus_target_distance"] = focusTargetDistance;
-            actionTrace.Metadata["minimum_charge_move_distance"] =
-                action.MinimumChargeMoveDistance;
-        }
-        BattleAiDecision bestDecision = null;
-        BattleAiScoreInput bestScoreInput = null;
-        int bestFallbackScore = -999999;
-        var chargeInfoCache = new Dictionary<Vector2I, ChargeTargetInfo>();
-        var focusDistanceByAnchor = new Dictionary<Vector2I, int>();
-
-        ChargeTargetInfo ResolveChargeInfo(Vector2I targetCoord)
-        {
-            if (chargeInfoCache.TryGetValue(targetCoord, out ChargeTargetInfo cachedInfo))
-                return cachedInfo;
-            ChargeTargetInfo resolvedInfo = ResolveChargeTargetInfo(actor, targetCoord);
-            chargeInfoCache[targetCoord] = resolvedInfo;
-            return resolvedInfo;
-        }
-
-        int DistanceFromAnchorToFocus(Vector2I anchorCoord)
-        {
-            if (focusDistanceByAnchor.TryGetValue(anchorCoord, out int cachedDistance))
-                return cachedDistance;
-            int distance = DistanceFromAnchorToUnit(context, actor, anchorCoord, focusTarget);
-            focusDistanceByAnchor[anchorCoord] = distance;
-            return distance;
-        }
-
-        List<CombatCastVariantDefinition> groundOptions;
-        using (new BattleAiTraceSpan("charge:get_ground_options"))
-        {
-            groundOptions = GetGroundOptionDefinitions(
-                context,
-                skillDefinition,
-                skillEntry.SkillLevel
-            );
-        }
-        foreach (CombatCastVariantDefinition castVariant in groundOptions)
-        {
-            if (castVariant == null || !IsChargeOption(castVariant))
+            if (focusTarget == null)
                 continue;
-
-            string variantLabel = EnemyAiActionHelper.FormatSkillVariantLabel(
-                skillDefinition,
-                castVariant
-            );
-            using BattleAiTraceSpan variantTrace = new("charge:evaluate_variant");
-            foreach (Vector2I targetCoord in EnumerateChargeTargetCoords(
-                context,
-                actor,
-                castVariant
-            ))
+            int focusTargetDistance = DistanceBetweenUnits(context, actor, focusTarget);
+            if (actionTrace != null)
             {
-                TraceCountIncrement(actionTrace, "evaluation_count", 1);
-                ChargeTargetInfo chargeInfo = ResolveChargeInfo(targetCoord);
-                if (!chargeInfo.Valid)
-                    continue;
+                actionTrace.Metadata["focus_target_distance"] = focusTargetDistance;
+                actionTrace.Metadata["minimum_charge_move_distance"] =
+                    action.MinimumChargeMoveDistance;
+            }
+            BattleAiDecision bestDecision = null;
+            BattleAiScoreInput bestScoreInput = null;
+            int bestFallbackScore = -999999;
+            var chargeInfoCache = new Dictionary<Vector2I, ChargeTargetInfo>();
+            var focusDistanceByAnchor = new Dictionary<Vector2I, int>();
 
-                int predictedDistance = DistanceFromAnchorToFocus(chargeInfo.PredictedAnchor);
-                if (predictedDistance >= focusTargetDistance)
-                {
-                    TraceAddBlockReason(actionTrace, "charge_does_not_close_focus_target");
-                    continue;
-                }
+            ChargeTargetInfo ResolveChargeInfo(Vector2I targetCoord)
+            {
+                if (chargeInfoCache.TryGetValue(targetCoord, out ChargeTargetInfo cachedInfo))
+                    return cachedInfo;
+                ChargeTargetInfo resolvedInfo = ResolveChargeTargetInfo(actor, targetCoord);
+                chargeInfoCache[targetCoord] = resolvedInfo;
+                return resolvedInfo;
+            }
 
-                string shortBlock = ResolveShortChargeBlockReason(
-                    action,
+            int DistanceFromAnchorToFocus(Vector2I anchorCoord)
+            {
+                if (focusDistanceByAnchor.TryGetValue(anchorCoord, out int cachedDistance))
+                    return cachedDistance;
+                int distance = DistanceFromAnchorToUnit(context, actor, anchorCoord, focusTarget);
+                focusDistanceByAnchor[anchorCoord] = distance;
+                return distance;
+            }
+
+            List<CombatCastVariantDefinition> groundOptions;
+            using (new BattleAiTraceSpan("charge:get_ground_options"))
+            {
+                groundOptions = GetGroundOptionDefinitions(
                     context,
-                    chargeInfo.PredictedAnchor,
-                    chargeInfo.Distance,
-                    focusTargetDistance
+                    skillDefinition,
+                    skillEntry.SkillLevel
                 );
-                if (shortBlock.Length > 0)
-                {
-                    TraceAddBlockReason(actionTrace, shortBlock);
+            }
+            foreach (CombatCastVariantDefinition castVariant in groundOptions)
+            {
+                if (castVariant == null || !IsChargeOption(castVariant))
                     continue;
-                }
 
-                BattleCommand command = BuildGroundSkillCommand(
+                string variantLabel = EnemyAiActionHelper.FormatSkillVariantLabel(
+                    skillDefinition,
+                    castVariant
+                );
+                using BattleAiTraceSpan variantTrace = new("charge:evaluate_variant");
+                foreach (Vector2I targetCoord in EnumerateChargeTargetCoords(
                     context,
-                    skillEntry,
-                    castVariant.VariantId,
-                    new[] { targetCoord }
-                );
-                BattlePreview preview;
-                using (new BattleAiTraceSpan("charge:formal_preview"))
-                    preview = context.PreviewCommand(command);
-                preview ??= BuildFastChargePreview(command, chargeInfo, targetCoord);
-                if (preview?.allowed != true)
+                    actor,
+                    castVariant,
+                    skillDefinition.CombatProfile.GetEffectiveRangeValue(skillEntry.SkillLevel)
+                ))
                 {
-                    TraceCountIncrement(actionTrace, "preview_reject_count", 1);
-                    continue;
-                }
+                    TraceCountIncrement(actionTrace, "evaluation_count", 1);
+                    ChargeTargetInfo chargeInfo = ResolveChargeInfo(targetCoord);
+                    if (!chargeInfo.Valid)
+                        continue;
 
-                Vector2I resolvedAnchor = preview.resolved_anchor_coord;
-                if (resolvedAnchor == new Vector2I(-1, -1))
-                    resolvedAnchor = actor.coord;
-                int resolvedDistance = DistanceFromAnchorToFocus(resolvedAnchor);
-                int resolvedMoveDistance =
-                    context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
-                string resolvedShortBlock = ResolveShortChargeBlockReason(
-                    action,
-                    context,
-                    resolvedAnchor,
-                    resolvedMoveDistance,
-                    focusTargetDistance
-                );
-                if (resolvedShortBlock.Length > 0)
-                {
-                    TraceAddBlockReason(actionTrace, resolvedShortBlock);
-                    continue;
-                }
+                    int predictedDistance = DistanceFromAnchorToFocus(chargeInfo.PredictedAnchor);
+                    if (predictedDistance >= focusTargetDistance)
+                    {
+                        TraceAddBlockReason(actionTrace, "charge_does_not_close_focus_target");
+                        continue;
+                    }
 
-                BattleAiScoreInput scoreInput;
-                using (new BattleAiTraceSpan("charge:formal_score_input"))
-                {
-                    scoreInput = BuildChargeScoreInput(
+                    string shortBlock = ResolveShortChargeBlockReason(
                         action,
                         context,
-                        skillDefinition,
-                        command,
-                        preview,
-                        castVariant,
-                        focusTarget,
+                        chargeInfo.PredictedAnchor,
+                        chargeInfo.Distance,
+                        focusTargetDistance
+                    );
+                    if (shortBlock.Length > 0)
+                    {
+                        TraceAddBlockReason(actionTrace, shortBlock);
+                        continue;
+                    }
+
+                    BattleCommand command = BuildGroundSkillCommand(
+                        context,
+                        skillEntry,
+                        castVariant.VariantId,
+                        new[] { targetCoord }
+                    );
+                    BattlePreview preview;
+                    using (new BattleAiTraceSpan("charge:formal_preview"))
+                        preview = context.PreviewCommand(command);
+                    preview ??= BuildFastChargePreview(command, chargeInfo, targetCoord);
+                    if (preview?.allowed != true)
+                    {
+                        TraceCountIncrement(actionTrace, "preview_reject_count", 1);
+                        continue;
+                    }
+
+                    Vector2I resolvedAnchor = preview.resolved_anchor_coord;
+                    if (resolvedAnchor == new Vector2I(-1, -1))
+                        resolvedAnchor = actor.coord;
+                    int resolvedDistance = DistanceFromAnchorToFocus(resolvedAnchor);
+                    int resolvedMoveDistance =
+                        context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
+                    string resolvedShortBlock = ResolveShortChargeBlockReason(
+                        action,
+                        context,
                         resolvedAnchor,
                         resolvedMoveDistance,
-                        variantLabel
+                        focusTargetDistance
                     );
-                }
-                if (actionTrace != null)
-                {
-                    TraceOfferCandidate(
-                        actionTrace,
-                        EnemyAiActionHelper.BuildCandidateSummary(
-                            $"{variantLabel}->{focusTarget.display_name}",
+                    if (resolvedShortBlock.Length > 0)
+                    {
+                        TraceAddBlockReason(actionTrace, resolvedShortBlock);
+                        continue;
+                    }
+
+                    BattleAiScoreInput scoreInput;
+                    using (new BattleAiTraceSpan("charge:formal_score_input"))
+                    {
+                        scoreInput = BuildChargeScoreInput(
+                            action,
+                            context,
+                            skillDefinition,
+                            command,
+                            preview,
+                            castVariant,
+                            focusTarget,
+                            resolvedAnchor,
+                            resolvedMoveDistance,
+                            variantLabel
+                        );
+                    }
+                    if (actionTrace != null)
+                    {
+                        TraceOfferCandidate(
+                            actionTrace,
+                            EnemyAiActionHelper.BuildCandidateSummary(
+                                $"{variantLabel}->{focusTarget.display_name}",
+                                command,
+                                scoreInput,
+                                new Dictionary<string, object>(StringComparer.Ordinal)
+                                {
+                                    ["resolved_anchor_coord"] = resolvedAnchor,
+                                    ["resolved_distance"] = resolvedDistance,
+                                    ["resolved_move_distance"] = resolvedMoveDistance,
+                                }
+                            )
+                        );
+                    }
+
+                    if (scoreInput != null)
+                    {
+                        if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                            continue;
+                        bestScoreInput = scoreInput;
+                        bestDecision = EnemyAiActionHelper.CreateScoredDecision(
+                            action.ActionId,
+                            action.ScoreBucketId,
                             command,
                             scoreInput,
-                            new Dictionary<string, object>(StringComparer.Ordinal)
-                            {
-                                ["resolved_anchor_coord"] = resolvedAnchor,
-                                ["resolved_distance"] = resolvedDistance,
-                                ["resolved_move_distance"] = resolvedMoveDistance,
-                            }
-                        )
-                    );
-                }
-
-                if (scoreInput != null)
-                {
-                    if (!BattleAiDecisionEngine.IsBetterScoreInputTyped(scoreInput, bestScoreInput))
+                            $"{actor.display_name} 准备用冲锋逼近 {focusTarget.display_name}（评分 {ScoreTotal(scoreInput)}）。"
+                        );
                         continue;
-                    bestScoreInput = scoreInput;
-                    bestDecision = EnemyAiActionHelper.CreateScoredDecision(
+                    }
+
+                    int movedDistance =
+                        context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
+                    int fallbackScore = 1000 - resolvedDistance * 100 + movedDistance;
+                    if (fallbackScore <= bestFallbackScore)
+                        continue;
+                    bestFallbackScore = fallbackScore;
+                    bestDecision = EnemyAiActionHelper.CreateDecision(
                         action.ActionId,
                         action.ScoreBucketId,
                         command,
-                        scoreInput,
-                        $"{actor.display_name} 准备用冲锋逼近 {focusTarget.display_name}（评分 {ScoreTotal(scoreInput)}）。"
+                        $"{actor.display_name} 准备用冲锋逼近 {focusTarget.display_name}。"
                     );
-                    continue;
                 }
+            }
 
-                int movedDistance =
-                    context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
-                int fallbackScore = 1000 - resolvedDistance * 100 + movedDistance;
-                if (fallbackScore <= bestFallbackScore)
-                    continue;
-                bestFallbackScore = fallbackScore;
-                bestDecision = EnemyAiActionHelper.CreateDecision(
-                    action.ActionId,
-                    action.ScoreBucketId,
-                    command,
-                    $"{actor.display_name} 准备用冲锋逼近 {focusTarget.display_name}。"
-                );
+            if (bestDecision != null)
+            {
+                FinalizeActionTrace(context, actionTrace, bestDecision);
+                return bestDecision;
             }
         }
 
-        FinalizeActionTrace(context, actionTrace, bestDecision);
-        return bestDecision;
+        FinalizeActionTrace(context, actionTrace);
+        return null;
     }
 
     private static IEnumerable<Vector2I> EnumerateChargeTargetCoords(
         BattleAiContext context,
         BattleUnitState unitState,
-        CombatCastVariantDefinition castVariant
+        CombatCastVariantDefinition castVariant,
+        int maxDistance
     )
     {
         if (context?.grid_service == null || context.state == null || unitState == null || castVariant == null)
             yield break;
 
-        unitState.RefreshFootprint();
-        int maxDistance = ResolveChargeMaxDistance(unitState, castVariant);
+        maxDistance = Math.Max(maxDistance, 0);
         if (maxDistance <= 0)
             yield break;
 
@@ -335,64 +334,11 @@ internal sealed class BattleAiChargeActionEvaluator
         }
     }
 
-    private static int ResolveChargeMaxDistance(
-        BattleUnitState unitState,
-        CombatCastVariantDefinition castVariant
-    )
-    {
-        CombatEffectDefinition chargeEffect = null;
-        foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
-        {
-            if (effectDefinition != null && effectDefinition.EffectKind == BattleEffectKind.Charge)
-            {
-                chargeEffect = effectDefinition;
-                break;
-            }
-        }
-        if (chargeEffect == null)
-            return 0;
-
-        int maxDistance = Math.Max(chargeEffect.GetIntParamTyped("base_distance", 3), 0);
-        int skillLevel = GetSkillLevel(
-            unitState,
-            chargeEffect.GetStringNameParamTyped("skill_id", "charge")
-        );
-        foreach (ChargeDistanceBreakpoint breakpoint in ReadDistanceBreakpoints(chargeEffect))
-        {
-            if (skillLevel >= breakpoint.Level)
-                maxDistance = Math.Max(maxDistance, breakpoint.Distance);
-        }
-        return maxDistance;
-    }
-
-    private static List<ChargeDistanceBreakpoint> ReadDistanceBreakpoints(
-        CombatEffectDefinition chargeEffect
-    )
-    {
-        var result = new List<ChargeDistanceBreakpoint>();
-        IReadOnlyDictionary<string, object> distanceByLevel = ReadDictionary(
-            chargeEffect?.Parameters,
-            "distance_by_level"
-        );
-        foreach (KeyValuePair<string, object> entry in distanceByLevel)
-        {
-            if (!int.TryParse(entry.Key, out int levelBreakpoint))
-                continue;
-            int distance = ReadInt(entry.Value, -1);
-            if (distance < 0)
-                continue;
-            result.Add(new ChargeDistanceBreakpoint(levelBreakpoint, distance));
-        }
-        result.Sort((left, right) => left.Level.CompareTo(right.Level));
-        return result;
-    }
-
     private static ChargeTargetInfo ResolveChargeTargetInfo(BattleUnitState unitState, Vector2I targetCoord)
     {
         if (unitState == null)
             return new ChargeTargetInfo(false, 0, Vector2I.Zero, new Vector2I(-1, -1));
 
-        unitState.RefreshFootprint();
         int minX = unitState.coord.X;
         int maxX = unitState.coord.X + unitState.footprint_size.X - 1;
         int minY = unitState.coord.Y;
@@ -717,25 +663,11 @@ internal sealed class BattleAiChargeActionEvaluator
         if (context?.grid_service == null || actor == null || target == null)
             return 999999;
         BattleGridService grid = context.grid_service;
-        actor.RefreshFootprint();
-        target.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
-        foreach (Vector2I targetCoord in target.occupied_coords)
-            bestDistance = Math.Min(bestDistance, grid.GetDistance(sourceCoord, targetCoord));
+            foreach (Vector2I targetCoord in target.occupied_coords)
+                bestDistance = Math.Min(bestDistance, grid.GetDistance(sourceCoord, targetCoord));
         return bestDistance;
-    }
-
-    private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
-    {
-        if (unitState == null || skillId == "")
-            return 0;
-        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
-        return knownSkillLevel > 0
-            ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
-                ? 1
-                : 0;
     }
 
     private static AiActionTrace BeginActionTrace(
@@ -778,39 +710,6 @@ internal sealed class BattleAiChargeActionEvaluator
         AiActionTrace actionTrace,
         BattleAiDecision bestDecision = null
     ) => EnemyAiActionHelper.FinalizeActionTrace(context, actionTrace, bestDecision);
-
-    private static IReadOnlyDictionary<string, object> ReadDictionary(
-        IReadOnlyDictionary<string, object> data,
-        string key
-    )
-    {
-        if (
-            data != null
-            && !string.IsNullOrEmpty(key)
-            && data.TryGetValue(key, out object value)
-            && value is IReadOnlyDictionary<string, object> dictionary
-        )
-        {
-            return dictionary;
-        }
-        return EmptyParameters;
-    }
-
-    private static int ReadInt(object value, int fallback = 0)
-    {
-        return value switch
-        {
-            byte byteValue => byteValue,
-            short shortValue => shortValue,
-            int intValue => intValue,
-            long longValue when longValue >= int.MinValue && longValue <= int.MaxValue =>
-                (int)longValue,
-            _ => fallback,
-        };
-    }
-
-    private static readonly IReadOnlyDictionary<string, object> EmptyParameters =
-        new Dictionary<string, object>(StringComparer.Ordinal);
 
     private static Dictionary<string, object> CloneMetadata(
         IReadOnlyDictionary<string, object> source

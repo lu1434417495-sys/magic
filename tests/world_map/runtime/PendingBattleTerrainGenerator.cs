@@ -8,6 +8,8 @@ public partial class PendingBattleTerrainGenerator : BattleTerrainGenerator
 
     private int _generateCallCount;
 
+    internal override bool EmptyGenerationIsPending => true;
+
     internal override GodotProjectionLease<GDictionary> GenerateLease(
         EncounterAnchorData encounterAnchor,
         long seed,

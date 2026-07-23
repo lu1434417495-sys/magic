@@ -138,10 +138,10 @@ public partial class BattleDamageResolver
         DamageResolutionContext damageContext
     )
     {
-        IBattleEquipmentAbilityReactionService equipmentAbilityService =
-            _equipment_ability_runtime_service;
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
         if (
-            equipmentAbilityService == null
+            equipmentAbilityDamageQuery == null
             || sourceUnit == null
             || targetUnit == null
             || damageTag == ""
@@ -151,12 +151,12 @@ public partial class BattleDamageResolver
         }
 
         IReadOnlyList<BattleEquipmentAbilityDamageReductionResult> reductions =
-            equipmentAbilityService.CollectDamageReductions(
+            equipmentAbilityDamageQuery.CollectDamageReductions(
                 new BattleEquipmentAbilityDamageReductionContext
                 {
                     SourceUnit = sourceUnit,
                     TargetUnit = targetUnit,
-                    BattleState = equipmentAbilityService.GetBattleState(),
+                    BattleState = damageContext?.BattleState,
                     DamageTag = damageTag,
                     AttackSucceeded = damageContext?.AttackSuccess == true,
                     CriticalHit = damageContext?.CriticalHit == true,

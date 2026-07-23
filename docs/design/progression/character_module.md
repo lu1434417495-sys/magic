@@ -1,9 +1,9 @@
 # 角色成长与 CharacterManagement 模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-23`
+> 核对日期：`2026-07-24`
 
-更新日期：`2026-07-23`
+更新日期：`2026-07-24`
 
 ## 目标与边界
 
@@ -76,6 +76,7 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 - 成功转职写 UnitProfessionProgress、授予技能/属性/奖励，并清 pending prompt。
 - mastery reward 进入 PendingCharacterReward 队列；确认奖励后再写 party state。
 - reward 队列真源在 PartyState，不能只放 WorldMapSystem 内存。
+- `PendingCharacterReward` / `PendingCharacterRewardEntry` 是 `scripts/player/progression/` 下的 Party save graph DTO；progression service 只负责生成、应用和编排奖励，不拥有这两个持久数据类型。
 
 ## 任务与成就
 
@@ -197,7 +198,7 @@ AchievementProgressState 记录 progress、unlocked、claimed/reward state。事
 
 ## 实现级补充：奖励队列
 
-PendingCharacterReward 必须可序列化到 PartyState。奖励确认流程：
+PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化；源码物理迁移不得改变 PartyState v7、顶层 SaveVersion、类型名、字段或 payload key。奖励确认流程：
 
 1. peek active reward。
 2. UI 展示 reward choices。

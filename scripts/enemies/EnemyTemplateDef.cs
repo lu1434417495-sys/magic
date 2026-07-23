@@ -299,6 +299,7 @@ public partial class EnemyTemplateDef : Resource
         }
         if (display_name.StripEdges().Length == 0)
             errors.Add($"Enemy template {template_id} is missing display_name.");
+        EnemyAiBrainDef resolvedBrainForCompatibility = null;
         if (brain_id == "")
             errors.Add($"Enemy template {template_id} is missing brain_id.");
         else
@@ -307,6 +308,7 @@ public partial class EnemyTemplateDef : Resource
             var brain = knownBrains.TryGetValue(brain_id, out EnemyAiBrainDef resolvedBrain)
                 ? resolvedBrain
                 : null;
+            resolvedBrainForCompatibility = brain;
             if (brain == null)
                 errors.Add($"Enemy template {template_id} references missing brain {brain_id}.");
             else if (initial_state_id != "" && !brain.HasState(initial_state_id))
@@ -369,6 +371,14 @@ public partial class EnemyTemplateDef : Resource
         foreach (var e in _validate_template_skill_ids(skillDefinitions))
             errors.Add(e);
         foreach (var e in _validate_template_skill_level_map(skillDefinitions, declaredSkillIds))
+            errors.Add(e);
+        foreach (
+            var e in _validate_brain_action_skill_levels(
+                resolvedBrainForCompatibility,
+                skillDefinitions,
+                declaredSkillIds
+            )
+        )
             errors.Add(e);
         foreach (var uk in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS)
             if (_dictionary_has_unsupported_key(attribute_overrides, uk))
@@ -555,6 +565,117 @@ public partial class EnemyTemplateDef : Resource
                 errors.Add($"Enemy template {template_id} references missing skill {si}.");
         }
         return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_brain_action_skill_levels(
+        EnemyAiBrainDef brain,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        IReadOnlySet<StringName> declaredSkillIds
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        if (brain == null || skillDefinitions == null || declaredSkillIds == null)
+            return errors;
+
+        foreach (EnemyAiStateDef state in brain.GetResolvedStates())
+        {
+            if (state == null)
+                continue;
+            foreach (EnemyAiAction action in state.GetTypedActions())
+            {
+                if (action == null)
+                    continue;
+                foreach (StringName skillId in action.GetDeclaredSkillIds())
+                {
+                    if (
+                        skillId == ""
+                        || !declaredSkillIds.Contains(skillId)
+                        || !skillDefinitions.TryGetValue(
+                            skillId,
+                            out SkillDefinition skillDefinition
+                        )
+                        || skillDefinition == null
+                    )
+                    {
+                        continue;
+                    }
+
+                    EnemyAiActionSkillCompatibilityResult definitionCompatibility =
+                        action.EvaluateSkillCompatibility(skillDefinition);
+                    if (!definitionCompatibility.IsCompatible)
+                    {
+                        // Brain validation already owns level-invariant diagnostics.
+                        continue;
+                    }
+
+                    if (
+                        !_try_resolve_skill_level_for_compatibility(
+                            skillId,
+                            skillDefinition,
+                            out int skillLevel
+                        )
+                    )
+                    {
+                        // The skill-level schema validator owns malformed authored values.
+                        // Do not manufacture a second action-compatibility error from a
+                        // fallback/clamped level that the template never validly declared.
+                        continue;
+                    }
+                    EnemyAiActionSkillCompatibilityResult levelCompatibility =
+                        action.EvaluateSkillCompatibility(skillDefinition, skillLevel);
+                    if (!levelCompatibility.IsCompatible)
+                    {
+                        errors.Add(
+                            $"Enemy template {template_id} brain {brain.brain_id} state "
+                                + $"{state.state_id} action {action.action_id} references "
+                                + $"incompatible skill {skillId} at level {skillLevel}: "
+                                + $"{levelCompatibility.Reason}."
+                        );
+                    }
+                }
+            }
+        }
+        return errors;
+    }
+
+    private bool _try_resolve_skill_level_for_compatibility(
+        StringName skillId,
+        SkillDefinition skillDefinition,
+        out int skillLevel
+    )
+    {
+        skillLevel = 1;
+        if (skillId == "" || skill_level_map == null)
+            return true;
+
+        if (!skill_level_map.ContainsKey(skillId))
+        {
+            // A text-equivalent String key is malformed because this map requires
+            // StringName keys. Let the schema diagnostic stand on its own instead
+            // of treating the malformed entry as an absent level and falling back.
+            string invalidStringKey = skillId.ToString();
+            return !skill_level_map.ContainsKey(invalidStringKey);
+        }
+
+        Variant rawLevel = skill_level_map[skillId];
+        if (rawLevel.VariantType != Variant.Type.Int)
+            return false;
+
+        int configuredLevel = rawLevel.AsInt32();
+        if (
+            configuredLevel < 1
+            || (
+                skillDefinition != null
+                && skillDefinition.MaxLevel > 0
+                && configuredLevel > skillDefinition.MaxLevel
+            )
+        )
+        {
+            return false;
+        }
+
+        skillLevel = configuredLevel;
+        return true;
     }
 
     private Godot.Collections.Array<string> _validate_template_skill_level_map(

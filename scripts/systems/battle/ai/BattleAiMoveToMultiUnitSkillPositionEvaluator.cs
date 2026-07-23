@@ -626,8 +626,6 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             return 999999;
 
         BattleGridService grid = context.grid_service;
-        actor.RefreshFootprint();
-        target.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
         foreach (Vector2I targetCoord in target.occupied_coords)

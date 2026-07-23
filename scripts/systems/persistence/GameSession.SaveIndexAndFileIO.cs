@@ -662,6 +662,55 @@ public partial class GameSession
         return new Dictionary<string, object>(StringComparer.Ordinal);
     }
 
+    private void RemoveMissingSaveMetaPlain(string saveId)
+    {
+        try
+        {
+            List<Dictionary<string, object>> entries = LoadSaveIndexEntriesPlain();
+            var retainedEntries = new List<Dictionary<string, object>>();
+            bool removed = false;
+            foreach (Dictionary<string, object> entry in entries)
+            {
+                if (
+                    string.Equals(
+                        ReadPlainString(entry, "save_id"),
+                        saveId,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    removed = true;
+                    continue;
+                }
+                retainedEntries.Add(RuntimePlainPayload.CloneDictionary(entry));
+            }
+
+            if (!removed)
+            {
+                InvalidateSaveIndexCache();
+                return;
+            }
+
+            int writeError = WriteSaveIndexPlain(retainedEntries);
+            if (writeError == (int)Error.Ok)
+                return;
+
+            InvalidateSaveIndexCache();
+            PushSessionError(
+                "session.save.index.remove_missing_failed",
+                $"Failed to remove missing save slot {saveId} from the save index. Error: {writeError}"
+            );
+        }
+        catch (InvalidOperationException exception)
+        {
+            InvalidateSaveIndexCache();
+            PushSessionError(
+                "session.save.index.remove_missing_failed",
+                $"Failed to remove missing save slot {saveId} from the save index. Error: {exception.Message}"
+            );
+        }
+    }
+
     private static void SortSaveMetaNewestFirstPlain(
         List<Dictionary<string, object>> entries
     )

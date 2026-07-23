@@ -127,6 +127,7 @@ public partial class WildEncounterRosterDef : Resource
                 continue;
             }
 
+            var seenActorIds = new HashSet<StringName>();
             foreach (WildEncounterRosterUnitEntryDef unitEntry in stageDef.unit_entries)
             {
                 if (unitEntry == null)
@@ -155,6 +156,20 @@ public partial class WildEncounterRosterDef : Resource
                 {
                     errors.Add(
                         $"Wild encounter roster {profile_id} stage {stageIndex} template {templateId} must have count >= 1."
+                    );
+                }
+
+                StringName actorId = unitEntry.actor_id;
+                if (actorId != "" && unitEntry.count != 1)
+                {
+                    errors.Add(
+                        $"Wild encounter roster {profile_id} stage {stageIndex} actor_id {actorId} requires count == 1."
+                    );
+                }
+                if (actorId != "" && !seenActorIds.Add(actorId))
+                {
+                    errors.Add(
+                        $"Wild encounter roster {profile_id} stage {stageIndex} declares duplicate actor_id {actorId}."
                     );
                 }
             }

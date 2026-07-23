@@ -391,7 +391,7 @@ internal static class EquipmentAbilityPayloadValidators
         var ignored = new HashSet<StringName>();
         foreach (StringName componentId in payload.ignored_ac_components ?? new Godot.Collections.Array<StringName>())
         {
-            if (!EquipmentAbilityContentRegistry.IsKnownAcComponent(componentId))
+            if (!AttributeContentRules.IsArmorClassComponentAttributeId(componentId))
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -408,7 +408,11 @@ internal static class EquipmentAbilityPayloadValidators
         {
             if (multiplier == null)
                 continue;
-            if (!EquipmentAbilityContentRegistry.IsKnownAcComponent(multiplier.ac_component_id))
+            if (
+                !AttributeContentRules.IsArmorClassComponentAttributeId(
+                    multiplier.ac_component_id
+                )
+            )
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,

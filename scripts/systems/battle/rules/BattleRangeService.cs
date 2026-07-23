@@ -9,6 +9,7 @@ public static class BattleRangeService
     private static readonly StringName StatusArcherShootingSpecialization =
         "archer_shooting_specialization";
     private static readonly StringName WeaponProfileKindEquipped = "equipped";
+    private static readonly StringName WeaponRangeTypeMelee = "melee";
     private static readonly StringName WeaponFamilyBow = "bow";
 
     private sealed class UnitRangeInfo
@@ -18,6 +19,7 @@ public static class BattleRangeService
         public bool HasUnitView;
         public int WeaponAttackRange;
         public StringName WeaponProfileKind = EmptyStringName;
+        public StringName WeaponRangeType = EmptyStringName;
         public StringName WeaponPhysicalDamageTag = EmptyStringName;
         public StringName WeaponFamily = EmptyStringName;
         public readonly Dictionary<StringName, StatusEffectData> StatusEffects = new();
@@ -40,6 +42,24 @@ public static class BattleRangeService
         return UnitHasMeleeWeapon(BuildUnitRangeInfo(unitState));
     }
 
+    public static bool UnitHasEquippedWeapon(BattleUnitState unitState)
+    {
+        return UnitHasEquippedWeapon(BuildUnitRangeInfo(unitState));
+    }
+
+    internal static bool UnitHasEquippedWeapon(BattleUnitReadView unitView)
+    {
+        return UnitHasEquippedWeapon(BuildUnitRangeInfo(unitView));
+    }
+
+    private static bool UnitHasEquippedWeapon(UnitRangeInfo unitInfo)
+    {
+        return unitInfo != null
+            && unitInfo.WeaponProfileKind == WeaponProfileKindEquipped
+            && unitInfo.WeaponAttackRange > 0
+            && !IsEmpty(unitInfo.WeaponPhysicalDamageTag);
+    }
+
     public static bool UnitMatchesRequiredWeaponFamilies(
         BattleUnitState unitState,
         IEnumerable<StringName> requiredWeaponFamilies
@@ -53,10 +73,8 @@ public static class BattleRangeService
 
     private static bool UnitHasMeleeWeapon(UnitRangeInfo unitInfo)
     {
-        return unitInfo != null
-            && unitInfo.WeaponProfileKind == WeaponProfileKindEquipped
-            && unitInfo.WeaponAttackRange > 0
-            && !IsEmpty(unitInfo.WeaponPhysicalDamageTag);
+        return UnitHasEquippedWeapon(unitInfo)
+            && unitInfo.WeaponRangeType == WeaponRangeTypeMelee;
     }
 
     private static bool UnitMatchesRequiredWeaponFamilies(
@@ -76,7 +94,7 @@ public static class BattleRangeService
                 continue;
             }
             hasRequiredFamily = true;
-            if (!UnitHasMeleeWeapon(unitInfo))
+            if (!UnitHasEquippedWeapon(unitInfo))
             {
                 return false;
             }
@@ -189,7 +207,7 @@ public static class BattleRangeService
         return Math.Max(skillRange, 0);
     }
 
-    public static bool RequiresCurrentMeleeWeapon(SkillDefinition skillDefinition)
+    public static bool RequiresCurrentWeapon(SkillDefinition skillDefinition)
     {
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (skillDefinition == null || combatProfile == null)
@@ -212,6 +230,12 @@ public static class BattleRangeService
             }
         }
         return false;
+    }
+
+    public static bool RequiresCurrentMeleeWeapon(SkillDefinition skillDefinition)
+    {
+        return RequiresCurrentWeapon(skillDefinition)
+            && SkillHasTag(skillDefinition, "melee");
     }
 
     public static bool IsWeaponRangeSkill(SkillDefinition skillDefinition)
@@ -547,6 +571,7 @@ public static class BattleRangeService
         info.UnitState = unitState;
         info.WeaponAttackRange = Math.Max(unitState.GetWeaponAttackRange(), 0);
         info.WeaponProfileKind = unitState.weapon_profile_kind;
+        info.WeaponRangeType = unitState.weapon_range_type;
         info.WeaponPhysicalDamageTag = unitState.weapon_physical_damage_tag;
         info.WeaponFamily = unitState.weapon_family;
 
@@ -566,6 +591,7 @@ public static class BattleRangeService
         info.HasUnitView = true;
         info.WeaponAttackRange = Math.Max(unitView.WeaponAttackRange, 0);
         info.WeaponProfileKind = unitView.WeaponProfileKind;
+        info.WeaponRangeType = unitView.WeaponRangeType;
         info.WeaponPhysicalDamageTag = unitView.WeaponPhysicalDamageTag;
         info.WeaponFamily = unitView.WeaponFamily;
 

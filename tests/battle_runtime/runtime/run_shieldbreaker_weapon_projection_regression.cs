@@ -314,7 +314,7 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             AttributeModifierDefinition modifier = item.GetAttributeModifiersTyped()[0];
             _test.Eq(
                 modifier.AttributeId,
-                AttributeService.ARMOR_AC_BONUS,
+                AttributeContentRules.ArmorAcBonus,
                 "碎盾 +1 AC 应使用 armor_ac_bonus 组件。"
             );
             _test.Eq(modifier.Value, 1, "碎盾 armor_ac_bonus 应为 +1。");

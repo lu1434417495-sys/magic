@@ -17,6 +17,7 @@ internal sealed class DamageResolutionContext
     public IReadOnlyList<int> SaveRollOverrides { get; }
     public bool DispatchEvents { get; }
     public StringName EquipmentSlotOverride { get; }
+    public BattleState BattleState { get; }
     internal BattleEventBatch DamageApplicationHookBatch { get; }
     internal BattleEffectOrigin DamageApplicationHookOrigin { get; }
 
@@ -31,7 +32,8 @@ internal sealed class DamageResolutionContext
         bool dispatchEvents,
         StringName equipmentSlotOverride,
         BattleEventBatch damageApplicationHookBatch = null,
-        BattleEffectOrigin damageApplicationHookOrigin = null
+        BattleEffectOrigin damageApplicationHookOrigin = null,
+        BattleState battleState = null
     )
     {
         DamageRollMode = damageRollMode == "" ? DefaultDamageRollMode : damageRollMode;
@@ -44,6 +46,7 @@ internal sealed class DamageResolutionContext
         DispatchEvents = dispatchEvents;
         EquipmentSlotOverride =
             equipmentSlotOverride == default ? new StringName("") : equipmentSlotOverride;
+        BattleState = battleState;
         DamageApplicationHookBatch = damageApplicationHookBatch;
         DamageApplicationHookOrigin = damageApplicationHookOrigin ?? BattleEffectOrigin.PlayerCommand();
     }
@@ -129,7 +132,8 @@ internal sealed class DamageResolutionContext
             DispatchEvents,
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
-            DamageApplicationHookOrigin
+            DamageApplicationHookOrigin,
+            BattleState
         );
     }
 
@@ -147,7 +151,8 @@ internal sealed class DamageResolutionContext
             DispatchEvents,
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
-            DamageApplicationHookOrigin
+            DamageApplicationHookOrigin,
+            BattleState
         );
     }
 
@@ -168,7 +173,26 @@ internal sealed class DamageResolutionContext
             DispatchEvents,
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
-            DamageApplicationHookOrigin
+            DamageApplicationHookOrigin,
+            BattleState
+        );
+    }
+
+    public DamageResolutionContext WithBattleState(BattleState battleState)
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            battleState
         );
     }
 
@@ -188,7 +212,8 @@ internal sealed class DamageResolutionContext
             DispatchEvents,
             EquipmentSlotOverride,
             batch,
-            origin ?? BattleEffectOrigin.PlayerCommand()
+            origin ?? BattleEffectOrigin.PlayerCommand(),
+            BattleState
         );
     }
 

@@ -306,7 +306,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public int _terrain_effect_nonce;
     public bool _ai_trace_enabled;
     private readonly List<BattleAiTurnTraceProjection> _ai_turn_traces = new();
-    internal int _contingencySourceEventOrdinal;
     internal readonly Func<StringName, Vector2I, Vector2I, int> _ai_move_query_cost_callback;
     internal readonly Func<BattleUnitState, Vector2I, int> _ai_move_cost_callback;
     internal readonly Func<BattleCommand, BattlePreview> _ai_preview_command_callback;
@@ -356,8 +355,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _moduleBorrowers.AiDecisionBinding;
     internal BattleContingencyBridgeService _contingencyBridgeService =>
         _moduleBorrowers.ContingencyBridge;
-    internal BattleTimelineStatusBridgeService _timelineStatusBridgeService =>
-        _moduleBorrowers.TimelineStatusBridge;
     internal BattleCommandPreviewService _commandPreviewService =>
         _moduleBorrowers.CommandPreview;
     private BattleStartFailureSnapshot _last_start_failure = new();
@@ -449,11 +446,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.Setup(this);
         _delayed_area_effect_system.Setup(this);
-        _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
-        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
-        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
-        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
+        BindEquipmentRulePorts();
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
@@ -472,7 +465,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _runtime_services.SetupRuntimeSidecars(this);
+        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
@@ -645,9 +638,30 @@ public sealed partial class BattleRuntimeModule : IDisposable
             );
         }
 
+        IReadOnlyList<BattleScenarioActorSpawnRequest> scenarioActorRequests =
+            _encounter_builder?.BuildScenarioActorUnitsFromDefinitions(
+                encounter_anchor,
+                GetSkillDefinitionIndexTyped(),
+                GetEnemyTemplateIndexTyped(),
+                GetEnemyAiBrainIndexTyped(),
+                GetItemDefIndexTyped(),
+                GetTraitDefIndexTyped(),
+                GetEquipmentAbilityBindingIndexTyped()
+            ) ?? Array.Empty<BattleScenarioActorSpawnRequest>();
+        GBattleUnitArray scenarioActorUnits = scenarioActorRequests
+            .Where(request => request?.Unit != null)
+            .Select(request => request.Unit)
+            .ToList();
         if (
             !ValidateBattleUnitsForStart(allyUnits, "ally")
             || !ValidateBattleUnitsForStart(enemyUnits, "enemy")
+            || (
+                scenarioActorUnits.Count > 0
+                && !ValidateBattleUnitsForStart(
+                    scenarioActorUnits,
+                    "scenario actor"
+                )
+            )
         )
         {
             ClearRuntimeBattleStateReference();
@@ -672,11 +686,27 @@ public sealed partial class BattleRuntimeModule : IDisposable
             GDictionary terrainData = terrainLease.Value;
             if (terrainData.Count == 0)
             {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = GetTerrainGenerator().EmptyGenerationIsPending
+                        ? "terrain_generation_pending"
+                        : "placement_exhausted",
+                    PlacementAttempt = placementAttempt,
+                    PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                    TerrainSeed = terrainSeed,
+                };
                 continue;
             }
             StringName terrainProfileId = _resolve_formal_terrain_profile_id(terrainData);
             if (IsEmpty(terrainProfileId))
             {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "placement_exhausted",
+                    PlacementAttempt = placementAttempt,
+                    PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                    TerrainSeed = terrainSeed,
+                };
                 continue;
             }
 
@@ -704,15 +734,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 terrain_profile_id = terrainProfileId,
                 timeline = new BattleTimelineState(),
             });
-            if (!InitializeBattleObjective(objectiveDefinition))
-            {
-                _last_start_failure = new BattleStartFailureSnapshot
-                {
-                    Reason = "unsupported_objective_definition",
-                };
-                ClearRuntimeBattleStateReference();
-                return new BattleState();
-            }
             _state.ReplaceEnvironmentSnapshot(
                 BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
             );
@@ -730,7 +751,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _state.ReplaceCellColumnsFromPayload(cellColumns);
             }
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
-            _state.timeline.tu_per_tick = _timelineStatusBridgeService._resolve_timeline_tu_per_tick(context);
+            _state.timeline.tu_per_tick = _timeline_driver.ResolveTimelineTuPerTick(context);
 
             using GArray allySpawnCoords = GetArray(terrainData, "ally_spawns");
             using GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
@@ -749,13 +770,55 @@ public sealed partial class BattleRuntimeModule : IDisposable
             }
             if (!_spawnPlacementService.PlaceUnitsTyped(allyUnits, ToVector2IList(allySpawnCoords), true, allySpawnSide))
             {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "placement_exhausted",
+                    PlacementAttempt = placementAttempt,
+                    PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                    TerrainSeed = terrainSeed,
+                };
+                ClearRuntimeBattleStateReference();
+                continue;
+            }
+            if (!TryPlaceScenarioActors(scenarioActorRequests))
+            {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "invalid_objective_binding",
+                    PlacementAttempt = placementAttempt,
+                    PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                    TerrainSeed = terrainSeed,
+                };
                 ClearRuntimeBattleStateReference();
                 continue;
             }
             if (!_spawnPlacementService.PlaceUnitsTyped(enemyUnits, ToVector2IList(enemySpawnCoords), false, enemySpawnSide))
             {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "placement_exhausted",
+                    PlacementAttempt = placementAttempt,
+                    PlacementAttempts = BATTLE_START_PLACEMENT_MAX_ATTEMPTS,
+                    TerrainSeed = terrainSeed,
+                };
                 ClearRuntimeBattleStateReference();
                 continue;
+            }
+            if (!InitializeBattleObjective(objectiveDefinition))
+            {
+                _last_start_failure = new BattleStartFailureSnapshot
+                {
+                    Reason = "invalid_objective_binding",
+                    PlacementAttempt = placementAttempt,
+                    TerrainSeed = terrainSeed,
+                };
+                ClearRuntimeBattleStateReference();
+                if (
+                    objectiveDefinition is BattleEscapeObjectiveDefinition
+                    or BattleEscortObjectiveDefinition
+                )
+                    continue;
+                return new BattleState();
             }
             _initialize_unit_trait_hooks();
             if (startOptions.ValidateSpawnReachability)
@@ -785,23 +848,32 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 }
             }
 
-            _timelineStatusBridgeService._initialize_unit_action_thresholds();
-            _aiDecisionBindingService._build_ai_action_plans();
-            _state.PhaseKind = BattlePhaseKind.TimelineRunning;
-            _state.active_unit_id = "";
-            _state.ModalStateKind = BattleModalStateKind.None;
-            _state.attack_roll_nonce = 0;
-            _state.ResetLogEntries(new GStringArray { $"战斗开始：{encounterDisplayName}" });
-            _battle_rating_system.InitializeBattleRatingStats();
-            _fate_runtime.BeginBattle(calamity_by_member_id);
-            _terrain_effect_nonce = 0;
-            _battle_resolution_result = null;
-            _battle_resolution_result_consumed = false;
-            _ai_turn_traces.Clear();
-            _contingency_system.ResetForBattle(partyState, _state);
-            _initialize_battle_metrics();
-            ClearLastStartFailure();
-            return _state;
+            try
+            {
+                _timeline_driver.InitializeUnitActionThresholds();
+                _aiDecisionBindingService._build_ai_action_plans();
+                _state.PhaseKind = BattlePhaseKind.TimelineRunning;
+                _state.active_unit_id = "";
+                _state.ModalStateKind = BattleModalStateKind.None;
+                _state.attack_roll_nonce = 0;
+                _state.ResetLogEntries(new GStringArray { $"战斗开始：{encounterDisplayName}" });
+                _battle_rating_system.InitializeBattleRatingStats();
+                _fate_runtime.BeginBattle(calamity_by_member_id);
+                _terrain_effect_nonce = 0;
+                _battle_resolution_result = null;
+                _battle_resolution_result_consumed = false;
+                _ai_turn_traces.Clear();
+                _contingency_system.ResetForBattle(partyState, _state);
+                _initialize_battle_metrics();
+                ClearLastStartFailure();
+                return _state;
+            }
+            catch
+            {
+                Exception cleanupFailure = null;
+                RunTeardownStep(ref cleanupFailure, ClearRuntimeBattleStateReference);
+                throw;
+            }
         }
 
         ClearRuntimeBattleStateReference();
@@ -1092,7 +1164,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             }
             return batch;
         }
-        _timelineStatusBridgeService._ensure_unit_turn_anchor(activeUnit);
+        _skill_turn_resolver.EnsureUnitTurnAnchor(activeUnit);
         if (
             activeUnit.turn_casting_exhausted
             && (
@@ -1123,6 +1195,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _record_action_issued(activeUnit, BattleTypedNames.ToStringName(BattleCommandKind.Wait));
             batch.AddLogLine($"{activeUnit.display_name} 结束行动。");
         }
+        else if (command.CommandKind == BattleCommandKind.Interact)
+            HandleObjectiveInteraction(activeUnit, command, batch);
         else if (command.CommandKind == BattleCommandKind.ChangeEquipment)
             _handle_change_equipment_command(activeUnit, command, batch);
         else
@@ -1384,10 +1458,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void _ensure_sidecars_ready()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         _terrain_effect_system.Setup(this);
         _delayed_area_effect_system.Setup(this);
-        _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
@@ -1399,12 +1472,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _runtime_services.SetupRuntimeSidecars(this);
+        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
-        _contingency_system.Setup(this);
     }
 
     internal WarehouseState _get_party_backpack_state(PartyState party_state)
@@ -1540,6 +1612,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     public void ConfigureDamageResolverForTests(BattleDamageResolver damage_resolver)
     {
+        _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver = damage_resolver ?? new BattleDamageResolver();
         BindDamageResolver();
         if (_ai_service != null)
@@ -1556,14 +1629,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_turn_resolver.Setup(this);
         _metrics_collector.Setup(this);
         _shield_service.Setup(this);
-        _runtime_services.SetupRuntimeSidecars(this);
+        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
         _timeline_driver.Setup(this);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
-        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
-        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
-        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
+        BindEquipmentRulePorts();
     }
 
     internal BattleFateEventBus GetFateEventBus() =>
@@ -1573,17 +1644,16 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal BattleAttackCheckPolicyService GetAttackCheckPolicyService()
     {
-        _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
-        return _attack_check_policy_service;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _attack_check_policy_service
+            ?? throw new InvalidOperationException("Battle attack policy is not composed.");
     }
 
     internal BattleEquipmentAbilityRuntimeService GetEquipmentAbilityRuntimeService()
     {
-        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
-        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
-        _damage_resolver?.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
-        return _equipment_ability_runtime_service;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return _equipment_ability_runtime_service
+            ?? throw new InvalidOperationException("Battle equipment ability runtime is not composed.");
     }
 
     public void ConfigureHitResolverForTests(BattleHitResolver hit_resolver)
@@ -1591,7 +1661,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
         if (_damage_resolver != null)
             _damage_resolver.SetHitResolver(_hit_resolver);
-        _attack_check_policy_service?.Setup(this, _hit_resolver, _terrain_effect_system);
+        BindEquipmentRulePorts();
         _meteor_swarm_resolver?.Setup(this, _attack_check_policy_service);
         _skill_outcome_committer?.Setup(this);
     }
@@ -1711,7 +1781,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (source_unit == null || result == null || result.Count == 0)
             return;
         using GArray sourceStatusValues = GetArray(result, "source_status_effect_ids");
-        GStringNameArray sourceStatusIds = BattleTimelineStatusBridgeService.NormalizeStatusIdArray(sourceStatusValues);
+        IReadOnlyList<StringName> sourceStatusIds =
+            BattleRuntimeSkillTurnResolver.NormalizeAppliedStatusIds(sourceStatusValues);
         if (sourceStatusIds.Count == 0)
             return;
         MarkAppliedStatusesForTurnTiming(source_unit, sourceStatusIds);
@@ -1968,7 +2039,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
         IReadOnlyDictionary<string, object> report_entry
     ) => _metricsReportService._append_report_entry_to_batch(batch, report_entry);
 
-    internal void _build_ai_action_plans() => _aiDecisionBindingService._build_ai_action_plans();
+    internal void _build_ai_action_plans()
+    {
+        ClearAiDecisionBindingsAndPlans();
+        _aiDecisionBindingService._build_ai_action_plans();
+    }
 
     internal void _ensure_ai_action_plan_for_unit(BattleUnitState unit_state) => _aiDecisionBindingService._ensure_ai_action_plan_for_unit(unit_state);
 
@@ -2017,8 +2092,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         StringName sourceEventId
     ) => _contingencyBridgeService.EmitContingencyPositionChanged(unitState, previousCoord, currentCoord, sourceEventId);
 
-    internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch) => _contingencyBridgeService.ExecuteAutoCast(request, batch);
-
     internal IReadOnlyList<ContingencyTargetResolutionResult> ResolveContingencyStoredSpellTargetsForRelease(
         ContingencyReleaseContext context,
         ContingencyFrozenTriggerFacts facts
@@ -2050,53 +2123,45 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null) => _contingencyBridgeService.OnOwnerTurnStarted(ownerUnit, batch);
 
-    internal void RefreshBattleUnitForContingencyOverlay(BattleUnitState unitState) => _contingencyBridgeService.RefreshBattleUnitForContingencyOverlay(unitState);
-
-    internal void _apply_timeline_step(BattleEventBatch batch, int tu_delta) => _timelineStatusBridgeService._apply_timeline_step(batch, tu_delta);
-
     internal void MarkAppliedStatusesForTurnTiming(
         BattleUnitState target_unit,
         GArray status_effect_ids
-    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+    )
+    {
+        _skill_turn_resolver.InitializeAppliedStatusTimelineTicks(
+            target_unit,
+            status_effect_ids
+        );
+        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
+    }
 
     internal void MarkAppliedStatusesForTurnTiming(
         BattleUnitState target_unit,
         GStringNameArray status_effect_ids
-    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
+    )
+    {
+        IReadOnlyList<StringName> normalizedStatusIds =
+            BattleRuntimeSkillTurnResolver.NormalizeAppliedStatusIds(status_effect_ids);
+        _skill_turn_resolver.InitializeAppliedStatusTimelineTicks(
+            target_unit,
+            normalizedStatusIds
+        );
+        _fate_runtime?.HandleAppliedStatuses(target_unit, normalizedStatusIds);
+    }
 
     internal void MarkAppliedStatusesForTurnTiming(
         BattleUnitState target_unit,
         IReadOnlyList<StringName> status_effect_ids
-    ) => _timelineStatusBridgeService.MarkAppliedStatusesForTurnTiming(target_unit, status_effect_ids);
-
-    internal void _advance_unit_turn_timers(BattleUnitState unit_state, BattleEventBatch batch) => _timelineStatusBridgeService._advance_unit_turn_timers(unit_state, batch);
-
-    internal BattleStatusTickResult _apply_turn_start_statuses_result(
-        BattleUnitState unit_state,
-        BattleEventBatch batch
-    ) => _timelineStatusBridgeService._apply_turn_start_statuses_result(unit_state, batch);
-
-    internal BattleStatusTickResult _apply_unit_status_periodic_ticks_result(
-        BattleUnitState unit_state,
-        int elapsed_tu,
-        BattleEventBatch batch
-    ) => _timelineStatusBridgeService._apply_unit_status_periodic_ticks_result(unit_state, elapsed_tu, batch);
-
-    internal bool _advance_unit_status_durations(
-        BattleUnitState unit_state,
-        int elapsed_tu,
-        BattleEventBatch batch = null
-    ) => _timelineStatusBridgeService._advance_unit_status_durations(unit_state, elapsed_tu, batch);
-
-    internal void _initialize_unit_action_thresholds() => _timelineStatusBridgeService._initialize_unit_action_thresholds();
+    )
+    {
+        _skill_turn_resolver.InitializeAppliedStatusTimelineTicks(
+            target_unit,
+            status_effect_ids
+        );
+        _fate_runtime?.HandleAppliedStatuses(target_unit, status_effect_ids);
+    }
 
     public BattlePreview PreviewCommand(BattleCommand command) => _commandPreviewService.PreviewCommand(command);
-
-    internal int ResolveSkillCommandEntryLevel(
-        BattleCommand command,
-        BattleSkillAvailabilityConsumer consumer,
-        int fallback = 0
-    ) => _commandPreviewService.ResolveSkillCommandEntryLevel(command, consumer, fallback);
 
     internal bool CommitEquipmentSkillUsageIfNeeded(
         BattleUnitState unit,
@@ -2134,6 +2199,10 @@ public sealed partial class BattleRuntimeModule : IDisposable
         RunTeardownStep(ref firstFailure, _aiDecisionBindingService.ClearAiActionPlans);
         RunTeardownStep(ref firstFailure, _ai_turn_traces.Clear);
         RunTeardownStep(ref firstFailure, _contingency_system.ClearBattleState);
+        RunTeardownStep(
+            ref firstFailure,
+            _contingency_system.ClearRuntimeCapabilityBinding
+        );
 
         // Phase 2: dispose AI and runtime sidecars while their borrowed inputs still exist.
         RunTeardownStep(ref firstFailure, () => _ai_service?.Dispose());
@@ -2156,6 +2225,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         RunTeardownStep(ref firstFailure, () => _skill_orchestrator?.DisposeRuntime());
         RunTeardownStep(ref firstFailure, () => _casting_time_service?.Dispose());
         RunTeardownStep(ref firstFailure, () => _meteor_swarm_resolver?.Dispose());
+        RunTeardownStep(ref firstFailure, UnbindEquipmentRulePorts);
         RunTeardownStep(ref firstFailure, () => _attack_check_policy_service?.Dispose());
         RunTeardownStep(ref firstFailure, () => _equipment_ability_runtime_service?.Dispose());
         RunTeardownStep(ref firstFailure, () => _skill_outcome_committer?.Dispose());
@@ -2748,7 +2818,31 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetSkillDefinitions(GetSkillDefinitionIndexTyped());
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
-        _damage_resolver.SetEquipmentAbilityRuntimeService(_equipment_ability_runtime_service);
+    }
+
+    private void BindEquipmentRulePorts()
+    {
+        if (_damage_resolver == null)
+            throw new InvalidOperationException("Battle damage resolver must be bound first.");
+
+        _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
+        _equipment_ability_runtime_service ??= new BattleEquipmentAbilityRuntimeService();
+        _equipment_ability_runtime_service.Setup(this, _damage_resolver);
+        _attack_check_policy_service.Setup(
+            _hit_resolver,
+            _terrain_effect_system,
+            _equipment_ability_runtime_service.AttackCheckQuery
+        );
+        _damage_resolver.SetEquipmentAbilityPorts(
+            _equipment_ability_runtime_service.DamageQuery,
+            _equipment_ability_runtime_service.ReactionSink
+        );
+    }
+
+    private void UnbindEquipmentRulePorts()
+    {
+        _attack_check_policy_service?.UnbindEquipmentAttackCheckQuery();
+        _damage_resolver?.SetEquipmentAbilityPorts(null, null);
     }
 
     internal static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

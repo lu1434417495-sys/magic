@@ -16,6 +16,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
     private void Run()
     {
         TestFormalProgressEventSchema();
+        TestDirectRecordProgressMovesCompletedQuestToClaimable();
         TestStringKeyOnlyQuestDefsAreRejected();
         TestMissingObjectiveTargetValueDoesNotDefaultToOne();
 
@@ -101,6 +102,63 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
         _test.Eq(SummaryCount(matchedSummary, "progressed_quest_ids"), 1, "按 objective_type/target_id 匹配的正式事件应推进任务。");
         _test.True(partyState.HasClaimableQuest(questDef.quest_id), "达到正式 objective target_value 后任务应进入 claimable。");
+    }
+
+    private void TestDirectRecordProgressMovesCompletedQuestToClaimable()
+    {
+        QuestDefinition questDef = new(
+            "contract_direct_progress",
+            "直接进度入口",
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
+            {
+                new QuestObjectiveDefinition(
+                    "train_once",
+                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    "service:training",
+                    1
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            ""
+        );
+        PartyState partyState = new();
+        QuestProgressService service = new();
+        service.Setup(
+            partyState,
+            new Dictionary<StringName, QuestDefinition>
+            {
+                [questDef.QuestId] = questDef,
+            }
+        );
+
+        _test.True(service.AcceptQuest(questDef.QuestId, 1), "直接进度回归应先接取任务。");
+        _test.True(
+            service.RecordProgress(questDef.QuestId, "train_once", 1),
+            "直接进度入口达到目标时应成功完成迁移。"
+        );
+        _test.True(
+            !partyState.HasActiveQuest(questDef.QuestId),
+            "直接进度完成后不能把 completed QuestState 留在 active_quests。"
+        );
+        _test.True(
+            partyState.HasClaimableQuest(questDef.QuestId),
+            "直接进度完成后应把任务迁入 claimable_quests。"
+        );
+        _test.Eq(
+            partyState.GetClaimableQuestState(questDef.QuestId)?.status_id ?? new StringName(""),
+            QuestState.ToStringName(QuestStatusKind.Completed),
+            "claimable 任务应保留 completed 状态。"
+        );
     }
 
     private void TestStringKeyOnlyQuestDefsAreRejected()

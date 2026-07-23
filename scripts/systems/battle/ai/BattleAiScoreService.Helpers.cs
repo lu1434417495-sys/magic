@@ -46,8 +46,6 @@ public partial class BattleAiScoreService
         {
             return -1;
         }
-        actor.RefreshFootprint();
-        targetUnit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (
             Vector2I sourceCoord in gridService.GetFootprintCoords(

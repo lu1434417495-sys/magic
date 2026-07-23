@@ -313,16 +313,6 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     internal static bool ContainsValue(IReadOnlySet<StringName> source, StringName key) =>
         source != null && source.Contains(key);
 
-    internal static bool IsKnownAcComponent(StringName componentId)
-    {
-        if (componentId == "")
-            return false;
-        foreach (StringName known in AttributeService.AC_COMPONENT_ATTRIBUTE_IDS)
-            if (known == componentId)
-                return true;
-        return false;
-    }
-
     private static bool IsAllowed(StringName value, params string[] allowed)
     {
         foreach (string candidate in allowed)

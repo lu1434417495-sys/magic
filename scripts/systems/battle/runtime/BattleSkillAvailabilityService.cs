@@ -201,6 +201,58 @@ internal sealed class BattleSkillAvailabilityService
             : fallback;
     }
 
+    internal BattleSkillAccessResult ValidateSkillCommandEntryAccess(
+        BattleState battleState,
+        BattleCommand command,
+        BattleSkillAvailabilityConsumer consumer,
+        int worldStep
+    )
+    {
+        if (command == null)
+        {
+            return BattleSkillAccessResult.Deny("missing_command", "技能命令无效。");
+        }
+        if (
+            battleState == null
+            || !battleState.TryGetUnitTyped(command.unit_id, out BattleUnitState unit)
+        )
+        {
+            return BattleSkillAccessResult.Deny("missing_unit", "当前单位无效。");
+        }
+        return ValidateSkillEntryAccess(
+            new BattleSkillAvailabilityQuery
+            {
+                User = unit,
+                Consumer = consumer,
+                IncludeKnownSkills = true,
+                IncludeEquipmentSkills = true,
+                WorldStep = worldStep,
+                BattleState = battleState,
+            },
+            command.skill_entry_id,
+            command.skill_id
+        );
+    }
+
+    internal int ResolveSkillCommandEntryLevel(
+        BattleState battleState,
+        BattleCommand command,
+        BattleSkillAvailabilityConsumer consumer,
+        int worldStep,
+        int fallback = 0
+    )
+    {
+        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(
+            battleState,
+            command,
+            consumer,
+            worldStep
+        );
+        return accessResult.Allowed && accessResult.Entry != null
+            ? accessResult.Entry.SkillLevel
+            : fallback;
+    }
+
     internal BattleSkillAccessResult ValidateSkillEntryAccess(
         BattleSkillAvailabilityQuery query,
         StringName skillEntryId,

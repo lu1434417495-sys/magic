@@ -3,8 +3,8 @@
 > **当前修复说明（2026-07-23）**：`shop_inventory_seed` / `shop_last_refresh_step` 已从据点顶层 schema 删除，F-14 不再是待修 finding；各商店继续独立使用真随机并只持有自己的 seed、刷新步数和库存，save v15 严格拒绝 v14。
 
 - 原始审查日期：`2026-06-17`
-- 当前代码复核：`2026-07-23`
-- 原始索引：466 个脚本文件；清除 19 个已失效条目后保留 447 个历史条目。当前 `scripts/` 已有 862 个脚本（859 个 `.cs`、2 个 `.gd`、1 个 `.py`）。
+- 当前代码复核：`2026-07-24`
+- 原始索引：466 个脚本文件；清除 19 个已失效条目后保留 447 个历史条目。当前 `scripts/` 规模已超过历史索引，因此下方矩阵不再用固定文件数声称当前覆盖率。
 - 当前定位：本文件是 `scripts/` 检视意见的主索引。下方 2026-06-17 矩阵只保留为历史路由，不再声称覆盖当前全部文件；是否需要修复，以上方 findings-first 为准。
 - 复核方法：按职责把旧 GDScript、旧路径和旧类型映射到当前 C#、GDScript 或 Python owner，再检查同一失败模式是否仍存在。不能以语言迁移、文件改名或模板命中本身作为“已修复”或“仍有问题”的证据。
 
@@ -12,18 +12,22 @@
 
 ### 中优先级
 
-1. **AI action 与 skill 的 target mode 不匹配时内容校验仍会放行。** `EnemyAiAction.cs:42-54` 只检查 skill id；unit/ground evaluator 到运行时才跳过不匹配技能，形成“内容校验通过但 action 永远无候选”。
-2. **AI 同分目标缺少稳定 id 兜底。** `BattleAiTypedActionHelper.cs:401-416,454-483` 只比较距离和 HP，输入来自 `BattleState` 的 Dictionary values；完全同分时结果依赖枚举顺序。
-3. **AI 普通伤害估算仍绕开部分正式减伤语义。** `BattleAiScoreService.Scoring.cs:685-753` 的估算路径把 `ShieldAbsorbed` 固定为 0，可能高估打不穿目标的伤害与击杀线。
+当前没有已确认的中优先级待修项。
 
 ### 低优先级但逻辑确实不闭合
 
+- `GameRuntimeWarehouseHandler` 在技能书使用、丢弃和直接加入库存成功后调用 `PersistPartyState()`；该调用会沿 `RuntimeTransaction.Commit(...) → GameSession.CommitRuntimeState(...) → PersistGameState()` 立即写入完整存档。仓库内的普通运行态变更不应自行建立磁盘保存点；应只把当前 `PartyState` stage 到 `GameSession` 并标记 `party_state` pending dirty，交给既定的 canonical flush 时机统一落盘。
 - **接受风险，暂不修复**：`UnitProgress.cs:225-251` 在递归访问子节点后才写 `visited`，循环 merge source 会无限递归；已确认当前递归 getter 没有生产调用，并在 API 旁注明无环前提和未来接线要求。
-- `QuestProgressService.RecordProgress(...)` 直接把 active quest 标成 completed，却不迁移到 claimable；`PartyState.SetQuestState(...)` 还会把 failed 状态放进 active。两者当前生产链没有调用，但一旦使用会生成反序列化拒绝的状态。
 - `BattleTerrainGenerator` 的 typed cells → Godot Dictionary → typed cells 往返，以及 settlement handler/forge/shop 核心的 `GDictionary` 状态处理仍是架构债；当前没有证据把它们升级成 correctness bug。
 
 ## 已移除的过时结论
 
+- 存档文件缺失的异常契约已于 2026-07-24 修复：`SaveRepository.ReadSavePayload(...)` 对检查前缺失和检查后打开失败都会返回 typed I/O 错误，其中缺失统一归一化为 `Error.DoesNotExist`，`emitErrors` 只控制诊断记录、不再控制是否抛异常；`GameSession.LoadSave(...)` 对不存在的槽位同样返回 `DoesNotExist`，并在缓存索引仍引用已消失 payload 时移除失效索引项。回归覆盖“创建并缓存槽位 → 清空运行态 → 只删除 `.dat` → 加载”的完整路径，确认不抛异常、不创建 active world 且索引完成修复。
+- “技能书使用不是原子事务”结论已于 2026-07-24 撤销：`UseItemTyped(...)` 先通过同一个 `PartyWarehouseService` 确认库存大于零，随后同步学习技能；学习路径只修改角色成长/成就状态，不触碰仓库，也没有异步、回调或其他可重入点。因而在当前正式路径中，紧接着从同一仓库扣减 1 本技能书必然成功，`consume_failed` 只是不可达的防御分支，不能据此认定存在“失败但技能已学习”的 correctness bug。上层成功后的存档提交及其失败回滚与该不可达分支无关。
+- Quest public API 的非法 active 状态缺口已于 2026-07-24 临时封口：`QuestProgressService.RecordProgress(...)` 达成全部目标后复用 `CompleteQuest → MarkQuestClaimable`，不会把 completed 对象留在 `active_quests`；`PartyState.SetQuestState(...)` 只路由 Active、Completed、Rewarded，尚无正式 owner/save contract 的 Failed、Inactive、Unknown 暂时拒绝，不新增 `failed_quests` 或存档兼容逻辑。service、typed PartyState、quest save round-trip 与正式文本任务流程回归均通过。
+- AI 普通伤害估算的正式减伤语义缺口已于 2026-07-24 修复：production AI 使用已注入的 `BattleDamageResolver.PreviewDamageEffectTyped(...)`，以 Average/Expected 模式复用正式抗性、固定减伤、护盾吸收与生命伤害语义；多段伤害会串联 source/target preview-after 克隆状态，护盾和消耗型攻击状态不会被每段重新使用。击杀分支以护盾后的生命伤害判断，真实战斗单位不被预览修改。`run_battle_ai_score_input_metrics_regression.cs` 覆盖 half resistance + shield、不误判击杀和两段连续消耗护盾。
+- AI 同分目标顺序已于 2026-07-24 修复：`BattleAiTypedActionHelper.CompareTargets(...)` 保留威胁、HP 比例与距离的原有战术优先级，并在这些指标完全相同时按 `unit_id` ordinal 比较，使 target list 成为与 `BattleState` 单位插入/恢复顺序无关的全序；Boss objective 的显式目标置顶仍在排序后生效。`run_battle_ai_unit_skill_candidate_evaluator_regression.cs` 会用正反两种插入顺序验证相同战局始终选择同一目标。
+- AI action/skill 兼容性缺口已于 2026-07-24 修复：敌方内容校验会按 action kind 验证主动战斗技能、unit/ground target mode、random-chain/multi-unit selection mode、`meteor_swarm` 专用地格路由、变体 command route、multi action 候选容量，以及 charge、path-step AOE、blink/jump reposition 所需的同一单格 cast option；brain 层验证等级无关契约，模板层再按 `skill_level_map` 验证实际等级已解锁的变体与 unit pipeline 可执行的 base + variant 效果，`range_skill_ids` 仍只作混合技能站位参考。`frontline_bulwark` 的两个嘲讽 action 已改用 Ground action 和 `frontline_guard` 评分桶，Ground 评分也会把实际状态/控制命中视为有效收益；正式决策回归会验证 `warrior_taunt` 生成 ground command 并通过 preview，同时保留该技能原有的单格/高等级前方弧形选区设计。
 - AI evaluator trace span 的异常安全缺口已于 2026-07-23 修复：`BattleAiChargeActionEvaluator`、`BattleAiChargePathAoeActionEvaluator`、`BattleAiMoveToRangeActionEvaluator` 的 15 个手写 `Enter/Exit` 区间已改用 `BattleAiTraceSpan`。三个 focused runner 会分别从正式 preview 或移动成本查询中注入异常，并验证原异常不被替换、recorder 栈恢复平衡且目标 span 确实完成。
 - 据点顶层商店 seed/刷新步数契约漂移已于 2026-07-23 解决：删除 `shop_inventory_seed` / `shop_last_refresh_step` 镜像，只由每个商店子状态持有实际 seed、刷新步数和库存；刷新仍为彼此独立的真随机，且只更新目标商店。破坏性 schema 变更归入 v15，v14 直接拒绝且不提供迁移。
 - 原 findings-first 中的晋升信号/BBCode、旧 AI trace scope 与 Variant 计时、装备 discard-all、骰子字符串虚调用、图标路径、encounter anchor 恢复等具体问题均已由当前实现覆盖。
@@ -95,11 +99,11 @@
 
 ### 6. `scripts/enemies/EnemyAiAction.cs`
 
-- 复审状态：**确认问题**；原规模：1547 行；当前文件已缩为 authoring/validation schema，执行 owner 已迁至 evaluator。
+- 复审状态：**通过**；原规模：1547 行；当前文件已缩为 authoring/validation schema，执行 owner 已迁至 evaluator。
 - 关键类型/入口：EnemyAiAction, struct；主要方法：GetDeclaredSkillIds, ValidateSkillReferences, _collect_base_validation_errors, _is_supported_target_selector, _append_enemy_focus_target_selector_errors, _append_declared_skill_id, _create_decision, _create_scored_decision, _resolve_known_skill_ids, _get_skill_def。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×29; runtime mutation collections×66。
-- 当前 finding：skill id 存在即可通过引用校验，没有验证 action 需要的 unit/ground target mode；错误配置只会在运行时被 evaluator 静默跳过。
-- 建议验证：unit action 引用 ground skill、ground action 引用 unit skill 时，内容 registry 应直接报错。
+- 当前结论：skill id 存在后还会进入 typed action/skill 兼容性规则；执行型 action 的 target mode、selection mode、special-profile route、变体 command route、multi 候选容量、必要 cast-option 效果及专用 evaluator 能构造的坐标形状不匹配时，会在内容 registry 阶段直接报错；模板实际技能等级无法解锁可执行变体/效果时也会报错，站位 action 的 `range_skill_ids` 不受错误的单一模式约束。
+- 建议验证：`run_enemy_ai_action_skill_compatibility_regression.cs`、`run_enemy_content_registry_typed_regression.cs` 与正式 `run_resource_validation_regression.cs`。
 
 ### 7. `scripts/enemies/EnemyAiActionHelper.cs`
 
@@ -1264,11 +1268,11 @@
 
 ### 151. `scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs`
 
-- 复审状态：**确认问题**；规模：1384 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1384 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, DamageEstimateResult, DamageSaveEstimate, DamageEstimateBreakdown, DamagePreviewSnapshot, PathStepHitCountEntry；主要方法：Clone, Scaled, ToDictionary, FromPreviewSaveEstimate, FromPreviewResult, CloneSaveEstimates, CloneDamageEstimates, CloneTraceObjectList, CloneTraceObject, CloneTraceEnumerable。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×254; runtime mutation collections×79。
-- 当前 finding：普通伤害估算路径没有完整复用正式 preview/mitigation 语义，并把 `ShieldAbsorbed` 固定为 0，会高估部分目标的实际承伤与击杀线。
-- 建议验证：用相同 source/target 对比 AI estimate 与正式 preview，覆盖 shield、guard、fixed mitigation。
+- 当前结论：production 普通伤害评分复用 `BattleDamageResolver.PreviewDamageEffectTyped(...)` 的 Average/Expected 正式预览，累计生命伤害、减伤后伤害、护盾吸收与击杀语义；多段效果串联 source/target preview-after 状态，不重复消费同一护盾或 source 状态。无 resolver 的隔离测试 seam 仍保留纯估算 fallback。
+- 建议验证：`run_battle_ai_score_input_metrics_regression.cs`、`run_battle_damage_resolver_preview_contract_regression.cs` 与 `run_battle_ai_score_save_probability_regression.cs`。
 
 ### 152. `scripts/systems/battle/ai/BattleAiScoreService.cs`
 
@@ -3020,12 +3024,13 @@
 
 ### 354. `scripts/systems/inventory/PartyItemUseService.cs`
 
-- 复审状态：**需跟进**；规模：201 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：201 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：PartyItemUseService, PartyItemUseOptions, PartyItemUseResult；主要方法：ToLearnSkillOptions, Create, WithReason, WithSkill, WithConfirmationRequired, WithSuccess, ToDictionary, Setup, Dispose, UseItemTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1; runtime mutation collections×13。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
+  - 技能书的库存预检与扣减由同一同步 warehouse owner 完成，中间学习逻辑不修改仓库；当前没有可达的扣减失败半事务。
+  - 待修问题位于上层 `GameRuntimeWarehouseHandler`：成功命令当前立即写入完整存档，而不是只 stage party 并标记 pending dirty。
+- 建议验证：`tests/warehouse/run_party_item_use_service_regression.cs`。
 
 ### 355. `scripts/systems/inventory/PartyWarehouseService.cs`
 
@@ -3337,11 +3342,11 @@
 
 ### 389. `scripts/systems/progression/QuestProgressService.cs`
 
-- 复审状态：**确认低优先级 API 问题**；规模：1004 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过（任务失败生命周期暂未实现）**；规模：1004 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：QuestProgressEventKind, QuestProgressService, QuestActiveObjectiveMatch, QuestProgressEventData, QuestObjectiveDefData, QuestProgressDataReader, QuestProgressApplyResultData, QuestProgressEventContextData；主要方法：ToStringName, ToEventKind, Setup, SetPartyState, Dispose, GetPartyState, GetActiveQuestsTyped, GetClaimableQuestsTyped, GetClaimableQuestIdsTyped, GetCompletedQuestIdsTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×39; save/schema/projection×9; runtime mutation collections×46。
-- 当前 finding：公开 `RecordProgress` 完成全部目标时只改 quest status，不把对象从 active 迁到 claimable；当前生产链使用另一套 event API。
-- 建议验证：直接 API 与 event API 必须得到相同 active/claimable 状态和可 round-trip 存档。
+- 当前结论：公开 `RecordProgress` 与正式 event API 都会把完成任务迁入 claimable；`SetQuestState` 不再把 Failed/Inactive/Unknown 写入 active。Failed 的正式集合、状态迁移与存档语义留待任务失败系统设计，不在本次临时修复中扩展。
+- 建议验证：`run_quest_progress_service_regression.cs`、`run_typed_party_quest_state_regression.cs`、`run_save_serializer_quest_round_trip_regression.cs` 与 `run_text_command_quest_progress_regression.cs`。
 
 ### 390. `scripts/systems/progression/RacialSkillGrantService.cs`
 

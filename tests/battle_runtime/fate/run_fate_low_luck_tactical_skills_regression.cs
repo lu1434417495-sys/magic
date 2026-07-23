@@ -176,7 +176,10 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         );
         actionCaster.current_ap = 2;
         BattleEventBatch turnStartBatch = new BattleEventBatch();
-        actionRuntime._apply_turn_start_statuses_result(actionCaster, turnStartBatch);
+        actionRuntime._skill_turn_resolver.ApplyTurnStartStatusesResult(
+            actionCaster,
+            turnStartBatch
+        );
         _test.Eq(actionCaster.current_ap, 1, "黑契推进·行契应让施法者下一回合少 1 点行动点。");
         _test.True(
             ((BattleUnitState)actionCase["enemy"]).current_hp < 60,

@@ -110,12 +110,35 @@ internal sealed class BattleAiService : IDisposable
                 mutationGuard.Capture(context);
 
             BattleAiDecision decision;
-            using (new BattleAiTraceSpan("choose:impl"))
-                decision = ChooseCommandImpl(context);
+            try
+            {
+                using (new BattleAiTraceSpan("choose:impl"))
+                    decision = ChooseCommandImpl(context);
+            }
+            catch (Exception evaluationException)
+            {
+                BattleAiMutationViolationReport exceptionReport;
+                using (new BattleAiTraceSpan("choose:mutation_guard_validate_exception"))
+                    exceptionReport = mutationGuard.ValidateReportTyped(
+                        context,
+                        "decision_exception",
+                        callSite: "BattleAiService.ChooseCommandImpl"
+                    );
+                if (exceptionReport == null)
+                {
+                    throw;
+                }
+
+                RecordMutationViolation(context, exceptionReport);
+                throw new BattleAiMutationViolationException(
+                    exceptionReport,
+                    evaluationException
+                );
+            }
 
             BattleAiMutationViolationReport report;
             using (new BattleAiTraceSpan("choose:mutation_guard_validate"))
-                report = mutationGuard.ValidateAndRestoreReportTyped(
+                report = mutationGuard.ValidateReportTyped(
                     context,
                     "decision",
                     callSite: "BattleAiService.ChooseCommandImpl"
@@ -126,8 +149,8 @@ internal sealed class BattleAiService : IDisposable
             }
 
             decision?.ClearOwnedRuntimeReferences();
-            AbortMutationViolation(context, report);
-            return null;
+            RecordMutationViolation(context, report);
+            throw new BattleAiMutationViolationException(report);
         }
         finally
         {
@@ -184,7 +207,7 @@ internal sealed class BattleAiService : IDisposable
         return decision;
     }
 
-    private static void AbortMutationViolation(
+    private static void RecordMutationViolation(
         BattleAiContext context,
         BattleAiMutationViolationReport report
     )
@@ -196,7 +219,6 @@ internal sealed class BattleAiService : IDisposable
 
         context?.SetMutationGuardViolations(report.Violations);
         BattleAiFailurePolicy.ReportMutationViolation(report.Message, report.ToMetadata());
-        throw new BattleAiMutationViolationException(report);
     }
 
     private static BattleAiDecision BuildWaitDecision(

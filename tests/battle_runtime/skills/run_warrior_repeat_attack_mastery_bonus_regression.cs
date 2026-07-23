@@ -6,9 +6,17 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_warrior_repeat_attack_mastery_bonus_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private ContentSnapshot _contentSnapshot;
 
     public override void _Initialize()
     {
+        ProcessFrame += RunOnFirstProcessFrame;
+    }
+
+    private void RunOnFirstProcessFrame()
+    {
+        ProcessFrame -= RunOnFirstProcessFrame;
+        _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         TestResult exitCode = Run();
         RequestTestExit(exitCode);
     }
@@ -19,6 +27,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         TestRepeatAttackMasteryBonusStartsOnFifthStageEntry();
         TestWeaponAttackQualityReadsWeaponDiceMaxReasonFromResultPayload();
         TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey();
+        TestGuardLevelProgressionMatchesDescription();
 
         return _test.Finish("Warrior repeat attack mastery bonus regression");
     }
@@ -226,10 +235,10 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             }
         );
 
-        var result = new AttackEffectResolutionResult
+        var fullyMitigatedHitResult = new AttackEffectResolutionResult
         {
             AttackSuccess = true,
-            Damage = 7,
+            Damage = 0,
         };
         var effectDefs = new List<CombatEffectDefinition>
         {
@@ -250,13 +259,13 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             attacker,
             target,
             effectDefs,
-            result,
+            fullyMitigatedHitResult,
             skillDefinitions
         );
 
         _test.True(
             grant != null,
-            "guard mastery grant 应继续从 typed skill dictionary key 成功读取 warrior_guard。"
+            "成功物理命中即使被完全减伤，也应从 typed skill dictionary 授予格挡精通。"
         );
         if (grant != null)
         {
@@ -268,6 +277,145 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             _test.Eq(grant.Amount, 1, "普通敌方命中 guarding 目标时应给予 1 点熟练度。");
             _test.Eq(grant.MemberId.ToString(), "hero", "guard mastery grant 应归属给被保护的成员。");
         }
+
+        var missedResult = new AttackEffectResolutionResult
+        {
+            AttackSuccess = false,
+            Damage = 0,
+        };
+        _test.True(
+            service.BuildGuardMasteryGrantFromIncomingHitTyped(
+                attacker,
+                target,
+                effectDefs,
+                missedResult,
+                skillDefinitions
+            ) == null,
+            "未命中的攻击不应授予格挡精通。"
+        );
+
+        var magicalEffectDefs = new List<CombatEffectDefinition>
+        {
+            TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                damageTag: "force"
+            ),
+        };
+        _test.True(
+            service.BuildGuardMasteryGrantFromIncomingHitTyped(
+                attacker,
+                target,
+                magicalEffectDefs,
+                fullyMitigatedHitResult,
+                skillDefinitions
+            ) == null,
+            "非物理命中不应授予格挡精通。"
+        );
+    }
+
+    private void TestGuardLevelProgressionMatchesDescription()
+    {
+        _contentSnapshot.Skills.TryGetValue(
+            "warrior_guard",
+            out SkillDefinition guardDefinition
+        );
+        _test.True(guardDefinition?.CombatProfile != null, "格挡正式技能配置应可加载。");
+        if (guardDefinition?.CombatProfile == null)
+        {
+            return;
+        }
+
+        _test.True(
+            guardDefinition.LevelDescriptionTemplate.StartsWith("格挡姿态："),
+            "格挡等级模板应使用中文姿态名称。"
+        );
+        _test.True(
+            !guardDefinition.LevelDescriptionTemplate.Contains("guarding"),
+            "格挡等级模板不应残留内部状态 id。"
+        );
+
+        int[] expectedGuardPower = { 1, 1, 1, 2, 2, 3 };
+        int[] expectedDurationTu = { 40, 50, 60, 60, 60, 60 };
+        int[] expectedStaminaCost = { 50, 50, 40, 40, 35, 30 };
+        for (int level = 0; level <= 5; level++)
+        {
+            CombatEffectDefinition guarding = FindActiveStatusEffect(
+                guardDefinition.CombatProfile.EffectDefinitions,
+                "guarding",
+                level
+            );
+            _test.True(guarding != null, $"格挡 {level}级 应有 guarding 效果。");
+            if (guarding != null)
+            {
+                _test.Eq(
+                    guarding.Power,
+                    expectedGuardPower[level],
+                    $"格挡 {level}级 减伤强度应匹配等级说明。"
+                );
+                _test.Eq(
+                    guarding.DurationTu,
+                    expectedDurationTu[level],
+                    $"格挡 {level}级 持续时间应匹配等级说明。"
+                );
+            }
+
+            CombatEffectDefinition slow = FindActiveStatusEffect(
+                guardDefinition.CombatProfile.EffectDefinitions,
+                "slow",
+                level
+            );
+            _test.Eq(
+                slow != null,
+                level <= 3,
+                $"格挡 {level}级 移动力惩罚启用状态应匹配等级说明。"
+            );
+            if (slow != null)
+            {
+                _test.Eq(slow.Power, 1, $"格挡 {level}级 移动力惩罚应为1。");
+                _test.Eq(
+                    slow.DurationTu,
+                    expectedDurationTu[level],
+                    $"格挡 {level}级 移动力惩罚持续时间应跟随姿态。"
+                );
+            }
+
+            SkillEffectiveCombatDefinition effectiveDefinition =
+                SkillEffectiveCombatDefinition.BuildUncached(guardDefinition, level);
+            _test.Eq(
+                effectiveDefinition.ResourceCosts.StaminaCost,
+                expectedStaminaCost[level],
+                $"格挡 {level}级 体力消耗应匹配等级说明。"
+            );
+            _test.Eq(
+                guardDefinition.CombatProfile.CooldownTu,
+                120,
+                $"格挡 {level}级 冷却应保持120TU。"
+            );
+        }
+    }
+
+    private static CombatEffectDefinition FindActiveStatusEffect(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        StringName statusId,
+        int skillLevel
+    )
+    {
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        {
+            if (
+                effectDefinition?.EffectType == "status"
+                && effectDefinition.StatusId == statusId
+                && skillLevel >= Mathf.Max(effectDefinition.MinSkillLevel, 0)
+                && (
+                    effectDefinition.MaxSkillLevel < 0
+                    || skillLevel <= effectDefinition.MaxSkillLevel
+                )
+            )
+            {
+                return effectDefinition;
+            }
+        }
+        return null;
     }
 
     private static BattleUnitState BuildMasteryUnit(

@@ -556,6 +556,36 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return BattleRangeService.GetEffectiveSkillRange(active_unit, skillDefinition);
     }
 
+    private BattleSkillAvailabilityService CreateSkillAvailabilityService()
+    {
+        BattleRuntimeModule runtime = Runtime;
+        return new BattleSkillAvailabilityService(
+            runtime?._skillCatalog,
+            runtime?._skillDefinitionIndex,
+            runtime?._equipmentAbilityBindingIndex,
+            runtime?._itemDefIndex
+        );
+    }
+
+    private int ResolveSkillCommandEntryLevel(
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        StringName skillId
+    )
+    {
+        int fallbackSkillLevel = _get_unit_skill_level(activeUnit, skillId);
+        BattleRuntimeModule runtime = Runtime;
+        return runtime == null
+            ? fallbackSkillLevel
+            : CreateSkillAvailabilityService().ResolveSkillCommandEntryLevel(
+                runtime._state,
+                command,
+                BattleSkillAvailabilityConsumer.PreviewExecution,
+                runtime.GetBattleWorldStep(),
+                fallbackSkillLevel
+            );
+    }
+
     // ============================================================
     // 主流程
     // ============================================================
@@ -571,13 +601,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return;
         }
-        int fallbackSkillLevel = _get_unit_skill_level(active_unit, skillDefinition.SkillId);
-        int commandSkillLevel =
-            Runtime?.ResolveSkillCommandEntryLevel(
-                command,
-                BattleSkillAvailabilityConsumer.PreviewExecution,
-                fallbackSkillLevel
-            ) ?? fallbackSkillLevel;
+        int commandSkillLevel = ResolveSkillCommandEntryLevel(
+            active_unit,
+            command,
+            skillDefinition.SkillId
+        );
         using IDisposable scopedCommandLevel = PushScopedCommandSkillLevel(
             active_unit,
             skillDefinition.SkillId,
@@ -776,12 +804,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         BattleRuntimeModule runtime = Runtime;
         if (runtime == null || unit == null || command == null)
             return false;
-        BattleSkillAvailabilityService service = new(
-            runtime._skillCatalog,
-            runtime._skillDefinitionIndex,
-            runtime._equipmentAbilityBindingIndex,
-            runtime._itemDefIndex
-        );
+        BattleSkillAvailabilityService service = CreateSkillAvailabilityService();
         BattleSkillAccessResult accessResult = service.ValidateSkillEntryAccess(
             new BattleSkillAvailabilityQuery
             {
@@ -1822,6 +1845,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 runtimeEffectDefinitions,
                 DamageResolutionContext
                     .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
+                    .WithBattleState(RtState())
                     .WithSourceSkillLevel(
                         Math.Max(
                             _get_unit_skill_level(
@@ -1843,7 +1867,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             damageResolver.ResolveSkillResult(
                 active_unit,
                 target_unit,
-                skillDefinition
+                skillDefinition,
+                RtState()
             )
         );
     }
@@ -2282,7 +2307,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
-        unit_state.RefreshFootprint();
         BattleGridService gridService = Runtime?.GetGridService();
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {

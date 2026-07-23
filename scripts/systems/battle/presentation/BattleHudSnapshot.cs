@@ -721,6 +721,273 @@ internal sealed class BattleHudBarrierSnapshot : IBattlePresentationSnapshotValu
         );
 }
 
+internal sealed class BattleHudObjectiveProgressSnapshot
+    : IBattlePresentationSnapshotValue
+{
+    private readonly ReadOnlyCollection<string> _requiredUnitIds;
+    private readonly ReadOnlyCollection<string> _aliveRequiredUnitIds;
+    private readonly ReadOnlyCollection<string> _reachedExitUnitIds;
+    private readonly ReadOnlyCollection<Vector2I> _exitCoords;
+    private readonly ReadOnlyCollection<BattleHudObjectiveNodeSnapshot>
+        _operationNodes;
+
+    internal static BattleHudObjectiveProgressSnapshot Empty { get; } =
+        new(BattleObjectiveProgressSnapshot.Empty);
+
+    internal BattleHudObjectiveProgressSnapshot(
+        BattleObjectiveProgressSnapshot progress
+    )
+    {
+        progress ??= BattleObjectiveProgressSnapshot.Empty;
+        Mode = progress.Mode;
+        ModeId = BattleObjectiveRuntimeCodec.ToWireValue(progress.Mode);
+        Title = BuildTitle(progress.Mode);
+        ProgressText = BuildProgressText(progress);
+        TargetActorId = progress.TargetActorId.ToString();
+        TargetUnitId = progress.TargetUnitId.ToString();
+        TargetDisplayName = progress.TargetDisplayName;
+        TargetAlive = progress.TargetAlive;
+        TargetSecured = progress.TargetSecured;
+        TargetReachedExit = progress.TargetReachedExit;
+        ExitZoneId = progress.ExitZoneId.ToString();
+        ExitEdge = progress.ExitEdgeWireValue;
+        ExitDepth = progress.ExitDepth;
+        _requiredUnitIds = CopyStringNames(progress.RequiredUnitIds);
+        _aliveRequiredUnitIds = CopyStringNames(progress.AliveRequiredUnitIds);
+        _reachedExitUnitIds = CopyStringNames(progress.ReachedExitUnitIds);
+        _exitCoords = new List<Vector2I>(progress.ExitCoords).AsReadOnly();
+        var operationNodes = new List<BattleHudObjectiveNodeSnapshot>();
+        foreach (BattleObjectiveNodeProgressSnapshot node in progress.OperationNodes)
+            operationNodes.Add(new BattleHudObjectiveNodeSnapshot(node));
+        _operationNodes = operationNodes.AsReadOnly();
+        EnemyUnitCount = progress.EnemyUnitCount;
+        AliveEnemyUnitCount = progress.AliveEnemyUnitCount;
+        CurrentTu = progress.CurrentTu;
+        StartTu = progress.StartTu;
+        DeadlineTu = progress.DeadlineTu;
+        RemainingTu = progress.RemainingTu;
+    }
+
+    internal bool IsValid => Mode != BattleObjectiveMode.Unknown;
+    internal BattleObjectiveMode Mode { get; }
+    internal string ModeId { get; } = "";
+    internal string Title { get; } = "";
+    internal string ProgressText { get; } = "";
+    internal string TargetActorId { get; } = "";
+    internal string TargetUnitId { get; } = "";
+    internal string TargetDisplayName { get; } = "";
+    internal bool TargetAlive { get; }
+    internal bool TargetSecured { get; }
+    internal bool TargetReachedExit { get; }
+    internal string ExitZoneId { get; } = "";
+    internal string ExitEdge { get; } = "unknown";
+    internal int ExitDepth { get; }
+    internal IReadOnlyList<string> RequiredUnitIds => _requiredUnitIds;
+    internal IReadOnlyList<string> AliveRequiredUnitIds => _aliveRequiredUnitIds;
+    internal IReadOnlyList<string> ReachedExitUnitIds => _reachedExitUnitIds;
+    internal IReadOnlyList<Vector2I> ExitCoords => _exitCoords;
+    internal int RequiredUnitCount => _requiredUnitIds.Count;
+    internal int AliveRequiredUnitCount => _aliveRequiredUnitIds.Count;
+    internal int ReachedExitUnitCount => _reachedExitUnitIds.Count;
+    internal int EnemyUnitCount { get; }
+    internal int AliveEnemyUnitCount { get; }
+    internal int CurrentTu { get; }
+    internal int StartTu { get; }
+    internal int DeadlineTu { get; }
+    internal int RemainingTu { get; }
+    internal IReadOnlyList<BattleHudObjectiveNodeSnapshot> OperationNodes =>
+        _operationNodes;
+    internal int OperationNodeCount => _operationNodes.Count;
+    internal int CompletedOperationNodeCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (BattleHudObjectiveNodeSnapshot node in _operationNodes)
+            {
+                if (node.IsCompleted)
+                    count++;
+            }
+            return count;
+        }
+    }
+    internal int IncompleteOperationNodeCount =>
+        OperationNodeCount - CompletedOperationNodeCount;
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("mode", ModeId),
+            ("title", Title),
+            ("progress_text", ProgressText),
+            ("target_actor_id", TargetActorId),
+            ("target_unit_id", TargetUnitId),
+            ("target_display_name", TargetDisplayName),
+            ("target_alive", TargetAlive),
+            ("target_secured", TargetSecured),
+            ("target_reached_exit", TargetReachedExit),
+            ("required_unit_ids", _requiredUnitIds),
+            ("alive_required_unit_ids", _aliveRequiredUnitIds),
+            ("reached_exit_unit_ids", _reachedExitUnitIds),
+            ("required_unit_count", RequiredUnitCount),
+            ("alive_required_unit_count", AliveRequiredUnitCount),
+            ("reached_exit_unit_count", ReachedExitUnitCount),
+            ("exit_zone_id", ExitZoneId),
+            ("exit_edge", ExitEdge),
+            ("exit_depth", ExitDepth),
+            ("exit_coords", _exitCoords),
+            ("current_tu", CurrentTu),
+            ("start_tu", StartTu),
+            ("deadline_tu", DeadlineTu),
+            ("remaining_tu", RemainingTu),
+            ("enemy_unit_count", EnemyUnitCount),
+            ("alive_enemy_unit_count", AliveEnemyUnitCount),
+            ("operation_nodes", _operationNodes),
+            ("operation_node_count", OperationNodeCount),
+            ("completed_operation_node_count", CompletedOperationNodeCount),
+            ("incomplete_operation_node_count", IncompleteOperationNodeCount)
+        );
+
+    private static string BuildTitle(BattleObjectiveMode mode) =>
+        mode switch
+        {
+            BattleObjectiveMode.Elimination => "歼灭敌军",
+            BattleObjectiveMode.Boss => "击败首领",
+            BattleObjectiveMode.Rescue => "拯救目标",
+            BattleObjectiveMode.Escape => "逃离战场",
+            BattleObjectiveMode.Escort => "护送目标",
+            BattleObjectiveMode.Defense => "坚守防线",
+            BattleObjectiveMode.Intercept => "截击目标",
+            BattleObjectiveMode.NodeOperation => "节点作业",
+            _ => "",
+        };
+
+    private static string BuildProgressText(
+        BattleObjectiveProgressSnapshot progress
+    )
+    {
+        return progress.Mode switch
+        {
+            BattleObjectiveMode.Elimination =>
+                $"敌军存活 {progress.AliveEnemyUnitCount}/{progress.EnemyUnitCount}",
+            BattleObjectiveMode.Boss =>
+                $"{ResolveTargetName(progress)}：{(progress.TargetAlive ? "存活" : "已击败")}"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Rescue =>
+                $"{ResolveTargetName(progress)}："
+                + (
+                    !progress.TargetAlive
+                        ? "已倒下"
+                        : progress.TargetSecured
+                            ? "已获救"
+                            : "等待相邻交互"
+                )
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Escape =>
+                $"{FormatExitEdge(progress.ExitEdge)}出口（纵深 {progress.ExitDepth} 格）"
+                + $" · 已到达 {progress.ReachedExitUnitCount}/{progress.RequiredUnitCount}"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Escort =>
+                $"{ResolveTargetName(progress)}："
+                + (
+                    !progress.TargetAlive
+                        ? "已倒下"
+                        : progress.TargetReachedExit
+                            ? "已抵达出口"
+                            : "护送中"
+                )
+                + $" · {FormatExitEdge(progress.ExitEdge)}出口（纵深 {progress.ExitDepth} 格）"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Defense =>
+                $"{ResolveTargetName(progress)}："
+                + (
+                    !progress.TargetAlive
+                        ? "已倒下"
+                        : progress.RemainingTu <= 0
+                            ? "已守住"
+                            : "坚守中"
+                )
+                + $" · 剩余 {progress.RemainingTu} TU"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.Intercept =>
+                $"{ResolveTargetName(progress)}："
+                + (
+                    !progress.TargetAlive
+                        ? "已截停"
+                        : progress.TargetReachedExit
+                            ? "已逃脱"
+                            : "突围中"
+                )
+                + $" · {FormatExitEdge(progress.ExitEdge)}逃脱区（纵深 {progress.ExitDepth} 格）"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            BattleObjectiveMode.NodeOperation =>
+                $"已完成 {progress.CompletedOperationNodeCount}/{progress.OperationNodeCount}"
+                + $" · 队伍存活 {progress.AliveRequiredUnitCount}/{progress.RequiredUnitCount}",
+            _ => "",
+        };
+    }
+
+    private static string ResolveTargetName(
+        BattleObjectiveProgressSnapshot progress
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(progress.TargetDisplayName))
+            return progress.TargetDisplayName;
+        if (progress.TargetUnitId != "")
+            return progress.TargetUnitId.ToString();
+        return "首领";
+    }
+
+    private static string FormatExitEdge(BattleMapEdge edge) =>
+        edge switch
+        {
+            BattleMapEdge.Left => "左侧",
+            BattleMapEdge.Right => "右侧",
+            BattleMapEdge.Top => "上方",
+            BattleMapEdge.Bottom => "下方",
+            _ => "未知",
+        };
+
+    private static ReadOnlyCollection<string> CopyStringNames(
+        IEnumerable<StringName> source
+    )
+    {
+        var result = new List<string>();
+        foreach (StringName value in source ?? Array.Empty<StringName>())
+            result.Add(value.ToString());
+        return result.AsReadOnly();
+    }
+}
+
+internal sealed class BattleHudObjectiveNodeSnapshot
+    : IBattlePresentationSnapshotValue
+{
+    internal BattleHudObjectiveNodeSnapshot(
+        BattleObjectiveNodeProgressSnapshot node
+    )
+    {
+        NodeId = node?.NodeId.ToString() ?? "";
+        DisplayName = node?.DisplayName ?? "";
+        ZoneId = node?.ZoneId.ToString() ?? "";
+        Coord = node?.Coord ?? default;
+        IsCompleted = node?.IsCompleted == true;
+    }
+
+    internal string NodeId { get; }
+    internal string DisplayName { get; }
+    internal string ZoneId { get; }
+    internal Vector2I Coord { get; }
+    internal bool IsCompleted { get; }
+
+    public IReadOnlyDictionary<string, object> CanonicalFacts =>
+        BattlePresentationSnapshotFacts.Map(
+            ("node_id", NodeId),
+            ("display_name", DisplayName),
+            ("zone_id", ZoneId),
+            ("coord", Coord),
+            ("is_completed", IsCompleted)
+        );
+}
+
 internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
 {
     private readonly ReadOnlyCollection<BattleHudQueueEntrySnapshot> _queueEntries;
@@ -786,7 +1053,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
         IEnumerable<string> recentBattleLogLines,
         BattleHudEquipmentPanelSnapshot equipmentPanel,
         IEnumerable<BattleHudBarrierSnapshot> barriers = null,
-        string barrierSummaryText = ""
+        string barrierSummaryText = "",
+        BattleHudObjectiveProgressSnapshot objectiveProgress = null
     )
     {
         HeaderTitle = headerTitle ?? "";
@@ -837,6 +1105,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
             barriers ?? Array.Empty<BattleHudBarrierSnapshot>()
         ).AsReadOnly();
         BarrierSummaryText = barrierSummaryText ?? "";
+        ObjectiveProgress =
+            objectiveProgress ?? BattleHudObjectiveProgressSnapshot.Empty;
     }
 
     internal bool IsEmpty => _isEmpty;
@@ -876,6 +1146,8 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
     internal BattleHudEquipmentPanelSnapshot EquipmentPanel { get; }
     internal IReadOnlyList<BattleHudBarrierSnapshot> Barriers => _barriers;
     internal string BarrierSummaryText { get; } = "";
+    internal BattleHudObjectiveProgressSnapshot ObjectiveProgress { get; } =
+        BattleHudObjectiveProgressSnapshot.Empty;
 
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
         _isEmpty
@@ -883,6 +1155,7 @@ internal sealed class BattleHudSnapshot : IBattlePresentationSnapshotValue
             : BattlePresentationSnapshotFacts.Map(
                 ("header_title", HeaderTitle),
                 ("header_subtitle", HeaderSubtitle),
+                ("objective_progress", ObjectiveProgress),
                 ("round_badge", RoundBadge),
                 ("mode_text", ModeText),
                 ("queue_entries", _queueEntries),

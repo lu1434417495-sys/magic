@@ -418,7 +418,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
         preview.allowed = true;
         preview.AddTargetUnitId(target.unit_id);
-        target.RefreshFootprint();
         foreach (Vector2I coord in target.occupied_coords)
         {
             if (!preview.ContainsTargetCoord(coord))

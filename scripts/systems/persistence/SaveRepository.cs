@@ -47,11 +47,10 @@ internal sealed class SaveRepository
         if (!FileAccess.FileExists(savePath))
         {
             if (emitErrors)
-            {
-                throw new InvalidOperationException(
-                    $"GameSession could not find persisted save {savePath}."
+                PushError(
+                    "session.save.read.missing",
+                    $"GameSession could not find persisted save {savePath}. Error: {(int)Error.DoesNotExist}"
                 );
-            }
             return (int)Error.DoesNotExist;
         }
 
@@ -67,13 +66,19 @@ internal sealed class SaveRepository
         if (openedFile == null)
         {
             Error openError = FileAccess.GetOpenError();
+            Error readError =
+                openError is Error.FileNotFound or Error.DoesNotExist
+                || !FileAccess.FileExists(savePath)
+                    ? Error.DoesNotExist
+                    : openError == Error.Ok
+                        ? Error.CantOpen
+                        : openError;
             if (emitErrors)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to open persisted save {savePath}. Error: {(int)openError}"
+                PushError(
+                    "session.save.read.open_failed",
+                    $"Failed to open persisted save {savePath}. Error: {(int)readError}"
                 );
-            }
-            return (int)openError;
+            return (int)readError;
         }
         FileAccess saveFile = requestScope.Own(openedFile, $"open:{savePath}");
 

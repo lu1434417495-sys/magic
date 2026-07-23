@@ -551,9 +551,9 @@ public sealed class SaveSerializer
             return "Corrupt save world_data: mounted_submaps must be a Dictionary.";
         if (
             worldData.ContainsKey("player_start_coord")
-            && !IsSupportedVector2I(worldData["player_start_coord"])
+            && !IsNativeVector2I(worldData["player_start_coord"])
         )
-            return "Corrupt save world_data: player_start_coord must be a Vector2i payload.";
+            return "Corrupt save world_data: player_start_coord must be a native Vector2i.";
         foreach (
             string optionalStringField in new[]
             {
@@ -713,8 +713,8 @@ public sealed class SaveSerializer
             }
             if (entry["is_generated"].VariantType != Variant.Type.Bool)
                 return $"Corrupt save mounted_submaps[{keyText}]: is_generated must be a bool.";
-            if (!IsSupportedVector2I(entry["player_coord"]))
-                return $"Corrupt save mounted_submaps[{keyText}]: player_coord must be a Vector2i payload.";
+            if (!IsNativeVector2I(entry["player_coord"]))
+                return $"Corrupt save mounted_submaps[{keyText}]: player_coord must be a native Vector2i.";
             using GDictionary mountedWorldData =
                 entry["world_data"].VariantType == Variant.Type.Dictionary
                     ? entry["world_data"].AsGodotDictionary()
@@ -847,23 +847,6 @@ public sealed class SaveSerializer
         normalized.active_member_ids = activeMemberIds;
         normalized.reserve_member_ids = reserveMemberIds;
         return normalized;
-    }
-
-    private Vector2I read_vector2i(Variant value)
-    {
-        return read_vector2i(value, Vector2I.Zero);
-    }
-
-    private Vector2I read_vector2i(Variant value, Vector2I fallback)
-    {
-        if (value.VariantType == Variant.Type.Vector2I)
-            return value.AsVector2I();
-        if (value.VariantType == Variant.Type.Dictionary)
-        {
-            using GDictionary vectorData = value.AsGodotDictionary();
-            return ReadVector2IDictionary(vectorData, fallback);
-        }
-        return fallback;
     }
 
     public bool IsValidSaveIdToken(string saveId)
@@ -1198,8 +1181,8 @@ public sealed class SaveSerializer
                 return $"Corrupt save world_data.submap_return_stack[{index}]: fields must exactly match current schema.";
             if (!IsStringValue(entry["map_id"]))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: map_id must be a String.";
-            if (!IsSupportedVector2I(entry["coord"]))
-                return $"Corrupt save world_data.submap_return_stack[{index}]: coord must be a Vector2i payload.";
+            if (!IsNativeVector2I(entry["coord"]))
+                return $"Corrupt save world_data.submap_return_stack[{index}]: coord must be a native Vector2i.";
             index++;
         }
         return "";
@@ -1245,8 +1228,8 @@ public sealed class SaveSerializer
                 if (!IsStringValue(eventData[stringField]))
                     return $"Corrupt save world_data.world_events[{index}]: {stringField} must be a String.";
             }
-            if (!IsSupportedVector2I(eventData["world_coord"]))
-                return $"Corrupt save world_data.world_events[{index}]: world_coord must be a Vector2i payload.";
+            if (!IsNativeVector2I(eventData["world_coord"]))
+                return $"Corrupt save world_data.world_events[{index}]: world_coord must be a native Vector2i.";
             if (eventData["is_discovered"].VariantType != Variant.Type.Bool)
                 return $"Corrupt save world_data.world_events[{index}]: is_discovered must be a bool.";
             index++;
@@ -1294,8 +1277,8 @@ public sealed class SaveSerializer
             string nodeKind = resourceNode["node_kind"].AsString();
             if (!WorldMapResourceNodeData.IsKnownKind(nodeKind))
                 return $"Corrupt save world_data.resource_nodes[{index}]: node_kind is unknown.";
-            if (!IsSupportedVector2I(resourceNode["world_coord"]))
-                return $"Corrupt save world_data.resource_nodes[{index}]: world_coord must be a Vector2i payload.";
+            if (!IsNativeVector2I(resourceNode["world_coord"]))
+                return $"Corrupt save world_data.resource_nodes[{index}]: world_coord must be a native Vector2i.";
             if (
                 resourceNode["yield_item_id"].AsString()
                 != WorldMapResourceNodeData.DefaultYieldItemId(nodeKind)
@@ -1369,8 +1352,8 @@ public sealed class SaveSerializer
                 return $"Corrupt save world_data.settlements[{index}]: tier must be a non-negative int.";
             foreach (string coordField in new[] { "origin", "footprint_size" })
             {
-                if (!IsSupportedVector2I(settlementData[coordField]))
-                    return $"Corrupt save world_data.settlements[{index}]: {coordField} must be a Vector2i payload.";
+                if (!IsNativeVector2I(settlementData[coordField]))
+                    return $"Corrupt save world_data.settlements[{index}]: {coordField} must be a native Vector2i.";
             }
             foreach (
                 string arrayField in new[] { "facilities", "service_npcs", "available_services" }
@@ -1432,31 +1415,8 @@ public sealed class SaveSerializer
 
     private static bool IsStringValue(Variant value) => value.VariantType == Variant.Type.String;
 
-    private static bool IsSupportedVector2I(Variant value)
-    {
-        if (value.VariantType == Variant.Type.Vector2I)
-            return true;
-        if (value.VariantType != Variant.Type.Dictionary)
-            return false;
-        using GDictionary vectorData = value.AsGodotDictionary();
-        return HasVector2IFields(vectorData);
-    }
-
-    private static Vector2I ReadVector2IDictionary(GDictionary vectorData, Vector2I fallback)
-    {
-        return HasVector2IFields(vectorData)
-            ? new Vector2I(vectorData["x"].AsInt32(), vectorData["y"].AsInt32())
-            : fallback;
-    }
-
-    private static bool HasVector2IFields(GDictionary vectorData)
-    {
-        return vectorData != null
-            && vectorData.ContainsKey("x")
-            && vectorData.ContainsKey("y")
-            && vectorData["x"].VariantType == Variant.Type.Int
-            && vectorData["y"].VariantType == Variant.Type.Int;
-    }
+    private static bool IsNativeVector2I(Variant value) =>
+        value.VariantType == Variant.Type.Vector2I;
 
     private static bool HasExactKeys(GDictionary data, string[] requiredKeys)
     {

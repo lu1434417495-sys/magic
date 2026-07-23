@@ -77,6 +77,15 @@ layout_mode = 2
 size_flags_vertical = 4
 text = "遭遇战"
 
+[node name="ObjectiveStatusLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/LeftCell"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+clip_text = true
+text_overrun_behavior = 3
+
 [node name="CenterCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
 size_flags_horizontal = 3

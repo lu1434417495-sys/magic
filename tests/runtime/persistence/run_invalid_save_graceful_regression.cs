@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -19,6 +20,8 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
     {
         TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit();
         TestLoadSaveRejectsBadWorldDataWithoutQuit();
+        TestWorldCoordinatesRequireNativeVector2I();
+        TestLoadSaveReturnsDoesNotExistWhenCachedPayloadDisappears();
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
         TestSaveIndexVersionRequiresExactInt();
@@ -80,6 +83,100 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
             _test.Eq(loadError, Error.InvalidData, "坏 world_data 应通过 load_save() 返回 ERR_INVALID_DATA，不应中止进程。");
         }
         CleanupTestSession(gameSession);
+    }
+
+    private void TestLoadSaveReturnsDoesNotExistWhenCachedPayloadDisappears()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "缺失存档回归前置：应能创建测试存档。");
+            if (createError != Error.Ok)
+                return;
+
+            string saveId = gameSession.GetActiveSaveId();
+            string savePath = gameSession.GetActiveSavePath();
+            _test.True(
+                HasSaveId(gameSession.ListSaveSlotsPlain(), saveId),
+                "缺失存档回归前置：索引缓存中应包含刚创建的槽位。"
+            );
+
+            gameSession.ResetRuntimeCache();
+            Error removeError = (Error)gameSession.RemoveFileIfExists(savePath);
+            _test.Eq(removeError, Error.Ok, "缺失存档回归前置：应能只删除 save payload。");
+            _test.False(FileAccess.FileExists(savePath), "缺失存档回归前置：save payload 应已不存在。");
+
+            Error loadError = Error.Failed;
+            try
+            {
+                loadError = (Error)gameSession.LoadSave(saveId);
+            }
+            catch (Exception exception)
+            {
+                _test.Fail($"缓存槽位的 save payload 消失后 LoadSave 不应抛异常。| error={exception}");
+                return;
+            }
+
+            _test.Eq(
+                loadError,
+                Error.DoesNotExist,
+                "缓存槽位的 save payload 消失后 LoadSave 应返回 DoesNotExist。"
+            );
+            _test.False(gameSession.HasActiveWorld(), "缺失 save payload 的加载失败不应创建 active world。");
+            _test.False(
+                HasSaveId(gameSession.ListSaveSlotsPlain(), saveId),
+                "确认 save payload 缺失后应从存档索引移除失效槽位。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestWorldCoordinatesRequireNativeVector2I()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "Vector2I schema 回归前置：应能创建测试存档。");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            Dictionary<string, object> worldData = gameSession.CaptureWorldDataPlain();
+            Vector2I expectedCoord = new(12, 8);
+            worldData["player_start_coord"] = expectedCoord;
+
+            bool acceptedNative = serializer.TryNormalizeWorldDataPlain(
+                worldData,
+                out Dictionary<string, object> normalized
+            );
+            _test.True(acceptedNative, "world_data 应接受原生 Vector2I 坐标。");
+            _test.True(
+                acceptedNative
+                    && normalized.TryGetValue("player_start_coord", out object normalizedCoord)
+                    && normalizedCoord is Vector2I typedCoord
+                    && typedCoord == expectedCoord,
+                "原生 Vector2I 通过规范化后应保留坐标和值类型。"
+            );
+
+            worldData["player_start_coord"] = new Dictionary<string, object>
+            {
+                ["x"] = expectedCoord.X,
+                ["y"] = expectedCoord.Y,
+            };
+            _test.False(
+                serializer.TryNormalizeWorldDataPlain(worldData, out _),
+                "world_data 应拒绝以 {x,y} Dictionary 表示的坐标。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
     }
 
     private void TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot()
@@ -226,6 +323,27 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
     {
         if (FileAccess.FileExists(path))
             DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(path));
+    }
+
+    private static bool HasSaveId(
+        IReadOnlyList<Dictionary<string, object>> entries,
+        string expectedSaveId
+    )
+    {
+        if (entries == null)
+            return false;
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
+        {
+            if (
+                entry != null
+                && entry.TryGetValue("save_id", out object saveId)
+                && string.Equals(saveId as string, expectedSaveId, System.StringComparison.Ordinal)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Dictionary<string, object> PlainDictionary(

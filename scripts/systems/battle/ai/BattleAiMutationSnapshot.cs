@@ -18,15 +18,10 @@ internal sealed class BattleAiMutationSnapshot
     internal static BattleAiMutationSnapshot Capture(BattleAiContext context) =>
         new(SnapshotState.Capture(context));
 
-    internal void Restore(BattleAiContext context)
-    {
-        _state.Restore(context);
-    }
-
-    internal List<string> ValidateAndRestore(
+    internal List<string> Validate(
         BattleAiContext context,
         StringName activeUnitId
-    ) => _state.ValidateAndRestore(context, activeUnitId);
+    ) => _state.Validate(context, activeUnitId);
 
     internal bool MatchesCurrentState(BattleAiContext context) =>
         _state.MatchesCurrentState(context);

@@ -15,6 +15,8 @@ internal enum BattleTerrainProfileKind
 
 public class BattleTerrainGenerator : IDisposable
 {
+    internal virtual bool EmptyGenerationIsPending => false;
+
     private static readonly StringName TerrainLand = BattleTerrainRules.ToStringName(
         BattleTerrainKind.Land
     );

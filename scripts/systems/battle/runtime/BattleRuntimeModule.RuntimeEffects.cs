@@ -621,7 +621,6 @@ public sealed partial class BattleRuntimeModule
     {
         if (unit_state == null)
             return;
-        unit_state.RefreshFootprint();
         _append_changed_coords(batch, unit_state.occupied_coords);
     }
 

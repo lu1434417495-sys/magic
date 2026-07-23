@@ -213,7 +213,10 @@ public sealed class BattleHudAdapter : IDisposable
             recentBattleLogLines: BuildRecentBattleLogLines(battle_state),
             equipmentPanel: BuildEquipmentPanelSnapshot(battle_state, activeUnit),
             barriers: barrierSnapshots,
-            barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots)
+            barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots),
+            objectiveProgress: new BattleHudObjectiveProgressSnapshot(
+                new BattleStateReadView(battle_state).ObjectiveProgress
+            )
         );
     }
 
@@ -1928,7 +1931,46 @@ public sealed class BattleHudAdapter : IDisposable
         if (activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             return "自动模式：等待 AI 行动";
         if (IsEmpty(selectedSkillId))
+        {
+            if (
+                battleState.ObjectiveRuntimeState
+                    is BattleRescueObjectiveRuntimeState rescueObjective
+                && !rescueObjective.TargetSecured
+                && activeUnit.source_member_id != ""
+            )
+            {
+                BattleUnitState target = battleState.GetUnit(
+                    rescueObjective.TargetUnitId
+                );
+                string targetName =
+                    target != null && !string.IsNullOrWhiteSpace(target.display_name)
+                        ? target.display_name
+                        : "救援目标";
+                return $"移动到 {targetName} 相邻位置并点击目标解救；Enter 结束行动";
+            }
+            if (
+                battleState.ObjectiveRuntimeState
+                    is BattleEscortObjectiveRuntimeState
+            )
+            {
+                return "保护护送目标；目标会自动寻路到绿色出口；Enter 结束行动";
+            }
+            if (
+                battleState.ObjectiveRuntimeState
+                    is BattleInterceptObjectiveRuntimeState
+            )
+            {
+                return "截停逃跑目标；绿色区域是敌方逃脱区；Enter 结束行动";
+            }
+            if (
+                battleState.ObjectiveRuntimeState
+                    is BattleDefenseObjectiveRuntimeState
+            )
+            {
+                return "保护防守目标直到倒计时结束；Enter 结束行动";
+            }
             return "点选技能或移动；Enter 结束行动";
+        }
         if (selectionInfo.IsMultiUnit)
         {
             if (selectionInfo.AutoCastReady)

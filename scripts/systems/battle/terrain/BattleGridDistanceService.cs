@@ -17,7 +17,6 @@ internal static class BattleGridDistanceService
         {
             return 999999;
         }
-        unit_state.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -35,8 +34,6 @@ internal static class BattleGridDistanceService
         {
             return 999999;
         }
-        first_unit.RefreshFootprint();
-        second_unit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I firstCoord in first_unit.occupied_coords)
         {

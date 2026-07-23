@@ -663,7 +663,6 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         {
             return false;
         }
-        unitState.RefreshFootprint();
         foreach (Vector2I occupiedCoord in unitState.occupied_coords)
         {
             if (coordSet.Contains(occupiedCoord))
@@ -913,6 +912,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             || scoreInput.estimated_enemy_damage > 0
             || scoreInput.estimated_healing > 0
             || scoreInput.estimated_enemy_healing > 0
+            || scoreInput.estimated_status_count > 0
+            || scoreInput.estimated_control_count > 0
             || scoreInput.estimated_lethal_target_count > 0
             || scoreInput.estimated_lethal_threat_target_count > 0
         )

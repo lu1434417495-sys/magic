@@ -1,0 +1,74 @@
+[gd_resource type="Resource" script_class="WildEncounterRosterDef" load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterDef.cs" id="1_roster"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterStageDef.cs" id="2_stage"]
+[ext_resource type="Script" path="res://scripts/enemies/WildEncounterRosterUnitEntryDef.cs" id="3_entry"]
+
+[sub_resource type="Resource" id="Resource_stage0_courier"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+actor_id = &"mist_courier"
+count = 1
+display_name = "迷雾信使"
+
+[sub_resource type="Resource" id="Resource_stage0_guard"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 1
+
+[sub_resource type="Resource" id="Resource_stage0"]
+script = ExtResource("2_stage")
+stage = 0
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_stage0_courier"), SubResource("Resource_stage0_guard")])
+
+[sub_resource type="Resource" id="Resource_stage1_courier"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+actor_id = &"mist_courier"
+count = 1
+display_name = "迷雾信使"
+
+[sub_resource type="Resource" id="Resource_stage1_guard"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 1
+
+[sub_resource type="Resource" id="Resource_stage1_harrier"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+count = 1
+
+[sub_resource type="Resource" id="Resource_stage1"]
+script = ExtResource("2_stage")
+stage = 1
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_stage1_courier"), SubResource("Resource_stage1_guard"), SubResource("Resource_stage1_harrier")])
+
+[sub_resource type="Resource" id="Resource_stage2_courier"]
+script = ExtResource("3_entry")
+template_id = &"mist_harrier"
+actor_id = &"mist_courier"
+count = 1
+display_name = "迷雾信使"
+
+[sub_resource type="Resource" id="Resource_stage2_guard"]
+script = ExtResource("3_entry")
+template_id = &"mist_beast"
+count = 2
+
+[sub_resource type="Resource" id="Resource_stage2_weaver"]
+script = ExtResource("3_entry")
+template_id = &"mist_weaver"
+count = 1
+
+[sub_resource type="Resource" id="Resource_stage2"]
+script = ExtResource("2_stage")
+stage = 2
+unit_entries = Array[ExtResource("3_entry")]([SubResource("Resource_stage2_courier"), SubResource("Resource_stage2_guard"), SubResource("Resource_stage2_weaver")])
+
+[resource]
+script = ExtResource("1_roster")
+profile_id = &"mist_hollow_intercept"
+display_name = "雾沼截信队"
+initial_stage = 0
+growth_step_interval = 3
+stages = Array[ExtResource("2_stage")]([SubResource("Resource_stage0"), SubResource("Resource_stage1"), SubResource("Resource_stage2")])

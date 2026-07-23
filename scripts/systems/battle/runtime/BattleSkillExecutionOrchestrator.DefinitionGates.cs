@@ -25,62 +25,19 @@ internal sealed partial class BattleSkillExecutionOrchestrator
 
     private static bool HasRepeatAttackEffectDefinition(
         IEnumerable<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        foreach (CombatEffectDefinition effectDefinition in effectDefinitions ?? Array.Empty<CombatEffectDefinition>())
-        {
-            if (effectDefinition?.EffectKind == BattleEffectKind.RepeatAttackUntilFail)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    ) => BattleUnitSkillDefinitionExecutionRules.HasRepeatAttackEffect(effectDefinitions);
 
     private static bool CanApplyUnitSkillResultFromDefinitions(
         IEnumerable<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        foreach (CombatEffectDefinition effectDefinition in effectDefinitions ?? Array.Empty<CombatEffectDefinition>())
-        {
-            if (effectDefinition == null)
-            {
-                continue;
-            }
-            switch (effectDefinition.EffectKind)
-            {
-                case BattleEffectKind.Damage:
-                case BattleEffectKind.EquipmentDurabilityDamage:
-                case BattleEffectKind.DispelMagic:
-                case BattleEffectKind.Heal:
-                case BattleEffectKind.HealFatal:
-                case BattleEffectKind.StaminaRestore:
-                case BattleEffectKind.Status:
-                case BattleEffectKind.ApplyStatus:
-                case BattleEffectKind.EraseStatus:
-                case BattleEffectKind.CleanseHarmful:
-                case BattleEffectKind.Execute:
-                case BattleEffectKind.GradedSaveExecute:
-                case BattleEffectKind.Shield:
-                case BattleEffectKind.LayeredBarrier:
-                case BattleEffectKind.BodySizeCategoryOverride:
-                case BattleEffectKind.ForcedMove:
-                case BattleEffectKind.ChainDamage:
-                case BattleEffectKind.OnKillGainResources:
-                    continue;
-                default:
-                    return false;
-            }
-        }
-        return true;
-    }
+    ) => BattleUnitSkillDefinitionExecutionRules.CanApplyUnitSkillResult(effectDefinitions);
 
     private static bool CanApplyUnitSkillOrRepeatResultFromDefinitions(
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
-        return HasRepeatAttackEffectDefinition(effectDefinitions)
-            || CanApplyUnitSkillResultFromDefinitions(effectDefinitions);
+        return BattleUnitSkillDefinitionExecutionRules.CanApplyUnitSkillOrRepeatResult(
+            effectDefinitions
+        );
     }
 
     private static bool CanHandleUnitSkillCommandFromDefinitions(

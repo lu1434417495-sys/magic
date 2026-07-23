@@ -483,7 +483,6 @@ public sealed class BattleGridService : IDisposable
         {
             return 999999;
         }
-        unit_state.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
         {
@@ -498,8 +497,6 @@ public sealed class BattleGridService : IDisposable
         {
             return 999999;
         }
-        first_unit.RefreshFootprint();
-        second_unit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I firstCoord in first_unit.occupied_coords)
         {
@@ -560,6 +557,42 @@ public sealed class BattleGridService : IDisposable
         BattleUnitState unit_state
     )
     {
+        return CanPlaceFootprintCore(
+            state,
+            anchor_coord,
+            footprint_size,
+            ignored_unit_id,
+            unit_state,
+            ignore_occupants: false
+        );
+    }
+
+    internal bool CanFitFootprintIgnoringOccupants(
+        BattleState state,
+        Vector2I anchor_coord,
+        Vector2I footprint_size,
+        BattleUnitState unit_state
+    )
+    {
+        return CanPlaceFootprintCore(
+            state,
+            anchor_coord,
+            footprint_size,
+            "",
+            unit_state,
+            ignore_occupants: true
+        );
+    }
+
+    private bool CanPlaceFootprintCore(
+        BattleState state,
+        Vector2I anchor_coord,
+        Vector2I footprint_size,
+        StringName ignored_unit_id,
+        BattleUnitState unit_state,
+        bool ignore_occupants
+    )
+    {
         var footprintCoords = GetFootprintCoords(anchor_coord, footprint_size);
         var footprintLookup = new HashSet<Vector2I>();
         foreach (Vector2I footprintCoord in footprintCoords)
@@ -585,7 +618,11 @@ public sealed class BattleGridService : IDisposable
             {
                 return false;
             }
-            if (!IsEmpty(cell.occupant_unit_id) && cell.occupant_unit_id != (ignored_unit_id ?? ""))
+            if (
+                !ignore_occupants
+                && !IsEmpty(cell.occupant_unit_id)
+                && cell.occupant_unit_id != (ignored_unit_id ?? "")
+            )
             {
                 return false;
             }
@@ -725,7 +762,6 @@ public sealed class BattleGridService : IDisposable
             return true;
         }
 
-        unit_state.RefreshFootprint();
         Vector2I delta = target_coord - unit_state.coord;
         if (delta == Vector2I.Zero)
         {
@@ -855,7 +891,6 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        unit_state.RefreshFootprint();
         return CanAnchorStepAcrossEdges(
             state,
             unit_state.footprint_size,
@@ -970,7 +1005,6 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        unit_state.RefreshFootprint();
         Vector2I delta = to_anchor - from_anchor;
         if (GetDistance(from_anchor, to_anchor) != 1)
         {
@@ -1897,7 +1931,6 @@ public sealed class BattleGridService : IDisposable
         {
             return;
         }
-        unit_state.RefreshFootprint();
         SetOccupantsTyped(state, unit_state.occupied_coords, "");
     }
 

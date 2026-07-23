@@ -312,6 +312,9 @@ public partial class CombatEffectDef : Resource
     public int forced_move_distance { get; set; }
 
     [Export]
+    public int charge_trap_immunity_min_skill_level { get; set; } = -1;
+
+    [Export]
     public int jump_base_budget { get; set; }
 
     [Export]

@@ -349,10 +349,25 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             using BattleAiTraceSpan trace = new("decide:move_to_range");
             if (UsesCandidateRequest(forceCandidateRequestEvaluation))
             {
-                BattleAiCandidateRequest request = BuildCandidateRequest(
-                    context.ai_query_service
-                );
-                return request != null ? context.EvaluateCandidateRequest(request) : null;
+                BattleAiQueryService query = context.ai_query_service;
+                foreach (
+                    BattleUnitState target in _helper.SortTargetUnits(
+                        context,
+                        "enemy",
+                        target_selector
+                    )
+                )
+                {
+                    BattleAiCandidateRequest request = BuildCandidateRequest(
+                        query,
+                        query?.GetUnitSnapshot(target?.unit_id ?? new StringName(""))
+                    );
+                    BattleAiDecision decision =
+                        request != null ? context.EvaluateCandidateRequest(request) : null;
+                    if (decision != null)
+                        return decision;
+                }
+                return null;
             }
             return DecideImpl(context);
         }
@@ -368,7 +383,10 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             || AiEvaluationModeKind == MoveToRangeAiEvaluationMode.CandidateRequest;
     }
 
-    private BattleAiCandidateRequest BuildCandidateRequest(BattleAiQueryService query)
+    private BattleAiCandidateRequest BuildCandidateRequest(
+        BattleAiQueryService query,
+        BattleAiUnitSnapshot focusTarget
+    )
     {
         if (query == null)
         {
@@ -377,7 +395,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
         StringName actorId = query.GetActorId();
         BattleAiUnitSnapshot actorSnapshot = query.GetActorSnapshot();
-        BattleAiUnitSnapshot focusTarget = ResolveFocusTarget(query, actorSnapshot);
         if (actorId == "" || actorSnapshot == null || focusTarget == null)
         {
             return null;
@@ -474,9 +491,8 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             return null;
         }
 
-        var focusTarget = targets[0];
         var actor = GetContextUnit(context);
-        if (actor == null || focusTarget == null)
+        if (actor == null)
         {
             _trace_add_block_reason(actionTrace, "missing_context");
             _finalize_action_trace(context, actionTrace);
@@ -500,168 +516,179 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         }
 
         ScreeningContext screeningContext = BuildScreeningContext(context);
-        BattleAiScoreInput currentScoreInput = _build_typed_action_score_input(
-            context,
-            "move",
-            action_id.ToString(),
-            null,
-            null,
-            new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["position_target_unit_id"] = focusTarget.unit_id,
-                ["position_anchor_coord"] = actor.coord,
-                ["desired_min_distance"] = resolvedMinDistance,
-                ["desired_max_distance"] = resolvedMaxDistance,
-                ["position_objective_kind"] = new StringName("distance_band_progress"),
-                ["move_cost"] = 0,
-            }
-        );
-        ApplyScreeningScore(context, currentScoreInput, actor.coord, screeningContext);
-
-        PathProgressCandidate pathProgressCandidate = BuildPathProgressDecision(
-            context,
-            focusTarget,
-            actionTrace,
-            distanceContract,
-            screeningContext
-        );
-
-        BattleAiDecision bestDecision = null;
-        BattleAiScoreInput bestScoreInput = currentScoreInput;
-        int bestPathCost = 0;
-        int bestPathLength = 0;
-        if (
-            pathProgressCandidate != null
-            && MoveToRangeScoreOrdering.IsBetterCandidate(
-                pathProgressCandidate.ScoreInput,
-                pathProgressCandidate.PathCost,
-                pathProgressCandidate.PathLength,
-                bestScoreInput,
-                bestPathCost,
-                bestPathLength
-            )
-        )
+        foreach (BattleUnitState focusTarget in targets)
         {
-            bestScoreInput = pathProgressCandidate.ScoreInput;
-            bestPathCost = pathProgressCandidate.PathCost;
-            bestPathLength = pathProgressCandidate.PathLength;
-            bestDecision = pathProgressCandidate.Decision;
-        }
-
-        foreach (Vector2I neighbor in CollectReachableMoveCandidates(context))
-        {
-            _trace_count_increment(actionTrace, "evaluation_count", 1);
-            if (
-                !ShouldReachableCandidateChallengePathProgress(
-                    pathProgressCandidate,
-                    neighbor
-                )
-            )
-            {
-                _trace_count_increment(
-                    actionTrace,
-                    "path_progress_reachable_guard_skip_count",
-                    1
-                );
+            if (focusTarget == null)
                 continue;
-            }
-
-            BattleCommand command = _build_move_command(context, neighbor);
-            BattlePreview preview = _build_fast_typed_move_preview(context, neighbor);
-            if (preview?.allowed != true)
-            {
-                _trace_count_increment(actionTrace, "preview_reject_count", 1);
-                continue;
-            }
-
-            BattleAiScoreInput scoreInput = _build_typed_action_score_input(
+            BattleAiScoreInput currentScoreInput = _build_typed_action_score_input(
                 context,
                 "move",
                 action_id.ToString(),
-                command,
-                preview,
+                null,
+                null,
                 new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["position_target_unit_id"] = focusTarget.unit_id,
-                    ["position_anchor_coord"] = neighbor,
+                    ["position_anchor_coord"] = actor.coord,
                     ["desired_min_distance"] = resolvedMinDistance,
                     ["desired_max_distance"] = resolvedMaxDistance,
                     ["position_objective_kind"] = new StringName("distance_band_progress"),
+                    ["move_cost"] = 0,
                 }
             );
-            ScreeningMetrics screeningMetrics = ApplyScreeningScore(
+            ApplyScreeningScore(context, currentScoreInput, actor.coord, screeningContext);
+
+            PathProgressCandidate pathProgressCandidate = BuildPathProgressDecision(
                 context,
-                scoreInput,
-                neighbor,
+                focusTarget,
+                actionTrace,
+                distanceContract,
                 screeningContext
             );
-            if (actionTrace != null)
-            {
-                _trace_offer_candidate(
-                    actionTrace,
-                    _build_candidate_summary(
-                        $"move_to_{neighbor.X}_{neighbor.Y}",
-                        command,
-                        scoreInput,
-                        new Dictionary<string, object>(StringComparer.Ordinal)
-                        {
-                            ["predicted_distance"] = scoreInput is BattleAiScoreInput typed
-                                ? typed.distance_to_primary_coord
-                                : -1,
-                            ["screening_bonus"] = screeningMetrics.Bonus,
-                            ["screening_penalty"] = screeningMetrics.Penalty,
-                            ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
-                            ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
-                            ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
-                            ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
-                            ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
-                            ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
-                            ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
-                            ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
-                            ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
-                            ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
-                            ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
-                            ["screening_hard_block"] = screeningMetrics.HardBlock,
-                            ["screening_distance_band_capped"] =
-                                screeningMetrics.DistanceBandCapped,
-                        }
-                    )
-                );
-            }
 
+            BattleAiDecision bestDecision = null;
+            BattleAiScoreInput bestScoreInput = currentScoreInput;
+            int bestPathCost = 0;
+            int bestPathLength = 0;
             if (
-                !MoveToRangeScoreOrdering.IsBetterCandidate(
-                    scoreInput,
-                    MoveToRangeScoreOrdering.InfiniteTieBreaker,
-                    MoveToRangeScoreOrdering.InfiniteTieBreaker,
+                pathProgressCandidate != null
+                && MoveToRangeScoreOrdering.IsBetterCandidate(
+                    pathProgressCandidate.ScoreInput,
+                    pathProgressCandidate.PathCost,
+                    pathProgressCandidate.PathLength,
                     bestScoreInput,
                     bestPathCost,
                     bestPathLength
                 )
             )
             {
-                continue;
+                bestScoreInput = pathProgressCandidate.ScoreInput;
+                bestPathCost = pathProgressCandidate.PathCost;
+                bestPathLength = pathProgressCandidate.PathLength;
+                bestDecision = pathProgressCandidate.Decision;
             }
 
-            bestScoreInput = scoreInput;
-            bestPathCost = MoveToRangeScoreOrdering.InfiniteTieBreaker;
-            bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
-            int distance = scoreInput is BattleAiScoreInput moveScore
-                ? moveScore.distance_to_primary_coord
-                : -1;
-            bestDecision = _create_scored_decision(
-                command,
-                scoreInput,
-                $"{actor.display_name} 准备调整到距离 {focusTarget.display_name} {distance} 格（评分 {_score_total(scoreInput)}）。"
-            );
+            foreach (Vector2I neighbor in CollectReachableMoveCandidates(context))
+            {
+                _trace_count_increment(actionTrace, "evaluation_count", 1);
+                if (
+                    !ShouldReachableCandidateChallengePathProgress(
+                        pathProgressCandidate,
+                        neighbor
+                    )
+                )
+                {
+                    _trace_count_increment(
+                        actionTrace,
+                        "path_progress_reachable_guard_skip_count",
+                        1
+                    );
+                    continue;
+                }
+
+                BattleCommand command = _build_move_command(context, neighbor);
+                BattlePreview preview = _build_fast_typed_move_preview(context, neighbor);
+                if (preview?.allowed != true)
+                {
+                    _trace_count_increment(actionTrace, "preview_reject_count", 1);
+                    continue;
+                }
+
+                BattleAiScoreInput scoreInput = _build_typed_action_score_input(
+                    context,
+                    "move",
+                    action_id.ToString(),
+                    command,
+                    preview,
+                    new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["position_target_unit_id"] = focusTarget.unit_id,
+                        ["position_anchor_coord"] = neighbor,
+                        ["desired_min_distance"] = resolvedMinDistance,
+                        ["desired_max_distance"] = resolvedMaxDistance,
+                        ["position_objective_kind"] = new StringName("distance_band_progress"),
+                    }
+                );
+                ScreeningMetrics screeningMetrics = ApplyScreeningScore(
+                    context,
+                    scoreInput,
+                    neighbor,
+                    screeningContext
+                );
+                if (actionTrace != null)
+                {
+                    _trace_offer_candidate(
+                        actionTrace,
+                        _build_candidate_summary(
+                            $"move_to_{neighbor.X}_{neighbor.Y}",
+                            command,
+                            scoreInput,
+                            new Dictionary<string, object>(StringComparer.Ordinal)
+                            {
+                                ["predicted_distance"] = scoreInput is BattleAiScoreInput typed
+                                    ? typed.distance_to_primary_coord
+                                    : -1,
+                                ["screening_bonus"] = screeningMetrics.Bonus,
+                                ["screening_penalty"] = screeningMetrics.Penalty,
+                                ["screening_threat_unit_id"] = screeningMetrics.ThreatUnitId,
+                                ["screening_protected_unit_id"] = screeningMetrics.ProtectedUnitId,
+                                ["screening_path_cost_delta"] = screeningMetrics.PathCostDelta,
+                                ["screening_base_path_cost"] = screeningMetrics.BasePathCost,
+                                ["screening_blocked_path_cost"] = screeningMetrics.BlockedPathCost,
+                                ["screening_current_bonus"] = screeningMetrics.CurrentBonus,
+                                ["screening_candidate_bonus"] = screeningMetrics.CandidateBonus,
+                                ["screening_uncapped_bonus"] = screeningMetrics.UncappedBonus,
+                                ["screening_on_shortest_path"] = screeningMetrics.OnShortestPath,
+                                ["screening_keeps_contact"] = screeningMetrics.KeepsContact,
+                                ["screening_can_counterattack"] = screeningMetrics.CanCounterattack,
+                                ["screening_hard_block"] = screeningMetrics.HardBlock,
+                                ["screening_distance_band_capped"] =
+                                    screeningMetrics.DistanceBandCapped,
+                            }
+                        )
+                    );
+                }
+
+                if (
+                    !MoveToRangeScoreOrdering.IsBetterCandidate(
+                        scoreInput,
+                        MoveToRangeScoreOrdering.InfiniteTieBreaker,
+                        MoveToRangeScoreOrdering.InfiniteTieBreaker,
+                        bestScoreInput,
+                        bestPathCost,
+                        bestPathLength
+                    )
+                )
+                {
+                    continue;
+                }
+
+                bestScoreInput = scoreInput;
+                bestPathCost = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+                bestPathLength = MoveToRangeScoreOrdering.InfiniteTieBreaker;
+                int distance = scoreInput is BattleAiScoreInput moveScore
+                    ? moveScore.distance_to_primary_coord
+                    : -1;
+                bestDecision = _create_scored_decision(
+                    command,
+                    scoreInput,
+                    $"{actor.display_name} 准备调整到距离 {focusTarget.display_name} {distance} 格（评分 {_score_total(scoreInput)}）。"
+                );
+            }
+
+            if (bestDecision == null && pathProgressCandidate?.Decision != null)
+            {
+                bestDecision = pathProgressCandidate.Decision;
+            }
+            if (bestDecision != null)
+            {
+                _finalize_action_trace(context, actionTrace, bestDecision);
+                return bestDecision;
+            }
         }
 
-        if (bestDecision == null && pathProgressCandidate?.Decision != null)
-        {
-            bestDecision = pathProgressCandidate.Decision;
-        }
-        _finalize_action_trace(context, actionTrace, bestDecision);
-        return bestDecision;
+        _finalize_action_trace(context, actionTrace);
+        return null;
     }
 
     private static bool ShouldReachableCandidateChallengePathProgress(
@@ -1339,7 +1366,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             ? new List<Vector2I>(grid.GetUnitTargetCoords(actor, blockerAnchor))
             : new List<Vector2I>();
         List<Vector2I> restoreCoords = new();
-        actor.RefreshFootprint();
         foreach (Vector2I coord in actor.occupied_coords)
         {
             restoreCoords.Add(coord);
@@ -1464,7 +1490,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
         int resolvedContactRange = Mathf.Max(contactRange, 1);
         var seen = new HashSet<Vector2I>();
-        protectedUnit.RefreshFootprint();
         foreach (Vector2I occupiedCoord in protectedUnit.occupied_coords)
         {
             for (
@@ -1862,7 +1887,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         int resolvedMaxDistance = distanceContract.DesiredMaxDistance;
         int maxDistance = Mathf.Max(resolvedMaxDistance, resolvedMinDistance);
         var seen = new HashSet<Vector2I>();
-        focusTarget.RefreshFootprint();
         foreach (Vector2I occupiedCoord in focusTarget.occupied_coords)
         {
             for (int y = occupiedCoord.Y - maxDistance; y <= occupiedCoord.Y + maxDistance; y++)
@@ -2057,63 +2081,6 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         return context != null
             ? (unitState, targetCoord) => context.GetMoveCost(unitState, targetCoord)
             : null;
-    }
-
-    private static BattleAiUnitSnapshot ResolveFocusTarget(
-        BattleAiQueryService query,
-        BattleAiUnitSnapshot actorSnapshot
-    )
-    {
-        IReadOnlyList<BattleAiUnitSnapshot> targetValues =
-            query.GetLivingUnitSnapshotsTyped("enemy");
-        if (targetValues.Count == 0)
-        {
-            return null;
-        }
-        var targets = new System.Collections.Generic.List<BattleAiUnitSnapshot>();
-        foreach (BattleAiUnitSnapshot target in targetValues)
-        {
-            if (target != null)
-            {
-                targets.Add(target);
-            }
-        }
-        targets.Sort(
-            (left, right) =>
-            {
-                int leftDistance = DistanceFromActor(query, actorSnapshot, left);
-                int rightDistance = DistanceFromActor(query, actorSnapshot, right);
-                if (leftDistance != rightDistance)
-                {
-                    return leftDistance.CompareTo(rightDistance);
-                }
-                int leftHp = left.current_hp;
-                int rightHp = right.current_hp;
-                if (leftHp != rightHp)
-                {
-                    return leftHp.CompareTo(rightHp);
-                }
-                return left.unit_id.ToString().CompareTo(right.unit_id.ToString());
-            }
-        );
-        return targets.Count > 0 ? targets[0] : null;
-    }
-
-    private static int DistanceFromActor(
-        BattleAiQueryService query,
-        BattleAiUnitSnapshot actorSnapshot,
-        BattleAiUnitSnapshot targetSnapshot
-    )
-    {
-        if (query == null || actorSnapshot == null || targetSnapshot == null)
-        {
-            return int.MaxValue;
-        }
-        return query.DistanceFromAnchorToTarget(
-            actorSnapshot.coord,
-            actorSnapshot.footprint_size,
-            targetSnapshot.unit_id
-        );
     }
 
     private MoveDistanceContract ResolveMoveDistanceContract(BattleAiContext context)

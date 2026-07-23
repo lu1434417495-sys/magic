@@ -913,6 +913,275 @@ internal static class BattleAiMutationStableProjection
                     StableValue.FromInteger((int)objectiveRuntimeState.Mode)
                 );
                 return StableValue.FromMap(result);
+            case BattleBossObjectiveRuntimeState bossObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleBossObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)bossObjective.Mode)
+                );
+                result.Set(
+                    "target_actor_id",
+                    StableNullableStringName(bossObjective.TargetActorId)
+                );
+                result.Set(
+                    "target_unit_id",
+                    StableNullableStringName(bossObjective.TargetUnitId)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(bossObjective.RequiredPartyUnitIds)
+                    )
+                );
+                return StableValue.FromMap(result);
+            case BattleEscapeObjectiveRuntimeState escapeObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleEscapeObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)escapeObjective.Mode)
+                );
+                result.Set(
+                    "exit_zone_id",
+                    StableNullableStringName(escapeObjective.ExitZoneId)
+                );
+                result.Set(
+                    "exit_edge",
+                    StableValue.FromInteger((int)escapeObjective.ExitEdge)
+                );
+                result.Set(
+                    "exit_depth",
+                    StableValue.FromInteger(escapeObjective.ExitDepth)
+                );
+                result.Set(
+                    "required_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(escapeObjective.RequiredUnitIds)
+                    )
+                );
+                result.Set(
+                    "exit_coords",
+                    StableValue.FromArray(StableVector2IList(escapeObjective.ExitCoords))
+                );
+                return StableValue.FromMap(result);
+            case BattleRescueObjectiveRuntimeState rescueObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleRescueObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)rescueObjective.Mode)
+                );
+                result.Set(
+                    "target_actor_id",
+                    StableNullableStringName(rescueObjective.TargetActorId)
+                );
+                result.Set(
+                    "target_unit_id",
+                    StableNullableStringName(rescueObjective.TargetUnitId)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            rescueObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                result.Set(
+                    "target_secured",
+                    StableValue.FromBool(rescueObjective.TargetSecured)
+                );
+                return StableValue.FromMap(result);
+            case BattleEscortObjectiveRuntimeState escortObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleEscortObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)escortObjective.Mode)
+                );
+                result.Set(
+                    "target_actor_id",
+                    StableNullableStringName(escortObjective.TargetActorId)
+                );
+                result.Set(
+                    "target_unit_id",
+                    StableNullableStringName(escortObjective.TargetUnitId)
+                );
+                result.Set(
+                    "exit_zone_id",
+                    StableNullableStringName(escortObjective.ExitZoneId)
+                );
+                result.Set(
+                    "exit_edge",
+                    StableValue.FromInteger((int)escortObjective.ExitEdge)
+                );
+                result.Set(
+                    "exit_depth",
+                    StableValue.FromInteger(escortObjective.ExitDepth)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            escortObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                result.Set(
+                    "exit_coords",
+                    StableValue.FromArray(
+                        StableVector2IList(escortObjective.ExitCoords)
+                    )
+                );
+                return StableValue.FromMap(result);
+            case BattleDefenseObjectiveRuntimeState defenseObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleDefenseObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)defenseObjective.Mode)
+                );
+                result.Set(
+                    "target_actor_id",
+                    StableNullableStringName(defenseObjective.TargetActorId)
+                );
+                result.Set(
+                    "target_unit_id",
+                    StableNullableStringName(defenseObjective.TargetUnitId)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            defenseObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                result.Set(
+                    "start_tu",
+                    StableValue.FromInteger(defenseObjective.StartTu)
+                );
+                result.Set(
+                    "deadline_tu",
+                    StableValue.FromInteger(defenseObjective.DeadlineTu)
+                );
+                return StableValue.FromMap(result);
+            case BattleInterceptObjectiveRuntimeState interceptObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(nameof(BattleInterceptObjectiveRuntimeState))
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)interceptObjective.Mode)
+                );
+                result.Set(
+                    "target_actor_id",
+                    StableNullableStringName(interceptObjective.TargetActorId)
+                );
+                result.Set(
+                    "target_unit_id",
+                    StableNullableStringName(interceptObjective.TargetUnitId)
+                );
+                result.Set(
+                    "exit_zone_id",
+                    StableNullableStringName(interceptObjective.ExitZoneId)
+                );
+                result.Set(
+                    "exit_edge",
+                    StableValue.FromInteger((int)interceptObjective.ExitEdge)
+                );
+                result.Set(
+                    "exit_depth",
+                    StableValue.FromInteger(interceptObjective.ExitDepth)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            interceptObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                result.Set(
+                    "exit_coords",
+                    StableValue.FromArray(
+                        StableVector2IList(interceptObjective.ExitCoords)
+                    )
+                );
+                return StableValue.FromMap(result);
+            case BattleNodeOperationObjectiveRuntimeState nodeOperationObjective:
+                result.Set(
+                    "concrete_type",
+                    StableValue.FromText(
+                        nameof(BattleNodeOperationObjectiveRuntimeState)
+                    )
+                );
+                result.Set(
+                    "mode",
+                    StableValue.FromInteger((int)nodeOperationObjective.Mode)
+                );
+                result.Set(
+                    "required_party_unit_ids",
+                    StableValue.FromArray(
+                        StableStringNameList(
+                            nodeOperationObjective.RequiredPartyUnitIds
+                        )
+                    )
+                );
+                var stableNodes = new List<StableValue>();
+                foreach (
+                    BattleOperationNodeRuntimeState node in
+                    nodeOperationObjective.OperationNodes
+                )
+                {
+                    StableMap stableNode = new();
+                    stableNode.Set(
+                        "node_id",
+                        StableNullableStringName(node.NodeId)
+                    );
+                    stableNode.Set(
+                        "display_name",
+                        StableNullableText(node.DisplayName)
+                    );
+                    stableNode.Set(
+                        "zone_id",
+                        StableNullableStringName(node.ZoneId)
+                    );
+                    stableNode.Set(
+                        "placement_edge",
+                        StableValue.FromInteger((int)node.PlacementEdge)
+                    );
+                    stableNode.Set(
+                        "placement_depth",
+                        StableValue.FromInteger(node.PlacementDepth)
+                    );
+                    stableNode.Set(
+                        "coord",
+                        StableValue.FromVector2I(node.Coord)
+                    );
+                    stableNode.Set(
+                        "is_completed",
+                        StableValue.FromBool(node.IsCompleted)
+                    );
+                    stableNodes.Add(StableValue.FromMap(stableNode));
+                }
+                result.Set(
+                    "operation_nodes",
+                    StableValue.FromArray(stableNodes)
+                );
+                return StableValue.FromMap(result);
             default:
                 throw new InvalidOperationException(
                     $"Unsupported battle objective runtime state '{objectiveRuntimeState.GetType().FullName}'."
@@ -1105,29 +1374,18 @@ internal static class BattleAiMutationStableProjection
         return result;
     }
 
-    internal static List<KnownFieldSnapshot> PlainFieldListToSnapshots(
-        IEnumerable<IReadOnlyDictionary<string, object>> values,
-        IReadOnlyCollection<string> allowedKeys
+    internal static List<PlainPayloadSnapshot> PlainPayloadListToSnapshots(
+        IEnumerable<IReadOnlyDictionary<string, object>> values
     )
     {
-        List<KnownFieldSnapshot> result = new();
+        List<PlainPayloadSnapshot> result = new();
         foreach (
             IReadOnlyDictionary<string, object> value in
             values ?? Array.Empty<IReadOnlyDictionary<string, object>>()
         )
         {
-            result.Add(KnownFieldSnapshot.CaptureKnownFields(value, allowedKeys));
+            result.Add(PlainPayloadSnapshot.Capture(value));
         }
-        return result;
-    }
-
-    internal static List<Dictionary<string, object>> BuildPlainDictionaryList(
-        IEnumerable<KnownFieldSnapshot> values
-    )
-    {
-        var result = new List<Dictionary<string, object>>();
-        foreach (KnownFieldSnapshot value in values ?? Array.Empty<KnownFieldSnapshot>())
-            result.Add(value?.ToPlainDictionary() ?? new Dictionary<string, object>());
         return result;
     }
 
@@ -1281,12 +1539,15 @@ internal static class BattleAiMutationStableProjection
     internal static StableValue StableNullableText(string value) =>
         value == null ? StableValue.Nil() : StableValue.FromText(value);
 
-    internal static List<StableValue> StableKnownFieldSnapshotList(
-        IEnumerable<KnownFieldSnapshot> values
+    internal static List<StableValue> StablePlainPayloadSnapshotList(
+        IEnumerable<PlainPayloadSnapshot> values
     )
     {
         List<StableValue> result = new();
-        foreach (KnownFieldSnapshot value in values ?? System.Array.Empty<KnownFieldSnapshot>())
+        foreach (
+            PlainPayloadSnapshot value in
+            values ?? System.Array.Empty<PlainPayloadSnapshot>()
+        )
         {
             result.Add(StableValue.FromMap(value?.ToStableMap() ?? new StableMap()));
         }

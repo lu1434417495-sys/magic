@@ -40,6 +40,8 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
             PreviewSkillCommand(activeUnit, command, preview);
         else if (command.IsWait())
             PreviewWaitCommand(activeUnit, preview);
+        else if (command.IsInteract())
+            _runtime.PreviewObjectiveInteraction(activeUnit, command, preview);
         else if (command.IsChangeEquipment())
             PreviewChangeEquipmentCommand(activeUnit, command, preview);
         else
@@ -148,44 +150,18 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         BattleSkillAvailabilityConsumer consumer
     )
     {
-        if (command == null)
-        {
-            return BattleSkillAccessResult.Deny("missing_command", "技能命令无效。");
-        }
-        if (_runtime._state == null || !_runtime._state.TryGetUnitTyped(command.unit_id, out BattleUnitState unit))
-        {
-            return BattleSkillAccessResult.Deny("missing_unit", "当前单位无效。");
-        }
         BattleSkillAvailabilityService service = new(
             _runtime._skillCatalog,
             _runtime._skillDefinitionIndex,
             _runtime._equipmentAbilityBindingIndex,
             _runtime._itemDefIndex
         );
-        return service.ValidateSkillEntryAccess(
-            new BattleSkillAvailabilityQuery
-            {
-                User = unit,
-                Consumer = consumer,
-                IncludeEquipmentSkills = true,
-                WorldStep = _runtime.GetBattleWorldStep(),
-                BattleState = _runtime._state,
-            },
-            command.skill_entry_id,
-            command.skill_id
+        return service.ValidateSkillCommandEntryAccess(
+            _runtime._state,
+            command,
+            consumer,
+            _runtime.GetBattleWorldStep()
         );
-    }
-
-    internal int ResolveSkillCommandEntryLevel(
-        BattleCommand command,
-        BattleSkillAvailabilityConsumer consumer,
-        int fallback = 0
-    )
-    {
-        BattleSkillAccessResult accessResult = ValidateSkillCommandEntryAccess(command, consumer);
-        return accessResult.Allowed && accessResult.Entry != null
-            ? accessResult.Entry.SkillLevel
-            : fallback;
     }
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)

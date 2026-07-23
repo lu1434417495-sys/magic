@@ -1565,8 +1565,17 @@ public sealed partial class GameRuntimeFacade
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         if (_generation_definition == null)
             return false;
-        if (_try_complete_pending_battle_start())
+        PendingBattleStartAttemptKind pendingStartAttempt =
+            _try_complete_pending_battle_start();
+        if (pendingStartAttempt == PendingBattleStartAttemptKind.Started)
         {
+            _last_advance_battle_refresh_mode = BattleRefreshMode.Full;
+            _last_advance_battle_presentation_delta = BattlePresentationDelta.Full;
+            return true;
+        }
+        if (pendingStartAttempt == PendingBattleStartAttemptKind.Failed)
+        {
+            HandleDeferredBattleStartFailure();
             _last_advance_battle_refresh_mode = BattleRefreshMode.Full;
             _last_advance_battle_presentation_delta = BattlePresentationDelta.Full;
             return true;

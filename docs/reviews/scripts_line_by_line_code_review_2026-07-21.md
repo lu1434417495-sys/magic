@@ -150,7 +150,7 @@
 
 ### F-06 AI mutation guard 的 stable fingerprint 漏掉权威字段
 
-> **修复状态（2026-07-23）：已解决。** mutation guard 现在以 mutation 专用 typed snapshot 同时完成完整 capture、stable projection 与 exact restore。除原先遗漏的 unit/status/state 字段外，还覆盖 cell/column、terrain effect 及其 attack-roll modifier、layered barrier、blackboard 值与 presence flag、raw equipment entry、attribute 原始 map、objective/final decision、target marks、temporary-edge state 和两个 allocator。容器 canonical key 与对象内 `unit_id` / `status_id` / `coord` / barrier id 分开指纹和恢复；status、target mark、temporary edge 与 barrier layer/outcome 的原始集合保留顺序、重复项、非法哨兵、`null`、空集合与 `null` 元素；可空 `StringName` 不再与空值合并。回滚使用 owner 的 exact seam，不经过资源夹断、body 规范化、派生属性重算、gameplay cleanup 或 barrier payload 过滤。plain payload 同时编码 CLR/Godot 类型和完整分量，浮点按位比较。AI skill/barrier definition index 都复制调用方字典、只暴露只读视图，并由快照保存 canonical key 与 definition 引用 identity；`SkillDefinition`、combat/variant/effect 等整张技能定义图的公开构造输入均防御性冻结，mutable accuracy spec 只以 clone 暴露，因此引用指纹的不可变前提可证明。结构门禁锁定 unit、state、status、cell、terrain、barrier、blackboard、pending cast、equipment 等 owner，行为回归逐类验证检测与精确恢复。
+> **修复状态（2026-07-24）：已解决。** mutation guard 现在以 mutation 专用 typed stable snapshot 覆盖 unit/status/state、cell/column、terrain、layered barrier、blackboard、raw equipment、attribute、objective/final decision、target mark、temporary edge、allocator 与 definition index。canonical key、顺序、重复项、非法哨兵、`null`、类型身份和浮点位模式都进入比较，结构门禁锁定新增权威字段的覆盖。最终设计取消回滚：snapshot 层只保存检测基线，整图恢复副本、`Restore` API 和恢复型回归均已删除；owner-local exact capture seam 仅用于维持检测精度。
 
 **位置**：`scripts/systems/battle/ai/BattleAiMutationSnapshots.cs`、`BattleAiMutationStableProjection.cs`、`BattleAiMutationSnapshotModel.cs`、`BattleAiMutationBarrierSnapshots.cs`，以及 `tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs`；对照 `BattleState`、`BattleUnitState`、`BattleCellState`、terrain/barrier owner 与 `SkillDefinition` 的 exact/freeze seam。
 
@@ -160,23 +160,31 @@ unit snapshot 漏掉 `equipment_view_initialized`、已消费 contingency setup�
 
 ### F-07 mutation guard 用有损诊断投影做事务回滚
 
+> **修复状态（2026-07-24）：已解决。** 按最终设计，`FullSnapshotDiagnostic` 是显式测试/诊断断言，不是运行时事务：AI 决策正常返回后比较完整权威投影，发现差异立即记录并抛出 `BattleAiMutationViolationException`，不回滚已失败的 battle fixture；production 默认 `Disabled`，不捕获也不比较。report 与 promotion queue 已删除键白名单，所有键、嵌套值和类型身份都进入 stable diff。snapshot 层的整图恢复副本、`Restore` API、回建 materializer 与恢复型回归均已删除。
+
 **位置**：`BattleAiMutationGuard.cs:27-94`，`BattleAiMutationSnapshots.cs:596-603,636-638,1045-1075`，`BattleState.cs:210-257`。
 
 报告与 promotion 队列只捕获固定白名单键；一次无关 HP mutation 触发 Restore 后，原有 `text`、`event_tags`、`refund_policy` 等扩展键会被删除。Restore 还直接替换 `log_entries`，没有恢复 `_log_text_byte_size`，后续日志会提前裁剪。诊断摘要不是无损事务快照，二者不应复用。
 
-### F-08 evaluator 抛异常时 mutation guard 不校验也不恢复
+### F-08 evaluator 异常路径跳过 mutation guard 校验
+
+> **修复状态（2026-07-24）：已解决。** `FullSnapshotDiagnostic` 现在在 evaluator 异常退出时、context 清理前执行同一份 stable 校验。没有 mutation 时用原始 `throw;` 保留 evaluator 异常；存在 mutation 时记录 violation 并抛出 `BattleAiMutationViolationException`，原 evaluator 异常作为 `InnerException` 保留。失败 fixture 不回滚；production `Disabled` 路径仍不捕获也不比较。
 
 **位置**：`scripts/systems/battle/ai/BattleAiService.cs:108-141`。
 
-`ChooseCommandImpl` 若先修改状态再抛异常，控制流进入外层 finally；finally 只清 runtime binding 和 score scope，成功路径上的 `ValidateAndRestoreReportTyped` 不会执行。应把 capture/validate/restore 放进异常安全作用域：异常时先无条件恢复，再保留原始异常栈重抛。
+`ChooseCommandImpl` 若先修改状态再抛异常，旧控制流会直接进入外层 finally；finally 只清 runtime binding 和 score scope，正常返回路径上的校验不会执行。于是测试虽然会因 evaluator 异常失败，却没有 mutation diff，甚至可能在“预期抛异常”的用例中漏掉非法写入。修复后的异常作用域只负责 validate/report：无差异时原样重抛，有差异时以 guard exception 明确暴露双重故障，并始终保留已失败状态供断言后废弃。
 
 ### F-09 rules 层仍把具体 runtime 当 service locator
+
+> **修复状态（2026-07-24）：已解决。** 原 12-member 聚合端口已按读写职责拆为 `IBattleEquipmentAttackCheckQuery`、`IBattleEquipmentDamageQuery` 与 `IBattleEquipmentCombatReactionSink`。`BattleAttackCheckPolicyService` 删除 `WeakReference<BattleRuntimeModule>` 和隐藏 state fallback；`BattleDamageResolver` 的装备 query/reaction 状态显式来自 typed context。三个端口只由 `BattleRuntimeModule.BindEquipmentRulePorts()` 集中装配，service getter 不再执行 `Setup`，对应架构 baseline 旧债已删除。
 
 **位置**：`scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs:15-28,623-642,930-940,1152-1164`。
 
 规则服务虽然局部使用 `IBattleEquipmentAbilityReactionService`，却必须先解析 `WeakReference<BattleRuntimeModule>` 才能取得接口和 state。脱离完整 runtime 的 preview/test 无法注入实现；runtime 引用失效时装备攻击修正和强制暴击会静默缺席。这是“类型抽象了、依赖获取方式没抽象”。`Setup` 应直接注入 state accessor、hit resolver 和 equipment reaction interface。
 
 ### F-10 AI 另建简化伤害公式，忽略护盾和固定减伤
+
+> **修复状态（2026-07-24）：已解决。** production `BattleAiScoreService` 现在使用已注入的 `BattleDamageResolver.PreviewDamageEffectTyped(...)`，以 Average/Expected 模式复用正式抗性、固定减伤、护盾吸收与生命伤害语义；多段伤害串联 source/target preview-after 克隆状态，击杀分支按护盾后的生命伤害计算，预览不修改真实单位。focused regression 覆盖 half resistance + shield、不误判击杀和两段连续消耗护盾。
 
 **位置**：`scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs:685-753`。
 
@@ -190,7 +198,9 @@ unit snapshot 漏掉 `equipment_view_initialized`、已消费 contingency setup�
 
 ### F-12 标称只读的规则查询会修改 live footprint
 
-**位置**：`BattleAttackCheckPolicyService.cs:455-496`，`BattleState.cs:1321-1361`，实际写入 `BattleUnitState.cs:314-326`。
+> **修复状态（2026-07-24）：已解决。** `coord` 与 `body_size/body_size_category` 作为 authoritative geometry；`footprint_size/occupied_coords` 只在 `BattleUnitState` setter 和 `BattleState.SetUnit/SetUnits/SetUnitsFromDictionary` admission 写入口重建。攻击、邻接、AI、grid、runtime 与 UI 读路径已删除外部 `RefreshFootprint()`，clone/snapshot/load 对不一致投影 fail-fast；源码门禁同时禁止 owner 外重新调用 refresh 或直接写 `coord/body_size/body_size_category/footprint_size/occupied_coords`。查询回归验证 stale fixture 不被修复、引用与 movement revision 均保持不变，写入口回归验证同一 stale fixture 会被重建。存档字段与格式未改变。
+
+**位置**：`BattleAttackCheckPolicyService.cs:450-496`，`BattleState.cs:605-769`，`BattleUnitState.cs:321-332,611-631`。
 
 preview/context 和攻击劣势查询通过 `UnsafeUnitForReadOnlyRules` 调 `RefreshFootprint()`。如果投影不一致，纯查询会写 `footprint_size/occupied_coords`，却没有调用 `MarkMovementGeometryChanged()`；preview 不再幂等，路径/视线缓存仍持有旧 revision。footprint 不变量应由 state owner 在写入口维护，read view 不应提供可写逃生口。
 
@@ -270,15 +280,25 @@ panel 保存 `_pending_battle_state` 和相关列表；Hide 只切 visible 并�
 
 ### F-26 Quest public API 可把 Completed/Failed 留在 active 集合
 
+> **修复状态（2026-07-24）：已临时解决。** `RecordProgress(...)` 达成全部目标后复用 `CompleteQuest → MarkQuestClaimable`，completed 状态不会留在 active；`SetQuestState(...)` 只接受已有明确集合语义的 Active、Completed、Rewarded。按当前任务系统范围，Failed、Inactive、Unknown 暂时拒绝，不新增失败任务集合、状态迁移或存档字段；相关 service、PartyState、save round-trip 与正式文本任务流程回归均通过。
+
 **位置**：`QuestProgressService.cs:142-168`，`PartyState.cs:274-287,379-387,562-575`。
 
 `RecordProgress` 完成全部目标后只在活引用上 `MarkCompleted`，没有经 `MarkQuestClaimable` 移出 `active_quests`；`SetQuestState(Failed)` 也会路由到 active。读档要求 active 项状态必须为 Active，因此该 public API 可写出无法读回的 PartyState。当前未发现生产调用方，故列 P3；应删除入口或统一委托 PartyState 状态迁移。
 
 ### F-27 技能书使用不是原子事务
 
+> **复核状态（2026-07-24）：撤销，不再作为 finding。** `CountItem(...) > 0` 与随后 `RemoveItemTyped(..., 1)` 使用同一个同步 `PartyWarehouseService` 和同一份仓库状态；二者之间的 `LearnSkillTyped(...)` 只修改角色成长/成就状态，不接触仓库，且没有异步、回调或可重入点。因此当前正式路径中扣减 1 必然成功，`consume_failed` 只是防御分支，不能证明存在失败后留下已学习技能的可达状态。成功后的存档提交失败已有上层快照回滚，但这并不会让扣减失败分支变得可达。
+
 **位置**：`scripts/systems/inventory/PartyItemUseService.cs:146-151`。
 
 服务先学习技能、再扣库存。扣减失败会返回 `consume_failed`，但新技能和被替换的练功技能不回滚；上层快照只在 persist failure 时恢复。当前预检令正常单线程路径较难触发，但服务契约已经允许“失败且改状态”。
+
+### F-27A 仓库命令把普通运行态变更立即写入完整存档
+
+**位置**：`scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs:137,204,269,332,884-888`，`scripts/systems/game_runtime/RuntimeTransaction.cs:277-287`，`scripts/systems/persistence/GameSession.cs:1355-1374`。
+
+技能书使用、丢弃和直接加入库存成功后都会调用 `PersistPartyState()`；该入口不只是同步 session 内存，而会继续执行 `CommitRuntimeState(...) → PersistGameState()`。按当前产品保存时机，普通仓库操作只应更新运行态、把 `party_state` stage 到 `GameSession` 并保留 pending dirty，由既定 canonical flush 统一落盘；不应让每次库存操作自行建立磁盘保存点。修复时应覆盖整组仓库 mutation 命令，不能只删除技能书路径的一次调用。
 
 ### F-28 `UnitProgress` 合并来源成环会栈溢出（接受风险，暂不修复）
 
@@ -288,13 +308,17 @@ DFS 在递归返回后才把节点加入 `visited`，A→B→A 会无限递归�
 
 ### F-29 save 文件在检查后消失会抛异常而非返回 DoesNotExist
 
+> **修复状态（2026-07-24）：已解决。** repository 对缺失 target 和 open 期间消失都返回 typed 错误，缺失统一为 `Error.DoesNotExist`；`emitErrors` 只记录诊断，不再抛异常。`LoadSave(...)` 对未知槽位也返回 `DoesNotExist`，缓存索引仍引用已消失 payload 时会移除该失效索引项。`run_invalid_save_graceful_regression.cs` 覆盖缓存槽位后删除 `.dat` 的完整路径，确认加载不抛异常、不产生 active world，并清理索引。
+
 **位置**：`SaveRepository.cs:31-55`，`GameSession.cs:724-738,1438-1468`。
 
 外部同步/删除若发生在存在性检查与 open 之间，repository 在 recovery 后仍找不到文件时抛 `InvalidOperationException`。自动加载循环预期 `LoadSave` 返回错误码并跳过坏候选，因此窄窗口会打断整个恢复流程。应把可预期 I/O 消失映射为 typed read result。
 
 ### F-30 Vector2I 校验与 world runtime 读取支持集不一致
 
-**位置**：`SaveSerializer.cs:852-866,1013-1059,1423-1447`，`WorldRuntimeData.cs:87-105,620-625`。
+> **修复状态（2026-07-24）：已解决。** 当前 save schema 只接受 Godot 原生 `Variant.Type.Vector2I`。`SaveSerializer` 已删除 `{x,y}` dictionary 的校验和读取兼容路径，玩家起点、挂载子地图坐标、返回栈、世界事件、资源点及据点坐标统一在进入 typed world owner 前拒绝非原生表示；正式 writer 仍写原生 `Vector2I`，无需版本升级或迁移。持久化回归验证原生坐标规范化后保值、dictionary 坐标被拒绝，相邻 save/submap 回归通过。
+
+**位置**：`SaveSerializer.cs`，`tests/runtime/persistence/run_invalid_save_graceful_regression.cs`。
 
 serializer 接受 native `Vector2I` 和 `{x,y}` dictionary，自己的 helper 也支持两者；验证后却交给 `WorldRuntimeData.FromDictionary`，其 `ReadVector2I` 只接受 native 值。合法的 dictionary `player_start_coord` 因而会静默变为 `(0,0)`。当前磁盘主路径通常写 native 值，所以列为潜伏 boundary mismatch。
 
@@ -316,9 +340,9 @@ barrier 路径创建裸 `Godot.Collections.Array`，而 runtime 已有 CLR typed
 
 F-01 的 DTO 类型是强类型的，但它只覆盖 aggregate 的三个字段，随后却拥有了完整替换权。typed owner 必须是 total projection；partial view 只能用于只读展示，不能用于 canonical 写回。
 
-### 2. 诊断投影不能复用为事务快照
+### 2. 诊断断言不是事务
 
-F-06～F-08 把稳定摘要、差异展示和无损回滚混在同一份手写字段清单中。摘要允许丢字段和近似值；事务恢复不允许。应分成完整 rollback snapshot 与可读 diagnostic projection。
+F-06～F-08 原先把稳定摘要、差异展示和状态恢复混在同一份手写字段清单中。最终边界已收敛为完整 stable detection：正常与异常退出都在清理前校验，发现差异即报告并失败，不回滚已失败 fixture；production 默认完全关闭该诊断。
 
 ### 3. 接口抽象之后仍要修正依赖获取方向
 
@@ -340,11 +364,11 @@ F-03、F-04、F-13、F-14、F-30 分别展示了死亡、属性、保存提交�
 
 1. **先止损**：F-01、F-03；加能证明完整状态和不变量的失败回归，再修 owner。
 2. **恢复可交付性**：F-02；确认 48 个文件归属，用干净 worktree 构建。
-3. **统一正式真相**：F-04、F-13、F-30；F-14 已于 2026-07-23 解决。
-4. **重建 AI 事务边界**：F-06～F-12；完整 rollback snapshot 与 diagnostic projection 分离。
+3. **统一正式真相**：F-04、F-13；F-14、F-30 已解决。
+4. **重建 AI 诊断边界**：F-06～F-12；测试期完整 stable detection 与可读 diff 分离，发现非豁免写入后 fail-fast，不回滚失败 fixture。
 5. **修正模拟可信度和生命周期**：F-05、F-20～F-22、F-31～F-32。
 6. **收紧内容入口**：F-15～F-19；所有回归应从真实 registry/process snapshot 入口进入。
-7. **处理潜伏 API**：F-25～F-29；原 F-23/F-24 已按非生产工具范围排除。
+7. **处理潜伏 API**：修复 F-27A，继续复核 F-25、F-28；F-26 已临时封口，F-29 已解决，原 F-27 已撤销，原 F-23/F-24 已按非生产工具范围排除。
 
 ## 验证记录
 

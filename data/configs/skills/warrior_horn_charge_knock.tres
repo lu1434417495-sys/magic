@@ -15,7 +15,6 @@ use_weapon_physical_damage_tag = true
 [sub_resource type="Resource" id="Resource_charge"]
 script = ExtResource("3_effect")
 effect_type = &"charge"
-params = { "base_distance": 2, "collision_base_damage": 0, "collision_size_gap_damage": 0, "skill_id": "warrior_horn_charge_knock" }
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")

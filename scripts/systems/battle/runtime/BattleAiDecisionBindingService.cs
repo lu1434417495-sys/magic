@@ -27,24 +27,33 @@ internal sealed class BattleAiDecisionBindingService : BattleRuntimeModuleBorrow
         ClearAiActionPlans();
         if (_runtime._state == null || _runtime._ai_action_assembler == null)
             return;
-        foreach (BattleUnitState unitState in _runtime._state.GetUnitsTyped())
+        try
         {
-            if (
-                unitState == null
-                || unitState.ControlModeKind == BattleUnitControlMode.Manual
-                || BattleRuntimeModule.IsEmpty(unitState.ai_brain_id)
-            )
-                continue;
-            EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unitState.ai_brain_id);
-            if (brain == null)
-                continue;
-            BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
-                unitState,
-                brain,
-                _runtime.GetSkillDefinitionIndexTyped()
-            );
-            if (actionPlan != null)
-                _actionPlansByUnitId[unitState.unit_id] = actionPlan;
+            foreach (BattleUnitState unitState in _runtime._state.GetUnitsTyped())
+            {
+                if (
+                    unitState == null
+                    || unitState.ControlModeKind == BattleUnitControlMode.Manual
+                    || BattleRuntimeModule.IsEmpty(unitState.ai_brain_id)
+                )
+                    continue;
+                EnemyAiBrainDefinition brain = _runtime.GetEnemyAiBrainTyped(unitState.ai_brain_id);
+                if (brain == null)
+                    continue;
+                BattleAiRuntimeActionPlan actionPlan = _runtime._ai_action_assembler.BuildUnitActionPlan(
+                    unitState,
+                    brain,
+                    _runtime.GetSkillDefinitionIndexTyped()
+                );
+                if (actionPlan != null)
+                    _actionPlansByUnitId[unitState.unit_id] = actionPlan;
+            }
+        }
+        catch
+        {
+            Exception cleanupFailure = null;
+            BattleRuntimeModule.RunTeardownStep(ref cleanupFailure, ClearAiActionPlans);
+            throw;
         }
     }
 

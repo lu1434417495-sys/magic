@@ -8,17 +8,6 @@
 [sub_resource type="Resource" id="Resource_hguor"]
 script = ExtResource("3_l0y4u")
 effect_type = &"charge"
-params = {
-"base_distance": 3,
-"collision_base_damage": 10,
-"collision_size_gap_damage": 10,
-"distance_by_level": {
-"1": 4,
-"3": 5,
-"5": 6
-},
-"skill_id": "warrior_whirlwind_slash"
-}
 
 [sub_resource type="Resource" id="Resource_path_aoe"]
 script = ExtResource("3_l0y4u")
@@ -54,7 +43,7 @@ effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubR
 script = ExtResource("4_h3ew0")
 skill_id = &"warrior_whirlwind_slash"
 target_mode = &"ground"
-range_value = 6
+range_value = 3
 ap_cost = 1
 stamina_cost = 60
 cooldown_tu = 120
@@ -62,7 +51,8 @@ aura_cost = 100
 attack_roll_bonus = -4
 level_overrides = {
 1: {
-"attack_roll_bonus": -3
+"attack_roll_bonus": -3,
+"range_value": 4
 },
 2: {
 "attack_roll_bonus": -3,
@@ -70,7 +60,8 @@ level_overrides = {
 },
 3: {
 "attack_roll_bonus": -2,
-"cooldown_tu": 110
+"cooldown_tu": 110,
+"range_value": 5
 },
 4: {
 "attack_roll_bonus": -2,
@@ -78,7 +69,8 @@ level_overrides = {
 },
 5: {
 "attack_roll_bonus": -1,
-"cooldown_tu": 100
+"cooldown_tu": 100,
+"range_value": 6
 },
 6: {
 "attack_roll_bonus": -1,
@@ -106,7 +98,7 @@ description = "向指定地格冲锋，每次成功前进后对周边敌人触�
 max_level = 9
 non_core_max_level = 7
 mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800, 10320, 13200)
-level_description_template = "冲锋距离{distance}{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}，冷却{cooldown_tu}TU，消耗{ap_cost}AP/{stamina_cost}体力/{{?aura_cost}}{aura_cost}斗气{{/aura_cost}}。每进一步对周边敌人触发武器攻击。{{?stagger}}被连续命中超过3次的敌人陷入踓跄。{{/stagger}}"
+level_description_template = "冲锋距离{range_value}{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}，冷却{cooldown_tu}TU，消耗{ap_cost}AP/{stamina_cost}体力/{{?aura_cost}}{aura_cost}斗气{{/aura_cost}}。每进一步对周边敌人触发武器攻击。{{?stagger}}被连续命中超过3次的敌人陷入踓跄。{{/stagger}}"
 level_description_configs = {
 "7": {
 "attack_roll_bonus": ""

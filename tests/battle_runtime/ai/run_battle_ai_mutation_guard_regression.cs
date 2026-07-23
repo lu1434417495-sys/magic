@@ -25,38 +25,42 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             ConfigureRuntimeFaultMode();
 
             TestProductionDefaultDisablesFullSnapshotGuard();
+            TestMutationThenEvaluatorExceptionPrefersGuardViolation();
+            TestEvaluatorExceptionWithoutMutationPropagatesOriginal();
             TestTurnTraceProjectsTypedDecisionTransition();
-            TestSnapshotIsPlainAndRestoresExactStateWithoutAuditGrowth();
+            TestReportPayloadMutationIsDetectedWithoutRollback();
+            TestPromotionPayloadMutationIsDetectedWithoutRollback();
+            TestSnapshotIsPlainAndDetectsStateWithoutAuditGrowth();
             TestDeclaredBattleUnitFieldsHaveStableCoverage();
             TestBattleStatePublicFieldsHaveSnapshotSentinelCoverage();
-            TestBattleObjectiveAuthorityIsDetectedAndRestored();
+            TestBattleObjectiveAuthorityIsDetected();
             TestObjectiveRuntimeProjectionIsTotal();
             TestNestedAuthoritySchemasRemainExplicit();
             TestDeclaredStatusPropertiesHaveSnapshotCoverage();
-            TestUnitAuthorityBlindSpotsAreDetectedAndRestored();
-            TestNullableUnitAuthorityFieldsAreDetectedAndRestored();
-            TestNullableBattleStateContainersAreDetectedAndRestored();
-            TestNullableBattleUnitCoreFieldsAreDetectedAndRestored();
-            TestNestedAuthorityStructuresAreDetectedAndRestored();
-            TestCanonicalContainerKeysAreDetectedAndRestored();
-            TestCellAndTerrainRawAuthorityIsDetectedAndRestored();
-            TestBarrierRawAuthorityIsDetectedAndRestored();
-            TestBlackboardRawPresenceIsDetectedAndRestored();
-            TestPlainPayloadTypeIdentityIsDetectedAndRestored();
-            TestRawUnitProjectionRestoresWithoutNormalization();
-            TestSkillDefinitionGraphIsFrozenAndIndexRestored();
-            TestNullableStatusFieldsAreDetectedAndRestored();
-            TestStatusSemanticBlindSpotsAreDetectedAndRestored();
-            TestBattleStateAuthorityBlindSpotsAreDetectedAndRestored();
+            TestUnitAuthorityBlindSpotsAreDetected();
+            TestNullableUnitAuthorityFieldsAreDetected();
+            TestNullableBattleStateContainersAreDetected();
+            TestNullableBattleUnitCoreFieldsAreDetected();
+            TestNestedAuthorityStructuresAreDetected();
+            TestCanonicalContainerKeysAreDetected();
+            TestCellAndTerrainRawAuthorityIsDetected();
+            TestBarrierRawAuthorityIsDetected();
+            TestBlackboardRawPresenceIsDetected();
+            TestPlainPayloadTypeIdentityIsDetected();
+            TestRawUnitProjectionMutationIsDetectedWithoutNormalization();
+            TestSkillDefinitionGraphAndIndexMutationsAreDetected();
+            TestNullableStatusFieldsAreDetected();
+            TestStatusSemanticBlindSpotsAreDetected();
+            TestBattleStateAuthorityBlindSpotsAreDetected();
             TestStableDoubleComparisonPreservesDoublePrecision();
             TestBenignAiBookkeepingIsAllowed();
-            TestActiveUnitHpMutationIsBlockedAndRestored();
-            TestOtherUnitCoordMutationIsBlockedAndRestored();
+            TestActiveUnitHpMutationFailsWithoutRollback();
+            TestOtherUnitCoordMutationFailsWithoutRollback();
             TestUnknownBlackboardKeyWriteIsIgnored();
-            TestCellOccupantMutationIsBlockedAndRestored();
-            TestCellHeightMutationIsBlockedAndRestored();
-            TestEffectiveTraitPayloadMutationIsBlockedAndRestored();
-            TestEffectiveTraitIdsMutationIsBlockedAndRestored();
+            TestCellOccupantMutationFailsWithoutRollback();
+            TestCellHeightMutationFailsWithoutRollback();
+            TestEffectiveTraitPayloadMutationFailsWithoutRollback();
+            TestEffectiveTraitIdsMutationFailsWithoutRollback();
             TestMissingBrainWaitPathIsAllowed();
             TestMissingStateWaitPathIsAllowed();
         }
@@ -83,11 +87,117 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
 
     private void TestProductionDefaultDisablesFullSnapshotGuard()
     {
-        using var service = new BattleAiService();
+        using Fixture fixture = BuildFixture(
+            MakeMutationAction("active_hp"),
+            enableFullSnapshotGuard: false
+        );
         _test.Eq(
-            service.MutationGuardMode,
+            fixture.Service.MutationGuardMode,
             BattleAiMutationGuardMode.Disabled,
             "production AI service 默认不应执行 full-snapshot mutation guard。"
+        );
+        BattleAiDecision decision = Choose(fixture);
+        _test.True(
+            decision != null,
+            "production 默认关闭 guard 时，AI decision 应正常返回。"
+        );
+        _test.Eq(
+            fixture.Actor.current_hp,
+            1,
+            "production 默认关闭 guard 时，不应捕获或阻断测试 mutation。"
+        );
+        AssertNoGuardViolation(
+            fixture.Context,
+            "production 默认关闭 guard 时不应生成 mutation violation。"
+        );
+    }
+
+    private void TestMutationThenEvaluatorExceptionPrefersGuardViolation()
+    {
+        var sentinel = new InvalidOperationException("mutation_then_throw_sentinel");
+        using Fixture fixture = BuildFixture(
+            MakeMutationAction("active_hp"),
+            evaluatorException: sentinel
+        );
+        int beforeHp = fixture.Actor.current_hp;
+        int beforeFailureEventCount = BattleAiFailurePolicy.Events.Count;
+
+        BattleAiMutationViolationException exception = CaptureMutationViolation(
+            () => Choose(fixture),
+            "evaluator mutate-then-throw 应优先抛出 mutation violation。"
+        );
+
+        AssertGuardAborted(
+            fixture.Context,
+            exception,
+            "evaluator mutate-then-throw 应触发 fail-fast guard。",
+            "current_hp",
+            "BattleAiService.ChooseCommandImpl"
+        );
+        AssertDiffContainsAll(
+            exception?.Report?.Violations,
+            "evaluator mutate-then-throw",
+            "current_hp"
+        );
+        _test.Eq(
+            exception?.Report?.Stage ?? "",
+            "decision_exception",
+            "evaluator 异常路径的 mutation report 应保留稳定 stage。"
+        );
+        _test.True(
+            ReferenceEquals(exception?.InnerException, sentinel),
+            "mutation violation 应在 InnerException 中保留原 evaluator sentinel。"
+        );
+        _test.True(
+            fixture.Actor.current_hp == 1 && fixture.Actor.current_hp != beforeHp,
+            "evaluator mutate-then-throw 后不应回滚 live HP。"
+        );
+        _test.True(
+            !fixture.Service.GetScoreService().DecisionScopeActive,
+            "evaluator mutate-then-throw 后应关闭 score decision scope。"
+        );
+        _test.Eq(
+            BattleAiFailurePolicy.Events.Count,
+            beforeFailureEventCount + 1,
+            "evaluator mutate-then-throw 应只记录一次 mutation failure event。"
+        );
+    }
+
+    private void TestEvaluatorExceptionWithoutMutationPropagatesOriginal()
+    {
+        BattleAiFailurePolicy.Reset();
+        var sentinel = new InvalidOperationException("throw_without_mutation_sentinel");
+        using Fixture fixture = BuildFixture(
+            MakeMutationAction("none"),
+            evaluatorException: sentinel
+        );
+        InvalidOperationException actual = null;
+
+        try
+        {
+            Choose(fixture);
+        }
+        catch (InvalidOperationException exception)
+        {
+            actual = exception;
+        }
+
+        _test.True(
+            ReferenceEquals(actual, sentinel),
+            "evaluator 未 mutation 时应原样传播 sentinel exception。"
+        );
+        _test.True(
+            BattleAiFailurePolicy.LastEvent == null
+                && BattleAiFailurePolicy.Events.Count == 0,
+            "evaluator 未 mutation 时不应生成 mutation failure event。"
+        );
+        AssertNoGuardViolation(
+            fixture.Context,
+            "evaluator 未 mutation 时不应生成 mutation violation。"
+        );
+        _test.True(
+            !fixture.Service.GetScoreService().DecisionScopeActive,
+            "evaluator 未 mutation 的异常路径也应关闭 score decision scope。"
         );
     }
 
@@ -190,7 +300,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
     }
 
-    private void TestActiveUnitHpMutationIsBlockedAndRestored()
+    private void TestActiveUnitHpMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("active_hp"));
         int beforeHp = fixture.Actor.current_hp;
@@ -207,14 +317,16 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "current_hp",
             "BattleAiService.ChooseCommandImpl"
         );
-        _test.Eq(fixture.Actor.current_hp, beforeHp, "active unit HP mutation 应被恢复。");
+        _test.True(
+            fixture.Actor.current_hp == 1 && fixture.Actor.current_hp != beforeHp,
+            "mutation guard 抛错后不应回滚 active unit HP；失败 fixture 应直接废弃。"
+        );
     }
 
-    private void TestOtherUnitCoordMutationIsBlockedAndRestored()
+    private void TestOtherUnitCoordMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("other_coord"));
         Vector2I beforeCoord = fixture.Hero.coord;
-        List<Vector2I> beforeOccupied = DuplicateVector2IArray(fixture.Hero.occupied_coords);
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -228,11 +340,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "coord",
             "BattleAiService.ChooseCommandImpl"
         );
-        _test.Eq(fixture.Hero.coord, beforeCoord, "其他单位坐标 mutation 应被恢复。");
-        AssertVector2IArrayEq(
-            fixture.Hero.occupied_coords,
-            beforeOccupied,
-            "其他单位 footprint cache mutation 应被恢复。"
+        _test.True(
+            fixture.Hero.coord == new Vector2I(4, 2)
+                && fixture.Hero.coord != beforeCoord,
+            "mutation guard 抛错后不应回滚其他单位坐标。"
         );
     }
 
@@ -253,7 +364,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
     }
 
-    private void TestCellOccupantMutationIsBlockedAndRestored()
+    private void TestCellOccupantMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("cell_occupant"));
         BattleCellState cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(3, 1));
@@ -272,14 +383,17 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(3, 1));
-        _test.Eq(cell?.occupant_unit_id ?? "", beforeOccupant, "cell occupant mutation 应被恢复。");
+        _test.True(
+            (cell?.occupant_unit_id ?? "") == fixture.Actor.unit_id
+                && (cell?.occupant_unit_id ?? "") != beforeOccupant,
+            "mutation guard 抛错后不应回滚 cell occupant。"
+        );
     }
 
-    private void TestCellHeightMutationIsBlockedAndRestored()
+    private void TestCellHeightMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("cell_height"));
         BattleCellState cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(0, 0));
-        int beforeHeight = cell?.current_height ?? int.MinValue;
         int beforeOffset = cell?.height_offset ?? int.MinValue;
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
@@ -295,11 +409,14 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         cell = fixture.GridService.GetCellState(fixture.State, new Vector2I(0, 0));
-        _test.Eq(cell?.current_height ?? int.MinValue, beforeHeight, "cell current_height mutation 应被恢复。");
-        _test.Eq(cell?.height_offset ?? int.MinValue, beforeOffset, "cell height_offset mutation 应被恢复。");
+        _test.True(
+            (cell?.height_offset ?? int.MinValue) == 2
+                && (cell?.height_offset ?? int.MinValue) != beforeOffset,
+            "mutation guard 抛错后不应回滚 cell height_offset。"
+        );
     }
 
-    private void TestEffectiveTraitPayloadMutationIsBlockedAndRestored()
+    private void TestEffectiveTraitPayloadMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait"));
         fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
@@ -318,28 +435,17 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
 
-        _test.Eq(
-            fixture.Actor.effective_trait_instances.Count,
-            1,
-            "effective trait payload mutation 应恢复 payload 数量。"
-        );
-        BattleEffectiveTraitInstanceState restored = fixture.Actor.effective_trait_instances.Count > 0
+        BattleEffectiveTraitInstanceState mutated = fixture.Actor.effective_trait_instances.Count > 0
             ? fixture.Actor.effective_trait_instances[0]
             : null;
         _test.Eq(
-            restored?.effect_type ?? "",
-            new StringName("halfling_luck"),
-            "effective trait payload mutation 应恢复 effect_type。"
-        );
-        _test.True(
-            fixture.Actor.effective_trait_ids.Count == 1
-                && fixture.Actor.effective_trait_ids.Contains("halfling_luck")
-                && !fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
-            "effective_trait_ids mutation 应被恢复。"
+            mutated?.effect_type ?? "",
+            new StringName("savage_attacks"),
+            "mutation guard 抛错后不应回滚 effective trait payload。"
         );
     }
 
-    private void TestEffectiveTraitIdsMutationIsBlockedAndRestored()
+    private void TestEffectiveTraitIdsMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait_ids"));
         fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
@@ -358,10 +464,98 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         _test.True(
-            fixture.Actor.effective_trait_ids.Count == 1
+            fixture.Actor.effective_trait_ids.Count == 2
                 && fixture.Actor.effective_trait_ids.Contains("halfling_luck")
-                && !fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
-            "effective_trait_ids mutation 应被恢复。"
+                && fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
+            "mutation guard 抛错后不应回滚 effective_trait_ids。"
+        );
+    }
+
+    private void TestReportPayloadMutationIsDetectedWithoutRollback()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("report_payload"));
+        fixture.State.SetReportEntries(
+            new[]
+            {
+                new Dictionary<string, object>
+                {
+                    ["entry_type"] = "mutation_probe",
+                    ["text"] = "before",
+                    ["event_tags"] = new List<object> { "before_tag" },
+                },
+            }
+        );
+
+        BattleAiMutationViolationException exception = CaptureMutationViolation(
+            () => Choose(fixture),
+            "report payload mutation 应让 mutation guard 立即停止。"
+        );
+
+        AssertGuardAborted(
+            fixture.Context,
+            exception,
+            "report payload mutation 应触发 fail-fast guard。",
+            "report_entries",
+            "BattleAiService.ChooseCommandImpl"
+        );
+        AssertDiffContainsAll(
+            exception?.Report?.Violations,
+            "report 完整 payload mutation",
+            "report_entries",
+            "text",
+            "event_tags"
+        );
+        _test.Eq(
+            fixture.State.ReportEntriesTyped[0]["text"]?.ToString() ?? "",
+            "after",
+            "report payload violation 抛错后不应回滚。"
+        );
+    }
+
+    private void TestPromotionPayloadMutationIsDetectedWithoutRollback()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("promotion_payload"));
+        fixture.State.SetPromotionQueue(
+            new GArray
+            {
+                new GDictionary
+                {
+                    ["entry_type"] = "mutation_probe",
+                    ["extension_payload"] = new GDictionary
+                    {
+                        ["choice"] = "before",
+                    },
+                },
+            }
+        );
+
+        BattleAiMutationViolationException exception = CaptureMutationViolation(
+            () => Choose(fixture),
+            "promotion payload mutation 应让 mutation guard 立即停止。"
+        );
+
+        AssertGuardAborted(
+            fixture.Context,
+            exception,
+            "promotion payload mutation 应触发 fail-fast guard。",
+            "promotion_queue",
+            "BattleAiService.ChooseCommandImpl"
+        );
+        AssertDiffContainsAll(
+            exception?.Report?.Violations,
+            "promotion 完整 payload mutation",
+            "promotion_queue",
+            "extension_payload",
+            "choice"
+        );
+        IReadOnlyDictionary<string, object> entry =
+            fixture.State.PromotionQueueTyped[0];
+        var extension = entry["extension_payload"]
+            as IReadOnlyDictionary<string, object>;
+        _test.Eq(
+            extension?["choice"]?.ToString() ?? "",
+            "after",
+            "promotion payload violation 抛错后不应回滚。"
         );
     }
 
@@ -446,10 +640,38 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             case "effective_trait_ids":
                 context.unit_state.effective_trait_ids.Add("rogue_trait");
                 break;
+            case "report_payload":
+                context.state.SetReportEntries(
+                    new[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            ["entry_type"] = "mutation_probe",
+                            ["text"] = "after",
+                            ["event_tags"] = new List<object> { "after_tag" },
+                        },
+                    }
+                );
+                break;
+            case "promotion_payload":
+                context.state.SetPromotionQueue(
+                    new GArray
+                    {
+                        new GDictionary
+                        {
+                            ["entry_type"] = "mutation_probe",
+                            ["extension_payload"] = new GDictionary
+                            {
+                                ["choice"] = "after",
+                            },
+                        },
+                    }
+                );
+                break;
         }
     }
 
-    private void TestSnapshotIsPlainAndRestoresExactStateWithoutAuditGrowth()
+    private void TestSnapshotIsPlainAndDetectsStateWithoutAuditGrowth()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         SkillDefinition snapshotSkill = TestSkillDefinitionProjection.BuildSkill(
@@ -472,6 +694,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             }
         );
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        fixture.Actor.encounter_actor_id = "guard_actor";
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
 
         AssertSnapshotGraphHasNoGodotDynamicBoundary(snapshot);
@@ -480,26 +703,18 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "fresh mutation snapshot should match the captured stable fingerprint."
         );
 
-        int originalHp = fixture.Actor.current_hp;
-        fixture.Actor.current_hp = Math.Max(originalHp - 3, 0);
+        fixture.Actor.encounter_actor_id = "mutated_guard_actor";
+        _test.True(
+            !snapshot.MatchesCurrentState(fixture.Context),
+            "encounter actor identity mutation should change the stable fingerprint."
+        );
+
+        fixture.Actor.current_hp = Math.Max(fixture.Actor.current_hp - 3, 0);
         _test.True(
             !snapshot.MatchesCurrentState(fixture.Context),
             "typed mutation should change the stable fingerprint."
         );
-
-        snapshot.Restore(fixture.Context);
-        _test.Eq(
-            fixture.Actor.current_hp,
-            originalHp,
-            "typed restore should recover the original unit state."
-        );
-        List<string> restoreDiffs = snapshot.CompareCurrentState(fixture.Context);
-        _test.True(
-            restoreDiffs.Count == 0,
-            "restore should recover the exact captured stable fingerprint: "
-                + string.Join(" | ", restoreDiffs)
-        );
-        AssertAuditBaseline(baseline, "mutation snapshot capture/restore");
+        AssertAuditBaseline(baseline, "mutation snapshot capture/detection");
     }
 
     private void TestDeclaredBattleUnitFieldsHaveStableCoverage()
@@ -522,7 +737,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 "attribute_snapshot" => unitStable.ContainsKey("attribute_snapshot_values"),
                 "equipment_view" => unitStable.ContainsKey("equipment_view"),
                 "_statusEffects" => unitStable.ContainsKey("status_effects"),
-                "_consumedContingencySetupIds" =>
+                "_consumedContingencySetups" =>
                     fieldStable.ContainsKey("consumed_contingency_setup_ids"),
                 _ => fieldStable.ContainsKey(fieldName),
             };
@@ -572,22 +787,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 mutationDiffs.Count > 0,
                 $"BattleState 字段必须由 stable projection 读取真实值：{field.Name}"
             );
-            snapshot.Restore(state);
-            List<StableDiff> restoreDiffs = new();
-            BattleAiMutationGuard.CollectDiffs(
-                snapshot.ToStableMap(),
-                BattleStateFieldsSnapshot.Capture(state).ToStableMap(),
-                $"battle_state_restore.{field.Name}",
-                restoreDiffs
-            );
-            _test.True(
-                restoreDiffs.Count == 0,
-                $"BattleState 字段必须由 snapshot 恢复：{field.Name}; diffs={string.Join(" | ", BattleAiMutationGuard.FormatStableDiffs(restoreDiffs))}"
-            );
         }
     }
 
-    private void TestBattleObjectiveAuthorityIsDetectedAndRestored()
+    private void TestBattleObjectiveAuthorityIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
 
@@ -604,23 +807,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "objective runtime initialization",
             "objective_runtime_state"
         );
-        emptyObjectiveSnapshot.Restore(fixture.Context);
-        _test.True(
-            fixture.State.ObjectiveRuntimeState == null
-                && fixture.State.FinalDecision == null,
-            "objective runtime 的 null 形态应精确恢复。"
-        );
-        AssertSnapshotMatches(
-            emptyObjectiveSnapshot,
-            fixture.Context,
-            "empty objective runtime restore"
-        );
 
         _test.True(
             fixture.State.InitializeObjective(
                 BattleEliminationObjectiveDefinition.Instance
             ),
-            "测试前提：恢复后应可重新初始化 objective。"
+            "测试前提：objective 应可重新初始化。"
         );
         var baselineDecision = new BattleFinalDecision(
             BattleObjectiveMode.Elimination,
@@ -651,51 +843,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "final_decision_end_reason",
             "final_decision_tu",
             "winner_faction_id"
-        );
-
-        latchedDecisionSnapshot.Restore(fixture.Context);
-        BattleFinalDecision restoredDecision = fixture.State.FinalDecision;
-        _test.True(
-            fixture.State.ObjectiveRuntimeState
-                is BattleEliminationObjectiveRuntimeState,
-            "objective runtime concrete typed owner 应恢复。"
-        );
-        _test.Eq(
-            fixture.State.ObjectiveRuntimeState?.Mode
-                ?? BattleObjectiveMode.Unknown,
-            BattleObjectiveMode.Elimination,
-            "objective runtime mode 应恢复。"
-        );
-        _test.True(restoredDecision != null, "final decision 应恢复。");
-        _test.True(
-            !ReferenceEquals(restoredDecision, baselineDecision),
-            "final decision 应以 detached copy 恢复。"
-        );
-        _test.Eq(
-            restoredDecision?.ObjectiveMode ?? BattleObjectiveMode.Unknown,
-            BattleObjectiveMode.Elimination,
-            "final decision objective mode 应恢复。"
-        );
-        _test.Eq(
-            restoredDecision?.Outcome ?? BattleOutcomeKind.Unknown,
-            BattleOutcomeKind.PlayerSuccess,
-            "final decision outcome 应恢复。"
-        );
-        _test.Eq(
-            restoredDecision?.EndReason ?? BattleEndReasonKind.None,
-            BattleEndReasonKind.EliminationHostilesDefeated,
-            "final decision end reason 应恢复。"
-        );
-        _test.Eq(restoredDecision?.DecisionTu ?? -1, 17, "decision TU 应恢复。");
-        _test.Eq(
-            fixture.State.winner_faction_id,
-            new StringName("player"),
-            "派生 winner faction 应随 final decision 恢复。"
-        );
-        AssertSnapshotMatches(
-            latchedDecisionSnapshot,
-            fixture.Context,
-            "final decision restore"
         );
     }
 
@@ -732,6 +879,77 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             );
         }
 
+        var runtimeStatesByType = new Dictionary<
+            Type,
+            BattleObjectiveRuntimeState
+        >
+        {
+            [typeof(BattleEliminationObjectiveRuntimeState)] =
+                new BattleEliminationObjectiveRuntimeState(),
+            [typeof(BattleBossObjectiveRuntimeState)] =
+                new BattleBossObjectiveRuntimeState(
+                    "boss_actor",
+                    "boss_unit",
+                    new StringName[] { "party_unit" }
+                ),
+            [typeof(BattleEscapeObjectiveRuntimeState)] =
+                new BattleEscapeObjectiveRuntimeState(
+                    "escape_exit",
+                    BattleMapEdge.Right,
+                    1,
+                    new StringName[] { "party_unit" },
+                    new Vector2I[] { new(1, 0) }
+                ),
+            [typeof(BattleRescueObjectiveRuntimeState)] =
+                new BattleRescueObjectiveRuntimeState(
+                    "rescue_actor",
+                    "rescue_unit",
+                    new StringName[] { "party_unit" }
+                ),
+            [typeof(BattleEscortObjectiveRuntimeState)] =
+                new BattleEscortObjectiveRuntimeState(
+                    "escort_actor",
+                    "escort_unit",
+                    "escort_exit",
+                    BattleMapEdge.Right,
+                    1,
+                    new StringName[] { "party_unit" },
+                    new Vector2I[] { new(1, 0) }
+                ),
+            [typeof(BattleDefenseObjectiveRuntimeState)] =
+                new BattleDefenseObjectiveRuntimeState(
+                    "defense_actor",
+                    "defense_unit",
+                    new StringName[] { "party_unit" },
+                    10,
+                    110
+                ),
+            [typeof(BattleInterceptObjectiveRuntimeState)] =
+                new BattleInterceptObjectiveRuntimeState(
+                    "intercept_actor",
+                    "intercept_unit",
+                    "intercept_exit",
+                    BattleMapEdge.Left,
+                    1,
+                    new StringName[] { "party_unit" },
+                    new Vector2I[] { new(0, 0) }
+                ),
+            [typeof(BattleNodeOperationObjectiveRuntimeState)] =
+                new BattleNodeOperationObjectiveRuntimeState(
+                    new StringName[] { "party_unit" },
+                    new[]
+                    {
+                        new BattleOperationNodeRuntimeState(
+                            "operation_node",
+                            "Operation Node",
+                            "operation_zone",
+                            BattleMapEdge.Right,
+                            1,
+                            new Vector2I(1, 0)
+                        ),
+                    }
+                ),
+        };
         foreach (Type type in typeof(BattleObjectiveRuntimeState).Assembly.GetTypes())
         {
             if (
@@ -742,51 +960,74 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 continue;
             }
 
-            _test.Eq(
-                type,
-                typeof(BattleEliminationObjectiveRuntimeState),
+            _test.True(
+                runtimeStatesByType.ContainsKey(type),
                 $"新增 objective runtime subtype {type.FullName} 时必须显式扩展 mutation projection。"
             );
-            if (type != typeof(BattleEliminationObjectiveRuntimeState))
-                continue;
-
-            var runtimeState = (BattleObjectiveRuntimeState)Activator.CreateInstance(
-                type,
-                nonPublic: true
-            );
-            _test.True(
-                runtimeState != null,
-                "elimination objective runtime 应可供结构门禁实例化。"
-            );
+        }
+        foreach (BattleObjectiveRuntimeState runtimeState in runtimeStatesByType.Values)
             BattleAiMutationStableProjection.StableObjectiveRuntimeState(runtimeState);
 
-            foreach (
-                FieldInfo field in type.GetFields(
-                    BindingFlags.Instance
-                        | BindingFlags.Public
-                        | BindingFlags.NonPublic
-                        | BindingFlags.DeclaredOnly
-                )
-            )
-            {
-                _test.Fail(
-                    $"{type.Name} 新增字段 {field.Name} 时必须扩展 stable projection 与恢复回归。"
-                );
-            }
-            foreach (
-                PropertyInfo property in type.GetProperties(
-                    BindingFlags.Instance
-                        | BindingFlags.Public
-                        | BindingFlags.NonPublic
-                        | BindingFlags.DeclaredOnly
-                )
-            )
-            {
-                _test.Fail(
-                    $"{type.Name} 新增属性 {property.Name} 时必须扩展 stable projection 与恢复回归。"
-                );
-            }
-        }
+        AssertDeclaredInstanceFields(typeof(BattleEliminationObjectiveRuntimeState));
+        AssertDeclaredInstanceFields(
+            typeof(BattleBossObjectiveRuntimeState),
+            "TargetActorId",
+            "TargetUnitId",
+            "RequiredPartyUnitIds"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleEscapeObjectiveRuntimeState),
+            "_exitCoordSet",
+            "ExitZoneId",
+            "ExitEdge",
+            "ExitDepth",
+            "RequiredUnitIds",
+            "ExitCoords"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleRescueObjectiveRuntimeState),
+            "TargetActorId",
+            "TargetUnitId",
+            "RequiredPartyUnitIds",
+            "TargetSecured"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleEscortObjectiveRuntimeState),
+            "_exitCoordSet",
+            "TargetActorId",
+            "TargetUnitId",
+            "ExitZoneId",
+            "ExitEdge",
+            "ExitDepth",
+            "RequiredPartyUnitIds",
+            "ExitCoords"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleDefenseObjectiveRuntimeState),
+            "TargetActorId",
+            "TargetUnitId",
+            "RequiredPartyUnitIds",
+            "StartTu",
+            "DeadlineTu"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleInterceptObjectiveRuntimeState),
+            "_exitCoordSet",
+            "TargetActorId",
+            "TargetUnitId",
+            "ExitZoneId",
+            "ExitEdge",
+            "ExitDepth",
+            "RequiredPartyUnitIds",
+            "ExitCoords"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleNodeOperationObjectiveRuntimeState),
+            "_nodesById",
+            "_nodesByCoord",
+            "RequiredPartyUnitIds",
+            "OperationNodes"
+        );
 
         var finalDecisionFields = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -934,6 +1175,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "CastSequence",
             "CostTransaction",
             "SpellControlMetadata"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleConsumedContingencySetupCollection),
+            "_setupIds"
         );
         AssertDeclaredWritableProperties(
             typeof(BattlePendingCastState),
@@ -1282,23 +1527,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             snapshot.CompareCurrentState(fixture.Context).Count > 0,
             "全属性 status mutation 应触发完整 snapshot diff。"
         );
-        snapshot.Restore(fixture.Context);
-        BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
-        List<StableDiff> restoreDiffs = new();
-        BattleAiMutationGuard.CollectDiffs(
-            baselineStable,
-            BattleAiMutationStableProjection.StableStatusEffect(restored),
-            "status_restore",
-            restoreDiffs
-        );
-        _test.True(
-            restoreDiffs.Count == 0,
-            "BattleStatusEffectState 全属性必须恢复："
-                + string.Join(" | ", BattleAiMutationGuard.FormatStableDiffs(restoreDiffs))
-        );
     }
 
-    private void TestUnitAuthorityBlindSpotsAreDetectedAndRestored()
+    private void TestUnitAuthorityBlindSpotsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleUnitState actor = fixture.Actor;
@@ -1404,49 +1635,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "creature_type_tags",
             "weapon_range_type"
         );
-
-        snapshot.Restore(fixture.Context);
-        _test.Eq(
-            actor.battle_sprite_texture_path,
-            "res://tests/original_guard_actor.png",
-            "battle sprite path mutation 应被恢复。"
-        );
-        _test.True(!actor.equipment_view_initialized, "equipment view 初始化标记应被恢复。");
-        AssertStringNameSequenceEq(
-            actor.GetConsumedContingencySetupIdsTyped(),
-            new StringName[] { "contingency_alpha", "contingency_beta" },
-            "consumed contingency setup ids 应按顺序恢复。"
-        );
-        _test.Eq(actor.equipment_ability_sources?.Count ?? -1, 1, "装备能力来源数量应恢复。");
-        BattleEquipmentAbilitySourceState restoredSource =
-            actor.equipment_ability_sources?.Count == 1
-                ? actor.equipment_ability_sources[0]
-                : null;
-        _test.Eq(restoredSource?.EffectiveInstanceKey ?? "", new StringName("source_original"), "装备能力来源 key 应恢复。");
-        _test.Eq(restoredSource?.EquipmentDefId ?? "", new StringName("equipment_original"), "装备定义 id 应恢复。");
-        _test.Eq(restoredSource?.SourceEquipmentInstanceId ?? "", new StringName("instance_original"), "装备实例 id 应恢复。");
-        _test.Eq(restoredSource?.SourceKind ?? EquipmentAbilitySourceKind.Unknown, EquipmentAbilitySourceKind.PlayerPersistentEquipment, "装备能力来源类型应恢复。");
-        AssertStringNameSequenceEq(
-            restoredSource?.AbilityIds,
-            new StringName[] { "ability_alpha", "ability_beta" },
-            "装备能力 id 顺序应恢复。"
-        );
-        _test.Eq(actor.temporal_progress_modifiers?.Count ?? -1, 1, "时间进度修正数量应恢复。");
-        BattleTemporalProgressModifierState restoredModifier =
-            actor.temporal_progress_modifiers?.Count == 1
-                ? actor.temporal_progress_modifiers[0]
-                : null;
-        AssertTemporalProgressModifierRestored(restoredModifier);
-        AssertStringNameSequenceEq(
-            actor.creature_type_tags,
-            new StringName[] { "humanoid", "guard" },
-            "creature type tags 应按顺序恢复。"
-        );
-        _test.Eq(actor.weapon_range_type, new StringName("melee"), "weapon range type 应恢复。");
-        AssertSnapshotMatches(snapshot, fixture.Context, "unit authority blind spots restore");
     }
 
-    private void TestNullableUnitAuthorityFieldsAreDetectedAndRestored()
+    private void TestNullableUnitAuthorityFieldsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleUnitState actor = fixture.Actor;
@@ -1479,16 +1670,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "ability_ids",
             "label"
         );
-        nestedSnapshot.Restore(fixture.Context);
-        _test.True(
-            actor.equipment_ability_sources[0].AbilityIds != null,
-            "空 ability ids 不应被 null mutation 留在正式状态。"
-        );
-        _test.Eq(
-            actor.temporal_progress_modifiers[0].Label,
-            "",
-            "空 label 不应被 null mutation 留在正式状态。"
-        );
 
         BattleAiMutationSnapshot elementSnapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
@@ -1501,9 +1682,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "equipment_ability_sources",
             "temporal_progress_modifiers"
         );
-        elementSnapshot.Restore(fixture.Context);
-        _test.True(actor.equipment_ability_sources[0] != null, "null source 元素应被恢复。");
-        _test.True(actor.temporal_progress_modifiers[0] != null, "null modifier 元素应被恢复。");
 
         BattleAiMutationSnapshot outerSnapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
@@ -1520,56 +1698,46 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "temporal_progress_modifiers",
             "creature_type_tags"
         );
-        outerSnapshot.Restore(fixture.Context);
-        _test.Eq(actor.battle_sprite_texture_path, "", "null battle sprite path 应被恢复。");
-        _test.True(actor.equipment_ability_sources != null, "null source list 应被恢复。");
-        _test.True(actor.temporal_progress_modifiers != null, "null modifier list 应被恢复。");
-        _test.True(actor.creature_type_tags != null, "null creature tags 应被恢复。");
-        AssertSnapshotMatches(
-            outerSnapshot,
-            fixture.Context,
-            "nullable unit authority fields restore"
-        );
     }
 
-    private void TestNullableBattleStateContainersAreDetectedAndRestored()
+    private void TestNullableBattleStateContainersAreDetected()
     {
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "timeline",
             "timeline",
             state => state.timeline = new BattleTimelineState(),
             state => state.timeline = null,
             state => state.timeline != null
         );
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "party backpack view",
             "party_backpack_view",
             state => state.party_backpack_view = new WarehouseState(),
             state => state.party_backpack_view = null,
             state => state.party_backpack_view != null
         );
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "attack disadvantage tags",
             "attack_disadvantage_tags",
             state => state.attack_disadvantage_tags = new StringNameList(),
             state => state.attack_disadvantage_tags = null,
             state => state.attack_disadvantage_tags?.Count == 0
         );
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "ally unit ids",
             "ally_unit_ids",
             state => state.ally_unit_ids = new StringNameList(),
             state => state.ally_unit_ids = null,
             state => state.ally_unit_ids?.Count == 0
         );
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "enemy unit ids",
             "enemy_unit_ids",
             state => state.enemy_unit_ids = new StringNameList(),
             state => state.enemy_unit_ids = null,
             state => state.enemy_unit_ids?.Count == 0
         );
-        AssertBattleStateNullRoundTrip(
+        AssertBattleStateNullMutationDetected(
             "log entries",
             "log_entries",
             state => state.log_entries = new StringList(),
@@ -1589,17 +1757,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 "log_entries",
                 "[0]"
             );
-            snapshot.Restore(fixture.Context);
-            _test.True(
-                fixture.State.log_entries?.Count == 1
-                    && fixture.State.log_entries[0] == null,
-                "log 中的 null 元素必须与空字符串区分并精确恢复。"
-            );
-            AssertSnapshotMatches(snapshot, fixture.Context, "log null element restore");
         }
         catch (Exception exception)
         {
-            _test.Fail($"log null element restore 不应抛异常：{exception}");
+            _test.Fail($"log null element detection 不应抛异常：{exception}");
         }
 
         using Fixture timelineFixture = BuildFixture(MakeMutationAction("none"));
@@ -1614,63 +1775,53 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "timeline",
             "ready_unit_ids"
         );
-        timelineSnapshot.Restore(timelineFixture.Context);
-        _test.True(
-            timelineFixture.State.timeline?.ready_unit_ids?.Count == 0,
-            "timeline ready ids 应恢复为空的非 null owner。"
-        );
-        AssertSnapshotMatches(
-            timelineSnapshot,
-            timelineFixture.Context,
-            "timeline ready ids restore"
-        );
     }
 
-    private void TestNullableBattleUnitCoreFieldsAreDetectedAndRestored()
+    private void TestNullableBattleUnitCoreFieldsAreDetected()
     {
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "display name",
             "display_name",
             unit => unit.display_name = "",
             unit => unit.display_name = null,
             unit => unit.display_name == ""
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "AI blackboard",
             "ai_blackboard",
             unit => unit.ai_blackboard = new BattleAiBlackboard(),
             unit => unit.ai_blackboard = null,
             unit => unit.ai_blackboard != null
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "occupied coords",
             "occupied_coords",
             unit => unit.occupied_coords = new Vector2IList(),
             unit => unit.occupied_coords = null,
             unit => unit.occupied_coords?.Count == 0
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "unlocked combat resource ids",
             "unlocked_combat_resource_ids",
             unit => unit.unlocked_combat_resource_ids = new StringNameList(),
             unit => unit.unlocked_combat_resource_ids = null,
             unit => unit.unlocked_combat_resource_ids?.Count == 0
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "known active skill ids",
             "known_active_skill_ids",
             unit => unit.known_active_skill_ids = new StringNameList(),
             unit => unit.known_active_skill_ids = null,
             unit => unit.known_active_skill_ids?.Count == 0
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "known skill level map",
             "known_skill_level_map",
             unit => unit.known_skill_level_map = new BattleStringNameIntMap(),
             unit => unit.known_skill_level_map = null,
             unit => unit.known_skill_level_map?.Count == 0
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "known skill lock hit bonus map",
             "known_skill_lock_hit_bonus_map",
             unit => unit.known_skill_lock_hit_bonus_map = new BattleStringNameIntMap(),
@@ -1678,49 +1829,49 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             unit => unit.known_skill_lock_hit_bonus_map?.Count == 0
         );
 
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "movement tags",
             "movement_tags",
             unit => unit.movement_tags = new StringNameList(),
             unit => unit.movement_tags = null,
             unit => unit.movement_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "vision tags",
             "vision_tags",
             unit => unit.vision_tags = new StringNameList(),
             unit => unit.vision_tags = null,
             unit => unit.vision_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "proficiency tags",
             "proficiency_tags",
             unit => unit.proficiency_tags = new StringNameList(),
             unit => unit.proficiency_tags = null,
             unit => unit.proficiency_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "save advantage tags",
             "save_advantage_tags",
             unit => unit.save_advantage_tags = new StringNameList(),
             unit => unit.save_advantage_tags = null,
             unit => unit.save_advantage_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "save disadvantage tags",
             "save_disadvantage_tags",
             unit => unit.save_disadvantage_tags = new StringNameList(),
             unit => unit.save_disadvantage_tags = null,
             unit => unit.save_disadvantage_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "save immunity tags",
             "save_immunity_tags",
             unit => unit.save_immunity_tags = new StringNameList(),
             unit => unit.save_immunity_tags = null,
             unit => unit.save_immunity_tags
         );
-        AssertBattleUnitStringNameListNullRoundTrip(
+        AssertBattleUnitStringNameListNullMutationDetected(
             "effective trait ids",
             "effective_trait_ids",
             unit => unit.effective_trait_ids = new StringNameList(),
@@ -1728,49 +1879,49 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             unit => unit.effective_trait_ids
         );
 
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "damage resistances",
             "damage_resistances",
             unit => unit.damage_resistances = new BattleStringNameMap(),
             unit => unit.damage_resistances = null,
             unit => unit.damage_resistances?.Count == 0
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "save bonus by ability",
             "save_bonus_by_ability",
             unit => unit.save_bonus_by_ability = new BattleStringNameIntMap(),
             unit => unit.save_bonus_by_ability = null,
             unit => unit.save_bonus_by_ability
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "cooldowns",
             "cooldowns",
             unit => unit.cooldowns = new BattleStringNameIntMap(),
             unit => unit.cooldowns = null,
             unit => unit.cooldowns
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "per battle charges",
             "per_battle_charges",
             unit => unit.per_battle_charges = new BattleStringNameIntMap(),
             unit => unit.per_battle_charges = null,
             unit => unit.per_battle_charges
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "per turn charges",
             "per_turn_charges",
             unit => unit.per_turn_charges = new BattleStringNameIntMap(),
             unit => unit.per_turn_charges = null,
             unit => unit.per_turn_charges
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "per turn charge limits",
             "per_turn_charge_limits",
             unit => unit.per_turn_charge_limits = new BattleStringNameIntMap(),
             unit => unit.per_turn_charge_limits = null,
             unit => unit.per_turn_charge_limits
         );
-        AssertBattleUnitIntMapNullRoundTrip(
+        AssertBattleUnitIntMapNullMutationDetected(
             "fumble protection used",
             "fumble_protection_used",
             unit => unit.fumble_protection_used = new BattleStringNameIntMap(),
@@ -1778,35 +1929,35 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             unit => unit.fumble_protection_used
         );
 
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "attribute snapshot",
             "attribute_snapshot_values",
             unit => unit.attribute_snapshot = new AttributeSnapshot(),
             unit => unit.attribute_snapshot = null,
             unit => unit.attribute_snapshot != null
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "equipment view",
             "equipment_view",
             unit => unit.equipment_view = new EquipmentState(),
             unit => unit.equipment_view = null,
             unit => unit.equipment_view != null
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "one-handed weapon dice",
             "weapon_one_handed_dice",
             unit => unit.weapon_one_handed_dice = new WeaponDice(),
             unit => unit.weapon_one_handed_dice = null,
             unit => unit.weapon_one_handed_dice?.IsEmpty() == true
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "two-handed weapon dice",
             "weapon_two_handed_dice",
             unit => unit.weapon_two_handed_dice = new WeaponDice(),
             unit => unit.weapon_two_handed_dice = null,
             unit => unit.weapon_two_handed_dice?.IsEmpty() == true
         );
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             "pending cast",
             "pending_cast",
             unit => unit.pending_cast = new BattlePendingCastState(),
@@ -1815,15 +1966,15 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         );
     }
 
-    private void TestNestedAuthorityStructuresAreDetectedAndRestored()
+    private void TestNestedAuthorityStructuresAreDetected()
     {
-        TestPartyBackpackExactStructureIsDetectedAndRestored();
-        TestEffectiveTraitExactStructureIsDetectedAndRestored();
-        TestPendingCastNestedNullsAreDetectedAndRestored();
-        TestEquipmentNestedStructureIsDetectedAndRestored();
+        TestPartyBackpackExactStructureIsDetected();
+        TestEffectiveTraitExactStructureIsDetected();
+        TestPendingCastNestedNullsAreDetected();
+        TestEquipmentNestedStructureIsDetected();
     }
 
-    private void TestPartyBackpackExactStructureIsDetectedAndRestored()
+    private void TestPartyBackpackExactStructureIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         fixture.State.party_backpack_view = new WarehouseState
@@ -1842,12 +1993,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "party_backpack_view",
             "stacks",
             "equipment_instances"
-        );
-        nullSnapshot.Restore(fixture.Context);
-        _test.True(
-            fixture.State.party_backpack_view?.stacks?.Count == 0
-                && fixture.State.party_backpack_view.equipment_instances?.Count == 0,
-            "party backpack 的空列表 owner 必须精确恢复。"
         );
 
         EquipmentInstanceState rawInstance = new()
@@ -1882,30 +2027,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "stacks",
             "equipment_instances"
         );
-
-        rawSnapshot.Restore(fixture.Context);
-        WarehouseState restored = fixture.State.party_backpack_view;
-        _test.True(
-            restored?.stacks?.Count == 2
-                && restored.stacks[0] == null
-                && restored.stacks[1]?.item_id == new StringName("raw_stack")
-                && restored.stacks[1]?.quantity == -3,
-            "party backpack stack 的 null 元素和原始数量必须恢复。"
-        );
-        _test.True(
-            restored?.equipment_instances?.Count == 2
-                && restored.equipment_instances[0] == null
-                && restored.equipment_instances[1]?.rarity == -1
-                && restored.equipment_instances[1]?.current_durability == -2
-                && restored.equipment_instances[1]?.trait_instances == null
-                && restored.equipment_instances[1]?.ability_usage_periods == null
-                && restored.equipment_instances[1]?.ability_persistent_counters == null,
-            "party backpack equipment instance 的原始嵌套结构必须恢复。"
-        );
-        AssertSnapshotMatches(rawSnapshot, fixture.Context, "party backpack exact restore");
     }
 
-    private void TestEffectiveTraitExactStructureIsDetectedAndRestored()
+    private void TestEffectiveTraitExactStructureIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         var roll = new TraitRollValueState
@@ -1950,37 +2074,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "effective trait exact nested structure",
             "effective_trait_instances"
         );
-
-        snapshot.Restore(fixture.Context);
-        List<BattleEffectiveTraitInstanceState> restored =
-            fixture.Actor.effective_trait_instances;
-        _test.True(
-            restored?.Count == 2 && restored[0] == null && restored[1] != null,
-            "effective trait 外层 null 元素和顺序必须恢复。"
-        );
-        BattleEffectiveTraitInstanceState restoredTrait =
-            restored?.Count == 2 ? restored[1] : null;
-        _test.Eq(restoredTrait?.rank ?? int.MinValue, 0, "raw trait rank 应恢复。");
-        _test.Eq(restoredTrait?.stacks ?? int.MinValue, -2, "raw trait stacks 应恢复。");
-        _test.True(
-            restoredTrait?.roll_values?.Count == 3
-                && restoredTrait.roll_values[0] == null,
-            "trait roll_values 的 null 元素、重复项与顺序必须恢复。"
-        );
-        _test.Eq(
-            restoredTrait?.roll_values?[1]?.int_value ?? int.MinValue,
-            -7,
-            "trait roll raw value 应恢复。"
-        );
-        _test.Eq(
-            restoredTrait?.roll_values?[2]?.int_value ?? int.MinValue,
-            -7,
-            "trait roll 重复项不得被去重。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "effective trait exact restore");
     }
 
-    private void TestPendingCastNestedNullsAreDetectedAndRestored()
+    private void TestPendingCastNestedNullsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattlePendingCastState pending = new()
@@ -2015,40 +2111,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "target_mode",
             "binding_mode"
         );
-
-        snapshot.Restore(fixture.Context);
-        BattlePendingCastState restored = fixture.Actor.pending_cast;
-        _test.True(restored != null, "pending cast 应恢复。");
-        _test.True(restored?.CostTransaction == null, "null cost transaction 应恢复。");
-        _test.True(
-            restored?.SpellControlMetadata == null,
-            "null spell-control metadata 应恢复。"
-        );
-        _test.Eq(
-            (int)(restored?.TargetMode ?? default),
-            998,
-            "未定义 target-mode 枚举的原始值应恢复。"
-        );
-        _test.Eq(
-            (int)(restored?.BindingMode ?? default),
-            998,
-            "未定义 binding-mode 枚举的原始值应恢复。"
-        );
-        _test.True(
-            restored?.TargetUnitIds.Count == 1
-                && restored.TargetUnitIds[0] == fixture.Hero.unit_id,
-            "pending cast target unit ids 应恢复。"
-        );
-        _test.True(
-            restored?.TargetCoords.Count == 2
-                && restored.TargetCoords[0] == new Vector2I(1, 0)
-                && restored.TargetCoords[1] == new Vector2I(1, 0),
-            "pending cast target coords 的重复项和顺序应恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "pending cast exact restore");
     }
 
-    private void TestEquipmentNestedStructureIsDetectedAndRestored()
+    private void TestEquipmentNestedStructureIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         EquipmentState equipment = new();
@@ -2129,49 +2194,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "ability_usage_periods",
             "ability_persistent_counters"
         );
-
-        snapshot.Restore(fixture.Context);
-        EquipmentEntryState restoredEntry = fixture.Actor.equipment_view?.GetEntry(
-            "main_hand"
-        );
-        EquipmentInstanceState restoredInstance = restoredEntry?.equipment_instance;
-        _test.True(restoredEntry != null && restoredInstance != null, "装备 entry 应恢复。");
-        _test.True(
-            restoredEntry?.item_id == new StringName("")
-                && restoredEntry?.instance_id == null,
-            "被 gameplay typed getter 视为无效的 raw equipment entry 也必须精确恢复。"
-        );
-        _test.True(
-            restoredEntry?.occupied_slot_ids == null,
-            "occupied slots 的 null 形态应恢复。"
-        );
-        _test.True(
-            restoredInstance?.trait_instances?.Count == 2
-                && restoredInstance.trait_instances[0] == null
-                && restoredInstance.trait_instances[1]?.rank == 0
-                && restoredInstance.trait_instances[1]?.stacks == -3
-                && restoredInstance.trait_instances[1]?.roll_values?.Count == 1
-                && restoredInstance.trait_instances[1].roll_values[0] == null,
-            "equipment trait nested structure 应精确恢复。"
-        );
-        _test.True(
-            restoredInstance?.ability_usage_periods?.Count == 2
-                && restoredInstance.ability_usage_periods[0] == null
-                && restoredInstance.ability_usage_periods[1]?.AbilityId == null
-                && restoredInstance.ability_usage_periods[1]?.PeriodKind == null,
-            "equipment usage periods 的 null 结构应恢复。"
-        );
-        _test.True(
-            restoredInstance?.ability_persistent_counters?.Count == 2
-                && restoredInstance.ability_persistent_counters[0] == null
-                && restoredInstance.ability_persistent_counters[1]?.CounterId == null
-                && restoredInstance.ability_persistent_counters[1]?.Value == -6,
-            "equipment counters 的 null 结构应恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "equipment exact restore");
     }
 
-    private void TestCanonicalContainerKeysAreDetectedAndRestored()
+    private void TestCanonicalContainerKeysAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleStatusEffectState firstStatus = BuildStatusSchemaSentinel("canonical_first");
@@ -2238,63 +2263,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "status_id",
             "raw_null_status"
         );
-
-        snapshot.Restore(fixture.Context);
-        _test.True(
-            fixture.State.UnitIndex.TryGetValue(
-                actorId,
-                out BattleUnitState restoredActor
-            )
-                && restoredActor?.unit_id == actorId,
-            "unit index 的 canonical key 与对象内 unit_id 必须分别恢复。"
-        );
-        _test.True(
-            fixture.State.UnitIndex.TryGetValue(
-                heroId,
-                out BattleUnitState restoredHero
-            )
-                && restoredHero?.unit_id == heroId,
-            "第二个 unit index entry 不得因 embedded id 交换而覆盖。"
-        );
-        _test.Eq(
-            fixture.Actor.GetStatusEffect("canonical_status_first")?.status_id
-                ?? new StringName(""),
-            new StringName("canonical_status_first"),
-            "status collection 的 canonical key 与 status_id 必须分别恢复。"
-        );
-        _test.Eq(
-            fixture.Actor.GetStatusEffect("canonical_status_second")?.status_id
-                ?? new StringName(""),
-            new StringName("canonical_status_second"),
-            "第二个 status entry 不得因 embedded id 交换而覆盖。"
-        );
-        IReadOnlyList<KeyValuePair<StringName, BattleStatusEffectState>> rawStatuses =
-            fixture.Actor.CaptureStatusEffectsForMutationSnapshotExact();
-        bool restoredNullStatus = false;
-        bool restoredEmptyKeyStatus = false;
-        foreach (KeyValuePair<StringName, BattleStatusEffectState> entry in rawStatuses)
-        {
-            if (entry.Key == new StringName("raw_null_status") && entry.Value == null)
-            {
-                restoredNullStatus = true;
-            }
-            if (
-                entry.Key == new StringName("")
-                && entry.Value?.status_id
-                    == new StringName("embedded_empty_key_status")
-            )
-            {
-                restoredEmptyKeyStatus = true;
-            }
-        }
-        _test.True(
-            restoredNullStatus && restoredEmptyKeyStatus,
-            "status owner 的 null value 与 empty canonical key 必须精确恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "canonical key exact restore");
     }
 
-    private void TestCellAndTerrainRawAuthorityIsDetectedAndRestored()
+    private void TestCellAndTerrainRawAuthorityIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         Vector2I canonicalCoord = Vector2I.Zero;
@@ -2437,63 +2408,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "name",
             "color"
         );
-
-        snapshot.Restore(fixture.Context);
-        BattleCellState restoredCell = fixture.State.GetCell(canonicalCoord);
-        _test.True(
-            restoredCell != null && restoredCell.coord == canonicalCoord,
-            "cell dictionary key 与对象内 coord 必须分别恢复。"
-        );
-        _test.True(
-            restoredCell?.prop_ids?.Count == 0
-                && restoredCell.terrain_effect_ids?.Count == 0,
-            "cell 的 empty list 不得被恢复成 null。"
-        );
-        _test.True(
-            restoredCell?.timed_terrain_effects?.Count == 2
-                && restoredCell.timed_terrain_effects[0] == null,
-            "timed terrain effect 的 null 元素和顺序必须恢复。"
-        );
-        BattleTerrainEffectState restoredTerrain =
-            restoredCell?.timed_terrain_effects?.Count == 2
-                ? restoredCell.timed_terrain_effects[1]
-                : null;
-        _test.True(restoredTerrain != null, "terrain effect 应恢复。");
-        _test.True(
-            restoredTerrain?.source_unit_id == null,
-            "nullable StringName 的 null 形态必须恢复。"
-        );
-        _test.Eq(
-            restoredTerrain?.applied_status_duration_tu ?? 0,
-            -4,
-            "terrain latent applied-status duration 不得被归一化。"
-        );
-        _test.Eq(
-            restoredTerrain?.accuracy_modifier_spec?.modifier_delta ?? 0,
-            -2,
-            "terrain nested attack-roll modifier 应恢复。"
-        );
-        _test.True(
-            restoredCell?.edge_feature_east != null
-                && restoredCell.edge_feature_east.feature_kind == null
-                && restoredCell.edge_feature_east.render_layers == -17
-                && restoredCell.edge_feature_east.blocks_occupancy,
-            "cell nested edge feature 的 nullable/raw 字段必须恢复。"
-        );
-        IReadOnlyDictionary<string, object> restoredParams =
-            restoredTerrain?.ParamsSnapshotPlain;
-        _test.True(
-            restoredParams != null
-                && restoredParams["number"] is int
-                && restoredParams["name"] is string
-                && restoredParams["color"] is Color restoredColor
-                && restoredColor == new Color(0.1f, 0.2f, 0.3f, 0.4f),
-            "terrain residual params 必须保留 CLR/Godot 值类型与精确值。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "cell and terrain exact restore");
     }
 
-    private void TestBarrierRawAuthorityIsDetectedAndRestored()
+    private void TestBarrierRawAuthorityIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         var outcome = new BattleBarrierOutcomeState
@@ -2593,51 +2510,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "save_roll_override",
             "fatal_damage"
         );
-
-        snapshot.Restore(fixture.Context);
-        IReadOnlyList<KeyValuePair<StringName, BattleBarrierInstanceState>> entries =
-            fixture.State.LayeredBarrierStore.SnapshotEntriesForMutationSnapshotExact();
-        _test.True(
-            entries.Count == 1 && entries[0].Key == barrierKey,
-            "barrier canonical store key 必须恢复。"
-        );
-        BattleBarrierInstanceState restoredBarrier =
-            entries.Count == 1 ? entries[0].Value : null;
-        _test.True(
-            restoredBarrier != null
-                && restoredBarrier.BarrierInstanceId == null
-                && restoredBarrier.DisplayName == null
-                && (int)restoredBarrier.AnchorMode == 998,
-            "barrier 的 nullable/raw scalar 字段不得被 payload 投影归一化。"
-        );
-        IReadOnlyList<BattleBarrierLayerState> restoredLayers =
-            restoredBarrier?.Layers;
-        _test.True(
-            restoredLayers?.Count == 2
-                && restoredLayers[0] == null
-                && restoredLayers[1]?.LayerId == new StringName(""),
-            "barrier layer 的 null/invalid 元素和顺序必须恢复。"
-        );
-        BattleBarrierLayerState restoredLayer =
-            restoredLayers?.Count == 2 ? restoredLayers[1] : null;
-        _test.True(
-            restoredLayer != null
-                && !restoredLayer.HasSaveRollOverride
-                && restoredLayer.SaveRollOverride == 17
-                && restoredLayer.BlockedCategories.Count == 2
-                && restoredLayer.BlockedCategories[0] == null,
-            "barrier latent save override 与 raw category 元素必须恢复。"
-        );
-        _test.True(
-            restoredLayer?.PassageOutcomes?.Count == 2
-                && restoredLayer.PassageOutcomes[0] == null
-                && restoredLayer.PassageOutcomes[1]?.FatalDamage == 0,
-            "barrier outcome 的 null 元素与 raw fatal damage 必须恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "barrier exact restore");
     }
 
-    private void TestBlackboardRawPresenceIsDetectedAndRestored()
+    private void TestBlackboardRawPresenceIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         fixture.Actor.ai_blackboard = new BattleAiBlackboard
@@ -2663,26 +2538,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "has_turn_started_tu",
             "has_turn_decision_count"
         );
-
-        snapshot.Restore(fixture.Context);
-        BattleAiBlackboard restored = fixture.Actor.ai_blackboard;
-        _test.True(restored?.last_brain_id == null, "blackboard nullable StringName 应恢复。");
-        _test.Eq(restored?.turn_started_tu ?? 0, 37, "blackboard raw turn TU 应恢复。");
-        _test.Eq(
-            restored?.turn_decision_count ?? 0,
-            41,
-            "blackboard raw decision count 应恢复。"
-        );
-        _test.True(
-            restored != null
-                && !restored.ContainsKey("turn_started_tu")
-                && !restored.ContainsKey("turn_decision_count"),
-            "blackboard 值与 presence flag 必须分别恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "blackboard exact restore");
     }
 
-    private void TestPlainPayloadTypeIdentityIsDetectedAndRestored()
+    private void TestPlainPayloadTypeIdentityIsDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleStatusEffectState status = BuildStatusSchemaSentinel("typed_payload");
@@ -2715,23 +2573,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "name",
             "color"
         );
-
-        snapshot.Restore(fixture.Context);
-        IReadOnlyDictionary<string, object> restored = fixture.Actor
-            .GetStatusEffect("typed_payload_status")
-            ?.ParamsSnapshotPlain;
-        _test.True(
-            restored != null
-                && restored["number"] is int
-                && restored["name"] is string
-                && restored["color"] is Color color
-                && color == new Color(0.25f, 0.5f, 0.75f, 1.0f),
-            "plain payload restore 必须保留类型标签与 Godot struct 的完整分量。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "plain payload exact restore");
     }
 
-    private void TestRawUnitProjectionRestoresWithoutNormalization()
+    private void TestRawUnitProjectionMutationIsDetectedWithoutNormalization()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         fixture.Actor.RestoreCombatResourceProjectionForMutationSnapshotExact(
@@ -2783,35 +2627,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "occupied_coords",
             "strength_modifier"
         );
-
-        snapshot.Restore(fixture.Context);
-        _test.True(
-            fixture.Actor.current_hp == -1
-                && fixture.Actor.current_mp == -2
-                && fixture.Actor.current_stamina == -3
-                && fixture.Actor.current_aura == -4
-                && fixture.Actor.current_ap == -5
-                && fixture.Actor.current_move_points == -6,
-            "mutation rollback 不得通过 gameplay setter 夹断 raw 资源值。"
-        );
-        _test.True(
-            fixture.Actor.coord == new Vector2I(-7, -8)
-                && fixture.Actor.body_size_category
-                    == new StringName("raw_body_category")
-                && fixture.Actor.body_size == -9
-                && fixture.Actor.footprint_size == new Vector2I(-10, -11)
-                && fixture.Actor.occupied_coords == null,
-            "mutation rollback 不得归一化 raw body projection。"
-        );
-        _test.Eq(
-            fixture.Actor.attribute_snapshot.GetValue("strength_modifier"),
-            99,
-            "attribute snapshot restore 不得按 base attribute 重算派生值。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "raw unit exact restore");
     }
 
-    private void TestSkillDefinitionGraphIsFrozenAndIndexRestored()
+    private void TestSkillDefinitionGraphAndIndexMutationsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         var masteryCurve = new List<int> { 10, 20 };
@@ -2987,79 +2805,53 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "frozen_barrier_profile",
             "added_barrier_profile"
         );
-
-        snapshot.Restore(fixture.Context);
-        IReadOnlyDictionary<StringName, SkillDefinition> restoredIndex =
-            fixture.Context.GetSkillDefinitionIndexTyped();
-        _test.True(
-            restoredIndex.Count == 1
-                && restoredIndex.TryGetValue(skill.SkillId, out SkillDefinition restoredSkill)
-                && ReferenceEquals(restoredSkill, skill),
-            "skill definition index 的成员、引用 identity 与删除项必须恢复。"
-        );
-        IReadOnlyDictionary<StringName, BarrierProfileDefinition> restoredBarriers =
-            fixture.Context.GetBarrierProfileDefinitionIndexTyped();
-        _test.True(
-            restoredBarriers.Count == 1
-                && restoredBarriers.TryGetValue(
-                    barrierProfile.ProfileId,
-                    out BarrierProfileDefinition restoredBarrier
-                )
-                && ReferenceEquals(restoredBarrier, barrierProfile),
-            "barrier profile index 的成员、引用 identity 与删除项必须恢复。"
-        );
-        AssertSnapshotMatches(
-            snapshot,
-            fixture.Context,
-            "immutable definition indexes restore"
-        );
     }
 
-    private void TestNullableStatusFieldsAreDetectedAndRestored()
+    private void TestNullableStatusFieldsAreDetected()
     {
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "display label",
             "display_label",
             status => status.display_label = "",
             status => status.display_label = null,
             status => status.display_label == ""
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "damage tags",
             "damage_tags",
             status => status.damage_tags = new List<StringName>(),
             status => status.damage_tags = null,
             status => status.damage_tags?.Count == 0
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "save advantage tags",
             "save_advantage_tags",
             status => status.save_advantage_tags = new List<StringName>(),
             status => status.save_advantage_tags = null,
             status => status.save_advantage_tags?.Count == 0
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "save disadvantage tags",
             "save_disadvantage_tags",
             status => status.save_disadvantage_tags = new List<StringName>(),
             status => status.save_disadvantage_tags = null,
             status => status.save_disadvantage_tags?.Count == 0
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "save immunity tags",
             "save_immunity_tags",
             status => status.save_immunity_tags = new List<StringName>(),
             status => status.save_immunity_tags = null,
             status => status.save_immunity_tags?.Count == 0
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "status tags",
             "status_tags",
             status => status.status_tags = new List<StringName>(),
             status => status.status_tags = null,
             status => status.status_tags?.Count == 0
         );
-        AssertStatusNullRoundTrip(
+        AssertStatusNullMutationDetected(
             "save bonus by tag",
             "save_bonus_by_tag",
             status => status.save_bonus_by_tag = new Dictionary<StringName, int>(),
@@ -3067,14 +2859,14 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             status => status.save_bonus_by_tag?.Count == 0
         );
 
-        AssertStatusStructuralMutationRoundTrip(
+        AssertStatusStructuralMutationDetected(
             "damage tags empty key",
             "damage_tags",
             status => status.damage_tags = new List<StringName>(),
             status => status.damage_tags = new List<StringName> { new StringName("") },
             status => status.damage_tags?.Count == 0
         );
-        AssertStatusStructuralMutationRoundTrip(
+        AssertStatusStructuralMutationDetected(
             "save bonus empty key",
             "save_bonus_by_tag",
             status => status.save_bonus_by_tag = new Dictionary<StringName, int>(),
@@ -3111,28 +2903,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 "nullable_sequence",
                 "[0]"
             );
-            snapshot.Restore(fixture.Context);
-            BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
-            IReadOnlyDictionary<string, object> restoredParams = restored?.ParamsSnapshotPlain;
-            bool restoredNullElement =
-                restoredParams != null
-                && restoredParams.TryGetValue("nullable_sequence", out object restoredSequence)
-                && restoredSequence is IList restoredList
-                && restoredList.Count == 1
-                && restoredList[0] == null;
-            _test.True(
-                restoredNullElement,
-                "status params 的 null 元素必须与空字符串区分并精确恢复。"
-            );
-            AssertSnapshotMatches(
-                snapshot,
-                fixture.Context,
-                "status params null element restore"
-            );
         }
         catch (Exception exception)
         {
-            _test.Fail($"status params null element restore 不应抛异常：{exception}");
+            _test.Fail($"status params null element detection 不应抛异常：{exception}");
         }
 
         using Fixture unitRefFixture = BuildFixture(MakeMutationAction("none"));
@@ -3158,25 +2932,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "status unit_ref param",
             "unit_ref"
         );
-        unitRefSnapshot.Restore(unitRefFixture.Context);
-        IReadOnlyDictionary<string, object> restoredUnitRefParams = unitRefFixture.Actor
-            .GetStatusEffect(unitRefBaseline.status_id)
-            ?.ParamsSnapshotPlain;
-        _test.True(
-            restoredUnitRefParams != null
-                && restoredUnitRefParams.TryGetValue("unit_ref", out object unitRefValue)
-                && unitRefValue is int restoredUnitRef
-                && restoredUnitRef == 17,
-            "名为 unit_ref 的合法 plain param 必须检测并恢复。"
-        );
-        AssertSnapshotMatches(
-            unitRefSnapshot,
-            unitRefFixture.Context,
-            "status unit_ref param restore"
-        );
     }
 
-    private void TestStatusSemanticBlindSpotsAreDetectedAndRestored()
+    private void TestStatusSemanticBlindSpotsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         fixture.Actor.SetStatusEffect(
@@ -3220,24 +2978,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "lock_crit",
             "main_skill_lock_other_debuff_count"
         );
-        snapshot.Restore(fixture.Context);
-        BattleStatusEffectState restored = fixture.Actor.GetStatusEffect("guard_semantics");
-        _test.True(restored?.forced_move_immune == true, "forced move immunity 应恢复。");
-        _test.True(restored?.counts_as_debuff_override == true, "debuff override 应恢复。");
-        _test.True(restored?.counts_as_debuff == false, "debuff value 应恢复。");
-        _test.True(restored?.lock_counterattack == true, "counterattack lock 应恢复。");
-        _test.True(restored?.lock_guard == false, "guard lock 应恢复。");
-        _test.True(restored?.lock_dodge_bonus == true, "dodge bonus lock 应恢复。");
-        _test.True(restored?.lock_crit == false, "crit lock 应恢复。");
-        _test.Eq(
-            restored?.main_skill_lock_other_debuff_count ?? -1,
-            2,
-            "main skill lock debuff count 应恢复。"
-        );
-        AssertSnapshotMatches(snapshot, fixture.Context, "status semantic blind spots restore");
     }
 
-    private void TestBattleStateAuthorityBlindSpotsAreDetectedAndRestored()
+    private void TestBattleStateAuthorityBlindSpotsAreDetected()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleEquipmentTargetMarkState originalMark = new()
@@ -3336,7 +3079,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 rogueMark,
             }
         );
-        ulong allocatedDuringMutation = fixture.State.AllocateCastSequence();
+        fixture.State.AllocateCastSequence();
         var mutatedInvalidEdge = new BattleTemporaryEdgeFeatureState
         {
             OriginCoord = new Vector2I(-21, -22),
@@ -3382,61 +3125,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "next_cast_sequence",
             "next_temporary_edge_feature_sequence"
         );
-
-        snapshot.Restore(fixture.Context);
-        IReadOnlyList<BattleEquipmentTargetMarkState> restoredMarks =
-            fixture.State.GetEquipmentTargetMarksTyped();
-        _test.Eq(restoredMarks.Count, 1, "equipment target mark 数量应恢复。");
-        AssertEquipmentTargetMarkEq(
-            restoredMarks.Count == 1 ? restoredMarks[0] : null,
-            originalMark,
-            "equipment target mark"
-        );
-        List<BattleEquipmentTargetMarkState> rawRestoredMarks =
-            fixture.State.CaptureEquipmentTargetMarksForMutationSnapshotExact();
-        _test.True(
-            rawRestoredMarks.Count == 3
-                && rawRestoredMarks[0] == null
-                && rawRestoredMarks[1]?.SourceUnitId == null
-                && rawRestoredMarks[1]?.Stacks == -11,
-            "invalid/null equipment target mark 必须按原顺序精确恢复。"
-        );
-        List<BattleTemporaryEdgeFeatureState> rawRestoredEdges =
-            fixture.State.CaptureTemporaryEdgeFeaturesForMutationSnapshotExact();
-        _test.True(
-            rawRestoredEdges.Count == 3
-                && rawRestoredEdges[0] == null
-                && rawRestoredEdges[1]?.SourceUnitId == null
-                && rawRestoredEdges[1]?.Direction == Vector2I.Zero
-                && rawRestoredEdges[1]?.Sequence == -15
-                && rawRestoredEdges[1]?.Feature == null,
-            "invalid/null temporary edge feature 必须按原顺序精确恢复。"
-        );
-        _test.Eq(
-            fixture.State.AllocateCastSequence(),
-            allocatedDuringMutation,
-            "cast allocator 应恢复到捕获时的下一序列。"
-        );
-        fixture.State.PutTemporaryEdgeFeature(
-            BuildTemporaryEdgeFeature("edge_probe", 0, 100),
-            refreshExisting: false,
-            maxActiveEdges: 0
-        );
-        BattleTemporaryEdgeFeatureState probe = null;
-        foreach (
-            BattleTemporaryEdgeFeatureState feature in fixture.State.GetTemporaryEdgeFeaturesTyped()
-        )
-        {
-            if (feature?.ActionId == new StringName("edge_probe"))
-            {
-                probe = feature;
-                break;
-            }
-        }
-        _test.Eq(probe?.Sequence ?? -1, 2, "temporary edge allocator 应恢复到序列 2。");
-
-        snapshot.Restore(fixture.Context);
-        AssertSnapshotMatches(snapshot, fixture.Context, "battle state authority restore");
     }
 
     private void TestStableDoubleComparisonPreservesDoublePrecision()
@@ -3540,7 +3228,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             string fieldName = NormalizeDeclaredFieldName(field.Name);
             _test.True(
                 remaining.Remove(fieldName),
-                $"{type.Name} 新增字段 {field.Name} 时必须扩展 exact snapshot、stable projection 与恢复回归。"
+                $"{type.Name} 新增字段 {field.Name} 时必须扩展 exact snapshot、stable projection 与 mutation detection 回归。"
             );
         }
         _test.Eq(
@@ -3572,7 +3260,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 continue;
             _test.True(
                 remaining.Remove(property.Name),
-                $"{type.Name} 新增可写属性 {property.Name} 时必须扩展 exact snapshot、stable projection 与恢复回归。"
+                $"{type.Name} 新增可写属性 {property.Name} 时必须扩展 exact snapshot、stable projection 与 mutation detection 回归。"
             );
         }
         _test.Eq(
@@ -3711,23 +3399,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         };
     }
 
-    private void AssertTemporalProgressModifierRestored(
-        BattleTemporalProgressModifierState restored
-    )
-    {
-        _test.True(restored != null, "时间进度修正应恢复非空对象。");
-        _test.Eq(restored?.ModifierId ?? "", new StringName("modifier_original"), "modifier id 应恢复。");
-        _test.Eq(restored?.BindingId ?? "", new StringName("binding_original"), "binding id 应恢复。");
-        _test.Eq(restored?.SourceEquipmentInstanceId ?? "", new StringName("instance_original"), "modifier source equipment id 应恢复。");
-        _test.True(restored?.AppliesToActionProgress == true, "action progress 标记应恢复。");
-        _test.True(restored?.AppliesToCastProgress == false, "cast progress 标记应恢复。");
-        _test.Eq(restored?.SaveDc ?? -1, 12, "save DC 应恢复。");
-        _test.Eq(restored?.AttributeModifierId ?? "", new StringName("wisdom"), "attribute modifier id 应恢复。");
-        _test.Eq(restored?.SuccessRatePercent ?? -1, 75, "success rate 应恢复。");
-        _test.Eq(restored?.FailureRatePercent ?? -1, 25, "failure rate 应恢复。");
-        _test.Eq(restored?.Label, "original modifier", "modifier label 应恢复。");
-    }
-
     private static BattleTemporaryEdgeFeatureState BuildTemporaryEdgeFeature(
         StringName actionId,
         int createdAtTu,
@@ -3755,77 +3426,20 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         };
     }
 
-    private void AssertEquipmentTargetMarkEq(
-        BattleEquipmentTargetMarkState actual,
-        BattleEquipmentTargetMarkState expected,
-        string label
-    )
-    {
-        _test.True(actual != null && expected != null, $"{label} 应存在。");
-        if (actual == null || expected == null)
-            return;
-        _test.Eq(actual.SourceUnitId, expected.SourceUnitId, $"{label} source unit");
-        _test.Eq(actual.TargetUnitId, expected.TargetUnitId, $"{label} target unit");
-        _test.Eq(
-            actual.SourceEquipmentInstanceId,
-            expected.SourceEquipmentInstanceId,
-            $"{label} source equipment instance"
-        );
-        _test.Eq(actual.BindingId, expected.BindingId, $"{label} binding id");
-        _test.Eq(actual.StateKey, expected.StateKey, $"{label} state key");
-        _test.Eq(actual.Stacks, expected.Stacks, $"{label} stacks");
-        _test.Eq(
-            actual.RemainingDurationTu,
-            expected.RemainingDurationTu,
-            $"{label} remaining duration"
-        );
-        _test.Eq(
-            actual.RemoveOnSourceMissing,
-            expected.RemoveOnSourceMissing,
-            $"{label} remove-on-source-missing"
-        );
-    }
-
-    private void AssertStringNameSequenceEq(
-        IEnumerable<StringName> actual,
-        IEnumerable<StringName> expected,
-        string message
-    )
-    {
-        var actualValues = new List<StringName>();
-        foreach (StringName value in actual ?? Array.Empty<StringName>())
-            actualValues.Add(value);
-        var expectedValues = new List<StringName>();
-        foreach (StringName value in expected ?? Array.Empty<StringName>())
-            expectedValues.Add(value);
-        if (actualValues.Count != expectedValues.Count)
-        {
-            _test.Fail(
-                $"{message} expected=[{string.Join(", ", expectedValues)}] actual=[{string.Join(", ", actualValues)}]"
-            );
-            return;
-        }
-        for (int index = 0; index < actualValues.Count; index++)
-        {
-            if (actualValues[index] == expectedValues[index])
-                continue;
-            _test.Fail(
-                $"{message} expected=[{string.Join(", ", expectedValues)}] actual=[{string.Join(", ", actualValues)}]"
-            );
-            return;
-        }
-    }
-
-    private void AssertBattleStateNullRoundTrip(
+    private void AssertBattleStateNullMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleState> prepareBaseline,
         Action<BattleState> mutateToNull,
-        Func<BattleState, bool> isRestoredExactly
+        Func<BattleState, bool> isBaselinePrepared
     )
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         prepareBaseline(fixture.State);
+        _test.True(
+            isBaselinePrepared(fixture.State),
+            $"BattleState {label} detection baseline 应正确建立。"
+        );
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
         try
         {
@@ -3835,33 +3449,27 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 $"BattleState {label} empty-to-null",
                 expectedDiffFragment
             );
-            snapshot.Restore(fixture.Context);
-            _test.True(
-                isRestoredExactly(fixture.State),
-                $"BattleState {label} 应精确恢复为空的非 null owner。"
-            );
-            AssertSnapshotMatches(
-                snapshot,
-                fixture.Context,
-                $"BattleState {label} null restore"
-            );
         }
         catch (Exception exception)
         {
-            _test.Fail($"BattleState {label} null restore 不应抛异常：{exception}");
+            _test.Fail($"BattleState {label} null detection 不应抛异常：{exception}");
         }
     }
 
-    private void AssertBattleUnitNullRoundTrip(
+    private void AssertBattleUnitNullMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleUnitState> prepareBaseline,
         Action<BattleUnitState> mutateToNull,
-        Func<BattleUnitState, bool> isRestoredExactly
+        Func<BattleUnitState, bool> isBaselinePrepared
     )
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         prepareBaseline(fixture.Actor);
+        _test.True(
+            isBaselinePrepared(fixture.Actor),
+            $"BattleUnit {label} detection baseline 应正确建立。"
+        );
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
         try
         {
@@ -3871,74 +3479,64 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 $"BattleUnit {label} empty-to-null",
                 expectedDiffFragment
             );
-            snapshot.Restore(fixture.Context);
-            _test.True(
-                isRestoredExactly(fixture.Actor),
-                $"BattleUnit {label} 应精确恢复为空的非 null owner。"
-            );
-            AssertSnapshotMatches(
-                snapshot,
-                fixture.Context,
-                $"BattleUnit {label} null restore"
-            );
         }
         catch (Exception exception)
         {
-            _test.Fail($"BattleUnit {label} null restore 不应抛异常：{exception}");
+            _test.Fail($"BattleUnit {label} null detection 不应抛异常：{exception}");
         }
     }
 
-    private void AssertBattleUnitStringNameListNullRoundTrip(
+    private void AssertBattleUnitStringNameListNullMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleUnitState> prepareBaseline,
         Action<BattleUnitState> mutateToNull,
-        Func<BattleUnitState, StringNameList> readRestored
+        Func<BattleUnitState, StringNameList> readBaseline
     ) =>
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             label,
             expectedDiffFragment,
             prepareBaseline,
             mutateToNull,
-            unit => readRestored(unit)?.Count == 0
+            unit => readBaseline(unit)?.Count == 0
         );
 
-    private void AssertBattleUnitIntMapNullRoundTrip(
+    private void AssertBattleUnitIntMapNullMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleUnitState> prepareBaseline,
         Action<BattleUnitState> mutateToNull,
-        Func<BattleUnitState, BattleStringNameIntMap> readRestored
+        Func<BattleUnitState, BattleStringNameIntMap> readBaseline
     ) =>
-        AssertBattleUnitNullRoundTrip(
+        AssertBattleUnitNullMutationDetected(
             label,
             expectedDiffFragment,
             prepareBaseline,
             mutateToNull,
-            unit => readRestored(unit)?.Count == 0
+            unit => readBaseline(unit)?.Count == 0
         );
 
-    private void AssertStatusNullRoundTrip(
+    private void AssertStatusNullMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleStatusEffectState> prepareBaseline,
         Action<BattleStatusEffectState> mutateToNull,
-        Func<BattleStatusEffectState, bool> isRestoredExactly
+        Func<BattleStatusEffectState, bool> isBaselinePrepared
     ) =>
-        AssertStatusStructuralMutationRoundTrip(
+        AssertStatusStructuralMutationDetected(
             label,
             expectedDiffFragment,
             prepareBaseline,
             mutateToNull,
-            isRestoredExactly
+            isBaselinePrepared
         );
 
-    private void AssertStatusStructuralMutationRoundTrip(
+    private void AssertStatusStructuralMutationDetected(
         string label,
         string expectedDiffFragment,
         Action<BattleStatusEffectState> prepareBaseline,
         Action<BattleStatusEffectState> mutate,
-        Func<BattleStatusEffectState, bool> isRestoredExactly
+        Func<BattleStatusEffectState, bool> isBaselinePrepared
     )
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
@@ -3947,6 +3545,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             status_id = new StringName($"nullable_{label.Replace(' ', '_')}"),
         };
         prepareBaseline(baseline);
+        _test.True(
+            isBaselinePrepared(baseline),
+            $"status {label} detection baseline 应正确建立。"
+        );
         fixture.Actor.SetStatusEffect(baseline);
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
         try
@@ -3958,21 +3560,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 $"status {label} mutation",
                 expectedDiffFragment
             );
-            snapshot.Restore(fixture.Context);
-            BattleStatusEffectState restored = fixture.Actor.GetStatusEffect(baseline.status_id);
-            _test.True(
-                restored != null && isRestoredExactly(restored),
-                $"status {label} 应精确恢复基线结构。"
-            );
-            AssertSnapshotMatches(
-                snapshot,
-                fixture.Context,
-                $"status {label} restore"
-            );
         }
         catch (Exception exception)
         {
-            _test.Fail($"status {label} restore 不应抛异常：{exception}");
+            _test.Fail($"status {label} detection 不应抛异常：{exception}");
         }
     }
 
@@ -3986,19 +3577,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         _test.True((diffs?.Count ?? 0) > 0, $"{label} 应产生 mutation diff。");
         foreach (string fragment in expectedFragments ?? Array.Empty<string>())
             AssertContains(joined, fragment, $"{label} 应包含 {fragment} diff。");
-    }
-
-    private void AssertSnapshotMatches(
-        BattleAiMutationSnapshot snapshot,
-        BattleAiContext context,
-        string label
-    )
-    {
-        List<string> diffs = snapshot?.CompareCurrentState(context) ?? new List<string>();
-        _test.True(
-            diffs.Count == 0,
-            $"{label} 后应与捕获状态完全一致：{string.Join(" | ", diffs)}"
-        );
     }
 
     private void AssertAuditBaseline(LifecycleAuditSnapshot baseline, string label)
@@ -4020,7 +3598,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private Fixture BuildFixture(
         StringName mutationKind,
         bool includeBrain = true,
-        bool includeState = true
+        bool includeState = true,
+        bool enableFullSnapshotGuard = true,
+        Exception evaluatorException = null
     )
     {
         BattleState state = BuildFlatState(new Vector2I(6, 4));
@@ -4093,10 +3673,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             }
         }
 
-        var service = new BattleAiService
+        var service = new BattleAiService();
+        if (enableFullSnapshotGuard)
         {
-            MutationGuardMode = BattleAiMutationGuardMode.FullSnapshotDiagnostic,
-        };
+            service.MutationGuardMode =
+                BattleAiMutationGuardMode.FullSnapshotDiagnostic;
+        }
         service.Setup(brainMap, null);
         var context = new BattleAiContext
         {
@@ -4108,6 +3690,10 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         context.action_score_input_callback = (_, _, _, _, _, _, _) =>
         {
             ApplyMutationForTest(mutationKind, context);
+            if (evaluatorException != null)
+            {
+                throw evaluatorException;
+            }
             return null;
         };
         context.SetSkillDefinitions(new Dictionary<StringName, SkillDefinition>());

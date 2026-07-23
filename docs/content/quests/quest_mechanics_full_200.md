@@ -568,7 +568,7 @@
   - 敌人HP降至30%时尝试逃跑（向地图边缘移动1d4格）
 - 地形：农田为普通地形，无特殊效果。草垛被破坏后（受到5+伤害）消失，不再提供掩体
 
-**奖励**：50金 + skill_unlock: charge + 解锁Q002
+**奖励**：50金 + skill_mastery: warrior_heavy_strike ×80 + 解锁Q002
 
 ---
 
@@ -3904,4 +3904,3 @@ defeat_enemy(wolf_alpha, 1) + defeat_enemy(mist_weaver, 1) + defeat_enemy(mist_b
 | Q198 | 巫妖之匣 | 信仰-不死 | 战斗+Boss | 巫妖机制 |
 | Q199 | 不死军团 | 信仰-不死 | 大规模战斗 | 军团机制 |
 | Q200 | 神之死·终章 | 信仰-终章 | Boss战+选择 | 终焉机制 |
-

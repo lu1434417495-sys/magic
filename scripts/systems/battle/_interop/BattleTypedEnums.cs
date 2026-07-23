@@ -14,6 +14,7 @@ internal enum BattleCommandKind
     Move,
     Skill,
     Wait,
+    Interact,
     ChangeEquipment,
     CancelCast,
 }
@@ -213,6 +214,7 @@ internal static class BattleTypedNames
     internal static readonly StringName CommandMove = "move";
     internal static readonly StringName CommandSkill = "skill";
     internal static readonly StringName CommandWait = "wait";
+    internal static readonly StringName CommandInteract = "interact";
     internal static readonly StringName CommandChangeEquipment = "change_equipment";
     internal static readonly StringName CommandCancelCast = "cancel_cast";
     internal static readonly StringName EquipmentOperationEquip = "equip";
@@ -344,6 +346,8 @@ internal static class BattleTypedNames
             return BattleCommandKind.Skill;
         if (value == CommandWait)
             return BattleCommandKind.Wait;
+        if (value == CommandInteract)
+            return BattleCommandKind.Interact;
         if (value == CommandChangeEquipment)
             return BattleCommandKind.ChangeEquipment;
         if (value == CommandCancelCast)
@@ -358,6 +362,7 @@ internal static class BattleTypedNames
             BattleCommandKind.Move => CommandMove,
             BattleCommandKind.Skill => CommandSkill,
             BattleCommandKind.Wait => CommandWait,
+            BattleCommandKind.Interact => CommandInteract,
             BattleCommandKind.ChangeEquipment => CommandChangeEquipment,
             BattleCommandKind.CancelCast => CommandCancelCast,
             _ => Empty,

@@ -215,6 +215,7 @@ public partial class BattleAiScoreService
         public List<DamageSaveEstimate> SaveEstimates = new();
         public List<object> DamageEvents = new();
         public List<object> Diagnostics = new();
+        public BattleUnitState SourcePreviewAfter;
         public BattleUnitState TargetPreviewAfter;
 
         public static DamagePreviewSnapshot FromPreviewResult(BattleDamagePreviewResult preview)
@@ -248,6 +249,7 @@ public partial class BattleAiScoreService
                 SaveEstimates = saveEstimates,
                 DamageEvents = CloneTraceObjectList(preview.DamageEvents),
                 Diagnostics = CloneTraceObjectList(preview.Diagnostics),
+                SourcePreviewAfter = preview.SourcePreviewAfter,
                 TargetPreviewAfter = preview.TargetPreviewAfter,
             };
         }
@@ -689,6 +691,16 @@ public partial class BattleAiScoreService
         StringName skillId = default
     )
     {
+        if (_damageResolver != null)
+        {
+            return EstimateDamageForTargetWithPreviewEffect(
+                sourceUnit,
+                effectDefinitions,
+                targetUnit,
+                skillId
+            );
+        }
+
         int total = 0;
         int postSaveTotal = 0;
         var saveEstimates = new List<DamageSaveEstimate>();
@@ -748,6 +760,94 @@ public partial class BattleAiScoreService
             StableLethal = total >= Math.Max(targetUnit?.current_hp ?? 1, 1),
             LethalProbabilityBasisPoints =
                 total >= Math.Max(targetUnit?.current_hp ?? 1, 1) ? 10000 : 0,
+            SaveEstimates = saveEstimates,
+            DamageEstimates = damageEstimates,
+        };
+    }
+
+    private DamageEstimateResult EstimateDamageForTargetWithPreviewEffect(
+        BattleUnitState sourceUnit,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleUnitState targetUnit,
+        StringName skillId
+    )
+    {
+        int totalHpDamage = 0;
+        int totalPostSaveDamage = 0;
+        int totalIncomingBudgetDamage = 0;
+        int totalShieldAbsorbed = 0;
+        bool shieldBroken = false;
+        bool stableLethal = false;
+        int lethalProbabilityBasisPoints = 0;
+        var saveEstimates = new List<DamageSaveEstimate>();
+        var damageEstimates = new List<DamageEstimateBreakdown>();
+        BattleUnitState workingSource = sourceUnit?.clone() ?? sourceUnit;
+        BattleUnitState workingTarget = targetUnit?.clone() ?? targetUnit;
+        DamageResolutionContext damageContext = DamageResolutionContext.ForSkill(skillId);
+
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? System.Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition == null || effectDefinition.EffectKind != BattleEffectKind.Damage)
+            {
+                continue;
+            }
+            int targetHpBefore = Math.Max(
+                workingTarget?.current_hp ?? targetUnit?.current_hp ?? 1,
+                1
+            );
+            int targetShieldBefore = Math.Max(
+                workingTarget?.current_shield_hp ?? targetUnit?.current_shield_hp ?? 0,
+                0
+            );
+            BattleDamagePreviewResult effectPreview = _damageResolver.PreviewDamageEffectTyped(
+                workingSource,
+                workingTarget,
+                effectDefinition,
+                damageContext,
+                BattleDamagePreviewRollMode.Average,
+                BattleDamagePreviewSaveMode.Expected
+            );
+            DamagePreviewSnapshot previewSnapshot = DamagePreviewSnapshot.FromPreviewResult(
+                effectPreview
+            );
+            DamageEstimateResult normalized = NormalizeDamageSequenceEstimate(previewSnapshot);
+            ApplyBranchLethalEstimate(
+                normalized,
+                previewSnapshot,
+                targetHpBefore,
+                targetShieldBefore
+            );
+
+            totalHpDamage += normalized.Damage;
+            totalPostSaveDamage += normalized.PostSaveDamage;
+            totalIncomingBudgetDamage += normalized.IncomingBudgetDamage;
+            totalShieldAbsorbed += normalized.ShieldAbsorbed;
+            shieldBroken = shieldBroken || normalized.ShieldBroken;
+            stableLethal = stableLethal || normalized.StableLethal;
+            lethalProbabilityBasisPoints = Math.Max(
+                lethalProbabilityBasisPoints,
+                normalized.LethalProbabilityBasisPoints
+            );
+            saveEstimates.AddRange(CloneSaveEstimates(normalized.SaveEstimates));
+            damageEstimates.AddRange(CloneDamageEstimates(normalized.DamageEstimates));
+
+            workingSource = previewSnapshot.SourcePreviewAfter ?? workingSource;
+            workingTarget = previewSnapshot.TargetPreviewAfter ?? workingTarget;
+        }
+
+        return new DamageEstimateResult
+        {
+            Damage = totalHpDamage,
+            HpDamage = totalHpDamage,
+            PostSaveDamage = totalPostSaveDamage,
+            IncomingBudgetDamage = totalIncomingBudgetDamage,
+            ShieldAbsorbed = totalShieldAbsorbed,
+            ShieldBroken = shieldBroken,
+            StableLethal = stableLethal,
+            LethalProbabilityBasisPoints = lethalProbabilityBasisPoints,
             SaveEstimates = saveEstimates,
             DamageEstimates = damageEstimates,
         };
@@ -835,16 +935,27 @@ public partial class BattleAiScoreService
     private static void ApplyBranchLethalEstimate(
         DamageEstimateResult normalized,
         DamagePreviewSnapshot preview,
-        int targetHpBefore
+        int targetHpBefore,
+        int targetShieldBefore
     )
     {
         DamageSaveEstimate saveEstimate = preview?.PrimarySaveEstimate;
         if (saveEstimate == null)
         {
+            bool stableLethal = normalized.HpDamage >= targetHpBefore;
+            normalized.StableLethal = stableLethal;
+            normalized.LethalProbabilityBasisPoints = stableLethal ? 10000 : 0;
+            ApplyLethalEstimateToFirstBreakdown(normalized);
             return;
         }
-        int damageOnFailure = saveEstimate.DamageOnSaveFailure;
-        int damageOnSuccess = saveEstimate.DamageOnSaveSuccess;
+        int damageOnFailure = Math.Max(
+            saveEstimate.DamageOnSaveFailure - targetShieldBefore,
+            0
+        );
+        int damageOnSuccess = Math.Max(
+            saveEstimate.DamageOnSaveSuccess - targetShieldBefore,
+            0
+        );
         int failureBasisPoints = saveEstimate.SaveFailureProbabilityBasisPoints;
         bool failureKills = damageOnFailure >= targetHpBefore;
         bool successKills = damageOnSuccess >= targetHpBefore;
@@ -865,6 +976,18 @@ public partial class BattleAiScoreService
                 estimate.LethalProbabilityBasisPoints = Math.Max(failureBasisPoints, 0);
             }
         }
+        ApplyLethalEstimateToFirstBreakdown(normalized);
+    }
+
+    private static void ApplyLethalEstimateToFirstBreakdown(DamageEstimateResult normalized)
+    {
+        if (normalized?.DamageEstimates == null || normalized.DamageEstimates.Count == 0)
+        {
+            return;
+        }
+        DamageEstimateBreakdown estimate = normalized.DamageEstimates[0];
+        estimate.StableLethal = normalized.StableLethal;
+        estimate.LethalProbabilityBasisPoints = normalized.LethalProbabilityBasisPoints;
     }
 
     private static DamageSaveEstimate BuildDamageSaveEstimate(
@@ -1282,8 +1405,6 @@ public partial class BattleAiScoreService
         {
             return 999999;
         }
-        firstUnit.RefreshFootprint();
-        secondUnit.RefreshFootprint();
         int bestDistance = 999999;
         foreach (Vector2I firstCoord in firstUnit.occupied_coords)
         {

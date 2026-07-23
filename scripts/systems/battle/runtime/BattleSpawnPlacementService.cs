@@ -46,7 +46,6 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
             BattleUnitState unitState = units[index];
             if (unitState == null)
                 continue;
-            unitState.RefreshFootprint();
             var preferredCoords = new List<Vector2I>();
             if (index < spawnCoordValues.Count)
                 preferredCoords.Add(spawnCoordValues[index]);

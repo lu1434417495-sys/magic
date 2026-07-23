@@ -17,5 +17,5 @@ accept_feedback_success = "村长把清理荒狼的任务交给了你。"
 accept_feedback_failure = "村长现在没有新的任务交给你。"
 accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_wolves", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_pack", &"target_value": 3}])
-reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 50}, {&"reward_type": &"pending_character_reward", &"member_id": &"player_sword_01", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"charge", &"amount": 1}])}])
+reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 50}, {&"reward_type": &"pending_character_reward", &"member_id": &"player_sword_01", &"entries": Array[Dictionary]([{&"entry_type": &"skill_mastery", &"target_id": &"warrior_heavy_strike", &"amount": 80}])}])
 is_repeatable = false

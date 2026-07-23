@@ -458,8 +458,6 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        active_unit.RefreshFootprint();
-        target_unit.RefreshFootprint();
         return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
             <= _owner._get_effective_skill_range(active_unit, skillDefinition);
     }

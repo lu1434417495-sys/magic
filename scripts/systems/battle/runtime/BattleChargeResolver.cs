@@ -173,13 +173,13 @@ internal sealed class BattleChargeResolver
                 );
                 int trapImmunityLevel =
                     chargeEffect != null
-                        ? GetInt(chargeEffect.Parameters, "trap_immunity_level", 999)
-                        : 999;
+                        ? chargeEffect.ChargeTrapImmunityMinSkillLevel
+                        : -1;
                 AppendChangedCoord(chargeBatch, trapCoord);
-                if (skillLevel >= trapImmunityLevel)
+                if (trapImmunityLevel >= 0 && skillLevel >= trapImmunityLevel)
                 {
                     chargeBatch.AddLogLine(
-                        $"{active_unit.display_name} 在 ({trapCoord.X}, {trapCoord.Y}) 踩中陷阱，但 7 级冲锋免疫中断。"
+                        $"{active_unit.display_name} 在 ({trapCoord.X}, {trapCoord.Y}) 踩中陷阱，但 {trapImmunityLevel} 级冲锋免疫中断。"
                     );
                 }
                 else
@@ -266,7 +266,7 @@ internal sealed class BattleChargeResolver
             return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
         }
 
-        int maxDistance = GetChargeMaxDistance(active_unit, castVariantDefinition);
+        int maxDistance = GetChargeMaxDistance(active_unit, skillDefinition);
         int chargeDistance = targetInfo.Distance;
         if (chargeDistance > maxDistance)
         {
@@ -322,7 +322,7 @@ internal sealed class BattleChargeResolver
             return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
         }
 
-        int maxDistance = GetChargeMaxDistance(active_unit, castVariantDefinition);
+        int maxDistance = GetChargeMaxDistance(active_unit, skillDefinition);
         int chargeDistance = targetInfo.Distance;
         if (chargeDistance > maxDistance)
         {
@@ -997,7 +997,9 @@ internal sealed class BattleChargeResolver
                     activeUnit,
                     targetUnit,
                     stageEffects,
-                    DamageResolutionContext.ForSkill(skillDefinition?.SkillId ?? new StringName(""))
+                    DamageResolutionContext
+                        .ForSkill(skillDefinition?.SkillId ?? new StringName(""))
+                        .WithBattleState(State)
                 );
             }
             if (pathStepParameters.ResolveAsWeaponAttack)
@@ -1234,7 +1236,6 @@ internal sealed class BattleChargeResolver
             return false;
         }
 
-        activeUnit.RefreshFootprint();
         Vector2I delta = targetAnchor - activeUnit.coord;
         if (GridService.GetDistance(activeUnit.coord, targetAnchor) != 1)
         {
@@ -1571,12 +1572,16 @@ internal sealed class BattleChargeResolver
             string envDamageLabel;
             if (heightDiff > 1)
             {
-                envDamageResult = DamageResolver.ResolveFallDamageResult(blocker, heightDiff);
+                envDamageResult = DamageResolver.ResolveFallDamageResult(
+                    blocker,
+                    heightDiff,
+                    State
+                );
                 envDamageLabel = "撞向高地";
             }
             else
             {
-                envDamageResult = DamageResolver.ResolveFallDamageResult(blocker, 1);
+                envDamageResult = DamageResolver.ResolveFallDamageResult(blocker, 1, State);
                 envDamageLabel = "撞向障碍物";
             }
             int envDamage = envDamageResult.Damage;
@@ -1634,7 +1639,8 @@ internal sealed class BattleChargeResolver
     {
         AttackEffectResolutionResult fallDamageResult = DamageResolver.ResolveFallDamageResult(
             blocker,
-            fallLayers
+            fallLayers,
+            State
         );
         int fallDamage = fallDamageResult.Damage;
         int shieldAbsorbed = fallDamageResult.ShieldAbsorbed;
@@ -1845,7 +1851,6 @@ internal sealed class BattleChargeResolver
             return ChargeTargetInfo.Invalid;
         }
 
-        activeUnit.RefreshFootprint();
         Vector2I footprintSize = activeUnit.footprint_size;
         int minX = activeUnit.coord.X;
         int maxX = activeUnit.coord.X + footprintSize.X - 1;
@@ -1986,62 +1991,28 @@ internal sealed class BattleChargeResolver
 
     private int GetChargeMaxDistance(
         BattleUnitState activeUnit,
-        CombatCastVariantDefinition castVariant
+        SkillDefinition skillDefinition
     )
     {
-        CombatEffectDefinition chargeEffect = GetChargeEffectDefinition(castVariant);
-        if (chargeEffect == null || !HasRuntime())
+        if (activeUnit == null || skillDefinition?.CombatProfile == null || !HasRuntime())
         {
             return 0;
         }
-
-        StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillId);
-        int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
-        IReadOnlyDictionary<string, object> distanceByLevel = GetVariantDictionary(
-            chargeEffect.Parameters,
-            "distance_by_level"
-        );
-        foreach (KeyValuePair<string, object> entry in distanceByLevel)
-        {
-            if (!int.TryParse(entry.Key, out int levelBreakpoint))
-            {
-                continue;
-            }
-            if (skillLevel >= levelBreakpoint && TryReadInt(entry.Value, out int distance))
-                maxDistance = Math.Max(maxDistance, distance);
-        }
-        return maxDistance;
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
+        return Math.Max(skillDefinition.CombatProfile.GetEffectiveRangeValue(skillLevel), 0);
     }
 
     private int GetChargeMaxDistance(
         BattleUnitReadView activeUnit,
-        CombatCastVariantDefinition castVariant
+        SkillDefinition skillDefinition
     )
     {
-        CombatEffectDefinition chargeEffect = GetChargeEffectDefinition(castVariant);
-        if (chargeEffect == null || !HasRuntime())
+        if (!activeUnit.IsValid || skillDefinition?.CombatProfile == null || !HasRuntime())
         {
             return 0;
         }
-
-        StringName skillId = GetStringName(chargeEffect.Parameters, "skill_id", "charge");
-        int skillLevel = activeUnit.GetKnownSkillLevel(skillId);
-        int maxDistance = Math.Max(GetInt(chargeEffect.Parameters, "base_distance", 3), 0);
-        IReadOnlyDictionary<string, object> distanceByLevel = GetVariantDictionary(
-            chargeEffect.Parameters,
-            "distance_by_level"
-        );
-        foreach (KeyValuePair<string, object> entry in distanceByLevel)
-        {
-            if (!int.TryParse(entry.Key, out int levelBreakpoint))
-            {
-                continue;
-            }
-            if (skillLevel >= levelBreakpoint && TryReadInt(entry.Value, out int distance))
-                maxDistance = Math.Max(maxDistance, distance);
-        }
-        return maxDistance;
+        int skillLevel = activeUnit.GetKnownSkillLevel(skillDefinition.SkillId);
+        return Math.Max(skillDefinition.CombatProfile.GetEffectiveRangeValue(skillLevel), 0);
     }
 
     private bool HasRuntime()
@@ -2201,7 +2172,6 @@ internal sealed class BattleChargeResolver
         {
             return;
         }
-        unitState.RefreshFootprint();
         AppendChangedCoords(batch, unitState.occupied_coords);
     }
 

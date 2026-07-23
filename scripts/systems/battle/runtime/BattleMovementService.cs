@@ -49,7 +49,6 @@ internal class BattleMovementService
         {
             return;
         }
-        unit_state.RefreshFootprint();
         AppendChangedCoords(batch, unit_state.occupied_coords);
     }
 

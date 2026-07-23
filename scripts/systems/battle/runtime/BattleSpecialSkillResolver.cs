@@ -1095,7 +1095,6 @@ public class BattleSpecialSkillResolver
         {
             return new Vector2I(-1, -1);
         }
-        unit_state.RefreshFootprint();
         var bestCoord = new Vector2I(-1, -1);
         int bestScore = FORCED_MOVE_INVALID_SCORE;
         foreach (
@@ -1385,7 +1384,6 @@ public class BattleSpecialSkillResolver
         {
             return adjacentAllies;
         }
-        defeated_unit.RefreshFootprint();
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
             if (candidate == null || !candidate.is_alive)
@@ -1403,7 +1401,6 @@ public class BattleSpecialSkillResolver
             {
                 continue;
             }
-            candidate.RefreshFootprint();
             if (AreUnitsAdjacent(candidate, defeated_unit))
             {
                 adjacentAllies.Add(candidate);
