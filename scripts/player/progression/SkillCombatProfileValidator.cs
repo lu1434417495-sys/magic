@@ -43,6 +43,7 @@ internal sealed class SkillCombatProfileValidator
             { "prevent_repeat_target", "prevent_repeat_target" },
             { "stop_on_miss", "stop_on_miss" },
             { "stop_on_target_down", "stop_on_target_down" },
+            { "fixed_attack_count", "fixed_attack_count" },
             { "remove_harmful", "remove_harmful" },
             { "remove_harmful_from_allies", "remove_harmful_from_allies" },
             { "remove_beneficial", "remove_beneficial" },
@@ -170,6 +171,24 @@ internal sealed class SkillCombatProfileValidator
             );
         if (combatProfile.area_value < 0)
             errors.Add($"Skill {skillId} combat_profile area_value must be >= 0.");
+        if (combatProfile.random_chain_attack_count < 0)
+            errors.Add(
+                $"Skill {skillId} combat_profile random_chain_attack_count must be >= 0."
+            );
+        if (
+            combatProfile.random_chain_attack_count > 0
+            && combatProfile.TargetSelectionModeKind != BattleTargetSelectionMode.RandomChain
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile random_chain_attack_count requires target_selection_mode random_chain."
+            );
+        if (
+            combatProfile.random_chain_continue_on_miss
+            && combatProfile.TargetSelectionModeKind != BattleTargetSelectionMode.RandomChain
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile random_chain_continue_on_miss requires target_selection_mode random_chain."
+            );
         if (
             combatProfile.ap_cost < 0
             || combatProfile.mp_cost < 0
@@ -197,6 +216,29 @@ internal sealed class SkillCombatProfileValidator
             errors.Add(
                 $"Skill {skillId} combat_profile uses unsupported attack_resolution_mode {combatProfile.attack_resolution_mode}."
             );
+        if (
+            combatProfile.attack_roll_bonus_status_id == ""
+            && combatProfile.attack_roll_bonus_status_stack_divisor != 0
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile attack_roll_bonus_status_stack_divisor requires attack_roll_bonus_status_id."
+            );
+        if (
+            combatProfile.attack_roll_bonus_status_id != ""
+            && combatProfile.attack_roll_bonus_status_stack_divisor <= 0
+        )
+            errors.Add(
+                $"Skill {skillId} combat_profile attack_roll_bonus_status_stack_divisor must be > 0 when attack_roll_bonus_status_id is set."
+            );
+        if (
+            combatProfile.ProjectileKindTyped == CombatProjectileKind.Unknown
+            || combatProfile.ProjectileKindTyped == CombatProjectileKind.Inherit
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} combat_profile uses unsupported projectile_kind {combatProfile.projectile_kind}; expected {CombatProjectileContentRules.ValidBaseKindLabel()}."
+            );
+        }
         bool hasCastingTime = combatProfile.casting_time_tu > 0;
         if (hasCastingTime)
         {
@@ -211,14 +253,16 @@ internal sealed class SkillCombatProfileValidator
             "combat_profile.delivery_categories",
             combatProfile.delivery_categories
         );
+        AppendProjectileCategoryOwnershipErrors(
+            errors,
+            skillId,
+            "combat_profile.delivery_categories",
+            combatProfile.delivery_categories
+        );
         foreach (
             StringName requiredCategory in CombatEffectCategoryContentRules.RequiredDeliveryCategories(
                 skillDef != null && skillDef.HasTag("mage") && skillDef.HasTag("magic"),
-                skillDef != null && skillDef.HasTag("dragon_breath"),
-                skillDef != null && skillDef.HasTag("archer") && skillDef.HasTag("ranged"),
-                combatProfile.range_value,
-                HasDamageEffect(combatProfile),
-                HasAttackDamage(combatProfile)
+                skillDef != null && skillDef.HasTag("dragon_breath")
             )
         )
         {
@@ -232,6 +276,12 @@ internal sealed class SkillCombatProfileValidator
             skillId,
             "combat_profile.required_weapon_families",
             combatProfile.required_weapon_families
+        );
+        AppendStringNameArrayValidationErrors(
+            errors,
+            skillId,
+            "combat_profile.required_weapon_type_ids",
+            combatProfile.required_weapon_type_ids
         );
         AppendStringNameArrayValidationErrors(
             errors,
@@ -358,6 +408,20 @@ internal sealed class SkillCombatProfileValidator
                 "attack_roll_bonus",
                 out _
             );
+            if (overrideDict.ContainsKey("attack_resolution_mode"))
+            {
+                var overrideAttackResolutionMode = ProgressionDataUtils.to_string_name(
+                    overrideDict["attack_resolution_mode"]
+                );
+                if (
+                    CombatSkillContentRules.ToAttackResolutionMode(
+                        overrideAttackResolutionMode
+                    ) == CombatSkillAttackResolutionMode.Unknown
+                )
+                    errors.Add(
+                        $"Skill {skillId} combat_profile level override {overrideLevelKey}.attack_resolution_mode uses unsupported value {overrideAttackResolutionMode}."
+                    );
+            }
             if (
                 SkillContentRegistry.TryReadLevelOverrideInt(
                     errors,
@@ -409,6 +473,28 @@ internal sealed class SkillCombatProfileValidator
             )
                 errors.Add(
                     $"Skill {skillId} combat_profile level override {overrideLevelKey}.max_target_count must be >= 1."
+                );
+            if (
+                SkillContentRegistry.TryReadLevelOverrideInt(
+                    errors,
+                    skillId,
+                    overrideLevelKey,
+                    overrideDict,
+                    "random_chain_attack_count",
+                    out int randomChainAttackCount
+                )
+                && randomChainAttackCount < 1
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile level override {overrideLevelKey}.random_chain_attack_count must be >= 1."
+                );
+            if (
+                overrideDict.ContainsKey("random_chain_attack_count")
+                && combatProfile.TargetSelectionModeKind
+                    != BattleTargetSelectionMode.RandomChain
+            )
+                errors.Add(
+                    $"Skill {skillId} combat_profile level override {overrideLevelKey}.random_chain_attack_count requires target_selection_mode random_chain."
                 );
             if (castingTimeTu > 0)
             {
@@ -488,6 +574,12 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} declares duplicate cast option {castVariant.variant_id}."
                 );
+            if (castVariant.ProjectileKindOverrideTyped == CombatProjectileKind.Unknown)
+            {
+                errors.Add(
+                    $"Skill {skillId} cast option {castVariant.variant_id} uses unsupported projectile_kind_override {castVariant.projectile_kind_override}; expected {CombatProjectileContentRules.ValidOverrideKindLabel()}."
+                );
+            }
 
             if (castVariant.target_mode == "")
                 errors.Add(
@@ -670,6 +762,21 @@ internal sealed class SkillCombatProfileValidator
             );
 
         AppendSaveValidationErrors(errors, skillId, effectDef, contextLabel);
+        SaveTagListContentRules.AppendValidationErrors(
+            errors,
+            $"Skill {skillId} effect {contextLabel}.save_advantage_tags",
+            effectDef.save_advantage_tags
+        );
+        SaveTagListContentRules.AppendValidationErrors(
+            errors,
+            $"Skill {skillId} effect {contextLabel}.save_disadvantage_tags",
+            effectDef.save_disadvantage_tags
+        );
+        SaveTagListContentRules.AppendValidationErrors(
+            errors,
+            $"Skill {skillId} effect {contextLabel}.save_immunity_tags",
+            effectDef.save_immunity_tags
+        );
 
         Dictionary parameters = effectDef.@params ?? new Dictionary();
         var unsupportedParamAliases = new System.Collections.Generic.Dictionary<string, string>
@@ -712,6 +819,12 @@ internal sealed class SkillCombatProfileValidator
             $"effect {contextLabel} effect_categories",
             effectDef.effect_categories
         );
+        AppendProjectileCategoryOwnershipErrors(
+            errors,
+            skillId,
+            $"effect {contextLabel} effect_categories",
+            effectDef.effect_categories
+        );
         foreach (
             StringName requiredCategory in CombatEffectCategoryContentRules.RequiredEffectCategories(
                 effectDef.damage_tag,
@@ -729,6 +842,20 @@ internal sealed class SkillCombatProfileValidator
         _executeEffectValidator.AppendTemporalStatusEffectValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendTypedEffectParamValidationErrors(errors, skillId, effectDef, contextLabel);
         AppendAttributeScaledDiceValidationErrors(errors, skillId, effectDef, contextLabel);
+        if (
+            effectKind == BattleEffectKind.FixedRepeatAttack
+            && effectDef.fixed_attack_count < 2
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} fixed_repeat_attack must set fixed_attack_count >= 2."
+            );
+        if (
+            effectKind != BattleEffectKind.FixedRepeatAttack
+            && effectDef.fixed_attack_count != 0
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} fixed_attack_count is only supported on fixed_repeat_attack."
+            );
 
         if (effectKind == BattleEffectKind.Damage)
         {
@@ -769,6 +896,86 @@ internal sealed class SkillCombatProfileValidator
                     errors.Add(
                         $"Skill {skillId} status effect in {contextLabel} source_bound_weapon_bonus_damage_dice_sides must be positive."
                     );
+            }
+            StringName comboAttackStatusId = ProgressionDataUtils.to_string_name(
+                effectDef.combo_attack_bonus_status_id
+            );
+            if (
+                (comboAttackStatusId == "")
+                != (effectDef.combo_attack_bonus_stack_divisor <= 0)
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} combo_attack_bonus_status_id and positive combo_attack_bonus_stack_divisor must be configured together."
+                );
+            }
+            StringName upkeepResource = ProgressionDataUtils.to_string_name(
+                effectDef.upkeep_resource
+            );
+            bool hasUpkeep = upkeepResource != "";
+            if (
+                hasUpkeep
+                && CombatResourceKindUtils.FromStringName(upkeepResource)
+                    == CombatResourceKind.None
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_resource is unsupported."
+                );
+            }
+            if (hasUpkeep && effectDef.upkeep_interval_tu <= 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_interval_tu must be positive."
+                );
+            }
+            if (
+                effectDef.upkeep_interval_tu > 0
+                && effectDef.upkeep_interval_tu % SkillContentRegistry.TuGranularity != 0
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_interval_tu must be a multiple of {SkillContentRegistry.TuGranularity}."
+                );
+            }
+            if (hasUpkeep && effectDef.upkeep_base_cost <= 0)
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_base_cost must be positive."
+                );
+            }
+            if (
+                hasUpkeep
+                && (
+                    effectDef.upkeep_escalation_interval_tu <= 0
+                    || effectDef.upkeep_escalation_interval_tu
+                        % System.Math.Max(effectDef.upkeep_interval_tu, 1) != 0
+                )
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_escalation_interval_tu must be a positive multiple of upkeep_interval_tu."
+                );
+            }
+            if (hasUpkeep && effectDef.upkeep_cost_multiplier < 2)
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} upkeep_cost_multiplier must be >= 2."
+                );
+            }
+            if (
+                (hasUpkeep || effectDef.break_on_hard_control)
+                && (
+                    ProgressionDataUtils.to_string_name(effectDef.termination_status_id) == ""
+                    || effectDef.termination_status_duration_tu <= 0
+                    || effectDef.termination_attack_roll_penalty <= 0
+                    || effectDef.termination_cooldown_tu <= 0
+                )
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} status effect in {contextLabel} maintained status termination must configure status id, duration, attack penalty, and cooldown."
+                );
             }
             _damageEffectValidator.AppendStatusDamageFilterValidationErrors(
                 errors,
@@ -1243,52 +1450,29 @@ internal sealed class SkillCombatProfileValidator
         }
     }
 
-    private static bool HasDamageEffect(CombatSkillDef combatProfile)
+    private static void AppendProjectileCategoryOwnershipErrors(
+        Array<string> errors,
+        StringName skillId,
+        string fieldLabel,
+        Array<StringName> values
+    )
     {
-        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
+        for (int index = 0; index < values.Count; index++)
         {
-            if (effectDef?.EffectKind == BattleEffectKind.Damage)
-                return true;
-        }
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
-        {
-            if (castVariant == null)
-                continue;
-            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
+            StringName value = values[index];
+            if (CombatEffectCategoryContentRules.IsDerivedProjectileCategory(value))
             {
-                if (effectDef?.EffectKind == BattleEffectKind.Damage)
-                    return true;
+                errors.Add(
+                    $"Skill {skillId} {fieldLabel}[{index}] cannot author derived projectile category {value}; use combat_profile.projectile_kind or cast_variants[].projectile_kind_override."
+                );
+            }
+            else if (CombatEffectCategoryContentRules.IsRemovedProjectileCategory(value))
+            {
+                errors.Add(
+                    $"Skill {skillId} {fieldLabel}[{index}] uses removed projectile category {value}; use combat_profile.projectile_kind or cast_variants[].projectile_kind_override."
+                );
             }
         }
-        return false;
-    }
-
-    private static bool HasAttackDamage(CombatSkillDef combatProfile)
-    {
-        foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
-        {
-            if (IsAttackDamage(effectDef))
-                return true;
-        }
-        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
-        {
-            if (castVariant == null)
-                continue;
-            foreach (CombatEffectDef effectDef in castVariant.effect_defs)
-            {
-                if (IsAttackDamage(effectDef))
-                    return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool IsAttackDamage(CombatEffectDef effectDef)
-    {
-        return effectDef?.EffectKind == BattleEffectKind.Damage
-            && effectDef.save_dc <= 0
-            && effectDef.save_dc_mode == ""
-            && effectDef.save_ability == "";
     }
 
     private bool IsValidPendingCastBindingMode(StringName value)

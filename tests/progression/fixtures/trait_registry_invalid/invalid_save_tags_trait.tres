@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="TraitDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/TraitDef.cs" id="1_trait"]
+[ext_resource type="Script" path="res://scripts/player/progression/TraitPassiveStatusEffectDef.cs" id="2_status"]
+
+[sub_resource type="Resource" id="PassiveStatus_invalid_save_tags"]
+script = ExtResource("2_status")
+status_id = &"invalid_save_tag_status"
+save_immunity_tags = Array[StringName]([&"magic", &"magic"])
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"invalid_save_tags_trait"
+display_name = "Invalid Save Tags Trait"
+description = "Fixture covering shared save-tag list validation."
+effect_type = &"brave"
+trigger_type = &"passive"
+stack_policy = &"unique_by_trait"
+charge_scope = &"none"
+charge_reset_timing = &"none"
+allowed_source_kinds = Array[StringName]([&"identity"])
+attribute_modifiers = Array[Resource]([])
+save_advantage_tags = Array[StringName]([&"poison", &"poison"])
+save_disadvantage_tags = Array[StringName]([&"not_a_save_tag"])
+save_immunity_tags = Array[StringName]([&"sleep_immunity"])
+passive_status_effects = Array[Resource]([SubResource("PassiveStatus_invalid_save_tags")])
+roll_value_schema = Array[Resource]([])

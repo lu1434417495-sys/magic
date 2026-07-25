@@ -826,22 +826,16 @@ public sealed class EquipmentAbilityRegistryBuildResult
 
 public sealed class EquipmentAbilityContentValidationContext
 {
-    public IReadOnlySet<StringName> KnownTraitIds { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownItemIds { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownSkillIds { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownCreatureTypeTags { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownBattleEnvironmentTags { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownStatusIds { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownDamageTypes { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
-    public IReadOnlySet<StringName> KnownEquipmentSlotIds { get; init; } =
-        EquipmentAbilityReadOnlySet<StringName>.Empty;
+    /// <summary>
+    /// Required open-content catalogs. A non-null empty set means the catalog is
+    /// authoritatively empty; null means the caller did not supply the catalog.
+    /// KnownStatusIds contains declarations owned outside equipment-ability
+    /// packs. The registry adds status declarations from all packs before it
+    /// validates any status reference.
+    /// </summary>
+    public IReadOnlySet<StringName> KnownTraitIds { get; init; }
+    public IReadOnlySet<StringName> KnownSkillIds { get; init; }
+    public IReadOnlySet<StringName> KnownStatusIds { get; init; }
 }
 
 public sealed class EquipmentAbilityHandlerSpec

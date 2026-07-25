@@ -126,6 +126,29 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
             Contains(errors, "missing_text_trait.description"),
             "missing description should be rejected."
         );
+        _test.True(
+            Contains(errors, "invalid_save_tags_trait.save_advantage_tags")
+                && Contains(errors, "duplicates save tag poison"),
+            "trait save tag 列表应拒绝重复值。"
+        );
+        _test.True(
+            Contains(errors, "invalid_save_tags_trait.save_disadvantage_tags")
+                && Contains(errors, "not_a_save_tag"),
+            "trait save tag 列表应拒绝未知值。"
+        );
+        _test.True(
+            Contains(errors, "invalid_save_tags_trait.save_immunity_tags")
+                && Contains(errors, "removed suffix syntax"),
+            "trait save tag 列表应拒绝旧后缀写法。"
+        );
+        _test.True(
+            Contains(
+                errors,
+                "invalid_save_tags_trait.passive_status_effects[0].save_immunity_tags"
+            )
+                && Contains(errors, "duplicates save tag magic"),
+            "trait 嵌套 passive status save tag 列表也应复用重复值校验。"
+        );
     }
 
     private static bool Contains(IEnumerable<string> errors, string needle)

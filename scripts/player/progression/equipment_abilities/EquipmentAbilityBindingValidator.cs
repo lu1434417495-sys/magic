@@ -425,6 +425,18 @@ internal sealed class EquipmentAbilityBindingValidator
                     "projected effect category must be non-empty"
                 );
             }
+            else if (
+                CombatEffectCategoryContentRules.IsDerivedProjectileCategory(category)
+                || CombatEffectCategoryContentRules.IsRemovedProjectileCategory(category)
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_PROJECTED_EFFECT_CATEGORY_RESERVED",
+                    $"{path}.projected_effect_categories[{index}]",
+                    $"projected effect category {category} is owned by typed projectile_kind"
+                );
+            }
             else if (!declared.Add(category))
             {
                 EquipmentAbilityContentRegistry.AddError(
@@ -951,7 +963,7 @@ internal sealed class EquipmentAbilityBindingValidator
         List<string> errors
     )
     {
-        if (statusId == "" || (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownStatusIds) && !context.KnownStatusIds.Contains(statusId)))
+        if (statusId == "" || !context.KnownStatusIds.Contains(statusId))
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,
@@ -994,7 +1006,7 @@ internal sealed class EquipmentAbilityBindingValidator
         List<string> errors
     )
     {
-        if (skillId == "" || (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownSkillIds) && !context.KnownSkillIds.Contains(skillId)))
+        if (skillId == "" || !context.KnownSkillIds.Contains(skillId))
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,

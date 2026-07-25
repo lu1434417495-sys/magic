@@ -47,6 +47,14 @@ public partial class CombatCastVariantDef : Resource
     public Godot.Collections.Array<StringName> allowed_base_terrains { get; set; } = new();
 
     [Export]
+    public StringName projectile_kind_override { get; set; } = "";
+    internal CombatProjectileKind ProjectileKindOverrideTyped
+    {
+        get => CombatProjectileContentRules.ToProjectileKind(projectile_kind_override);
+        set => projectile_kind_override = CombatProjectileContentRules.ToProjectileKindId(value);
+    }
+
+    [Export]
     public Godot.Collections.Array<CombatEffectDef> effect_defs { get; set; } = new();
 
     [Export]

@@ -177,8 +177,18 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             "ascension_id",
             ascensionDef.AscensionId
         );
-        _append_string_field_error(errors, ownerLabel, "display_name", ascensionDef.DisplayName);
-        _append_string_field_error(errors, ownerLabel, "description", ascensionDef.Description);
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "display_name",
+            ascensionDef.DisplayName
+        );
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "description",
+            ascensionDef.Description
+        );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
@@ -221,18 +231,6 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
             ascensionDef.TraitSummary,
             "trait_summary"
         );
-        _append_bool_field_error(
-            errors,
-            ownerLabel,
-            "replaces_age_growth",
-            ascensionDef.ReplacesAgeGrowth
-        );
-        _append_bool_field_error(
-            errors,
-            ownerLabel,
-            "suppresses_original_race_traits",
-            ascensionDef.SuppressesOriginalRaceTraits
-        );
     }
 
     private void _append_ascension_stage_validation_errors(
@@ -244,8 +242,18 @@ public class AscensionContentRegistry : IdentityContentRegistryBase
         var ownerLabel = $"AscensionStage {stageId}";
         _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.StageId);
         _append_string_name_field_error(errors, ownerLabel, "ascension_id", stageDef.AscensionId);
-        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.DisplayName);
-        _append_string_field_error(errors, ownerLabel, "description", stageDef.Description);
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "display_name",
+            stageDef.DisplayName
+        );
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "description",
+            stageDef.Description
+        );
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,

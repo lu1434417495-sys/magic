@@ -37,8 +37,6 @@ public partial class ItemDef : Resource
     private static readonly StringName DamageTagPhysicalSlash = "physical_slash";
     private static readonly StringName DamageTagPhysicalPierce = "physical_pierce";
     private static readonly StringName DamageTagPhysicalBlunt = "physical_blunt";
-    private const int PriceBasisPointsDenominator = 10000;
-
     [Export]
     public StringName item_id = "";
 
@@ -156,24 +154,24 @@ public partial class ItemDef : Resource
 
     public int GetBuyPrice()
     {
-        return GetBuyPrice(PriceBasisPointsDenominator);
+        return GetBuyPrice(ItemPriceRules.BasisPointsDenominator);
     }
 
     public int GetBuyPrice(int price_basis_points)
     {
-        return ApplyPriceBasisPoints(Mathf.Max(buy_price, 0), price_basis_points);
+        return ItemPriceRules.ApplyBasisPoints(buy_price, price_basis_points);
     }
 
     public int GetSellPrice()
     {
-        return GetSellPrice(PriceBasisPointsDenominator);
+        return GetSellPrice(ItemPriceRules.BasisPointsDenominator);
     }
 
     public int GetSellPrice(int price_basis_points)
     {
         if (!sellable)
             return 0;
-        return ApplyPriceBasisPoints(Mathf.Max(sell_price, 0), price_basis_points);
+        return ItemPriceRules.ApplyBasisPoints(sell_price, price_basis_points);
     }
 
     public List<StringName> GetTagsTyped() => NormalizeStringNameList(tags);
@@ -389,11 +387,4 @@ public partial class ItemDef : Resource
         };
     }
 
-    private static int ApplyPriceBasisPoints(int price, int priceBasisPoints)
-    {
-        int normalizedPrice = Mathf.Max(price, 0);
-        int normalizedBasisPoints = Mathf.Max(priceBasisPoints, 0);
-        return (normalizedPrice * normalizedBasisPoints + PriceBasisPointsDenominator / 2)
-            / PriceBasisPointsDenominator;
-    }
 }

@@ -18,6 +18,9 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         TestAuthoringAbiAttributesAndRuntimeDtoBoundary();
         TestArmorClassComponentContentRulesContract();
         TestBuiltInHandlerSpecsExposeStaticValidationMetadata();
+        TestValidationContextAndClosedDomainsFailClosed();
+        TestExternalStatusDeclarationCatalogUsesCanonicalOwners();
+        TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated();
         TestEmptyAndMinimalValidPacksBuildAndFindBindings();
         TestProjectedEffectCategoriesProjectAndValidate();
         TestDependencyOrderedReplaceBinding();
@@ -523,6 +526,195 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         );
     }
 
+    private void TestValidationContextAndClosedDomainsFailClosed()
+    {
+        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        EquipmentAbilityRegistryBuildResult missingContextResult = registry.Rebuild(
+            Array.Empty<EquipmentAbilityContentPackDef>(),
+            null
+        );
+        _test.False(missingContextResult.Success, "missing validation context should fail closed.");
+        AssertErrorContains(
+            missingContextResult.Errors,
+            "EQA_VALIDATION_CONTEXT_INCOMPLETE",
+            "equipment_ability.validation_context"
+        );
+
+        EquipmentAbilityContentPackDef pack = BuildValidPack(
+            "pack.fail_closed",
+            "binding.fail_closed"
+        );
+        ((AddDamageDiceActionPayloadDef)pack.bindings[0].reactions[0].actions[0].payload)
+            .damage_type = "invented_damage";
+        pack.bindings[0].reactions[0].actions.Add(
+            new EquipmentAbilityActionDef
+            {
+                action_id = "action.unknown_skill",
+                kind = "trigger_skill",
+                payload = new TriggerSkillActionPayloadDef
+                {
+                    skill_id = "invented_skill",
+                    skill_level = 1,
+                    target_selector = "target",
+                },
+            }
+        );
+        EquipmentAbilityRegistryBuildResult emptyCatalogResult = registry.Rebuild(
+            new[] { pack },
+            new EquipmentAbilityContentValidationContext
+            {
+                KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
+                KnownSkillIds = EquipmentAbilityReadOnlySet<StringName>.Empty,
+                KnownStatusIds = EquipmentAbilityReadOnlySet<StringName>.Empty,
+            }
+        );
+        _test.False(
+            emptyCatalogResult.Success,
+            "authoritatively empty catalogs and canonical closed domains should reject unknown references."
+        );
+        AssertErrorContains(
+            emptyCatalogResult.Errors,
+            "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+            "invented_damage"
+        );
+        AssertErrorContains(
+            emptyCatalogResult.Errors,
+            "EQA_REFERENCE_UNKNOWN_SKILL",
+            "invented_skill"
+        );
+    }
+
+    private void TestExternalStatusDeclarationCatalogUsesCanonicalOwners()
+    {
+        TraitDefinition trait = new(
+            traitId: "trait.status_catalog",
+            displayName: "Status Catalog Trait",
+            description: "",
+            categories: Array.Empty<StringName>(),
+            allowedSourceKinds: Array.Empty<StringName>(),
+            effectType: "equipment_ability",
+            triggerType: "passive",
+            stackPolicy: "stack_by_instance",
+            chargeScope: "none",
+            chargeResetTiming: "none",
+            highestRollCompareKey: "",
+            visionRange: 0,
+            proficiencyChoiceCount: 0,
+            attributeModifiers: Array.Empty<AttributeModifierDefinition>(),
+            saveAdvantageTags: Array.Empty<StringName>(),
+            saveDisadvantageTags: Array.Empty<StringName>(),
+            saveImmunityTags: Array.Empty<StringName>(),
+            damageResistanceEntries: Array.Empty<TraitDamageResistanceEntryDefinition>(),
+            saveBonusEntries: Array.Empty<TraitSaveBonusEntryDefinition>(),
+            passiveStatusEffects: new[]
+            {
+                new TraitPassiveStatusEffectDefinition(
+                    "trait_declared_status",
+                    1,
+                    1,
+                    "Trait Status",
+                    true,
+                    false,
+                    false,
+                    Array.Empty<StringName>()
+                ),
+            },
+            rollValueSchema: Array.Empty<TraitRollValueSchemaEntryDefinition>()
+        );
+        CombatEffectDefinition skillStatus = TestSkillDefinitionProjection.BuildEffect(
+            "status",
+            statusId: "skill_declared_status"
+        );
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill(
+            "skill.status_catalog",
+            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                "skill.status_catalog",
+                new[] { skillStatus }
+            )
+        );
+
+        IReadOnlySet<StringName> statusIds =
+            EquipmentAbilityStatusDeclarationCatalog.CollectExternalStatusDeclarations(
+                new[] { trait },
+                new[] { skill }
+            );
+        _test.True(
+            statusIds.Contains("knockdown_immunity"),
+            "system status content rules should contribute external status declarations."
+        );
+        _test.True(
+            statusIds.Contains("trait_declared_status"),
+            "trait passive statuses should be external status declarations."
+        );
+        _test.True(
+            statusIds.Contains("skill_declared_status"),
+            "skill effect statuses should be external status declarations."
+        );
+    }
+
+    private void TestStatusDeclarationsAreCollectedBeforeReferencesAreValidated()
+    {
+        var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
+        EquipmentAbilityContentPackDef pack = BuildValidPack(
+            "pack.status_catalog",
+            "binding.status_catalog"
+        );
+        EquipmentAbilityReactionDef reaction = pack.bindings[0].reactions[0];
+        reaction.actions.Add(
+            new EquipmentAbilityActionDef
+            {
+                action_id = "action.declare_status",
+                kind = "apply_status",
+                payload = new ApplyStatusActionPayloadDef
+                {
+                    target_selector = "target",
+                    status_id = "equipment_declared_status",
+                    duration_tu = 10,
+                    stack_delta = 1,
+                },
+            }
+        );
+        reaction.condition_group = new EquipmentAbilityConditionGroupDef
+        {
+            mode = "all",
+            conditions =
+            {
+                new EquipmentAbilityConditionDef
+                {
+                    condition_id = "condition.same_status",
+                    kind = "has_status",
+                    payload = new HasStatusConditionPayloadDef
+                    {
+                        subject = "target",
+                        status_id = "equipment_declared_status",
+                    },
+                },
+            },
+        };
+
+        EquipmentAbilityRegistryBuildResult declaredResult = registry.Rebuild(
+            new[] { pack },
+            BuildValidationContext()
+        );
+        _test.True(
+            declaredResult.Success,
+            $"equipment status declarations should be visible to references in the same build: {FormatErrors(declaredResult.Errors)}"
+        );
+
+        ((HasStatusConditionPayloadDef)reaction.condition_group.conditions[0].payload).status_id =
+            "equipment_declared_status_typo";
+        EquipmentAbilityRegistryBuildResult typoResult = registry.Rebuild(
+            new[] { pack },
+            BuildValidationContext()
+        );
+        _test.False(typoResult.Success, "an undeclared status typo should fail the second validation pass.");
+        AssertErrorContains(
+            typoResult.Errors,
+            "EQA_REFERENCE_UNKNOWN_STATUS",
+            "equipment_declared_status_typo"
+        );
+    }
+
     private void TestEmptyAndMinimalValidPacksBuildAndFindBindings()
     {
         var registry = new EquipmentAbilityContentRegistry(new TestContentResourceLoader());
@@ -621,6 +813,35 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
             "EQA_PROJECTED_EFFECT_CATEGORY_MISSING",
             "projected_effect_categories"
         );
+
+        foreach (
+            StringName reservedCategory in new[]
+            {
+                new StringName("projectile"),
+                new StringName("magical_projectile"),
+                new StringName("nonmagical_projectile"),
+                new StringName("magical_missile"),
+                new StringName("nonmagical_missile"),
+            }
+        )
+        {
+            EquipmentAbilityContentPackDef reservedPack = BuildValidPack(
+                $"pack.projected_effect_reserved.{reservedCategory}",
+                $"binding.projected_effect_reserved.{reservedCategory}"
+            );
+            reservedPack.bindings[0].reactions[0].projected_effect_categories.Add(
+                reservedCategory
+            );
+            EquipmentAbilityRegistryBuildResult reservedResult = registry.Rebuild(
+                new[] { reservedPack },
+                BuildValidationContext()
+            );
+            AssertErrorContains(
+                reservedResult.Errors,
+                "EQA_PROJECTED_EFFECT_CATEGORY_RESERVED",
+                reservedCategory.ToString()
+            );
+        }
     }
 
     private void TestDependencyOrderedReplaceBinding()
@@ -1273,7 +1494,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
                             payload = new ApplyStatusActionPayloadDef
                             {
                                 target_selector = "attack_target",
-                                status_id = "missing_status",
+                                status_id = "burning",
                                 duration_turns = 1,
                                 stack_delta = 1,
                             },
@@ -1909,12 +2130,7 @@ public partial class run_equipment_ability_content_registry_regression : Lifecyc
         {
             KnownTraitIds = new HashSet<StringName> { "trait.weapon.flame" },
             KnownSkillIds = new HashSet<StringName> { "known_skill" },
-            KnownItemIds = new HashSet<StringName> { "test_blade" },
             KnownStatusIds = new HashSet<StringName> { "burning" },
-            KnownDamageTypes = new HashSet<StringName> { "physical_slash", "poison" },
-            KnownEquipmentSlotIds = new HashSet<StringName> { "main_hand", "off_hand", "body" },
-            KnownCreatureTypeTags = new HashSet<StringName> { "undead" },
-            KnownBattleEnvironmentTags = new HashSet<StringName> { "night" },
         };
     }
 

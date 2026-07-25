@@ -15,8 +15,6 @@ public sealed class ItemDefinition
     private static readonly StringName DamageTagPhysicalSlash = "physical_slash";
     private static readonly StringName DamageTagPhysicalPierce = "physical_pierce";
     private static readonly StringName DamageTagPhysicalBlunt = "physical_blunt";
-    private const int PriceBasisPointsDenominator = 10000;
-
     public ItemDefinition(
         StringName itemId,
         StringName baseItemId,
@@ -106,12 +104,12 @@ public sealed class ItemDefinition
 
     public int GetBasePrice() => Math.Max(BasePrice, 0);
 
-    public int GetBuyPrice() => GetBuyPrice(PriceBasisPointsDenominator);
+    public int GetBuyPrice() => GetBuyPrice(ItemPriceRules.BasisPointsDenominator);
 
     public int GetBuyPrice(int priceBasisPoints) =>
-        ApplyPriceBasisPoints(Math.Max(BuyPrice, 0), priceBasisPoints);
+        ItemPriceRules.ApplyBasisPoints(BuyPrice, priceBasisPoints);
 
-    public int GetSellPrice() => GetSellPrice(PriceBasisPointsDenominator);
+    public int GetSellPrice() => GetSellPrice(ItemPriceRules.BasisPointsDenominator);
 
     public int GetSellPrice(int priceBasisPoints)
     {
@@ -127,7 +125,7 @@ public sealed class ItemDefinition
         // SkillBookItemFactory 生成等所有构造路径都无法绕过此线。
         if (BuyPrice > 0)
             sellPrice = Math.Min(sellPrice, (BuyPrice + 1) / 2);
-        return ApplyPriceBasisPoints(sellPrice, priceBasisPoints);
+        return ItemPriceRules.ApplyBasisPoints(sellPrice, priceBasisPoints);
     }
 
     public List<StringName> GetTagsTyped() => NormalizeStringNameList(Tags);
@@ -542,13 +540,6 @@ public sealed class ItemDefinition
     private static IReadOnlyList<T> CopyBorrowedValues<T>(IEnumerable<T> values, string path) =>
         new List<T>(WarehouseDefinitionProjection.RequireCollection(values, path));
 
-    private static int ApplyPriceBasisPoints(int price, int priceBasisPoints)
-    {
-        int normalizedPrice = Math.Max(price, 0);
-        int normalizedBasisPoints = Math.Max(priceBasisPoints, 0);
-        return (normalizedPrice * normalizedBasisPoints + PriceBasisPointsDenominator / 2)
-            / PriceBasisPointsDenominator;
-    }
 }
 
 internal static class WarehouseDefinitionProjection

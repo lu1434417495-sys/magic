@@ -40,7 +40,7 @@ internal sealed class SkillDamageEffectValidator
     {
         if (effectDef == null)
             return;
-        Dictionary parameters = effectDef.@params ?? new Dictionary();
+        Dictionary parameters = effectDef.@params;
         var damageTag = effectDef.damage_tag;
         bool usesWeaponDamageTag = effectDef.use_weapon_physical_damage_tag;
 
@@ -86,8 +86,15 @@ internal sealed class SkillDamageEffectValidator
                 $"Skill {skillId} damage effect in {contextLabel} hp_ratio_threshold_percent must be 0 or from 1 to 100."
             );
 
+        BattleDamageBonusConditionKind bonusConditionKind = effectDef.BonusConditionKind;
+        if (bonusConditionKind == BattleDamageBonusConditionKind.Unknown)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} uses unsupported bonus_condition {effectDef.bonus_condition}."
+            );
+        }
         if (
-            effectDef.bonus_condition == "target_creature_type"
+            bonusConditionKind == BattleDamageBonusConditionKind.TargetCreatureType
             && effectDef.bonus_condition_creature_type_tag == ""
         )
         {
@@ -97,11 +104,41 @@ internal sealed class SkillDamageEffectValidator
         }
         if (
             effectDef.bonus_condition_creature_type_tag != ""
-            && effectDef.bonus_condition != "target_creature_type"
+            && bonusConditionKind != BattleDamageBonusConditionKind.TargetCreatureType
         )
         {
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} bonus_condition_creature_type_tag requires bonus_condition target_creature_type."
+            );
+        }
+        if (effectDef.weapon_dice_multiplier < 1)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} weapon_dice_multiplier must be >= 1."
+            );
+        }
+        if (effectDef.bonus_weapon_dice_multiplier < 0)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_weapon_dice_multiplier must be >= 0."
+            );
+        }
+        if (
+            (effectDef.weapon_dice_multiplier > 1 || effectDef.bonus_weapon_dice_multiplier > 0)
+            && !effectDef.add_weapon_dice
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} weapon dice multipliers require add_weapon_dice."
+            );
+        }
+        if (
+            effectDef.bonus_weapon_dice_multiplier > 0
+            && effectDef.bonus_condition == ""
+        )
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_weapon_dice_multiplier requires bonus_condition."
             );
         }
 
@@ -109,6 +146,12 @@ internal sealed class SkillDamageEffectValidator
             effectDef.bonus_damage_dice_count > 0
             || effectDef.bonus_damage_dice_sides > 0
             || effectDef.bonus_damage_dice_bonus != 0;
+        if (effectDef.bonus_damage_separate_event && !hasBonusDamageDice)
+        {
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} bonus_damage_separate_event requires bonus damage dice."
+            );
+        }
         if (!hasBonusDamageDice)
             return;
         if (effectDef.bonus_condition == "")
@@ -597,78 +640,93 @@ internal sealed class SkillDamageEffectValidator
         string contextLabel
     )
     {
-        if (effectDef == null || effectDef.@params == null)
-            return;
-        Dictionary parameters = effectDef.@params;
-        if (
-            parameters.ContainsKey("path_step_log_label")
-            && SkillContentRegistry.DictString(parameters, "path_step_log_label").StripEdges().Length == 0
-        )
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} params.path_step_log_label must be non-empty when set."
-            );
-        if (!HasRepeatHitStatusConfig(parameters))
+        if (effectDef == null)
             return;
 
-        var statusId = SkillContentRegistry.DictStringName(parameters, "repeat_hit_status_id");
-        if (statusId == "")
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat-hit status config requires params.repeat_hit_status_id."
-            );
-        if (SkillContentRegistry.DictInt(parameters, "repeat_hit_status_threshold") < 1)
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} params.repeat_hit_status_threshold must be >= 1."
-            );
-        if (SkillContentRegistry.DictInt(parameters, "repeat_hit_status_min_skill_level") < 0)
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} params.repeat_hit_status_min_skill_level must be >= 0."
-            );
-        if (SkillContentRegistry.DictInt(parameters, "repeat_hit_status_power", 1) < 1)
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} params.repeat_hit_status_power must be >= 1."
-            );
-        if (!parameters.ContainsKey("repeat_hit_status_duration_tu"))
-        {
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat-hit status config requires params.repeat_hit_status_duration_tu."
-            );
-        }
-        else
-        {
-            int durationTu = SkillContentRegistry.DictInt(parameters, "repeat_hit_status_duration_tu");
-            if (durationTu <= 0 || !SkillContentRegistry.IsValidTuValue(durationTu))
-                errors.Add(
-                    $"Skill {skillId} path_step_aoe effect in {contextLabel} params.repeat_hit_status_duration_tu must be a positive multiple of {SkillContentRegistry.TuGranularity}."
-                );
-        }
-        if (
-            parameters.ContainsKey("repeat_hit_status_params")
-            && !SkillContentRegistry.TryAsDictionary(parameters["repeat_hit_status_params"], out _)
-        )
-            errors.Add(
-                $"Skill {skillId} path_step_aoe effect in {contextLabel} params.repeat_hit_status_params must be a Dictionary."
-            );
-    }
-
-    private bool HasRepeatHitStatusConfig(Dictionary parameters)
-    {
+        Dictionary parameters = effectDef.@params ?? new Dictionary();
         foreach (
-            string key in new[]
+            string legacyParam in new[]
             {
-                "repeat_hit_status_id",
-                "repeat_hit_status_threshold",
-                "repeat_hit_status_min_skill_level",
-                "repeat_hit_status_power",
+                "apply_on_successful_step_only",
+                "path_step_log_label",
                 "repeat_hit_status_duration_tu",
-                "repeat_hit_status_params",
+                "repeat_hit_status_id",
                 "repeat_hit_status_log_template",
+                "repeat_hit_status_min_skill_level",
+                "repeat_hit_status_params",
+                "repeat_hit_status_power",
+                "repeat_hit_status_threshold",
+                "step_radius",
+                "step_shape",
             }
         )
         {
-            if (parameters.ContainsKey(key))
-                return true;
+            if (parameters != null && parameters.ContainsKey(legacyParam))
+            {
+                errors.Add(
+                    $"Skill {skillId} path_step_aoe effect in {contextLabel} params.{legacyParam} is unsupported; use typed CombatEffectDef path-step fields."
+                );
+            }
         }
-        return false;
+
+        if (
+            effectDef.PathStepAreaPatternKind
+            is not (
+                BattleAreaPattern.Single
+                or BattleAreaPattern.Self
+                or BattleAreaPattern.Diamond
+                or BattleAreaPattern.Square
+                or BattleAreaPattern.Radius
+                or BattleAreaPattern.Cross
+            )
+        )
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} uses unsupported path_step_area_pattern {effectDef.path_step_area_pattern}."
+            );
+        if (effectDef.path_step_radius < 0)
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} path_step_radius must be >= 0."
+            );
+
+        if (!HasRepeatHitStatusConfig(effectDef))
+            return;
+
+        if (effectDef.repeat_hit_status_id == "")
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat-hit status config requires repeat_hit_status_id."
+            );
+        if (effectDef.repeat_hit_status_threshold < 1)
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat_hit_status_threshold must be >= 1."
+            );
+        if (effectDef.repeat_hit_status_min_skill_level < 0)
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat_hit_status_min_skill_level must be >= 0."
+            );
+        if (effectDef.repeat_hit_status_power < 1)
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat_hit_status_power must be >= 1."
+            );
+        if (
+            effectDef.repeat_hit_status_duration_tu <= 0
+            || !SkillContentRegistry.IsValidTuValue(effectDef.repeat_hit_status_duration_tu)
+        )
+            errors.Add(
+                $"Skill {skillId} path_step_aoe effect in {contextLabel} repeat_hit_status_duration_tu must be a positive multiple of {SkillContentRegistry.TuGranularity}."
+            );
+    }
+
+    private static bool HasRepeatHitStatusConfig(CombatEffectDef effectDef)
+    {
+        return effectDef != null
+            && (
+                effectDef.repeat_hit_status_id != ""
+                || effectDef.repeat_hit_status_threshold != 0
+                || effectDef.repeat_hit_status_min_skill_level != 0
+                || effectDef.repeat_hit_status_power != 1
+                || effectDef.repeat_hit_status_duration_tu != 0
+                || !string.IsNullOrWhiteSpace(effectDef.repeat_hit_status_log_template)
+            );
     }
 
     internal void AppendJumpEffectValidationErrors(

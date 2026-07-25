@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_save_skill_schema_regression : LifecycleTestSceneTree
 {
@@ -22,6 +23,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         TestDamageSaveCanApplyFailureStatus();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
+        TestSkillSchemaRejectsInvalidSaveTagLists();
         TestLevelOverridesRejectNonIntFields();
 
         RequestTestExit(_test.Finish("Battle save skill schema regression"));
@@ -60,6 +62,9 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
             save_dc = 11,
             save_ability = "constitution",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Poison),
+            save_advantage_tags = new GStringNameArray { "poison" },
+            save_disadvantage_tags = new GStringNameArray { "magic" },
+            save_immunity_tags = new GStringNameArray { "sleep" },
         };
         GStringArray statusErrors = new();
         registry.AppendEffectValidationErrors(
@@ -209,6 +214,45 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         _test.True(
             badDynamicErrors.Count >= 2,
             "caster_spell save_dc_mode should reject static save_dc and invalid source ability."
+        );
+    }
+
+    private void TestSkillSchemaRejectsInvalidSaveTagLists()
+    {
+        using SkillContentRegistry registry = new(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        );
+        using CombatEffectDef invalidEffect = new()
+        {
+            effect_type = "status",
+            status_id = "invalid_save_tag_lists",
+            save_advantage_tags = new GStringNameArray { "poison", "poison" },
+            save_disadvantage_tags = new GStringNameArray { "sleep_advantage" },
+            save_immunity_tags = new GStringNameArray { "not_a_save_tag" },
+        };
+        GStringArray errors = new();
+
+        registry.AppendEffectValidationErrors(
+            errors,
+            "invalid_save_tag_lists",
+            invalidEffect,
+            "test_effect"
+        );
+        string formattedErrors = string.Join(" | ", errors);
+
+        _test.True(
+            formattedErrors.Contains("duplicates save tag poison"),
+            $"技能 effect save tag 列表应拒绝重复值。 errors={formattedErrors}"
+        );
+        _test.True(
+            formattedErrors.Contains("removed suffix syntax"),
+            $"技能 effect save tag 列表应拒绝旧后缀写法。 errors={formattedErrors}"
+        );
+        _test.True(
+            formattedErrors.Contains("not_a_save_tag")
+                && formattedErrors.Contains("not a supported save tag"),
+            $"技能 effect save tag 列表应拒绝未知值。 errors={formattedErrors}"
         );
     }
 

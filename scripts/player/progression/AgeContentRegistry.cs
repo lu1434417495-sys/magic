@@ -203,8 +203,18 @@ public class AgeContentRegistry : IdentityContentRegistryBase
                 if (!seenStageIds.Add(stageRule.StageId))
                     errors.Add($"{ownerLabel} declares duplicate stage_id {stageRule.StageId}.");
             }
-            _append_string_field_error(errors, stageLabel, "display_name", stageRule.DisplayName);
-            _append_string_field_error(errors, stageLabel, "description", stageRule.Description);
+            _append_required_string_field_error(
+                errors,
+                stageLabel,
+                "display_name",
+                stageRule.DisplayName
+            );
+            _append_required_string_field_error(
+                errors,
+                stageLabel,
+                "description",
+                stageRule.Description
+            );
             _append_attribute_modifier_array_errors(
                 errors,
                 stageLabel,
@@ -226,18 +236,6 @@ public class AgeContentRegistry : IdentityContentRegistryBase
                 stageLabel,
                 stageRule.TraitSummary,
                 "trait_summary"
-            );
-            _append_bool_field_error(
-                errors,
-                stageLabel,
-                "selectable_in_creation",
-                stageRule.SelectableInCreation
-            );
-            _append_bool_field_error(
-                errors,
-                stageLabel,
-                "reachable_by_aging",
-                stageRule.ReachableByAging
             );
         }
     }

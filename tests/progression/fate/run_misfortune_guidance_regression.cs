@@ -382,25 +382,27 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         {
             battle_id = battleId,
         };
-        BattleUnitState heroUnit = new()
+        BattleUnitState heroUnit = new BattleUnitState()
         {
             unit_id = "hero_unit",
             source_member_id = HeroId,
             faction_id = "player",
             display_name = "Hero",
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
 
-        BattleUnitState enemyUnit = new()
+        BattleUnitState enemyUnit = new BattleUnitState()
         {
             unit_id = "enemy_target",
             display_name = "Elite Target",
             faction_id = "enemy",
-            is_alive = false,
-            current_hp = 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 0,
+            isAlive: false
+        );
         enemyUnit.attribute_snapshot.SetValue(FortuneMarkTargetStatId, 1);
         enemyUnit.attribute_snapshot.SetValue(BossTargetStatId, isBoss ? 1 : 0);
         SetStatus(enemyUnit, statusId, heroUnit.unit_id);
@@ -415,14 +417,15 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         {
             battle_id = battleId,
         };
-        BattleUnitState heroUnit = new()
+        BattleUnitState heroUnit = new BattleUnitState()
         {
             unit_id = "hero_unit",
             source_member_id = HeroId,
             faction_id = "player",
             display_name = "Hero",
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         battleState.SetUnit(heroUnit);
         battleState.ally_unit_ids = new GStringNameArray { heroUnit.unit_id };
         return battleState;
@@ -537,15 +540,16 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         StringName reasonId
     )
     {
-        BattleUnitState heroUnit = new()
+        BattleUnitState heroUnit = new BattleUnitState()
         {
             unit_id = "misfortune_reason_hero",
             source_member_id = HeroId,
             faction_id = "player",
             display_name = "Hero",
-            is_alive = true,
-            current_hp = 60,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 60,
+            isAlive: true
+        );
         heroUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         battleRuntime
             .GetFateRuntime()
