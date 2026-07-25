@@ -26,7 +26,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             Rule("hold_default", 20, "hold", Condition("always"))
         );
         fixture.Actor.ai_state_id = "hold";
-        fixture.Actor.current_hp = 5;
+        fixture.Actor.SetCurrentHp(5);
         fixture.Actor.attribute_snapshot.SetValue("hp_max", 20);
 
         BattleAiStateResolver.TransitionResult result = fixture.Resolver.ResolveTyped(
@@ -48,7 +48,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             Rule("aid_low_ally", 10, "aid_ally", Condition("ally_hp_at_or_below_basis_points", basisPoints: 5000)),
             Rule("hold_default", 20, "hold", Condition("always"))
         );
-        fixture.Actor.current_hp = 1;
+        fixture.Actor.SetCurrentHp(1);
         fixture.Actor.attribute_snapshot.SetValue("hp_max", 20);
 
         BattleAiStateResolver.TransitionResult selfOnlyResult = fixture.Resolver.ResolveTyped(
@@ -57,7 +57,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         );
         _test.Eq(selfOnlyResult.StateId, new StringName("hold"), "ally_hp_at_or_below 不应把自己算成低血友军。");
 
-        fixture.Ally.current_hp = 5;
+        fixture.Ally.SetCurrentHp(5);
         fixture.Ally.attribute_snapshot.SetValue("hp_max", 20);
         BattleAiStateResolver.TransitionResult allyResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
@@ -84,7 +84,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         );
         fixture.Actor.ai_state_id = "hold";
         fixture.Enemy.SetAnchorCoord(new Vector2I(3, 1));
-        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
+        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.GetAnchorCoord(), true);
 
         BattleAiStateResolver.TransitionResult enterResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
@@ -94,7 +94,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
 
         fixture.Actor.ai_state_id = "close_range";
         fixture.Enemy.SetAnchorCoord(new Vector2I(4, 1));
-        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.coord, true);
+        fixture.GridService.PlaceUnit(fixture.State, fixture.Enemy, fixture.Enemy.GetAnchorCoord(), true);
         BattleAiStateResolver.TransitionResult stickyResult = fixture.Resolver.ResolveTyped(
             fixture.Context,
             brain
@@ -114,7 +114,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             }
         );
         fixture.Actor.SetKnownActiveSkillIds(new[] { supportSkill.SkillId });
-        fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
+        fixture.Actor.SetKnownSkillLevelTyped(supportSkill.SkillId, 1);
         EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
@@ -153,7 +153,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         Fixture fixture = BuildFixture();
         SkillDefinition supportSkill = BuildSupportSkill("aid_spell");
         fixture.Actor.SetKnownActiveSkillIds(new[] { supportSkill.SkillId });
-        fixture.Actor.known_skill_level_map[supportSkill.SkillId] = 1;
+        fixture.Actor.SetKnownSkillLevelTyped(supportSkill.SkillId, 1);
         EnemyAiBrainDefinition brain = BuildBrain(
             "hold",
             Rule("aid_skill_available", 10, "aid_ally", Condition("has_skill_affordance", affordances: new[] { new StringName("ally_heal") })),
@@ -318,12 +318,13 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "ai",
-            current_hp = 20,
-            current_ap = 2,
-            current_mp = 2,
-            current_stamina = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 2,
+            stamina: 2,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("hp_max", 20);
         return unit;
@@ -336,7 +337,7 @@ public partial class run_battle_ai_state_resolver_regression : LifecycleTestScen
         bool isEnemy
     )
     {
-        gridService.PlaceUnit(state, unit, unit.coord, true);
+        gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         state.SetUnit(unit);
         if (isEnemy)
         {

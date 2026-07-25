@@ -232,7 +232,9 @@ public partial class BattleAiScoreService
         }
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             ContextSkillDefinitions(context);
-        foreach (StringName skillId in targetUnit.known_active_skill_ids)
+        foreach (
+            StringName skillId in targetUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (IsEmpty(normalizedSkillId))
@@ -308,7 +310,7 @@ public partial class BattleAiScoreService
         {
             if (
                 unitState == null
-                || !unitState.is_alive
+                || !unitState.IsAlive()
                 || unitState.faction_id == actor.faction_id
             )
             {
@@ -427,7 +429,7 @@ public partial class BattleAiScoreService
             return $"meteor_swarm_protected_ally:{targetLabel}";
         }
         int lethalProbability = summary.LethalProbabilityPercent;
-        if (lethalProbability > 0 || worstCaseDamage >= Math.Max(targetUnit.current_hp, 1))
+        if (lethalProbability > 0 || worstCaseDamage >= Math.Max(targetUnit.GetCurrentHp(), 1))
         {
             return $"meteor_swarm_friendly_fire_lethal:{targetLabel}";
         }
@@ -517,7 +519,7 @@ public partial class BattleAiScoreService
                 return maxHp;
             }
         }
-        return Math.Max(unitState.current_hp, 1);
+        return Math.Max(unitState.GetCurrentHp(), 1);
     }
 
     private void PopulateEnemyTargetPayoff(
@@ -645,7 +647,7 @@ public partial class BattleAiScoreService
         int estimatedShieldAbsorbed = targetMetrics.ShieldAbsorbed;
         bool stableLethal = targetMetrics.IsExecute
             ? targetMetrics.KillProbabilityBasisPoints >= 10000
-            : targetMetrics.StableLethal || estimatedDamage >= Math.Max(targetUnit.current_hp, 1);
+            : targetMetrics.StableLethal || estimatedDamage >= Math.Max(targetUnit.GetCurrentHp(), 1);
         int estimatedHealing = targetMetrics.Healing;
         int harmfulControlCount = targetMetrics.HarmfulControlCount;
         int beneficialControlCount = targetMetrics.BeneficialControlCount;
@@ -759,7 +761,7 @@ public partial class BattleAiScoreService
         bool isFriendlyLethal =
             isExecute
                 ? Mathf.Clamp(executeKillProbabilityBasisPoints, 0, 10000) > 0
-                : estimatedDamage >= Math.Max(targetUnit.current_hp, 1);
+                : estimatedDamage >= Math.Max(targetUnit.GetCurrentHp(), 1);
         if (isFriendlyLethal)
         {
             scoreInput.estimated_friendly_lethal_target_count += 1;
@@ -886,10 +888,10 @@ public partial class BattleAiScoreService
         {
             int hash = 17;
             hash = hash * 31 + ProgressionDataUtils.to_string_name(unitState.unit_id).GetHashCode();
-            hash = hash * 31 + unitState.current_hp;
-            hash = hash * 31 + unitState.current_shield_hp;
-            hash = hash * 31 + unitState.current_stamina;
-            hash = hash * 31 + unitState.current_mp;
+            hash = hash * 31 + unitState.GetCurrentHp();
+            hash = hash * 31 + unitState.GetShieldStateTyped().CurrentHp;
+            hash = hash * 31 + unitState.GetCurrentStamina();
+            hash = hash * 31 + unitState.GetCurrentMp();
             foreach (StringName statusId in unitState.GetSortedStatusEffectIdsTyped())
             {
                 BattleStatusEffectState status = unitState.GetStatusEffect(statusId);
@@ -904,9 +906,17 @@ public partial class BattleAiScoreService
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_disadvantage_tags);
                 hash = hash * 31 + BuildStringNameListSignature(status?.save_immunity_tags);
             }
-            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_advantage_tags);
-            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_disadvantage_tags);
-            hash = hash * 31 + BuildStringNameArraySignature(unitState.save_immunity_tags);
+            BattleUnitSaveModifierReadView saveModifiers =
+                unitState.GetSaveModifiersReadViewTyped();
+            hash = hash * 31 + BuildStringNameArraySignature(
+                saveModifiers.AdvantageTags
+            );
+            hash = hash * 31 + BuildStringNameArraySignature(
+                saveModifiers.DisadvantageTags
+            );
+            hash = hash * 31 + BuildStringNameArraySignature(
+                saveModifiers.ImmunityTags
+            );
             return hash;
         }
     }
@@ -924,6 +934,21 @@ public partial class BattleAiScoreService
             {
                 hash = hash * 31 + ProgressionDataUtils.to_string_name(value).GetHashCode();
             }
+            return hash;
+        }
+    }
+
+    private static int BuildStringNameArraySignature(
+        BattleSaveModifierTagReadView values
+    )
+    {
+        unchecked
+        {
+            int hash = 17;
+            List<StringName>.Enumerator enumerator =
+                values.GetEnumerator();
+            while (enumerator.MoveNext())
+                hash = hash * 31 + enumerator.Current.GetHashCode();
             return hash;
         }
     }
@@ -1244,11 +1269,11 @@ public partial class BattleAiScoreService
                 targetMaxHp
             );
         int killBasisPoints = 0;
-        if (targetUnit.current_hp <= failureExecuteThreshold)
+        if (targetUnit.GetCurrentHp() <= failureExecuteThreshold)
         {
             killBasisPoints += distribution.FailureBasisPoints;
         }
-        if (targetUnit.current_hp <= criticalFailureExecuteThreshold)
+        if (targetUnit.GetCurrentHp() <= criticalFailureExecuteThreshold)
         {
             killBasisPoints += distribution.CriticalFailureBasisPoints;
         }
@@ -1644,7 +1669,7 @@ public partial class BattleAiScoreService
             BattleUnitState current = queue.Dequeue();
             foreach (BattleUnitState candidate in state.GetUnitsTyped())
             {
-                if (candidate == null || !candidate.is_alive)
+                if (candidate == null || !candidate.IsAlive())
                 {
                     continue;
                 }
@@ -1678,13 +1703,15 @@ public partial class BattleAiScoreService
                 {
                     return leftDistance.CompareTo(rightDistance);
                 }
-                if (left.coord.Y != right.coord.Y)
+                Vector2I leftCoord = left.GetAnchorCoord();
+                Vector2I rightCoord = right.GetAnchorCoord();
+                if (leftCoord.Y != rightCoord.Y)
                 {
-                    return left.coord.Y.CompareTo(right.coord.Y);
+                    return leftCoord.Y.CompareTo(rightCoord.Y);
                 }
-                if (left.coord.X != right.coord.X)
+                if (leftCoord.X != rightCoord.X)
                 {
-                    return left.coord.X.CompareTo(right.coord.X);
+                    return leftCoord.X.CompareTo(rightCoord.X);
                 }
                 return string.CompareOrdinal(left.unit_id.ToString(), right.unit_id.ToString());
             }
@@ -1724,7 +1751,9 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        foreach (Vector2I occupiedCoord in unitState.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unitState.GetOccupiedCoordsReadViewTyped()
+        )
         {
             BattleCellState cell = gridService.GetCellState(state, occupiedCoord);
             if (cell == null)
@@ -1758,9 +1787,13 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        foreach (Vector2I primaryCoord in primaryTarget.occupied_coords)
+        foreach (
+            Vector2I primaryCoord in primaryTarget.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I candidateCoord in candidate.occupied_coords)
+            foreach (
+                Vector2I candidateCoord in candidate.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (gridService.GetDistance(primaryCoord, candidateCoord) <= maxRadius)
                 {
@@ -1815,7 +1848,9 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        foreach (Vector2I sourceCoord in sourceUnit.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in sourceUnit.GetOccupiedCoordsReadViewTyped()
+        )
         {
             BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);
             if (sourceCell == null)
@@ -1823,7 +1858,9 @@ public partial class BattleAiScoreService
                 continue;
             }
             int sourceHeight = sourceCell.current_height;
-            foreach (Vector2I targetCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I targetCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 foreach (Vector2I midCoord in GetLineCoords(sourceCoord, targetCoord))
                 {

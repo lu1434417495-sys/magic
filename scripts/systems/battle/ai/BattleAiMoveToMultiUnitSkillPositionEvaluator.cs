@@ -114,7 +114,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
                     skillEntry.SkillLevel,
                     skillDefinition,
                     sortedTargets,
-                    actor.coord
+                    actor.GetAnchorCoord()
                 );
                 int currentTargetCount = currentGroup.Count;
                 foreach (Vector2I destination in CollectReachableMoveCandidates(context, action))
@@ -245,7 +245,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
     {
         if (context?.unit_state == null || context.grid_service == null)
             return false;
-        if (target == null || !target.is_alive)
+        if (target == null || !target.IsAlive())
             return false;
         if (
             !MatchesTargetFilter(
@@ -276,7 +276,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             return candidates;
 
         BattleUnitState actor = context.unit_state;
-        Vector2I origin = actor.coord;
+        Vector2I origin = actor.GetAnchorCoord();
         if (IsUnitMovementBlocked(context, actor))
             return candidates;
 
@@ -489,7 +489,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
             if (target == null)
                 continue;
             ids.Add(target.unit_id);
-            coords.Add(target.coord);
+            coords.Add(target.GetAnchorCoord());
         }
         scoreInput.target_unit_ids = ids;
         scoreInput.target_coords = coords;
@@ -576,17 +576,17 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
     private static int ResolveCurrentMoveBudget(BattleUnitState unitState)
     {
-        if (unitState == null || unitState.current_move_points <= 0)
+        if (unitState == null || unitState.GetCurrentMovePoints() <= 0)
             return 0;
-        return IsNormalMovementLocked(unitState) && !unitState.can_use_locked_move_points_this_turn
+        return IsNormalMovementLocked(unitState)
+            && !unitState.CanUseLockedMovePointsThisTurnTyped()
             ? 0
-            : Math.Max(unitState.current_move_points, 0);
+            : Math.Max(unitState.GetCurrentMovePoints(), 0);
     }
 
     private static bool IsNormalMovementLocked(BattleUnitState unitState)
     {
-        return unitState != null
-            && (unitState.has_taken_action_this_turn || unitState.has_moved_this_turn);
+        return unitState?.IsNormalMovementLockedThisTurnTyped() ?? false;
     }
 
     private static bool IsUnitMovementBlocked(BattleAiContext context, BattleUnitState unitState)
@@ -627,8 +627,15 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
 
         BattleGridService grid = context.grid_service;
         int bestDistance = 999999;
-        foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
-        foreach (Vector2I targetCoord in target.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in grid.GetFootprintCoords(
+                anchor,
+                actor.GetFootprintSize()
+            )
+        )
+        foreach (
+            Vector2I targetCoord in target.GetOccupiedCoordsReadViewTyped()
+        )
             bestDistance = Math.Min(bestDistance, grid.GetDistance(sourceCoord, targetCoord));
         return bestDistance;
     }
@@ -655,7 +662,7 @@ internal sealed class BattleAiMoveToMultiUnitSkillPositionEvaluator
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

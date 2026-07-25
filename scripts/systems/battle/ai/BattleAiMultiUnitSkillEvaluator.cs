@@ -446,7 +446,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 continue;
             command.AddTargetUnitId(target.unit_id);
             if (command.target_coord == new Vector2I(-1, -1))
-                command.target_coord = target.coord;
+                command.target_coord = target.GetAnchorCoord();
         }
         return command;
     }
@@ -485,7 +485,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 : null;
             if (
                 candidate == null
-                || !candidate.is_alive
+                || !candidate.IsAlive()
                 || !MatchesTargetFilter(context, candidate, combatProfile.TargetTeamFilter)
                 || !IsFastUnitSkillTargetInRange(context, actor, candidate, skillDefinition)
             )
@@ -493,7 +493,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
                 return preview;
             }
             preview.AddTargetUnitId(candidate.unit_id);
-            foreach (Vector2I coord in candidate.occupied_coords)
+            foreach (Vector2I coord in candidate.GetOccupiedCoordsReadViewTyped())
             {
                 if (!preview.ContainsTargetCoord(coord))
                     preview.AddTargetCoord(coord);
@@ -722,7 +722,7 @@ internal sealed class BattleAiMultiUnitSkillEvaluator
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

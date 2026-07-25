@@ -150,11 +150,19 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
                     continue;
                 }
 
-                for (int y = 0; y < state.map_size.Y; y++)
-                for (int x = 0; x < state.map_size.X; x++)
+                int effectiveRange = Math.Max(
+                    skillDefinition.CombatProfile.GetEffectiveRangeValue(skillEntry.SkillLevel),
+                    0
+                );
+                foreach (
+                    Vector2I targetCoord in BuildChargeTargetCoords(
+                        actor,
+                        state.map_size,
+                        effectiveRange
+                    )
+                )
                 {
                     TraceCountIncrement(actionTrace, "evaluation_count", 1);
-                    Vector2I targetCoord = new(x, y);
                     ChargeTargetInfo chargeTargetInfo = ResolveChargeTargetInfo(
                         actor,
                         targetCoord
@@ -299,10 +307,14 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     {
         if (unitState == null)
             return new ChargeTargetInfo(false);
-        int minX = unitState.coord.X;
-        int maxX = unitState.coord.X + unitState.footprint_size.X - 1;
-        int minY = unitState.coord.Y;
-        int maxY = unitState.coord.Y + unitState.footprint_size.Y - 1;
+        BattleUnitGeometryReadView geometry =
+            unitState.GetGeometryReadViewTyped();
+        int minX = geometry.AnchorCoord.X;
+        int maxX =
+            geometry.AnchorCoord.X + geometry.FootprintSize.X - 1;
+        int minY = geometry.AnchorCoord.Y;
+        int maxY =
+            geometry.AnchorCoord.Y + geometry.FootprintSize.Y - 1;
         if (targetCoord.Y >= minY && targetCoord.Y <= maxY)
         {
             if (targetCoord.X < minX)
@@ -320,6 +332,53 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         return new ChargeTargetInfo(false);
     }
 
+    private static List<Vector2I> BuildChargeTargetCoords(
+        BattleUnitState unitState,
+        Vector2I mapSize,
+        int effectiveRange
+    )
+    {
+        var result = new List<Vector2I>();
+        if (unitState == null || mapSize.X <= 0 || mapSize.Y <= 0 || effectiveRange <= 0)
+            return result;
+
+        BattleUnitGeometryReadView geometry =
+            unitState.GetGeometryReadViewTyped();
+        int minX = geometry.AnchorCoord.X;
+        int maxX =
+            geometry.AnchorCoord.X + geometry.FootprintSize.X - 1;
+        int minY = geometry.AnchorCoord.Y;
+        int maxY =
+            geometry.AnchorCoord.Y + geometry.FootprintSize.Y - 1;
+        for (int distance = 1; distance <= effectiveRange; distance++)
+        {
+            AddCoordIfInside(result, new Vector2I(minX - distance, minY), mapSize);
+            AddCoordIfInside(result, new Vector2I(maxX + distance, minY), mapSize);
+            AddCoordIfInside(result, new Vector2I(minX, minY - distance), mapSize);
+            AddCoordIfInside(result, new Vector2I(minX, maxY + distance), mapSize);
+        }
+        SortCoordsInPlace(result);
+        return result;
+    }
+
+    private static void AddCoordIfInside(
+        ICollection<Vector2I> coords,
+        Vector2I coord,
+        Vector2I mapSize
+    )
+    {
+        if (
+            coords != null
+            && coord.X >= 0
+            && coord.Y >= 0
+            && coord.X < mapSize.X
+            && coord.Y < mapSize.Y
+        )
+        {
+            coords.Add(coord);
+        }
+    }
+
     private static BattlePreview BuildFastChargePathPreview(
         BattleUnitState actor,
         BattleCommand command,
@@ -329,7 +388,8 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
     {
         Vector2I resolvedAnchor =
             actor != null && chargeInfo.Valid
-                ? actor.coord + chargeInfo.Direction * chargeInfo.Distance
+                ? actor.GetAnchorCoord()
+                    + chargeInfo.Direction * chargeInfo.Distance
                 : new Vector2I(-1, -1);
         var preview = new BattlePreview
         {
@@ -362,7 +422,10 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         }
 
         BattleUnitState actor = context.unit_state;
-        List<Vector2I> path = BuildResolvedAnchorPath(actor.coord, resolvedAnchorCoord);
+        List<Vector2I> path = BuildResolvedAnchorPath(
+            actor.GetAnchorCoord(),
+            resolvedAnchorCoord
+        );
         if (path.Count == 0)
             return result;
 
@@ -385,7 +448,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
             var stepUnitIds = new HashSet<StringName>();
             foreach (BattleUnitState targetUnit in state.GetUnitsTyped())
             {
-                if (targetUnit == null || !targetUnit.is_alive)
+                if (targetUnit == null || !targetUnit.IsAlive())
                     continue;
                 if (!BattleTargetTeamRules.IsUnitValidForFilter(actor, targetUnit, targetFilter))
                     continue;
@@ -445,8 +508,8 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         BattleUnitState actor = context.unit_state;
         BattleGridService grid = context.grid_service;
         BattleState state = context.state;
-        StringName stepShape = ReadStringNameParameter(pathStepEffect, "step_shape", "diamond");
-        int stepRadius = Math.Max(ReadIntParameter(pathStepEffect, "step_radius", 1), 0);
+        StringName stepShape = pathStepEffect.PathStepAreaPattern;
+        int stepRadius = Math.Max(pathStepEffect.PathStepRadius, 0);
         var coordSet = new HashSet<Vector2I>();
         foreach (Vector2I occupiedCoord in grid.GetUnitTargetCoords(actor, anchorCoord))
         foreach (
@@ -474,7 +537,9 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         if (unitState == null || coords == null || coords.Count == 0)
             return false;
         var coordSet = new HashSet<Vector2I>(coords);
-        foreach (Vector2I occupiedCoord in unitState.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unitState.GetOccupiedCoordsReadViewTyped()
+        )
         {
             if (coordSet.Contains(occupiedCoord))
                 return true;
@@ -644,29 +709,6 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         return BattleAiActionIntent.IsValid(fallback) ? fallback : "";
     }
 
-    private static StringName ReadStringNameParameter(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        StringName fallback = default
-    )
-    {
-        if (effectDefinition == null || string.IsNullOrEmpty(key))
-            return fallback;
-        StringName value = effectDefinition.GetStringNameParamTyped(key, fallback);
-        return value == "" ? fallback : value;
-    }
-
-    private static int ReadIntParameter(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        int fallback = 0
-    )
-    {
-        return effectDefinition == null || string.IsNullOrEmpty(key)
-            ? fallback
-            : effectDefinition.GetIntParamTyped(key, fallback);
-    }
-
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
     {
         if (unitState == null || skillId == "")
@@ -674,7 +716,7 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

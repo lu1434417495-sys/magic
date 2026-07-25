@@ -18,6 +18,7 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes();
         TestSaveAdvantageTagsRejectEmptyTag();
         TestSaveAdvantageTagsRejectUnsupportedBaseTag();
+        TestSaveAdvantageTagsRejectDuplicateTag();
         TestDamageResistancesAcceptSupportedTagsAndTiers();
         TestDamageResistancesRejectUnsupportedDamageTag();
         TestDamageResistancesRejectUnsupportedMitigationTier();
@@ -234,6 +235,21 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
         _test.True(
             ContainsError(errors, "not_a_save_tag"),
             $"save_advantage_tags 应拒绝不在豁免标签枚举内的裸标签。 errors={FormatErrors(errors)}"
+        );
+    }
+
+    private void TestSaveAdvantageTagsRejectDuplicateTag()
+    {
+        EnemyTemplateDef template = BuildValidTemplate(
+            "duplicate_save_tag_schema_template",
+            "duplicate_save_tag_schema_weapon"
+        );
+        template.save_advantage_tags = new GStringNameArray { "poison", "poison" };
+
+        GStringArray errors = ValidateWithReferenceTables(template);
+        _test.True(
+            ContainsError(errors, "duplicates save tag poison"),
+            $"save_advantage_tags 应拒绝重复标签。 errors={FormatErrors(errors)}"
         );
     }
 

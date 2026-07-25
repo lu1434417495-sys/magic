@@ -485,7 +485,7 @@ public partial class BattleAiScoreService
             rawTargetPriority += targetPriorityBonus;
             rawPayoff += targetPriorityBonus;
             int lethalBonus =
-                estimateResult.StableLethal || estimatedDamage >= Math.Max(targetUnit.current_hp, 1)
+                estimateResult.StableLethal || estimatedDamage >= Math.Max(targetUnit.GetCurrentHp(), 1)
                 ? ResolveLethalTargetBonus(scoreInput, context, targetUnit, estimatedDamage)
                 : 0;
             rawTargetPriority += lethalBonus;
@@ -608,28 +608,22 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        StringName statusId = ReadStringNameParameter(pathStepEffect, "repeat_hit_status_id");
+        StringName statusId = pathStepEffect.RepeatHitStatusId;
         if (IsEmpty(statusId))
         {
             return false;
         }
-        int threshold = Math.Max(
-            ReadIntParameter(pathStepEffect, "repeat_hit_status_threshold", 1),
-            1
-        );
+        int threshold = Math.Max(pathStepEffect.RepeatHitStatusThreshold, 1);
         if (hitCount < threshold)
         {
             return false;
         }
-        int durationTu = ReadIntParameter(pathStepEffect, "repeat_hit_status_duration_tu", 0);
+        int durationTu = pathStepEffect.RepeatHitStatusDurationTu;
         if (durationTu <= 0)
         {
             return false;
         }
-        int minSkillLevel = Math.Max(
-            ReadIntParameter(pathStepEffect, "repeat_hit_status_min_skill_level", 0),
-            0
-        );
+        int minSkillLevel = Math.Max(pathStepEffect.RepeatHitStatusMinSkillLevel, 0);
         StringName skillId = ResolveSkillId(skillDefinition);
         return GetContextSkillLevel(context, skillId) >= minSkillLevel;
     }
@@ -715,7 +709,11 @@ public partial class BattleAiScoreService
                 continue;
             }
             int baseDamage = EstimateDamageFromDefinition(effectDefinition, sourceUnit);
-            int bonusDamage = EstimateConditionalBonusDamage(effectDefinition, targetUnit);
+            int bonusDamage = EstimateConditionalBonusDamage(
+                effectDefinition,
+                sourceUnit,
+                targetUnit
+            );
             double multiplier = ResolveEffectDamageMultiplier(effectDefinition, targetUnit);
             int preSaveDamage = Math.Max(
                 RoundToInt((baseDamage + bonusDamage) * multiplier),
@@ -731,7 +729,7 @@ public partial class BattleAiScoreService
             int adjustedDamage = saveEstimate?.DamageAfterSaveEstimate ?? preSaveDamage;
             total += adjustedDamage;
             postSaveTotal += adjustedDamage;
-            bool stableLethal = adjustedDamage >= Math.Max(targetUnit?.current_hp ?? 1, 1);
+            bool stableLethal = adjustedDamage >= Math.Max(targetUnit?.GetCurrentHp() ?? 1, 1);
             damageEstimates.Add(
                 new DamageEstimateBreakdown
                 {
@@ -757,9 +755,9 @@ public partial class BattleAiScoreService
             PostSaveDamage = postSaveTotal,
             IncomingBudgetDamage = postSaveTotal,
             ShieldAbsorbed = 0,
-            StableLethal = total >= Math.Max(targetUnit?.current_hp ?? 1, 1),
+            StableLethal = total >= Math.Max(targetUnit?.GetCurrentHp() ?? 1, 1),
             LethalProbabilityBasisPoints =
-                total >= Math.Max(targetUnit?.current_hp ?? 1, 1) ? 10000 : 0,
+                total >= Math.Max(targetUnit?.GetCurrentHp() ?? 1, 1) ? 10000 : 0,
             SaveEstimates = saveEstimates,
             DamageEstimates = damageEstimates,
         };
@@ -795,11 +793,13 @@ public partial class BattleAiScoreService
                 continue;
             }
             int targetHpBefore = Math.Max(
-                workingTarget?.current_hp ?? targetUnit?.current_hp ?? 1,
+                workingTarget?.GetCurrentHp() ?? targetUnit?.GetCurrentHp() ?? 1,
                 1
             );
             int targetShieldBefore = Math.Max(
-                workingTarget?.current_shield_hp ?? targetUnit?.current_shield_hp ?? 0,
+                workingTarget?.GetShieldStateTyped().CurrentHp
+                    ?? targetUnit?.GetShieldStateTyped().CurrentHp
+                    ?? 0,
                 0
             );
             BattleDamagePreviewResult effectPreview = _damageResolver.PreviewDamageEffectTyped(
@@ -872,15 +872,18 @@ public partial class BattleAiScoreService
             diceSides,
             effectDefinition.DiceBonus
         );
-        if (effectDefinition.AddWeaponDice)
+        if (effectDefinition.AddWeaponDice && sourceUnit != null)
         {
-            WeaponDice weaponDice = sourceUnit?.GetActiveWeaponDiceTyped();
-            if (weaponDice != null && !weaponDice.IsEmpty())
+            BattleWeaponProjectionValues weaponProjection =
+                sourceUnit.GetWeaponProjectionReadViewTyped().Values;
+            BattleWeaponDiceValues weaponDice = weaponProjection.ActiveDice;
+            if (weaponDice.HasUsableDice)
             {
                 damage += EstimateAverageDiceDamage(
-                    weaponDice.dice_count,
-                    weaponDice.dice_sides,
-                    weaponDice.flat_bonus
+                    weaponDice.DiceCount
+                        * Math.Max(effectDefinition.WeaponDiceMultiplier, 1),
+                    weaponDice.DiceSides,
+                    weaponDice.FlatBonus
                 );
             }
         }
@@ -1226,11 +1229,11 @@ public partial class BattleAiScoreService
         int estimatedDamage
     )
     {
-        if (scoreInput == null || targetUnit == null || !targetUnit.is_alive)
+        if (scoreInput == null || targetUnit == null || !targetUnit.IsAlive())
         {
             return 0;
         }
-        if (estimatedDamage < Math.Max(targetUnit.current_hp, 1))
+        if (estimatedDamage < Math.Max(targetUnit.GetCurrentHp(), 1))
         {
             return 0;
         }
@@ -1256,7 +1259,7 @@ public partial class BattleAiScoreService
         int killProbabilityBasisPoints
     )
     {
-        if (scoreInput == null || targetUnit == null || !targetUnit.is_alive)
+        if (scoreInput == null || targetUnit == null || !targetUnit.IsAlive())
         {
             return 0;
         }
@@ -1323,7 +1326,7 @@ public partial class BattleAiScoreService
         }
         foreach (BattleUnitState allyUnit in state.GetUnitsTyped())
         {
-            if (allyUnit == null || !allyUnit.is_alive || allyUnit.faction_id != actor.faction_id)
+            if (allyUnit == null || !allyUnit.IsAlive() || allyUnit.faction_id != actor.faction_id)
             {
                 continue;
             }
@@ -1347,7 +1350,9 @@ public partial class BattleAiScoreService
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             ContextSkillDefinitions(context);
         int bestRange = 0;
-        foreach (StringName skillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName skillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (IsEmpty(normalizedSkillId))
@@ -1406,9 +1411,9 @@ public partial class BattleAiScoreService
             return 999999;
         }
         int bestDistance = 999999;
-        foreach (Vector2I firstCoord in firstUnit.occupied_coords)
+        foreach (Vector2I firstCoord in firstUnit.GetOccupiedCoordsReadViewTyped())
         {
-            foreach (Vector2I secondCoord in secondUnit.occupied_coords)
+            foreach (Vector2I secondCoord in secondUnit.GetOccupiedCoordsReadViewTyped())
             {
                 bestDistance = Math.Min(
                     bestDistance,

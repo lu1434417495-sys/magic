@@ -114,14 +114,14 @@ internal sealed class BattleAiWaitActionEvaluator
             return profile;
 
         int staminaMax = GetUnitStaminaMax(unit);
-        int currentStamina = Mathf.Max(unit.current_stamina, 0);
+        int currentStamina = Mathf.Max(unit.GetCurrentStamina(), 0);
         profile.CurrentStamina = currentStamina;
         profile.StaminaMax = staminaMax;
         profile.WillRest = WillWaitTriggerRest(unit, currentStamina, staminaMax);
         if (
             staminaMax <= 0
             || currentStamina >= staminaMax
-            || unit.has_taken_action_this_turn
+            || unit.HasTakenActionThisTurnTyped()
             || HasAffordableLegalHostileSkill(context)
         )
         {
@@ -147,7 +147,10 @@ internal sealed class BattleAiWaitActionEvaluator
     }
 
     private static bool WillWaitTriggerRest(BattleUnitState unit, int stamina, int staminaMax) =>
-        unit != null && !unit.has_taken_action_this_turn && staminaMax > 0 && stamina < staminaMax;
+        unit != null
+        && !unit.HasTakenActionThisTurnTyped()
+        && staminaMax > 0
+        && stamina < staminaMax;
 
     private bool HasAffordableLegalHostileSkill(BattleAiContext context)
     {
@@ -263,7 +266,7 @@ internal sealed class BattleAiWaitActionEvaluator
         int progressPerTick = StaminaRecoveryProgressBase + GetUnitConstitution(unit);
         progressPerTick = ApplyStaminaRecoveryPercentBonus(unit, progressPerTick);
         progressPerTick *= StaminaRestingRecoveryMultiplier;
-        int progress = Mathf.Max(unit.stamina_recovery_progress, 0);
+        int progress = Mathf.Max(unit.GetStaminaRecoveryProgressTyped(), 0);
         int recovered = 0;
         for (int index = 0; index < tickCount; index++)
         {
@@ -275,7 +278,7 @@ internal sealed class BattleAiWaitActionEvaluator
     }
 
     private static int ResolveActionThresholdTu(BattleUnitState unit) =>
-        unit != null ? Mathf.Max(unit.action_threshold, 1) : 30;
+        unit != null ? Mathf.Max(unit.GetActionThresholdTyped(), 1) : 30;
 
     private static int GetUnitConstitution(BattleUnitState unit) =>
         unit?.attribute_snapshot != null
@@ -319,7 +322,7 @@ internal sealed class BattleAiWaitActionEvaluator
         int knownLevel = unit.GetKnownSkillLevelTyped(skillId);
         return knownLevel > 0
             ? knownLevel
-            : unit.known_active_skill_ids.Contains(skillId)
+            : unit.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

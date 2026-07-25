@@ -106,7 +106,7 @@ internal static class EnemyAiActionHelper
             skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,
-            target_coord = targetUnit.coord,
+            target_coord = targetUnit.GetAnchorCoord(),
         };
     }
 

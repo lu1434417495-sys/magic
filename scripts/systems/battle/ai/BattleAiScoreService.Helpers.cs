@@ -50,11 +50,13 @@ public partial class BattleAiScoreService
         foreach (
             Vector2I sourceCoord in gridService.GetFootprintCoords(
                 anchorCoord,
-                actor.footprint_size
+                actor.GetFootprintSize()
             )
         )
         {
-            foreach (Vector2I targetCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I targetCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 bestDistance = Math.Min(
                     bestDistance,
@@ -76,9 +78,10 @@ public partial class BattleAiScoreService
         {
             return DistanceFromAnchorToUnit(context, anchorCoord, targetUnit);
         }
+        Vector2I actorFootprintSize = actor.GetFootprintSize();
         Vector2I footprintSize = new(
-            Math.Max(actor.footprint_size.X, 1),
-            Math.Max(actor.footprint_size.Y, 1)
+            Math.Max(actorFootprintSize.X, 1),
+            Math.Max(actorFootprintSize.Y, 1)
         );
         var key = new AnchorDistanceCacheKey(
             ProgressionDataUtils.to_string_name(actor.unit_id),

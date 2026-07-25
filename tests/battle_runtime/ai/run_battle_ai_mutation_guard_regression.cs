@@ -12,6 +12,61 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
 {
     private const string AbortProcessSetting = "battle_ai/fail_loud_abort_process";
     private const string FailureModeSetting = "battle_ai/failure_policy_mode";
+    private static readonly string[] WeaponStableFieldKeys =
+    {
+        "weapon_profile_kind",
+        "weapon_item_id",
+        "weapon_profile_type_id",
+        "weapon_range_type",
+        "weapon_family",
+        "weapon_current_grip",
+        "weapon_attack_range",
+        "weapon_one_handed_dice",
+        "weapon_two_handed_dice",
+        "weapon_is_versatile",
+        "weapon_uses_two_hands",
+        "weapon_physical_damage_tag",
+    };
+    private static readonly string[] CombatResourceStableFieldKeys =
+    {
+        "is_alive",
+        "current_hp",
+        "current_mp",
+        "current_stamina",
+        "current_aura",
+        "current_ap",
+        "current_move_points",
+        "stamina_recovery_progress",
+    };
+    private static readonly string[] GeometryStableFieldKeys =
+    {
+        "coord",
+        "body_size",
+        "body_size_category",
+        "footprint_size",
+        "occupied_coords",
+    };
+    private static readonly string[] SaveModifierStableFieldKeys =
+    {
+        "save_advantage_tags",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
+        "save_bonus_by_ability",
+    };
+    private static readonly string[] CombatResourceLocalStableFieldSlice =
+    {
+        "is_alive",
+        "equipment_view_initialized",
+        "current_hp",
+        "current_mp",
+        "current_stamina",
+        "current_aura",
+        "current_ap",
+        "current_move_points",
+        "unlocked_combat_resource_ids",
+        "stamina_recovery_progress",
+        "is_resting",
+    };
 
     private readonly TestHarness _test = new();
 
@@ -31,6 +86,20 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             TestReportPayloadMutationIsDetectedWithoutRollback();
             TestPromotionPayloadMutationIsDetectedWithoutRollback();
             TestSnapshotIsPlainAndDetectsStateWithoutAuditGrowth();
+            TestTurnStateAuthorityIsDetected();
+            TestActionClockAuthorityIsDetected();
+            TestCombatResourceAuthorityIsDetected();
+            TestRestStateAuthorityIsDetected();
+            TestMovementTagAuthorityIsDetected();
+            TestVisionProficiencyAuthorityIsDetected();
+            TestSaveModifierAuthorityIsDetected();
+            TestDamageResistanceAuthorityIsDetected();
+            TestEffectiveTraitAuthorityIsDetected();
+            TestCreatureTypeAuthorityIsDetected();
+            TestGeometryAuthorityIsDetected();
+            TestCombatResourceUnlockAuthorityIsDetected();
+            TestWeaponProjectionAuthorityIsDetected();
+            TestKnownSkillAuthorityIsDetected();
             TestDeclaredBattleUnitFieldsHaveStableCoverage();
             TestBattleStatePublicFieldsHaveSnapshotSentinelCoverage();
             TestBattleObjectiveAuthorityIsDetected();
@@ -102,7 +171,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "production 默认关闭 guard 时，AI decision 应正常返回。"
         );
         _test.Eq(
-            fixture.Actor.current_hp,
+            fixture.Actor.GetCurrentHp(),
             1,
             "production 默认关闭 guard 时，不应捕获或阻断测试 mutation。"
         );
@@ -119,7 +188,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             MakeMutationAction("active_hp"),
             evaluatorException: sentinel
         );
-        int beforeHp = fixture.Actor.current_hp;
+        int beforeHp = fixture.Actor.GetCurrentHp();
         int beforeFailureEventCount = BattleAiFailurePolicy.Events.Count;
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
@@ -149,7 +218,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "mutation violation 应在 InnerException 中保留原 evaluator sentinel。"
         );
         _test.True(
-            fixture.Actor.current_hp == 1 && fixture.Actor.current_hp != beforeHp,
+            fixture.Actor.GetCurrentHp() == 1 && fixture.Actor.GetCurrentHp() != beforeHp,
             "evaluator mutate-then-throw 后不应回滚 live HP。"
         );
         _test.True(
@@ -303,7 +372,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private void TestActiveUnitHpMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("active_hp"));
-        int beforeHp = fixture.Actor.current_hp;
+        int beforeHp = fixture.Actor.GetCurrentHp();
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -318,7 +387,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         _test.True(
-            fixture.Actor.current_hp == 1 && fixture.Actor.current_hp != beforeHp,
+            fixture.Actor.GetCurrentHp() == 1 && fixture.Actor.GetCurrentHp() != beforeHp,
             "mutation guard 抛错后不应回滚 active unit HP；失败 fixture 应直接废弃。"
         );
     }
@@ -326,7 +395,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private void TestOtherUnitCoordMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("other_coord"));
-        Vector2I beforeCoord = fixture.Hero.coord;
+        Vector2I beforeCoord = fixture.Hero.GetAnchorCoord();
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -341,8 +410,8 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         _test.True(
-            fixture.Hero.coord == new Vector2I(4, 2)
-                && fixture.Hero.coord != beforeCoord,
+            fixture.Hero.GetAnchorCoord() == new Vector2I(4, 2)
+                && fixture.Hero.GetAnchorCoord() != beforeCoord,
             "mutation guard 抛错后不应回滚其他单位坐标。"
         );
     }
@@ -419,8 +488,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private void TestEffectiveTraitPayloadMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait"));
-        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
-        fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
+        fixture.Actor.ReplaceEffectiveTraitsTyped(
+            MakeEffectiveTraitPayload()
+        );
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -435,11 +505,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
 
-        BattleEffectiveTraitInstanceState mutated = fixture.Actor.effective_trait_instances.Count > 0
-            ? fixture.Actor.effective_trait_instances[0]
-            : null;
+        BattleEffectiveTraitInstanceReadView mutated =
+            fixture.Actor.GetEffectiveTraitInstanceCountTyped() > 0
+                ? fixture.Actor.GetEffectiveTraitsReadViewTyped().Instances[0]
+                : BattleEffectiveTraitInstanceReadView.Missing;
         _test.Eq(
-            mutated?.effect_type ?? "",
+            mutated.IsPresent ? mutated.EffectType : "",
             new StringName("savage_attacks"),
             "mutation guard 抛错后不应回滚 effective trait payload。"
         );
@@ -448,8 +519,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private void TestEffectiveTraitIdsMutationFailsWithoutRollback()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("effective_trait_ids"));
-        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
-        fixture.Actor.effective_trait_ids = new GStringNameArray { "halfling_luck" };
+        fixture.Actor.ReplaceEffectiveTraitsTyped(
+            MakeEffectiveTraitPayload()
+        );
 
         BattleAiMutationViolationException exception = CaptureMutationViolation(
             () => Choose(fixture),
@@ -464,9 +536,9 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "BattleAiService.ChooseCommandImpl"
         );
         _test.True(
-            fixture.Actor.effective_trait_ids.Count == 2
-                && fixture.Actor.effective_trait_ids.Contains("halfling_luck")
-                && fixture.Actor.effective_trait_ids.Contains("rogue_trait"),
+            fixture.Actor.GetEffectiveTraitsReadViewTyped().TraitIds.Count == 2
+                && fixture.Actor.HasEffectiveTrait("halfling_luck")
+                && fixture.Actor.HasEffectiveTrait("rogue_trait"),
             "mutation guard 抛错后不应回滚 effective_trait_ids。"
         );
     }
@@ -595,7 +667,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         switch (mutationKind.ToString())
         {
             case "active_hp":
-                context.unit_state.current_hp = 1;
+                context.unit_state.SetCurrentHp(1);
                 break;
             case "other_coord":
                 if (
@@ -621,24 +693,29 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 context.grid_service.SetHeightOffset(context.state, new Vector2I(0, 0), 2);
                 break;
             case "effective_trait":
-                if (context.unit_state.effective_trait_instances.Count > 0)
+                if (context.unit_state.GetEffectiveTraitInstanceCountTyped() > 0)
                 {
-                    context.unit_state.effective_trait_instances = TraitTestData.EffectiveTraits(
-                        TraitTestData.EffectiveTrait(
-                            "halfling_luck",
-                            "halfling_luck",
-                            "on_crit",
-                            "per_turn",
-                            "turn_start",
-                            effectType: "savage_attacks",
-                            sourceType: "character",
-                            sourceId: "guard_actor"
+                    context.unit_state.ReplaceEffectiveTraitsTyped(
+                        TraitTestData.EffectiveTraits(
+                            TraitTestData.EffectiveTrait(
+                                "halfling_luck",
+                                "halfling_luck",
+                                "on_crit",
+                                "per_turn",
+                                "turn_start",
+                                effectType: "savage_attacks",
+                                sourceType: "character",
+                                sourceId: "guard_actor"
+                            )
                         )
                     );
                 }
                 break;
             case "effective_trait_ids":
-                context.unit_state.effective_trait_ids.Add("rogue_trait");
+                AddEffectiveTraitIdExact(
+                    context.unit_state,
+                    "rogue_trait"
+                );
                 break;
             case "report_payload":
                 context.state.SetReportEntries(
@@ -709,12 +786,1284 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "encounter actor identity mutation should change the stable fingerprint."
         );
 
-        fixture.Actor.current_hp = Math.Max(fixture.Actor.current_hp - 3, 0);
+        fixture.Actor.SetCurrentHp(Math.Max(fixture.Actor.GetCurrentHp() - 3, 0));
         _test.True(
             !snapshot.MatchesCurrentState(fixture.Context),
             "typed mutation should change the stable fingerprint."
         );
         AssertAuditBaseline(baseline, "mutation snapshot capture/detection");
+    }
+
+    private void TestTurnStateAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.ResetTurnStateForTurnStartTyped();
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.MarkActionTakenThisTurnTyped();
+        fixture.Actor.MarkMovedThisTurnTyped();
+        fixture.Actor.GrantLockedMovePointsThisTurnTyped();
+        fixture.Actor.MarkTurnCastingExhaustedTyped();
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "turn state flag mutation",
+            "has_taken_action_this_turn",
+            "has_moved_this_turn",
+            "can_use_locked_move_points_this_turn",
+            "turn_casting_exhausted"
+        );
+
+        fixture.Actor.ResetTurnStateForTurnStartTyped();
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "turn state 回到 baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreTurnForMutationSnapshotExact(
+            BattleUnitTurnSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "turn state missing owner",
+            "has_taken_action_this_turn",
+            "has_moved_this_turn",
+            "can_use_locked_move_points_this_turn",
+            "turn_casting_exhausted"
+        );
+    }
+
+    private void TestActionClockAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitActionClockSnapshot baseline =
+            fixture.Actor.CaptureActionClockForMutationSnapshotExact();
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.RestoreActionClockForMutationSnapshotExact(
+            BattleUnitActionClockSnapshot.Present(245, 35, -17)
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "action clock raw mutation",
+            "action_progress",
+            "action_threshold",
+            "action_progress_rate_remainder"
+        );
+
+        fixture.Actor.RestoreActionClockForMutationSnapshotExact(baseline);
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "action clock 回到 baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreActionClockForMutationSnapshotExact(
+            BattleUnitActionClockSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "action clock missing owner",
+            "action_progress",
+            "action_threshold",
+            "action_progress_rate_remainder"
+        );
+    }
+
+    private void TestKnownSkillAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var skillLevels = new BattleStringNameIntMap();
+        skillLevels.Put("zeta", -2);
+        skillLevels.Put("alpha", 0);
+        var lockHitBonuses = new BattleStringNameIntMap();
+        lockHitBonuses.Put("zeta", 0);
+        lockHitBonuses.Put("alpha", 3);
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(
+                new StringNameList { "zeta", "", "zeta", "alpha" },
+                skillLevels,
+                lockHitBonuses
+            )
+        );
+        BattleUnitKnownSkillSnapshot baseline =
+            fixture.Actor.CaptureKnownSkillsForMutationSnapshotExact();
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        var mutatedLevels = new BattleStringNameIntMap();
+        mutatedLevels.Put("zeta", 7);
+        var mutatedLockHitBonuses = new BattleStringNameIntMap();
+        mutatedLockHitBonuses.Put("alpha", 9);
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(
+                new StringNameList { "alpha" },
+                mutatedLevels,
+                mutatedLockHitBonuses
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "known skill raw mutation",
+            "known_active_skill_ids",
+            "known_skill_level_map",
+            "known_skill_lock_hit_bonus_map"
+        );
+
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(baseline);
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "known skill owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "known skill missing owner",
+            "known_active_skill_ids",
+            "known_skill_level_map",
+            "known_skill_lock_hit_bonus_map"
+        );
+
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(null, null, null)
+        );
+        BattleAiMutationSnapshot presentNullComponentsSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            presentNullComponentsSnapshot.CompareCurrentState(fixture.Context),
+            "known skill present-null components versus missing owner",
+            "known_active_skill_ids",
+            "known_skill_level_map",
+            "known_skill_lock_hit_bonus_map"
+        );
+    }
+
+    private void TestCombatResourceAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var baselineValues = new BattleUnitCombatResourceValues(
+            -1,
+            -2,
+            -3,
+            -4,
+            -5,
+            -6,
+            -7,
+            false
+        );
+        BattleUnitCombatResourceSnapshot baseline =
+            BattleUnitCombatResourceSnapshot.Present(baselineValues);
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            fixture.Actor
+                .CaptureCombatResourcesForMutationSnapshotExact(),
+            baseline,
+            "combat-resource exact baseline 应保留 8 项 raw 值与 owner presence。"
+        );
+        AssertCombatResourceStableFieldContract(fixture.Actor);
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.Present(
+                new BattleUnitCombatResourceValues(
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    true
+                )
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "combat-resource 8-field raw mutation",
+            CombatResourceStableFieldKeys
+        );
+
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "combat-resource owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.Present(
+                BattleUnitCombatResourceValues.Default
+            )
+        );
+        BattleAiMutationSnapshot presentDefaultSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentDefaultSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "combat-resource present-default versus missing owner",
+            "is_alive"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            1,
+            "combat-resource missing owner 应只通过既有 is_alive stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestRestStateAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.RestoreRestForMutationSnapshotExact(
+            BattleUnitRestSnapshot.Present(false)
+        );
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+
+        fixture.Actor.MarkRestingTyped();
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "rest state mutation",
+            "is_resting"
+        );
+
+        fixture.Actor.RestoreRestForMutationSnapshotExact(
+            BattleUnitRestSnapshot.Present(false)
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "rest owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreRestForMutationSnapshotExact(
+            BattleUnitRestSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            snapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "rest state missing owner",
+            "is_resting"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            1,
+            "rest missing owner 应只通过既有 is_resting stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestCreatureTypeAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var baselineTags = new StringNameList
+        {
+            "beast",
+            "",
+            "beast",
+        };
+        fixture.Actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(baselineTags)
+        );
+        BattleUnitCreatureTypeSnapshot captured =
+            fixture.Actor.CaptureCreatureTypesForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "creature-type exact baseline 应保留 owner presence。");
+        _test.Eq(captured.Tags.Count, 3, "creature-type exact baseline 应保留重复与空值。");
+        _test.Eq(captured.Tags[0], new StringName("beast"), "exact baseline 应保留标签顺序。");
+        _test.Eq(captured.Tags[1], new StringName(""), "exact baseline 应保留空标签 sentinel。");
+        _test.Eq(captured.Tags[2], new StringName("beast"), "exact baseline 应保留重复标签。");
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(
+                new StringNameList { "construct", "rogue" }
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "creature-type raw mutation",
+            "creature_type_tags"
+        );
+
+        fixture.Actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(baselineTags)
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "creature-type owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "creature-type present-null versus missing owner",
+            "creature_type_tags"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            1,
+            "creature-type missing owner 应只通过既有 stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestMovementTagAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var baselineTags = new StringNameList
+        {
+            "grounded",
+            "",
+            "grounded",
+        };
+        fixture.Actor.RestoreMovementTagsForMutationSnapshotExact(
+            BattleUnitMovementTagSnapshot.Present(baselineTags)
+        );
+        BattleUnitMovementTagSnapshot captured =
+            fixture.Actor.CaptureMovementTagsForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "movement-tag exact baseline 应保留 owner presence。");
+        _test.Eq(captured.Tags.Count, 3, "movement-tag exact baseline 应保留重复与空值。");
+        _test.Eq(captured.Tags[0], new StringName("grounded"), "exact baseline 应保留标签顺序。");
+        _test.Eq(captured.Tags[1], new StringName(""), "exact baseline 应保留空标签 sentinel。");
+        _test.Eq(captured.Tags[2], new StringName("grounded"), "exact baseline 应保留重复标签。");
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreMovementTagsForMutationSnapshotExact(
+            BattleUnitMovementTagSnapshot.Present(
+                new StringNameList { "flying", "amphibious" }
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "movement-tag raw mutation",
+            "movement_tags"
+        );
+
+        fixture.Actor.RestoreMovementTagsForMutationSnapshotExact(
+            BattleUnitMovementTagSnapshot.Present(baselineTags)
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "movement-tag owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreMovementTagsForMutationSnapshotExact(
+            BattleUnitMovementTagSnapshot.Present(null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreMovementTagsForMutationSnapshotExact(
+            BattleUnitMovementTagSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "movement-tag present-null versus missing owner",
+            "movement_tags"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            1,
+            "movement-tag missing owner 应只通过既有 stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestVisionProficiencyAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitVisionProficiencySnapshot baseline =
+            BattleUnitVisionProficiencySnapshot.Present(
+                new StringNameList
+                {
+                    "normal_vision",
+                    "",
+                    "normal_vision",
+                },
+                new StringNameList
+                {
+                    "civilian",
+                    "",
+                    "civilian",
+                }
+            );
+        fixture.Actor.RestoreVisionProficiencyForMutationSnapshotExact(
+            baseline
+        );
+        BattleUnitVisionProficiencySnapshot captured =
+            fixture.Actor.CaptureVisionProficiencyForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "vision/proficiency exact baseline 应保留 owner。");
+        _test.Eq(captured.VisionTags.Count, 3, "exact baseline 应保留 raw vision 标签。");
+        _test.Eq(
+            captured.VisionTags[1],
+            new StringName(""),
+            "exact baseline 应保留 vision 空标签 sentinel。"
+        );
+        _test.Eq(
+            captured.ProficiencyTags[2],
+            new StringName("civilian"),
+            "exact baseline 应保留 proficiency 重复与顺序。"
+        );
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreVisionProficiencyForMutationSnapshotExact(
+            BattleUnitVisionProficiencySnapshot.Present(
+                new StringNameList { "darkvision" },
+                new StringNameList { "light_armor" }
+            )
+        );
+        IReadOnlyList<string> rawMutationDiff =
+            snapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            rawMutationDiff,
+            "vision/proficiency raw mutation",
+            "vision_tags",
+            "proficiency_tags"
+        );
+        _test.Eq(
+            rawMutationDiff.Count,
+            2,
+            "vision/proficiency raw mutation 应只命中两个既有 stable key。"
+        );
+
+        fixture.Actor.RestoreVisionProficiencyForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "vision/proficiency owner 回到 exact baseline 后 diff 应归零。"
+        );
+
+        fixture.Actor.RestoreVisionProficiencyForMutationSnapshotExact(
+            BattleUnitVisionProficiencySnapshot.Present(null, null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreVisionProficiencyForMutationSnapshotExact(
+            BattleUnitVisionProficiencySnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "vision/proficiency present-null versus missing owner",
+            "vision_tags",
+            "proficiency_tags"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            2,
+            "missing owner 应只通过两个既有 stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestSaveModifierAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var baselineBonuses = new BattleStringNameIntMap();
+        baselineBonuses.Put("fortitude", 0);
+        baselineBonuses.Put("reflex", -2);
+        BattleUnitSaveModifierSnapshot baseline =
+            BattleUnitSaveModifierSnapshot.Present(
+                new StringNameList
+                {
+                    "poison",
+                    "",
+                    "poison",
+                },
+                new StringNameList
+                {
+                    "fear",
+                    "",
+                    "fear",
+                },
+                new StringNameList
+                {
+                    "death",
+                    "",
+                    "death",
+                },
+                baselineBonuses
+            );
+        fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
+            baseline
+        );
+
+        BattleUnitSaveModifierSnapshot captured =
+            fixture.Actor.CaptureSaveModifiersForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "save modifier exact baseline 应保留 owner。");
+        _test.Eq(captured.AdvantageTags.Count, 3, "exact baseline 应保留 raw advantage 标签。");
+        _test.Eq(
+            captured.AdvantageTags[1],
+            new StringName(""),
+            "exact baseline 应保留 advantage 空标签 sentinel。"
+        );
+        _test.Eq(
+            captured.DisadvantageTags[2],
+            new StringName("fear"),
+            "exact baseline 应保留 disadvantage 重复与顺序。"
+        );
+        _test.Eq(
+            captured.ImmunityTags[2],
+            new StringName("death"),
+            "exact baseline 应保留 immunity 重复与顺序。"
+        );
+        _test.Eq(
+            captured.BonusByAbility.Get("fortitude", 99),
+            0,
+            "exact baseline 应保留显式零值 save bonus。"
+        );
+        _test.Eq(
+            captured.BonusByAbility.Get("reflex", 99),
+            -2,
+            "exact baseline 应保留负 save bonus。"
+        );
+
+        BattleUnitSaveModifierReadView readView =
+            fixture.Actor.GetSaveModifiersReadViewTyped();
+        _test.True(readView.OwnerPresent, "save modifier read view 应暴露 owner presence。");
+        _test.Eq(readView.AdvantageTags.Count, 3, "read view 不应归一化 exact raw 标签。");
+        _test.Eq(
+            readView.BonusByAbility.Get("reflex", 99),
+            -2,
+            "read view 应读取 owner 持有的 ability bonus。"
+        );
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        var mutatedBonuses = new BattleStringNameIntMap();
+        mutatedBonuses.Put("will", 9);
+        fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                new StringNameList { "cold" },
+                new StringNameList { "charm" },
+                new StringNameList { "sleep" },
+                mutatedBonuses
+            )
+        );
+        IReadOnlyList<string> rawMutationDiff =
+            snapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            rawMutationDiff,
+            "save modifier raw mutation",
+            SaveModifierStableFieldKeys
+        );
+        AssertDiffContainsOnly(
+            rawMutationDiff,
+            "save modifier raw mutation",
+            SaveModifierStableFieldKeys
+        );
+
+        fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "save modifier owner 回到 exact baseline 后 diff 应归零。"
+        );
+
+        fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(null, null, null, null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "save modifier present-null components versus missing owner",
+            SaveModifierStableFieldKeys
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            SaveModifierStableFieldKeys.Length,
+            "missing owner 应只通过四个既有 stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestDamageResistanceAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        var baselineMap = new BattleStringNameMap();
+        baselineMap.Put("fire", "half");
+        var baseline =
+            BattleUnitDamageResistanceSnapshot.Present(baselineMap);
+        fixture.Actor.RestoreDamageResistancesForMutationSnapshotExact(
+            baseline
+        );
+        baselineMap.Put("fire", "double");
+
+        BattleUnitDamageResistanceSnapshot captured =
+            fixture.Actor
+                .CaptureDamageResistancesForMutationSnapshotExact();
+        _test.True(
+            captured.OwnerPresent,
+            "damage resistance exact baseline 应保留 owner。"
+        );
+        _test.Eq(
+            captured.Resistances.Get("fire"),
+            new StringName("half"),
+            "damage resistance exact restore 应深拷贝输入。"
+        );
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        var mutatedMap = new BattleStringNameMap();
+        mutatedMap.Put("fire", "immune");
+        fixture.Actor.RestoreDamageResistancesForMutationSnapshotExact(
+            BattleUnitDamageResistanceSnapshot.Present(mutatedMap)
+        );
+        AssertDiffContainsOnly(
+            snapshot.CompareCurrentState(fixture.Context),
+            "damage resistance raw mutation",
+            "damage_resistances"
+        );
+
+        fixture.Actor.RestoreDamageResistancesForMutationSnapshotExact(
+            captured
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "damage resistance owner 回到 exact baseline 后 diff 应归零。"
+        );
+
+        fixture.Actor.RestoreDamageResistancesForMutationSnapshotExact(
+            BattleUnitDamageResistanceSnapshot.Present(null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreDamageResistancesForMutationSnapshotExact(
+            BattleUnitDamageResistanceSnapshot.MissingOwner
+        );
+        AssertDiffContainsOnly(
+            presentNullSnapshot.CompareCurrentState(fixture.Context),
+            "damage resistance present-null versus missing owner",
+            "damage_resistances"
+        );
+    }
+
+    private void TestEffectiveTraitAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitEffectiveTraitSnapshot baseline =
+            BattleUnitEffectiveTraitSnapshot.Present(
+                new List<BattleEffectiveTraitInstanceState>
+                {
+                    null,
+                    new()
+                    {
+                        trait_id = "raw_trait",
+                        effective_instance_key = "raw_instance",
+                        source_type = "raw_source",
+                        source_id = "raw_source_id",
+                        effect_type = "raw_effect",
+                        trigger_type = "raw_trigger",
+                        charge_scope = "raw_scope",
+                        charge_reset_timing = "raw_reset",
+                        rank = 0,
+                        stacks = -2,
+                        roll_values = new List<TraitRollValueState>
+                        {
+                            null,
+                            new()
+                            {
+                                key = "raw_roll",
+                                value_type = "raw_type",
+                                int_value = -7,
+                            },
+                        },
+                    },
+                },
+                new StringNameList
+                {
+                    "stale_trait",
+                    "",
+                    "stale_trait",
+                }
+            );
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            baseline
+        );
+
+        BattleUnitEffectiveTraitSnapshot captured =
+            fixture.Actor.CaptureEffectiveTraitsForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "effective trait exact baseline 应保留 owner。");
+        _test.Eq(captured.Instances.Count, 2, "exact baseline 应保留 null entry。");
+        _test.True(captured.Instances[0] == null, "exact baseline 应保留 null entry 顺序。");
+        _test.Eq(captured.TraitIds.Count, 3, "exact baseline 应保留 raw ids。");
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.Present(
+                MakeEffectiveTraitPayload(),
+                new StringNameList { "different_trait" }
+            )
+        );
+        IReadOnlyList<string> rawMutationDiff =
+            snapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsOnly(
+            rawMutationDiff,
+            "effective trait raw mutation",
+            "effective_trait_instances",
+            "effective_trait_ids"
+        );
+
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "effective trait owner 回到 exact baseline 后 diff 应归零。"
+        );
+
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.Present(null, null)
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsOnly(
+            missingOwnerDiff,
+            "effective trait present-null versus missing owner",
+            "effective_trait_instances",
+            "effective_trait_ids"
+        );
+    }
+
+    private void TestGeometryAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitGeometrySnapshot baseline =
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(-1, -2),
+                -3,
+                "raw_geometry_alpha",
+                new Vector2I(-4, -5),
+                new Vector2IList
+                {
+                    new Vector2I(-6, -7),
+                    new Vector2I(8, 9),
+                }
+            );
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            baseline
+        );
+        BattleUnitGeometrySnapshot captured =
+            fixture.Actor.CaptureGeometryForMutationSnapshotExact();
+        _test.True(captured.OwnerPresent, "geometry exact baseline 应保留 owner presence。");
+        _test.Eq(captured.AnchorCoord, baseline.AnchorCoord, "geometry exact baseline 应保留 raw anchor。");
+        _test.Eq(captured.BodySize, baseline.BodySize, "geometry exact baseline 应保留 raw body size。");
+        _test.Eq(
+            captured.BodySizeCategory,
+            baseline.BodySizeCategory,
+            "geometry exact baseline 应保留 raw category。"
+        );
+        _test.Eq(
+            captured.FootprintSize,
+            baseline.FootprintSize,
+            "geometry exact baseline 应保留 raw footprint。"
+        );
+        AssertVector2IArrayEq(
+            captured.OccupiedCoords,
+            baseline.OccupiedCoords,
+            "geometry exact baseline 应保留 raw occupied coords。"
+        );
+        AssertGeometryStableFieldContract(fixture.Actor);
+
+        BattleAiMutationSnapshot snapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(10, 11),
+                12,
+                "raw_geometry_beta",
+                new Vector2I(13, 14),
+                new Vector2IList { new Vector2I(15, 16) }
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "geometry five-field raw mutation",
+            GeometryStableFieldKeys
+        );
+
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "geometry owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                Vector2I.Zero,
+                BattleUnitState.BodySizeMedium,
+                "medium",
+                Vector2I.One,
+                new Vector2IList()
+            )
+        );
+        BattleAiMutationSnapshot presentEmptySnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                Vector2I.Zero,
+                BattleUnitState.BodySizeMedium,
+                "medium",
+                Vector2I.One,
+                null
+            )
+        );
+        List<string> nullOccupiedDiff =
+            presentEmptySnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            nullOccupiedDiff,
+            "geometry present-empty versus present-null occupied coords",
+            "occupied_coords"
+        );
+        _test.Eq(
+            nullOccupiedDiff.Count,
+            1,
+            "occupied coords 的 present-empty/null 差异只能落在既有 occupied_coords key。"
+        );
+
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                Vector2I.Zero,
+                BattleUnitState.BodySizeMedium,
+                "medium",
+                Vector2I.One,
+                new Vector2IList { Vector2I.Zero }
+            )
+        );
+        BattleAiMutationSnapshot presentDefaultSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.MissingOwner
+        );
+        List<string> missingOwnerDiff =
+            presentDefaultSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "geometry present-default versus missing owner",
+            "coord"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            1,
+            "geometry missing owner 应只通过既有 coord stable key 暴露 presence sentinel。"
+        );
+    }
+
+    private void TestCombatResourceUnlockAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            BattleUnitCombatResourceUnlockSnapshot.Present(
+                new StringNameList { "zeta", "", "zeta", "alpha" }
+            )
+        );
+        BattleUnitCombatResourceUnlockSnapshot baseline =
+            fixture.Actor.CaptureCombatResourceUnlocksForMutationSnapshotExact();
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            BattleUnitCombatResourceUnlockSnapshot.Present(
+                new StringNameList { "alpha" }
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "combat resource unlock raw mutation",
+            "unlocked_combat_resource_ids"
+        );
+
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "combat resource unlock owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            BattleUnitCombatResourceUnlockSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "combat resource unlock missing owner",
+            "unlocked_combat_resource_ids"
+        );
+
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            BattleUnitCombatResourceUnlockSnapshot.Present(null)
+        );
+        BattleAiMutationSnapshot presentNullComponentSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+            BattleUnitCombatResourceUnlockSnapshot.MissingOwner
+        );
+        AssertDiffContainsAll(
+            presentNullComponentSnapshot.CompareCurrentState(fixture.Context),
+            "combat resource unlock present-null component versus missing owner",
+            "unlocked_combat_resource_ids"
+        );
+    }
+
+    private void TestWeaponProjectionAuthorityIsDetected()
+    {
+        using Fixture fixture = BuildFixture(MakeMutationAction("none"));
+        BattleUnitWeaponProjectionSnapshot baseline =
+            BattleUnitWeaponProjectionSnapshot.Present(
+                new BattleWeaponProjectionValues(
+                    "equipped",
+                    "weapon_alpha",
+                    "profile_alpha",
+                    "ranged",
+                    "bow",
+                    "two_handed",
+                    7,
+                    new BattleWeaponDiceValues(true, 1, 8, 2),
+                    new BattleWeaponDiceValues(true, 2, 10, -1),
+                    true,
+                    true,
+                    "physical_pierce"
+                )
+            );
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            fixture.Actor.CaptureWeaponProjectionForMutationSnapshotExact(),
+            baseline,
+            "weapon projection exact restore 应保留 12 字段与两组 raw dice。"
+        );
+        AssertWeaponStableFieldContract(fixture.Actor);
+        BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            BattleUnitWeaponProjectionSnapshot.Present(
+                new BattleWeaponProjectionValues(
+                    "natural",
+                    "weapon_beta",
+                    "profile_beta",
+                    "melee",
+                    "claw",
+                    "one_handed",
+                    -3,
+                    new BattleWeaponDiceValues(true, -2, 0, -5),
+                    BattleWeaponDiceValues.PresentEmpty,
+                    false,
+                    false,
+                    "physical_slash"
+                )
+            )
+        );
+        AssertDiffContainsAll(
+            snapshot.CompareCurrentState(fixture.Context),
+            "weapon projection 12-field raw mutation",
+            WeaponStableFieldKeys
+        );
+
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            baseline
+        );
+        _test.Eq(
+            snapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "weapon projection owner 回到 exact baseline 后 mutation diff 应归零。"
+        );
+
+        BattleWeaponProjectionValues presentNullValues = default;
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            BattleUnitWeaponProjectionSnapshot.Present(
+                presentNullValues
+            )
+        );
+        BattleUnitWeaponProjectionSnapshot presentNullExact =
+            fixture.Actor
+                .CaptureWeaponProjectionForMutationSnapshotExact();
+        _test.True(
+            presentNullExact.OwnerPresent,
+            "weapon projection exact snapshot 应区分存在 owner 与缺失 owner。"
+        );
+        _test.False(
+            presentNullExact.Values.OneHandedDice.IsPresent,
+            "weapon projection exact snapshot 应保留 null one-handed dice。"
+        );
+        _test.False(
+            presentNullExact.Values.TwoHandedDice.IsPresent,
+            "weapon projection exact snapshot 应保留 null two-handed dice。"
+        );
+        BattleAiMutationSnapshot presentNullSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            BattleUnitWeaponProjectionSnapshot.MissingOwner
+        );
+        List<string> missingOwnerDiffs =
+            presentNullSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiffs,
+            "weapon projection present-null versus missing owner",
+            "weapon_profile_kind"
+        );
+        _test.Eq(
+            missingOwnerDiffs.Count,
+            1,
+            "weapon owner 缺失诊断只能复用 weapon_profile_kind，不能增加或污染其他 stable key。"
+        );
+
+        BattleUnitWeaponProjectionSnapshot invalidRaw =
+            BattleUnitWeaponProjectionSnapshot.Present(
+                presentNullValues with
+                {
+                    OneHandedDice =
+                        BattleWeaponDiceValues.PresentEmpty,
+                    TwoHandedDice =
+                        new BattleWeaponDiceValues(
+                            true,
+                            -4,
+                            0,
+                            -9
+                        ),
+                }
+            );
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            invalidRaw
+        );
+        _test.Eq(
+            fixture.Actor.CaptureWeaponProjectionForMutationSnapshotExact(),
+            invalidRaw,
+            "weapon projection exact restore 不得正规化 empty/invalid raw dice。"
+        );
+        BattleAiMutationSnapshot invalidRawSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            BattleUnitWeaponProjectionSnapshot.Present(
+                presentNullValues
+            )
+        );
+        AssertDiffContainsAll(
+            invalidRawSnapshot.CompareCurrentState(fixture.Context),
+            "weapon projection null versus present empty/invalid dice",
+            "weapon_one_handed_dice",
+            "weapon_two_handed_dice"
+        );
+        fixture.Actor.RestoreWeaponProjectionForMutationSnapshotExact(
+            invalidRaw
+        );
+        _test.Eq(
+            invalidRawSnapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "weapon projection empty/invalid exact baseline 恢复后 mutation diff 应归零。"
+        );
+    }
+
+    private void AssertWeaponStableFieldContract(
+        BattleUnitState unit
+    )
+    {
+        StableMap fieldStable =
+            BattleAiMutationStableProjection
+                .StableBattleUnitState(unit)
+                .GetMapOrEmpty("fields");
+        var actualKeys = new List<string>();
+        foreach (
+            KeyValuePair<string, StableValue> entry
+            in fieldStable.Entries
+        )
+        {
+            if (
+                entry.Key.StartsWith(
+                    "weapon_",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                actualKeys.Add(entry.Key);
+            }
+        }
+
+        _test.Eq(
+            actualKeys.Count,
+            WeaponStableFieldKeys.Length,
+            "weapon projection stable contract 应保持恰好原 12 个 flat keys。"
+        );
+        int comparableCount = Math.Min(
+            actualKeys.Count,
+            WeaponStableFieldKeys.Length
+        );
+        for (int index = 0; index < comparableCount; index++)
+        {
+            _test.Eq(
+                actualKeys[index],
+                WeaponStableFieldKeys[index],
+                $"weapon projection stable key 顺序不得漂移：index={index}。"
+            );
+        }
+    }
+
+    private void AssertCombatResourceStableFieldContract(
+        BattleUnitState unit
+    )
+    {
+        StableMap fieldStable =
+            BattleAiMutationStableProjection
+                .StableBattleUnitState(unit)
+                .GetMapOrEmpty("fields");
+        _test.True(
+            HasStableKeys(fieldStable, CombatResourceStableFieldKeys),
+            "combat-resource stable contract 应继续暴露既有 8 个 flat keys。"
+        );
+
+        var actualSlice = new List<string>();
+        bool collecting = false;
+        foreach (
+            KeyValuePair<string, StableValue> entry
+            in fieldStable.Entries
+        )
+        {
+            if (entry.Key == "is_alive")
+                collecting = true;
+            if (!collecting)
+                continue;
+            actualSlice.Add(entry.Key);
+            if (entry.Key == "is_resting")
+                break;
+        }
+
+        _test.Eq(
+            actualSlice.Count,
+            CombatResourceLocalStableFieldSlice.Length,
+            "combat-resource stable local slice 不得新增、删除或重排 flat keys。"
+        );
+        int comparableCount = Math.Min(
+            actualSlice.Count,
+            CombatResourceLocalStableFieldSlice.Length
+        );
+        for (int index = 0; index < comparableCount; index++)
+        {
+            _test.Eq(
+                actualSlice[index],
+                CombatResourceLocalStableFieldSlice[index],
+                $"combat-resource stable local key 顺序不得漂移：index={index}。"
+            );
+        }
+    }
+
+    private void AssertGeometryStableFieldContract(
+        BattleUnitState unit
+    )
+    {
+        StableMap fieldStable =
+            BattleAiMutationStableProjection
+                .StableBattleUnitState(unit)
+                .GetMapOrEmpty("fields");
+        _test.True(
+            HasStableKeys(fieldStable, GeometryStableFieldKeys),
+            "geometry stable contract 应继续暴露既有 5 个 flat keys。"
+        );
+
+        var actualSlice = new List<string>();
+        bool collecting = false;
+        foreach (
+            KeyValuePair<string, StableValue> entry
+            in fieldStable.Entries
+        )
+        {
+            if (entry.Key == "coord")
+                collecting = true;
+            if (!collecting)
+                continue;
+            actualSlice.Add(entry.Key);
+            if (entry.Key == "occupied_coords")
+                break;
+        }
+
+        _test.Eq(
+            actualSlice.Count,
+            GeometryStableFieldKeys.Length,
+            "geometry stable local slice 不得新增、删除或重排 flat keys。"
+        );
+        int comparableCount = Math.Min(
+            actualSlice.Count,
+            GeometryStableFieldKeys.Length
+        );
+        for (int index = 0; index < comparableCount; index++)
+        {
+            _test.Eq(
+                actualSlice[index],
+                GeometryStableFieldKeys[index],
+                $"geometry stable local key 顺序不得漂移：index={index}。"
+            );
+        }
+    }
+
+    private static bool HasStableKeys(
+        StableMap values,
+        IEnumerable<string> expectedKeys
+    )
+    {
+        if (values == null || expectedKeys == null)
+            return false;
+        foreach (string key in expectedKeys)
+        {
+            if (!values.ContainsKey(key))
+                return false;
+        }
+        return true;
     }
 
     private void TestDeclaredBattleUnitFieldsHaveStableCoverage()
@@ -739,6 +2088,81 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
                 "_statusEffects" => unitStable.ContainsKey("status_effects"),
                 "_consumedContingencySetups" =>
                     fieldStable.ContainsKey("consumed_contingency_setup_ids"),
+                "_chargeState" =>
+                    fieldStable.ContainsKey("per_battle_charges")
+                    && fieldStable.ContainsKey("per_turn_charges")
+                    && fieldStable.ContainsKey("per_turn_charge_limits")
+                    && fieldStable.ContainsKey("fumble_protection_used"),
+                "_shieldState" =>
+                    fieldStable.ContainsKey("current_shield_hp")
+                    && fieldStable.ContainsKey("shield_max_hp")
+                    && fieldStable.ContainsKey("shield_duration")
+                    && fieldStable.ContainsKey("shield_family")
+                    && fieldStable.ContainsKey("shield_source_unit_id")
+                    && fieldStable.ContainsKey("shield_source_skill_id"),
+                "_cooldownState" =>
+                    fieldStable.ContainsKey("cooldowns")
+                    && fieldStable.ContainsKey("last_turn_tu"),
+                "_turnState" =>
+                    fieldStable.ContainsKey("has_taken_action_this_turn")
+                    && fieldStable.ContainsKey("has_moved_this_turn")
+                    && fieldStable.ContainsKey("can_use_locked_move_points_this_turn")
+                    && fieldStable.ContainsKey("turn_casting_exhausted"),
+                "_actionClockState" =>
+                    fieldStable.ContainsKey("action_progress")
+                    && fieldStable.ContainsKey("action_threshold")
+                    && fieldStable.ContainsKey("action_progress_rate_remainder"),
+                "_combatResourceState" =>
+                    HasStableKeys(
+                        fieldStable,
+                        CombatResourceStableFieldKeys
+                    ),
+                "_restState" =>
+                    fieldStable.ContainsKey("is_resting"),
+                "_movementTagState" =>
+                    fieldStable.ContainsKey("movement_tags"),
+                "_visionProficiencyState" =>
+                    fieldStable.ContainsKey("vision_tags")
+                    && fieldStable.ContainsKey("proficiency_tags"),
+                "_saveModifierState" =>
+                    HasStableKeys(
+                        fieldStable,
+                        SaveModifierStableFieldKeys
+                    ),
+                "_damageResistanceState" =>
+                    fieldStable.ContainsKey("damage_resistances"),
+                "_effectiveTraitState" =>
+                    fieldStable.ContainsKey(
+                        "effective_trait_instances"
+                    )
+                    && fieldStable.ContainsKey(
+                        "effective_trait_ids"
+                    ),
+                "_equipmentAbilityProjectionState" =>
+                    fieldStable.ContainsKey(
+                        "equipment_ability_sources"
+                    )
+                    && fieldStable.ContainsKey(
+                        "temporal_progress_modifiers"
+                    ),
+                "_creatureTypeState" =>
+                    fieldStable.ContainsKey("creature_type_tags"),
+                "_geometryState" =>
+                    HasStableKeys(
+                        fieldStable,
+                        GeometryStableFieldKeys
+                    ),
+                "_combatResourceUnlockState" =>
+                    fieldStable.ContainsKey("unlocked_combat_resource_ids"),
+                "_weaponProjectionState" =>
+                    HasStableKeys(
+                        fieldStable,
+                        WeaponStableFieldKeys
+                    ),
+                "_knownSkillState" =>
+                    fieldStable.ContainsKey("known_active_skill_ids")
+                    && fieldStable.ContainsKey("known_skill_level_map")
+                    && fieldStable.ContainsKey("known_skill_lock_hit_bonus_map"),
                 _ => fieldStable.ContainsKey(fieldName),
             };
             _test.True(
@@ -1131,6 +2555,18 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
 
     private void TestNestedAuthoritySchemasRemainExplicit()
     {
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitGeometryState),
+            "_anchorCoord",
+            "_bodySize",
+            "_bodySizeCategory",
+            "_footprintSize",
+            "_occupiedCoords"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitCombatResourceState),
+            "_values"
+        );
         AssertDeclaredWritableProperties(
             typeof(BattleTimelineState),
             "current_tu",
@@ -1223,6 +2659,34 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         AssertDeclaredInstanceFields(
             typeof(BattleConsumedContingencySetupCollection),
             "_setupIds"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitChargeState),
+            "_perBattleCharges",
+            "_perTurnCharges",
+            "_perTurnChargeLimits",
+            "_fumbleProtectionUsed"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitShieldState),
+            "_currentHp",
+            "_maxHp",
+            "_duration",
+            "_family",
+            "_sourceUnitId",
+            "_sourceSkillId"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitCooldownState),
+            "_cooldowns",
+            "_lastTurnTu"
+        );
+        AssertDeclaredInstanceFields(
+            typeof(BattleUnitTurnState),
+            "_hasTakenActionThisTurn",
+            "_hasMovedThisTurn",
+            "_canUseLockedMovePointsThisTurn",
+            "_castingExhausted"
         );
         AssertDeclaredWritableProperties(
             typeof(BattlePendingCastState),
@@ -1582,37 +3046,47 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         actor.ReplaceConsumedContingencySetupIdsTyped(
             new StringName[] { "contingency_alpha", "contingency_beta" }
         );
-        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
-        {
-            new()
+        actor.ReplaceEquipmentAbilityProjectionTyped(
+            new List<BattleEquipmentAbilitySourceState>
             {
-                EffectiveInstanceKey = "source_original",
-                EquipmentDefId = "equipment_original",
-                SourceEquipmentInstanceId = "instance_original",
-                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
-                AbilityIds = new List<StringName> { "ability_alpha", "ability_beta" },
+                new()
+                {
+                    EffectiveInstanceKey = "source_original",
+                    EquipmentDefId = "equipment_original",
+                    SourceEquipmentInstanceId = "instance_original",
+                    SourceKind =
+                        EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                    AbilityIds = new List<StringName>
+                    {
+                        "ability_alpha",
+                        "ability_beta",
+                    },
+                },
             },
-        };
-        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
-        {
-            new()
+            new List<BattleTemporalProgressModifierState>
             {
-                ModifierId = "modifier_original",
-                BindingId = "binding_original",
-                SourceEquipmentInstanceId = "instance_original",
-                AppliesToActionProgress = true,
-                AppliesToCastProgress = false,
-                SaveDc = 12,
-                AttributeModifierId = "wisdom",
-                SuccessRatePercent = 75,
-                FailureRatePercent = 25,
-                Label = "original modifier",
-            },
-        };
-        actor.creature_type_tags = new StringNameList(
-            new StringName[] { "humanoid", "guard" }
+                new()
+                {
+                    ModifierId = "modifier_original",
+                    BindingId = "binding_original",
+                    SourceEquipmentInstanceId = "instance_original",
+                    AppliesToActionProgress = true,
+                    AppliesToCastProgress = false,
+                    SaveDc = 12,
+                    AttributeModifierId = "wisdom",
+                    SuccessRatePercent = 75,
+                    FailureRatePercent = 25,
+                    Label = "original modifier",
+                },
+            }
         );
-        actor.weapon_range_type = "melee";
+        actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(
+                new StringNameList(
+                    new StringName[] { "humanoid", "guard" }
+                )
+            )
+        );
 
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(fixture.Context);
 
@@ -1621,37 +3095,47 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         actor.ReplaceConsumedContingencySetupIdsTyped(
             new StringName[] { "contingency_rogue", "contingency_extra" }
         );
-        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
-        {
-            new()
+        actor.ReplaceEquipmentAbilityProjectionTyped(
+            new List<BattleEquipmentAbilitySourceState>
             {
-                EffectiveInstanceKey = "source_rogue",
-                EquipmentDefId = "equipment_rogue",
-                SourceEquipmentInstanceId = "instance_rogue",
-                SourceKind = EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
-                AbilityIds = new List<StringName> { "ability_rogue", "ability_extra" },
+                new()
+                {
+                    EffectiveInstanceKey = "source_rogue",
+                    EquipmentDefId = "equipment_rogue",
+                    SourceEquipmentInstanceId = "instance_rogue",
+                    SourceKind =
+                        EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
+                    AbilityIds = new List<StringName>
+                    {
+                        "ability_rogue",
+                        "ability_extra",
+                    },
+                },
             },
-        };
-        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
-        {
-            new()
+            new List<BattleTemporalProgressModifierState>
             {
-                ModifierId = "modifier_rogue",
-                BindingId = "binding_rogue",
-                SourceEquipmentInstanceId = "instance_rogue",
-                AppliesToActionProgress = false,
-                AppliesToCastProgress = true,
-                SaveDc = 19,
-                AttributeModifierId = "intelligence",
-                SuccessRatePercent = 40,
-                FailureRatePercent = 60,
-                Label = "rogue modifier",
-            },
-        };
-        actor.creature_type_tags = new StringNameList(
-            new StringName[] { "construct", "rogue" }
+                new()
+                {
+                    ModifierId = "modifier_rogue",
+                    BindingId = "binding_rogue",
+                    SourceEquipmentInstanceId = "instance_rogue",
+                    AppliesToActionProgress = false,
+                    AppliesToCastProgress = true,
+                    SaveDc = 19,
+                    AttributeModifierId = "intelligence",
+                    SuccessRatePercent = 40,
+                    FailureRatePercent = 60,
+                    Label = "rogue modifier",
+                },
+            }
         );
-        actor.weapon_range_type = "ranged";
+        actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(
+                new StringNameList(
+                    new StringName[] { "construct", "rogue" }
+                )
+            )
+        );
 
         List<string> diffs = snapshot.CompareCurrentState(fixture.Context);
         AssertDiffContainsAll(
@@ -1676,8 +3160,7 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "success_rate_percent",
             "failure_rate_percent",
             "label",
-            "creature_type_tags",
-            "weapon_range_type"
+            "creature_type_tags"
         );
     }
 
@@ -1686,28 +3169,39 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
         BattleUnitState actor = fixture.Actor;
         actor.battle_sprite_texture_path = "";
-        actor.equipment_ability_sources = new List<BattleEquipmentAbilitySourceState>
-        {
-            new()
+        actor.ReplaceEquipmentAbilityProjectionTyped(
+            new List<BattleEquipmentAbilitySourceState>
             {
-                EffectiveInstanceKey = "nullable_source",
-                EquipmentDefId = "nullable_equipment",
-                SourceEquipmentInstanceId = "nullable_instance",
-                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
-                AbilityIds = new List<StringName>(),
+                new()
+                {
+                    EffectiveInstanceKey = "nullable_source",
+                    EquipmentDefId = "nullable_equipment",
+                    SourceEquipmentInstanceId = "nullable_instance",
+                    SourceKind =
+                        EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                    AbilityIds = new List<StringName>(),
+                },
             },
-        };
-        actor.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>
-        {
-            BuildNullableModifier(label: ""),
-        };
-        actor.creature_type_tags = new StringNameList();
+            new List<BattleTemporalProgressModifierState>
+            {
+                BuildNullableModifier(label: ""),
+            }
+        );
+        actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(new StringNameList())
+        );
 
         BattleAiMutationSnapshot nestedSnapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
         );
-        actor.equipment_ability_sources[0].AbilityIds = null;
-        actor.temporal_progress_modifiers[0] = BuildNullableModifier(label: null);
+        BattleUnitEquipmentAbilityProjectionSnapshot nestedRaw =
+            actor.CaptureEquipmentAbilityProjectionForMutationSnapshotExact();
+        nestedRaw.Sources[0].AbilityIds = null;
+        nestedRaw.TemporalProgressModifiers[0] =
+            BuildNullableModifier(label: null);
+        actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
+            nestedRaw
+        );
         AssertDiffContainsAll(
             nestedSnapshot.CompareCurrentState(fixture.Context),
             "nullable nested unit authority fields",
@@ -1718,8 +3212,13 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         BattleAiMutationSnapshot elementSnapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
         );
-        actor.equipment_ability_sources[0] = null;
-        actor.temporal_progress_modifiers[0] = null;
+        BattleUnitEquipmentAbilityProjectionSnapshot elementRaw =
+            actor.CaptureEquipmentAbilityProjectionForMutationSnapshotExact();
+        elementRaw.Sources[0] = null;
+        elementRaw.TemporalProgressModifiers[0] = null;
+        actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
+            elementRaw
+        );
         AssertDiffContainsAll(
             elementSnapshot.CompareCurrentState(fixture.Context),
             "nullable unit authority elements",
@@ -1731,9 +3230,15 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             fixture.Context
         );
         actor.battle_sprite_texture_path = null;
-        actor.equipment_ability_sources = null;
-        actor.temporal_progress_modifiers = null;
-        actor.creature_type_tags = null;
+        actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
+            BattleUnitEquipmentAbilityProjectionSnapshot.Present(
+                null,
+                null
+            )
+        );
+        actor.RestoreCreatureTypesForMutationSnapshotExact(
+            BattleUnitCreatureTypeSnapshot.Present(null)
+        );
         AssertDiffContainsAll(
             outerSnapshot.CompareCurrentState(fixture.Context),
             "nullable unit authority collections",
@@ -1741,6 +3246,31 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "equipment_ability_sources",
             "temporal_progress_modifiers",
             "creature_type_tags"
+        );
+
+        BattleAiMutationSnapshot missingOwnerSnapshot =
+            BattleAiMutationSnapshot.Capture(fixture.Context);
+        actor.RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
+            BattleUnitEquipmentAbilityProjectionSnapshot.MissingOwner
+        );
+        IReadOnlyList<string> missingOwnerDiff =
+            missingOwnerSnapshot.CompareCurrentState(fixture.Context);
+        AssertDiffContainsAll(
+            missingOwnerDiff,
+            "equipment ability projection present-null versus missing owner",
+            "equipment_ability_sources",
+            "temporal_progress_modifiers"
+        );
+        AssertDiffContainsOnly(
+            missingOwnerDiff,
+            "equipment ability projection missing owner stable keys",
+            "equipment_ability_sources",
+            "temporal_progress_modifiers"
+        );
+        _test.Eq(
+            missingOwnerDiff.Count,
+            2,
+            "missing equipment ability projection owner 应只通过两个既有 stable key 暴露。"
         );
     }
 
@@ -1840,137 +3370,236 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         AssertBattleUnitNullMutationDetected(
             "occupied coords",
             "occupied_coords",
-            unit => unit.occupied_coords = new Vector2IList(),
-            unit => unit.occupied_coords = null,
-            unit => unit.occupied_coords?.Count == 0
+            unit => RestoreOccupiedCoordsExact(unit, new Vector2IList()),
+            unit => RestoreOccupiedCoordsExact(unit, null),
+            unit =>
+                unit.CaptureGeometryForMutationSnapshotExact()
+                    .OccupiedCoords?.Count == 0
         );
         AssertBattleUnitNullMutationDetected(
             "unlocked combat resource ids",
             "unlocked_combat_resource_ids",
-            unit => unit.unlocked_combat_resource_ids = new StringNameList(),
-            unit => unit.unlocked_combat_resource_ids = null,
-            unit => unit.unlocked_combat_resource_ids?.Count == 0
+            unit =>
+                unit.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+                    BattleUnitCombatResourceUnlockSnapshot.Present(
+                        new StringNameList()
+                    )
+                ),
+            unit =>
+                unit.RestoreCombatResourceUnlocksForMutationSnapshotExact(
+                    BattleUnitCombatResourceUnlockSnapshot.Present(null)
+                ),
+            unit =>
+                unit.CaptureCombatResourceUnlocksForMutationSnapshotExact()
+                    .ResourceIds?.Count == 0
         );
         AssertBattleUnitNullMutationDetected(
             "known active skill ids",
             "known_active_skill_ids",
-            unit => unit.known_active_skill_ids = new StringNameList(),
-            unit => unit.known_active_skill_ids = null,
-            unit => unit.known_active_skill_ids?.Count == 0
+            unit => RestoreKnownActiveSkillIdsExact(unit, new StringNameList()),
+            unit => RestoreKnownActiveSkillIdsExact(unit, null),
+            unit =>
+                unit.CaptureKnownSkillsForMutationSnapshotExact()
+                    .ActiveSkillIds?.Count == 0
         );
         AssertBattleUnitNullMutationDetected(
             "known skill level map",
             "known_skill_level_map",
-            unit => unit.known_skill_level_map = new BattleStringNameIntMap(),
-            unit => unit.known_skill_level_map = null,
-            unit => unit.known_skill_level_map?.Count == 0
+            unit => RestoreKnownSkillLevelsExact(unit, new BattleStringNameIntMap()),
+            unit => RestoreKnownSkillLevelsExact(unit, null),
+            unit =>
+                unit.CaptureKnownSkillsForMutationSnapshotExact()
+                    .SkillLevels?.Count == 0
         );
         AssertBattleUnitNullMutationDetected(
             "known skill lock hit bonus map",
             "known_skill_lock_hit_bonus_map",
-            unit => unit.known_skill_lock_hit_bonus_map = new BattleStringNameIntMap(),
-            unit => unit.known_skill_lock_hit_bonus_map = null,
-            unit => unit.known_skill_lock_hit_bonus_map?.Count == 0
+            unit =>
+                RestoreKnownSkillLockHitBonusesExact(
+                    unit,
+                    new BattleStringNameIntMap()
+                ),
+            unit => RestoreKnownSkillLockHitBonusesExact(unit, null),
+            unit =>
+                unit.CaptureKnownSkillsForMutationSnapshotExact()
+                    .LockHitBonuses?.Count == 0
         );
 
         AssertBattleUnitStringNameListNullMutationDetected(
             "movement tags",
             "movement_tags",
-            unit => unit.movement_tags = new StringNameList(),
-            unit => unit.movement_tags = null,
-            unit => unit.movement_tags
+            unit => unit.RestoreMovementTagsForMutationSnapshotExact(
+                BattleUnitMovementTagSnapshot.Present(
+                    new StringNameList()
+                )
+            ),
+            unit => unit.RestoreMovementTagsForMutationSnapshotExact(
+                BattleUnitMovementTagSnapshot.Present(null)
+            ),
+            unit => unit.CaptureMovementTagsForMutationSnapshotExact().Tags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "vision tags",
             "vision_tags",
-            unit => unit.vision_tags = new StringNameList(),
-            unit => unit.vision_tags = null,
-            unit => unit.vision_tags
+            unit => unit.RestoreVisionProficiencyForMutationSnapshotExact(
+                BattleUnitVisionProficiencySnapshot.Present(
+                    new StringNameList(),
+                    new StringNameList()
+                )
+            ),
+            unit => unit.RestoreVisionProficiencyForMutationSnapshotExact(
+                BattleUnitVisionProficiencySnapshot.Present(
+                    null,
+                    new StringNameList()
+                )
+            ),
+            unit =>
+                unit.CaptureVisionProficiencyForMutationSnapshotExact()
+                    .VisionTags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "proficiency tags",
             "proficiency_tags",
-            unit => unit.proficiency_tags = new StringNameList(),
-            unit => unit.proficiency_tags = null,
-            unit => unit.proficiency_tags
+            unit => unit.RestoreVisionProficiencyForMutationSnapshotExact(
+                BattleUnitVisionProficiencySnapshot.Present(
+                    new StringNameList(),
+                    new StringNameList()
+                )
+            ),
+            unit => unit.RestoreVisionProficiencyForMutationSnapshotExact(
+                BattleUnitVisionProficiencySnapshot.Present(
+                    new StringNameList(),
+                    null
+                )
+            ),
+            unit =>
+                unit.CaptureVisionProficiencyForMutationSnapshotExact()
+                    .ProficiencyTags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "save advantage tags",
             "save_advantage_tags",
-            unit => unit.save_advantage_tags = new StringNameList(),
-            unit => unit.save_advantage_tags = null,
-            unit => unit.save_advantage_tags
+            unit => RestoreSaveAdvantageTagsExact(unit, new StringNameList()),
+            unit => RestoreSaveAdvantageTagsExact(unit, null),
+            unit =>
+                unit.CaptureSaveModifiersForMutationSnapshotExact()
+                    .AdvantageTags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "save disadvantage tags",
             "save_disadvantage_tags",
-            unit => unit.save_disadvantage_tags = new StringNameList(),
-            unit => unit.save_disadvantage_tags = null,
-            unit => unit.save_disadvantage_tags
+            unit => RestoreSaveDisadvantageTagsExact(unit, new StringNameList()),
+            unit => RestoreSaveDisadvantageTagsExact(unit, null),
+            unit =>
+                unit.CaptureSaveModifiersForMutationSnapshotExact()
+                    .DisadvantageTags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "save immunity tags",
             "save_immunity_tags",
-            unit => unit.save_immunity_tags = new StringNameList(),
-            unit => unit.save_immunity_tags = null,
-            unit => unit.save_immunity_tags
+            unit => RestoreSaveImmunityTagsExact(unit, new StringNameList()),
+            unit => RestoreSaveImmunityTagsExact(unit, null),
+            unit =>
+                unit.CaptureSaveModifiersForMutationSnapshotExact()
+                    .ImmunityTags
         );
         AssertBattleUnitStringNameListNullMutationDetected(
             "effective trait ids",
             "effective_trait_ids",
-            unit => unit.effective_trait_ids = new StringNameList(),
-            unit => unit.effective_trait_ids = null,
-            unit => unit.effective_trait_ids
+            unit => RestoreEffectiveTraitIdsExact(
+                unit,
+                new StringNameList()
+            ),
+            unit => RestoreEffectiveTraitIdsExact(unit, null),
+            unit =>
+                unit.CaptureEffectiveTraitsForMutationSnapshotExact()
+                    .TraitIds
         );
 
         AssertBattleUnitNullMutationDetected(
             "damage resistances",
             "damage_resistances",
-            unit => unit.damage_resistances = new BattleStringNameMap(),
-            unit => unit.damage_resistances = null,
-            unit => unit.damage_resistances?.Count == 0
+            unit =>
+                unit.RestoreDamageResistancesForMutationSnapshotExact(
+                    BattleUnitDamageResistanceSnapshot.Present(
+                        new BattleStringNameMap()
+                    )
+                ),
+            unit =>
+                unit.RestoreDamageResistancesForMutationSnapshotExact(
+                    BattleUnitDamageResistanceSnapshot.Present(null)
+                ),
+            unit =>
+                unit.CaptureDamageResistancesForMutationSnapshotExact()
+                    .Resistances?.Count == 0
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "save bonus by ability",
             "save_bonus_by_ability",
-            unit => unit.save_bonus_by_ability = new BattleStringNameIntMap(),
-            unit => unit.save_bonus_by_ability = null,
-            unit => unit.save_bonus_by_ability
+            unit => RestoreSaveBonusesExact(unit, new BattleStringNameIntMap()),
+            unit => RestoreSaveBonusesExact(unit, null),
+            unit =>
+                unit.CaptureSaveModifiersForMutationSnapshotExact()
+                    .BonusByAbility
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "cooldowns",
             "cooldowns",
-            unit => unit.cooldowns = new BattleStringNameIntMap(),
-            unit => unit.cooldowns = null,
-            unit => unit.cooldowns
+            unit =>
+                unit.RestoreCooldownForMutationSnapshotExact(
+                    new BattleUnitCooldownSnapshot(
+                        new BattleStringNameIntMap(),
+                        unit.GetCooldownAnchorTuTyped()
+                    )
+                ),
+            unit =>
+                unit.RestoreCooldownForMutationSnapshotExact(
+                    new BattleUnitCooldownSnapshot(
+                        null,
+                        unit.GetCooldownAnchorTuTyped()
+                    )
+                ),
+            unit => unit.CaptureCooldownForMutationSnapshotExact().Cooldowns
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "per battle charges",
             "per_battle_charges",
-            unit => unit.per_battle_charges = new BattleStringNameIntMap(),
-            unit => unit.per_battle_charges = null,
-            unit => unit.per_battle_charges
+            unit =>
+                unit.RestorePerBattleChargesForMutationSnapshotExact(
+                    new BattleStringNameIntMap()
+                ),
+            unit => unit.RestorePerBattleChargesForMutationSnapshotExact(null),
+            unit => unit.CapturePerBattleChargesForMutationSnapshotExact()
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "per turn charges",
             "per_turn_charges",
-            unit => unit.per_turn_charges = new BattleStringNameIntMap(),
-            unit => unit.per_turn_charges = null,
-            unit => unit.per_turn_charges
+            unit =>
+                unit.RestorePerTurnChargesForMutationSnapshotExact(
+                    new BattleStringNameIntMap()
+                ),
+            unit => unit.RestorePerTurnChargesForMutationSnapshotExact(null),
+            unit => unit.CapturePerTurnChargesForMutationSnapshotExact()
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "per turn charge limits",
             "per_turn_charge_limits",
-            unit => unit.per_turn_charge_limits = new BattleStringNameIntMap(),
-            unit => unit.per_turn_charge_limits = null,
-            unit => unit.per_turn_charge_limits
+            unit =>
+                unit.RestorePerTurnChargeLimitsForMutationSnapshotExact(
+                    new BattleStringNameIntMap()
+                ),
+            unit => unit.RestorePerTurnChargeLimitsForMutationSnapshotExact(null),
+            unit => unit.CapturePerTurnChargeLimitsForMutationSnapshotExact()
         );
         AssertBattleUnitIntMapNullMutationDetected(
             "fumble protection used",
             "fumble_protection_used",
-            unit => unit.fumble_protection_used = new BattleStringNameIntMap(),
-            unit => unit.fumble_protection_used = null,
-            unit => unit.fumble_protection_used
+            unit =>
+                unit.RestoreFumbleProtectionForMutationSnapshotExact(
+                    new BattleStringNameIntMap()
+                ),
+            unit => unit.RestoreFumbleProtectionForMutationSnapshotExact(null),
+            unit => unit.CaptureFumbleProtectionForMutationSnapshotExact()
         );
 
         AssertBattleUnitNullMutationDetected(
@@ -1986,20 +3615,6 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             unit => unit.equipment_view = new EquipmentState(),
             unit => unit.equipment_view = null,
             unit => unit.equipment_view != null
-        );
-        AssertBattleUnitNullMutationDetected(
-            "one-handed weapon dice",
-            "weapon_one_handed_dice",
-            unit => unit.weapon_one_handed_dice = new WeaponDice(),
-            unit => unit.weapon_one_handed_dice = null,
-            unit => unit.weapon_one_handed_dice?.IsEmpty() == true
-        );
-        AssertBattleUnitNullMutationDetected(
-            "two-handed weapon dice",
-            "weapon_two_handed_dice",
-            unit => unit.weapon_two_handed_dice = new WeaponDice(),
-            unit => unit.weapon_two_handed_dice = null,
-            unit => unit.weapon_two_handed_dice?.IsEmpty() == true
         );
         AssertBattleUnitNullMutationDetected(
             "pending cast",
@@ -2084,35 +3699,43 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             string_name_value = "raw_value",
             bool_value = true,
         };
-        fixture.Actor.effective_trait_instances =
-            new List<BattleEffectiveTraitInstanceState>
-            {
-                null,
-                new()
+        fixture.Actor.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.Present(
+                new List<BattleEffectiveTraitInstanceState>
                 {
-                    trait_id = "raw_trait",
-                    effective_instance_key = "raw_instance",
-                    source_type = "raw_source",
-                    source_id = "raw_source_id",
-                    effect_type = "raw_effect",
-                    trigger_type = "raw_trigger",
-                    charge_scope = "raw_scope",
-                    charge_reset_timing = "raw_reset",
-                    rank = 0,
-                    stacks = -2,
-                    roll_values = new List<TraitRollValueState>
+                    null,
+                    new()
                     {
-                        null,
-                        roll,
-                        roll.DuplicateState(),
+                        trait_id = "raw_trait",
+                        effective_instance_key = "raw_instance",
+                        source_type = "raw_source",
+                        source_id = "raw_source_id",
+                        effect_type = "raw_effect",
+                        trigger_type = "raw_trigger",
+                        charge_scope = "raw_scope",
+                        charge_reset_timing = "raw_reset",
+                        rank = 0,
+                        stacks = -2,
+                        roll_values = new List<TraitRollValueState>
+                        {
+                            null,
+                            roll,
+                            roll.DuplicateState(),
+                        },
                     },
                 },
-            };
+                fixture.Actor
+                    .CaptureEffectiveTraitsForMutationSnapshotExact()
+                    .TraitIds
+            )
+        );
         BattleAiMutationSnapshot snapshot = BattleAiMutationSnapshot.Capture(
             fixture.Context
         );
 
-        fixture.Actor.effective_trait_instances = MakeEffectiveTraitPayload();
+        fixture.Actor.ReplaceEffectiveTraitsTyped(
+            MakeEffectiveTraitPayload()
+        );
         AssertDiffContainsAll(
             snapshot.CompareCurrentState(fixture.Context),
             "effective trait exact nested structure",
@@ -2622,21 +4245,44 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
     private void TestRawUnitProjectionMutationIsDetectedWithoutNormalization()
     {
         using Fixture fixture = BuildFixture(MakeMutationAction("none"));
-        fixture.Actor.RestoreCombatResourceProjectionForMutationSnapshotExact(
-            -1,
-            -2,
-            -3,
-            -4,
-            -5,
-            -6,
-            true
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.Present(
+                new BattleUnitCombatResourceValues(
+                    -1,
+                    -2,
+                    -3,
+                    -4,
+                    -5,
+                    -6,
+                    -7,
+                    true
+                )
+            )
         );
-        fixture.Actor.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            new Vector2I(-7, -8),
-            "raw_body_category",
-            -9,
-            new Vector2I(-10, -11),
-            null
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(-7, -8),
+                -9,
+                "raw_body_category",
+                new Vector2I(-10, -11),
+                null
+            )
+        );
+        fixture.Actor.RestoreShieldForMutationSnapshotExact(
+            new BattleUnitShieldSnapshot(
+                70,
+                7,
+                -12,
+                default,
+                "",
+                "raw_shield_source_skill"
+            )
+        );
+        var rawCooldowns = new BattleStringNameIntMap();
+        rawCooldowns.Put("zeta_raw_cooldown", 0);
+        rawCooldowns.Put("alpha_raw_cooldown", -2);
+        fixture.Actor.RestoreCooldownForMutationSnapshotExact(
+            new BattleUnitCooldownSnapshot(rawCooldowns, -13)
         );
         var attributes = new AttributeSnapshot();
         attributes.ReplaceValuesForMutationSnapshotExact(
@@ -2651,13 +4297,44 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             fixture.Context
         );
 
-        fixture.Actor.SetCombatResources(10, 11, 12, 13, 14, 15);
-        fixture.Actor.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            Vector2I.Zero,
-            "medium",
-            BattleUnitState.BodySizeMedium,
-            Vector2I.One,
-            new[] { Vector2I.Zero }
+        fixture.Actor.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.Present(
+                new BattleUnitCombatResourceValues(
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    false
+                )
+            )
+        );
+        fixture.Actor.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                Vector2I.Zero,
+                BattleUnitState.BodySizeMedium,
+                "medium",
+                Vector2I.One,
+                new Vector2IList { Vector2I.Zero }
+            )
+        );
+        fixture.Actor.RestoreShieldForMutationSnapshotExact(
+            new BattleUnitShieldSnapshot(
+                7,
+                70,
+                12,
+                "",
+                default,
+                "mutated_shield_source_skill"
+            )
+        );
+        var mutatedRawCooldowns = new BattleStringNameIntMap();
+        mutatedRawCooldowns.Put("zeta_raw_cooldown", -1);
+        mutatedRawCooldowns.Put("alpha_raw_cooldown", 0);
+        fixture.Actor.RestoreCooldownForMutationSnapshotExact(
+            new BattleUnitCooldownSnapshot(mutatedRawCooldowns, -7)
         );
         fixture.Actor.attribute_snapshot.SetValue("strength", 20);
         AssertDiffContainsAll(
@@ -2665,11 +4342,65 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             "raw unit projection",
             "current_hp",
             "current_mp",
+            "current_stamina",
+            "current_aura",
+            "current_ap",
+            "current_move_points",
+            "stamina_recovery_progress",
+            "is_alive",
+            "coord",
             "body_size_category",
             "body_size",
             "footprint_size",
             "occupied_coords",
+            "current_shield_hp",
+            "shield_max_hp",
+            "shield_duration",
+            "shield_family",
+            "shield_source_unit_id",
+            "shield_source_skill_id",
+            "cooldowns",
+            "last_turn_tu",
             "strength_modifier"
+        );
+
+        var shieldBaseline = new BattleUnitShieldSnapshot(
+            91,
+            9,
+            -17,
+            default,
+            "",
+            "restore_source_skill"
+        );
+        fixture.Actor.RestoreShieldForMutationSnapshotExact(shieldBaseline);
+        BattleAiMutationSnapshot shieldSnapshot = BattleAiMutationSnapshot.Capture(
+            fixture.Context
+        );
+        fixture.Actor.RestoreShieldForMutationSnapshotExact(
+            new BattleUnitShieldSnapshot(
+                9,
+                91,
+                17,
+                "",
+                default,
+                "mutated_restore_source_skill"
+            )
+        );
+        AssertDiffContainsAll(
+            shieldSnapshot.CompareCurrentState(fixture.Context),
+            "raw shield projection",
+            "current_shield_hp",
+            "shield_max_hp",
+            "shield_duration",
+            "shield_family",
+            "shield_source_unit_id",
+            "shield_source_skill_id"
+        );
+        fixture.Actor.RestoreShieldForMutationSnapshotExact(shieldBaseline);
+        _test.Eq(
+            shieldSnapshot.CompareCurrentState(fixture.Context).Count,
+            0,
+            "raw shield exact restore 后 mutation diff 应归零。"
         );
     }
 
@@ -3329,6 +5060,173 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
         return value;
     }
 
+    private static void RestoreSaveAdvantageTagsExact(
+        BattleUnitState unit,
+        StringNameList advantageTags
+    )
+    {
+        BattleUnitSaveModifierSnapshot current =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        unit.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                advantageTags,
+                current.DisadvantageTags,
+                current.ImmunityTags,
+                current.BonusByAbility
+            )
+        );
+    }
+
+    private static void RestoreSaveDisadvantageTagsExact(
+        BattleUnitState unit,
+        StringNameList disadvantageTags
+    )
+    {
+        BattleUnitSaveModifierSnapshot current =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        unit.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                current.AdvantageTags,
+                disadvantageTags,
+                current.ImmunityTags,
+                current.BonusByAbility
+            )
+        );
+    }
+
+    private static void RestoreSaveImmunityTagsExact(
+        BattleUnitState unit,
+        StringNameList immunityTags
+    )
+    {
+        BattleUnitSaveModifierSnapshot current =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        unit.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                current.AdvantageTags,
+                current.DisadvantageTags,
+                immunityTags,
+                current.BonusByAbility
+            )
+        );
+    }
+
+    private static void RestoreSaveBonusesExact(
+        BattleUnitState unit,
+        BattleStringNameIntMap bonusByAbility
+    )
+    {
+        BattleUnitSaveModifierSnapshot current =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        unit.RestoreSaveModifiersForMutationSnapshotExact(
+            BattleUnitSaveModifierSnapshot.Present(
+                current.AdvantageTags,
+                current.DisadvantageTags,
+                current.ImmunityTags,
+                bonusByAbility
+            )
+        );
+    }
+
+    private static void RestoreEffectiveTraitIdsExact(
+        BattleUnitState unit,
+        StringNameList traitIds
+    )
+    {
+        BattleUnitEffectiveTraitSnapshot current =
+            unit.CaptureEffectiveTraitsForMutationSnapshotExact();
+        unit.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.Present(
+                current.Instances,
+                traitIds
+            )
+        );
+    }
+
+    private static void AddEffectiveTraitIdExact(
+        BattleUnitState unit,
+        StringName traitId
+    )
+    {
+        BattleUnitEffectiveTraitSnapshot current =
+            unit.CaptureEffectiveTraitsForMutationSnapshotExact();
+        StringNameList traitIds =
+            current.TraitIds?.Duplicate() ?? new StringNameList();
+        traitIds.Add(traitId);
+        unit.RestoreEffectiveTraitsForMutationSnapshotExact(
+            BattleUnitEffectiveTraitSnapshot.Present(
+                current.Instances,
+                traitIds
+            )
+        );
+    }
+
+    private static void RestoreKnownActiveSkillIdsExact(
+        BattleUnitState unit,
+        StringNameList activeSkillIds
+    )
+    {
+        BattleUnitKnownSkillSnapshot current =
+            unit.CaptureKnownSkillsForMutationSnapshotExact();
+        unit.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(
+                activeSkillIds,
+                current.SkillLevels,
+                current.LockHitBonuses
+            )
+        );
+    }
+
+    private static void RestoreOccupiedCoordsExact(
+        BattleUnitState unit,
+        Vector2IList occupiedCoords
+    )
+    {
+        BattleUnitGeometrySnapshot current =
+            unit.CaptureGeometryForMutationSnapshotExact();
+        unit.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                current.AnchorCoord,
+                current.BodySize,
+                current.BodySizeCategory,
+                current.FootprintSize,
+                occupiedCoords
+            )
+        );
+    }
+
+    private static void RestoreKnownSkillLevelsExact(
+        BattleUnitState unit,
+        BattleStringNameIntMap skillLevels
+    )
+    {
+        BattleUnitKnownSkillSnapshot current =
+            unit.CaptureKnownSkillsForMutationSnapshotExact();
+        unit.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(
+                current.ActiveSkillIds,
+                skillLevels,
+                current.LockHitBonuses
+            )
+        );
+    }
+
+    private static void RestoreKnownSkillLockHitBonusesExact(
+        BattleUnitState unit,
+        BattleStringNameIntMap lockHitBonuses
+    )
+    {
+        BattleUnitKnownSkillSnapshot current =
+            unit.CaptureKnownSkillsForMutationSnapshotExact();
+        unit.RestoreKnownSkillsForMutationSnapshotExact(
+            BattleUnitKnownSkillSnapshot.Present(
+                current.ActiveSkillIds,
+                current.SkillLevels,
+                lockHitBonuses
+            )
+        );
+    }
+
     private static bool TryBuildStateFieldMutation(
         Type fieldType,
         string fieldName,
@@ -3623,6 +5521,36 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             AssertContains(joined, fragment, $"{label} 应包含 {fragment} diff。");
     }
 
+    private void AssertDiffContainsOnly(
+        IReadOnlyList<string> diffs,
+        string label,
+        params string[] expectedFragments
+    )
+    {
+        foreach (string diff in diffs ?? Array.Empty<string>())
+        {
+            bool matchesExpectedField = false;
+            foreach (
+                string fragment
+                in expectedFragments ?? Array.Empty<string>()
+            )
+            {
+                if (
+                    !string.IsNullOrEmpty(fragment)
+                    && diff.Contains(fragment, StringComparison.Ordinal)
+                )
+                {
+                    matchesExpectedField = true;
+                    break;
+                }
+            }
+            _test.True(
+                matchesExpectedField,
+                $"{label} 不应命中范围外 stable key。diff={diff}"
+            );
+        }
+    }
+
     private void AssertAuditBaseline(LifecycleAuditSnapshot baseline, string label)
     {
         LifecycleAuditSnapshot actual = LifecycleAuditRegistry.Shared.CaptureSnapshot();
@@ -3801,13 +5729,14 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             control_mode = brainId != "" ? new StringName("ai") : new StringName("manual"),
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 20,
-            current_stamina = 10,
-            current_ap = currentAp,
-            current_move_points = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 20,
+            stamina: 10,
+            ap: currentAp,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("hp_max", Math.Max(currentHp, 1));
         unit.attribute_snapshot.SetValue("mp_max", 20);
@@ -3849,7 +5778,12 @@ public partial class run_battle_ai_mutation_guard_regression : LifecycleTestScen
             state.ally_unit_ids.Add(unit.unit_id);
         }
 
-        bool placed = gridService.PlaceUnit(state, unit, unit.coord, true);
+        bool placed = gridService.PlaceUnit(
+            state,
+            unit,
+            unit.GetAnchorCoord(),
+            true
+        );
         _test.True(placed, $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 

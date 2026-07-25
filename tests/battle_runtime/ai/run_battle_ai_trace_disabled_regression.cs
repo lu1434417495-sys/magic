@@ -28,10 +28,11 @@ public partial class run_battle_ai_trace_disabled_regression : LifecycleTestScen
             display_name = "Trace Gate Actor",
             faction_id = "hostile",
             control_mode = "ai",
-            current_hp = 10,
-            current_stamina = 0,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            stamina: 0,
+            isAlive: true
+        );
         actor.SetAnchorCoord(Vector2I.Zero);
 
         var state = new BattleState

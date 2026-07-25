@@ -68,8 +68,8 @@ public partial class run_battle_ai_query_service_regression : LifecycleTestScene
         );
         _test.Eq(
             query.DistanceFromAnchorToTarget(
-                fixture.Actor.coord,
-                fixture.Actor.footprint_size,
+                fixture.Actor.GetAnchorCoord(),
+                fixture.Actor.GetFootprintSize(),
                 fixture.Target.unit_id
             ),
             2,
@@ -175,20 +175,21 @@ public partial class run_battle_ai_query_service_regression : LifecycleTestScene
             unit_id = unitId,
             display_name = displayName,
             faction_id = factionId,
-            current_hp = 20,
-            current_mp = 20,
-            current_stamina = 10,
-            current_ap = 2,
-            current_move_points = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 20,
+            stamina: 10,
+            ap: 2,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("hp_max", 20);
         unit.attribute_snapshot.SetValue("mp_max", 20);
         unit.attribute_snapshot.SetValue("stamina_max", 10);
         unit.attribute_snapshot.SetValue("action_points", 2);
-        unit.known_active_skill_ids.Add("query_skill");
-        unit.known_skill_level_map["query_skill"] = 1;
+        unit.AddKnownActiveSkill("query_skill");
+        unit.SetKnownSkillLevelTyped("query_skill", 1);
         return unit;
     }
 
@@ -208,7 +209,7 @@ public partial class run_battle_ai_query_service_regression : LifecycleTestScene
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        _test.True(gridService.PlaceUnit(state, unit, unit.coord, true), $"测试单位 {unit.unit_id} 应能放入测试战场。");
+        _test.True(gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true), $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 
     private static SkillDefinition BuildSkill() =>

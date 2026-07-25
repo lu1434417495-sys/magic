@@ -124,7 +124,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
                 _test.Fail($"BattlePanelRefreshBenchmark unit delta missing {unitId}.");
                 break;
             }
-            unit.SetCurrentHp(System.Math.Max(unit.current_hp - 1, 1));
+            unit.SetCurrentHp(System.Math.Max(unit.GetCurrentHp() - 1, 1));
 
             ulong callStart = Time.GetTicksUsec();
             panel.RefreshUnits(state, new[] { unitId });
@@ -349,11 +349,11 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
     {
         BattleUnitState unit = BuildUnit(unitId, displayName, "player", "manual", 280, 60, 60, 20);
         unit.SetAnchorCoord(coord);
-        unit.known_active_skill_ids.Add("warrior_heavy_strike");
-        unit.known_active_skill_ids.Add("warrior_guard");
-        unit.known_active_skill_ids.Add("charge");
-        foreach (StringName skillId in unit.known_active_skill_ids)
-            unit.known_skill_level_map[skillId] = 1;
+        unit.AddKnownActiveSkill("warrior_heavy_strike");
+        unit.AddKnownActiveSkill("warrior_guard");
+        unit.AddKnownActiveSkill("charge");
+        foreach (StringName skillId in unit.GetKnownActiveSkillsViewTyped())
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         return unit;
     }
 
@@ -361,10 +361,10 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
     {
         BattleUnitState unit = BuildUnit(unitId, displayName, "enemy", "ai", 180, 80, 80, 20);
         unit.SetAnchorCoord(coord);
-        unit.known_active_skill_ids.Add("archer_suppressive_fire");
-        unit.known_active_skill_ids.Add("archer_pinning_shot");
-        foreach (StringName skillId in unit.known_active_skill_ids)
-            unit.known_skill_level_map[skillId] = 1;
+        unit.AddKnownActiveSkill("archer_suppressive_fire");
+        unit.AddKnownActiveSkill("archer_pinning_shot");
+        foreach (StringName skillId in unit.GetKnownActiveSkillsViewTyped())
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         return unit;
     }
 
@@ -385,13 +385,14 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             display_name = displayName,
             faction_id = factionId,
             control_mode = controlMode,
-            current_hp = hp,
-            current_mp = mp,
-            current_stamina = stamina,
-            current_aura = aura,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            mp: mp,
+            stamina: stamina,
+            aura: aura,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), mp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), stamina);
@@ -409,7 +410,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             state.enemy_unit_ids.Add(unit.unit_id);
         else
             state.ally_unit_ids.Add(unit.unit_id);
-        bool placed = _gridService.PlaceUnit(state, unit, unit.coord, true);
+        bool placed = _gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         if (!placed)
             _test.Fail($"BattlePanelRefreshBenchmark could not place unit {unit.unit_id}.");
     }
@@ -421,7 +422,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
         {
             BattleUnitState unit = state.GetUnit(unitId);
             if (unit != null)
-                cycle.Add(unit.coord);
+                cycle.Add(unit.GetAnchorCoord());
         }
         int enemyLimit = Mathf.Min(6, state.enemy_unit_ids.Count);
         for (int index = 0; index < enemyLimit; index++)
@@ -429,7 +430,7 @@ public partial class run_battle_panel_full_refresh_benchmark : LifecycleTestScen
             StringName unitId = state.enemy_unit_ids[index];
             BattleUnitState unit = state.GetUnit(unitId);
             if (unit != null)
-                cycle.Add(unit.coord);
+                cycle.Add(unit.GetAnchorCoord());
         }
         return cycle;
     }

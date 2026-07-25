@@ -1107,7 +1107,7 @@ public class BattleAiContext : IBattleAiScoreContext
             return null;
         }
         state.TryGetUnitTyped(sourceId, out BattleUnitState sourceUnit);
-        if (sourceUnit == null || !sourceUnit.is_alive)
+        if (sourceUnit == null || !sourceUnit.IsAlive())
         {
             return null;
         }

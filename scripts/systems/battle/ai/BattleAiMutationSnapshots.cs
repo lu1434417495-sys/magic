@@ -635,11 +635,13 @@ internal sealed class BattleUnitFieldsSnapshot
     private StringName _aiBrainId = "";
     private StringName _aiStateId = "";
     private BattleAiBlackboardSnapshot _aiBlackboard = new();
+    private bool _geometryStateOwnerPresent = true;
     private Vector2I _coord = Vector2I.Zero;
     private int _bodySize;
     private StringName _bodySizeCategory = "";
     private Vector2I _footprintSize = Vector2I.Zero;
     private List<Vector2I> _occupiedCoords = new();
+    private bool _combatResourceStateOwnerPresent = true;
     private bool _isAlive;
     private bool _equipmentViewInitialized;
     private int _currentHp;
@@ -648,9 +650,12 @@ internal sealed class BattleUnitFieldsSnapshot
     private int _currentAura;
     private int _currentAp;
     private int _currentMovePoints;
+    private bool _combatResourceUnlockStateOwnerPresent = true;
     private List<StringName> _unlockedCombatResourceIds = new();
     private int _staminaRecoveryProgress;
+    private bool _restStateOwnerPresent = true;
     private bool _isResting;
+    private bool _turnStateOwnerPresent = true;
     private bool _hasTakenActionThisTurn;
     private bool _hasMovedThisTurn;
     private bool _canUseLockedMovePointsThisTurn;
@@ -661,25 +666,36 @@ internal sealed class BattleUnitFieldsSnapshot
     private StringName _shieldSourceUnitId = "";
     private StringName _shieldSourceSkillId = "";
     private List<StringName> _consumedContingencySetupIds = new();
+    private bool _actionClockOwnerPresent = true;
     private int _actionProgress;
     private int _actionThreshold;
+    private bool _knownSkillStateOwnerPresent = true;
     private List<StringName> _knownActiveSkillIds = new();
     private StringNameIntMapSnapshot _knownSkillLevelMap = new();
     private StringNameIntMapSnapshot _knownSkillLockHitBonusMap = new();
+    private bool _movementTagStateOwnerPresent = true;
     private List<StringName> _movementTags = new();
+    private bool _visionProficiencyStateOwnerPresent = true;
     private List<StringName> _visionTags = new();
     private List<StringName> _proficiencyTags = new();
+    private bool _saveModifierStateOwnerPresent = true;
     private List<StringName> _saveAdvantageTags = new();
     private List<StringName> _saveDisadvantageTags = new();
     private List<StringName> _saveImmunityTags = new();
+    private bool _damageResistanceStateOwnerPresent = true;
     private StringNameStringNameMapSnapshot _damageResistances = new();
     private StringNameIntMapSnapshot _saveBonusByAbility = new();
+    private bool _effectiveTraitStateOwnerPresent = true;
     private List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances = new();
     private List<StringName> _effectiveTraitIds = new();
+    private bool
+        _equipmentAbilityProjectionStateOwnerPresent = true;
     private List<BattleEquipmentAbilitySourceState> _equipmentAbilitySources = new();
     private List<BattleTemporalProgressModifierState> _temporalProgressModifiers = new();
+    private bool _creatureTypeStateOwnerPresent = true;
     private List<StringName> _creatureTypeTags = new();
     private StringName _versatilityPick = "";
+    private bool _weaponProjectionStateOwnerPresent = true;
     private StringName _weaponProfileKind = "";
     private StringName _weaponItemId = "";
     private StringName _weaponProfileTypeId = "";
@@ -727,122 +743,212 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._aiBlackboard = unit.ai_blackboard == null
             ? null
             : BattleAiBlackboardSnapshot.Capture(unit.ai_blackboard);
-        snapshot._coord = unit.coord;
-        snapshot._bodySize = unit.body_size;
-        snapshot._bodySizeCategory = unit.body_size_category;
-        snapshot._footprintSize = unit.footprint_size;
-        snapshot._occupiedCoords = unit.occupied_coords == null
+        BattleUnitGeometrySnapshot geometry =
+            unit.CaptureGeometryForMutationSnapshotExact();
+        snapshot._geometryStateOwnerPresent =
+            geometry.OwnerPresent;
+        snapshot._coord = geometry.AnchorCoord;
+        snapshot._bodySize = geometry.BodySize;
+        snapshot._bodySizeCategory = geometry.BodySizeCategory;
+        snapshot._footprintSize = geometry.FootprintSize;
+        snapshot._occupiedCoords = geometry.OccupiedCoords == null
             ? null
-            : BattleAiMutationStableProjection.Vector2IArrayToList(unit.occupied_coords);
-        snapshot._isAlive = unit.is_alive;
-        snapshot._equipmentViewInitialized = unit.equipment_view_initialized;
-        snapshot._currentHp = unit.current_hp;
-        snapshot._currentMp = unit.current_mp;
-        snapshot._currentStamina = unit.current_stamina;
-        snapshot._currentAura = unit.current_aura;
-        snapshot._currentAp = unit.current_ap;
-        snapshot._currentMovePoints = unit.current_move_points;
-        snapshot._unlockedCombatResourceIds = unit.unlocked_combat_resource_ids == null
-            ? null
-            : BattleAiMutationStableProjection.StringNameArrayToList(
-                unit.unlocked_combat_resource_ids
+            : BattleAiMutationStableProjection.Vector2IArrayToList(
+                geometry.OccupiedCoords
             );
-        snapshot._staminaRecoveryProgress = unit.stamina_recovery_progress;
-        snapshot._isResting = unit.is_resting;
-        snapshot._hasTakenActionThisTurn = unit.has_taken_action_this_turn;
-        snapshot._hasMovedThisTurn = unit.has_moved_this_turn;
-        snapshot._canUseLockedMovePointsThisTurn = unit.can_use_locked_move_points_this_turn;
-        snapshot._currentShieldHp = unit.current_shield_hp;
-        snapshot._shieldMaxHp = unit.shield_max_hp;
-        snapshot._shieldDuration = unit.shield_duration;
-        snapshot._shieldFamily = unit.shield_family;
-        snapshot._shieldSourceUnitId = unit.shield_source_unit_id;
-        snapshot._shieldSourceSkillId = unit.shield_source_skill_id;
+        BattleUnitCombatResourceSnapshot combatResources =
+            unit.CaptureCombatResourcesForMutationSnapshotExact();
+        BattleUnitCombatResourceValues combatResourceValues =
+            combatResources.Values;
+        snapshot._combatResourceStateOwnerPresent =
+            combatResources.OwnerPresent;
+        snapshot._isAlive = combatResourceValues.IsAlive;
+        snapshot._equipmentViewInitialized = unit.equipment_view_initialized;
+        snapshot._currentHp = combatResourceValues.Hp;
+        snapshot._currentMp = combatResourceValues.Mp;
+        snapshot._currentStamina = combatResourceValues.Stamina;
+        snapshot._currentAura = combatResourceValues.Aura;
+        snapshot._currentAp = combatResourceValues.Ap;
+        snapshot._currentMovePoints =
+            combatResourceValues.MovePoints;
+        var combatResourceUnlockState =
+            unit.GetCombatResourceUnlocksReadViewTyped();
+        snapshot._combatResourceUnlockStateOwnerPresent =
+            combatResourceUnlockState.OwnerPresent;
+        snapshot._unlockedCombatResourceIds = null;
+        if (combatResourceUnlockState.ResourceIds.IsPresent)
+        {
+            snapshot._unlockedCombatResourceIds = new List<StringName>();
+            foreach (
+                StringName resourceId in combatResourceUnlockState.ResourceIds
+            )
+            {
+                snapshot._unlockedCombatResourceIds.Add(resourceId);
+            }
+        }
+        snapshot._staminaRecoveryProgress =
+            combatResourceValues.StaminaRecoveryProgress;
+        BattleUnitRestSnapshot restState =
+            unit.CaptureRestForMutationSnapshotExact();
+        snapshot._restStateOwnerPresent = restState.OwnerPresent;
+        snapshot._isResting = restState.IsResting;
+        BattleUnitTurnSnapshot turnState =
+            unit.CaptureTurnForMutationSnapshotExact();
+        snapshot._turnStateOwnerPresent = turnState.OwnerPresent;
+        snapshot._hasTakenActionThisTurn = turnState.HasTakenActionThisTurn;
+        snapshot._hasMovedThisTurn = turnState.HasMovedThisTurn;
+        snapshot._canUseLockedMovePointsThisTurn =
+            turnState.CanUseLockedMovePointsThisTurn;
+        BattleUnitShieldSnapshot shieldState =
+            unit.CaptureShieldForMutationSnapshotExact();
+        snapshot._currentShieldHp = shieldState.CurrentHp;
+        snapshot._shieldMaxHp = shieldState.MaxHp;
+        snapshot._shieldDuration = shieldState.Duration;
+        snapshot._shieldFamily = shieldState.Family;
+        snapshot._shieldSourceUnitId = shieldState.SourceUnitId;
+        snapshot._shieldSourceSkillId = shieldState.SourceSkillId;
         snapshot._consumedContingencySetupIds =
             BattleAiMutationStableProjection.StringNameArrayToList(
                 unit.GetConsumedContingencySetupIdsTyped()
             );
-        snapshot._actionProgress = unit.action_progress;
-        snapshot._actionThreshold = unit.action_threshold;
-        snapshot._knownActiveSkillIds = unit.known_active_skill_ids == null
-            ? null
-            : BattleAiMutationStableProjection.StringNameArrayToList(
-                unit.known_active_skill_ids
-            );
-        snapshot._knownSkillLevelMap = StringNameIntMapSnapshot.FromTypedMap(
-            unit.known_skill_level_map
+        BattleUnitActionClockSnapshot actionClockState =
+            unit.CaptureActionClockForMutationSnapshotExact();
+        snapshot._actionClockOwnerPresent = actionClockState.OwnerPresent;
+        snapshot._actionProgress = actionClockState.ActionProgress;
+        snapshot._actionThreshold = actionClockState.ActionThreshold;
+        BattleUnitKnownSkillReadView knownSkillState =
+            unit.GetKnownSkillsReadViewTyped();
+        snapshot._knownSkillStateOwnerPresent = knownSkillState.OwnerPresent;
+        snapshot._knownActiveSkillIds = DuplicateKnownActiveSkillIds(
+            knownSkillState.ActiveSkills
+        );
+        snapshot._knownSkillLevelMap = StringNameIntMapSnapshot.FromReadView(
+            knownSkillState.SkillLevels
         );
         snapshot._knownSkillLockHitBonusMap =
-            StringNameIntMapSnapshot.FromTypedMap(unit.known_skill_lock_hit_bonus_map);
-        snapshot._movementTags = DuplicateNullableStringNameList(unit.movement_tags);
-        snapshot._visionTags = DuplicateNullableStringNameList(unit.vision_tags);
-        snapshot._proficiencyTags = DuplicateNullableStringNameList(unit.proficiency_tags);
-        snapshot._saveAdvantageTags = DuplicateNullableStringNameList(unit.save_advantage_tags);
-        snapshot._saveDisadvantageTags = DuplicateNullableStringNameList(
-            unit.save_disadvantage_tags
-        );
-        snapshot._saveImmunityTags = DuplicateNullableStringNameList(unit.save_immunity_tags);
-        snapshot._damageResistances =
-            StringNameStringNameMapSnapshot.FromTypedMap(unit.damage_resistances);
-        snapshot._saveBonusByAbility = StringNameIntMapSnapshot.FromTypedMap(
-            unit.save_bonus_by_ability
-        );
-        snapshot._effectiveTraitInstances =
-            BattleAiMutationStableProjection.DuplicateEffectiveTraitInstancesExact(
-                unit.effective_trait_instances
+            StringNameIntMapSnapshot.FromReadView(
+                knownSkillState.LockHitBonuses
             );
-        snapshot._effectiveTraitIds = DuplicateNullableStringNameList(
-            unit.effective_trait_ids
-        );
-        snapshot._equipmentAbilitySources =
-            BattleAiMutationStableProjection.DuplicateEquipmentAbilitySourcesExact(
-                unit.equipment_ability_sources
-            );
-        snapshot._temporalProgressModifiers =
-            BattleAiMutationStableProjection.DuplicateTemporalProgressModifiersExact(
-                unit.temporal_progress_modifiers
-            );
-        snapshot._creatureTypeTags = unit.creature_type_tags == null
+        BattleUnitMovementTagSnapshot movementTags =
+            unit.CaptureMovementTagsForMutationSnapshotExact();
+        snapshot._movementTagStateOwnerPresent =
+            movementTags.OwnerPresent;
+        snapshot._movementTags = movementTags.Tags == null
             ? null
             : BattleAiMutationStableProjection.StringNameArrayToList(
-                unit.creature_type_tags
+                movementTags.Tags
+            );
+        BattleUnitVisionProficiencySnapshot visionProficiency =
+            unit.CaptureVisionProficiencyForMutationSnapshotExact();
+        snapshot._visionProficiencyStateOwnerPresent =
+            visionProficiency.OwnerPresent;
+        snapshot._visionTags = DuplicateNullableStringNameList(
+            visionProficiency.VisionTags
+        );
+        snapshot._proficiencyTags = DuplicateNullableStringNameList(
+            visionProficiency.ProficiencyTags
+        );
+        BattleUnitSaveModifierSnapshot saveModifiers =
+            unit.CaptureSaveModifiersForMutationSnapshotExact();
+        snapshot._saveModifierStateOwnerPresent =
+            saveModifiers.OwnerPresent;
+        snapshot._saveAdvantageTags = DuplicateNullableStringNameList(
+            saveModifiers.AdvantageTags
+        );
+        snapshot._saveDisadvantageTags = DuplicateNullableStringNameList(
+            saveModifiers.DisadvantageTags
+        );
+        snapshot._saveImmunityTags = DuplicateNullableStringNameList(
+            saveModifiers.ImmunityTags
+        );
+        BattleUnitDamageResistanceSnapshot damageResistances =
+            unit.CaptureDamageResistancesForMutationSnapshotExact();
+        snapshot._damageResistanceStateOwnerPresent =
+            damageResistances.OwnerPresent;
+        snapshot._damageResistances =
+            StringNameStringNameMapSnapshot.FromTypedMap(
+                damageResistances.Resistances
+            );
+        snapshot._saveBonusByAbility = StringNameIntMapSnapshot.FromTypedMap(
+            saveModifiers.BonusByAbility
+        );
+        BattleUnitEffectiveTraitSnapshot effectiveTraits =
+            unit.CaptureEffectiveTraitsForMutationSnapshotExact();
+        snapshot._effectiveTraitStateOwnerPresent =
+            effectiveTraits.OwnerPresent;
+        snapshot._effectiveTraitInstances =
+            effectiveTraits.Instances;
+        snapshot._effectiveTraitIds = DuplicateNullableStringNameList(
+            effectiveTraits.TraitIds
+        );
+        BattleUnitEquipmentAbilityProjectionSnapshot
+            equipmentAbilityProjection =
+                unit.CaptureEquipmentAbilityProjectionForMutationSnapshotExact();
+        snapshot._equipmentAbilityProjectionStateOwnerPresent =
+            equipmentAbilityProjection.OwnerPresent;
+        snapshot._equipmentAbilitySources =
+            equipmentAbilityProjection.Sources;
+        snapshot._temporalProgressModifiers =
+            equipmentAbilityProjection.TemporalProgressModifiers;
+        BattleUnitCreatureTypeSnapshot creatureTypes =
+            unit.CaptureCreatureTypesForMutationSnapshotExact();
+        snapshot._creatureTypeStateOwnerPresent =
+            creatureTypes.OwnerPresent;
+        snapshot._creatureTypeTags = creatureTypes.Tags == null
+            ? null
+            : BattleAiMutationStableProjection.StringNameArrayToList(
+                creatureTypes.Tags
             );
         snapshot._versatilityPick = unit.versatility_pick;
-        snapshot._weaponProfileKind = unit.weapon_profile_kind;
-        snapshot._weaponItemId = unit.weapon_item_id;
-        snapshot._weaponProfileTypeId = unit.weapon_profile_type_id;
-        snapshot._weaponRangeType = unit.weapon_range_type;
-        snapshot._weaponFamily = unit.weapon_family;
-        snapshot._weaponCurrentGrip = unit.weapon_current_grip;
-        snapshot._weaponAttackRange = unit.weapon_attack_range;
-        snapshot._weaponOneHandedDice = WeaponDiceSnapshot.FromTyped(
-            unit.weapon_one_handed_dice
+        BattleUnitWeaponProjectionSnapshot weaponProjection =
+            unit.CaptureWeaponProjectionForMutationSnapshotExact();
+        BattleWeaponProjectionValues weaponValues =
+            weaponProjection.Values;
+        snapshot._weaponProjectionStateOwnerPresent =
+            weaponProjection.OwnerPresent;
+        snapshot._weaponProfileKind = weaponValues.ProfileKind;
+        snapshot._weaponItemId = weaponValues.ItemId;
+        snapshot._weaponProfileTypeId = weaponValues.ProfileTypeId;
+        snapshot._weaponRangeType = weaponValues.RangeType;
+        snapshot._weaponFamily = weaponValues.Family;
+        snapshot._weaponCurrentGrip = weaponValues.CurrentGrip;
+        snapshot._weaponAttackRange = weaponValues.AttackRange;
+        snapshot._weaponOneHandedDice =
+            WeaponDiceSnapshot.FromExact(weaponValues.OneHandedDice);
+        snapshot._weaponTwoHandedDice =
+            WeaponDiceSnapshot.FromExact(weaponValues.TwoHandedDice);
+        snapshot._weaponIsVersatile = weaponValues.IsVersatile;
+        snapshot._weaponUsesTwoHands = weaponValues.UsesTwoHands;
+        snapshot._weaponPhysicalDamageTag =
+            weaponValues.PhysicalDamageTag;
+        BattleUnitCooldownSnapshot cooldownState =
+            unit.CaptureCooldownForMutationSnapshotExact();
+        snapshot._cooldowns = StringNameIntMapSnapshot.FromTypedMap(
+            cooldownState.Cooldowns
         );
-        snapshot._weaponTwoHandedDice = WeaponDiceSnapshot.FromTyped(
-            unit.weapon_two_handed_dice
-        );
-        snapshot._weaponIsVersatile = unit.weapon_is_versatile;
-        snapshot._weaponUsesTwoHands = unit.weapon_uses_two_hands;
-        snapshot._weaponPhysicalDamageTag = unit.weapon_physical_damage_tag;
-        snapshot._cooldowns = StringNameIntMapSnapshot.FromTypedMap(unit.cooldowns);
-        snapshot._lastTurnTu = unit.last_turn_tu;
+        snapshot._lastTurnTu = cooldownState.LastTurnTu;
         snapshot._perBattleCharges = StringNameIntMapSnapshot.FromTypedMap(
-            unit.per_battle_charges
+            unit.CapturePerBattleChargesForMutationSnapshotExact()
         );
         snapshot._perTurnCharges = StringNameIntMapSnapshot.FromTypedMap(
-            unit.per_turn_charges
+            unit.CapturePerTurnChargesForMutationSnapshotExact()
         );
         snapshot._perTurnChargeLimits =
-            StringNameIntMapSnapshot.FromTypedMap(unit.per_turn_charge_limits);
+            StringNameIntMapSnapshot.FromTypedMap(
+                unit.CapturePerTurnChargeLimitsForMutationSnapshotExact()
+            );
         snapshot._fumbleProtectionUsed =
-            StringNameIntMapSnapshot.FromTypedMap(unit.fumble_protection_used);
+            StringNameIntMapSnapshot.FromTypedMap(
+                unit.CaptureFumbleProtectionForMutationSnapshotExact()
+            );
         snapshot._deathWardConsumedThisBattle = unit.death_ward_consumed_this_battle;
         snapshot._pendingCast =
             BattleAiMutationStableProjection.DuplicatePendingCastExact(
                 unit.pending_cast
             );
-        snapshot._turnCastingExhausted = unit.turn_casting_exhausted;
-        snapshot._actionProgressRateRemainder = unit.action_progress_rate_remainder;
+        snapshot._turnCastingExhausted = turnState.CastingExhausted;
+        snapshot._actionProgressRateRemainder =
+            actionClockState.ActionProgressRateRemainder;
         snapshot._castProgressRateRemainder = unit.cast_progress_rate_remainder;
         return snapshot;
     }
@@ -876,7 +982,7 @@ internal sealed class BattleUnitFieldsSnapshot
                 ? StableValue.Nil()
                 : StableValue.FromMap(_aiBlackboard.ToStableMap())
         );
-        result.Set("coord", StableValue.FromVector2I(_coord));
+        result.Set("coord", StableGeometryCoord());
         result.Set("body_size", StableValue.FromInteger(_bodySize));
         result.Set("body_size_category", BattleAiMutationStableProjection.StableNullableStringName(_bodySizeCategory));
         result.Set("footprint_size", StableValue.FromVector2I(_footprintSize));
@@ -890,7 +996,7 @@ internal sealed class BattleUnitFieldsSnapshot
                     )
                 )
         );
-        result.Set("is_alive", StableValue.FromBool(_isAlive));
+        result.Set("is_alive", StableCombatResourceIsAlive());
         result.Set(
             "equipment_view_initialized",
             StableValue.FromBool(_equipmentViewInitialized)
@@ -903,15 +1009,21 @@ internal sealed class BattleUnitFieldsSnapshot
         result.Set("current_move_points", StableValue.FromInteger(_currentMovePoints));
         result.Set(
             "unlocked_combat_resource_ids",
-            StableNullableStringNameList(_unlockedCombatResourceIds)
+            StableCombatResourceUnlockIds()
         );
         result.Set("stamina_recovery_progress", StableValue.FromInteger(_staminaRecoveryProgress));
-        result.Set("is_resting", StableValue.FromBool(_isResting));
-        result.Set("has_taken_action_this_turn", StableValue.FromBool(_hasTakenActionThisTurn));
-        result.Set("has_moved_this_turn", StableValue.FromBool(_hasMovedThisTurn));
+        result.Set("is_resting", StableResting());
+        result.Set(
+            "has_taken_action_this_turn",
+            StableTurnFlag(_hasTakenActionThisTurn)
+        );
+        result.Set(
+            "has_moved_this_turn",
+            StableTurnFlag(_hasMovedThisTurn)
+        );
         result.Set(
             "can_use_locked_move_points_this_turn",
-            StableValue.FromBool(_canUseLockedMovePointsThisTurn)
+            StableTurnFlag(_canUseLockedMovePointsThisTurn)
         );
         result.Set("current_shield_hp", StableValue.FromInteger(_currentShieldHp));
         result.Set("shield_max_hp", StableValue.FromInteger(_shieldMaxHp));
@@ -927,31 +1039,67 @@ internal sealed class BattleUnitFieldsSnapshot
                 )
             )
         );
-        result.Set("action_progress", StableValue.FromInteger(_actionProgress));
-        result.Set("action_threshold", StableValue.FromInteger(_actionThreshold));
+        result.Set(
+            "action_progress",
+            StableActionClockValue(_actionProgress)
+        );
+        result.Set(
+            "action_threshold",
+            StableActionClockValue(_actionThreshold)
+        );
         result.Set(
             "known_active_skill_ids",
-            StableNullableStringNameList(_knownActiveSkillIds)
+            StableKnownSkillList(_knownActiveSkillIds)
         );
-        result.Set("known_skill_level_map", _knownSkillLevelMap.ToStableValue());
+        result.Set(
+            "known_skill_level_map",
+            StableKnownSkillMap(_knownSkillLevelMap)
+        );
         result.Set(
             "known_skill_lock_hit_bonus_map",
-            _knownSkillLockHitBonusMap.ToStableValue()
+            StableKnownSkillMap(_knownSkillLockHitBonusMap)
         );
-        result.Set("movement_tags", StableNullableStringNameList(_movementTags));
-        result.Set("vision_tags", StableNullableStringNameList(_visionTags));
-        result.Set("proficiency_tags", StableNullableStringNameList(_proficiencyTags));
-        result.Set("save_advantage_tags", StableNullableStringNameList(_saveAdvantageTags));
+        result.Set("movement_tags", StableMovementTags());
+        result.Set(
+            "vision_tags",
+            StableVisionProficiencyTags(_visionTags)
+        );
+        result.Set(
+            "proficiency_tags",
+            StableVisionProficiencyTags(_proficiencyTags)
+        );
+        result.Set(
+            "save_advantage_tags",
+            StableSaveModifierTags(_saveAdvantageTags)
+        );
         result.Set(
             "save_disadvantage_tags",
-            StableNullableStringNameList(_saveDisadvantageTags)
+            StableSaveModifierTags(_saveDisadvantageTags)
         );
-        result.Set("save_immunity_tags", StableNullableStringNameList(_saveImmunityTags));
-        result.Set("damage_resistances", _damageResistances.ToStableValue());
-        result.Set("save_bonus_by_ability", _saveBonusByAbility.ToStableValue());
+        result.Set(
+            "save_immunity_tags",
+            StableSaveModifierTags(_saveImmunityTags)
+        );
+        result.Set(
+            "damage_resistances",
+            _damageResistanceStateOwnerPresent
+                ? _damageResistances?.ToStableValue()
+                    ?? StableValue.Nil()
+                : StableValue.FromText(
+                    "<missing-damage-resistance-owner>"
+                )
+        );
+        result.Set(
+            "save_bonus_by_ability",
+            StableSaveModifierBonus()
+        );
         result.Set(
             "effective_trait_instances",
-            _effectiveTraitInstances == null
+            !_effectiveTraitStateOwnerPresent
+                ? StableValue.FromText(
+                    "<missing-effective-trait-owner>"
+                )
+                : _effectiveTraitInstances == null
                 ? StableValue.Nil()
                 : StableValue.FromArray(
                     BattleAiMutationStableProjection.StableEffectiveTraitPayload(
@@ -961,11 +1109,19 @@ internal sealed class BattleUnitFieldsSnapshot
         );
         result.Set(
             "effective_trait_ids",
-            StableNullableStringNameList(_effectiveTraitIds)
+            _effectiveTraitStateOwnerPresent
+                ? StableNullableStringNameList(_effectiveTraitIds)
+                : StableValue.FromText(
+                    "<missing-effective-trait-owner>"
+                )
         );
         result.Set(
             "equipment_ability_sources",
-            _equipmentAbilitySources == null
+            !_equipmentAbilityProjectionStateOwnerPresent
+                ? StableValue.FromText(
+                    "<missing-equipment-ability-projection-owner>"
+                )
+                : _equipmentAbilitySources == null
                 ? StableValue.Nil()
                 : StableValue.FromArray(
                     BattleAiMutationStableProjection.StableEquipmentAbilitySources(
@@ -975,7 +1131,11 @@ internal sealed class BattleUnitFieldsSnapshot
         );
         result.Set(
             "temporal_progress_modifiers",
-            _temporalProgressModifiers == null
+            !_equipmentAbilityProjectionStateOwnerPresent
+                ? StableValue.FromText(
+                    "<missing-equipment-ability-projection-owner>"
+                )
+                : _temporalProgressModifiers == null
                 ? StableValue.Nil()
                 : StableValue.FromArray(
                     BattleAiMutationStableProjection.StableTemporalProgressModifiers(
@@ -985,16 +1145,10 @@ internal sealed class BattleUnitFieldsSnapshot
         );
         result.Set(
             "creature_type_tags",
-            _creatureTypeTags == null
-                ? StableValue.Nil()
-                : StableValue.FromArray(
-                    BattleAiMutationStableProjection.StableStringNameList(
-                        _creatureTypeTags
-                    )
-                )
+            StableCreatureTypeTags()
         );
         result.Set("versatility_pick", BattleAiMutationStableProjection.StableNullableStringName(_versatilityPick));
-        result.Set("weapon_profile_kind", BattleAiMutationStableProjection.StableNullableStringName(_weaponProfileKind));
+        result.Set("weapon_profile_kind", StableWeaponProfileKind());
         result.Set("weapon_item_id", BattleAiMutationStableProjection.StableNullableStringName(_weaponItemId));
         result.Set("weapon_profile_type_id", BattleAiMutationStableProjection.StableNullableStringName(_weaponProfileTypeId));
         result.Set("weapon_range_type", BattleAiMutationStableProjection.StableNullableStringName(_weaponRangeType));
@@ -1024,15 +1178,118 @@ internal sealed class BattleUnitFieldsSnapshot
                     BattleAiMutationStableProjection.StablePendingCast(_pendingCast)
                 )
         );
-        result.Set("turn_casting_exhausted", StableValue.FromBool(_turnCastingExhausted));
+        result.Set(
+            "turn_casting_exhausted",
+            StableTurnFlag(_turnCastingExhausted)
+        );
         result.Set(
             "action_progress_rate_remainder",
-            StableValue.FromInteger(_actionProgressRateRemainder)
+            StableActionClockValue(_actionProgressRateRemainder)
         );
         result.Set(
             "cast_progress_rate_remainder",
             StableValue.FromInteger(_castProgressRateRemainder)
         );
+        return result;
+    }
+
+    private StableValue StableTurnFlag(bool value) =>
+        _turnStateOwnerPresent
+            ? StableValue.FromBool(value)
+            : StableValue.Nil();
+
+    private StableValue StableResting() =>
+        _restStateOwnerPresent
+            ? StableValue.FromBool(_isResting)
+            : StableValue.Nil();
+
+    private StableValue StableCombatResourceIsAlive() =>
+        _combatResourceStateOwnerPresent
+            ? StableValue.FromBool(_isAlive)
+            : StableValue.FromText(
+                "<missing-combat-resource-owner>"
+            );
+
+    private StableValue StableGeometryCoord() =>
+        _geometryStateOwnerPresent
+            ? StableValue.FromVector2I(_coord)
+            : StableValue.FromText(
+                "<missing-geometry-owner>"
+            );
+
+    private StableValue StableActionClockValue(int value) =>
+        _actionClockOwnerPresent
+            ? StableValue.FromInteger(value)
+            : StableValue.Nil();
+
+    private StableValue StableCombatResourceUnlockIds() =>
+        _combatResourceUnlockStateOwnerPresent
+            ? StableNullableStringNameList(_unlockedCombatResourceIds)
+            : StableValue.FromText("<missing-combat-resource-unlock-owner>");
+
+    private StableValue StableMovementTags() =>
+        _movementTagStateOwnerPresent
+            ? StableNullableStringNameList(_movementTags)
+            : StableValue.FromText("<missing-movement-tag-owner>");
+
+    private StableValue StableVisionProficiencyTags(
+        IEnumerable<StringName> values
+    ) =>
+        _visionProficiencyStateOwnerPresent
+            ? StableNullableStringNameList(values)
+            : StableValue.FromText(
+                "<missing-vision-proficiency-owner>"
+            );
+
+    private StableValue StableSaveModifierTags(
+        IEnumerable<StringName> values
+    ) =>
+        _saveModifierStateOwnerPresent
+            ? StableNullableStringNameList(values)
+            : StableValue.FromText("<missing-save-modifier-owner>");
+
+    private StableValue StableSaveModifierBonus() =>
+        _saveModifierStateOwnerPresent
+            ? _saveBonusByAbility?.ToStableValue()
+                ?? StableValue.Nil()
+            : StableValue.FromText("<missing-save-modifier-owner>");
+
+    private StableValue StableCreatureTypeTags() =>
+        _creatureTypeStateOwnerPresent
+            ? StableNullableStringNameList(_creatureTypeTags)
+            : StableValue.FromText("<missing-creature-type-owner>");
+
+    private StableValue StableWeaponProfileKind() =>
+        _weaponProjectionStateOwnerPresent
+            ? BattleAiMutationStableProjection.StableNullableStringName(
+                _weaponProfileKind
+            )
+            : StableValue.FromText("<missing-weapon-projection-owner>");
+
+    private StableValue StableKnownSkillList(
+        IEnumerable<StringName> values
+    ) =>
+        _knownSkillStateOwnerPresent
+            ? StableNullableStringNameList(values)
+            : StableValue.FromText("<missing-known-skill-owner>");
+
+    private StableValue StableKnownSkillMap(
+        StringNameIntMapSnapshot values
+    ) =>
+        _knownSkillStateOwnerPresent
+            ? values?.ToStableValue() ?? StableValue.Nil()
+            : StableValue.FromText("<missing-known-skill-owner>");
+
+    private static List<StringName> DuplicateKnownActiveSkillIds(
+        BattleKnownActiveSkillReadView values
+    )
+    {
+        if (!values.IsPresent)
+            return null;
+
+        var result = new List<StringName>(values.Count);
+        foreach (StringName value in values)
+            result.Add(value);
         return result;
     }
 
@@ -1231,6 +1488,24 @@ internal sealed class StringNameIntMapSnapshot
         return result;
     }
 
+    public static StringNameIntMapSnapshot FromReadView(
+        BattleKnownSkillLevelReadView source
+    )
+    {
+        StringNameIntMapSnapshot result = new();
+        if (!source.IsPresent)
+            return result;
+
+        result._isPresent = true;
+        foreach (KeyValuePair<StringName, int> entry in source)
+        {
+            if (entry.Key == "")
+                continue;
+            result._values[entry.Key] = entry.Value;
+        }
+        return result;
+    }
+
     public StableValue ToStableValue()
     {
         return _isPresent
@@ -1302,33 +1577,43 @@ internal sealed class StringNameStringNameMapSnapshot
 
 internal sealed class WeaponDiceSnapshot
 {
-    private readonly WeaponDice _typedDice;
+    private readonly BattleWeaponDiceValues _values;
 
-    public WeaponDiceSnapshot(WeaponDice typedDice = null)
+    public WeaponDiceSnapshot(BattleWeaponDiceValues values = default)
     {
-        _typedDice = typedDice;
+        _values = values;
     }
 
-    public static WeaponDiceSnapshot FromTyped(WeaponDice typedDice)
-    {
-        if (typedDice == null)
-        {
-            return new WeaponDiceSnapshot();
-        }
-
-        return new WeaponDiceSnapshot(typedDice.DuplicateState());
-    }
+    public static WeaponDiceSnapshot FromExact(
+        BattleWeaponDiceValues values
+    ) =>
+        new(values);
 
     public StableMap ToStableMap()
     {
-        return _typedDice == null
-            ? new StableMap()
-            : BattleAiMutationStableProjection.StableWeaponDice(_typedDice);
+        StableMap result = new();
+        if (!_values.IsPresent)
+        {
+            return result;
+        }
+        result.Set(
+            "dice_count",
+            StableValue.FromInteger(_values.DiceCount)
+        );
+        result.Set(
+            "dice_sides",
+            StableValue.FromInteger(_values.DiceSides)
+        );
+        result.Set(
+            "flat_bonus",
+            StableValue.FromInteger(_values.FlatBonus)
+        );
+        return result;
     }
 
     public StableValue ToStableValue()
     {
-        return _typedDice == null
+        return !_values.IsPresent
             ? StableValue.Nil()
             : StableValue.FromMap(ToStableMap());
     }

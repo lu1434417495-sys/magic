@@ -16,6 +16,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             TestRepeatAttackScoreUsesStageSuccessRate();
             TestChainSkillScoresFriendlyBounceRisk();
             TestDamageScoreUsesFormalResistanceAndShieldRules();
+            TestWillPenetrateShieldBonusCondition();
             TestMultiHitDamageScoreConsumesPreviewShieldSequentially();
             TestLayeredBarrierProjectionTracksLayersAndLifetime();
             TestLayeredBarrierProjectionRequiresNearbyBoundaryThreat();
@@ -48,7 +49,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.SkillId, target.coord),
+            BuildCommand(caster, skill.SkillId, target.GetAnchorCoord()),
             BuildPreview(target, ally),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 4, 5)
@@ -121,7 +122,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(harrier),
             skill,
-            BuildCommand(harrier, skill.SkillId, playerA.coord),
+            BuildCommand(harrier, skill.SkillId, playerA.GetAnchorCoord()),
             BuildPreview(playerA, playerB),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 0, 6)
@@ -172,7 +173,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(scorer),
             skill,
-            BuildCommand(scorer, skill.SkillId, target.coord, target),
+            BuildCommand(scorer, skill.SkillId, target.GetAnchorCoord(), target),
             preview,
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(target, 1, 1)
@@ -209,7 +210,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(mage),
             skill,
-            BuildCommand(mage, skill.SkillId, target.coord, target),
+            BuildCommand(mage, skill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
             new[] { skill.CombatProfile.EffectDefinitions[0], skill.CombatProfile.EffectDefinitions[1] },
             BuildPositionMetadata(target, 4, 5)
@@ -255,17 +256,23 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             new Vector2I(2, 1),
             hp: 10
         );
-        target.damage_resistances["fire"] = "half";
-        target.current_shield_hp = 5;
-        target.shield_max_hp = 5;
-        target.shield_duration = 100;
+        target.SetDamageResistanceTyped("fire", "half");
+        target.ReplaceShieldStateTyped(
+            5,
+            5,
+            100,
+            "formal_ward",
+            caster.unit_id,
+            skill.SkillId
+        );
+        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
         fixture.AddUnit(caster);
         fixture.AddUnit(target);
 
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.SkillId, target.coord, target),
+            BuildCommand(caster, skill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
             new[] { effect },
             BuildPositionMetadata(target, 1, 1)
@@ -280,8 +287,187 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.Eq(score.estimated_shield_absorbed, 5, "AI 应记录正式护盾吸收量。");
         _test.Eq(score.estimated_damage, 5, "AI 应只把穿透护盾的部分计为生命伤害。");
         _test.Eq(score.estimated_lethal_target_count, 0, "护盾后的 5 点生命伤害不应误判为击杀。");
-        _test.Eq(target.current_hp, 10, "AI 伤害预览不得修改真实目标生命。");
-        _test.Eq(target.current_shield_hp, 5, "AI 伤害预览不得修改真实目标护盾。");
+        _test.Eq(target.GetCurrentHp(), 10, "AI 伤害预览不得修改真实目标生命。");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            shieldBefore,
+            "AI 伤害预览不得修改真实目标护盾。"
+        );
+    }
+
+    private void TestWillPenetrateShieldBonusCondition()
+    {
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "res://data/configs/skills/warrior_will_penetrate.tres",
+            "battle_ai_score_input_metrics_will_penetrate"
+        );
+        CombatSkillDefinition combat = skill?.CombatProfile;
+        _test.True(combat != null, "意志穿透正式技能定义应可加载。");
+        if (combat == null)
+        {
+            return;
+        }
+        _test.Eq(combat.EffectDefinitions.Count, 3, "意志穿透应保留两档主伤害和一段护盾增伤。");
+        if (combat.EffectDefinitions.Count < 3)
+        {
+            return;
+        }
+
+        CombatEffectDefinition shieldBonusEffect = combat.EffectDefinitions[2];
+        _test.Eq(
+            shieldBonusEffect.BonusConditionKind,
+            BattleDamageBonusConditionKind.TargetHasShield,
+            "意志穿透护盾增伤应投影为 typed target_has_shield 条件。"
+        );
+
+        using (var registry = new SkillContentRegistry(
+            new TestContentResourceLoader(),
+            loadDefaultContent: false
+        ))
+        using (var invalidEffect = new CombatEffectDef
+        {
+            effect_type = "damage",
+            damage_tag = "fire",
+            power = 1,
+            bonus_condition = "unsupported_bonus_condition_probe",
+        })
+        {
+            var errors = new Godot.Collections.Array<string>();
+            registry.AppendEffectValidationErrors(
+                errors,
+                "invalid_bonus_condition_probe",
+                invalidEffect,
+                "effect_defs[0]"
+            );
+            string formattedErrors = string.Join(" | ", errors);
+            _test.True(
+                formattedErrors.Contains(
+                    "uses unsupported bonus_condition unsupported_bonus_condition_probe"
+                ),
+                $"未知 bonus_condition 必须在 schema 边界被拒绝。 errors={formattedErrors}"
+            );
+        }
+
+        BattleUnitState source = BuildUnit(
+            "will_penetrate_runtime_source",
+            "hostile",
+            new Vector2I(1, 1),
+            hp: 1000
+        );
+        BattleUnitState shieldedTarget = BuildUnit(
+            "will_penetrate_runtime_shielded",
+            "player",
+            new Vector2I(2, 1),
+            hp: 1000
+        );
+        BattleUnitState unshieldedTarget = BuildUnit(
+            "will_penetrate_runtime_unshielded",
+            "player",
+            new Vector2I(3, 1),
+            hp: 1000
+        );
+        shieldedTarget.ReplaceShieldStateTyped(
+            1000,
+            1000,
+            100,
+            "will_penetrate_probe",
+            source.unit_id,
+            skill.SkillId
+        );
+        try
+        {
+            using var resolver = new FixedHitMaxDamageResolver();
+            AttackEffectResolutionResult shieldedResult = resolver.ResolveEffects(
+                source,
+                shieldedTarget,
+                new[] { shieldBonusEffect },
+                DamageResolutionContext.Empty()
+            );
+            AttackEffectResolutionResult unshieldedResult = resolver.ResolveEffects(
+                source,
+                unshieldedTarget,
+                new[] { shieldBonusEffect },
+                DamageResolutionContext.Empty()
+            );
+            DamageEventResult shieldedEvent = shieldedResult.DamageEvents[0];
+            DamageEventResult unshieldedEvent = unshieldedResult.DamageEvents[0];
+            _test.True(shieldedEvent.BonusConditionMet, "有有效护盾时应命中 target_has_shield 条件。");
+            _test.False(
+                unshieldedEvent.BonusConditionMet,
+                "无护盾时不得命中 target_has_shield 条件。"
+            );
+            _test.Eq(shieldedEvent.ResolvedDamage, 11, "有盾目标的 1d8 最大值应按 140% 结算为 11。");
+            _test.Eq(unshieldedEvent.ResolvedDamage, 8, "无盾目标的 1d8 最大值应保持基础 8 点。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleUnit(source);
+            BattleTestFixture.DisposeBattleUnit(shieldedTarget);
+            BattleTestFixture.DisposeBattleUnit(unshieldedTarget);
+        }
+
+        using Fixture fixture = BuildFixture(
+            "score_input_will_penetrate_shield_bonus",
+            new Vector2I(5, 3)
+        );
+        fixture.ScoreService.Setup(new BattleDamageResolver());
+        fixture.AddSkill(skill);
+        BattleUnitState caster = BuildUnit(
+            "will_penetrate_ai_caster",
+            "hostile",
+            new Vector2I(1, 1),
+            hp: 1000
+        );
+        caster.AddKnownActiveSkill(skill.SkillId);
+        caster.SetKnownSkillLevelTyped(skill.SkillId, 5);
+        BattleUnitState target = BuildUnit(
+            "will_penetrate_ai_target",
+            "player",
+            new Vector2I(2, 1),
+            hp: 1000
+        );
+        target.ReplaceShieldStateTyped(
+            1000,
+            1000,
+            100,
+            "will_penetrate_ai_probe",
+            caster.unit_id,
+            skill.SkillId
+        );
+        fixture.AddUnit(caster);
+        fixture.AddUnit(target);
+        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
+        BattleAiScoreInput shieldedScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, target.GetAnchorCoord(), target),
+            BuildPreview(target),
+            new[] { shieldBonusEffect },
+            BuildPositionMetadata(target, 1, 1)
+        );
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            shieldBefore,
+            "AI 条件估值不得修改真实护盾状态。"
+        );
+        target.ClearShield();
+        BattleAiScoreInput unshieldedScore = fixture.ScoreService.BuildSkillScoreInput(
+            fixture.BuildContext(caster),
+            skill,
+            BuildCommand(caster, skill.SkillId, target.GetAnchorCoord(), target),
+            BuildPreview(target),
+            new[] { shieldBonusEffect },
+            BuildPositionMetadata(target, 1, 1)
+        );
+        _test.True(
+            shieldedScore != null && unshieldedScore != null,
+            "意志穿透有盾/无盾 AI 估值都应生成 score input。"
+        );
+        if (shieldedScore != null && unshieldedScore != null)
+        {
+            _test.Eq(shieldedScore.estimated_post_save_damage, 7, "AI 应把有盾 1d8 均值按 140% 估为 7。");
+            _test.Eq(unshieldedScore.estimated_post_save_damage, 5, "AI 对无盾 1d8 均值应保持 5。");
+        }
     }
 
     private void TestMultiHitDamageScoreConsumesPreviewShieldSequentially()
@@ -322,16 +508,22 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             new Vector2I(2, 1),
             hp: 10
         );
-        target.current_shield_hp = 5;
-        target.shield_max_hp = 5;
-        target.shield_duration = 100;
+        target.ReplaceShieldStateTyped(
+            5,
+            5,
+            100,
+            "sequential_ward",
+            caster.unit_id,
+            skill.SkillId
+        );
+        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
         fixture.AddUnit(caster);
         fixture.AddUnit(target);
 
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.SkillId, target.coord, target),
+            BuildCommand(caster, skill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
             new[] { firstHit, secondHit },
             BuildPositionMetadata(target, 1, 1)
@@ -345,8 +537,12 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.Eq(score.estimated_post_save_damage, 8, "两段正式伤害预算应累计为 8。");
         _test.Eq(score.estimated_shield_absorbed, 5, "两段预览只能消耗现有的 5 点护盾。");
         _test.Eq(score.estimated_damage, 3, "第二段应穿透已被第一段消耗的护盾并造成 3 点生命伤害。");
-        _test.Eq(target.current_hp, 10, "多段 AI 预览不得修改真实目标生命。");
-        _test.Eq(target.current_shield_hp, 5, "多段 AI 预览不得修改真实目标护盾。");
+        _test.Eq(target.GetCurrentHp(), 10, "多段 AI 预览不得修改真实目标生命。");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            shieldBefore,
+            "多段 AI 预览不得修改真实目标护盾。"
+        );
     }
 
     private void TestLayeredBarrierProjectionTracksLayersAndLifetime()
@@ -370,21 +566,21 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         _test.Eq(freshScore.layered_barrier_projection.reason, "tactical_boundary", "新法球应记录边界战术原因。");
         _test.True(freshScore.hit_payoff_score > 0, "有效法球应贡献正向命中收益。");
 
-        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, false, false));
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.GetAnchorCoord(), 90, false, false));
         BattleAiScoreInput redundantScore = ScoreLayeredBarrier(fixture, caster, skill);
         _test.True(redundantScore.layered_barrier_projection.redundant_same_anchor, "同锚点完整法球且寿命充足时应判定重复。");
         _test.Eq(redundantScore.layered_barrier_projection.utility_control_count, 0, "重复法球不应再次贡献控场收益。");
         _test.Eq(redundantScore.hit_payoff_score, 0, "重复法球的效果收益应为零。");
         _test.Eq(redundantScore.low_value_penalty_reason, "layered_barrier:redundant_same_anchor", "重复原因应进入评分输入。");
 
-        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 90, true, false));
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.GetAnchorCoord(), 90, true, false));
         BattleAiScoreInput brokenLayerScore = ScoreLayeredBarrier(fixture, caster, skill);
         _test.False(brokenLayerScore.layered_barrier_projection.redundant_same_anchor, "已有破层时，重建完整法球不应判定重复。");
         _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_active_layer_count, 1, "投影应读取现存有效层数。");
         _test.Eq(brokenLayerScore.layered_barrier_projection.strongest_same_anchor_broken_layer_count, 1, "投影应读取现存破层数。");
         _test.Eq(brokenLayerScore.layered_barrier_projection.utility_control_count, 1, "破层法球允许重建控场价值。");
 
-        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.coord, 10, false, false));
+        fixture.PutBarrier(BuildLayeredBarrierState(profileId, caster.GetAnchorCoord(), 10, false, false));
         BattleAiScoreInput expiringScore = ScoreLayeredBarrier(fixture, caster, skill);
         _test.Eq(expiringScore.layered_barrier_projection.replacement_threshold_tu, 30, "替换阈值应由投影持续时间稳定导出。");
         _test.False(expiringScore.layered_barrier_projection.redundant_same_anchor, "完整但即将过期的法球允许提前替换。");
@@ -457,13 +653,13 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = hp,
-            current_ap = 2,
-            current_mp = 100,
-            current_stamina = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            mp: 100,
+            stamina: 100,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         unit.attribute_snapshot.SetValue("strength", 10);
         unit.attribute_snapshot.SetValue("agility", 10);
@@ -471,7 +667,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         unit.attribute_snapshot.SetValue("perception", 10);
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -641,7 +837,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(caster),
             skill,
-            BuildCommand(caster, skill.SkillId, caster.coord, caster),
+            BuildCommand(caster, skill.SkillId, caster.GetAnchorCoord(), caster),
             BuildPreview(caster),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(caster, 0, 0)
@@ -683,7 +879,7 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
                 continue;
             }
             preview.AddTargetUnitId(target.unit_id);
-            preview.AddTargetCoord(target.coord);
+            preview.AddTargetCoord(target.GetAnchorCoord());
         }
         return preview;
     }
@@ -761,10 +957,10 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             {
                 State.ally_unit_ids.Add(unit.unit_id);
             }
-            bool placed = GridService.PlaceUnit(State, unit, unit.coord, true);
+            bool placed = GridService.PlaceUnit(State, unit, unit.GetAnchorCoord(), true);
             if (!placed)
             {
-                throw new InvalidOperationException($"Failed to place test unit {unit.unit_id} at {unit.coord}.");
+                throw new InvalidOperationException($"Failed to place test unit {unit.unit_id} at {unit.GetAnchorCoord()}.");
             }
         }
 

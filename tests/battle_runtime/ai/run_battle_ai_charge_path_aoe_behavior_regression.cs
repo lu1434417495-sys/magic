@@ -19,6 +19,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             TestChargePathAoeScoresRepeatHits();
             TestChargePathAoeTraceBalancesWhenPreviewThrows();
             TestRuntimePlanUsesAutoWhirlwindAction();
+            TestWhirlwindMissDoesNotGainChargeDistanceMastery();
         }
         catch (Exception exception)
         {
@@ -129,11 +130,39 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         );
         action.skill_ids.Add("warrior_whirlwind_slash");
 
+        BattleAiContext context = BuildAiContext(runtime, spinner);
+        context.trace_enabled = true;
+        SkillDefinition whirlwind =
+            runtime.GetSkillDefinitionIndexTyped()["warrior_whirlwind_slash"];
+        _test.True(
+            BattleRangeService.UnitHasMeleeWeapon(spinner),
+            "旋风斩 AI 夹具应投影为有效近战武器。"
+        );
+        _test.Eq(
+            new BattleAiTypedActionHelper().GetSkillCastBlockReason(context, whirlwind),
+            BattleSkillCastBlockReasonKind.None,
+            "旋风斩 AI 夹具不应被正式技能施放门槛阻挡。"
+        );
         BattleAiDecision decision = new BattleAiChargePathAoeActionEvaluator().Evaluate(
             (UseChargePathAoeActionDefinition)action.ToDefinition(),
-            BuildAiContext(runtime, spinner)
+            context
         );
-        _test.True(decision?.command != null, "旋风斩路径 AOE Action 应能产出合法候选。");
+        AiActionTrace trace =
+            context.GetActionTracesTyped().Count > 0
+                ? context.GetActionTracesTyped()[0]
+                : null;
+        string traceSummary =
+            trace == null
+                ? "no trace"
+                : $"evaluated={trace.EvaluationCount}, preview_reject={trace.PreviewRejectCount}, candidates={trace.CandidateCount}, blocks={string.Join(",", trace.BlockReasons)}";
+        _test.True(
+            decision?.command != null,
+            $"旋风斩路径 AOE Action 应能产出合法候选。{traceSummary}"
+        );
+        _test.True(
+            trace != null && trace.EvaluationCount < state.map_size.X * state.map_size.Y,
+            "旋风斩 AI 应只枚举四向有效距离，不应扫描整张地图。"
+        );
         _test.True(
             decision?.score_input != null && decision.score_input.path_step_hit_count >= 2,
             "路径 AOE 评分应统计同一大型目标被沿途多次命中的收益。"
@@ -248,6 +277,99 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         );
     }
 
+    private void TestWhirlwindMissDoesNotGainChargeDistanceMastery()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        var missResolver = new FixedMissOneDamageResolver();
+        missResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
+        runtime.ConfigureDamageResolverForTests(missResolver);
+
+        BattleState state = BuildFlatState(new Vector2I(8, 5));
+        BattleUnitState spinner = BuildAiUnit(
+            "whirlwind_mastery_miss",
+            "旋风熟练度测试者",
+            "hostile",
+            new Vector2I(1, 2),
+            "melee_aggressor",
+            "engage",
+            new[] { "warrior_whirlwind_slash" },
+            36,
+            2
+        );
+        PrepareTestWhirlwindUser(spinner);
+        spinner.source_member_id = "whirlwind_mastery_member";
+        BattleUnitState target = BuildManualUnit(
+            "whirlwind_mastery_target",
+            "旋风熟练度目标",
+            "player",
+            new Vector2I(2, 1),
+            new[] { "warrior_heavy_strike" }
+        );
+        AddUnitToState(runtime, state, spinner, isEnemy: true);
+        AddUnitToState(runtime, state, target, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        SkillDefinition whirlwind =
+            runtime.GetSkillDefinitionIndexTyped()["warrior_whirlwind_slash"];
+        CombatCastVariantDefinition variant = whirlwind.CombatProfile.CastVariants[0];
+        using var masteryService = new BattleSkillMasteryService();
+        var chargeResolver = new BattleChargeResolver();
+        chargeResolver.Setup(runtime, masteryService);
+        using var batch = new BattleEventBatch();
+
+        bool executed = chargeResolver.handle_charge_skill_command_result(
+            spinner,
+            whirlwind,
+            variant,
+            BattleGroundSkillValidationResult.AllowedResult(
+                "可施放。",
+                new[] { new Vector2I(3, 2) },
+                direction: Vector2I.Right,
+                distance: 2,
+                resolvedAnchorCoord: new Vector2I(3, 2)
+            ),
+            batch
+        );
+
+        _test.True(executed, "旋风斩熟练度回归应成功执行两格路径冲锋。");
+        _test.Eq(spinner.GetAnchorCoord(), new Vector2I(3, 2), "旋风斩熟练度回归应实际移动两格。");
+        _test.Eq(
+            masteryService.ResolveActiveSkillMasteryAmount(),
+            0,
+            "路径武器攻击全部未命中时，不应再按冲锋移动距离追加熟练度。"
+        );
+
+        masteryService.Clear();
+        _test.True(
+            runtime._grid_service.MoveUnit(state, spinner, new Vector2I(1, 2)),
+            "旋风斩熟练度命中夹具应能把施放者复位。"
+        );
+        var maxDamageResolver = new FixedHitMaxDamageResolver();
+        maxDamageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
+        runtime.ConfigureDamageResolverForTests(maxDamageResolver);
+        using var hitBatch = new BattleEventBatch();
+        bool hitExecuted = chargeResolver.handle_charge_skill_command_result(
+            spinner,
+            whirlwind,
+            variant,
+            BattleGroundSkillValidationResult.AllowedResult(
+                "可施放。",
+                new[] { new Vector2I(3, 2) },
+                direction: Vector2I.Right,
+                distance: 2,
+                resolvedAnchorCoord: new Vector2I(3, 2)
+            ),
+            hitBatch
+        );
+        _test.True(hitExecuted, "旋风斩熟练度命中夹具应成功执行。");
+        _test.True(
+            masteryService.ResolveActiveSkillMasteryAmount() > 0,
+            "路径武器攻击满足 weapon_attack_quality 时，应按真实攻击结果获得熟练度。"
+        );
+        chargeResolver.DisposeRuntime();
+    }
+
     private static BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
         var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
@@ -325,7 +447,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -353,12 +475,13 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 120,
+            stamina: 8,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
@@ -367,8 +490,11 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -387,18 +513,22 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -420,7 +550,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }
@@ -431,13 +561,13 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         {
             return;
         }
-        unit.current_stamina = 120;
-        unit.current_aura = 140;
+        unit.SetCurrentStamina(120);
+        unit.SetCurrentAura(140);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         unit.attribute_snapshot.SetValue("stamina_max", 120);
         unit.attribute_snapshot.SetValue("aura_max", 140);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 30);
-        unit.known_skill_level_map["warrior_whirlwind_slash"] = 9;
+        unit.SetKnownSkillLevelTyped("warrior_whirlwind_slash", 9);
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
             {
@@ -445,6 +575,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
                 weapon_item_id = "ai_test_whirlwind_blade",
                 weapon_profile_type_id = "shortsword",
                 weapon_family = "sword",
+                weapon_range_type = "melee",
                 weapon_current_grip = BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
                 weapon_attack_range = 1,
                 weapon_one_handed_dice = new WeaponDice

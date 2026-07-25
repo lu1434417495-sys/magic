@@ -44,7 +44,7 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
             brainId: BrainId,
             stateId: StateId
         );
-        actor.current_move_points = 1;
+        actor.SetCurrentMovePoints(1);
         BattleUnitState nearbyMelee = BuildUnit(
             "nearby_melee_threat",
             "近身威胁",
@@ -272,12 +272,13 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
             control_mode = controlMode,
             ai_brain_id = new StringName(brainId ?? ""),
             ai_state_id = new StringName(stateId ?? ""),
-            current_hp = 30,
-            current_ap = 2,
-            current_move_points = 2,
-            current_stamina = 30,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            stamina: 30,
+            ap: 2,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             unit.attribute_snapshot.SetValue(attributeId, 10);
@@ -290,8 +291,8 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
 
     private static void AddBasicAttack(BattleUnitState unit, int attackRange)
     {
-        unit.known_active_skill_ids.Add("basic_attack");
-        unit.known_skill_level_map["basic_attack"] = 1;
+        unit.AddKnownActiveSkill("basic_attack");
+        unit.SetKnownSkillLevelTyped("basic_attack", 1);
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
             {
@@ -345,8 +346,8 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
                 State.enemy_unit_ids.Add(unit.unit_id);
             else
                 State.ally_unit_ids.Add(unit.unit_id);
-            if (!Runtime._grid_service.PlaceUnit(State, unit, unit.coord, true))
-                throw new InvalidOperationException($"Failed to place {unit.unit_id} at {unit.coord}.");
+            if (!Runtime._grid_service.PlaceUnit(State, unit, unit.GetAnchorCoord(), true))
+                throw new InvalidOperationException($"Failed to place {unit.unit_id} at {unit.GetAnchorCoord()}.");
         }
 
         internal void ActivateState() => Runtime.SetupStateForTests(State);
@@ -364,7 +365,7 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
                 unit_state = actor,
                 grid_service = Runtime._grid_service,
                 move_cost_callback = (unit, targetCoord) =>
-                    Runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                    Runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
                 runtime_action_plan = actionPlan,
                 trace_enabled = traceEnabled,
             };

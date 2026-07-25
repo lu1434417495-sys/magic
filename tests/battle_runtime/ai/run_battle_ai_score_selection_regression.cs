@@ -90,10 +90,10 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
 
         BattleUnitState wolf = BuildUnit("wolf_score_melee", "hostile", new Vector2I(1, 1));
         wolf.ai_brain_id = "melee_score_probe";
-        wolf.known_active_skill_ids.Add(heavySkill.SkillId);
-        wolf.known_active_skill_ids.Add(executeSkill.SkillId);
+        wolf.AddKnownActiveSkill(heavySkill.SkillId);
+        wolf.AddKnownActiveSkill(executeSkill.SkillId);
         BattleUnitState player = BuildUnit("low_hp_target", "player", new Vector2I(2, 1), hp: 20);
-        player.current_hp = 5;
+        player.SetCurrentHp(5);
         fixture.AddUnit(wolf);
         fixture.AddUnit(player);
 
@@ -101,7 +101,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput heavyScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             heavySkill,
-            BuildCommand(wolf, heavySkill.SkillId, player.coord, player),
+            BuildCommand(wolf, heavySkill.SkillId, player.GetAnchorCoord(), player),
             BuildPreview(player),
             new[] { heavySkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(player, 1, 1)
@@ -109,7 +109,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput executeScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             executeSkill,
-            BuildCommand(wolf, executeSkill.SkillId, player.coord, player),
+            BuildCommand(wolf, executeSkill.SkillId, player.GetAnchorCoord(), player),
             BuildPreview(player),
             new[] { executeSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(player, 1, 1)
@@ -171,8 +171,8 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddSkill(iceLanceSkill);
 
         BattleUnitState caster = BuildUnit("mist_score_caster", "hostile", new Vector2I(1, 2));
-        caster.known_active_skill_ids.Add(fireballSkill.SkillId);
-        caster.known_active_skill_ids.Add(iceLanceSkill.SkillId);
+        caster.AddKnownActiveSkill(fireballSkill.SkillId);
+        caster.AddKnownActiveSkill(iceLanceSkill.SkillId);
         BattleUnitState player = BuildUnit("single_target", "player", new Vector2I(4, 2));
         fixture.AddUnit(caster);
         fixture.AddUnit(player);
@@ -181,7 +181,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput fireballScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(caster, fireballSkill.SkillId, player.coord),
+            BuildCommand(caster, fireballSkill.SkillId, player.GetAnchorCoord()),
             BuildPreview(player),
             new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 3, 4)
@@ -189,7 +189,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput iceLanceScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             iceLanceSkill,
-            BuildCommand(caster, iceLanceSkill.SkillId, player.coord, player),
+            BuildCommand(caster, iceLanceSkill.SkillId, player.GetAnchorCoord(), player),
             BuildPreview(player),
             new[] { iceLanceSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(player, 3, 4)
@@ -213,7 +213,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddSkill(skill);
 
         BattleUnitState archer = BuildUnit("score_archer", "hostile", new Vector2I(1, 2));
-        archer.known_active_skill_ids.Add(skill.SkillId);
+        archer.AddKnownActiveSkill(skill.SkillId);
         BattleUnitState closeTank = BuildUnit("close_tank", "player", new Vector2I(2, 2));
         BattleUnitState farScout = BuildUnit("far_scout", "player", new Vector2I(4, 2));
         fixture.AddUnit(archer);
@@ -243,7 +243,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput closeScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             skill,
-            BuildCommand(archer, skill.SkillId, closeTank.coord, closeTank),
+            BuildCommand(archer, skill.SkillId, closeTank.GetAnchorCoord(), closeTank),
             BuildPreview(closeTank, BuildHitPreview(20)),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(closeTank, 0, 6)
@@ -251,7 +251,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         BattleAiScoreInput farScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             skill,
-            BuildCommand(archer, skill.SkillId, farScout.coord, farScout),
+            BuildCommand(archer, skill.SkillId, farScout.GetAnchorCoord(), farScout),
             BuildPreview(farScout, BuildHitPreview(90)),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(farScout, 0, 6)
@@ -304,10 +304,9 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         fixture.AddSkill(multishot);
 
         BattleUnitState archer = BuildUnit("locked_multishot_archer", "hostile", new Vector2I(0, 2));
-        archer.current_move_points = 1;
-        archer.has_moved_this_turn = true;
-        archer.can_use_locked_move_points_this_turn = false;
-        archer.known_active_skill_ids.Add(multishot.SkillId);
+        archer.SetCurrentMovePoints(1);
+        archer.MarkMovedThisTurnTyped();
+        archer.AddKnownActiveSkill(multishot.SkillId);
         BattleUnitState targetA = BuildUnit("multi_lock_target_a", "player", new Vector2I(4, 1));
         BattleUnitState targetB = BuildUnit("multi_lock_target_b", "player", new Vector2I(4, 3));
         fixture.AddUnit(archer);
@@ -337,7 +336,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             "已移动且未获准使用锁定移动力时，multi-unit 站位动作不应继续产出移动指令。"
         );
 
-        archer.can_use_locked_move_points_this_turn = true;
+        archer.GrantLockedMovePointsThisTurnTyped();
         BattleAiContext allowedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(allowedContext);
         BattleAiDecision allowedDecision = evaluator.Evaluate(actionDefinition, allowedContext);
@@ -358,9 +357,8 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
     {
         using Fixture fixture = BuildFixture("retreat_move_lock", new Vector2I(5, 5));
         BattleUnitState archer = BuildUnit("locked_retreat_archer", "hostile", new Vector2I(2, 2));
-        archer.current_move_points = 1;
-        archer.has_moved_this_turn = true;
-        archer.can_use_locked_move_points_this_turn = false;
+        archer.SetCurrentMovePoints(1);
+        archer.MarkMovedThisTurnTyped();
         BattleUnitState threat = BuildUnit("retreat_lock_threat", "player", new Vector2I(2, 1));
         fixture.AddUnit(archer);
         fixture.AddUnit(threat);
@@ -384,7 +382,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             "已移动且未获准使用锁定移动力时，retreat 动作不应继续产出移动指令。"
         );
 
-        archer.can_use_locked_move_points_this_turn = true;
+        archer.GrantLockedMovePointsThisTurnTyped();
         BattleAiContext allowedContext = fixture.BuildContext(archer);
         InstallSimpleActionScoreInput(allowedContext);
         BattleAiDecision allowedDecision = evaluator.Evaluate(actionDefinition, allowedContext);
@@ -496,13 +494,13 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = hp,
-            current_ap = 2,
-            current_mp = 100,
-            current_stamina = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            mp: 100,
+            stamina: 100,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         unit.attribute_snapshot.SetValue("strength", 10);
         unit.attribute_snapshot.SetValue("agility", 10);
@@ -510,7 +508,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         unit.attribute_snapshot.SetValue("perception", 10);
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -599,7 +597,7 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
         if (target != null)
         {
             preview.AddTargetUnitId(target.unit_id);
-            preview.AddTargetCoord(target.coord);
+            preview.AddTargetCoord(target.GetAnchorCoord());
         }
         return preview;
     }
@@ -704,10 +702,10 @@ public partial class run_battle_ai_score_selection_regression : LifecycleTestSce
             {
                 State.ally_unit_ids.Add(unit.unit_id);
             }
-            bool placed = GridService.PlaceUnit(State, unit, unit.coord, true);
+            bool placed = GridService.PlaceUnit(State, unit, unit.GetAnchorCoord(), true);
             if (!placed)
             {
-                throw new InvalidOperationException($"Failed to place test unit {unit.unit_id} at {unit.coord}.");
+                throw new InvalidOperationException($"Failed to place test unit {unit.unit_id} at {unit.GetAnchorCoord()}.");
             }
         }
 

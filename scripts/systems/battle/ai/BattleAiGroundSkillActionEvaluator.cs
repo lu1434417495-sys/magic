@@ -476,7 +476,10 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         foreach (Vector2I coord in candidateCoords)
         {
             int distance = usesRelocationDistance
-                ? gridService.GetChebyshevDistance(unitState.coord, coord)
+                ? gridService.GetChebyshevDistance(
+                    unitState.GetAnchorCoord(),
+                    coord
+                )
                 : gridService.GetDistanceFromUnitToCoord(unitState, coord);
             if (distance > effectiveSkillRange)
             {
@@ -524,7 +527,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             BattleUnitState targetUnit in livingUnits ?? (IReadOnlyList<BattleUnitState>)Array.Empty<BattleUnitState>()
         )
         {
-            if (targetUnit == null || !targetUnit.is_alive)
+            if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
@@ -621,7 +624,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         foreach (Vector2I targetCoord in targetCoordValues)
         {
             Vector2I direction = context.unit_state != null
-                ? targetCoord - context.unit_state.coord
+                ? targetCoord - context.unit_state.GetAnchorCoord()
                 : Vector2I.Zero;
             foreach (
                 Vector2I effectCoord in context.grid_service.GetAreaCoords(
@@ -651,7 +654,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         {
             return Vector2I.Zero;
         }
-        return targetCoords.FirstOrDefault() - context.unit_state.coord;
+        return targetCoords.FirstOrDefault()
+            - context.unit_state.GetAnchorCoord();
     }
 
     private static bool _unit_intersects_coords(
@@ -663,7 +667,9 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         {
             return false;
         }
-        foreach (Vector2I occupiedCoord in unitState.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unitState.GetOccupiedCoordsReadViewTyped()
+        )
         {
             if (coordSet.Contains(occupiedCoord))
             {
@@ -682,7 +688,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         }
         foreach (BattleUnitState unitState in context.state.GetUnitsTyped())
         {
-            if (unitState != null && unitState.is_alive)
+            if (unitState != null && unitState.IsAlive())
             {
                 result.Add(unitState);
             }
@@ -699,7 +705,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         var result = new List<BattleUnitState>();
         foreach (BattleUnitState unitState in units ?? Array.Empty<BattleUnitState>())
         {
-            if (unitState != null && unitState.is_alive && MatchesTargetFilter(context, unitState, targetFilter))
+            if (unitState != null && unitState.IsAlive() && MatchesTargetFilter(context, unitState, targetFilter))
             {
                 result.Add(unitState);
             }
@@ -991,7 +997,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         );
         foreach (BattleUnitState allyUnit in allies ?? System.Array.Empty<BattleUnitState>())
         {
-            if (allyUnit == null || !allyUnit.is_alive)
+            if (allyUnit == null || !allyUnit.IsAlive())
             {
                 continue;
             }
@@ -1370,7 +1376,9 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         if (context == null || threatUnit == null)
             return -1;
         int bestRange = -1;
-        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName rawSkillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (skillId == "")
@@ -1408,7 +1416,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

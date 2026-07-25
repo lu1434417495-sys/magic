@@ -83,7 +83,9 @@ public partial class BattleAiScoreService
         int bestRangedAttackRange = 0;
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             ContextSkillDefinitions(context);
-        foreach (StringName skillId in targetUnit.known_active_skill_ids)
+        foreach (
+            StringName skillId in targetUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (IsEmpty(normalizedSkillId))
@@ -287,7 +289,7 @@ public partial class BattleAiScoreService
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }
@@ -304,37 +306,7 @@ public partial class BattleAiScoreService
     private static bool HasBonusCondition(
         CombatEffectDefinition effectDefinition,
         BattleUnitState targetUnit
-    )
-    {
-        if (effectDefinition == null || targetUnit == null)
-        {
-            return false;
-        }
-        return effectDefinition.BonusCondition == BonusConditionTargetLowHp
-            && IsTargetLowHp(effectDefinition, targetUnit);
-    }
-
-    private static bool IsTargetLowHp(
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState targetUnit
-    )
-    {
-        int maxHp = 0;
-        if (targetUnit.attribute_snapshot != null)
-        {
-            maxHp = targetUnit
-                .attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax));
-        }
-        if (maxHp <= 0)
-        {
-            maxHp = Math.Max(targetUnit.current_hp, 1);
-        }
-        int thresholdPercent =
-            effectDefinition != null && effectDefinition.HpRatioThresholdPercent > 0
-                ? Mathf.Clamp(effectDefinition.HpRatioThresholdPercent, 0, 100)
-                : 50;
-        return targetUnit.current_hp * 100 <= maxHp * thresholdPercent;
-    }
+    ) => BattleDamageBonusConditionRules.IsMet(effectDefinition, targetUnit);
 
     private static double GetDamageRatioMultiplier(CombatEffectDefinition effectDefinition)
     {
@@ -347,6 +319,7 @@ public partial class BattleAiScoreService
 
     private static int EstimateConditionalBonusDamage(
         CombatEffectDefinition effectDefinition,
+        BattleUnitState sourceUnit,
         BattleUnitState targetUnit
     )
     {
@@ -357,11 +330,30 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
+        int bonusWeaponDamage = 0;
+        if (
+            effectDefinition.BonusWeaponDiceMultiplier > 0
+            && effectDefinition.AddWeaponDice
+            && sourceUnit != null
+        )
+        {
+            BattleWeaponDiceValues weaponDice =
+                sourceUnit.GetWeaponProjectionReadViewTyped().Values.ActiveDice;
+            if (weaponDice.HasUsableDice)
+            {
+                bonusWeaponDamage = EstimateAverageDiceDamage(
+                    weaponDice.DiceCount
+                        * effectDefinition.BonusWeaponDiceMultiplier,
+                    weaponDice.DiceSides,
+                    0
+                );
+            }
+        }
         int diceCount = Math.Max(effectDefinition.BonusDamageDiceCount, 0);
         int diceSides = Math.Max(effectDefinition.BonusDamageDiceSides, 0);
         if (diceCount <= 0 || diceSides <= 0)
         {
-            return 0;
+            return bonusWeaponDamage;
         }
         int diceBonus = effectDefinition.BonusDamageDiceBonus;
         int numerator = diceCount * (diceSides + 1);
@@ -370,7 +362,7 @@ public partial class BattleAiScoreService
         {
             average += 1;
         }
-        return average + diceBonus;
+        return bonusWeaponDamage + average + diceBonus;
     }
 
     private int EstimateGroundControlScorePerCell(
@@ -485,7 +477,7 @@ public partial class BattleAiScoreService
         }
         int sustainCost =
             BuildSingleReserveResourceCost(
-                actor.current_mp,
+                actor.GetCurrentMp(),
                 GetActorResourceMax(actor, AttributeService.ToStringName(AttributeIdKind.MpMax)),
                 scoreInput.mp_cost,
                 _scoreProfile.MpReserveFloorBp,
@@ -493,7 +485,7 @@ public partial class BattleAiScoreService
                 _scoreProfile.MpReserveBreachPenalty
             )
             + BuildSingleReserveResourceCost(
-                actor.current_stamina,
+                actor.GetCurrentStamina(),
                 GetActorResourceMax(
                     actor,
                     AttributeService.ToStringName(AttributeIdKind.StaminaMax)
@@ -504,8 +496,8 @@ public partial class BattleAiScoreService
                 _scoreProfile.StaminaReserveBreachPenalty
             )
             + BuildSingleReserveResourceCost(
-                actor.current_aura,
-                Math.Max(actor.GetAuraMax(), actor.current_aura),
+                actor.GetCurrentAura(),
+                Math.Max(actor.GetAuraMax(), actor.GetCurrentAura()),
                 scoreInput.aura_cost,
                 _scoreProfile.AuraReserveFloorBp,
                 _scoreProfile.AuraReservePressureWeight,
@@ -591,7 +583,7 @@ public partial class BattleAiScoreService
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }
@@ -624,7 +616,7 @@ public partial class BattleAiScoreService
         {
             scoreInput.position_objective_kind =
                 BattleTypedNames.ToStringName(BattlePositionObjectiveKind.None);
-            scoreInput.position_anchor_coord = actor.coord;
+            scoreInput.position_anchor_coord = actor.GetAnchorCoord();
             scoreInput.distance_to_primary_coord = -1;
             scoreInput.position_objective_score = 0;
             return;
@@ -659,7 +651,7 @@ public partial class BattleAiScoreService
             {
                 currentDistanceToTarget = DistanceFromAnchorToUnitCached(
                     context,
-                    actor.coord,
+                    actor.GetAnchorCoord(),
                     positionTargetUnit
                 );
             }
@@ -726,7 +718,7 @@ public partial class BattleAiScoreService
         {
             return scoreInput.preview.resolved_anchor_coord;
         }
-        return actor.coord;
+        return actor.GetAnchorCoord();
     }
 
     private void PopulatePostActionThreatProjection(

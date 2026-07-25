@@ -129,7 +129,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
                     $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
                 );
                 _test.True(
-                    enemyUnit.current_stamina > 0,
+                    enemyUnit.GetCurrentStamina() > 0,
                     $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
                 );
             }
@@ -196,7 +196,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             runtime.SetupStateForTests(state);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
-            enemyUnit.current_move_points = 2;
+            enemyUnit.SetCurrentMovePoints(2);
             var player = BuildManualUnit(
                 "pressure_probe_target",
                 "压力目标",
@@ -262,11 +262,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             runtime.SetupStateForTests(state);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 2));
             enemyUnit.ai_state_id = "pressure";
-            enemyUnit.current_mp = 0;
-            enemyUnit.current_aura = 0;
-            enemyUnit.current_stamina = basicStaminaCost;
+            enemyUnit.SetCurrentMp(0);
+            enemyUnit.SetCurrentAura(0);
+            enemyUnit.SetCurrentStamina(basicStaminaCost);
             enemyUnit.attribute_snapshot.SetValue("stamina_max", basicStaminaCost);
-            enemyUnit.current_move_points = 2;
+            enemyUnit.SetCurrentMovePoints(2);
             BlockNonBasicSkills(enemyUnit);
             BattleUnitState player = BuildManualUnit(
                 "depleted_range_target",
@@ -311,10 +311,10 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             runtime.SetupStateForTests(adjacentState);
             enemyUnit.SetAnchorCoord(new Vector2I(1, 1));
             enemyUnit.ai_state_id = "pressure";
-            enemyUnit.current_mp = 0;
-            enemyUnit.current_aura = 0;
-            enemyUnit.current_stamina = basicStaminaCost;
-            enemyUnit.current_move_points = 2;
+            enemyUnit.SetCurrentMp(0);
+            enemyUnit.SetCurrentAura(0);
+            enemyUnit.SetCurrentStamina(basicStaminaCost);
+            enemyUnit.SetCurrentMovePoints(2);
             BlockNonBasicSkills(enemyUnit);
             BattleUnitState adjacentPlayer = BuildManualUnit(
                 "depleted_adjacent_target",
@@ -404,7 +404,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         foreach (string rawSkillId in requiredSkills)
         {
             StringName skillId = rawSkillId;
-            _test.True(enemyUnit.known_active_skill_ids.Contains(skillId), $"{templateId} 应携带 {skillId}。");
+            _test.True(enemyUnit.KnowsActiveSkill(skillId), $"{templateId} 应携带 {skillId}。");
         }
     }
 
@@ -672,7 +672,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -694,18 +694,22 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, hpMax: 30, staminaMax: 8, attackBonus: 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -727,7 +731,7 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }
@@ -738,15 +742,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         {
             return;
         }
-        foreach (StringName skillId in unitState.known_active_skill_ids)
+        foreach (StringName skillId in unitState.GetKnownActiveSkillsViewTyped())
         {
             if (skillId == (StringName)"basic_attack")
             {
                 continue;
             }
-            unitState.current_mp = 0;
-            unitState.current_aura = 0;
-            unitState.cooldowns[skillId] = 30;
+            unitState.SetCurrentMp(0);
+            unitState.SetCurrentAura(0);
+            unitState.SetCooldownTyped(skillId, 30);
         }
     }
 

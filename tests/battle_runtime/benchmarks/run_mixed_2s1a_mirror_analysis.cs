@@ -112,6 +112,8 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                         scenarioDefinition,
                         overrides,
                         enemyTemplates,
+                        contentSnapshot.Traits,
+                        contentSnapshot.EquipmentAbilityBindings,
                         terrainGenerator,
                         fixture,
                         seed
@@ -307,6 +309,8 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
         BattleSimScenarioDefinition scenarioDefinition,
         BattleSimOverrideApplyResult overrides,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed
@@ -326,7 +330,9 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
                 null,
                 default,
                 fixture.GetItemDefsTyped(),
-                useFormalTerrain ? null : terrainGenerator
+                useFormalTerrain ? null : terrainGenerator,
+                trait_defs: traitDefinitions,
+                equipment_ability_bindings: equipmentAbilityBindings
             );
             runtime.SetAiTraceEnabled(false);
             runtime.SetAiScoreProfile(overrides.AiScoreProfile);
@@ -345,15 +351,16 @@ public partial class run_mixed_2s1a_mirror_analysis : LifecycleTestSceneTree
             };
 
             using GodotProjectionLease<GDictionary> baseContextLease =
-                scenarioDefinition.BuildStartContextLease();
-            using GodotProjectionLease<GDictionary> contextLease =
-                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
-            GDictionary context = contextLease.Value;
+                scenarioDefinition.BuildRuntimeStartContextLease();
+            using BattleSimFormalRuntimeStartInput startInput =
+                fixture.BuildRuntimeStartInput(runtime, baseContextLease.Value);
+            GDictionary context = startInput.Context;
             state = runtime.StartBattleBorrowingContext(
                 encounterAnchor,
                 seed,
                 BattleEliminationObjectiveDefinition.Instance,
-                context
+                context,
+                startInput.TakeEnemyUnitRoster()
             );
             fixture.ApplyStartedBattleMetadata(state);
 

@@ -278,7 +278,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
             if (
                 candidate == null
                 || candidate == actor
-                || !candidate.is_alive
+                || !candidate.IsAlive()
                 || !MatchesTargetFilter(context, candidate, combatProfile.TargetTeamFilter)
                 || !IsFastUnitSkillTargetInRange(context, actor, candidate, skillDefinition)
             )
@@ -392,10 +392,19 @@ internal sealed class BattleAiRandomChainSkillEvaluator
                 1
             ),
         };
-        metadata.MaxAttemptCount = Mathf.Max(
-            metadata.CandidatePoolUnitIds.Count * metadata.MaxHitsPerTarget,
-            1
-        );
+        int configuredAttackCount =
+            skillDefinition?.CombatProfile?.GetEffectiveRandomChainAttackCount(
+                context?.unit_state?.GetKnownSkillLevelTyped(
+                    skillDefinition.SkillId
+                ) ?? 0
+            ) ?? 0;
+        metadata.MaxAttemptCount =
+            configuredAttackCount > 0
+                ? configuredAttackCount
+                : Mathf.Max(
+                    metadata.CandidatePoolUnitIds.Count * metadata.MaxHitsPerTarget,
+                    1
+                );
         if (action.DistanceReferenceKind == EnemyAiDistanceReference.CandidatePool)
         {
             BattleUnitState primaryCandidate = candidates.Count > 0 ? candidates[0] : null;
@@ -518,7 +527,7 @@ internal sealed class BattleAiRandomChainSkillEvaluator
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

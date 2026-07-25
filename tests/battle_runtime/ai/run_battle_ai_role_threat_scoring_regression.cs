@@ -46,9 +46,9 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleUnitState normalA = BuildUnit("multi_role_normal_a", "player", new Vector2I(4, 1));
         BattleUnitState normalB = BuildUnit("multi_role_normal_b", "player", new Vector2I(4, 2));
         BattleUnitState healer = BuildUnit("multi_role_healer", "player", new Vector2I(4, 3));
-        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
-        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
-        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
+        normalA.AddKnownActiveSkill(normalRoleSkill.SkillId);
+        normalB.AddKnownActiveSkill(normalRoleSkill.SkillId);
+        healer.AddKnownActiveSkill(healerRoleSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(normalA);
         fixture.AddUnit(normalB);
@@ -58,7 +58,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             attackSkill,
-            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
+            BuildCommand(actor, attackSkill.SkillId, normalA.GetAnchorCoord()),
             BuildPreview(normalA, normalB),
             new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(normalA, 3, 6)
@@ -66,7 +66,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             attackSkill,
-            BuildCommand(actor, attackSkill.SkillId, normalA.coord),
+            BuildCommand(actor, attackSkill.SkillId, normalA.GetAnchorCoord()),
             BuildPreview(normalA, healer),
             new[] { attackSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(normalA, 3, 6)
@@ -111,9 +111,9 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleUnitState normalA = BuildUnit("ground_role_normal_a", "player", new Vector2I(4, 1));
         BattleUnitState normalB = BuildUnit("ground_role_normal_b", "player", new Vector2I(4, 2));
         BattleUnitState healer = BuildUnit("ground_role_healer", "player", new Vector2I(4, 4));
-        normalA.known_active_skill_ids.Add(normalRoleSkill.SkillId);
-        normalB.known_active_skill_ids.Add(normalRoleSkill.SkillId);
-        healer.known_active_skill_ids.Add(healerRoleSkill.SkillId);
+        normalA.AddKnownActiveSkill(normalRoleSkill.SkillId);
+        normalB.AddKnownActiveSkill(normalRoleSkill.SkillId);
+        healer.AddKnownActiveSkill(healerRoleSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(normalA);
         fixture.AddUnit(normalB);
@@ -123,7 +123,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput normalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.SkillId, normalB.coord),
+            BuildCommand(actor, fireballSkill.SkillId, normalB.GetAnchorCoord()),
             BuildPreview(normalA, normalB),
             new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 3, 4)
@@ -131,7 +131,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput threatScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.SkillId, healer.coord),
+            BuildCommand(actor, fireballSkill.SkillId, healer.GetAnchorCoord()),
             BuildPreview(normalA, healer),
             new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 3, 4)
@@ -174,8 +174,8 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleUnitState actor = BuildUnit("lethal_threat_mage", "hostile", new Vector2I(1, 2));
         BattleUnitState archerA = BuildUnit("lethal_threat_archer_a", "player", new Vector2I(5, 2), hp: 10);
         BattleUnitState archerB = BuildUnit("lethal_threat_archer_b", "player", new Vector2I(5, 4), hp: 10);
-        archerA.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
-        archerB.known_active_skill_ids.Add(rangedThreatSkill.SkillId);
+        archerA.AddKnownActiveSkill(rangedThreatSkill.SkillId);
+        archerB.AddKnownActiveSkill(rangedThreatSkill.SkillId);
         fixture.AddUnit(actor);
         fixture.AddUnit(archerA);
         fixture.AddUnit(archerB);
@@ -184,7 +184,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput fireballScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             fireballSkill,
-            BuildCommand(actor, fireballSkill.SkillId, archerA.coord),
+            BuildCommand(actor, fireballSkill.SkillId, archerA.GetAnchorCoord()),
             BuildPreview(archerA, archerB),
             new[] { fireballSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(null, 4, 5)
@@ -192,7 +192,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput chainScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             chainSkill,
-            BuildCommand(actor, chainSkill.SkillId, archerA.coord, archerA),
+            BuildCommand(actor, chainSkill.SkillId, archerA.GetAnchorCoord(), archerA),
             BuildPreview(archerA),
             new[] { chainSkill.CombatProfile.EffectDefinitions[0] },
             BuildPositionMetadata(archerA, 4, 5)
@@ -223,7 +223,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         using Fixture fixture = BuildFixture("low_hp_bonus_scoring");
         BattleUnitState actor = BuildUnit("low_hp_bonus_actor", "hostile", new Vector2I(1, 1));
         BattleUnitState target = BuildUnit("ai_score_low_hp_target", "player", new Vector2I(2, 1), hp: 30);
-        target.current_hp = 18;
+        target.SetCurrentHp(18);
         fixture.AddUnit(actor);
         fixture.AddUnit(target);
 
@@ -258,7 +258,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput formalScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             formalSkill,
-            BuildCommand(actor, formalSkill.SkillId, target.coord, target),
+            BuildCommand(actor, formalSkill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
             new[] { formalSkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
@@ -266,7 +266,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         BattleAiScoreInput legacyScore = fixture.ScoreService.BuildSkillScoreInput(
             context,
             legacySkill,
-            BuildCommand(actor, legacySkill.SkillId, target.coord, target),
+            BuildCommand(actor, legacySkill.SkillId, target.GetAnchorCoord(), target),
             BuildPreview(target),
             new[] { legacySkill.CombatProfile.EffectDefinitions[0] },
             new Dictionary<string, object>(StringComparer.Ordinal)
@@ -311,13 +311,13 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = hp,
-            current_ap = 2,
-            current_mp = 100,
-            current_stamina = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            mp: 100,
+            stamina: 100,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         unit.attribute_snapshot.SetValue("strength", 10);
         unit.attribute_snapshot.SetValue("agility", 10);
@@ -325,7 +325,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
         unit.attribute_snapshot.SetValue("perception", 10);
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -413,7 +413,7 @@ public partial class run_battle_ai_role_threat_scoring_regression : LifecycleTes
                 continue;
             }
             preview.AddTargetUnitId(target.unit_id);
-            preview.AddTargetCoord(target.coord);
+            preview.AddTargetCoord(target.GetAnchorCoord());
         }
         return preview;
     }

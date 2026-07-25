@@ -529,14 +529,19 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 new Dictionary<string, object>(StringComparer.Ordinal)
                 {
                     ["position_target_unit_id"] = focusTarget.unit_id,
-                    ["position_anchor_coord"] = actor.coord,
+                    ["position_anchor_coord"] = actor.GetAnchorCoord(),
                     ["desired_min_distance"] = resolvedMinDistance,
                     ["desired_max_distance"] = resolvedMaxDistance,
                     ["position_objective_kind"] = new StringName("distance_band_progress"),
                     ["move_cost"] = 0,
                 }
             );
-            ApplyScreeningScore(context, currentScoreInput, actor.coord, screeningContext);
+            ApplyScreeningScore(
+                context,
+                currentScoreInput,
+                actor.GetAnchorCoord(),
+                screeningContext
+            );
 
             PathProgressCandidate pathProgressCandidate = BuildPathProgressDecision(
                 context,
@@ -727,7 +732,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         }
 
         var seen = new HashSet<Vector2I>();
-        Vector2I origin = actor.coord;
+        Vector2I origin = actor.GetAnchorCoord();
         int maxMovePoints = _resolve_current_move_budget(actor);
         if (maxMovePoints <= 0)
         {
@@ -937,7 +942,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
         foreach (BattleUnitState allyUnit in state.GetUnitsTyped())
         {
-            if (allyUnit == null || !allyUnit.is_alive)
+            if (allyUnit == null || !allyUnit.IsAlive())
             {
                 continue;
             }
@@ -970,7 +975,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
         foreach (BattleUnitState threatUnit in state.GetUnitsTyped())
         {
-            if (threatUnit == null || !threatUnit.is_alive)
+            if (threatUnit == null || !threatUnit.IsAlive())
             {
                 continue;
             }
@@ -994,7 +999,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 int threatDistance = _distance_between_units(context, threatUnit, protectedUnit);
                 int threatReach =
                     contactRange
-                    + Mathf.Max(threatUnit.current_move_points, 0)
+                    + Mathf.Max(threatUnit.GetCurrentMovePoints(), 0)
                     + Mathf.Max(screening_threat_distance_buffer, 0);
                 if (threatDistance > threatReach)
                 {
@@ -1042,7 +1047,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             return -1;
         }
         int bestRange = -1;
-        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName rawSkillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (skillId == "")
@@ -1103,7 +1110,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         ScreeningMetrics bestMetrics = new();
         ScreeningMetrics currentMetrics = BuildBestScreeningAnchorMetrics(
             context,
-            GetContextUnit(context).coord,
+            GetContextUnit(context).GetAnchorCoord(),
             screeningContext
         );
         ScreeningMetrics candidateMetrics = BuildBestScreeningAnchorMetrics(
@@ -1366,7 +1373,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             ? new List<Vector2I>(grid.GetUnitTargetCoords(actor, blockerAnchor))
             : new List<Vector2I>();
         List<Vector2I> restoreCoords = new();
-        foreach (Vector2I coord in actor.occupied_coords)
+        BattleUnitGeometryReadView actorGeometry =
+            actor.GetGeometryReadViewTyped();
+        foreach (Vector2I coord in actorGeometry.OccupiedCoords)
         {
             restoreCoords.Add(coord);
         }
@@ -1381,7 +1390,12 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         );
         try
         {
-            grid.SetOccupantsTyped(state, actor.occupied_coords, "", mark_revision: false);
+            grid.SetOccupantsTyped(
+                state,
+                actorGeometry.OccupiedCoords,
+                "",
+                mark_revision: false
+            );
             if (useBlocker)
             {
                 grid.SetOccupantsTyped(state, blockerCoords, actor.unit_id, mark_revision: false);
@@ -1409,7 +1423,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 BattleMovePathResult resolvedPath = grid.ResolveUnitMovePathTyped(
                     state,
                     threatUnit,
-                    threatUnit.coord,
+                    threatUnit.GetAnchorCoord(),
                     destination,
                     pathBudget,
                     BuildMoveCostProvider(context)
@@ -1490,7 +1504,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
 
         int resolvedContactRange = Mathf.Max(contactRange, 1);
         var seen = new HashSet<Vector2I>();
-        foreach (Vector2I occupiedCoord in protectedUnit.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in protectedUnit.GetOccupiedCoordsReadViewTyped()
+        )
         {
             for (
                 int y = occupiedCoord.Y - resolvedContactRange;
@@ -1527,7 +1543,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                         !grid.CanPlaceFootprint(
                             state,
                             coord,
-                            threatUnit.footprint_size,
+                            threatUnit.GetFootprintSize(),
                             threatUnit.unit_id,
                             threatUnit
                         )
@@ -1543,8 +1559,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         destinations.Sort(
             (left, right) =>
             {
-                int leftDistance = grid.GetDistance(threatUnit.coord, left);
-                int rightDistance = grid.GetDistance(threatUnit.coord, right);
+                Vector2I threatCoord = threatUnit.GetAnchorCoord();
+                int leftDistance = grid.GetDistance(threatCoord, left);
+                int rightDistance = grid.GetDistance(threatCoord, right);
                 if (leftDistance != rightDistance)
                 {
                     return leftDistance.CompareTo(rightDistance);
@@ -1652,7 +1669,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         int currentDistance = _distance_from_anchor_to_unit(
             context,
             actor,
-            actor.coord,
+            actor.GetAnchorCoord(),
             focusTarget
         );
         if (currentDistance >= resolvedMinDistance && currentDistance <= resolvedMaxDistance)
@@ -1680,7 +1697,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                 pathTree = grid.BuildUnitMovePathTreeTyped(
                     state,
                     actor,
-                    actor.coord,
+                    actor.GetAnchorCoord(),
                     pathSearchBudget,
                     BuildMoveCostProvider(context)
                 );
@@ -1697,7 +1714,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             {
                 if (
                     !pathTreeCosts.TryResolvePath(
-                        actor.coord,
+                        actor.GetAnchorCoord(),
                         destination,
                         out pathCost,
                         out List<Vector2I> treePath
@@ -1717,7 +1734,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
                     resolvedPath = grid.ResolveUnitMovePathTyped(
                         state,
                         actor,
-                        actor.coord,
+                        actor.GetAnchorCoord(),
                         destination,
                         pathSearchBudget,
                         BuildMoveCostProvider(context)
@@ -1733,7 +1750,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
             pathLength = path?.Count ?? 0;
 
             Vector2I moveTarget = ResolveCurrentTurnPathTarget(context, path);
-            if (moveTarget == actor.coord)
+            if (moveTarget == actor.GetAnchorCoord())
             {
                 continue;
             }
@@ -1887,7 +1904,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         int resolvedMaxDistance = distanceContract.DesiredMaxDistance;
         int maxDistance = Mathf.Max(resolvedMaxDistance, resolvedMinDistance);
         var seen = new HashSet<Vector2I>();
-        foreach (Vector2I occupiedCoord in focusTarget.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in focusTarget.GetOccupiedCoordsReadViewTyped()
+        )
         {
             for (int y = occupiedCoord.Y - maxDistance; y <= occupiedCoord.Y + maxDistance; y++)
             {
@@ -1920,8 +1939,9 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         destinations.Sort(
             (left, right) =>
             {
-                int leftDistance = grid.GetDistance(actor.coord, left);
-                int rightDistance = grid.GetDistance(actor.coord, right);
+                Vector2I actorCoord = actor.GetAnchorCoord();
+                int leftDistance = grid.GetDistance(actorCoord, left);
+                int rightDistance = grid.GetDistance(actorCoord, right);
                 if (leftDistance != rightDistance)
                 {
                     return leftDistance.CompareTo(rightDistance);
@@ -1959,15 +1979,15 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         }
         if (path == null || path.Count <= 1)
         {
-            return actor.coord;
+            return actor.GetAnchorCoord();
         }
         int spentCost = 0;
         int maxMovePoints = _resolve_current_move_budget(actor);
         if (maxMovePoints <= 0)
         {
-            return actor.coord;
+            return actor.GetAnchorCoord();
         }
-        Vector2I bestCoord = actor.coord;
+        Vector2I bestCoord = actor.GetAnchorCoord();
         for (int pathIndex = 1; pathIndex < path.Count; pathIndex++)
         {
             Vector2I nextCoord = path[pathIndex];
@@ -2242,7 +2262,7 @@ internal sealed class BattleAiMoveToRangeActionEvaluator
         int knownSkillLevel = actor.GetKnownSkillLevelTyped(skillDefinition.SkillId);
         int skillLevel = knownSkillLevel > 0
             ? knownSkillLevel
-            : actor.known_active_skill_ids.Contains(skillDefinition.SkillId)
+            : actor.KnowsActiveSkill(skillDefinition.SkillId)
                 ? 1
                 : 0;
         SkillEffectiveCombatDefinition effectiveDefinition =

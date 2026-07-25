@@ -4,7 +4,6 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 public sealed partial class BattleAiScoreService : IDisposable
 {
-    private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
     private static readonly StringName ChainDamageEffectType = "chain_damage";
     private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
@@ -707,7 +706,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             BattleUnitState targetUnit = GetUnit(state, normalized);
             if (
                 targetUnit == null
-                || !targetUnit.is_alive
+                || !targetUnit.IsAlive()
                 || targetUnit.faction_id == actor.faction_id
             )
             {
@@ -755,7 +754,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             BattleUnitState targetUnit = GetUnit(state, entry.Key);
             if (
                 targetUnit == null
-                || !targetUnit.is_alive
+                || !targetUnit.IsAlive()
                 || targetUnit.faction_id == actor.faction_id
             )
             {
@@ -766,7 +765,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             {
                 targetDamage += Math.Max(estimate?.HpDamage ?? 0, 0);
             }
-            wastedDamage += Math.Max(targetDamage - Math.Max(targetUnit.current_hp, 1), 0);
+            wastedDamage += Math.Max(targetDamage - Math.Max(targetUnit.GetCurrentHp(), 1), 0);
         }
         return wastedDamage * weight;
     }
@@ -830,11 +829,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             }
             AddStatusId(result, seen, effectDefinition.StatusId);
             AddStatusId(result, seen, effectDefinition.SaveFailureStatusId);
-            AddStatusId(
-                result,
-                seen,
-                ReadStringNameParameter(effectDefinition, "repeat_hit_status_id")
-            );
+            AddStatusId(result, seen, effectDefinition.RepeatHitStatusId);
         }
         return result;
     }
@@ -886,7 +881,7 @@ public sealed partial class BattleAiScoreService : IDisposable
         }
         return Mathf.Clamp(
             RoundToInt(
-                (double)Math.Max(unitState.current_hp, 0)
+                (double)Math.Max(unitState.GetCurrentHp(), 0)
                     * ThreatMultiplierBasisPointsDenominator
                     / maxHp
             ),
@@ -975,7 +970,11 @@ public sealed partial class BattleAiScoreService : IDisposable
         );
         scoreInput.random_chain_max_attempt_count = Math.Max(
             metadata?.MaxAttemptCount
-                ?? candidateUnitIds.Count * scoreInput.random_chain_max_hits_per_target,
+                ?? (
+                    skillDefinition.CombatProfile.RandomChainAttackCount > 0
+                        ? skillDefinition.CombatProfile.RandomChainAttackCount
+                        : candidateUnitIds.Count * scoreInput.random_chain_max_hits_per_target
+                ),
             1
         );
         scoreInput.random_chain_selection_policy =
@@ -1308,7 +1307,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             scoreInput.estimated_friendly_control_target_count += 1;
         }
         bool isLethal =
-            worstCaseDamage >= Math.Max(targetUnit.current_hp, 1)
+            worstCaseDamage >= Math.Max(targetUnit.GetCurrentHp(), 1)
             || summary.LethalProbabilityPercent >= FriendlyLethalMinProbabilityThreshold;
         int penalty =
             estimatedDamage * _scoreProfile.FriendlyFireDamageWeight

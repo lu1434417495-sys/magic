@@ -32,12 +32,43 @@ internal sealed class BattleAiTypedActionHelper
         if (
             fastPreview?.allowed != true
             || context?.state == null
-            || context.state.LayeredBarrierFieldCount <= 0
+            || (
+                context.state.LayeredBarrierFieldCount <= 0
+                && !RequiresCanonicalUnitSkillPreview(context, command)
+            )
         )
         {
             return fastPreview;
         }
         return context.PreviewCommand(command) ?? new BattlePreview();
+    }
+
+    private static bool RequiresCanonicalUnitSkillPreview(
+        BattleAiContext context,
+        BattleCommand command
+    )
+    {
+        SkillDefinition skillDefinition = context?.GetSkillDefinitionTyped(
+            command?.skill_id ?? new StringName("")
+        );
+        if (skillDefinition?.CombatProfile == null)
+            return false;
+        foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
+        {
+            if (effect?.EffectKind == BattleEffectKind.VaultBehindTarget)
+                return true;
+        }
+        foreach (CombatCastVariantDefinition castVariant in skillDefinition.CombatProfile.CastVariants)
+        {
+            if (castVariant == null)
+                continue;
+            foreach (CombatEffectDefinition effect in castVariant.EffectDefinitions)
+            {
+                if (effect?.EffectKind == BattleEffectKind.VaultBehindTarget)
+                    return true;
+            }
+        }
+        return false;
     }
 
     public List<StringName> ResolveKnownSkillIds(
@@ -241,7 +272,7 @@ internal sealed class BattleAiTypedActionHelper
         {
             if (
                 candidate?.unit_id == targetUnitId
-                && candidate.is_alive
+                && candidate.IsAlive()
             )
             {
                 return candidate;
@@ -422,7 +453,7 @@ internal sealed class BattleAiTypedActionHelper
             skill_id = entryRef.SkillId,
             skill_variant_id = skillVariantId,
             target_unit_id = targetUnit.unit_id,
-            target_coord = targetUnit.coord,
+            target_coord = targetUnit.GetAnchorCoord(),
         };
     }
 
@@ -463,7 +494,7 @@ internal sealed class BattleAiTypedActionHelper
             return results;
         foreach (BattleUnitState unit in state.GetUnitsTyped())
         {
-            if (unit == null || !unit.is_alive)
+            if (unit == null || !unit.IsAlive())
                 continue;
             if (!MatchesTargetFilter(context, unit, targetFilter))
                 continue;
@@ -575,7 +606,9 @@ internal sealed class BattleAiTypedActionHelper
         if (context == null || threatUnit == null)
             return -1;
         int bestRange = -1;
-        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName rawSkillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
@@ -607,7 +640,9 @@ internal sealed class BattleAiTypedActionHelper
         if (context == null || threatUnit == null)
             return -1;
         int bestRange = -1;
-        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName rawSkillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
@@ -771,7 +806,7 @@ internal sealed class BattleAiTypedActionHelper
         if (unit?.attribute_snapshot == null)
             return HpBasisPointsDenominator;
         int hpMax = Math.Max(unit.attribute_snapshot.GetValue("hp_max"), 1);
-        int currentHp = Math.Clamp(unit.current_hp, 0, hpMax);
+        int currentHp = Math.Clamp(unit.GetCurrentHp(), 0, hpMax);
         return Math.Clamp(
             (currentHp * HpBasisPointsDenominator) / hpMax,
             0,
@@ -791,7 +826,7 @@ internal sealed class BattleAiTypedActionHelper
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? Math.Max(knownSkillLevel, 0)
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }

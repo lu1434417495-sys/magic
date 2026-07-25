@@ -114,9 +114,10 @@ public partial class run_battle_ai_score_save_probability_regression : Lifecycle
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = hp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         unit.attribute_snapshot.SetValue("constitution", 10);
         unit.attribute_snapshot.SetValue("intelligence", 10);
