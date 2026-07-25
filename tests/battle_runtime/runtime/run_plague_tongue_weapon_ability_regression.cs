@@ -112,31 +112,35 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildPlagueTongueUnit("projection");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
         _test.Eq(
-            equipped.weapon_item_id,
+            equippedWeapon.ItemId,
             PlagueTongueItemId,
             "瘟疫之舌装备后 unit 应保留真实 item_id。"
         );
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("battleaxe"),
             "瘟疫之舌应投影为 battleaxe。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "瘟疫之舌攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "瘟疫之舌应保留 versatile 属性。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "瘟疫之舌攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "瘟疫之舌应保留 versatile 属性。");
         _test.Eq(
-            equipped.weapon_one_handed_dice?.dice_count ?? 0,
+            equippedWeapon.OneHandedDice.DiceCount,
             1,
             "瘟疫之舌单手骰数量应为 1。"
         );
         _test.Eq(
-            equipped.weapon_one_handed_dice?.dice_sides ?? 0,
+            equippedWeapon.OneHandedDice.DiceSides,
             8,
             "瘟疫之舌单手骰面应为 D8。"
         );
         _test.Eq(
-            equipped.weapon_one_handed_dice?.flat_bonus ?? 0,
+            equippedWeapon.OneHandedDice.FlatBonus,
             1,
             "瘟疫之舌单手骰固定加值应为 +1。"
         );
@@ -167,25 +171,27 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除瘟疫之舌后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除瘟疫之舌后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除瘟疫之舌后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_attack_range,
-            baseline.weapon_attack_range,
+            removedWeapon.AttackRange,
+            baselineWeapon.AttackRange,
             "移除瘟疫之舌后攻击距离应回到装备前状态。"
         );
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除瘟疫之舌后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除瘟疫之舌后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -195,7 +201,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         using PlagueTongueFixture fixture = PlagueTongueFixture.Build(new GArray { 4, 6 });
         BattleUnitState attacker = fixture.BuildPlagueTongueUnit("poison_touch");
         BattleUnitState target = BuildTarget("poison_touch_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
 
@@ -206,13 +212,13 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             "plague_tongue_poison_touch",
             previewCommand: false
         );
-        int poisonTouchDamage = 100 - target.current_hp;
+        int poisonTouchDamage = 100 - target.GetCurrentHp();
 
         using PlagueTongueFixture plainFixture = PlagueTongueFixture.Build(new GArray { 4, 6 });
         BattleUnitState plainAttacker = plainFixture.BuildPlagueTongueUnit("poison_touch_plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("poison_touch_plain_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -222,7 +228,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             "plague_tongue_poison_touch_plain",
             previewCommand: false
         );
-        int plainWeaponDamage = 100 - plainTarget.current_hp;
+        int plainWeaponDamage = 100 - plainTarget.GetCurrentHp();
         _test.True(
             poisonTouchDamage > plainWeaponDamage,
             "瘟疫之舌真实基础攻击应比同一武器移除装备能力源后造成更多 HP 伤害。"
@@ -241,7 +247,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         );
         BattleUnitState attacker = failFixture.BuildPlagueTongueUnit("axe_fever");
         BattleUnitState failedTarget = BuildTarget("axe_fever_failed", new Vector2I(1, 0));
-        failedTarget.current_hp = 100;
+        failedTarget.SetCurrentHp(100);
         failedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         failedTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
 
@@ -272,7 +278,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         );
         BattleUnitState successAttacker = successFixture.BuildPlagueTongueUnit("axe_fever_success");
         BattleUnitState successTarget = BuildTarget("axe_fever_success", new Vector2I(1, 0));
-        successTarget.current_hp = 100;
+        successTarget.SetCurrentHp(100);
         successTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         successTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -295,7 +301,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         );
         BattleUnitState attacker = fixture.BuildPlagueTongueUnit("axe_fever_tick");
         BattleUnitState target = BuildTarget("axe_fever_tick_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
 
@@ -305,7 +311,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             target,
             "plague_tongue_axe_fever_tick"
         );
-        int hpAfterHit = target.current_hp;
+        int hpAfterHit = target.GetCurrentHp();
 
         BattleStatusEffectState fever = target.GetStatusEffect("axe_fever");
         _test.True(fever != null, "斧刃热应先被施加，才能结算周期伤害。");
@@ -315,7 +321,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
 
         fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 60);
 
-        _test.Eq(target.current_hp, hpAfterHit - 4, "固定周期伤害骰 4 时，斧刃热首跳应损失 4 HP。");
+        _test.Eq(target.GetCurrentHp(), hpAfterHit - 4, "固定周期伤害骰 4 时，斧刃热首跳应损失 4 HP。");
         _test.True(target.HasStatusEffect("axe_fever"), "首跳后斧刃热未到 300TU，不应移除。");
     }
 
@@ -453,9 +459,9 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -468,12 +474,15 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -483,14 +492,15 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -502,17 +512,18 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
 
     private static BattleUnitState BuildDefeatedEnemyUnit(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             enemy_template_id = "plague_spread_template",
             display_name = unitId.ToString(),
             faction_id = "hostile",
             control_mode = "ai",
-            is_alive = false,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: false
+        );
         unit.SetAnchorCoord(coord);
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 

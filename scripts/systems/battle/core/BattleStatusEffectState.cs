@@ -58,6 +58,20 @@ public class BattleStatusEffectState
         "source_bound_weapon_bonus_damage_dice_sides",
         "source_bound_weapon_bonus_damage_dice_bonus",
         "attack_roll_bonus",
+        "melee_combo_stack_gain_bonus",
+        "combo_attack_bonus_status_id",
+        "combo_attack_bonus_stack_divisor",
+        "upkeep_resource",
+        "upkeep_interval_tu",
+        "upkeep_base_cost",
+        "upkeep_escalation_interval_tu",
+        "upkeep_cost_multiplier",
+        "upkeep_elapsed_tu",
+        "break_on_hard_control",
+        "termination_status_id",
+        "termination_status_duration_tu",
+        "termination_attack_roll_penalty",
+        "termination_cooldown_tu",
         "attack_roll_advantage",
         "consume_on_next_attack_check",
         "consume_on_next_save",
@@ -120,6 +134,20 @@ public class BattleStatusEffectState
     public int source_bound_weapon_bonus_damage_dice_sides { get; set; }
     public int source_bound_weapon_bonus_damage_dice_bonus { get; set; }
     public int attack_roll_bonus { get; set; }
+    public int melee_combo_stack_gain_bonus { get; set; }
+    public StringName combo_attack_bonus_status_id { get; set; } = "";
+    public int combo_attack_bonus_stack_divisor { get; set; }
+    public StringName upkeep_resource { get; set; } = "";
+    public int upkeep_interval_tu { get; set; }
+    public int upkeep_base_cost { get; set; }
+    public int upkeep_escalation_interval_tu { get; set; }
+    public int upkeep_cost_multiplier { get; set; } = 1;
+    public int upkeep_elapsed_tu { get; set; }
+    public bool break_on_hard_control { get; set; }
+    public StringName termination_status_id { get; set; } = "";
+    public int termination_status_duration_tu { get; set; }
+    public int termination_attack_roll_penalty { get; set; }
+    public int termination_cooldown_tu { get; set; }
     public bool attack_roll_advantage { get; set; }
     public bool consume_on_next_attack_check { get; set; }
     public bool consume_on_next_save { get; set; }
@@ -254,6 +282,20 @@ public class BattleStatusEffectState
             source_bound_weapon_bonus_damage_dice_bonus =
                 source_bound_weapon_bonus_damage_dice_bonus,
             attack_roll_bonus = attack_roll_bonus,
+            melee_combo_stack_gain_bonus = melee_combo_stack_gain_bonus,
+            combo_attack_bonus_status_id = combo_attack_bonus_status_id,
+            combo_attack_bonus_stack_divisor = combo_attack_bonus_stack_divisor,
+            upkeep_resource = upkeep_resource,
+            upkeep_interval_tu = upkeep_interval_tu,
+            upkeep_base_cost = upkeep_base_cost,
+            upkeep_escalation_interval_tu = upkeep_escalation_interval_tu,
+            upkeep_cost_multiplier = upkeep_cost_multiplier,
+            upkeep_elapsed_tu = upkeep_elapsed_tu,
+            break_on_hard_control = break_on_hard_control,
+            termination_status_id = termination_status_id,
+            termination_status_duration_tu = termination_status_duration_tu,
+            termination_attack_roll_penalty = termination_attack_roll_penalty,
+            termination_cooldown_tu = termination_cooldown_tu,
             attack_roll_advantage = attack_roll_advantage,
             consume_on_next_attack_check = consume_on_next_attack_check,
             consume_on_next_save = consume_on_next_save,
@@ -658,6 +700,30 @@ public class BattleStatusEffectState
             source_bound_weapon_bonus_damage_dice_bonus =
                 ReadOptionalIntParam(parameters, "source_bound_weapon_bonus_damage_dice_bonus") ?? 0,
             attack_roll_bonus = ReadOptionalIntParam(parameters, "attack_roll_bonus") ?? 0,
+            melee_combo_stack_gain_bonus =
+                ReadOptionalIntParam(parameters, "melee_combo_stack_gain_bonus") ?? 0,
+            combo_attack_bonus_status_id =
+                ReadOptionalStringNameParam(parameters, "combo_attack_bonus_status_id"),
+            combo_attack_bonus_stack_divisor =
+                ReadOptionalIntParam(parameters, "combo_attack_bonus_stack_divisor") ?? 0,
+            upkeep_resource = ReadOptionalStringNameParam(parameters, "upkeep_resource"),
+            upkeep_interval_tu = ReadOptionalIntParam(parameters, "upkeep_interval_tu") ?? 0,
+            upkeep_base_cost = ReadOptionalIntParam(parameters, "upkeep_base_cost") ?? 0,
+            upkeep_escalation_interval_tu =
+                ReadOptionalIntParam(parameters, "upkeep_escalation_interval_tu") ?? 0,
+            upkeep_cost_multiplier =
+                ReadOptionalIntParam(parameters, "upkeep_cost_multiplier") ?? 1,
+            upkeep_elapsed_tu = ReadOptionalIntParam(parameters, "upkeep_elapsed_tu") ?? 0,
+            break_on_hard_control =
+                ReadOptionalBoolParam(parameters, "break_on_hard_control"),
+            termination_status_id =
+                ReadOptionalStringNameParam(parameters, "termination_status_id"),
+            termination_status_duration_tu =
+                ReadOptionalIntParam(parameters, "termination_status_duration_tu") ?? 0,
+            termination_attack_roll_penalty =
+                ReadOptionalIntParam(parameters, "termination_attack_roll_penalty") ?? 0,
+            termination_cooldown_tu =
+                ReadOptionalIntParam(parameters, "termination_cooldown_tu") ?? 0,
             attack_roll_advantage = ReadOptionalBoolParam(parameters, "attack_roll_advantage"),
             consume_on_next_attack_check = ReadOptionalBoolParam(
                 parameters,
@@ -793,6 +859,7 @@ public class BattleStatusEffectState
         {
             projected["attack_roll_bonus"] = attack_roll_bonus;
         }
+        AppendMaintainedStatusParams(projected);
         if (attack_roll_advantage)
         {
             projected["attack_roll_advantage"] = true;
@@ -984,6 +1051,7 @@ public class BattleStatusEffectState
         }
         if (attack_roll_bonus != 0)
             projected["attack_roll_bonus"] = attack_roll_bonus;
+        AppendMaintainedStatusParams(projected);
         if (attack_roll_advantage)
             projected["attack_roll_advantage"] = true;
         if (consume_on_next_attack_check)
@@ -1054,6 +1122,38 @@ public class BattleStatusEffectState
             projected["save_bonus_by_tag"] = projectedBonusByTag;
         }
         return projected;
+    }
+
+    private void AppendMaintainedStatusParams(Dictionary<string, object> projected)
+    {
+        if (melee_combo_stack_gain_bonus > 0)
+            projected["melee_combo_stack_gain_bonus"] = melee_combo_stack_gain_bonus;
+        if (combo_attack_bonus_status_id != "")
+            projected["combo_attack_bonus_status_id"] = combo_attack_bonus_status_id;
+        if (combo_attack_bonus_stack_divisor > 0)
+            projected["combo_attack_bonus_stack_divisor"] = combo_attack_bonus_stack_divisor;
+        if (upkeep_resource != "")
+            projected["upkeep_resource"] = upkeep_resource;
+        if (upkeep_interval_tu > 0)
+            projected["upkeep_interval_tu"] = upkeep_interval_tu;
+        if (upkeep_base_cost > 0)
+            projected["upkeep_base_cost"] = upkeep_base_cost;
+        if (upkeep_escalation_interval_tu > 0)
+            projected["upkeep_escalation_interval_tu"] = upkeep_escalation_interval_tu;
+        if (upkeep_cost_multiplier > 1)
+            projected["upkeep_cost_multiplier"] = upkeep_cost_multiplier;
+        if (upkeep_elapsed_tu > 0)
+            projected["upkeep_elapsed_tu"] = upkeep_elapsed_tu;
+        if (break_on_hard_control)
+            projected["break_on_hard_control"] = true;
+        if (termination_status_id != "")
+            projected["termination_status_id"] = termination_status_id;
+        if (termination_status_duration_tu > 0)
+            projected["termination_status_duration_tu"] = termination_status_duration_tu;
+        if (termination_attack_roll_penalty > 0)
+            projected["termination_attack_roll_penalty"] = termination_attack_roll_penalty;
+        if (termination_cooldown_tu > 0)
+            projected["termination_cooldown_tu"] = termination_cooldown_tu;
     }
 
     private static List<object> BuildPlainStringList(IEnumerable<StringName> values)

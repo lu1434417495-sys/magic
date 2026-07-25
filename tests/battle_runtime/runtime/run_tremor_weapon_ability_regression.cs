@@ -93,13 +93,17 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildTremorUnit("projection");
-        _test.Eq(equipped.weapon_item_id, TremorItemId, "地动装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("maul"), "地动应投影为 maul。");
-        _test.Eq(equipped.weapon_family, new StringName("hammer"), "地动应保留 hammer 家族。");
-        _test.True(equipped.weapon_uses_two_hands, "地动应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 2, "地动应为 2D6+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 6, "地动应为 2D6+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "地动应为 2D6+2。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, TremorItemId, "地动装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("maul"), "地动应投影为 maul。");
+        _test.Eq(equippedWeapon.Family, new StringName("hammer"), "地动应保留 hammer 家族。");
+        _test.True(equippedWeapon.UsesTwoHands, "地动应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 2, "地动应为 2D6+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 6, "地动应为 2D6+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "地动应为 2D6+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             ShockwaveTraitId,
@@ -107,26 +111,32 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
             "eq_tremor_projection"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(GeologicResonanceTraitId),
+            equipped.HasEffectiveTrait(GeologicResonanceTraitId),
             "地脉共鸣应作为展示 trait 投影到战斗单位。"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(StoneOathTraitId),
+            equipped.HasEffectiveTrait(StoneOathTraitId),
             "磐石之誓应作为展示 trait 投影到战斗单位。"
         );
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除地动后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除地动后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除地动后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除地动后装备能力源应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除地动后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除地动后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -250,9 +260,9 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         fixture.Runtime.SetupStateForTests(
             BuildState("tremor_shockwave_issue", holder, failedEnemy, successAlly, outsideEnemy)
         );
-        int failedBefore = failedEnemy.current_hp;
-        int successBefore = successAlly.current_hp;
-        int outsideBefore = outsideEnemy.current_hp;
+        int failedBefore = failedEnemy.GetCurrentHp();
+        int successBefore = successAlly.GetCurrentHp();
+        int outsideBefore = outsideEnemy.GetCurrentHp();
 
         BattleCommand command = new()
         {
@@ -260,7 +270,7 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
             unit_id = holder.unit_id,
             skill_entry_id = entry.EntryRef.SkillEntryId,
             skill_id = ShockwaveSkillId,
-            target_coord = holder.coord,
+            target_coord = holder.GetAnchorCoord(),
         };
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(
@@ -270,8 +280,8 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
         _test.True(batch != null, "震击 IssueCommand 应返回事件 batch。");
 
-        int failedDamage = failedBefore - failedEnemy.current_hp;
-        int successDamage = successBefore - successAlly.current_hp;
+        int failedDamage = failedBefore - failedEnemy.GetCurrentHp();
+        int successDamage = successBefore - successAlly.GetCurrentHp();
         _test.True(failedDamage > 0, "震击豁免失败目标应受到 thunder 伤害。");
         _test.True(successDamage > 0, "震击豁免成功目标仍应受到半伤。");
         _test.Eq(
@@ -284,7 +294,7 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         _test.Eq(prone?.duration ?? -1, 50, "震击附带 prone 应持续 50TU。");
         _test.False(successAlly.HasStatusEffect(ProneStatusId), "震击豁免成功目标不应 prone。");
         _test.Eq(
-            outsideEnemy.current_hp,
+            outsideEnemy.GetCurrentHp(),
             outsideBefore,
             "震击范围外目标不应受到伤害。"
         );
@@ -337,14 +347,15 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         int constitutionModifier
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = true,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -398,8 +409,7 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         if (state == null || unit == null)
             return;
         state.SetUnit(unit);
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
         }
@@ -418,9 +428,9 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -433,12 +443,17 @@ public partial class run_tremor_weapon_ability_regression : LifecycleTestSceneTr
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

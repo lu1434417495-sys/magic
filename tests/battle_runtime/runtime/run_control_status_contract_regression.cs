@@ -42,9 +42,9 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
         );
         _test.True(result.SkipTurn, "Petrified self-save failure must skip the current turn.");
         _test.False(result.AiControlled, "Petrified self-save failure must not request AI control.");
-        _test.Eq(fixture.Target.current_ap, 0, "Petrified self-save failure must clear AP.");
+        _test.Eq(fixture.Target.GetCurrentAp(), 0, "Petrified self-save failure must clear AP.");
         _test.Eq(
-            fixture.Target.current_move_points,
+            fixture.Target.GetCurrentMovePoints(),
             0,
             "Petrified self-save failure must clear movement."
         );
@@ -165,7 +165,7 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
         BattleUnitState target = BuildUnit("target", "Target", "enemy", new Vector2I(1, 1));
         state.SetUnit(target);
         state.enemy_unit_ids.Add(target.unit_id);
-        runtime._grid_service.PlaceUnit(state, target, target.coord, true);
+        runtime._grid_service.PlaceUnit(state, target, target.GetAnchorCoord(), true);
         runtime.SetupStateForTests(state);
         return new Fixture(runtime, runtime._skill_turn_resolver, target);
     }
@@ -203,19 +203,20 @@ public partial class run_control_status_contract_regression : LifecycleTestScene
         Vector2I coord
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 100,
-            current_mp = 20,
-            current_stamina = 20,
-            current_ap = 2,
-            current_move_points = 4,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            mp: 20,
+            stamina: 20,
+            ap: 2,
+            movePoints: 4,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue("constitution", 10);

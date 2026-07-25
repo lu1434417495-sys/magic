@@ -63,6 +63,7 @@ public partial class BattleDamageResolver
 
     private DicePoolRollResult RollWeaponDice(
         BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
         bool includeBonus = true,
         string fieldPrefix = "weapon_damage_dice",
@@ -73,14 +74,18 @@ public partial class BattleDamageResolver
         {
             return DicePoolRollResult.Empty;
         }
-        WeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
-        if (dice == null || dice.IsEmpty())
+        BattleWeaponDiceValues dice = GetCurrentWeaponDamageDice(sourceUnit);
+        if (!dice.HasUsableDice)
         {
             return DicePoolRollResult.Empty;
         }
-        int diceCount = Math.Max(dice.dice_count, 0);
-        int diceSides = Math.Max(dice.dice_sides, 0);
-        int diceBonus = includeBonus ? dice.flat_bonus : 0;
+        int weaponDiceMultiplier = Math.Max(effectDefinition.WeaponDiceMultiplier, 1);
+        int diceCount = (int)Math.Min(
+            (long)Math.Max(dice.DiceCount, 0) * weaponDiceMultiplier,
+            int.MaxValue
+        );
+        int diceSides = Math.Max(dice.DiceSides, 0);
+        int diceBonus = includeBonus ? dice.FlatBonus : 0;
         return RollDicePool(
             diceCount,
             diceSides,
@@ -245,38 +250,7 @@ public partial class BattleDamageResolver
     private bool HasBonusCondition(
         CombatEffectDefinition effectDefinition,
         BattleUnitState targetUnit
-    )
-    {
-        if (effectDefinition == null || targetUnit == null)
-        {
-            return false;
-        }
-        if (effectDefinition.BonusCondition == BonusConditionTargetLowHp)
-        {
-            return IsTargetLowHp(effectDefinition, targetUnit);
-        }
-        if (effectDefinition.BonusCondition == BonusConditionTargetDebuffCount)
-        {
-            return TargetHasEnoughDebuffs(effectDefinition, targetUnit);
-        }
-        if (effectDefinition.BonusCondition == BonusConditionTargetCreatureType)
-        {
-            return TargetHasCreatureType(effectDefinition, targetUnit);
-        }
-        return false;
-    }
-
-    private static bool TargetHasCreatureType(
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState targetUnit
-    )
-    {
-        StringName requiredTag = ProgressionDataUtils.to_string_name(
-            effectDefinition?.BonusConditionCreatureTypeTag ?? ""
-        );
-        return requiredTag != ""
-            && targetUnit?.creature_type_tags?.Contains(requiredTag) == true;
-    }
+    ) => BattleDamageBonusConditionRules.IsMet(effectDefinition, targetUnit);
 
     private SourceBoundWeaponBonusDamageRoll RollSourceBoundWeaponBonusDamageDice(
         BattleUnitState sourceUnit,
@@ -325,51 +299,6 @@ public partial class BattleDamageResolver
         return new SourceBoundWeaponBonusDamageRoll(result, skillIds);
     }
 
-    private static bool IsTargetLowHp(
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState targetUnit
-    )
-    {
-        int maxHp = GetAttributeValue(
-            targetUnit,
-            AttributeService.ToStringName(AttributeIdKind.HpMax)
-        );
-        if (maxHp <= 0)
-        {
-            maxHp = Math.Max(targetUnit.current_hp, 1);
-        }
-        int thresholdPercent =
-            effectDefinition != null && effectDefinition.HpRatioThresholdPercent > 0
-                ? Math.Clamp(effectDefinition.HpRatioThresholdPercent, 0, 100)
-                : 50;
-        return targetUnit.current_hp * 100 <= maxHp * thresholdPercent;
-    }
-
-    private static bool TargetHasEnoughDebuffs(
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState targetUnit
-    )
-    {
-        if (targetUnit == null)
-        {
-            return false;
-        }
-        int threshold = Math.Max(effectDefinition?.DebuffCountThreshold ?? 3, 1);
-        int count = 0;
-        foreach (StringName statusId in targetUnit.GetSortedStatusEffectIdsTyped())
-        {
-            if (BattleStatusSemanticTable.IsHarmfulStatusEntry(targetUnit.GetStatusEffect(statusId)))
-            {
-                count += 1;
-                if (count >= threshold)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     private static double GetDamageRatioMultiplier(CombatEffectDefinition effectDefinition)
     {
         return effectDefinition == null
@@ -401,8 +330,11 @@ public partial class BattleDamageResolver
         if (ShouldUseWeaponPhysicalDamageTag(effectDefinition))
         {
             sourceLabel = "weapon_physical_damage_tag";
+            BattleWeaponProjectionValues weaponProjection = sourceUnit != null
+                ? sourceUnit.GetWeaponProjectionReadViewTyped().Values
+                : BattleWeaponProjectionValues.Clear;
             configuredTag = ProgressionDataUtils.to_string_name(
-                sourceUnit != null ? sourceUnit.weapon_physical_damage_tag : new StringName("")
+                weaponProjection.PhysicalDamageTag
             );
         }
         else
@@ -893,7 +825,7 @@ public partial class BattleDamageResolver
         DamageResolutionContext resolutionContext
     )
     {
-        int fatalDamage = Math.Max(targetUnit?.current_hp ?? 0, 0);
+        int fatalDamage = Math.Max(targetUnit?.GetCurrentHp() ?? 0, 0);
         DamageApplicationInput fatalDamageInput = BuildFatalExecuteDamageInput(
             effectDefinition,
             fatalDamage,
@@ -1000,7 +932,7 @@ public partial class BattleDamageResolver
             ),
             0
         );
-        targetUnit.SetCurrentStamina(Math.Min(targetUnit.current_stamina + staminaAmount, maxStamina));
+        targetUnit.SetCurrentStamina(Math.Min(targetUnit.GetCurrentStamina() + staminaAmount, maxStamina));
     }
 
     private DicePoolRollResult RollEffectDice(
@@ -1180,7 +1112,11 @@ public partial class BattleDamageResolver
             "grant_status_id",
             ""
         );
-        if (grantStatusId == "")
+        if (
+            grantStatusId == ""
+            || grantStatusId == StatusMeleeComboStack
+            || grantStatusId == StatusRangedComboStack
+        )
         {
             return;
         }
@@ -1214,6 +1150,68 @@ public partial class BattleDamageResolver
             stackLimit
         );
         sourceUnit.SetStatusEffect(statusEntry);
+    }
+
+    private static void GrantWeaponTypeComboStackOnHit(BattleUnitState sourceUnit)
+    {
+        if (sourceUnit == null)
+        {
+            return;
+        }
+        if (BattleRangeService.UnitHasMeleeWeapon(sourceUnit))
+        {
+            int grantPower = 1;
+            foreach (BattleStatusEffectState status in sourceUnit.GetStatusEffectsTyped())
+            {
+                grantPower = SaturatingAdd(
+                    grantPower,
+                    Math.Max(status?.melee_combo_stack_gain_bonus ?? 0, 0)
+                );
+            }
+            GrantWeaponComboStatusStack(sourceUnit, StatusMeleeComboStack, grantPower);
+            return;
+        }
+        GrantWeaponComboStatusStack(sourceUnit, StatusRangedComboStack);
+    }
+
+    private static void GrantWeaponComboStatusStack(
+        BattleUnitState sourceUnit,
+        StringName statusId,
+        int grantPower = 1
+    )
+    {
+        const int grantDurationTu = 180;
+        grantPower = Math.Max(grantPower, 1);
+        BattleStatusEffectState existingEntry = sourceUnit.GetStatusEffect(statusId);
+        if (existingEntry != null)
+        {
+            int newStacks =
+                existingEntry.stacks >= int.MaxValue - grantPower
+                    ? int.MaxValue
+                    : existingEntry.stacks + grantPower;
+            existingEntry.stacks = newStacks;
+            existingEntry.duration = Math.Max(existingEntry.duration, grantDurationTu);
+            existingEntry.power = newStacks;
+            existingEntry.stack_limit = 0;
+            sourceUnit.SetStatusEffect(existingEntry);
+            return;
+        }
+        BattleStatusEffectState statusEntry =
+            BuildStackingSourceStatusEffect(
+                statusId,
+                sourceUnit.unit_id,
+                grantPower,
+                grantDurationTu,
+                0
+            );
+        sourceUnit.SetStatusEffect(statusEntry);
+    }
+
+    private static int SaturatingAdd(int left, int right)
+    {
+        if (right > 0 && left > int.MaxValue - right)
+            return int.MaxValue;
+        return left + right;
     }
 
     private DicePoolRollResult RollConsumedStackDice(

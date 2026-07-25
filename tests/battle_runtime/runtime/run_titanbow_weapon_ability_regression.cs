@@ -116,18 +116,22 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildTitanbowUnit("projection", strength: 18);
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, TitanbowItemId, "泰坦之弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ItemId, TitanbowItemId, "泰坦之弓装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("longbow"),
             "泰坦之弓应投影为 longbow。"
         );
-        _test.Eq(equipped.weapon_attack_range, 15, "泰坦之弓攻击距离应为 15。");
-        _test.True(equipped.weapon_uses_two_hands, "泰坦之弓应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "泰坦之弓应为 1D8+4。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 8, "泰坦之弓应为 1D8+4。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 4, "泰坦之弓应为 1D8+4。");
+        _test.Eq(equippedWeapon.AttackRange, 15, "泰坦之弓攻击距离应为 15。");
+        _test.True(equippedWeapon.UsesTwoHands, "泰坦之弓应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "泰坦之弓应为 1D8+4。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 8, "泰坦之弓应为 1D8+4。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 4, "泰坦之弓应为 1D8+4。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             BehemothSlayerTraitId,
@@ -157,13 +161,19 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除泰坦之弓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除泰坦之弓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除泰坦之弓后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除泰坦之弓后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除泰坦之弓后装备能力源应清空。"
+        );
     }
 
     private void TestTitanbowAddsDamageDiceAgainstLargeOrLargerTargetsOnly()
@@ -176,7 +186,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             bodySize: 3,
             bodySizeCategory: "large"
         );
-        largeTarget.current_hp = 100;
+        largeTarget.SetCurrentHp(100);
         largeTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             largeFixture.Runtime,
@@ -186,7 +196,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             previewCommand: false
         );
         _test.Eq(
-            100 - largeTarget.current_hp,
+            100 - largeTarget.GetCurrentHp(),
             16,
             "泰坦之弓真实基础攻击命中 Large+ 目标时应造成 1D8+4 加巨兽杀手 2D8。"
         );
@@ -199,7 +209,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             bodySize: 2,
             bodySizeCategory: "medium"
         );
-        mediumTarget.current_hp = 100;
+        mediumTarget.SetCurrentHp(100);
         mediumTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             mediumFixture.Runtime,
@@ -209,7 +219,7 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
             previewCommand: false
         );
         _test.Eq(
-            100 - mediumTarget.current_hp,
+            100 - mediumTarget.GetCurrentHp(),
             8,
             "泰坦之弓真实基础攻击命中 Medium 目标时只应造成武器 1D8+4。"
         );
@@ -317,18 +327,29 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
         StringName bodySizeCategory = default
     )
     {
-        BattleUnitState unit = new()
+        StringName resolvedBodySizeCategory =
+            bodySizeCategory == default || bodySizeCategory == ""
+                ? new StringName("medium")
+                : bodySizeCategory;
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-            body_size = bodySize,
-            body_size_category = bodySizeCategory == default || bodySizeCategory == ""
-                ? new StringName("medium")
-                : bodySizeCategory,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
+        if (
+            !unit.SetBodySizeProjection(bodySize)
+            || unit.GetBodySizeCategory() != resolvedBodySizeCategory
+        )
+        {
+            throw new InvalidOperationException(
+                $"测试目标体型参数不一致: body_size={bodySize}, "
+                + $"body_size_category='{resolvedBodySizeCategory}'。"
+            );
+        }
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -408,9 +429,9 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -423,12 +444,15 @@ public partial class run_titanbow_weapon_ability_regression : LifecycleTestScene
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

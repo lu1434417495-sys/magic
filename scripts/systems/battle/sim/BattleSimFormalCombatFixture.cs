@@ -10,6 +10,67 @@ public sealed class BattleSimFormalRosterOptionsData
     public long AttributeRollSeed { get; init; } = 101;
 }
 
+internal sealed record BattleSimFormalCreationAttributesData(
+    int Strength,
+    int Agility,
+    int Constitution,
+    int Perception,
+    int Intelligence,
+    int Willpower
+);
+
+internal sealed record BattleSimFormalSkillConfigData(
+    StringName SkillId,
+    int Level,
+    bool IsCore
+);
+
+internal sealed class BattleSimFormalRuntimeStartInput : IDisposable
+{
+    private GodotProjectionLease<Godot.Collections.Dictionary> _contextLease;
+    private BattleStartUnitRoster _enemyUnitRoster;
+    private bool _disposed;
+
+    internal BattleSimFormalRuntimeStartInput(
+        GodotProjectionLease<Godot.Collections.Dictionary> contextLease,
+        BattleStartUnitRoster enemyUnitRoster
+    )
+    {
+        _contextLease = contextLease ?? throw new ArgumentNullException(nameof(contextLease));
+        _enemyUnitRoster =
+            enemyUnitRoster ?? throw new ArgumentNullException(nameof(enemyUnitRoster));
+    }
+
+    internal Godot.Collections.Dictionary Context
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _contextLease.Value;
+        }
+    }
+
+    internal BattleStartUnitRoster TakeEnemyUnitRoster()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        BattleStartUnitRoster roster = _enemyUnitRoster;
+        if (roster == null)
+            throw new InvalidOperationException("Formal runtime enemy roster was already transferred.");
+        _enemyUnitRoster = null;
+        return roster;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _enemyUnitRoster = null;
+        _contextLease?.Dispose();
+        _contextLease = null;
+    }
+}
+
 public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGateway, IDisposable
 {
     internal static readonly StringName ROSTER_MIXED_2S1A =
@@ -26,16 +87,6 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     private const int USE_DEFAULT_ACTION_THRESHOLD = -1;
     private static readonly StringName WARRIOR_BODY_ARMOR_ITEM_ID = "iron_scale_mail";
     private static readonly StringName ARCHER_BODY_ARMOR_ITEM_ID = "leather_jerkin";
-    private static readonly StringName[] ATTRIBUTE_ROLL_IDS =
-    {
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution),
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception),
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence),
-        UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
-    };
-
     public PartyState party_state;
     public CharacterManagementModule character_management;
     public List<StringName> ally_member_ids = new();
@@ -189,82 +240,77 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         _setup_character_management();
     }
 
-    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildRuntimeContextLease(
+    internal BattleSimFormalRuntimeStartInput BuildRuntimeStartInput(
         BattleRuntimeModule runtime,
         Godot.Collections.Dictionary base_context
     )
     {
         _restore_all_members_to_full_hp();
+        StringNameList savedActiveIds = party_state.active_member_ids?.Duplicate() ?? new();
+        Dictionary<string, object> contextPlain = RuntimePlainPayload.NormalizeDictionary(
+            base_context,
+            "BattleSimFormalCombatFixture.BuildRuntimeStartInput.base"
+        );
+        contextPlain.Remove("battle_party");
+        contextPlain.Remove("enemy_units");
+        contextPlain.Remove("ally_member_ids");
         GodotProjectionLease<Godot.Collections.Dictionary> contextLease =
             RuntimePlainPayload.ProjectDictionaryLease(
-                RuntimePlainPayload.NormalizeDictionary(
-                    base_context,
-                    "BattleSimFormalCombatFixture.BuildRuntimeContextLease.base"
-                ),
+                contextPlain,
                 "battle-sim-formal-context",
                 LifetimeDomain.Request,
-                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.context"
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.context"
             );
-        Godot.Collections.Dictionary context = contextLease.Value;
-        context["battle_party"] = contextLease.Own(
-            new Godot.Collections.Array(),
-            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.battle_party"
-        );
-        context["ally_member_ids"] = ProjectStringNames(
-            contextLease,
-            ally_member_ids,
-            "BattleSimFormalCombatFixture.BuildRuntimeContextLease.ally_member_ids"
-        );
-        context["validate_spawn_reachability"] = true;
-        context["validate_bidirectional_spawn_reachability"] = true;
-        context["enforce_opposing_spawn_sides"] = true;
-        StringNameList savedActiveIds = party_state.active_member_ids?.Duplicate() ?? new();
         bool completed = false;
         try
         {
+            Godot.Collections.Dictionary context = contextLease.Value;
+            context["battle_party"] = contextLease.Own(
+                new Godot.Collections.Array(),
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.battle_party"
+            );
+            context["ally_member_ids"] = ProjectStringNames(
+                contextLease,
+                ally_member_ids,
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.ally_member_ids"
+            );
+            context["validate_spawn_reachability"] = true;
+            context["validate_bidirectional_spawn_reachability"] = true;
+            context["enforce_opposing_spawn_sides"] = true;
             party_state.active_member_ids = new StringNameList(hostile_member_ids);
             Godot.Collections.Dictionary hostileContext = RuntimePayloadCopy.DictionaryInto(
                 contextLease,
                 context,
-                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_context"
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.hostile_context"
             );
             hostileContext["battle_party"] = contextLease.Own(
                 new Godot.Collections.Array(),
-                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_battle_party"
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.hostile_battle_party"
             );
             hostileContext["ally_member_ids"] = ProjectStringNames(
                 contextLease,
                 hostile_member_ids,
-                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_member_ids"
+                "BattleSimFormalCombatFixture.BuildRuntimeStartInput.hostile_member_ids"
             );
-            var hostileUnits =
+            IReadOnlyList<BattleUnitState> hostileUnits =
                 runtime?._unit_factory?.BuildAllyUnits(
                     party_state,
                     hostileContext,
                     contextRole: BattleStartContextReferenceRole.BorrowedForSynchronousStart
                 )
                 ?? System.Array.Empty<BattleUnitState>();
-            Godot.Collections.Array hostileUnitPayloads = contextLease.Own(
-                new Godot.Collections.Array(),
-                "BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_units"
-            );
             foreach (BattleUnitState unit in hostileUnits)
-            {
                 _apply_unit_runtime_metadata(unit, "hostile");
-                hostileUnitPayloads.Add(
-                    RuntimePlainPayload.ProjectDictionaryInto(
-                        contextLease,
-                        unit.BuildSnapshotPlain(),
-                        $"BattleSimFormalCombatFixture.BuildRuntimeContextLease.hostile_unit.{unit.unit_id}"
-                    )
-                );
-            }
-            context["enemy_units"] = hostileUnitPayloads;
+            BattleStartUnitRoster enemyUnitRoster = new(enemyUnits: hostileUnits);
             party_state.active_member_ids = new StringNameList(ally_member_ids);
             if (party_state.active_member_ids.Count == 0)
                 party_state.active_member_ids = savedActiveIds.Duplicate();
+            var startInput = new BattleSimFormalRuntimeStartInput(
+                contextLease,
+                enemyUnitRoster
+            );
             completed = true;
-            return contextLease;
+            return startInput;
         }
         catch
         {
@@ -456,31 +502,31 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         return delta;
     }
 
-    public Godot.Collections.Array<StringName> RecordAchievementEvent(
+    public IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type
-    ) => RecordAchievementEvent(member_id, event_type, 1, "", new Godot.Collections.Dictionary());
+    ) => System.Array.Empty<StringName>();
 
-    public Godot.Collections.Array<StringName> RecordAchievementEvent(
+    public IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount
-    ) => RecordAchievementEvent(member_id, event_type, amount, "", new Godot.Collections.Dictionary());
+    ) => System.Array.Empty<StringName>();
 
-    public Godot.Collections.Array<StringName> RecordAchievementEvent(
+    public IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,
         StringName subject_id
-    ) => RecordAchievementEvent(member_id, event_type, amount, subject_id, new Godot.Collections.Dictionary());
+    ) => System.Array.Empty<StringName>();
 
-    public Godot.Collections.Array<StringName> RecordAchievementEvent(
+    public IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,
         StringName subject_id,
         Godot.Collections.Dictionary meta
-    ) => new Godot.Collections.Array<StringName>();
+    ) => System.Array.Empty<StringName>();
 
     public PendingCharacterReward BuildPendingSkillMasteryReward(
         StringName member_id,
@@ -533,9 +579,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         state.active_member_ids.Clear();
         state.reserve_member_ids.Clear();
         state.pending_character_rewards.Clear();
-        state.active_quests.Clear();
-        state.claimable_quests.Clear();
-        state.completed_quest_ids.Clear();
+        state.ClearQuestJournal();
     }
 
     private static void DisposePartyMemberState(PartyMemberState memberState)
@@ -576,12 +620,12 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     {
         var sword_attrs = _attrs(14, 12, 14, 10, 8, 10);
         var archer_attrs = _attrs(10, 16, 12, 14, 8, 10);
-        var sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] sword_skills =
         {
             _sk("charge", 1, false),
             _sk("warrior_heavy_strike", 1, false),
         };
-        var archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] archer_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("archer_aimed_shot", 1, false),
@@ -675,19 +719,19 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     private void _build_mixed_6v12_roster()
     {
-        var elite_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] elite_sword_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("charge", 7, true),
             _sk("warrior_heavy_strike", 5, true),
         };
-        var elite_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] elite_archer_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("archer_aimed_shot", 3, true),
             _sk("archer_multishot", 7, true),
         };
-        var elite_mage_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] elite_mage_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("mage_fireball", 7, true),
@@ -696,13 +740,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             _sk("mage_gust_of_wind", 7, true),
             _sk("mage_chain_lightning", 7, true),
         };
-        var hostile_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] hostile_sword_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("charge", 1, false),
             _sk("warrior_heavy_strike", 1, false),
         };
-        var hostile_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] hostile_archer_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("archer_aimed_shot", 1, false),
@@ -790,25 +834,25 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
     // of a blowout — a tuning arena with headroom. The 6v12 baseline is untouched.
     private void _build_mixed_6v12_two_archer_roster()
     {
-        var elite_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] elite_sword_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("charge", 7, true),
             _sk("warrior_heavy_strike", 5, true),
         };
-        var elite_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] elite_archer_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("archer_aimed_shot", 3, true),
             _sk("archer_multishot", 7, true),
         };
-        var hostile_sword_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] hostile_sword_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("charge", 1, false),
             _sk("warrior_heavy_strike", 1, false),
         };
-        var hostile_archer_skills = new Godot.Collections.Array<Godot.Collections.Dictionary>
+        BattleSimFormalSkillConfigData[] hostile_archer_skills =
         {
             _sk("basic_attack", 0, false),
             _sk("archer_aimed_shot", 1, false),
@@ -880,9 +924,9 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         StringName member_id,
         string display_name,
         StringName faction_id,
-        Godot.Collections.Dictionary attrs,
+        BattleSimFormalCreationAttributesData attrs,
         int action_threshold,
-        Godot.Collections.Array<Godot.Collections.Dictionary> skill_configs,
+        IReadOnlyList<BattleSimFormalSkillConfigData> skill_configs,
         StringName profession_id,
         int profession_rank,
         StringName weapon_item_id,
@@ -891,10 +935,21 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         StringName ai_state_id
     )
     {
-        var payload = _build_creation_payload(display_name, attrs, action_threshold);
+        IReadOnlyDictionary<string, object> payload = _build_creation_payload(
+            display_name,
+            attrs,
+            action_threshold
+        );
+        using GodotProjectionLease<Godot.Collections.Dictionary> payloadLease =
+            RuntimePlainPayload.ProjectDictionaryLease(
+                payload,
+                $"battle-sim-formal-member:{member_id}",
+                LifetimeDomain.Request,
+                $"BattleSimFormalCombatFixture._add_member.{member_id}"
+            );
         var member_state = CharacterCreationService.CreateMemberFromCharacterCreationPayloadForIdentityCatalog(
             member_id,
-            payload,
+            payloadLease.Value,
             _progression_identity_catalog
         );
         member_state.faction_id = faction_id;
@@ -992,13 +1047,15 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         _hp_roll_rng.Reseed(attributeSeed + HP_ROLL_SEED_OFFSET);
     }
 
-    private Godot.Collections.Dictionary _roll_creation_attributes()
-    {
-        var attrs = new Godot.Collections.Dictionary();
-        foreach (var attribute_id in ATTRIBUTE_ROLL_IDS)
-            attrs[attribute_id] = _roll_creation_attribute_value();
-        return attrs;
-    }
+    private BattleSimFormalCreationAttributesData _roll_creation_attributes() =>
+        new(
+            _roll_creation_attribute_value(),
+            _roll_creation_attribute_value(),
+            _roll_creation_attribute_value(),
+            _roll_creation_attribute_value(),
+            _roll_creation_attribute_value(),
+            _roll_creation_attribute_value()
+        );
 
     private int _roll_creation_attribute_value()
     {
@@ -1029,7 +1086,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     private void _apply_skills(
         PartyMemberState member_state,
-        Godot.Collections.Array<Godot.Collections.Dictionary> skill_configs
+        IReadOnlyList<BattleSimFormalSkillConfigData> skill_configs
     )
     {
         var unit_progress = _unit_progress(member_state);
@@ -1045,11 +1102,9 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         {
             if (skill_config == null)
                 continue;
-            var skill_id = ProgressionDataUtils.to_string_name(
-                skill_config.ContainsKey("skill_id") ? skill_config["skill_id"].AsStringName() : ""
-            );
-            int target_level = Mathf.Max(_d_int(skill_config, "level", 1), 0);
-            bool is_core = _d_bool(skill_config, "is_core", false);
+            var skill_id = skill_config.SkillId;
+            int target_level = Mathf.Max(skill_config.Level, 0);
+            bool is_core = skill_config.IsCore;
             if ((string)skill_id == "")
                 continue;
             var skill_progress = unit_progress.GetSkillProgress(skill_id);
@@ -1140,7 +1195,7 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         PartyMemberState member_state,
         StringName profession_id,
         int rank,
-        Godot.Collections.Array<StringName> core_skill_ids
+        IEnumerable<StringName> core_skill_ids
     )
     {
         var unit_progress = _unit_progress(member_state);
@@ -1299,16 +1354,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         var slot_ids = item_def.GetEquipmentSlotIdsTyped();
         if (slot_ids == null || !slot_ids.Contains(entry_slot_id))
             return false;
-        var occupied_slots = item_def.GetFinalOccupiedSlotIdsTyped(entry_slot_id);
-        var occupied_sn = new Godot.Collections.Array<StringName>();
-        foreach (var os in occupied_slots)
-            occupied_sn.Add(ProgressionDataUtils.to_string_name(os));
+        List<StringName> occupied_slots = item_def.GetFinalOccupiedSlotIdsTyped(entry_slot_id);
         var instance_id = $"sim_{member_id}_{item_id}";
         var equipment_instance = EquipmentInstanceState.CreateInstance(item_id, instance_id);
         return equipment_state.SetEquippedEntry(
             entry_slot_id,
             item_id,
-            occupied_sn,
+            occupied_slots,
             equipment_instance
         );
     }
@@ -1404,31 +1456,29 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         return total;
     }
 
-    private Godot.Collections.Array<StringName> _collect_core_skill_ids(
-        Godot.Collections.Array<Godot.Collections.Dictionary> skill_configs
+    private List<StringName> _collect_core_skill_ids(
+        IReadOnlyList<BattleSimFormalSkillConfigData> skill_configs
     )
     {
-        var result = new Godot.Collections.Array<StringName>();
+        var result = new List<StringName>();
         foreach (var sc in skill_configs)
         {
-            if (sc == null || !_d_bool(sc, "is_core", false))
+            if (sc == null || !sc.IsCore)
                 continue;
-            var sid = ProgressionDataUtils.to_string_name(
-                sc.ContainsKey("skill_id") ? sc["skill_id"].AsStringName() : ""
-            );
+            var sid = sc.SkillId;
             if ((string)sid != "")
                 result.Add(sid);
         }
         return result;
     }
 
-    private Godot.Collections.Dictionary _build_creation_payload(
+    private Dictionary<string, object> _build_creation_payload(
         string display_name,
-        Godot.Collections.Dictionary attrs,
+        BattleSimFormalCreationAttributesData attrs,
         int action_threshold
     )
     {
-        var payload = new Godot.Collections.Dictionary
+        var payload = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             { "display_name", display_name },
             { "race_id", "human" },
@@ -1440,19 +1490,19 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             { "effective_age_stage_id", "adult" },
             { "body_size_category", "medium" },
             { "versatility_pick", "" },
-            { "strength", _d_int(attrs, "strength", 10) },
-            { "agility", _d_int(attrs, "agility", 10) },
-            { "constitution", _d_int(attrs, "constitution", 10) },
-            { "perception", _d_int(attrs, "perception", 10) },
-            { "intelligence", _d_int(attrs, "intelligence", 10) },
-            { "willpower", _d_int(attrs, "willpower", 10) },
+            { "strength", attrs?.Strength ?? 10 },
+            { "agility", attrs?.Agility ?? 10 },
+            { "constitution", attrs?.Constitution ?? 10 },
+            { "perception", attrs?.Perception ?? 10 },
+            { "intelligence", attrs?.Intelligence ?? 10 },
+            { "willpower", attrs?.Willpower ?? 10 },
         };
         if (action_threshold > 0)
             payload["action_threshold"] = action_threshold;
         return payload;
     }
 
-    private static Godot.Collections.Dictionary _attrs(
+    private static BattleSimFormalCreationAttributesData _attrs(
         int strength,
         int agility,
         int constitution,
@@ -1460,34 +1510,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
         int intelligence,
         int willpower
     ) =>
-        new Godot.Collections.Dictionary
-        {
-            { "strength", strength },
-            { "agility", agility },
-            { "constitution", constitution },
-            { "perception", perception },
-            { "intelligence", intelligence },
-            { "willpower", willpower },
-        };
+        new(strength, agility, constitution, perception, intelligence, willpower);
 
-    private static Godot.Collections.Dictionary _sk(string skill_id, int level, bool is_core) =>
-        new Godot.Collections.Dictionary
-        {
-            { "skill_id", skill_id },
-            { "level", level },
-            { "is_core", is_core },
-        };
-
-    // Helpers
-    private static Godot.Collections.Dictionary _safe_dict(
-        Godot.Collections.Dictionary src,
-        string key
-    )
-    {
-        if (src == null || !src.ContainsKey(key))
-            return new Godot.Collections.Dictionary();
-        return src[key].AsGodotDictionary() ?? new Godot.Collections.Dictionary();
-    }
+    private static BattleSimFormalSkillConfigData _sk(
+        string skill_id,
+        int level,
+        bool is_core
+    ) => new(ProgressionDataUtils.to_string_name(skill_id), level, is_core);
 
     private SkillDefinition _get_skill_definition(StringName skill_id) =>
         _skill_definition_index.TryGetValue(skill_id, out SkillDefinition skillDefinition)
@@ -1504,24 +1533,4 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
             ? itemDefinition
             : null;
 
-    private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>
-        d != null && d.ContainsKey(key) ? d[key].AsInt32() : fallback;
-
-    private static bool _d_bool(Godot.Collections.Dictionary d, string key, bool fallback)
-    {
-        if (d == null || !d.ContainsKey(key))
-            return fallback;
-        Variant value = d[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static bool _array_contains_str(Godot.Collections.Array arr, StringName v)
-    {
-        if (arr == null)
-            return false;
-        foreach (var item in arr)
-            if (ProgressionDataUtils.to_string_name(item) == v)
-                return true;
-        return false;
-    }
 }

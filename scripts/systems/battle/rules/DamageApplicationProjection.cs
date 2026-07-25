@@ -20,14 +20,19 @@ internal readonly record struct DamageApplicationProjection(
     )
     {
         int resolvedDamage = Math.Max(damageInput.ResolvedDamage, 0);
-        int hpBefore = Math.Max(targetUnit?.current_hp ?? 0, 0);
+        int hpBefore = Math.Max(targetUnit?.GetCurrentHp() ?? 0, 0);
         int shieldBefore = 0;
         if (targetUnit != null && !damageInput.BypassShield)
         {
-            int shieldMax = Math.Max(targetUnit.shield_max_hp, 0);
+            BattleUnitShieldSnapshot shieldState = targetUnit.GetShieldStateTyped();
+            int shieldMax = Math.Max(shieldState.MaxHp, 0);
             bool hasShield =
-                targetUnit.current_shield_hp > 0 && shieldMax > 0 && targetUnit.shield_duration > 0;
-            shieldBefore = hasShield ? Math.Clamp(targetUnit.current_shield_hp, 0, shieldMax) : 0;
+                shieldState.CurrentHp > 0
+                && shieldMax > 0
+                && shieldState.Duration > 0;
+            shieldBefore = hasShield
+                ? Math.Clamp(shieldState.CurrentHp, 0, shieldMax)
+                : 0;
         }
 
         double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;

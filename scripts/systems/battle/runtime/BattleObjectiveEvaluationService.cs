@@ -35,7 +35,7 @@ internal sealed class BattleObjectiveEvaluationService
             return BattleObjectiveEvaluationResult.Invalid();
         }
         BattleUnitState target = state.GetUnit(rescueObjective.TargetUnitId);
-        if (target?.is_alive != true)
+        if (target?.IsAlive() != true)
         {
             return Terminal(
                 state,
@@ -117,7 +117,7 @@ internal sealed class BattleObjectiveEvaluationService
             return BattleObjectiveEvaluationResult.Invalid();
         }
         BattleUnitState target = state.GetUnit(escortObjective.TargetUnitId);
-        if (target?.is_alive != true)
+        if (target?.IsAlive() != true)
         {
             return Terminal(
                 state,
@@ -126,7 +126,7 @@ internal sealed class BattleObjectiveEvaluationService
                 BattleEndReasonKind.EscortTargetDefeated
             );
         }
-        if (IsUnitFullyInsideExit(target, escortObjective))
+        if (BattleExitObjectiveRules.IsUnitFullyInsideExit(target, escortObjective))
         {
             return Terminal(
                 state,
@@ -160,7 +160,7 @@ internal sealed class BattleObjectiveEvaluationService
             return BattleObjectiveEvaluationResult.Invalid();
         }
 
-        bool targetAlive = state.GetUnit(bossObjective.TargetUnitId)?.is_alive == true;
+        bool targetAlive = state.GetUnit(bossObjective.TargetUnitId)?.IsAlive() == true;
         int livingRequiredPartyUnits = CountLivingUnits(
             state,
             bossObjective.RequiredPartyUnitIds
@@ -209,7 +209,7 @@ internal sealed class BattleObjectiveEvaluationService
         }
 
         BattleUnitState target = state.GetUnit(interceptObjective.TargetUnitId);
-        bool targetAlive = target?.is_alive == true;
+        bool targetAlive = target?.IsAlive() == true;
         int livingRequiredPartyUnits = CountLivingUnits(
             state,
             interceptObjective.RequiredPartyUnitIds
@@ -232,7 +232,7 @@ internal sealed class BattleObjectiveEvaluationService
                 BattleEndReasonKind.InterceptTargetDefeated
             );
         }
-        if (IsUnitFullyInsideExit(target, interceptObjective))
+        if (BattleExitObjectiveRules.IsUnitFullyInsideExit(target, interceptObjective))
         {
             return Terminal(
                 state,
@@ -257,18 +257,21 @@ internal sealed class BattleObjectiveEvaluationService
         BattleState state
     )
     {
+        // StartTu is frozen from current_tu at initialization and the timeline only
+        // advances, so current_tu >= StartTu always holds; no start-gate is needed
+        // here. The null timeline check stays because the deadline test below reads
+        // current_tu.
         if (
             state.ObjectiveRuntimeState
                 is not BattleDefenseObjectiveRuntimeState defenseObjective
             || state.timeline == null
-            || state.timeline.current_tu < defenseObjective.StartTu
         )
         {
             return BattleObjectiveEvaluationResult.Invalid();
         }
 
         BattleUnitState target = state.GetUnit(defenseObjective.TargetUnitId);
-        if (target?.is_alive != true)
+        if (target?.IsAlive() != true)
         {
             return Terminal(
                 state,
@@ -404,7 +407,7 @@ internal sealed class BattleObjectiveEvaluationService
         foreach (StringName requiredUnitId in escapeObjective.RequiredUnitIds)
         {
             BattleUnitState unit = state.GetUnit(requiredUnitId);
-            if (unit?.is_alive != true)
+            if (unit?.IsAlive() != true)
             {
                 return BattleObjectiveEvaluationResult.Terminal(
                     new BattleFinalDecision(
@@ -415,7 +418,7 @@ internal sealed class BattleObjectiveEvaluationService
                     )
                 );
             }
-            if (!IsUnitFullyInsideExit(unit, escapeObjective))
+            if (!BattleExitObjectiveRules.IsUnitFullyInsideExit(unit, escapeObjective))
                 allRequiredUnitsInExit = false;
         }
 
@@ -430,72 +433,6 @@ internal sealed class BattleObjectiveEvaluationService
                 state.timeline?.current_tu ?? 0
             )
         );
-    }
-
-    internal static bool IsUnitFullyInsideExit(
-        BattleUnitState unit,
-        BattleEscapeObjectiveRuntimeState escapeObjective
-    )
-    {
-        if (
-            unit == null
-            || escapeObjective == null
-            || unit.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!escapeObjective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
-    }
-
-    internal static bool IsUnitFullyInsideExit(
-        BattleUnitState unit,
-        BattleEscortObjectiveRuntimeState escortObjective
-    )
-    {
-        if (
-            unit == null
-            || escortObjective == null
-            || unit.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!escortObjective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
-    }
-
-    internal static bool IsUnitFullyInsideExit(
-        BattleUnitState unit,
-        BattleInterceptObjectiveRuntimeState interceptObjective
-    )
-    {
-        if (
-            unit == null
-            || interceptObjective == null
-            || unit.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!interceptObjective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
     }
 
     private static BattleObjectiveEvaluationResult Terminal(
@@ -524,7 +461,7 @@ internal sealed class BattleObjectiveEvaluationService
         foreach (StringName unitId in unitIds)
         {
             BattleUnitState unit = state.GetUnit(unitId);
-            if (unit?.is_alive == true)
+            if (unit?.IsAlive() == true)
                 count++;
         }
         return count;

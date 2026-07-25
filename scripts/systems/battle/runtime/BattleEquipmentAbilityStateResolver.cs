@@ -204,7 +204,7 @@ internal sealed class BattleEquipmentAbilityStateResolver
     }
 
     internal static bool TryConsumeOnceScope(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityReactionDefinition reaction,
         EquipmentAbilityActionDefinition action,
@@ -236,7 +236,7 @@ internal sealed class BattleEquipmentAbilityStateResolver
     }
 
     private static StringName BuildOnceScopeTurnChargeKey(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityReactionDefinition reaction,
         EquipmentAbilityActionDefinition action
@@ -274,7 +274,7 @@ internal sealed class BattleEquipmentAbilityStateResolver
     }
 
     internal static StringName BuildBindingStateChargeKey(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         StringName stateKey
     )

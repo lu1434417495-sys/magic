@@ -40,13 +40,13 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         BattleState state = BuildSkillTestState("doom_sentence_success", new Vector2I(7, 3));
         BattleUnitState caster = BuildUnit("doom_sentence_caster", "黑冕使徒", "player", new Vector2I(1, 1), 3, "hero");
         EnableDoomSentenceCap(caster);
-        caster.known_active_skill_ids = new GStringNameArray { DOOM_SENTENCE_SKILL_ID };
-        caster.known_skill_level_map[DOOM_SENTENCE_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { DOOM_SENTENCE_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(DOOM_SENTENCE_SKILL_ID, 1);
         BattleUnitState allyAttacker = BuildUnit("doom_sentence_ally", "协同输出", "player", new Vector2I(1, 2), 2);
         BattleUnitState boss = BuildUnit("doom_sentence_boss", "章末 Boss", "enemy", new Vector2I(2, 1), 2, "", true);
         boss.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
-        boss.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
-        boss.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+        boss.SetKnownActiveSkillIds(new[] { WARRIOR_HEAVY_STRIKE_SKILL_ID });
+        boss.SetKnownSkillLevelTyped(WARRIOR_HEAVY_STRIKE_SKILL_ID, 1);
         BattleUnitState allyTarget = BuildUnit("doom_sentence_victim", "被打击者", "player", new Vector2I(3, 1), 2);
 
         AddUnit(runtime, state, caster);
@@ -102,12 +102,12 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         BattleState state = BuildSkillTestState("doom_sentence_main_skill_lock", new Vector2I(7, 3));
         BattleUnitState caster = BuildUnit("doom_sentence_lock_caster", "黑冕使徒", "player", new Vector2I(1, 1), 3, "hero");
         EnableDoomSentenceCap(caster);
-        caster.known_active_skill_ids = new GStringNameArray { DOOM_SENTENCE_SKILL_ID };
-        caster.known_skill_level_map[DOOM_SENTENCE_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { DOOM_SENTENCE_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(DOOM_SENTENCE_SKILL_ID, 1);
         BattleUnitState boss = BuildUnit("doom_sentence_lock_target", "受宣判精英", "enemy", new Vector2I(2, 1), 2, "", true);
         boss.control_mode = "manual";
-        boss.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
-        boss.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+        boss.SetKnownActiveSkillIds(new[] { WARRIOR_HEAVY_STRIKE_SKILL_ID });
+        boss.SetKnownSkillLevelTyped(WARRIOR_HEAVY_STRIKE_SKILL_ID, 1);
         BattleUnitState allyTarget = BuildUnit("doom_sentence_lock_ally", "我方目标", "player", new Vector2I(3, 1), 2);
 
         AddUnit(runtime, state, caster);
@@ -123,13 +123,13 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
 
         state.active_unit_id = boss.unit_id;
         state.phase = "unit_acting";
-        boss.current_ap = 2;
+        boss.SetCurrentAp(2);
         SetStatus(boss, STATUS_SLOW, 60, caster.unit_id);
         BattleCommand mainSkillCommand = BuildUnitSkillCommand(boss.unit_id, WARRIOR_HEAVY_STRIKE_SKILL_ID, allyTarget);
         BattlePreview oneDebuffPreview = runtime.PreviewCommand(mainSkillCommand);
         _test.True(
             oneDebuffPreview != null && oneDebuffPreview.allowed,
-            "只有 1 个其他 debuff 时，主技能仍应允许。"
+            $"只有 1 个其他 debuff 时，主技能仍应允许。 log={(oneDebuffPreview == null ? "" : string.Join(" | ", oneDebuffPreview.log_lines))}"
         );
 
         SetStatus(boss, STATUS_PINNED, 60, caster.unit_id);
@@ -143,9 +143,9 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
             $"主技能被封锁时，preview 应回传阻断反馈。 log={blockedPreview?.log_lines}"
         );
 
-        int apBeforeIssue = boss.current_ap;
+        int apBeforeIssue = boss.GetCurrentAp();
         BattleEventBatch blockedBatch = runtime.IssueCommand(mainSkillCommand);
-        _test.Eq(boss.current_ap, apBeforeIssue, "主技能被厄命宣判封锁时不应扣除 AP。");
+        _test.Eq(boss.GetCurrentAp(), apBeforeIssue, "主技能被厄命宣判封锁时不应扣除 AP。");
         _test.True(
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
             $"主技能被封锁时，issue 应回传阻断反馈。 log={blockedBatch?.log_lines}"
@@ -160,8 +160,8 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         BattleUnitState caster = BuildUnit("doom_sentence_once_caster", "黑冕使徒", "player", new Vector2I(1, 1), 3, "hero");
         EnableDoomSentenceCap(caster);
         caster.control_mode = "manual";
-        caster.known_active_skill_ids = new GStringNameArray { DOOM_SENTENCE_SKILL_ID };
-        caster.known_skill_level_map[DOOM_SENTENCE_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { DOOM_SENTENCE_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(DOOM_SENTENCE_SKILL_ID, 1);
         BattleUnitState firstElite = BuildUnit("doom_sentence_once_target_a", "首个精英", "enemy", new Vector2I(2, 1), 2, "", true);
         BattleUnitState secondElite = BuildUnit("doom_sentence_once_target_b", "第二个精英", "enemy", new Vector2I(4, 1), 2, "", true);
 
@@ -186,15 +186,15 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
             "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
-        caster.current_ap = 3;
+        caster.SetCurrentAp(3);
         BattleCommand secondCommand = BuildUnitSkillCommand(caster.unit_id, DOOM_SENTENCE_SKILL_ID, secondElite);
         BattlePreview blockedPreview = runtime.PreviewCommand(secondCommand);
         _test.True(blockedPreview != null && !blockedPreview.allowed, "同战第二次施放厄命宣判应被 preview 拒绝。");
         int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
-        int apBeforeIssue = caster.current_ap;
+        int apBeforeIssue = caster.GetCurrentAp();
         BattleEventBatch blockedBatch = runtime.IssueCommand(secondCommand);
         _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "二次施放被拒绝时不应再扣 calamity。");
-        _test.Eq(caster.current_ap, apBeforeIssue, "二次施放被拒绝时不应再扣 AP。");
+        _test.Eq(caster.GetCurrentAp(), apBeforeIssue, "二次施放被拒绝时不应再扣 AP。");
         _test.True(!secondElite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "二次施放被拒绝后不应污染第二个目标状态。");
         _test.True(
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
@@ -209,8 +209,8 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         BattleState state = BuildSkillTestState("doom_sentence_cap_block", new Vector2I(6, 3));
         BattleUnitState caster = BuildUnit("doom_sentence_cap_caster", "黑冕新信徒", "player", new Vector2I(1, 1), 3, "hero");
         caster.control_mode = "manual";
-        caster.known_active_skill_ids = new GStringNameArray { DOOM_SENTENCE_SKILL_ID };
-        caster.known_skill_level_map[DOOM_SENTENCE_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { DOOM_SENTENCE_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(DOOM_SENTENCE_SKILL_ID, 1);
         BattleUnitState elite = BuildUnit("doom_sentence_cap_target", "精英目标", "enemy", new Vector2I(2, 1), 2, "", true);
 
         AddUnit(runtime, state, caster);
@@ -241,9 +241,9 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
             $"preview 拒绝时应回传阻断反馈。 log={blockedPreview?.log_lines}"
         );
 
-        int apBeforeIssue = caster.current_ap;
+        int apBeforeIssue = caster.GetCurrentAp();
         BattleEventBatch blockedBatch = runtime.IssueCommand(command);
-        _test.Eq(caster.current_ap, apBeforeIssue, "cap 不足时 issue 不应扣除 AP。");
+        _test.Eq(caster.GetCurrentAp(), apBeforeIssue, "cap 不足时 issue 不应扣除 AP。");
         _test.True(!elite.HasStatusEffect(STATUS_DOOM_SENTENCE_VERDICT), "cap 不足时目标不应获得厄命宣判。");
         _test.True(
             blockedBatch != null && blockedBatch.log_lines.Count > 0,
@@ -320,12 +320,11 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         unit.display_name = displayName;
         unit.faction_id = factionId;
         unit.control_mode = "manual";
-        unit.current_ap = currentAp;
-        unit.current_hp = 60;
-        unit.current_mp = 4;
-        unit.current_stamina = 40;
-        unit.current_aura = 0;
-        unit.is_alive = true;
+        unit.SetCurrentAp(currentAp);
+        unit.SetCurrentHp(60);
+        unit.SetCurrentMp(4);
+        unit.SetCurrentStamina(40);
+        unit.SetCurrentAura(0);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
@@ -354,6 +353,7 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
             weapon_profile_kind = "equipped",
             weapon_item_id = "test_longsword",
             weapon_profile_type_id = "longsword",
+            weapon_range_type = "melee",
             weapon_current_grip = "one_handed",
             weapon_attack_range = 1,
             weapon_one_handed_dice = new WeaponDice
@@ -382,7 +382,7 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
         command.skill_id = skillId;
         command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
-        command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
+        command.target_coord = targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return command;
     }
 
@@ -423,7 +423,7 @@ public partial class run_doom_sentence_regression : LifecycleTestSceneTree
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static bool HasReportEntryWithTag(

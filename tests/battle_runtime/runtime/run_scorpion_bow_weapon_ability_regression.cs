@@ -97,25 +97,27 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "未装备蝎子之弓时不应拥有 poison damage immune。"
         );
         _test.False(
-            ContainsStringName(baseline.save_immunity_tags, "poison"),
+            baseline.HasSaveImmunityTag("poison"),
             "未装备蝎子之弓时不应拥有 poison save immunity。"
         );
 
         BattleUnitState equipped = fixture.BuildScorpionUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ScorpionItemId, "蝎子之弓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("shortbow"), "蝎子之弓应投影为 shortbow。");
-        _test.Eq(equipped.weapon_family, new StringName("bow"), "蝎子之弓应保留 bow 家族。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ScorpionItemId, "蝎子之弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("shortbow"), "蝎子之弓应投影为 shortbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("bow"), "蝎子之弓应保留 bow 家族。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_pierce"),
             "蝎子之弓基础伤害标签应为 physical_pierce。"
         );
-        _test.Eq(equipped.weapon_attack_range, 6, "蝎子之弓攻击距离应为 6。");
-        _test.True(equipped.weapon_uses_two_hands, "蝎子之弓应保留 two_handed 投影。");
-        _test.False(equipped.weapon_is_versatile, "蝎子之弓不应投影为 versatile。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "蝎子之弓应为 1D6+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 6, "蝎子之弓应为 1D6+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "蝎子之弓应为 1D6+2。");
+        _test.Eq(equippedWeapon.AttackRange, 6, "蝎子之弓攻击距离应为 6。");
+        _test.True(equippedWeapon.UsesTwoHands, "蝎子之弓应保留 two_handed 投影。");
+        _test.False(equippedWeapon.IsVersatile, "蝎子之弓不应投影为 versatile。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "蝎子之弓应为 1D6+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 6, "蝎子之弓应为 1D6+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "蝎子之弓应为 1D6+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             ScorpionArrowTraitId,
@@ -123,7 +125,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "eq_scorpion_projection"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(PoisonImmunityTraitId),
+            equipped.HasEffectiveTrait(PoisonImmunityTraitId),
             "毒素免疫 trait 应作为固定装备 trait 投影到战斗单位。"
         );
         _test.Eq(
@@ -132,21 +134,23 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "毒素免疫 trait 应投影 poison damage immune。"
         );
         _test.True(
-            ContainsStringName(equipped.save_immunity_tags, "poison"),
+            equipped.HasSaveImmunityTag("poison"),
             "毒素免疫 trait 应投影 poison save immunity。"
         );
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除蝎子之弓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除蝎子之弓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除蝎子之弓后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除蝎子之弓后装备 trait 实例应回到装备前状态。"
         );
         _test.False(
@@ -154,7 +158,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "移除蝎子之弓后 poison damage immune 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_immunity_tags, "poison"),
+            equipped.HasSaveImmunityTag("poison"),
             "移除蝎子之弓后 poison save immunity 不应残留。"
         );
     }
@@ -164,7 +168,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
         using ScorpionFixture fixture = ScorpionFixture.Build(new GArray { 4, 8 });
         BattleUnitState attacker = fixture.BuildScorpionUnit("poison_damage");
         BattleUnitState target = BuildTarget("poison_damage_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
 
@@ -175,13 +179,13 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "scorpion_bow_poison_damage",
             previewCommand: false
         );
-        int scorpionDamage = 100 - target.current_hp;
+        int scorpionDamage = 100 - target.GetCurrentHp();
 
         using ScorpionFixture plainFixture = ScorpionFixture.Build(new GArray { 4, 8 });
         BattleUnitState plainAttacker = plainFixture.BuildScorpionUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("plain_damage_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -191,7 +195,7 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
             "scorpion_bow_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，蝎子之弓基础武器伤害应为 1D6+2。");
         _test.Eq(
@@ -354,14 +358,15 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -381,9 +386,9 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -396,12 +401,17 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -419,19 +429,15 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
 
     private static bool HasDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
-            return false;
-        return unit.damage_resistances.ContainsKey(damageTag.ToString())
-            || unit.damage_resistances.ContainsKey(damageTag);
+        return unit != null
+            && unit.HasDamageResistanceTyped(damageTag);
     }
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }

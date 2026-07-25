@@ -88,11 +88,13 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         }
 
         BattleUnitState equipped = fixture.BuildRavenplumeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, RavenplumeItemId, "鸦羽装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("shortsword"), "鸦羽应投影为 shortsword。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "鸦羽单手伤害应为 1D6+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "鸦羽单手伤害应为 1D6+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "鸦羽单手伤害应为 1D6+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, RavenplumeItemId, "鸦羽装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("shortsword"), "鸦羽应投影为 shortsword。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "鸦羽单手伤害应为 1D6+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "鸦羽单手伤害应为 1D6+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "鸦羽单手伤害应为 1D6+2。");
         AssertUnitHasTraitAndAbilitySource(equipped, CrowSummonTraitId, CrowSummonBindingId, "eq_ravenplume_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, RavenCoverTraitId, RavenCoverBindingId, "eq_ravenplume_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, CrowFeastTraitId, CrowFeastBindingId, "eq_ravenplume_projection");
@@ -117,7 +119,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             mapSize: new Vector2I(9, 9)
         );
         fixture.Runtime.SetupStateForTests(state);
-        defeated.current_hp = 0;
+        defeated.SetCurrentHp(0);
         defeated.MarkDead();
 
         using BattleEventBatch batch = new();
@@ -155,10 +157,10 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         _test.Eq(crow.ai_blackboard?.summon_state_key ?? new StringName(""), CrowStateKey, "乌鸦应记录召唤 state key。");
         _test.True(state.GetUnit(crow.unit_id) == crow, "乌鸦必须进入 BattleState unit store，而不是只写计数。");
         _test.True(state.ally_unit_ids.Contains(crow.unit_id), "玩家持有者召唤的乌鸦应进入友方单位列表。");
-        _test.Eq(crow.current_hp, 1, "乌鸦当前 HP 应为 1。");
+        _test.Eq(crow.GetCurrentHp(), 1, "乌鸦当前 HP 应为 1。");
         _test.Eq(crow.attribute_snapshot.GetValue(AttributeService.HP_MAX), 1, "乌鸦最大 HP 应为 1。");
         _test.Eq(crow.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 12, "乌鸦 AC 应为 12。");
-        _test.True(ContainsStringName(crow.creature_type_tags, "familiar"), "乌鸦应保留 familiar 标签。");
+        _test.True(crow.HasCreatureTypeTag("familiar"), "乌鸦应保留 familiar 标签。");
         _test.True(ContainsStringName(batch.ChangedUnitIdsTyped, crow.unit_id), "召唤应把新增乌鸦写入 changed unit。");
     }
 
@@ -169,7 +171,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         holder.SetAnchorCoord(new Vector2I(1, 1));
         BattleUnitState defeated = BuildTarget("ravenplume_feast_defeated", new Vector2I(3, 3));
         BattleUnitState feastTarget = BuildTarget("ravenplume_feast_target", new Vector2I(2, 1));
-        feastTarget.current_hp = 1;
+        feastTarget.SetCurrentHp(1);
         feastTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 1);
         BattleUnitState enemyAttacker = BuildTarget("ravenplume_cover_attacker", new Vector2I(7, 5));
 
@@ -201,7 +203,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
 
         List<BattleUnitState> crows = FindLivingCrows(state, holder);
         _test.Eq(crows.Count, 12, "修正和群鸦之宴 fixture 应先拥有 12 只存活乌鸦。");
-        PlaceCrowCluster(fixture.Runtime, state, crows, enemyAttacker.coord);
+        PlaceCrowCluster(fixture.Runtime, state, crows, enemyAttacker.GetAnchorCoord());
 
         BattleAttackCheckPolicyService attackPolicy =
             fixture.Runtime.GetAttackCheckPolicyService();
@@ -258,7 +260,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             "ravenplume_crow_feast"
         );
         _test.True(
-            feastTarget.current_hp <= 0 || !feastTarget.is_alive,
+            feastTarget.GetCurrentHp() <= 0 || !feastTarget.IsAlive(),
             $"群鸦之宴应造成 4D6 necrotic 伤害并击杀 1HP 目标。 logs={JoinLogs(feastBatch)}"
         );
         _test.Eq(
@@ -347,24 +349,25 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            current_stamina = 30,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            stamina: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 30);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 8);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 8);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 12);
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 
@@ -386,8 +389,8 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         {
             state.enemy_unit_ids.Add(unit.unit_id);
         }
-        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
-            throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.coord}.");
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
+            throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.GetAnchorCoord()}.");
     }
 
     private static void PlaceCrowCluster(
@@ -435,7 +438,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
 
     private static bool IsLivingCrow(BattleUnitState unit, BattleUnitState holder) =>
         unit != null
-        && unit.is_alive
+        && unit.IsAlive()
         && unit.ai_blackboard?.summoned == true
         && unit.ai_blackboard.summon_source_unit_id == (holder?.unit_id ?? new StringName(""))
         && unit.ai_blackboard.summon_binding_id == CrowSummonBindingId
@@ -496,7 +499,7 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             int distance = runtime.GetGridService().GetDistanceBetweenUnits(user, target);
             bool targetInState = state?.GetUnit(target?.unit_id ?? new StringName("")) != null;
             throw new InvalidOperationException(
-                $"{label} unit skill preview blocked: {JoinLogs(preview)} | affordance={affordance.Allowed}/{affordance.Reason} distance={distance} range={entry?.SkillDefinition?.CombatProfile?.RangeValue ?? -1} ap={user?.current_ap ?? -1} target_alive={target?.is_alive} target_in_state={targetInState} crows={CountLivingCrows(state, user)}"
+                $"{label} unit skill preview blocked: {JoinLogs(preview)} | affordance={affordance.Allowed}/{affordance.Reason} distance={distance} range={entry?.SkillDefinition?.CombatProfile?.RangeValue ?? -1} ap={user?.GetCurrentAp() ?? -1} target_alive={target?.IsAlive()} target_in_state={targetInState} crows={CountLivingCrows(state, user)}"
             );
         }
         return runtime.IssueCommand(command);
@@ -543,9 +546,9 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceEquipmentInstanceId != expectedInstanceId)
@@ -554,12 +557,15 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             );
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

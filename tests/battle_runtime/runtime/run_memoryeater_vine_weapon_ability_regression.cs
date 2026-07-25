@@ -131,14 +131,16 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildMemoryeaterUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "噬忆血蔓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("rapier"), "噬忆血蔓应投影为 rapier。");
-        _test.Eq(equipped.weapon_family, new StringName("sword"), "噬忆血蔓武器族应为 sword。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "噬忆血蔓基础伤害应为 pierce。");
-        _test.Eq(equipped.weapon_attack_range, 1, "噬忆血蔓攻击距离应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "噬忆血蔓应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "噬忆血蔓应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "噬忆血蔓应为 1D8+3。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "噬忆血蔓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("rapier"), "噬忆血蔓应投影为 rapier。");
+        _test.Eq(equippedWeapon.Family, new StringName("sword"), "噬忆血蔓武器族应为 sword。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "噬忆血蔓基础伤害应为 pierce。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "噬忆血蔓攻击距离应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "噬忆血蔓应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "噬忆血蔓应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "噬忆血蔓应为 1D8+3。");
         AssertUnitHasTraitAndAbilitySource(equipped, LifebloodLedgerTraitId, LifebloodLedgerBindingId, "eq_memoryeater_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, SymbioticSiphonTraitId, SymbioticSiphonBindingId, "eq_memoryeater_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, MemoryThornEdgeTraitId, MemoryThornEdgeBindingId, "eq_memoryeater_projection");
@@ -148,11 +150,16 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除噬忆血蔓后 weapon_item_id 应清空。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除噬忆血蔓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除后装备 trait 实例应回到装备前状态。"
         );
         BattleTestFixture.DisposeBattleUnit(equipped);
@@ -180,7 +187,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_counter_humanoid",
             previewCommand: false
         );
-        _test.False(humanoid.is_alive, "真实基础攻击应击杀 humanoid 目标。");
+        _test.False(humanoid.IsAlive(), "真实基础攻击应击杀 humanoid 目标。");
         _test.Eq(
             GetPersistentCounterValue(humanoidInstance, LifebloodLedgerBindingId, humanoidAction.StateKey),
             10L,
@@ -209,7 +216,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_counter_construct",
             previewCommand: false
         );
-        _test.False(construct.is_alive, "构装体场景应确实击杀目标。");
+        _test.False(construct.IsAlive(), "构装体场景应确实击杀目标。");
         _test.Eq(GetPersistentCounterValue(constructInstance, LifebloodLedgerBindingId, constructAction.StateKey), 0L, "构装体击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(constructInstance, LifebloodLedgerBindingId, constructTierStateKey), 0L, "构装体击杀不应改变保存血阶。");
 
@@ -230,7 +237,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_counter_undead",
             previewCommand: false
         );
-        _test.False(undead.is_alive, "亡灵场景应确实击杀目标。");
+        _test.False(undead.IsAlive(), "亡灵场景应确实击杀目标。");
         _test.Eq(GetPersistentCounterValue(undeadInstance, LifebloodLedgerBindingId, undeadAction.StateKey), 0L, "亡灵击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(undeadInstance, LifebloodLedgerBindingId, undeadTierStateKey), 0L, "亡灵击杀不应改变保存血阶。");
 
@@ -246,7 +253,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         SetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directAction.StateKey, 10);
         SetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey, 1);
         BattleUnitState directKill = BuildEnemy("lifeblood_direct", new Vector2I(1, 0), 0, "humanoid");
-        directKill.is_alive = false;
+        directKill.MarkDead();
         directFixture.Runtime._collect_defeated_unit_loot(directKill, directAttacker);
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directAction.StateKey), 10L, "没有攻击来源证明的击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey), 1L, "没有攻击来源证明的击杀不应改变保存血阶。");
@@ -272,7 +279,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_tier_zero",
             previewCommand: false
         );
-        int tierZeroDamage = 100 - tierZeroTarget.current_hp;
+        int tierZeroDamage = 100 - tierZeroTarget.GetCurrentHp();
 
         BattleUnitState unsyncedAttacker = fixture.BuildMemoryeaterUnit("tier_unsynced");
         SetPersistentCounterValue(FindWeaponInstance(unsyncedAttacker), LifebloodLedgerBindingId, stateKey, 30);
@@ -285,7 +292,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_tier_unsynced",
             previewCommand: false
         );
-        int unsyncedDamage = 100 - unsyncedTarget.current_hp;
+        int unsyncedDamage = 100 - unsyncedTarget.GetCurrentHp();
 
         BattleUnitState tierOneAttacker = fixture.BuildMemoryeaterUnit("tier_one");
         SetPersistentCounterValue(FindWeaponInstance(tierOneAttacker), LifebloodLedgerBindingId, stateKey, 10);
@@ -298,7 +305,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_tier_one",
             previewCommand: false
         );
-        int tierOneDamage = 100 - tierOneTarget.current_hp;
+        int tierOneDamage = 100 - tierOneTarget.GetCurrentHp();
 
         BattleUnitState tierThreeAttacker = fixture.BuildMemoryeaterUnit("tier_three");
         SetPersistentCounterValue(FindWeaponInstance(tierThreeAttacker), LifebloodLedgerBindingId, stateKey, 30);
@@ -311,7 +318,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "memoryeater_tier_three",
             previewCommand: false
         );
-        int tierThreeDamage = 100 - tierThreeTarget.current_hp;
+        int tierThreeDamage = 100 - tierThreeTarget.GetCurrentHp();
 
         _test.Eq(unsyncedDamage, tierZeroDamage, "只有生命簿=30 但保存血阶=0 时不应实时计算出追加伤害。");
         _test.True(tierOneDamage > tierZeroDamage, "保存血阶 1 应解锁并追加忆刺伤害。");
@@ -334,7 +341,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         SetPersistentCounterValue(instance, LifebloodLedgerBindingId, tierStateKey, 5);
 
         BattleUnitState firstDefeated = BuildEnemy("lunge_first", new Vector2I(1, 0), 0, "humanoid");
-        firstDefeated.is_alive = false;
+        firstDefeated.MarkDead();
         BattleUnitState followupTarget = BuildEnemy("lunge_followup", new Vector2I(1, 1), 8, "humanoid");
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             "memoryeater_lunge",
@@ -362,7 +369,7 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             }
         );
 
-        _test.False(followupTarget.is_alive, "血阶 5 解锁的哀藤追刺应以立即武器攻击击杀相邻敌人。");
+        _test.False(followupTarget.IsAlive(), "血阶 5 解锁的哀藤追刺应以立即武器攻击击杀相邻敌人。");
         _test.Eq(
             GetPersistentCounterValue(instance, LifebloodLedgerBindingId, stateKey),
             61L,
@@ -384,9 +391,9 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -399,12 +406,18 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -414,26 +427,25 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp, StringName creatureTag)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             enemy_template_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
             control_mode = "ai",
-            is_alive = hp > 0,
-            current_hp = Math.Max(hp, 0),
-            body_size = 1,
-            body_size_category = "medium",
-        };
+        }.WithCombatResourcesForTest(
+            hp: Math.Max(hp, 0),
+            isAlive: hp > 0
+        );
+        unit.SetBodySizeCategory("medium");
         unit.SetCombatResources(Math.Max(hp, 1), 0, 30, 0, 2, 2);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, Math.Max(hp, 1));
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
-        unit.creature_type_tags.Add(creatureTag);
+        unit.AddCreatureTypeTagTyped(creatureTag);
         unit.SetAnchorCoord(coord);
-        unit.RefreshFootprint();
         return unit;
     }
 

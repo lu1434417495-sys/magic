@@ -10,11 +10,10 @@ public partial class run_battle_sim_exception_cleanup_regression : LifecycleTest
         internal InvalidOperationException ExpectedFailure { get; } =
             new("expected battle simulation terrain failure");
 
-        internal override GodotProjectionLease<GDictionary> GenerateLease(
+        internal override BattleTerrainLayout GenerateTyped(
             EncounterAnchorData encounterAnchor,
             long seed,
-            GDictionary context,
-            LifetimeDomain domain = LifetimeDomain.Battle
+            GDictionary context
         )
         {
             throw ExpectedFailure;

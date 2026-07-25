@@ -36,7 +36,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
     private void TestSaveResolverHandlesImmunityBeforeRoll()
     {
         BattleUnitState target = MakeUnit("poison_immune_target", "player");
-        target.save_immunity_tags.Add("poison");
+        target.AddSaveImmunityTagTyped("poison");
         BattleSaveResult result = BattleSaveResolver.ResolveSaveResult(
             null,
             target,
@@ -52,7 +52,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
     private void TestSaveResolverHandlesAdvantageAndDisadvantage()
     {
         BattleUnitState advantageTarget = MakeUnit("advantage_target", "player");
-        advantageTarget.save_advantage_tags.Add("poison");
+        advantageTarget.AddSaveAdvantageTagTyped("poison");
         BattleSaveResult advantageResult = BattleSaveResolver.ResolveSaveResult(
             null,
             advantageTarget,
@@ -63,7 +63,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         _test.True(advantageResult.Success, "Advantage should use the higher override roll.");
 
         BattleUnitState disadvantageTarget = MakeUnit("disadvantage_target", "player");
-        disadvantageTarget.save_disadvantage_tags.Add("poison");
+        disadvantageTarget.AddSaveDisadvantageTagTyped("poison");
         BattleSaveResult disadvantageResult = BattleSaveResolver.ResolveSaveResult(
             null,
             disadvantageTarget,
@@ -142,7 +142,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "ResolveSaveResult 应携带按 natural/total/DC 解析出的 Degree。"
         );
 
-        target.save_immunity_tags.Add("poison");
+        target.AddSaveImmunityTagTyped("poison");
         BattleSaveResult immuneResult = BattleSaveResolver.ResolveSaveResult(
             null,
             target,
@@ -350,7 +350,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "DC11 with no modifier should have 50% normal d20 save success."
         );
 
-        target.save_advantage_tags.Add("poison");
+        target.AddSaveAdvantageTagTyped("poison");
         BattleSaveProbabilityResult advantageProbability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 null,
@@ -363,8 +363,12 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "DC15 with no modifier should have 51% advantage save success."
         );
 
-        target.save_advantage_tags.Clear();
-        target.save_disadvantage_tags.Add("poison");
+        target.ReplaceSaveTagsTyped(
+            new StringNameList(),
+            new StringNameList(),
+            new StringNameList()
+        );
+        target.AddSaveDisadvantageTagTyped("poison");
         BattleSaveProbabilityResult disadvantageProbability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 null,
@@ -377,8 +381,12 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "DC15 with no modifier should have 9% disadvantage save success."
         );
 
-        target.save_disadvantage_tags.Clear();
-        target.save_immunity_tags.Add("poison");
+        target.ReplaceSaveTagsTyped(
+            new StringNameList(),
+            new StringNameList(),
+            new StringNameList()
+        );
+        target.AddSaveImmunityTagTyped("poison");
         BattleSaveProbabilityResult immuneProbability =
             BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
                 null,
@@ -477,7 +485,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
     private void TestLockedSkillBonusIncreasesStaticSaveDc()
     {
         BattleUnitState source = MakeUnit("locked_static_source", "enemy");
-        source.known_skill_lock_hit_bonus_map["locked_fire"] = 2;
+        source.SetKnownSkillLockHitBonusTyped("locked_fire", 2);
         BattleUnitState target = MakeUnit("locked_static_target", "player");
         target.attribute_snapshot.SetValue("constitution", 10);
         CombatEffectDefinition effect = MakeSaveDamageEffect("fireball", "constitution", 12, false);
@@ -497,7 +505,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         BattleUnitState source = MakeUnit("locked_spell_source", "enemy");
         source.attribute_snapshot.SetValue("intelligence", 18);
         source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus), 3);
-        source.known_skill_lock_hit_bonus_map["locked_spell"] = 2;
+        source.SetKnownSkillLockHitBonusTyped("locked_spell", 2);
         BattleUnitState target = MakeUnit("locked_spell_target", "player");
         CombatEffectDefinition effect = MakeCasterSpellSaveDamageEffect();
 
@@ -626,12 +634,13 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_mp = 0,
-            current_ap = 2,
-            current_stamina = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 0,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);

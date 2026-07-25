@@ -266,19 +266,20 @@ public partial class run_spell_disjunction_equipment_durability_regression : Lif
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = true,
-            current_hp = 30,
-            current_mp = 0,
-            current_stamina = 0,
-            current_aura = 0,
-            current_ap = 1,
             attribute_snapshot = new AttributeSnapshot(),
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 0,
+            stamina: 0,
+            aura: 0,
+            ap: 1,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 0);

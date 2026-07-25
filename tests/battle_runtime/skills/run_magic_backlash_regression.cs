@@ -138,9 +138,9 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, enemy, true);
         Activate(runtime, state, caster);
 
-        BattleCommand command = BuildFireballCommand(caster.unit_id, friend.coord);
+        BattleCommand command = BuildFireballCommand(caster.unit_id, friend.GetAnchorCoord());
         BattlePreview preview = runtime.PreviewCommand(command);
-        int beforeFriendHp = friend.current_hp;
+        int beforeFriendHp = friend.GetCurrentHp();
         BattleEventBatch batch = runtime.IssueCommand(command);
 
         _test.True(preview.allowed, "火球术瞄准友军地格应通过地面目标预览。");
@@ -152,8 +152,8 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
             batch.changed_unit_ids.Contains(friend.unit_id),
             "普通施法应标记被火球波及的友军。"
         );
-        _test.True(friend.current_hp < beforeFriendHp, "普通施法时范围内友军应受到火球伤害。");
-        _test.Eq(caster.current_mp, 100, "普通施法只应扣除火球本身 100 法力。");
+        _test.True(friend.GetCurrentHp() < beforeFriendHp, "普通施法时范围内友军应受到火球伤害。");
+        _test.Eq(caster.GetCurrentMp(), 100, "普通施法只应扣除火球本身 100 法力。");
     }
 
     private void TestFireballBurnAppliesToEveryTeamInArea()
@@ -168,9 +168,9 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, enemy, true);
         Activate(runtime, state, caster);
 
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.GetAnchorCoord()));
         BattleStatusEffectState friendBurning = friend.GetStatusEffect("burning");
-        int beforeBurnTickHp = friend.current_hp;
+        int beforeBurnTickHp = friend.GetCurrentHp();
 
         _test.True(caster.HasStatusEffect("burning"), "火球术灼烧不应保护范围内施法者。");
         _test.True(friendBurning != null, "火球术灼烧应和伤害一样波及友军。");
@@ -182,7 +182,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         );
         _test.True(batch.changed_unit_ids.Contains(friend.unit_id), "友军被灼烧时应标记单位变化。");
         AdvanceTimelineTu(runtime, state, 10);
-        _test.True(friend.current_hp < beforeBurnTickHp, "火球术友军灼烧应按 timeline tick 造成伤害。");
+        _test.True(friend.GetCurrentHp() < beforeBurnTickHp, "火球术友军灼烧应按 timeline tick 造成伤害。");
     }
 
     private void TestFireballCriticalRefundsMpWithoutBlockingFriendlyFire()
@@ -197,11 +197,11 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, enemy, true);
         Activate(runtime, state, caster);
 
-        int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        int beforeFriendHp = friend.GetCurrentHp();
+        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.GetAnchorCoord()));
 
-        _test.True(friend.current_hp < beforeFriendHp, "法术控制大成功不应取消范围内友军伤害。");
-        _test.Eq(caster.current_mp, 150, "火球术大成功应返还本次实际法力消耗的 50%。");
+        _test.True(friend.GetCurrentHp() < beforeFriendHp, "法术控制大成功不应取消范围内友军伤害。");
+        _test.Eq(caster.GetCurrentMp(), 150, "火球术大成功应返还本次实际法力消耗的 50%。");
         _test.True(LogsContain(batch.log_lines, "返还 50 点法力"), "火球术大成功应写入 MP 返还日志。");
     }
 
@@ -224,11 +224,11 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, enemy, true);
         Activate(runtime, state, caster);
 
-        int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.coord));
+        int beforeFriendHp = friend.GetCurrentHp();
+        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, friend.GetAnchorCoord()));
 
-        _test.Eq(friend.current_hp, beforeFriendHp, "受精通保护的大失败不应释放火球爆炸。");
-        _test.Eq(caster.current_mp, 50, "受保护大失败应在原 100 法力外额外吞噬 100 法力。");
+        _test.Eq(friend.GetCurrentHp(), beforeFriendHp, "受精通保护的大失败不应释放火球爆炸。");
+        _test.Eq(caster.GetCurrentMp(), 50, "受保护大失败应在原 100 法力外额外吞噬 100 法力。");
         _test.Eq(
             caster.GetFumbleProtectionUsedTyped("mage_fireball"),
             1,
@@ -247,12 +247,12 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, friend, false);
         Activate(runtime, state, caster);
 
-        int beforeCasterHp = caster.current_hp;
-        int beforeFriendHp = friend.current_hp;
-        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, caster.coord));
+        int beforeCasterHp = caster.GetCurrentHp();
+        int beforeFriendHp = friend.GetCurrentHp();
+        BattleEventBatch batch = runtime.IssueCommand(BuildFireballCommand(caster.unit_id, caster.GetAnchorCoord()));
 
-        _test.Eq(caster.current_hp, beforeCasterHp, "无保护大失败偏移后不应继续结算原落点。");
-        _test.True(friend.current_hp < beforeFriendHp, "无保护大失败应把火球偏移到唯一候选地格并伤到友军。");
+        _test.Eq(caster.GetCurrentHp(), beforeCasterHp, "无保护大失败偏移后不应继续结算原落点。");
+        _test.True(friend.GetCurrentHp() < beforeFriendHp, "无保护大失败应把火球偏移到唯一候选地格并伤到友军。");
         _test.True(LogsContain(batch.log_lines, "偏移到 (1, 0)"), "无保护大失败应写入明确的落点偏移日志。");
     }
 
@@ -267,8 +267,9 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, caster, false);
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
+        caster.MarkRestingTyped();
 
-        int beforeTargetHp = target.current_hp;
+        int beforeTargetHp = target.GetCurrentHp();
         BattlePreview preview = runtime.PreviewCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
         BattleEventBatch startBatch = runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
 
@@ -276,18 +277,30 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         _test.True(caster.HasPendingCast(), "使用读条技能后应创建 pending cast。");
         _test.Eq(caster.pending_cast?.RemainingCastProgress ?? -1, 1000, "pending cast 初始剩余进度应按 TU*100 存储。");
         _test.Eq(caster.pending_cast?.TargetUnitIds.Count ?? -1, 1, "pending cast 应保留单位目标。");
-        _test.Eq(caster.current_mp, 40, "启动读条应立即扣除资源成本。");
-        _test.Eq(caster.current_ap, 0, "启动读条应消耗本次行动。");
+        _test.Eq(caster.GetCurrentMp(), 40, "启动读条应立即扣除资源成本。");
+        _test.Eq(caster.GetCurrentAp(), 0, "启动读条应消耗本次行动。");
+        _test.True(
+            caster.HasTakenActionThisTurnTyped(),
+            "成功启动读条应记录本次 activation 已实际行动。"
+        );
+        _test.True(
+            !caster.IsRestingTyped(),
+            "成功启动读条并结束 activation 后不应重新进入 resting。"
+        );
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "启动读条不应立刻进入冷却。");
-        _test.Eq(target.current_hp, beforeTargetHp, "启动读条不应立刻结算伤害。");
+        _test.Eq(target.GetCurrentHp(), beforeTargetHp, "启动读条不应立刻结算伤害。");
         _test.True(startBatch.changed_unit_ids.Contains(caster.unit_id), "启动读条应标记施法者变化。");
 
         AdvanceTimelineTu(runtime, state, 10);
 
         _test.True(!caster.HasPendingCast(), "读条完成后应清除 pending cast。");
-        _test.True(target.current_hp < beforeTargetHp, "读条完成后应结算技能效果。");
+        _test.True(target.GetCurrentHp() < beforeTargetHp, "读条完成后应结算技能效果。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "读条完成后应启动技能冷却。");
-        _test.Eq(caster.action_progress, 0, "读条完成的同一 tick 不应额外获得行动进度。");
+        _test.Eq(
+            caster.GetActionProgressTyped(),
+            0,
+            "读条完成的同一 tick 不应额外获得行动进度。"
+        );
     }
 
     private void TestGroundCastingTimePendingCastStartsThenCompletes()
@@ -302,8 +315,8 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
 
-        int beforeTargetHp = target.current_hp;
-        BattleCommand command = BuildGroundCastingTimeCommand(caster.unit_id, target.coord);
+        int beforeTargetHp = target.GetCurrentHp();
+        BattleCommand command = BuildGroundCastingTimeCommand(caster.unit_id, target.GetAnchorCoord());
         BattlePreview preview = runtime.PreviewCommand(command);
         BattleEventBatch startBatch = runtime.IssueCommand(command);
 
@@ -311,15 +324,15 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         _test.True(caster.HasPendingCast(), "地面读条技能使用后应创建 pending cast。");
         _test.Eq(caster.pending_cast?.TargetMode ?? BattleTargetMode.Unknown, BattleTargetMode.Ground, "地面读条 pending cast 应保留 ground target mode。");
         _test.Eq(caster.pending_cast?.TargetCoords.Count ?? -1, 1, "地面读条 pending cast 应保留目标地格。");
-        _test.Eq(caster.current_mp, 40, "地面读条启动应立即扣除资源成本。");
-        _test.Eq(caster.current_ap, 0, "地面读条启动应消耗本次行动。");
-        _test.Eq(target.current_hp, beforeTargetHp, "地面读条启动不应立刻结算伤害。");
+        _test.Eq(caster.GetCurrentMp(), 40, "地面读条启动应立即扣除资源成本。");
+        _test.Eq(caster.GetCurrentAp(), 0, "地面读条启动应消耗本次行动。");
+        _test.Eq(target.GetCurrentHp(), beforeTargetHp, "地面读条启动不应立刻结算伤害。");
         _test.True(startBatch.changed_unit_ids.Contains(caster.unit_id), "地面读条启动应标记施法者变化。");
 
         AdvanceTimelineTu(runtime, state, 10);
 
         _test.True(!caster.HasPendingCast(), "地面读条完成后应清除 pending cast。");
-        _test.True(target.current_hp < beforeTargetHp, "地面读条完成后应结算目标地格上的单位效果。");
+        _test.True(target.GetCurrentHp() < beforeTargetHp, "地面读条完成后应结算目标地格上的单位效果。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "地面读条完成后应启动技能冷却。");
     }
 
@@ -335,14 +348,14 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
 
-        int beforeTargetHp = target.current_hp;
+        int beforeTargetHp = target.GetCurrentHp();
         runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
 
         _test.True(!caster.HasPendingCast(), "读条法术控制普通失败不应创建 pending cast。");
-        _test.Eq(caster.current_ap, 0, "法术控制普通失败应按技能 AP 成本消耗行动。");
-        _test.Eq(caster.current_mp, 50, "法术控制普通失败发生在持久资源扣除前。");
+        _test.Eq(caster.GetCurrentAp(), 0, "法术控制普通失败应按技能 AP 成本消耗行动。");
+        _test.Eq(caster.GetCurrentMp(), 50, "法术控制普通失败发生在持久资源扣除前。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "法术控制普通失败不应启动冷却。");
-        _test.Eq(target.current_hp, beforeTargetHp, "法术控制普通失败不应结算技能效果。");
+        _test.Eq(target.GetCurrentHp(), beforeTargetHp, "法术控制普通失败不应结算技能效果。");
     }
 
     private void TestCastingTimeCriticalFailureConsumesHalfCurrentApAndStartsCooldown()
@@ -357,14 +370,14 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
 
-        int beforeTargetHp = target.current_hp;
+        int beforeTargetHp = target.GetCurrentHp();
         runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
 
         _test.True(!caster.HasPendingCast(), "读条法术控制大失败不应创建 pending cast。");
-        _test.Eq(caster.current_ap, 2, "读条法术控制大失败应扣除当前 AP 的 50% 且向上取整。");
-        _test.Eq(caster.current_mp, 50, "读条法术控制大失败发生在持久资源扣除前。");
+        _test.Eq(caster.GetCurrentAp(), 2, "读条法术控制大失败应扣除当前 AP 的 50% 且向上取整。");
+        _test.Eq(caster.GetCurrentMp(), 50, "读条法术控制大失败发生在持久资源扣除前。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "读条法术控制大失败应启动技能冷却。");
-        _test.Eq(target.current_hp, beforeTargetHp, "读条法术控制大失败不应结算技能效果。");
+        _test.Eq(target.GetCurrentHp(), beforeTargetHp, "读条法术控制大失败不应结算技能效果。");
     }
 
     private void TestCastingTimeCancelRefundsHalfResourcesWithoutCooldown()
@@ -385,7 +398,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
 
         _test.True(cancelPreview.allowed, "玩家可控己方单位应可在 timeline 阶段取消读条。");
         _test.True(!caster.HasPendingCast(), "取消读条后应清除 pending cast。");
-        _test.Eq(caster.current_mp, 45, "取消读条应返还已付资源成本的一半。");
+        _test.Eq(caster.GetCurrentMp(), 45, "取消读条应返还已付资源成本的一半。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 0, "手动取消读条不应启动冷却。");
         _test.True(cancelBatch.changed_unit_ids.Contains(caster.unit_id), "取消读条应标记施法者变化。");
         _test.True(
@@ -406,14 +419,14 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         AddUnit(runtime, state, target, true);
         Activate(runtime, state, caster);
 
-        int beforeTargetHp = target.current_hp;
+        int beforeTargetHp = target.GetCurrentHp();
         runtime.IssueCommand(BuildCastingTimeCommand(caster.unit_id, target.unit_id));
-        caster.current_hp -= 20;
+        caster.SetCurrentHp(caster.GetCurrentHp() - (20));
         runtime.advance(1);
 
         _test.True(!caster.HasPendingCast(), "维持检定失败后应中断读条。");
         _test.Eq(caster.GetCooldownTyped(skillDef.SkillId), 20, "维持失败中断应启动技能冷却。");
-        _test.Eq(target.current_hp, beforeTargetHp, "维持失败中断不应结算技能效果。");
+        _test.Eq(target.GetCurrentHp(), beforeTargetHp, "维持失败中断不应结算技能效果。");
     }
 
     private static BattleRuntimeModule BuildRuntimeWithSpellControlRoll(int roll)
@@ -518,8 +531,8 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
 
     private static void LearnSkill(BattleUnitState unit, StringName skillId)
     {
-        unit.known_active_skill_ids.Add(skillId);
-        unit.known_skill_level_map[skillId] = 1;
+        unit.AddKnownActiveSkill(skillId);
+        unit.SetKnownSkillLevelTyped(skillId, 1);
     }
 
     private static BattleState BuildState(Vector2I mapSize)
@@ -571,13 +584,14 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
             source_member_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_ap = currentAp,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            current_hp = 100,
-            current_mp = currentMp,
-            current_stamina = 60,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            mp: currentMp,
+            stamina: 60,
+            ap: currentAp,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), Math.Max(currentMp, 200));
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.SpellProficiencyBonus), 2);
@@ -593,8 +607,12 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         if (fireballLevel >= 0)
         {
-            unit.known_active_skill_ids.Add("mage_fireball");
-            unit.known_skill_level_map[new StringName("mage_fireball")] = fireballLevel;
+            unit.AddKnownActiveSkill("mage_fireball");
+            unit.SetKnownSkillLevelTyped(
+                "mage_fireball",
+                fireballLevel,
+                preserveZero: fireballLevel == 0
+            );
         }
         unit.SetAnchorCoord(coord);
         return unit;
@@ -617,7 +635,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"{unit.unit_id} 应能放入战场。"
         );
     }
@@ -723,7 +741,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
         {
             if (unitState != null)
             {
-                unitState.action_threshold = 1_000_000;
+                unitState.SetActionThresholdTyped(1_000_000);
             }
         }
         runtime.advance(totalTu / 5);

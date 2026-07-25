@@ -252,7 +252,7 @@ internal sealed class BattleTimelineDriver
         foreach (StringName unitId in GetUnitsInOrder())
         {
             var unitState = state.GetUnit(unitId);
-            if (unitState == null || !unitState.is_alive)
+            if (unitState == null || !unitState.IsAlive())
                 continue;
             if (BattleTemporalStatusService.HasTimeStasis(unitState))
             {
@@ -272,7 +272,7 @@ internal sealed class BattleTimelineDriver
             var statusTickResult = _ApplyUnitStatusPeriodicTicks(unitState, tuDelta, batch);
             if (statusTickResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
-            if (!unitState.is_alive)
+            if (!unitState.IsAlive())
             {
                 var defeatSourceUnitId = statusTickResult.DefeatSourceUnitId;
                 var defeatSourceUnit = state.GetUnit(defeatSourceUnitId);
@@ -306,7 +306,7 @@ internal sealed class BattleTimelineDriver
         foreach (StringName unitId in GetUnitsInOrder())
         {
             var unitState = state.GetUnit(unitId);
-            if (unitState == null || !unitState.is_alive)
+            if (unitState == null || !unitState.IsAlive())
                 continue;
             if (skipProgressUnitIds != null && skipProgressUnitIds.Contains(unitId))
                 continue;
@@ -316,18 +316,23 @@ internal sealed class BattleTimelineDriver
                 continue;
             if (ApplyStaminaRecovery(unitState, tuDelta))
                 _AppendChangedUnitId(batch, unitState.unit_id);
-            if (!unitState.is_alive)
+            if (!unitState.IsAlive())
                 continue;
-            unitState.action_progress += BattleTemporalStatusService.ConsumeActionProgressGain(
-                unitState,
-                tuDelta
-            );
+            int actionProgressGain =
+                BattleTemporalStatusService.ConsumeActionProgressGain(
+                    unitState,
+                    tuDelta
+                );
             var actionThreshold = ResolveUnitActionThreshold(unitState);
-            while (unitState.action_progress >= actionThreshold)
+            if (
+                unitState.AdvanceActionClockTyped(
+                    actionProgressGain,
+                    actionThreshold
+                )
+                && !state.timeline.ready_unit_ids.Contains(unitId)
+            )
             {
-                unitState.action_progress -= actionThreshold;
-                if (!state.timeline.ready_unit_ids.Contains(unitId))
-                    state.timeline.ready_unit_ids.Add(unitId);
+                state.timeline.ready_unit_ids.Add(unitId);
             }
         }
     }
@@ -340,57 +345,30 @@ internal sealed class BattleTimelineDriver
         if (tickCount <= 0)
             return false;
         var staminaMax = _GetUnitStaminaMax(unitState);
-        if (staminaMax <= 0)
+        if (
+            staminaMax <= 0
+            || unitState.GetCurrentStamina() >= staminaMax
+        )
         {
-            if (unitState.current_stamina != 0 || unitState.stamina_recovery_progress != 0)
-            {
-                unitState.SetCurrentStamina(0);
-                unitState.stamina_recovery_progress = 0;
-                return true;
-            }
-            return false;
-        }
-
-        bool changed = false;
-        if (unitState.current_stamina >= staminaMax)
-        {
-            if (unitState.current_stamina != staminaMax || unitState.stamina_recovery_progress != 0)
-            {
-                unitState.SetCurrentStamina(staminaMax);
-                unitState.stamina_recovery_progress = 0;
-                changed = true;
-            }
-            return changed;
+            return unitState.ApplyStaminaRecoveryTyped(
+                tickCount,
+                staminaMax,
+                0,
+                StaminaRecoveryProgressDenominator
+            );
         }
 
         var constitution = GetUnitConstitution(unitState);
         var progressGainPerTick = StaminaRecoveryProgressBase + constitution;
         progressGainPerTick = ApplyStaminaRecoveryPercentBonus(unitState, progressGainPerTick);
-        if (unitState.is_resting)
+        if (unitState.IsRestingTyped())
             progressGainPerTick *= StaminaRestingRecoveryMultiplier;
-
-        for (int i = 0; i < tickCount; i++)
-        {
-            unitState.stamina_recovery_progress += progressGainPerTick;
-            var recovered =
-                unitState.stamina_recovery_progress / StaminaRecoveryProgressDenominator;
-            if (recovered <= 0)
-                continue;
-            unitState.SetCurrentStamina(Mathf.Min(
-                unitState.current_stamina + recovered,
-                staminaMax
-            ));
-            unitState.stamina_recovery_progress %= StaminaRecoveryProgressDenominator;
-            changed = true;
-            if (unitState.current_stamina >= staminaMax)
-            {
-                unitState.SetCurrentStamina(staminaMax);
-                unitState.stamina_recovery_progress = 0;
-                break;
-            }
-        }
-
-        return changed;
+        return unitState.ApplyStaminaRecoveryTyped(
+            tickCount,
+            staminaMax,
+            progressGainPerTick,
+            StaminaRecoveryProgressDenominator
+        );
     }
 
     internal int GetUnitConstitution(BattleUnitState unitState)
@@ -460,15 +438,15 @@ internal sealed class BattleTimelineDriver
     {
         if (unitState == null)
             return BattleUnitState.DefaultActionThreshold;
-        var threshold = unitState.action_threshold;
+        var threshold = unitState.GetActionThresholdTyped();
         if (threshold <= 0)
         {
             threshold = BattleUnitState.DefaultActionThreshold;
-            unitState.action_threshold = threshold;
+            unitState.SetActionThresholdTyped(threshold);
         }
         var normalizedThreshold = NormalizeUnitActionThreshold(threshold);
         if (normalizedThreshold != threshold)
-            unitState.action_threshold = normalizedThreshold;
+            unitState.SetActionThresholdTyped(normalizedThreshold);
         return normalizedThreshold;
     }
 
@@ -499,9 +477,13 @@ internal sealed class BattleTimelineDriver
         if (state == null || batch == null)
             return;
         var activeUnit = state.GetUnit(state.active_unit_id);
-        if (activeUnit != null && activeUnit.is_alive && !activeUnit.has_taken_action_this_turn)
+        if (
+            activeUnit != null
+            && activeUnit.IsAlive()
+            && !activeUnit.HasTakenActionThisTurnTyped()
+        )
         {
-            activeUnit.is_resting = true;
+            activeUnit.MarkRestingTyped();
             _AppendChangedUnitId(batch, activeUnit.unit_id);
         }
         if (activeUnit != null && runtime != null)
@@ -550,16 +532,13 @@ internal sealed class BattleTimelineDriver
             var nextUnitId = state.timeline.ready_unit_ids[0];
             state.timeline.ready_unit_ids.RemoveAt(0);
             var unitState = state.GetUnit(nextUnitId);
-            if (unitState == null || !unitState.is_alive)
+            if (unitState == null || !unitState.IsAlive())
                 continue;
             if (BattleTemporalStatusService.HasTimeStasis(unitState))
                 continue;
             state.PhaseKind = BattlePhaseKind.UnitActing;
             state.active_unit_id = nextUnitId;
-            unitState.has_taken_action_this_turn = false;
-            unitState.has_moved_this_turn = false;
-            unitState.can_use_locked_move_points_this_turn = false;
-            unitState.ClearCastingTurnFlags();
+            unitState.ResetTurnStateForTurnStartTyped();
             unitState.ResetPerTurnCharges();
             var traitTriggerHooks = runtime?._trait_trigger_hooks;
             TraitDispatchResult traitTurnStartResult = default;
@@ -577,7 +556,7 @@ internal sealed class BattleTimelineDriver
             unitState.SetCurrentAp(actionPoints);
             unitState.SetCurrentMovePoints(unitState.GetMovePointCapacity());
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
-            if (!unitState.is_alive)
+            if (!unitState.IsAlive())
             {
                 var defeatSourceUnitId = turnStartResult.DefeatSourceUnitId;
                 var defeatSourceUnit = state.GetUnit(defeatSourceUnitId);
@@ -640,7 +619,7 @@ internal sealed class BattleTimelineDriver
             if (unitId == "" || seenIds.Contains(unitId))
                 continue;
             var unitState = state.GetUnit(unitId);
-            if (unitState == null || !unitState.is_alive)
+            if (unitState == null || !unitState.IsAlive())
                 continue;
             seenIds.Add(unitId);
             orderedReadyIds.Add(unitId);
@@ -667,9 +646,9 @@ internal sealed class BattleTimelineDriver
         var state = _ResolveState();
         var leftUnit = state?.GetUnit(leftUnitId);
         var rightUnit = state?.GetUnit(rightUnitId);
-        if (leftUnit == null || !leftUnit.is_alive)
+        if (leftUnit == null || !leftUnit.IsAlive())
             return false;
-        if (rightUnit == null || !rightUnit.is_alive)
+        if (rightUnit == null || !rightUnit.IsAlive())
             return true;
         var leftAgility = GetUnitTurnOrderAttribute(leftUnit, "agility");
         var rightAgility = GetUnitTurnOrderAttribute(rightUnit, "agility");
@@ -679,8 +658,8 @@ internal sealed class BattleTimelineDriver
         var rightActionPoints = GetUnitTurnOrderActionPoints(rightUnit);
         if (leftActionPoints != rightActionPoints)
             return leftActionPoints > rightActionPoints;
-        var leftMovePoints = Mathf.Max(leftUnit.current_move_points, 0);
-        var rightMovePoints = Mathf.Max(rightUnit.current_move_points, 0);
+        var leftMovePoints = Mathf.Max(leftUnit.GetCurrentMovePoints(), 0);
+        var rightMovePoints = Mathf.Max(rightUnit.GetCurrentMovePoints(), 0);
         if (leftMovePoints != rightMovePoints)
             return leftMovePoints > rightMovePoints;
         return string.Compare(
@@ -702,7 +681,7 @@ internal sealed class BattleTimelineDriver
         var snapshotActionPoints = GetUnitTurnOrderAttribute(unitState, "action_points");
         if (snapshotActionPoints > 0)
             return snapshotActionPoints;
-        return Mathf.Max(unitState.current_ap, 0);
+        return Mathf.Max(unitState.GetCurrentAp(), 0);
     }
 
     internal GStringNameArray GetUnitsInOrder()

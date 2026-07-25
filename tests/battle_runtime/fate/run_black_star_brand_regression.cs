@@ -49,8 +49,8 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 
         BattleState state = BuildSkillTestState("black_star_brand_costs", new Vector2I(5, 3));
         BattleUnitState caster = BuildUnit("brand_cost_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { BLACK_STAR_BRAND_SKILL_ID };
-        caster.known_skill_level_map[BLACK_STAR_BRAND_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { BLACK_STAR_BRAND_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(BLACK_STAR_BRAND_SKILL_ID, 1);
         BattleUnitState enemy = BuildUnit("brand_cost_enemy", "普通敌人", "enemy", new Vector2I(2, 1), 2);
 
         AddUnit(runtime, state, caster);
@@ -74,8 +74,8 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
             $"首次施放成功后应回传战斗反馈。 log={firstBatch?.log_lines}"
         );
 
-        caster.current_ap = 3;
-        int apBeforeBlocked = caster.current_ap;
+        caster.SetCurrentAp(3);
+        int apBeforeBlocked = caster.GetCurrentAp();
         BattlePreview blockedPreview = runtime.PreviewCommand(firstCommand);
         _test.True(
             blockedPreview != null && !blockedPreview.allowed && blockedPreview.log_lines.Count > 0,
@@ -83,14 +83,14 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
         );
         BattleEventBatch blockedBatch = runtime.IssueCommand(firstCommand);
         _test.Eq(runtime.GetMemberCalamity("hero"), 0, "因 calamity 不足而失败时不应扣减资源。");
-        _test.Eq(caster.current_ap, apBeforeBlocked, "因 calamity 不足而失败时不应继续扣除行动点。");
+        _test.Eq(caster.GetCurrentAp(), apBeforeBlocked, "因 calamity 不足而失败时不应继续扣除行动点。");
         _test.True(
             blockedBatch != null && !blockedBatch.changed_unit_ids.Contains(caster.unit_id),
             "因 calamity 不足而失败时不应把施法者记录为已执行变更。"
         );
 
         runtime.calamity_by_member_id["hero"] = 2;
-        caster.current_ap = 3;
+        caster.SetCurrentAp(3);
         BattlePreview spendPreview = runtime.PreviewCommand(firstCommand);
         _test.True(spendPreview != null && spendPreview.allowed, "有足够 calamity 时后续施放应允许。");
         runtime.IssueCommand(firstCommand);
@@ -103,13 +103,13 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
         BattleRuntimeModule runtime = BuildRuntime();
         BattleState state = BuildSkillTestState("black_star_brand_normal", new Vector2I(5, 3));
         BattleUnitState caster = BuildUnit("brand_normal_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { BLACK_STAR_BRAND_SKILL_ID };
-        caster.known_skill_level_map[BLACK_STAR_BRAND_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { BLACK_STAR_BRAND_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(BLACK_STAR_BRAND_SKILL_ID, 1);
         BattleUnitState enemy = BuildUnit("brand_normal_enemy", "普通敌人", "enemy", new Vector2I(2, 1), 2);
-        enemy.current_stamina = 60;
+        enemy.SetCurrentStamina(60);
         enemy.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 60);
-        enemy.known_active_skill_ids = new GStringNameArray { WARRIOR_GUARD_SKILL_ID };
-        enemy.known_skill_level_map[WARRIOR_GUARD_SKILL_ID] = 1;
+        enemy.SetKnownActiveSkillIds(new[] { WARRIOR_GUARD_SKILL_ID });
+        enemy.SetKnownSkillLevelTyped(WARRIOR_GUARD_SKILL_ID, 1);
         SetStatus(enemy, STATUS_GUARDING, 60);
 
         AddUnit(runtime, state, caster);
@@ -130,17 +130,17 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 
         state.active_unit_id = enemy.unit_id;
         state.phase = "unit_acting";
-        enemy.current_ap = 2;
-        enemy.current_stamina = 60;
+        enemy.SetCurrentAp(2);
+        enemy.SetCurrentStamina(60);
         BattleCommand guardCommand = BuildSkillCommand(enemy.unit_id, WARRIOR_GUARD_SKILL_ID, enemy);
         BattlePreview guardPreview = runtime.PreviewCommand(guardCommand);
         _test.True(
             guardPreview != null && !guardPreview.allowed && guardPreview.log_lines.Count > 0,
             $"普通黑星烙印下预览 warrior_guard 应被阻断。 log={guardPreview?.log_lines}"
         );
-        int apBeforeIssue = enemy.current_ap;
+        int apBeforeIssue = enemy.GetCurrentAp();
         runtime.IssueCommand(guardCommand);
-        _test.Eq(enemy.current_ap, apBeforeIssue, "被普通黑星烙印封锁时不应继续扣除格挡技能的行动点。");
+        _test.Eq(enemy.GetCurrentAp(), apBeforeIssue, "被普通黑星烙印封锁时不应继续扣除格挡技能的行动点。");
         _test.True(!enemy.HasStatusEffect(STATUS_GUARDING), "被普通黑星烙印封锁时不应重新获得 guarding。");
         runtime.dispose();
     }
@@ -160,18 +160,20 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 
         BattleState state = BuildSkillTestState("black_star_brand_elite", new Vector2I(6, 3));
         BattleUnitState caster = BuildUnit("brand_elite_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-        caster.known_active_skill_ids = new GStringNameArray { BLACK_STAR_BRAND_SKILL_ID };
-        caster.known_skill_level_map[BLACK_STAR_BRAND_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { BLACK_STAR_BRAND_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(BLACK_STAR_BRAND_SKILL_ID, 1);
         BattleUnitState elite = BuildUnit("brand_elite_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-        elite.current_stamina = 60;
+        elite.SetCurrentStamina(60);
         elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 60);
-        elite.known_active_skill_ids = new GStringNameArray
+        elite.SetKnownActiveSkillIds(
+            new[]
         {
             WARRIOR_GUARD_SKILL_ID,
             WARRIOR_HEAVY_STRIKE_SKILL_ID,
-        };
-        elite.known_skill_level_map[WARRIOR_GUARD_SKILL_ID] = 1;
-        elite.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+        }
+        );
+        elite.SetKnownSkillLevelTyped(WARRIOR_GUARD_SKILL_ID, 1);
+        elite.SetKnownSkillLevelTyped(WARRIOR_HEAVY_STRIKE_SKILL_ID, 1);
         BattleUnitState allyTarget = BuildUnit("brand_elite_ally_target", "被打击者", "player", new Vector2I(3, 1), 2);
 
         AddUnit(runtime, state, caster);
@@ -195,8 +197,8 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
 
         state.active_unit_id = elite.unit_id;
         state.phase = "unit_acting";
-        elite.current_ap = 2;
-        elite.current_stamina = 60;
+        elite.SetCurrentAp(2);
+        elite.SetCurrentStamina(60);
         BattleCommand guardCommand = BuildSkillCommand(elite.unit_id, WARRIOR_GUARD_SKILL_ID, elite);
         BattlePreview guardPreview = runtime.PreviewCommand(guardCommand);
         _test.True(guardPreview != null && guardPreview.allowed, "elite 黑星烙印下 warrior_guard 仍应允许施放。");
@@ -296,12 +298,11 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
         unit.source_member_id = sourceMemberId;
         unit.display_name = displayName;
         unit.faction_id = factionId;
-        unit.current_ap = currentAp;
-        unit.current_hp = 60;
-        unit.current_mp = 4;
-        unit.current_stamina = 4;
-        unit.current_aura = 0;
-        unit.is_alive = true;
+        unit.SetCurrentAp(currentAp);
+        unit.SetCurrentHp(60);
+        unit.SetCurrentMp(4);
+        unit.SetCurrentStamina(4);
+        unit.SetCurrentAura(0);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
@@ -328,7 +329,7 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
         command.skill_id = skillId;
         command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
-        command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
+        command.target_coord = targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return command;
     }
 
@@ -361,7 +362,7 @@ public partial class run_black_star_brand_regression : LifecycleTestSceneTree
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static GDictionary ExtractFirstDamageEvent(GDictionary result)

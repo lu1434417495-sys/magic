@@ -73,7 +73,7 @@ internal sealed class BattleEquipmentAreaActionResolver
             return;
         }
 
-        Vector2I coord = anchorUnit.coord;
+        Vector2I coord = anchorUnit.GetAnchorCoord();
         BattleCellState cell = gridService.GetCellState(state, coord);
         if (cell == null || CellHasActiveTerrainEffect(cell, payload.TerrainEffectId))
             return;
@@ -384,9 +384,13 @@ internal sealed class BattleEquipmentAreaActionResolver
         toCoord = Vector2I.Zero;
         if (fromUnit == null || toUnit == null)
             return false;
-        foreach (Vector2I sourceCoord in fromUnit.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in fromUnit.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I targetCoord in toUnit.occupied_coords)
+            foreach (
+                Vector2I targetCoord in toUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (Math.Abs(sourceCoord.X - targetCoord.X) + Math.Abs(sourceCoord.Y - targetCoord.Y) != 1)
                     continue;

@@ -22,6 +22,7 @@ public static class BattleRangeService
         public StringName WeaponRangeType = EmptyStringName;
         public StringName WeaponPhysicalDamageTag = EmptyStringName;
         public StringName WeaponFamily = EmptyStringName;
+        public StringName WeaponProfileTypeId = EmptyStringName;
         public readonly Dictionary<StringName, StatusEffectData> StatusEffects = new();
     }
 
@@ -40,6 +41,11 @@ public static class BattleRangeService
     public static bool UnitHasMeleeWeapon(BattleUnitState unitState)
     {
         return UnitHasMeleeWeapon(BuildUnitRangeInfo(unitState));
+    }
+
+    internal static bool UnitHasMeleeWeapon(BattleUnitReadView unitView)
+    {
+        return UnitHasMeleeWeapon(BuildUnitRangeInfo(unitView));
     }
 
     public static bool UnitHasEquippedWeapon(BattleUnitState unitState)
@@ -69,6 +75,49 @@ public static class BattleRangeService
             BuildUnitRangeInfo(unitState),
             requiredWeaponFamilies
         );
+    }
+
+    public static bool UnitMatchesRequiredWeaponTypeIds(
+        BattleUnitState unitState,
+        IEnumerable<StringName> requiredWeaponTypeIds
+    )
+    {
+        return UnitMatchesRequiredWeaponTypeIds(
+            BuildUnitRangeInfo(unitState),
+            requiredWeaponTypeIds
+        );
+    }
+
+    internal static bool UnitMatchesRequiredWeaponTypeIds(
+        BattleUnitReadView unitView,
+        IEnumerable<StringName> requiredWeaponTypeIds
+    )
+    {
+        return UnitMatchesRequiredWeaponTypeIds(
+            BuildUnitRangeInfo(unitView),
+            requiredWeaponTypeIds
+        );
+    }
+
+    private static bool UnitMatchesRequiredWeaponTypeIds(
+        UnitRangeInfo unitInfo,
+        IEnumerable<StringName> requiredWeaponTypeIds
+    )
+    {
+        bool hasRequiredType = false;
+        if (requiredWeaponTypeIds == null)
+            return true;
+        foreach (StringName typeId in requiredWeaponTypeIds)
+        {
+            if (IsEmpty(typeId))
+                continue;
+            hasRequiredType = true;
+            if (!UnitHasEquippedWeapon(unitInfo))
+                return false;
+            if (typeId == unitInfo.WeaponProfileTypeId)
+                return true;
+        }
+        return !hasRequiredType;
     }
 
     private static bool UnitHasMeleeWeapon(UnitRangeInfo unitInfo)
@@ -214,7 +263,10 @@ public static class BattleRangeService
         {
             return false;
         }
-        if (combatProfile.RequiredWeaponFamilies.Count > 0)
+        if (
+            combatProfile.RequiredWeaponFamilies.Count > 0
+            || combatProfile.RequiredWeaponTypeIds.Count > 0
+        )
         {
             return true;
         }
@@ -459,7 +511,7 @@ public static class BattleRangeService
         {
             return skillLevel;
         }
-        return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
+        return unitState.KnowsActiveSkill(skillId) ? 1 : 0;
     }
 
     private static bool EffectListRequiresWeapon(
@@ -569,11 +621,14 @@ public static class BattleRangeService
             return info;
         }
         info.UnitState = unitState;
-        info.WeaponAttackRange = Math.Max(unitState.GetWeaponAttackRange(), 0);
-        info.WeaponProfileKind = unitState.weapon_profile_kind;
-        info.WeaponRangeType = unitState.weapon_range_type;
-        info.WeaponPhysicalDamageTag = unitState.weapon_physical_damage_tag;
-        info.WeaponFamily = unitState.weapon_family;
+        BattleWeaponProjectionValues weaponProjection =
+            unitState.GetWeaponProjectionReadViewTyped().Values;
+        info.WeaponAttackRange = Math.Max(weaponProjection.AttackRange, 0);
+        info.WeaponProfileKind = weaponProjection.ProfileKind;
+        info.WeaponRangeType = weaponProjection.RangeType;
+        info.WeaponPhysicalDamageTag = weaponProjection.PhysicalDamageTag;
+        info.WeaponFamily = weaponProjection.Family;
+        info.WeaponProfileTypeId = weaponProjection.ProfileTypeId;
 
         AddStatusEffectData(info, unitState, StatusArcherRangeUp);
         AddStatusEffectData(info, unitState, StatusArcherShootingSpecialization);
@@ -594,6 +649,7 @@ public static class BattleRangeService
         info.WeaponRangeType = unitView.WeaponRangeType;
         info.WeaponPhysicalDamageTag = unitView.WeaponPhysicalDamageTag;
         info.WeaponFamily = unitView.WeaponFamily;
+        info.WeaponProfileTypeId = unitView.WeaponProfileTypeId;
 
         AddStatusEffectData(info, unitView, StatusArcherRangeUp);
         AddStatusEffectData(info, unitView, StatusArcherShootingSpecialization);

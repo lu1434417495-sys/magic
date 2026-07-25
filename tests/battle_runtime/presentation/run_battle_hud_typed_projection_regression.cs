@@ -310,7 +310,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             DisplayName = "虹光法球",
             SourceUnitId = caster.unit_id,
             SourceSkillId = "mage_prismatic_sphere",
-            AnchorCoord = caster.coord,
+            AnchorCoord = caster.GetAnchorCoord(),
             RadiusCells = 2,
             AreaPattern = "diamond",
             RemainingTu = 90,
@@ -337,7 +337,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         fixture.State.PutLayeredBarrierField(barrier.BarrierInstanceId, barrier);
         BattleHudSnapshot detachedObjectiveSnapshot = adapter.BuildSnapshot(
             fixture.State,
-            caster.coord,
+            caster.GetAnchorCoord(),
             "",
             "",
             "",
@@ -356,7 +356,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         );
         BattleHudSnapshot movedSnapshot = adapter.BuildSnapshot(
             fixture.State,
-            caster.coord,
+            caster.GetAnchorCoord(),
             "",
             "",
             "",
@@ -379,7 +379,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         {
             BattleHudSnapshot snapshot = adapter.BuildSnapshot(
                 fixture.State,
-                caster.coord,
+                caster.GetAnchorCoord(),
                 "",
                 "",
                 "",
@@ -432,7 +432,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         using var adapter = new BattleHudAdapter();
         BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
-            ally.coord,
+            ally.GetAnchorCoord(),
             "",
             "",
             "",
@@ -493,7 +493,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         using var adapter = new BattleHudAdapter();
         BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
-            ally.coord,
+            ally.GetAnchorCoord(),
             "",
             "",
             "",
@@ -568,7 +568,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         using var adapter = new BattleHudAdapter();
         BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
-            ally.coord,
+            ally.GetAnchorCoord(),
             "",
             "",
             "",

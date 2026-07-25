@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -11,6 +12,8 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         TestResolverTypeIsPlainStaticCSharp();
         TestCategoryFieldsAreFormalSchema();
         TestResolverUsesExplicitDeliveryAndEffectCategories();
+        TestTypedProjectileKindsDeriveInteractionCategories();
+        TestCastVariantProjectileOverrideWins();
         TestResolverIgnoresLegacyParamsBarrierCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
@@ -41,6 +44,20 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
             combatProfile.delivery_categories != null,
             "CombatSkillDef 必须暴露 delivery_categories 作为正式投送类别 schema。"
         );
+        _test.Eq(
+            combatProfile.projectile_kind,
+            new StringName("none"),
+            "CombatSkillDef 必须以 none 作为 projectile_kind 的安全默认值。"
+        );
+        var castVariant = TestResourceOwnership.Own(
+            new CombatCastVariantDef(),
+            "BattleEffectCategoryResolverContract.cast-variant"
+        );
+        _test.Eq(
+            castVariant.projectile_kind_override,
+            new StringName(""),
+            "CombatCastVariantDef 的空 projectile_kind_override 必须表示继承技能定义。"
+        );
         _test.True(
             effect.effect_categories != null,
             "CombatEffectDef 必须暴露 effect_categories 作为正式效果类别 schema。"
@@ -51,7 +68,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
     {
         SkillDefinition skill = BuildSkill(
             "contract_explicit_categories",
-            new[] { new StringName("spell"), new StringName("projectile") }
+            new[] { new StringName("spell"), new StringName("location") }
         );
         var effect = new CombatEffectDefinition(
             effectType: default,
@@ -112,8 +129,8 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
             "Resolver 必须包含 explicit delivery category spell。"
         );
         _test.True(
-            ContainsCategory(categories, "projectile"),
-            "Resolver 必须包含 explicit delivery category projectile。"
+            ContainsCategory(categories, "location"),
+            "Resolver 必须包含 explicit delivery category location。"
         );
         _test.True(
             ContainsCategory(categories, "force_effect"),
@@ -122,6 +139,101 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         _test.True(
             ContainsCategory(categories, "mental_attack"),
             "Resolver 必须包含 explicit effect category mental_attack。"
+        );
+    }
+
+    private void TestTypedProjectileKindsDeriveInteractionCategories()
+    {
+        IReadOnlyList<StringName> magical = BattleEffectCategoryResolver.ResolveCategories(
+            BuildSkill(
+                "contract_magical_projectile",
+                Array.Empty<StringName>(),
+                projectileKind: "magical"
+            ),
+            Array.Empty<CombatEffectDefinition>()
+        );
+        _test.True(
+            ContainsCategory(magical, "projectile")
+                && ContainsCategory(magical, "magical_projectile"),
+            "magical projectile_kind 必须派生 projectile 与 magical_projectile。"
+        );
+        _test.False(
+            ContainsCategory(magical, "nonmagical_projectile"),
+            "magical projectile_kind 不得同时派生 nonmagical_projectile。"
+        );
+
+        IReadOnlyList<StringName> nonmagical = BattleEffectCategoryResolver.ResolveCategories(
+            BuildSkill(
+                "contract_nonmagical_projectile",
+                Array.Empty<StringName>(),
+                projectileKind: "nonmagical"
+            ),
+            Array.Empty<CombatEffectDefinition>()
+        );
+        _test.True(
+            ContainsCategory(nonmagical, "projectile")
+                && ContainsCategory(nonmagical, "nonmagical_projectile"),
+            "nonmagical projectile_kind 必须派生 projectile 与 nonmagical_projectile。"
+        );
+        _test.False(
+            ContainsCategory(nonmagical, "magical_projectile"),
+            "nonmagical projectile_kind 不得同时派生 magical_projectile。"
+        );
+
+        IReadOnlyList<StringName> none = BattleEffectCategoryResolver.ResolveCategories(
+            BuildSkill("contract_non_projectile", Array.Empty<StringName>()),
+            Array.Empty<CombatEffectDefinition>()
+        );
+        _test.False(
+            ContainsCategory(none, "projectile"),
+            "none projectile_kind 不得派生任何投射类别。"
+        );
+    }
+
+    private void TestCastVariantProjectileOverrideWins()
+    {
+        SkillDefinition magicalBase = BuildSkill(
+            "contract_variant_disables_projectile",
+            Array.Empty<StringName>(),
+            projectileKind: "magical"
+        );
+        CombatCastVariantDefinition disableProjectile =
+            TestSkillDefinitionProjection.BuildCastVariant(
+                "melee_variant",
+                0,
+                Array.Empty<CombatEffectDefinition>(),
+                projectileKindOverride: "none"
+            );
+        IReadOnlyList<StringName> disabled = BattleEffectCategoryResolver.ResolveCategories(
+            magicalBase,
+            Array.Empty<CombatEffectDefinition>(),
+            castVariantDefinition: disableProjectile
+        );
+        _test.False(
+            ContainsCategory(disabled, "projectile"),
+            "cast variant 的 none override 必须关闭技能级投射分类。"
+        );
+
+        SkillDefinition nonProjectileBase = BuildSkill(
+            "contract_variant_enables_projectile",
+            Array.Empty<StringName>()
+        );
+        CombatCastVariantDefinition magicalVariant =
+            TestSkillDefinitionProjection.BuildCastVariant(
+                "magical_projectile_variant",
+                0,
+                Array.Empty<CombatEffectDefinition>(),
+                projectileKindOverride: "magical"
+            );
+        IReadOnlyList<StringName> enabled = BattleEffectCategoryResolver.ResolveCategories(
+            nonProjectileBase,
+            Array.Empty<CombatEffectDefinition>(),
+            castVariantDefinition: magicalVariant
+        );
+        _test.True(
+            ContainsCategory(enabled, "projectile")
+                && ContainsCategory(enabled, "magical_projectile"),
+            "cast variant 的 magical override 必须覆盖技能级 none。"
         );
     }
 
@@ -186,8 +298,12 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         );
 
         _test.False(
-            ContainsCategory(categories, "magical_missile"),
-            "Resolver 不应从 skill_id 文本推断 magical_missile。"
+            ContainsCategory(categories, "magical_projectile"),
+            "Resolver 不应从 skill_id 文本推断 magical_projectile。"
+        );
+        _test.False(
+            ContainsCategory(categories, "projectile"),
+            "Resolver 不应从 skill_id 或 tags 推断 projectile。"
         );
         _test.False(
             ContainsCategory(categories, "detection"),
@@ -203,14 +319,19 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         );
     }
 
-    private static SkillDefinition BuildSkill(StringName skillId, StringName[] deliveryCategories)
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        StringName[] deliveryCategories,
+        StringName projectileKind = default
+    )
     {
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,
             displayName: skillId.ToString(),
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 skillId,
-                deliveryCategories: deliveryCategories
+                deliveryCategories: deliveryCategories,
+                projectileKind: projectileKind
             )
         );
     }

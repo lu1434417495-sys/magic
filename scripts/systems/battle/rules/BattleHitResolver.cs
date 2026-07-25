@@ -358,6 +358,13 @@ public class BattleHitResolver : IDisposable
             SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
         int statusAttackBonusDelta = _get_attacker_status_attack_bonus_delta(active_unit);
+        if (
+            BattleRangeService.UnitHasMeleeWeapon(active_unit)
+            && SkillIncludesWeaponDamage(skill_definition, skillLevel)
+        )
+        {
+            statusAttackBonusDelta += GetComboAttackRollBonus(active_unit);
+        }
         int situationalAttackBonus = flat_bonus + Math.Max(statusAttackBonusDelta, 0);
         int situationalAttackPenalty = flat_penalty + Math.Max(-statusAttackBonusDelta, 0);
         int requiredRoll =
@@ -560,6 +567,44 @@ public class BattleHitResolver : IDisposable
         return attackDelta - _get_attacker_status_attack_penalty(active_unit);
     }
 
+    private static bool SkillIncludesWeaponDamage(
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        foreach (
+            CombatEffectDefinition effect in
+                skillDefinition?.CombatProfile?.EffectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effect != null
+                && skillLevel >= effect.MinSkillLevel
+                && (effect.MaxSkillLevel < 0 || skillLevel <= effect.MaxSkillLevel)
+                && (effect.AddWeaponDice || effect.RequiresWeapon)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int GetComboAttackRollBonus(BattleUnitReadView activeUnit)
+    {
+        int bonus = 0;
+        foreach (BattleStatusReadView status in activeUnit.StatusEffects())
+        {
+            int divisor = status.ComboAttackBonusStackDivisor;
+            StringName stackStatusId = status.ComboAttackBonusStatusId;
+            if (divisor <= 0 || IsEmpty(stackStatusId))
+                continue;
+            bonus += Math.Max(activeUnit.GetStatusStacks(stackStatusId), 0) / divisor;
+        }
+        return bonus;
+    }
+
     private int _get_attacker_status_attack_penalty(BattleUnitReadView active_unit)
     {
         return active_unit.GetAttackRollPenalty();
@@ -669,6 +714,7 @@ public class BattleHitResolver : IDisposable
         }
         int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         bool forceHitNoCrit = attack_check.ForceHitNoCrit || attack_context.ForceHitNoCrit;
+        bool forceHitAllowCrit = attack_context.ForceHitAllowCrit;
         bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit) || forceHitNoCrit;
         int requiredRoll = attack_check.RequiredRoll;
         var metadata = new AttackResolutionMetadata
@@ -741,6 +787,12 @@ public class BattleHitResolver : IDisposable
 
         if (hitRoll <= metadata.FumbleLowEnd)
         {
+            if (forceHitAllowCrit)
+            {
+                metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
+                metadata.AttackSuccess = true;
+                return metadata;
+            }
             if (_try_apply_reverse_fate_amulet(source_unit))
             {
                 metadata.AttackResolution = ATTACK_RESOLUTION_MISS;
@@ -765,6 +817,13 @@ public class BattleHitResolver : IDisposable
             metadata.AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT;
             metadata.AttackSuccess = true;
             metadata.CriticalHit = true;
+            return metadata;
+        }
+
+        if (forceHitAllowCrit)
+        {
+            metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
+            metadata.AttackSuccess = true;
             return metadata;
         }
 
@@ -1190,6 +1249,14 @@ public class BattleHitResolver : IDisposable
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
         }
+        if (repeat_attack_effect.EffectKind == BattleEffectKind.FixedRepeatAttack)
+        {
+            return Math.Clamp(
+                repeat_attack_effect.FixedAttackCount,
+                1,
+                REPEAT_ATTACK_PREVIEW_STAGE_GUARD
+            );
+        }
         if (active_unit.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND))
         {
             return 1;
@@ -1269,10 +1336,10 @@ public class BattleHitResolver : IDisposable
     {
         return cost_resource_kind switch
         {
-            CombatResourceKind.Ap => active_unit?.current_ap ?? 0,
-            CombatResourceKind.Aura => active_unit?.current_aura ?? 0,
-            CombatResourceKind.Mp => active_unit?.current_mp ?? 0,
-            CombatResourceKind.Stamina => active_unit?.current_stamina ?? 0,
+            CombatResourceKind.Ap => active_unit?.GetCurrentAp() ?? 0,
+            CombatResourceKind.Aura => active_unit?.GetCurrentAura() ?? 0,
+            CombatResourceKind.Mp => active_unit?.GetCurrentMp() ?? 0,
+            CombatResourceKind.Stamina => active_unit?.GetCurrentStamina() ?? 0,
             _ => 0,
         };
     }

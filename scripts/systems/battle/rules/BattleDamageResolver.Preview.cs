@@ -180,8 +180,8 @@ public partial class BattleDamageResolver
             sourcePreview
         );
 
-        bool failureKills = failureTarget != null && failureTarget.current_hp <= 0;
-        bool successKills = successTarget != null && successTarget.current_hp <= 0;
+        bool failureKills = failureTarget != null && failureTarget.GetCurrentHp() <= 0;
+        bool successKills = successTarget != null && successTarget.GetCurrentHp() <= 0;
         return new DamagePreviewBranchLethalEstimate(
             failureKills,
             successKills,

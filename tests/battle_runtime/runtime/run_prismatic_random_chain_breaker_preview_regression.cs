@@ -169,7 +169,7 @@ public partial class run_prismatic_random_chain_breaker_preview_regression
                 "重复预览不得累积破层副作用。"
             );
 
-            int hpBefore = sphereOwner.current_hp;
+            int hpBefore = sphereOwner.GetCurrentHp();
             executionBatch = runtime.IssueCommand(command);
             _test.Eq(
                 ActiveLayerId(state, applyResult.BarrierInstanceId),
@@ -179,14 +179,14 @@ public partial class run_prismatic_random_chain_breaker_preview_regression
             if (expectFollowUpImpact)
             {
                 _test.True(
-                    sphereOwner.current_hp < hpBefore,
+                    sphereOwner.GetCurrentHp() < hpBefore,
                     "每目标允许两次命中时，正式随机链应在首击破层后继续并造成伤害。"
                 );
             }
             else
             {
                 _test.Eq(
-                    sphereOwner.current_hp,
+                    sphereOwner.GetCurrentHp(),
                     hpBefore,
                     "每目标只允许一次命中时，正式随机链应止于被屏障消耗的破层首击。"
                 );
@@ -224,7 +224,7 @@ public partial class run_prismatic_random_chain_breaker_preview_regression
                 rangeValue: 10,
                 targetSelectionMode: "random_chain",
                 maxHitsPerTarget: maxHitsPerTarget,
-                deliveryCategories: new[] { new StringName("magical_missile") }
+                projectileKind: "magical"
             )
         );
     }
@@ -278,8 +278,8 @@ public partial class run_prismatic_random_chain_breaker_preview_regression
 
     private static void LearnSkill(BattleUnitState unitState, StringName skillId)
     {
-        unitState.known_active_skill_ids.Add(skillId);
-        unitState.known_skill_level_map[skillId] = 1;
+        unitState.AddKnownActiveSkill(skillId);
+        unitState.SetKnownSkillLevelTyped(skillId, 1);
     }
 
     private static void SetOnlyRemainingLayer(

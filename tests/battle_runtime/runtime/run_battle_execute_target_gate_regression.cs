@@ -27,7 +27,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
 
         _test.False(preview.allowed, "高 HP 律令死亡目标应在 preview 阶段被拒绝。");
-        _test.Eq(target.current_hp, 21, "高 HP preview 不应造成伤害。");
+        _test.Eq(target.GetCurrentHp(), 21, "高 HP preview 不应造成伤害。");
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP preview 不应附加 soul fracture。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
@@ -59,18 +59,18 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         BattleUnitState source = MakeUnit("pwk_source", "player", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = MakeUnit("healthy_target", "enemy", new Vector2I(1, 0), 100, 21);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
-        source.current_ap = 2;
-        source.current_mp = 20;
+        source.SetCurrentAp(2);
+        source.SetCurrentMp(20);
         source.SetCooldownTyped(skill.SkillId, 0);
 
         using BattleTestFixture fixture = CreateFixture("pwk_high_hp_issue", skill, source, target);
         BattleCommand command = MakeUnitCommand(source, target, skill);
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
-        _test.Eq(source.current_ap, 2, "高 HP 律令死亡命令失败时不应消耗 AP。");
-        _test.Eq(source.current_mp, 20, "高 HP 律令死亡命令失败时不应消耗 MP。");
+        _test.Eq(source.GetCurrentAp(), 2, "高 HP 律令死亡命令失败时不应消耗 AP。");
+        _test.Eq(source.GetCurrentMp(), 20, "高 HP 律令死亡命令失败时不应消耗 MP。");
         _test.Eq(source.GetCooldownTyped(skill.SkillId), 0, "高 HP 律令死亡命令失败时不应进入冷却。");
-        _test.Eq(target.current_hp, 21, "高 HP 律令死亡命令失败时不应造成伤害。");
+        _test.Eq(target.GetCurrentHp(), 21, "高 HP 律令死亡命令失败时不应造成伤害。");
         _test.False(target.HasStatusEffect("soul_fracture"), "高 HP 律令死亡命令失败时不应附加状态。");
 
         batch?.Dispose();
@@ -110,7 +110,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
 
         _test.False(preview.allowed, "boss_target 不应绕过律令死亡高 HP 阈值门禁。");
-        _test.Eq(bossTarget.current_hp, 21, "boss 高 HP preview 不应被非致命削血。");
+        _test.Eq(bossTarget.GetCurrentHp(), 21, "boss 高 HP preview 不应被非致命削血。");
 
         BattleTestFixture.DisposeBattlePreview(preview);
         BattleTestFixture.DisposeBattleCommand(command);
@@ -189,15 +189,15 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
             currentAp: 2,
             currentHp: currentHp
         );
-        unit.current_mp = 20;
-        unit.current_stamina = 20;
+        unit.SetCurrentMp(20);
+        unit.SetCurrentStamina(20);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 20);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.UnlockCombatResource("mp");
-        unit.known_active_skill_ids.Add("test_power_word_kill");
-        unit.known_skill_level_map[new StringName("test_power_word_kill")] = 17;
+        unit.AddKnownActiveSkill("test_power_word_kill");
+        unit.SetKnownSkillLevelTyped("test_power_word_kill", 17);
         return unit;
     }
 
@@ -216,7 +216,7 @@ public partial class run_battle_execute_target_gate_regression : LifecycleTestSc
             target_unit_id = target.unit_id,
         };
         command.AddTargetUnitId(target.unit_id);
-        command.target_coord = target.coord;
+        command.target_coord = target.GetAnchorCoord();
         return command;
     }
 

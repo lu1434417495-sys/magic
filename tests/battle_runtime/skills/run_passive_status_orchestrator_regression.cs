@@ -68,15 +68,15 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             return;
         var unit = units[0];
         _test.True(
-            unit.vision_tags.Contains("normal_vision"),
+            unit.HasVisionTag("normal_vision"),
             "vision tags should include normal_vision from the race definition."
         );
         _test.True(
-            unit.proficiency_tags.Contains("civilian"),
+            unit.HasProficiencyTag("civilian"),
             "proficiency tags should include civilian from the race definition."
         );
         _test.True(
-            unit.proficiency_tags.Contains("weapon_type_spear"),
+            unit.HasProficiencyTag("weapon_type_spear"),
             "civil_militia should project spear proficiency tag."
         );
 
@@ -99,23 +99,23 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             new Dictionary<StringName, SkillDefinition>()
         );
 
-        _test.True(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
+        _test.True(unit.HasVisionTag("darkvision"), "race vision tag should be projected.");
         _test.True(
-            unit.save_advantage_tags.Contains("poison"),
+            unit.HasSaveAdvantageTag("poison"),
             "subrace save advantage tag should be projected."
         );
         _test.Eq(
-            unit.damage_resistances.Get("fire"),
-            new StringName("half"),
-            "race damage resistance should be projected."
+            unit.GetDamageResistanceTyped("fire"),
+            new StringName("double"),
+            "subrace damage resistance should override the same race tag by projection order."
         );
         _test.Eq(
-            unit.per_battle_charges.Get("racial_skill_dragon_breath_test", 0),
+            unit.GetPerBattleChargeTyped("racial_skill_dragon_breath_test", 0),
             2,
             "race per-battle charge should be initialized."
         );
         _test.Eq(
-            unit.per_turn_charges.Get("racial_skill_nimble_escape_test", 0),
+            unit.GetPerTurnChargeTyped("racial_skill_nimble_escape_test", 0),
             1,
             "subrace per-turn charge should be initialized."
         );
@@ -124,6 +124,10 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
     private void TestOrchestratorSuppressesOriginalRacePassivesForAscension()
     {
         BattleUnitState unit = MakeBattleUnit("ascension_projection_unit");
+        unit.ReplaceVisionProficiencyTagsTyped(
+            new StringNameList { "stale_vision" },
+            new StringNameList { "stale_proficiency" }
+        );
         PassiveSourceContext context = new()
         {
             race_def = MakeRaceDef(),
@@ -138,15 +142,23 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
         );
 
         _test.False(
-            unit.per_battle_charges.ContainsKey("racial_skill_dragon_breath_test"),
+            unit.HasPerBattleChargeTyped("racial_skill_dragon_breath_test"),
             "suppressed race charge should not be initialized."
         );
         _test.False(
-            unit.per_turn_charges.ContainsKey("racial_skill_nimble_escape_test"),
+            unit.HasPerTurnChargeTyped("racial_skill_nimble_escape_test"),
                 "suppressed subrace charge should not be initialized."
         );
+        _test.False(
+            unit.HasVisionTag("stale_vision"),
+            "suppressed race projection should clear stale vision tags."
+        );
+        _test.False(
+            unit.HasProficiencyTag("stale_proficiency"),
+            "suppressed race projection should clear stale proficiency tags."
+        );
         _test.Eq(
-            unit.per_battle_charges.Get("racial_skill_ascension_ray_test", 0),
+            unit.GetPerBattleChargeTyped("racial_skill_ascension_ray_test", 0),
             3,
             "ascension charge should be initialized."
         );
@@ -331,7 +343,7 @@ public partial class run_passive_status_orchestrator_regression : LifecycleTestS
             [new StringName("poison")],
             System.Array.Empty<StringName>(),
             System.Array.Empty<StringName>(),
-            new Dictionary<StringName, StringName>(),
+            new Dictionary<StringName, StringName> { ["fire"] = "double" },
             System.Array.Empty<StringName>(),
             System.Array.Empty<string>()
         );

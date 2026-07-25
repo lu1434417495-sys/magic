@@ -49,21 +49,25 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         try
         {
             orchestrator.Setup(runtime);
-            activeOnlyUnit = new BattleUnitState
-            {
-                known_active_skill_ids = new GStringNameArray { "active_only_skill" },
-            };
+            activeOnlyUnit = new BattleUnitState();
+            activeOnlyUnit.SetKnownActiveSkillIds(
+                new[] { new StringName("active_only_skill") }
+            );
             _test.Eq(
                 orchestrator._get_unit_skill_level(activeOnlyUnit, "active_only_skill"),
                 1,
                 "只有 active skill id、没有显式等级时应继续按 1 级处理。"
             );
 
-            lockedZeroUnit = new BattleUnitState
-            {
-                known_active_skill_ids = new GStringNameArray { "locked_zero_skill" },
-            };
-            lockedZeroUnit.known_skill_level_map[new StringName("locked_zero_skill")] = 0;
+            lockedZeroUnit = new BattleUnitState();
+            lockedZeroUnit.SetKnownActiveSkillIds(
+                new[] { new StringName("locked_zero_skill") }
+            );
+            lockedZeroUnit.SetKnownSkillLevelTyped(
+                "locked_zero_skill",
+                0,
+                preserveZero: true
+            );
             _test.Eq(
                 orchestrator._get_unit_skill_level(lockedZeroUnit, "locked_zero_skill"),
                 0,
@@ -274,23 +278,27 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             {
                 unit_id = "source",
                 faction_id = "ally",
-                coord = new Vector2I(0, 0),
-                current_hp = 40,
-                current_ap = 2,
-                known_active_skill_ids = new GStringNameArray { "black_contract_push" },
-            };
+            }.WithCombatResourcesForTest(
+                hp: 40,
+                ap: 2
+            );
+            source.SetAnchorCoord(new Vector2I(0, 0));
+            source.SetKnownActiveSkillIds(
+                new[] { new StringName("black_contract_push") }
+            );
             source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             source.attribute_snapshot.SetValue("action_points", 2);
             source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
             source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
-            source.known_skill_level_map["black_contract_push"] = 1;
+            source.SetKnownSkillLevelTyped("black_contract_push", 1);
             target = new BattleUnitState
             {
                 unit_id = "target",
                 faction_id = "enemy",
-                coord = new Vector2I(1, 0),
-                current_hp = 40,
-            };
+            }.WithCombatResourcesForTest(
+                hp: 40
+            );
+            target.SetAnchorCoord(new Vector2I(1, 0));
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
             target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
             skillDefinition = skillDefinitions["black_contract_push"];
@@ -380,14 +388,14 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
             primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
             chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
-            int chainedHpBefore = chained.current_hp;
+            int chainedHpBefore = chained.GetCurrentHp();
 
             state.SetUnit(source);
             state.SetUnit(primary);
             state.SetUnit(chained);
-            runtime._grid_service.PlaceUnit(state, source, source.coord, true);
-            runtime._grid_service.PlaceUnit(state, primary, primary.coord, true);
-            runtime._grid_service.PlaceUnit(state, chained, chained.coord, true);
+            runtime._grid_service.PlaceUnit(state, source, source.GetAnchorCoord(), true);
+            runtime._grid_service.PlaceUnit(state, primary, primary.GetAnchorCoord(), true);
+            runtime._grid_service.PlaceUnit(state, chained, chained.GetAnchorCoord(), true);
             runtime.SetupStateForTests(state);
 
             skill = BuildChainTestSkill();
@@ -409,7 +417,7 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             );
 
             _test.Eq(
-                chained.current_hp,
+                chained.GetCurrentHp(),
                 chainedHpBefore - 1,
                 "runtime chain damage wrapper 应继续通过 typed primary result 解析命中次级目标。"
             );
@@ -454,17 +462,18 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         Vector2I coord
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            current_stamina = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);

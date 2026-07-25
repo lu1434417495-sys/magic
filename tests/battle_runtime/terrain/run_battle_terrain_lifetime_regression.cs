@@ -24,7 +24,7 @@ public partial class run_battle_terrain_lifetime_regression : LifecycleTestScene
         state.ally_unit_ids = new GStringNameArray { unit.unit_id };
         state.active_unit_id = unit.unit_id;
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             "terrain lifetime 测试单位应能放入战场。"
         );
         runtime.SetupStateForTests(state);
@@ -115,7 +115,7 @@ public partial class run_battle_terrain_lifetime_regression : LifecycleTestScene
         state.ally_unit_ids = new GStringNameArray { unit.unit_id };
         state.active_unit_id = unit.unit_id;
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             "terrain status tick 测试单位应能放入战场。"
         );
         runtime.SetupStateForTests(state);
@@ -133,7 +133,7 @@ public partial class run_battle_terrain_lifetime_regression : LifecycleTestScene
         );
         _test.True(
             runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                unit.coord,
+                unit.GetAnchorCoord(),
                 unit,
                 null,
                 burningTerrain,
@@ -182,10 +182,10 @@ public partial class run_battle_terrain_lifetime_regression : LifecycleTestScene
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            coord = coord,
-            is_alive = true,
-        };
-        unit.RefreshFootprint();
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

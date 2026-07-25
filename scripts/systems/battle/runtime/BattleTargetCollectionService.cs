@@ -279,7 +279,7 @@ internal sealed class BattleTargetCollectionService
     {
         if (sourceUnit != null)
         {
-            return sourceUnit.occupied_coords;
+            return sourceUnit.GetOccupiedCoordsReadViewTyped();
         }
         if (state != null && gridService != null && GridIsInside(gridService, state, sourceCoord))
         {
@@ -317,7 +317,9 @@ internal sealed class BattleTargetCollectionService
             {
                 continue;
             }
-            foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I occupiedCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 coordSet.Add(occupiedCoord);
             }

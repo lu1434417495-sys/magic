@@ -102,7 +102,11 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
             return false;
         unit_state.SetAnchorCoord(coord);
         _runtime._state.SetUnit(unit_state);
-        _runtime._grid_service.SetOccupantsTyped(_runtime._state, unit_state.occupied_coords, unit_state.unit_id);
+        _runtime._grid_service.SetOccupantsTyped(
+            _runtime._state,
+            unit_state.GetOccupiedCoordsReadViewTyped(),
+            unit_state.unit_id
+        );
         return true;
     }
 
@@ -165,7 +169,7 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
             !_runtime._grid_service.CanPlaceFootprint(
                 _runtime._state,
                 coord,
-                unit_state.footprint_size,
+                unit_state.GetFootprintSize(),
                 unit_state.unit_id,
                 unit_state
             )
@@ -182,13 +186,15 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
         return true;
     }
 
-    internal StringName _resolve_spawn_side_from_coords(GArray spawn_coords)
+    internal StringName _resolve_spawn_side_from_coords(
+        IReadOnlyList<Vector2I> spawn_coords
+    )
     {
         if (_runtime._state == null || _get_long_edge_side_extent() <= 1)
             return "";
         int nearCount = 0;
         int farCount = 0;
-        foreach (Vector2I coord in BattleRuntimeModule.ToVector2IList(spawn_coords))
+        foreach (Vector2I coord in spawn_coords ?? Array.Empty<Vector2I>())
         {
             if (_coord_matches_spawn_side(coord, BattleRuntimeModule.SPAWN_SIDE_NEAR_LONG_EDGE_VALUE))
                 nearCount++;
@@ -263,7 +269,7 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
     {
         if (_runtime._state == null || unit_state == null)
             return 0;
-        int moveBudget = Math.Min(Math.Max(unit_state.current_move_points, 0), 4);
+        int moveBudget = Math.Min(Math.Max(unit_state.GetCurrentMovePoints(), 0), 4);
         if (moveBudget <= 0)
             moveBudget = 1;
         var bestCosts = new Dictionary<Vector2I, int> { [start_coord] = 0 };
@@ -304,7 +310,7 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
     {
         if (_runtime._state == null || unit_state == null)
             return 0;
-        Vector2I footprint = unit_state.footprint_size;
+        Vector2I footprint = unit_state.GetFootprintSize();
         int left = coord.X;
         int top = coord.Y;
         int right = _runtime._state.map_size.X - (coord.X + footprint.X);
@@ -316,7 +322,7 @@ internal sealed class BattleSpawnPlacementService : BattleRuntimeModuleBorrower
     {
         if (_runtime._state == null || unit_state == null)
             return 0;
-        Vector2I footprint = unit_state.footprint_size;
+        Vector2I footprint = unit_state.GetFootprintSize();
         float centerX = (_runtime._state.map_size.X - footprint.X) * 0.5f;
         float centerY = (_runtime._state.map_size.Y - footprint.Y) * 0.5f;
         float distance = Mathf.Abs(coord.X - centerX) + Mathf.Abs(coord.Y - centerY);

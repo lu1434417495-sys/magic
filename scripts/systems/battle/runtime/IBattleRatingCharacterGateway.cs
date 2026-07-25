@@ -6,22 +6,26 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public sealed class BattleEffectiveTraitProjection
 {
+    private readonly List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances;
     private readonly StringNameList _effectiveTraitIds;
 
     public BattleEffectiveTraitProjection(
         IEnumerable<BattleEffectiveTraitInstanceState> effective_trait_instances = null)
     {
-        EffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
+        _effectiveTraitInstances = BattleUnitEffectiveTraitState
+            .DuplicateInstancesNormalized(
             effective_trait_instances ?? System.Array.Empty<BattleEffectiveTraitInstanceState>()
         );
-        _effectiveTraitIds = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
-            EffectiveTraitInstances
+        _effectiveTraitIds = BattleUnitEffectiveTraitState.DeriveTraitIds(
+            _effectiveTraitInstances
         );
     }
 
     public static BattleEffectiveTraitProjection Empty => new();
 
-    public IReadOnlyList<BattleEffectiveTraitInstanceState> EffectiveTraitInstances { get; }
+    internal void ApplyTo(BattleUnitState unit) =>
+        unit?.ReplaceEffectiveTraitsTyped(_effectiveTraitInstances);
+
     public GStringNameArray EffectiveTraitIds
     {
         get
@@ -58,7 +62,7 @@ public sealed class BattleResourceCommitResult
 
 public interface IBattleRatingCharacterGateway
 {
-    GStringNameArray RecordAchievementEvent(
+    IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount
@@ -148,7 +152,7 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
         bool emit_achievement_event
     );
 
-    GStringNameArray RecordAchievementEvent(
+    IReadOnlyList<StringName> RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,

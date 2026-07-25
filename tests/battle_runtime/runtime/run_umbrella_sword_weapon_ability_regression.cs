@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -88,28 +87,38 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildUmbrellaUnit("projection");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, UmbrellaItemId, "伞剑装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("rapier"), "伞剑应投影为 rapier。");
-        _test.Eq(ReadWeaponRangeType(equipped), new StringName("melee"), "伞剑应投影 weapon range_type。");
-        _test.Eq(equipped.weapon_family, new StringName("exotic"), "伞剑应保留 exotic 家族。");
-        _test.Eq(equipped.weapon_attack_range, 1, "伞剑攻击距离应为 1。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "伞剑基础伤害标签应为 physical_pierce。");
-        _test.False(equipped.weapon_uses_two_hands, "伞剑应是单手武器。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "伞剑应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "伞剑应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 1, "伞剑应为 1D8+1。");
+        _test.Eq(equippedWeapon.ItemId, UmbrellaItemId, "伞剑装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("rapier"), "伞剑应投影为 rapier。");
+        _test.Eq(equippedWeapon.RangeType, new StringName("melee"), "伞剑应投影 weapon range_type。");
+        _test.Eq(equippedWeapon.Family, new StringName("exotic"), "伞剑应保留 exotic 家族。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "伞剑攻击距离应为 1。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "伞剑基础伤害标签应为 physical_pierce。");
+        _test.False(equippedWeapon.UsesTwoHands, "伞剑应是单手武器。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "伞剑应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "伞剑应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 1, "伞剑应为 1D8+1。");
         AssertUnitHasTraitAndAbilitySource(equipped, RainScreenTraitId, RainScreenBindingId, "eq_umbrella_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, GuardTraitId, GuardBindingId, "eq_umbrella_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, RainAdvantageTraitId, RainAdvantageBindingId, "eq_umbrella_projection");
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除伞剑后 weapon_item_id 应清空。");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "移除伞剑后 weapon profile 应回到装备前状态。");
-        _test.Eq(ReadWeaponRangeType(equipped), ReadWeaponRangeType(baseline), "移除伞剑后 weapon range_type 应回到装备前状态。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除伞剑后装备能力源应清空。");
-        _test.Eq(equipped.effective_trait_instances.Count, baseline.effective_trait_instances.Count, "移除伞剑后装备 trait 实例应回到装备前状态。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除伞剑后 weapon_item_id 应清空。");
+        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除伞剑后 weapon profile 应回到装备前状态。");
+        _test.Eq(removedWeapon.RangeType, baselineWeapon.RangeType, "移除伞剑后 weapon range_type 应回到装备前状态。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除伞剑后装备能力源应清空。"
+        );
+        _test.Eq(equipped.GetEffectiveTraitInstanceCountTyped(), baseline.GetEffectiveTraitInstanceCountTyped(), "移除伞剑后装备 trait 实例应回到装备前状态。");
     }
 
     private void TestRainScreenReducesFireColdDamageThroughRealDamageResolver()
@@ -231,8 +240,7 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
 
         BattleUnitState holder = fixture.BuildUmbrellaUnit("guard");
         BattleUnitState rangedAttacker = BuildAttacker("ranged_attacker", new Vector2I(3, 0), "enemy");
-        rangedAttacker.weapon_attack_range = 6;
-        SetWeaponRangeType(rangedAttacker, "ranged");
+        ApplyTestWeaponProjection(rangedAttacker, "ranged", 6);
         BattleState rangedState = BuildStateWithEnvironmentTags(
             "umbrella_guard_ranged",
             rangedAttacker,
@@ -256,8 +264,7 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
 
         BattleUnitState meleeHolder = fixture.BuildUmbrellaUnit("guard_melee");
         BattleUnitState meleeAttacker = BuildAttacker("melee_attacker", new Vector2I(1, 0), "enemy");
-        meleeAttacker.weapon_attack_range = 1;
-        SetWeaponRangeType(meleeAttacker, "melee");
+        ApplyTestWeaponProjection(meleeAttacker, "melee", 1);
         BattleState meleeState = BuildStateWithEnvironmentTags(
             "umbrella_guard_melee",
             meleeAttacker,
@@ -289,7 +296,7 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
         out GDictionary firstDamageEvent
     )
     {
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleState state = BuildStateWithEnvironmentTags(
             battleId,
@@ -345,14 +352,15 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
 
     private static BattleUnitState BuildAttacker(StringName unitId, Vector2I coord, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = true,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -371,9 +379,9 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -386,12 +394,17 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -448,23 +461,36 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
         return dictionary[key].AsInt32();
     }
 
-    private static StringName ReadWeaponRangeType(BattleUnitState unit)
+    private static void ApplyTestWeaponProjection(
+        BattleUnitState unit,
+        StringName rangeType,
+        int attackRange
+    )
     {
-        FieldInfo field = typeof(BattleUnitState).GetField("weapon_range_type");
-        if (field == null)
-            throw new InvalidOperationException("BattleUnitState must expose weapon_range_type.");
-        object value = field.GetValue(unit);
-        return value is StringName rangeType
-            ? ProgressionDataUtils.to_string_name(rangeType)
-            : new StringName("");
-    }
-
-    private static void SetWeaponRangeType(BattleUnitState unit, StringName value)
-    {
-        FieldInfo field = typeof(BattleUnitState).GetField("weapon_range_type");
-        if (field == null)
-            throw new InvalidOperationException("BattleUnitState must expose weapon_range_type.");
-        field.SetValue(unit, value);
+        bool usesTwoHands = rangeType == "ranged";
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = usesTwoHands ? "equipped" : "unarmed",
+                weapon_item_id = usesTwoHands ? "umbrella_test_bow" : "",
+                weapon_profile_type_id = usesTwoHands ? "longbow" : "unarmed",
+                weapon_range_type = rangeType,
+                weapon_family = usesTwoHands ? "bow" : "unarmed",
+                weapon_current_grip = usesTwoHands ? "two_handed" : "one_handed",
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = usesTwoHands
+                    ? new WeaponDice()
+                    : new WeaponDice { dice_count = 1, dice_sides = 4 },
+                weapon_two_handed_dice = usesTwoHands
+                    ? new WeaponDice { dice_count = 1, dice_sides = 8 }
+                    : new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = usesTwoHands,
+                weapon_physical_damage_tag = usesTwoHands
+                    ? "physical_pierce"
+                    : "physical_blunt",
+            }
+        );
     }
 
     private sealed class UmbrellaFixture : IDisposable

@@ -123,18 +123,22 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildRustoathUnit("projection");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, RustoathItemId, "锈蚀之誓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ItemId, RustoathItemId, "锈蚀之誓装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("shortsword"),
             "锈蚀之誓应投影为 shortsword。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "锈蚀之誓攻击距离应为 1。");
-        _test.False(equipped.weapon_uses_two_hands, "锈蚀之誓应是单手武器。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "锈蚀之誓应是 1D6。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "锈蚀之誓应是 1D6。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "锈蚀之誓应有 +2 固定伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "锈蚀之誓攻击距离应为 1。");
+        _test.False(equippedWeapon.UsesTwoHands, "锈蚀之誓应是单手武器。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "锈蚀之誓应是 1D6。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "锈蚀之誓应是 1D6。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "锈蚀之誓应有 +2 固定伤害。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             RustCorrosionTraitId,
@@ -162,20 +166,22 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除锈蚀之誓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除锈蚀之誓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除锈蚀之誓后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除锈蚀之誓后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除锈蚀之誓后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -189,7 +195,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         );
         BattleUnitState attacker = fixture.BuildRustoathUnit("rust_stacks");
         BattleUnitState target = BuildTarget("rust_stack_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
 
         for (int hit = 1; hit <= 6; hit++)
@@ -228,7 +234,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
             "eq_iron_scale_mail",
             durability: 30
         );
-        metalTarget.current_hp = 200;
+        metalTarget.SetCurrentHp(200);
         metalTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 200);
 
         for (int hit = 1; hit <= 4; hit++)
@@ -310,7 +316,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
             "eq_leather_jerkin",
             durability: 30
         );
-        leatherTarget.current_hp = 200;
+        leatherTarget.SetCurrentHp(200);
         leatherTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 200);
         for (int hit = 1; hit <= 5; hit++)
         {
@@ -337,24 +343,24 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         using RustoathFixture fixture = RustoathFixture.Build(new GArray());
         BattleUnitState attacker = fixture.BuildRustoathUnit("rotten_blade");
         BattleUnitState uncrackedTarget = BuildTarget("rotten_blade_uncracked", new Vector2I(1, 0));
-        uncrackedTarget.current_hp = 100;
+        uncrackedTarget.SetCurrentHp(100);
         uncrackedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
 
-        int uncrackedHpBefore = uncrackedTarget.current_hp;
+        int uncrackedHpBefore = uncrackedTarget.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
             uncrackedTarget,
             "rustoath_rotten_blade_uncracked"
         );
-        int uncrackedDamage = uncrackedHpBefore - uncrackedTarget.current_hp;
+        int uncrackedDamage = uncrackedHpBefore - uncrackedTarget.GetCurrentHp();
         _test.False(
             uncrackedTarget.HasStatusEffect(ArmorCrackedStatusId),
             "没有护甲锈裂标记的真实基础攻击不应自己生成护甲锈裂。"
         );
 
         BattleUnitState crackedTarget = BuildTarget("rotten_blade_cracked", new Vector2I(1, 0));
-        crackedTarget.current_hp = 100;
+        crackedTarget.SetCurrentHp(100);
         crackedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         crackedTarget.SetStatusEffect(
             new BattleStatusEffectState
@@ -366,14 +372,14 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
                 duration = 10000,
             }
         );
-        int crackedHpBefore = crackedTarget.current_hp;
+        int crackedHpBefore = crackedTarget.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
             crackedTarget,
             "rustoath_rotten_blade_cracked"
         );
-        int crackedDamage = crackedHpBefore - crackedTarget.current_hp;
+        int crackedDamage = crackedHpBefore - crackedTarget.GetCurrentHp();
         _test.True(
             crackedDamage > uncrackedDamage,
             "护甲锈裂目标被真实基础攻击命中时，腐朽之刃应通过伤害结算追加 acid 附伤。"
@@ -385,7 +391,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         using RustoathFixture fixture = RustoathFixture.Build(new GArray());
         BattleUnitState holder = fixture.BuildRustoathUnit("rust_powder_storm");
         BattleUnitState target = BuildTarget("storm_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
 
         _test.True(
@@ -439,7 +445,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
                 duration = 180,
             }
         );
-        int blockedHpBefore = target.current_hp;
+        int blockedHpBefore = target.GetCurrentHp();
         BattleEventBatch blocked = WeaponAbilityCommandTestSupport.IssueUnitSkill(
             fixture.Runtime,
             holder,
@@ -450,7 +456,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
             previewCommand: false
         );
         _test.True(blocked != null, "不足 5 层时锈粉风暴 IssueCommand 应返回 batch。");
-        _test.Eq(target.current_hp, blockedHpBefore, "不足 5 层锈蚀时锈粉风暴不应造成伤害。");
+        _test.Eq(target.GetCurrentHp(), blockedHpBefore, "不足 5 层锈蚀时锈粉风暴不应造成伤害。");
         _test.True(
             target.HasStatusEffect(RustCorrosionStatusId),
             "不足 5 层时锈粉风暴不应消耗锈蚀。"
@@ -471,7 +477,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
                 duration = 180,
             }
         );
-        int appliedHpBefore = target.current_hp;
+        int appliedHpBefore = target.GetCurrentHp();
         BattleEventBatch applied = WeaponAbilityCommandTestSupport.IssueUnitSkill(
             fixture.Runtime,
             holder,
@@ -482,7 +488,7 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
             previewCommand: false
         );
         _test.True(applied != null, "5 层锈蚀时锈粉风暴 IssueCommand 应返回 batch。");
-        _test.True(target.current_hp < appliedHpBefore, "5 层锈蚀时锈粉风暴应通过真实技能命令造成 acid 伤害。");
+        _test.True(target.GetCurrentHp() < appliedHpBefore, "5 层锈蚀时锈粉风暴应通过真实技能命令造成 acid 伤害。");
         _test.False(
             target.HasStatusEffect(RustCorrosionStatusId),
             "锈粉风暴成功后应消耗目标全部锈蚀。"
@@ -650,9 +656,9 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -665,12 +671,15 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -686,14 +695,15 @@ public partial class run_rustoath_weapon_ability_regression : LifecycleTestScene
         int durability = 0
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

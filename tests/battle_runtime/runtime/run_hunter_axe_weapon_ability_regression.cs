@@ -67,18 +67,22 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildHunterAxeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, HunterAxeItemId, "猎人之斧装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "猎人之斧应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "猎人之斧应保留 axe family。");
-        _test.Eq(equipped.weapon_attack_range, 1, "猎人之斧近战攻击距离应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "猎人之斧单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "猎人之斧单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "猎人之斧单手应为 1D8+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, HunterAxeItemId, "猎人之斧装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "猎人之斧应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "猎人之斧应保留 axe family。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "猎人之斧近战攻击距离应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "猎人之斧单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "猎人之斧单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "猎人之斧单手应为 1D8+2。");
         AssertUnitHasTraitAndAbilitySource(equipped, BeastSlayerTraitId, BeastSlayerBindingId);
         AssertUnitHasTraitAndAbilitySource(equipped, HunterMarkTraitId, HunterMarkBindingId);
         _test.False(
-            ContainsStringName(equipped.known_active_skill_ids, HunterMarkSkillId),
+            equipped.KnowsActiveSkill(HunterMarkSkillId),
             "猎人之斧不应把猎人标记写进角色已学技能列表。"
         );
 
@@ -97,13 +101,18 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除猎人之斧后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除猎人之斧后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除猎人之斧后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除猎人之斧后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除猎人之斧后装备能力源应清空。"
+        );
         BattleTestFixture.DisposeBattleUnit(equipped);
         BattleTestFixture.DisposeBattleUnit(baseline);
     }
@@ -112,8 +121,8 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
     {
         using HunterAxeFixture fixture = HunterAxeFixture.Build();
         BattleUnitState holder = fixture.BuildHunterAxeUnit("unlearned_no_mastery");
-        holder.current_ap = 2;
-        holder.current_stamina = 80;
+        holder.SetCurrentAp(2);
+        holder.SetCurrentStamina(80);
         holder.SetAnchorCoord(new Vector2I(0, 0));
 
         BattleUnitState quarry = BattleTestFixture.BuildUnit(
@@ -175,8 +184,8 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             isCore: true
         );
         BattleUnitState holder = fixture.BuildHunterAxeUnit("learned_mastery");
-        holder.current_ap = 2;
-        holder.current_stamina = 80;
+        holder.SetCurrentAp(2);
+        holder.SetCurrentStamina(80);
         holder.SetAnchorCoord(new Vector2I(0, 0));
 
         BattleUnitState quarry = BattleTestFixture.BuildUnit(
@@ -228,8 +237,8 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
             "猎人标记施放成功本身不应给猎人标记熟练度。"
         );
 
-        holder.current_ap = 2;
-        holder.current_stamina = 80;
+        holder.SetCurrentAp(2);
+        holder.SetCurrentStamina(80);
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(holder);
         BattleCommand attackCommand = WeaponAbilityCommandTestSupport.BuildBasicAttackCommand(
             holder,
@@ -303,8 +312,11 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
         StringName bindingId
     )
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"{traitId} 应投影到战斗单位。");
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        _test.True(unit.HasEffectiveTrait(traitId), $"{traitId} 应投影到战斗单位。");
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return;

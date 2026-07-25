@@ -12,6 +12,7 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         {
             TestNullHookPreservesLegacyShieldAndHpApplication();
             TestShieldAbsorptionPercentProjection();
+            TestPartialShieldDrainPreservesMetadata();
             TestProjectionDoesNotMutateStaleShieldState();
             TestCancelDamageSkipsShieldAndHpMutation();
             TestModifiedResolvedDamageRecomputesProjection();
@@ -40,8 +41,14 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         );
 
         _test.Eq(hpDamage, 3, "Null hook should preserve legacy HP damage after shield absorption.");
-        _test.Eq(target.current_hp, 17, "Null hook should preserve legacy HP mutation.");
-        _test.Eq(target.current_shield_hp, 0, "Null hook should preserve legacy shield drain.");
+        _test.Eq(target.GetCurrentHp(), 17, "Null hook should preserve legacy HP mutation.");
+        BattleUnitShieldSnapshot cleared = target.GetShieldStateTyped();
+        _test.Eq(cleared.CurrentHp, 0, "Null hook should preserve legacy shield drain.");
+        _test.Eq(cleared.MaxHp, 0, "Broken shield should clear max HP.");
+        _test.Eq(cleared.Duration, -1, "Broken shield should restore canonical duration.");
+        _test.Eq(cleared.Family, new StringName(""), "Broken shield should clear family.");
+        _test.Eq(cleared.SourceUnitId, new StringName(""), "Broken shield should clear source unit.");
+        _test.Eq(cleared.SourceSkillId, new StringName(""), "Broken shield should clear source skill.");
     }
 
     private void TestShieldAbsorptionPercentProjection()
@@ -67,10 +74,34 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         _test.Eq(full.ProjectedShieldHp, 1, "100 percent projection should expose projected shield HP.");
     }
 
+    private void TestPartialShieldDrainPreservesMetadata()
+    {
+        BattleDamageResolver resolver = new();
+        BattleUnitState target = Unit("partial_drain_target", hp: 20, shieldHp: 10);
+        BattleUnitShieldSnapshot before = target.GetShieldStateTyped();
+        using GodotProjectionLease<GDictionary> damageInputLease =
+            Input(resolvedDamage: 4).ToDictionaryLease();
+
+        int hpDamage = resolver.ApplyDirectDamageToTargetTyped(
+            target,
+            damageInputLease.Value,
+            Unit("partial_drain_source", "enemy")
+        );
+
+        _test.Eq(hpDamage, 0, "部分护盾吸收不应穿透到 HP。");
+        _test.Eq(target.GetCurrentHp(), 20, "部分护盾吸收不应修改 HP。");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            before with { CurrentHp = 6 },
+            "部分扣减只应改变 current HP，max/duration/family/source metadata 应保持。"
+        );
+    }
+
     private void TestProjectionDoesNotMutateStaleShieldState()
     {
         BattleUnitState target = Unit("stale_shield_projection_target", hp: 20, shieldHp: 7);
-        target.shield_duration = 0;
+        BattleUnitShieldSnapshot valid = target.GetShieldStateTyped();
+        target.RestoreShieldForMutationSnapshotExact(valid with { Duration = 0 });
 
         DamageApplicationProjection projection = BattleDamageResolver.ProjectDamageApplication(
             target,
@@ -80,9 +111,10 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         _test.Eq(projection.ShieldHpBefore, 0, "Projection should ignore expired shield fields.");
         _test.Eq(projection.ShieldAbsorbed, 0, "Projection should not absorb damage with an expired shield.");
         _test.Eq(projection.HpDamage, 5, "Projection should route damage to HP when shield is expired.");
-        _test.Eq(target.current_shield_hp, 7, "Projection should not mutate stale shield HP.");
-        _test.Eq(target.shield_max_hp, 7, "Projection should not mutate stale shield max HP.");
-        _test.Eq(target.shield_duration, 0, "Projection should not mutate stale shield duration.");
+        BattleUnitShieldSnapshot stale = target.GetShieldStateTyped();
+        _test.Eq(stale.CurrentHp, 7, "Projection should not mutate stale shield HP.");
+        _test.Eq(stale.MaxHp, 7, "Projection should not mutate stale shield max HP.");
+        _test.Eq(stale.Duration, 0, "Projection should not mutate stale shield duration.");
     }
 
     private void TestCancelDamageSkipsShieldAndHpMutation()
@@ -99,8 +131,12 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         );
 
         _test.Eq(hpDamage, 0, "CancelDamage should report zero HP damage.");
-        _test.Eq(target.current_hp, 20, "CancelDamage should not mutate target HP.");
-        _test.Eq(target.current_shield_hp, 5, "CancelDamage should not mutate target shield.");
+        _test.Eq(target.GetCurrentHp(), 20, "CancelDamage should not mutate target HP.");
+        _test.Eq(
+            target.GetShieldStateTyped().CurrentHp,
+            5,
+            "CancelDamage should not mutate target shield."
+        );
     }
 
     private void TestModifiedResolvedDamageRecomputesProjection()
@@ -117,8 +153,12 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         );
 
         _test.Eq(hpDamage, 1, "ModifiedResolvedDamage should recompute HP damage from modified damage.");
-        _test.Eq(target.current_hp, 19, "ModifiedResolvedDamage should apply recomputed HP mutation.");
-        _test.Eq(target.current_shield_hp, 0, "ModifiedResolvedDamage should apply recomputed shield drain.");
+        _test.Eq(target.GetCurrentHp(), 19, "ModifiedResolvedDamage should apply recomputed HP mutation.");
+        _test.Eq(
+            target.GetShieldStateTyped().CurrentHp,
+            0,
+            "ModifiedResolvedDamage should apply recomputed shield drain."
+        );
     }
 
     private void TestStateMayHaveChangedRecomputesProjectionAfterHookSideEffects()
@@ -127,7 +167,7 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         resolver.SetDamageApplicationHook(
             new StaticDamageHook(context =>
             {
-                context.TargetUnit.current_shield_hp = 2;
+                context.TargetUnit.SetCurrentShieldHpAndNormalizeTyped(2);
                 return BattleDamageApplicationHookResult.StateChanged();
             })
         );
@@ -141,8 +181,12 @@ public partial class run_damage_application_projection_regression : LifecycleTes
         );
 
         _test.Eq(hpDamage, 8, "StateMayHaveChanged should recompute HP damage after hook side effects.");
-        _test.Eq(target.current_hp, 12, "StateMayHaveChanged should apply recomputed HP mutation.");
-        _test.Eq(target.current_shield_hp, 0, "StateMayHaveChanged should apply recomputed shield drain.");
+        _test.Eq(target.GetCurrentHp(), 12, "StateMayHaveChanged should apply recomputed HP mutation.");
+        _test.Eq(
+            target.GetShieldStateTyped().CurrentHp,
+            0,
+            "StateMayHaveChanged should apply recomputed shield drain."
+        );
     }
 
     private void TestPreviewAndSuppressedInputsDoNotInvokeHook()
@@ -190,8 +234,8 @@ public partial class run_damage_application_projection_regression : LifecycleTes
             Unit("min_hp_source", "enemy")
         );
         _test.Eq(minHpDamage, 4, "min_hp_after_damage should still clamp actual HP damage.");
-        _test.Eq(minHpTarget.current_hp, 1, "min_hp_after_damage should still leave the target at the floor.");
-        _test.True(minHpTarget.is_alive, "min_hp_after_damage should not mark the target dead.");
+        _test.Eq(minHpTarget.GetCurrentHp(), 1, "min_hp_after_damage should still leave the target at the floor.");
+        _test.True(minHpTarget.IsAlive(), "min_hp_after_damage should not mark the target dead.");
 
         BattleUnitState fatalTarget = Unit("fatal_target", hp: 5, shieldHp: 0);
         using GodotProjectionLease<GDictionary> fatalDamageInputLease =
@@ -202,7 +246,7 @@ public partial class run_damage_application_projection_regression : LifecycleTes
             Unit("fatal_source", "enemy")
         );
         _test.Eq(fatalDamage, 5, "Ordinary fatal damage should still report actual HP lost.");
-        _test.False(fatalTarget.is_alive, "Ordinary fatal damage should still mark the target dead.");
+        _test.False(fatalTarget.IsAlive(), "Ordinary fatal damage should still mark the target dead.");
     }
 
     private static DamageApplicationInput Input(
@@ -238,12 +282,23 @@ public partial class run_damage_application_projection_regression : LifecycleTes
             factionId == default || factionId == "" ? "player" : factionId,
             Vector2I.Zero
         );
-        unit.current_hp = hp;
+        unit.SetCurrentHp(hp);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, Math.Max(hp, 20));
-        unit.current_shield_hp = shieldHp;
-        unit.shield_max_hp = shieldHp;
-        unit.shield_duration = shieldHp > 0 ? 10 : 0;
-        unit.is_alive = true;
+        if (shieldHp > 0)
+        {
+            unit.ReplaceShieldStateTyped(
+                shieldHp,
+                shieldHp,
+                10,
+                "test_shield",
+                unitId,
+                "test_shield_skill"
+            );
+        }
+        else
+        {
+            unit.ClearShield();
+        }
         return unit;
     }
 

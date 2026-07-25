@@ -435,7 +435,7 @@ internal static class BattleObjectiveRuntimeStateFactory
         {
             BattleUnitState unit = state.GetUnit(unitId);
             if (
-                unit?.is_alive == true
+                unit?.IsAlive() == true
                 && ResolveExitPlacements(
                     state,
                     unit,
@@ -634,44 +634,50 @@ internal static class BattleObjectiveRuntimeStateFactory
         BattleGridService gridService
     )
     {
+        // A placement is legal only when every footprint cell lies inside the exit
+        // set, so the top-left origin is itself an exit cell. Iterating the exit
+        // cells (sorted by (Y, X) to preserve the original row-major output order)
+        // instead of the whole map yields the identical placement list while
+        // scanning far fewer origins.
         var placements = new List<Vector2I[]>();
-        for (int y = 0; y < state.map_size.Y; y++)
+        foreach (
+            Vector2I origin in exitCoords
+                .OrderBy(coord => coord.Y)
+                .ThenBy(coord => coord.X)
+        )
         {
-            for (int x = 0; x < state.map_size.X; x++)
+            var occupiedCoords = new Vector2I[footprint.X * footprint.Y];
+            int occupiedIndex = 0;
+            bool fits = true;
+            for (int offsetY = 0; offsetY < footprint.Y && fits; offsetY++)
             {
-                var occupiedCoords = new Vector2I[footprint.X * footprint.Y];
-                int occupiedIndex = 0;
-                bool fits = true;
-                for (int offsetY = 0; offsetY < footprint.Y && fits; offsetY++)
+                for (int offsetX = 0; offsetX < footprint.X; offsetX++)
                 {
-                    for (int offsetX = 0; offsetX < footprint.X; offsetX++)
-                    {
-                        Vector2I coord = new(x + offsetX, y + offsetY);
-                        BattleCellState cell = state.GetCell(coord);
-                        if (
-                            cell == null
-                            || !cell.passable
-                            || !exitCoords.Contains(coord)
-                        )
-                        {
-                            fits = false;
-                            break;
-                        }
-                        occupiedCoords[occupiedIndex++] = coord;
-                    }
-                }
-                if (
-                    fits
-                    && gridService.CanFitFootprintIgnoringOccupants(
-                        state,
-                        new Vector2I(x, y),
-                        footprint,
-                        unit
+                    Vector2I coord = new(origin.X + offsetX, origin.Y + offsetY);
+                    BattleCellState cell = state.GetCell(coord);
+                    if (
+                        cell == null
+                        || !cell.passable
+                        || !exitCoords.Contains(coord)
                     )
-                )
-                {
-                    placements.Add(occupiedCoords);
+                    {
+                        fits = false;
+                        break;
+                    }
+                    occupiedCoords[occupiedIndex++] = coord;
                 }
+            }
+            if (
+                fits
+                && gridService.CanFitFootprintIgnoringOccupants(
+                    state,
+                    origin,
+                    footprint,
+                    unit
+                )
+            )
+            {
+                placements.Add(occupiedCoords);
             }
         }
         return placements;
@@ -719,11 +725,11 @@ internal static class BattleObjectiveRuntimeStateFactory
 
     private static Vector2I ResolveFootprint(BattleUnitState unit)
     {
-        Vector2I footprint = unit?.footprint_size ?? Vector2I.One;
+        Vector2I footprint = unit?.GetFootprintSize() ?? Vector2I.One;
         if (footprint.X <= 0 || footprint.Y <= 0)
         {
             footprint = BattleUnitState.GetFootprintSizeForBodySize(
-                unit?.body_size ?? BattleUnitState.BodySizeMedium
+                unit?.GetBodySize() ?? BattleUnitState.BodySizeMedium
             );
         }
         return new Vector2I(

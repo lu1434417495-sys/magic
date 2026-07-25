@@ -367,86 +367,53 @@ public partial class run_battle_sim_start_failure_regression : LifecycleTestScen
 
     private sealed class EmptyTerrainGenerator : BattleTerrainGenerator
     {
-        internal override GodotProjectionLease<GDictionary> GenerateLease(
+        internal override BattleTerrainLayout GenerateTyped(
             EncounterAnchorData encounterAnchor,
             long seed,
-            GDictionary context,
-            LifetimeDomain domain = LifetimeDomain.Battle
-        ) =>
-            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
-                new GDictionary(),
-                "battle-sim-start-failure-empty-terrain",
-                domain,
-                "BattleSimStartFailure.EmptyTerrainGenerator"
-            );
+            GDictionary context
+        ) => new();
     }
 
     private sealed class RetryReachabilityTerrainGenerator : BattleTerrainGenerator
     {
         internal int GenerateCallCount { get; private set; }
 
-        internal override GodotProjectionLease<GDictionary> GenerateLease(
+        internal override BattleTerrainLayout GenerateTyped(
             EncounterAnchorData encounterAnchor,
             long seed,
-            GDictionary context,
-            LifetimeDomain domain = LifetimeDomain.Battle
+            GDictionary context
         )
         {
             GenerateCallCount++;
             bool blockMiddleColumn = GenerateCallCount == 1;
-            GDictionary root = new();
-            GodotProjectionLease<GDictionary> lease =
-                GodotProjectionLease<GDictionary>.CreateOwnedRoot(
-                    root,
-                    "battle-sim-start-retry-terrain",
-                    domain,
-                    "BattleSimStartFailure.RetryReachabilityTerrainGenerator"
-                );
-            try
+            Vector2I mapSize = new(3, 2);
+            var cells = new Dictionary<Vector2I, BattleCellState>();
+            for (int y = 0; y < mapSize.Y; y++)
             {
-                Vector2I mapSize = new(3, 2);
-                var cells = new Dictionary<Vector2I, BattleCellState>();
-                for (int y = 0; y < mapSize.Y; y++)
+                for (int x = 0; x < mapSize.X; x++)
                 {
-                    for (int x = 0; x < mapSize.X; x++)
+                    var cell = new BattleCellState
                     {
-                        var cell = new BattleCellState
-                        {
-                            coord = new Vector2I(x, y),
-                            base_terrain = blockMiddleColumn && x == 1
-                                ? "deep_water"
-                                : "land",
-                            base_height = 4,
-                            height_offset = 0,
-                        };
-                        cell.RecalculateRuntimeValues();
-                        cells[cell.coord] = cell;
-                    }
+                        coord = new Vector2I(x, y),
+                        base_terrain = blockMiddleColumn && x == 1
+                            ? "deep_water"
+                            : "land",
+                        base_height = 4,
+                        height_offset = 0,
+                    };
+                    cell.RecalculateRuntimeValues();
+                    cells[cell.coord] = cell;
                 }
-
-                var cellColumns = BattleCellState.BuildColumnsFromSurfaceCells(cells);
-                root["map_size"] = mapSize;
-                root["cells"] = BattleCellState.ProjectCellsToPayload(lease, cells);
-                root["cell_columns"] = BattleCellState.ProjectColumnsToPayload(
-                    lease,
-                    cellColumns
-                );
-                root["ally_spawns"] = lease.Own(
-                    new GArray { new Vector2I(2, 1) },
-                    "BattleSimStartFailure.RetryReachabilityTerrainGenerator.ally_spawns"
-                );
-                root["enemy_spawns"] = lease.Own(
-                    new GArray { new Vector2I(0, 1) },
-                    "BattleSimStartFailure.RetryReachabilityTerrainGenerator.enemy_spawns"
-                );
-                root["terrain_profile_id"] = new StringName("default");
-                return lease;
             }
-            catch
-            {
-                lease.Dispose();
-                throw;
-            }
+            return new BattleTerrainLayout(
+                mapSize,
+                cells,
+                new[] { new Vector2I(2, 1) },
+                new[] { new Vector2I(0, 1) },
+                new Vector2I(2, 1),
+                new Vector2I(0, 1),
+                "default"
+            );
         }
     }
 }

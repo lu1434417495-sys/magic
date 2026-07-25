@@ -498,7 +498,7 @@ public partial class run_wild_encounter_roster_typed_regression : LifecycleTestS
     {
         foreach (BattleUnitState unit in BattleUnits(enemyUnits))
         {
-            if (unit.enemy_template_id == templateId && unit.known_active_skill_ids.Contains(skillId))
+            if (unit.enemy_template_id == templateId && unit.KnowsActiveSkill(skillId))
             {
                 return true;
             }

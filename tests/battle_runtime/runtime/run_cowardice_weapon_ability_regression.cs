@@ -115,15 +115,19 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildCowardiceUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "懦弱之刃装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("shortsword"), "懦弱之刃应投影为 shortsword。");
-        _test.Eq(equipped.weapon_family, new StringName("sword"), "懦弱之刃应投影为 sword family。");
-        _test.Eq(equipped.weapon_attack_range, 1, "懦弱之刃攻击距离应为 1。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "懦弱之刃应为穿刺伤害。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "懦弱之刃单手应为 1D6+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "懦弱之刃单手应为 1D6+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "懦弱之刃单手应为 1D6+3。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "懦弱之刃装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("shortsword"), "懦弱之刃应投影为 shortsword。");
+        _test.Eq(equippedWeapon.Family, new StringName("sword"), "懦弱之刃应投影为 sword family。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "懦弱之刃攻击距离应为 1。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "懦弱之刃应为穿刺伤害。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "懦弱之刃单手应为 1D6+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "懦弱之刃单手应为 1D6+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "懦弱之刃单手应为 1D6+3。");
         AssertUnitHasTraitAndAbilitySource(equipped, GapBackstabTraitId, GapBackstabBindingId, "eq_cowardice_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, FrontalFragilityTraitId, FrontalFragilityBindingId, "eq_cowardice_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, FleeingInstinctTraitId, FleeingInstinctBindingId, "eq_cowardice_projection");
@@ -131,13 +135,18 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除懦弱之刃后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除懦弱之刃后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除懦弱之刃后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除懦弱之刃后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除懦弱之刃后装备能力源应清空。"
+        );
     }
 
     private void TestGapBackstabAndFrontalFragilityUseTargetSupport()
@@ -153,7 +162,7 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             previewCommand: false
         );
         _test.Eq(
-            100 - isolatedTarget.current_hp,
+            100 - isolatedTarget.GetCurrentHp(),
             13,
             "目标 6 格内无其友军时，缝隙背刺应造成 1D6+3 加 2D6 physical_pierce。"
         );
@@ -186,10 +195,10 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             "正面脆弱 -3 应进入装备来源 modifier breakdown。"
         );
 
-        int beforeSupportedHp = supportedTarget.current_hp;
+        int beforeSupportedHp = supportedTarget.GetCurrentHp();
         IssueBasicAttackInCurrentState(supportedFixture.Runtime, supportedAttacker, supportedTarget);
         _test.Eq(
-            beforeSupportedHp - supportedTarget.current_hp,
+            beforeSupportedHp - supportedTarget.GetCurrentHp(),
             7,
             "目标有友军支援时，缝隙背刺不应追加 2D6。"
         );
@@ -252,7 +261,7 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             "逃窜高血量禁用应走通用 availability blocked reason。"
         );
 
-        holder.current_hp = 40;
+        holder.SetCurrentHp(40);
         BattleAvailableSkillEntry readyEntry = FindRequiredEquipmentSkill(
             fixture,
             holder,
@@ -268,9 +277,9 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         BattleCommand command = BuildSelfSkillCommand(holder, readyEntry);
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(preview?.allowed == true, $"逃窜低血量时应允许使用。logs={JoinLogs(preview)}");
-        int apBefore = holder.current_ap;
+        int apBefore = holder.GetCurrentAp();
         fixture.Runtime.IssueCommand(command);
-        _test.Eq(holder.current_ap, apBefore, "逃窜为 0AP，不应消耗 AP。");
+        _test.Eq(holder.GetCurrentAp(), apBefore, "逃窜为 0AP，不应消耗 AP。");
         _test.Eq(holder.GetCooldownTyped(ScurrySkillId), 60, "逃窜使用后应设置 60TU 冷却。");
 
         BattleStatusEffectState counter = holder.GetStatusEffect(CounterStatusId);
@@ -426,7 +435,7 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             skill_entry_id = entry?.EntryRef.SkillEntryId ?? new StringName(""),
             skill_id = entry?.EntryRef.SkillId ?? new StringName(""),
             target_unit_id = user?.unit_id ?? new StringName(""),
-            target_coord = user?.coord ?? new Vector2I(-1, -1),
+            target_coord = user?.GetAnchorCoord() ?? new Vector2I(-1, -1),
         };
         if (user != null)
             command.AddTargetUnitId(user.unit_id);
@@ -443,13 +452,13 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         BattleState state = runtime.GetState();
         if (state != null)
             state.active_unit_id = attacker.unit_id;
-        int before = target.current_hp;
+        int before = target.GetCurrentHp();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildBasicAttackCommand(
             attacker,
             target
         );
         runtime.IssueCommand(command);
-        return Math.Max(before - target.current_hp, 0);
+        return Math.Max(before - target.GetCurrentHp(), 0);
     }
 
     private static BattleState BuildState(
@@ -500,8 +509,7 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         {
             state.enemy_unit_ids.Add(unit.unit_id);
         }
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -516,15 +524,14 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
     {
         if (state == null || unit == null || anchor == null)
             return;
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
             state.GetCell(coord)?.ClearOccupant();
 
-        Vector2I destination = anchor.coord.X < state.map_size.X - 1
-            ? anchor.coord + Vector2I.Right
-            : anchor.coord + Vector2I.Left;
-        unit.coord = destination;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        Vector2I destination = anchor.GetAnchorCoord().X < state.map_size.X - 1
+            ? anchor.GetAnchorCoord() + Vector2I.Right
+            : anchor.GetAnchorCoord() + Vector2I.Left;
+        unit.SetAnchorCoord(destination);
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
     }
 
@@ -537,21 +544,20 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
 
     private static BattleUnitState BuildUnit(StringName unitId, Vector2I coord, StringName faction, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = faction,
-            is_alive = true,
-            current_hp = hp,
-            coord = coord,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 18);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
-        unit.body_size_category = "medium";
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -619,10 +625,10 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         string equipmentInstanceId
     )
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"unit 应投影 trait {traitId}。");
+        _test.True(unit.HasEffectiveTrait(traitId), $"unit 应投影 trait {traitId}。");
         foreach (
-            BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources
-                ?? new List<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
         )
         {
             if (
@@ -715,8 +721,7 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
                 throw new InvalidOperationException($"{label} scenario should build exactly one ally unit.");
             BattleUnitState unit = units[0];
             unit.faction_id = "ally";
-            unit.coord = new Vector2I(0, 0);
-            unit.RefreshFootprint();
+            unit.SetAnchorCoord(new Vector2I(0, 0));
             WeaponAbilityCommandTestSupport.PrimeBasicAttack(unit);
             return unit;
         }

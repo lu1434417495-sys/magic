@@ -42,9 +42,9 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
             titan.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large)),
             "测试前置：泰坦升华单位应为 large。"
         );
-        titan.known_active_skill_ids = new GStringNameArray { TitanColossusForm };
-        titan.known_skill_level_map[TitanColossusForm] = 1;
-        titan.per_battle_charges[TitanColossusChargeKey] = 1;
+        titan.SetKnownActiveSkillIds(new[] { TitanColossusForm });
+        titan.SetKnownSkillLevelTyped(TitanColossusForm, 1);
+        titan.SetPerBattleChargeTyped(TitanColossusChargeKey, 1);
         AddUnit(runtime, state, titan);
         state.ally_unit_ids = new GStringNameArray { titan.unit_id };
         state.active_unit_id = titan.unit_id;
@@ -69,12 +69,12 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
             "Titan Colossus Form 应记录施法者变更。"
         );
         _test.Eq(
-            titan.body_size_category,
+            titan.GetBodySizeCategory(),
             BodySizeContentRules.ToStringName(BodySizeCategoryKind.Huge),
             "Titan Colossus Form 应临时改为 huge category。"
         );
         _test.Eq(
-            titan.body_size,
+            titan.GetBodySize(),
             BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Huge),
             "Titan Colossus Form 应同步 huge 的 int body_size。"
         );
@@ -83,7 +83,7 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
             "Titan Colossus Form 应挂 battle-local status。"
         );
         _test.Eq(
-            titan.per_battle_charges.Get(TitanColossusChargeKey, -1),
+            titan.GetPerBattleChargeTyped(TitanColossusChargeKey, -1),
             0,
             "Titan Colossus Form 应消耗身份技能次数。"
         );
@@ -113,12 +113,12 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
             "巨神化过期后 status 应移除。"
         );
         _test.Eq(
-            titan.body_size_category,
+            titan.GetBodySizeCategory(),
             BodySizeContentRules.ToStringName(BodySizeCategoryKind.Large),
             "巨神化过期后应恢复 large category。"
         );
         _test.Eq(
-            titan.body_size,
+            titan.GetBodySize(),
             BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Large),
             "巨神化过期后应恢复 large int body_size。"
         );
@@ -156,11 +156,11 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
             "恢复 footprint 被占用时，体型覆盖 status 应保留以便后续重试。"
         );
         _test.Eq(
-            shrunken.body_size_category,
+            shrunken.GetBodySizeCategory(),
             BodySizeContentRules.ToStringName(BodySizeCategoryKind.Medium),
             "恢复失败时不应切换到会覆盖占位者的 large category。"
         );
-        BattleUnitState occupant = runtime._grid_service.GetUnitAtCoord(state, blocker.coord);
+        BattleUnitState occupant = runtime._grid_service.GetUnitAtCoord(state, blocker.GetAnchorCoord());
         _test.True(occupant == blocker, "恢复失败时不应覆盖目标 footprint 上的其他单位。");
         runtime.Dispose();
     }
@@ -213,18 +213,19 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
 
     private static BattleUnitState BuildUnit(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = 2,
-            current_hp = 30,
-            current_mp = 0,
-            current_stamina = 30,
-            current_aura = 0,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 0,
+            stamina: 30,
+            aura: 0,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         return unit;
     }
@@ -232,7 +233,7 @@ public partial class run_titan_colossus_form_regression : LifecycleTestSceneTree
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static int GetInt(GDictionary source, StringName key, int fallback)

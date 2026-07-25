@@ -274,10 +274,10 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
         var runtime = new BattleRuntimeModule();
         runtime.setup();
         BattleUnitState unit = BuildUnit("guard_lock_cast_block_unit");
-        unit.current_ap = 3;
-        unit.current_mp = 3;
-        unit.current_stamina = 3;
-        unit.current_aura = 3;
+        unit.SetCurrentAp(3);
+        unit.SetCurrentMp(3);
+        unit.SetCurrentStamina(3);
+        unit.SetCurrentAura(3);
         SetTypedStatus(unit, "typed_guard_lock_block", lockGuard: true);
         SkillDefinition guardDefinition = BuildGuardGrantingSkill();
 

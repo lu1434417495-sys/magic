@@ -85,7 +85,8 @@ internal sealed class BattleChainDamageService
         AttackEffectResolutionResult primaryResolution,
         BattleEventBatch batch,
         string skill_subject,
-        BattleSpellControlResult spell_control_context = default
+        BattleSpellControlResult spell_control_context = default,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         if (!primaryResolution.Applied)
@@ -127,7 +128,7 @@ internal sealed class BattleChainDamageService
             foreach (ChainDamageHop chainHop in chainTargets)
             {
                 BattleUnitState chainTarget = chainHop.TargetUnit;
-                if (chainTarget == null || !chainTarget.is_alive)
+                if (chainTarget == null || !chainTarget.IsAlive())
                 {
                     continue;
                 }
@@ -138,7 +139,8 @@ internal sealed class BattleChainDamageService
                         chainTarget,
                         skillDefinition,
                         chainTargetEffects,
-                        batch
+                        batch,
+                        castVariantDefinition
                     ) ?? new BattleBarrierInteractionResult(false, false);
                 if (barrierResult.Blocked)
                 {
@@ -206,7 +208,7 @@ internal sealed class BattleChainDamageService
                 int chainHealing = chainResolution.Healing;
                 totalDamage += chainDamage;
                 totalHealing += chainHealing;
-                if (!chainTarget.is_alive)
+                if (!chainTarget.IsAlive())
                 {
                     totalKillCount += 1;
                     Runtime?._apply_on_kill_gain_resources_effects(
@@ -231,7 +233,7 @@ internal sealed class BattleChainDamageService
                         )
                     );
                 }
-                bool causedChainDefeat = !chainTarget.is_alive;
+                bool causedChainDefeat = !chainTarget.IsAlive();
                 _owner._record_effect_metrics(
                     source_unit,
                     chainTarget,
@@ -322,7 +324,7 @@ internal sealed class BattleChainDamageService
 
             foreach (BattleUnitState candidate in state.GetUnitsTyped())
             {
-                if (candidate == null || !candidate.is_alive)
+                if (candidate == null || !candidate.IsAlive())
                 {
                     continue;
                 }
@@ -347,7 +349,9 @@ internal sealed class BattleChainDamageService
                 }
 
                 visited.Add(candidate.unit_id);
-                targets.Add(new ChainDamageHop(current.coord, candidate));
+                targets.Add(
+                    new ChainDamageHop(current.GetAnchorCoord(), candidate)
+                );
                 queue.Add(candidate);
             }
         }
@@ -361,8 +365,8 @@ internal sealed class BattleChainDamageService
                 int distanceB = gridService?.GetDistanceBetweenUnits(primary_target, targetB) ?? 0;
                 if (distanceA != distanceB)
                     return distanceA.CompareTo(distanceB);
-                Vector2I ca = targetA?.coord ?? Vector2I.Zero;
-                Vector2I cb = targetB?.coord ?? Vector2I.Zero;
+                Vector2I ca = targetA?.GetAnchorCoord() ?? Vector2I.Zero;
+                Vector2I cb = targetB?.GetAnchorCoord() ?? Vector2I.Zero;
                 if (ca.Y != cb.Y)
                     return ca.Y.CompareTo(cb.Y);
                 if (ca.X != cb.X)
@@ -412,9 +416,13 @@ internal sealed class BattleChainDamageService
             return false;
         }
         BattleGridService gridService = Runtime?.GetGridService();
-        foreach (Vector2I primaryCoord in primary_target.occupied_coords)
+        foreach (
+            Vector2I primaryCoord in primary_target.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I candidateCoord in candidate.occupied_coords)
+            foreach (
+                Vector2I candidateCoord in candidate.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (gridService != null && gridService.GetDistance(primaryCoord, candidateCoord) <= max_radius)
                 {
@@ -465,7 +473,9 @@ internal sealed class BattleChainDamageService
         {
             return false;
         }
-        foreach (Vector2I sourceCoord in source_unit.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in source_unit.GetOccupiedCoordsReadViewTyped()
+        )
         {
             BattleCellState sourceCell = gridService.GetCellState(state, sourceCoord);
             if (sourceCell == null)
@@ -473,7 +483,9 @@ internal sealed class BattleChainDamageService
                 continue;
             }
             int sourceHeight = sourceCell.current_height;
-            foreach (Vector2I targetCoord in target_unit.occupied_coords)
+            foreach (
+                Vector2I targetCoord in target_unit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 foreach (Vector2I midCoord in _get_line_coords(sourceCoord, targetCoord))
                 {

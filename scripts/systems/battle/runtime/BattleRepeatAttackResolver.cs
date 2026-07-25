@@ -6,7 +6,6 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class BattleRepeatAttackResolver
 {
-    private static readonly StringName REPEAT_ATTACK_EFFECT_TYPE = "repeat_attack_until_fail";
     private const int REPEAT_ATTACK_STAGE_GUARD = 32;
     private const int DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT = 3;
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
@@ -92,7 +91,8 @@ internal sealed class BattleRepeatAttackResolver
         SkillDefinition skill_definition,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         CombatEffectDefinition repeat_attack_effect,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         List<CombatEffectDefinition> stagedEffects = CollectRepeatAttackBaseEffects(effect_definitions);
@@ -113,7 +113,8 @@ internal sealed class BattleRepeatAttackResolver
                 target_unit,
                 skill_definition,
                 stagedEffects,
-                batch
+                batch,
+                castVariantDefinition
             ) ?? new BattleBarrierInteractionResult(false, false);
         if (barrierResult.Blocked)
         {
@@ -125,12 +126,19 @@ internal sealed class BattleRepeatAttackResolver
         int totalKillCount = 0;
         int stageIndex = 0;
         bool anyAttackSucceeded = false;
+        bool isFixedRepeat =
+            repeat_attack_effect.EffectKind == BattleEffectKind.FixedRepeatAttack;
+        int stageLimit = isFixedRepeat
+            ? Math.Clamp(repeat_attack_effect.FixedAttackCount, 1, REPEAT_ATTACK_STAGE_GUARD)
+            : REPEAT_ATTACK_STAGE_GUARD;
         RepeatAttackRuntimeParameters repeatParameters =
             RepeatAttackRuntimeParameters.FromEffect(repeat_attack_effect);
 
-        while (stageIndex < REPEAT_ATTACK_STAGE_GUARD && target_unit.is_alive)
+        while (stageIndex < stageLimit && target_unit.IsAlive())
         {
             if (
+                !isFixedRepeat
+                &&
                 stageIndex > 0
                 && _runtime != null
                 && _runtime.IsUnitFollowUpLocked(active_unit)
@@ -151,7 +159,7 @@ internal sealed class BattleRepeatAttackResolver
             int stageResourceCost = _get_repeat_attack_stage_cost(stageSpec);
             string costResourceLabel = _resolve_repeat_attack_resource_label(stageSpec);
             string costResourceAbbr = _resolve_repeat_attack_resource_abbr(stageSpec);
-            if (stageIndex > 0)
+            if (!isFixedRepeat && stageIndex > 0)
             {
                 if (!_can_pay_repeat_attack_stage_cost(active_unit, stageSpec))
                 {
@@ -189,14 +197,17 @@ internal sealed class BattleRepeatAttackResolver
             string stageResolutionText = string.IsNullOrEmpty(stageResult.ResolutionText)
                 ? $"{stageSuccessRate}%"
                 : stageResult.ResolutionText;
+            string stageCostText = isFixedRepeat
+                ? ""
+                : $"，{costResourceAbbr} 消耗 {stageResourceCost}";
             if (!stageResult.AttackSuccess)
             {
                 AppendLog(
                     batch,
-                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}，{costResourceAbbr} 消耗 {stageResourceCost}。"
+                    $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}{stageCostText}。"
                 );
                 _runtime?.AppendResultReportEntry(batch, stageResult);
-                if (repeatParameters.StopOnMiss)
+                if (!isFixedRepeat && repeatParameters.StopOnMiss)
                 {
                     break;
                 }
@@ -249,7 +260,7 @@ internal sealed class BattleRepeatAttackResolver
             totalHealing += healing;
             _runtime?.AppendDamageResultLogLines(
                 batch,
-                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamagePercent / 100.0)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
+                $"{DisplayName(active_unit)} 的 {DisplayName(skill_definition)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamagePercent / 100.0)}{stageCostText}，{stageResolutionText}",
                 DisplayName(target_unit),
                 stageResult
             );
@@ -271,7 +282,7 @@ internal sealed class BattleRepeatAttackResolver
                 }
             }
 
-            if (!target_unit.is_alive)
+            if (!target_unit.IsAlive())
             {
                 totalKillCount += 1;
                 _runtime?.HandleUnitDefeatedByRuntimeEffect(
@@ -294,14 +305,14 @@ internal sealed class BattleRepeatAttackResolver
                 }
             }
 
-            if (damage > 0 || healing > 0 || !target_unit.is_alive)
+            if (damage > 0 || healing > 0 || !target_unit.IsAlive())
             {
                 _runtime?.RecordBattleContributionResult(
                     active_unit,
                     target_unit,
                     damage,
                     healing,
-                    !target_unit.is_alive,
+                    !target_unit.IsAlive(),
                     new StringName("repeat"),
                     skill_definition.SkillId
                 );
@@ -310,7 +321,7 @@ internal sealed class BattleRepeatAttackResolver
             stageIndex += 1;
         }
 
-        if (stageIndex >= REPEAT_ATTACK_STAGE_GUARD && target_unit.is_alive)
+        if (!isFixedRepeat && stageIndex >= REPEAT_ATTACK_STAGE_GUARD && target_unit.IsAlive())
         {
             AppendLog(
                 batch,
@@ -331,8 +342,9 @@ internal sealed class BattleRepeatAttackResolver
         )
         {
             if (
-                effectDefinition != null
-                && effectDefinition.EffectKind == BattleEffectKind.RepeatAttackUntilFail
+                effectDefinition?.EffectKind
+                is BattleEffectKind.RepeatAttackUntilFail
+                    or BattleEffectKind.FixedRepeatAttack
             )
             {
                 return effectDefinition;
@@ -560,6 +572,14 @@ internal sealed class BattleRepeatAttackResolver
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
         }
+        if (repeat_attack_effect.EffectKind == BattleEffectKind.FixedRepeatAttack)
+        {
+            return Math.Clamp(
+                repeat_attack_effect.FixedAttackCount,
+                1,
+                REPEAT_ATTACK_STAGE_GUARD
+            );
+        }
         if (active_unit.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND))
         {
             return 1;
@@ -617,6 +637,14 @@ internal sealed class BattleRepeatAttackResolver
         )
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
+        }
+        if (repeat_attack_effect.EffectKind == BattleEffectKind.FixedRepeatAttack)
+        {
+            return Math.Clamp(
+                repeat_attack_effect.FixedAttackCount,
+                1,
+                REPEAT_ATTACK_STAGE_GUARD
+            );
         }
         if (active_unit.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND))
         {
@@ -1070,10 +1098,10 @@ internal sealed class BattleRepeatAttackResolver
         }
         return costResourceKind switch
         {
-            CombatResourceKind.Ap => activeUnit.current_ap,
-            CombatResourceKind.Aura => activeUnit.current_aura,
-            CombatResourceKind.Mp => activeUnit.current_mp,
-            CombatResourceKind.Stamina => activeUnit.current_stamina,
+            CombatResourceKind.Ap => activeUnit.GetCurrentAp(),
+            CombatResourceKind.Aura => activeUnit.GetCurrentAura(),
+            CombatResourceKind.Mp => activeUnit.GetCurrentMp(),
+            CombatResourceKind.Stamina => activeUnit.GetCurrentStamina(),
             _ => 0,
         };
     }

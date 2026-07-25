@@ -170,7 +170,9 @@ internal sealed class BattleSkillTargetValidationService
             Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
                 state,
                 Runtime.GetGridService(),
-                active_unit != null ? active_unit.coord : new Vector2I(-1, -1),
+                active_unit != null
+                    ? active_unit.GetAnchorCoord()
+                    : new Vector2I(-1, -1),
                 combatProfile,
                 emptyTargetCoords,
                 active_unit,
@@ -178,6 +180,13 @@ internal sealed class BattleSkillTargetValidationService
                 skillLevel
             ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
         List<Vector2I> previewCoords = BattleSkillExecutionOrchestrator.SortCoordsTyped(collectedTargetCoords.TargetCoords);
+        AppendVaultDestinationPreviewCoord(
+            previewCoords,
+            active_unit,
+            targetUnits,
+            skillDefinition,
+            cast_variant
+        );
         return BattleUnitSkillValidationResult.AllowedResult(
             BattleSkillExecutionOrchestrator.ToStringNameList(targetUnitIds),
             targetUnits,
@@ -316,6 +325,13 @@ internal sealed class BattleSkillTargetValidationService
                 skillLevel
             ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
         List<Vector2I> previewCoords = BattleSkillExecutionOrchestrator.SortCoordsTyped(collectedTargetCoords.TargetCoords);
+        AppendVaultDestinationPreviewCoord(
+            previewCoords,
+            active_unit,
+            targetUnits,
+            skillDefinition,
+            cast_variant
+        );
         return BattleUnitSkillPreviewValidationResult.AllowedResult(
             BattleSkillExecutionOrchestrator.ToStringNameList(targetUnitIds),
             targetUnits,
@@ -380,8 +396,8 @@ internal sealed class BattleSkillTargetValidationService
                 {
                     return string.CompareOrdinal(a.ToString(), b.ToString());
                 }
-                Vector2I ca = unitA.coord;
-                Vector2I cb = unitB.coord;
+                Vector2I ca = unitA.GetAnchorCoord();
+                Vector2I cb = unitB.GetAnchorCoord();
                 if (ca.Y != cb.Y)
                     return ca.Y.CompareTo(cb.Y);
                 if (ca.X != cb.X)
@@ -428,7 +444,7 @@ internal sealed class BattleSkillTargetValidationService
         );
         if (
             require_ap
-            && active_unit.current_ap < costs.ApCost
+            && active_unit.GetCurrentAp() < costs.ApCost
         )
         {
             return false;
@@ -583,6 +599,16 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
+        string vaultMessage = GetVaultBehindTargetValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(vaultMessage))
+        {
+            return vaultMessage;
+        }
         string bodySizeOverrideMessage = _get_body_size_category_override_validation_message(
             active_unit,
             target_unit,
@@ -660,6 +686,16 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
+        string vaultMessage = GetVaultBehindTargetValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(vaultMessage))
+        {
+            return vaultMessage;
+        }
         string bodySizeOverrideMessage = _get_body_size_category_override_validation_message(
             active_unit,
             target_unit,
@@ -740,6 +776,145 @@ internal sealed class BattleSkillTargetValidationService
             }
         }
         return "";
+    }
+
+
+    private string GetVaultBehindTargetValidationMessage(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (!HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit))
+            return "";
+        BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnit
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
+    private string GetVaultBehindTargetValidationMessage(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (!HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit))
+            return "";
+        BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnit
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
+    private bool HasVaultBehindTargetEffect(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleUnitState activeUnit
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (effectDefinition?.EffectKind == BattleEffectKind.VaultBehindTarget)
+                return true;
+        }
+        return false;
+    }
+
+    private bool HasVaultBehindTargetEffect(
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        BattleUnitReadView activeUnit
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (effectDefinition?.EffectKind == BattleEffectKind.VaultBehindTarget)
+                return true;
+        }
+        return false;
+    }
+
+    private void AppendVaultDestinationPreviewCoord(
+        List<Vector2I> previewCoords,
+        BattleUnitState activeUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (
+            previewCoords == null
+            || targetUnits == null
+            || targetUnits.Count != 1
+            || !HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit)
+        )
+            return;
+        BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnits[0]
+        );
+        if (plan.Allowed && !previewCoords.Contains(plan.Destination))
+            previewCoords.Add(plan.Destination);
+        previewCoords.Sort(
+            (left, right) =>
+                left.Y != right.Y ? left.Y.CompareTo(right.Y) : left.X.CompareTo(right.X)
+        );
+    }
+
+    private void AppendVaultDestinationPreviewCoord(
+        List<Vector2I> previewCoords,
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        if (
+            previewCoords == null
+            || targetUnits == null
+            || targetUnits.Count != 1
+            || !HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit)
+        )
+            return;
+        BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnits[0]
+        );
+        if (plan.Allowed && !previewCoords.Contains(plan.Destination))
+            previewCoords.Add(plan.Destination);
+        previewCoords.Sort(
+            (left, right) =>
+                left.Y != right.Y ? left.Y.CompareTo(right.Y) : left.X.CompareTo(right.X)
+        );
     }
 
     private string GetTargetStatusRequirementValidationMessage(
@@ -959,7 +1134,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             return "律令死亡目标无效。";
         }
-        if (!targetUnit.is_alive)
+        if (!targetUnit.IsAlive())
         {
             return "";
         }
@@ -1094,7 +1269,7 @@ internal sealed class BattleSkillTargetValidationService
                 !gridService
                     .CanPlaceFootprint(
                         state,
-                        target_unit.coord,
+                        target_unit.GetAnchorCoord(),
                         targetFootprint,
                         target_unit.unit_id,
                         target_unit

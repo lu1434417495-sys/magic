@@ -88,7 +88,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleState state = BuildState(new Vector2I(8, 8));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         state.SetUnit(unit);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("simple optimality: failed to place unit at origin.");
             return;
@@ -98,7 +98,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathResult result = _grid.ResolveUnitMovePathTyped(
             state,
             unit,
-            unit.coord,
+            unit.GetAnchorCoord(),
             toCoord,
             99,
             null
@@ -110,7 +110,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             return;
         }
 
-        int expected = Math.Abs(toCoord.X - unit.coord.X) + Math.Abs(toCoord.Y - unit.coord.Y);
+        int expected = Math.Abs(toCoord.X - unit.GetAnchorCoord().X) + Math.Abs(toCoord.Y - unit.GetAnchorCoord().Y);
         _test.Eq(result.Cost, expected, "simple optimality: Manhattan cost should match.");
     }
 
@@ -119,7 +119,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleState state = BuildState(new Vector2I(12, 1));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         state.SetUnit(unit);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("budget cap: failed to place unit at origin.");
             return;
@@ -130,7 +130,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathResult result = _grid.ResolveUnitMovePathTyped(
             state,
             unit,
-            unit.coord,
+            unit.GetAnchorCoord(),
             new Vector2I(11, 0),
             budget,
             (candidateUnit, coord) =>
@@ -171,12 +171,12 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         blocker.unit_id = "path_inoption_adjacent_blocker";
         state.SetUnit(unit);
         state.SetUnit(blocker);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("budget cap adjacent blocker: failed to place unit.");
             return;
         }
-        if (!_grid.PlaceUnit(state, blocker, blocker.coord, true))
+        if (!_grid.PlaceUnit(state, blocker, blocker.GetAnchorCoord(), true))
         {
             _test.Fail("budget cap adjacent blocker: failed to place blocker.");
             return;
@@ -185,8 +185,8 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathResult result = _grid.ResolveUnitMovePathTyped(
             state,
             unit,
-            unit.coord,
-            blocker.coord,
+            unit.GetAnchorCoord(),
+            blocker.GetAnchorCoord(),
             0,
             null
         );
@@ -207,7 +207,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         state.SetUnit(unit);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("mud stripe: failed to place unit at origin.");
             return;
@@ -226,12 +226,12 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathResult aStar = _grid.ResolveUnitMovePathTyped(
             state,
             unit,
-            unit.coord,
+            unit.GetAnchorCoord(),
             toCoord,
             99,
             null
         );
-        int referenceCost = ReferenceDijkstraCost(state, unit, unit.coord, toCoord);
+        int referenceCost = ReferenceDijkstraCost(state, unit, unit.GetAnchorCoord(), toCoord);
         if (!aStar.Allowed)
         {
             _test.Fail("mud stripe: expected destination to be reachable.");
@@ -256,7 +256,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             BattleState state = BuildState(size);
             BattleUnitState unit = BuildUnit(Vector2I.Zero);
             state.SetUnit(unit);
-            if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+            if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
             {
                 continue;
             }
@@ -265,7 +265,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             for (int i = 0; i < mudCount; i++)
             {
                 Vector2I mudCoord = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
-                if (mudCoord == unit.coord)
+                if (mudCoord == unit.GetAnchorCoord())
                 {
                     continue;
                 }
@@ -277,16 +277,16 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             }
 
             Vector2I dest = new(rng.RandiRange(0, size.X - 1), rng.RandiRange(0, size.Y - 1));
-            if (dest == unit.coord)
+            if (dest == unit.GetAnchorCoord())
             {
                 continue;
             }
 
-            int referenceCost = ReferenceDijkstraCost(state, unit, unit.coord, dest);
+            int referenceCost = ReferenceDijkstraCost(state, unit, unit.GetAnchorCoord(), dest);
             BattleMovePathResult aStar = _grid.ResolveUnitMovePathTyped(
                 state,
                 unit,
-                unit.coord,
+                unit.GetAnchorCoord(),
                 dest,
                 9999,
                 null
@@ -329,7 +329,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState unit = BuildUnit(Vector2I.Zero);
         state.SetUnit(unit);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("path tree mud stripe: failed to place unit at origin.");
             return;
@@ -347,7 +347,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathTreeResult tree = _grid.BuildUnitMovePathTreeTyped(
             state,
             unit,
-            unit.coord,
+            unit.GetAnchorCoord(),
             99,
             null
         );
@@ -357,7 +357,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             for (int x = 0; x < state.map_size.X; x++)
             {
                 Vector2I dest = new(x, y);
-                int referenceCost = ReferenceDijkstraCost(state, unit, unit.coord, dest);
+                int referenceCost = ReferenceDijkstraCost(state, unit, unit.GetAnchorCoord(), dest);
                 if (referenceCost < 0)
                 {
                     if (tree.Costs.ContainsKey(dest))
@@ -388,12 +388,12 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         blocker.unit_id = "path_tree_blocker";
         state.SetUnit(unit);
         state.SetUnit(blocker);
-        if (!_grid.PlaceUnit(state, unit, unit.coord, true))
+        if (!_grid.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             _test.Fail("path tree occupant: failed to place unit.");
             return;
         }
-        if (!_grid.PlaceUnit(state, blocker, blocker.coord, true))
+        if (!_grid.PlaceUnit(state, blocker, blocker.GetAnchorCoord(), true))
         {
             _test.Fail("path tree occupant: failed to place blocker.");
             return;
@@ -402,7 +402,7 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
         BattleMovePathTreeResult tree = _grid.BuildUnitMovePathTreeTyped(
             state,
             unit,
-            unit.coord,
+            unit.GetAnchorCoord(),
             99,
             null
         );
@@ -510,10 +510,10 @@ internal sealed class BattleGridServicePathfindingInvariantsRunner
             unit_id = "path_inoption_unit",
             display_name = "PathInoption",
             faction_id = "player",
-            coord = coord,
-            is_alive = true,
-        };
-        unit.RefreshFootprint();
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
+        unit.SetAnchorCoord(coord);
         return _runtimeScope.OwnWrapper(unit, "battle-unit");
     }
 

@@ -174,12 +174,14 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         }
 
         BattleUnitState holder = fixture.BuildExecutionerUnit("projection");
-        _test.Eq(holder.weapon_item_id, ItemId, "装备后应投影处刑者之斧 item_id。");
-        _test.Eq(holder.weapon_profile_type_id, new StringName("greataxe"), "装备后应投影 greataxe。");
-        _test.Eq(holder.weapon_attack_range, 1, "处刑者之斧基础射程应为 1。");
-        _test.Eq(holder.weapon_two_handed_dice?.dice_count ?? 0, 1, "武器伤害应为 1D12+2。");
-        _test.Eq(holder.weapon_two_handed_dice?.dice_sides ?? 0, 12, "武器伤害应为 1D12+2。");
-        _test.Eq(holder.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "武器伤害应为 1D12+2。");
+        BattleWeaponProjectionValues holderWeapon =
+            holder.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(holderWeapon.ItemId, ItemId, "装备后应投影处刑者之斧 item_id。");
+        _test.Eq(holderWeapon.ProfileTypeId, new StringName("greataxe"), "装备后应投影 greataxe。");
+        _test.Eq(holderWeapon.AttackRange, 1, "处刑者之斧基础射程应为 1。");
+        _test.Eq(holderWeapon.TwoHandedDice.DiceCount, 1, "武器伤害应为 1D12+2。");
+        _test.Eq(holderWeapon.TwoHandedDice.DiceSides, 12, "武器伤害应为 1D12+2。");
+        _test.Eq(holderWeapon.TwoHandedDice.FlatBonus, 2, "武器伤害应为 1D12+2。");
         AssertUnitHasTraitAndAbilitySource(holder, ExecutionTraitId, ExecutionBindingId);
         AssertUnitHasTraitAndAbilitySource(holder, DeathSentenceTraitId, DeathSentenceBindingId);
         AssertUnitHasTraitAndAbilitySource(holder, SelfExecutionTraitId, SelfExecutionBindingId);
@@ -210,7 +212,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
                 $"内部技能 {hiddenSkillId} 不得出现在玩家可用技能列表。"
             );
             _test.False(
-                ContainsStringName(holder.known_active_skill_ids, hiddenSkillId),
+                holder.KnowsActiveSkill(hiddenSkillId),
                 $"内部技能 {hiddenSkillId} 不得写入已知技能。"
             );
         }
@@ -258,8 +260,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
 
         BattleAvailableSkillEntry entry = FindDeathSentenceEntry(fixture, holder, state);
         BattleEventBatch markBatch = IssueDeathSentence(fixture.Runtime, holder, target, entry);
-        _test.Eq(holder.current_ap, 1, "死亡判决应支付 1AP。");
-        _test.Eq(holder.current_stamina, 40, "死亡判决应从 100 体力中支付 60。");
+        _test.Eq(holder.GetCurrentAp(), 1, "死亡判决应支付 1AP。");
+        _test.Eq(holder.GetCurrentStamina(), 40, "死亡判决应从 100 体力中支付 60。");
         _test.Eq(holder.GetCooldownTyped(DeathSentenceSkillId), 300, "死亡判决应启动 300TU 冷却。");
         AssertDeathSentenceMark(state, holder, target, "施放后应建立 typed 判决标记。");
         _test.Eq(
@@ -274,7 +276,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             target,
             "executioner_marked_miss"
         );
-        _test.True(target.is_alive, "固定未命中不应伤害目标。");
+        _test.True(target.IsAlive(), "固定未命中不应伤害目标。");
         AssertDeathSentenceMark(state, holder, target, "未命中不得消费判决标记。");
         _test.True(target.HasStatusEffect(DeathSentenceStatusId), "未命中后 60TU 镜像状态应保留。");
         AssertNoInternalSkillIdentity(markBatch);
@@ -293,8 +295,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         fixture.Runtime.SetupStateForTests(state);
 
         IssueDeathSentence(fixture.Runtime, holder, target, FindDeathSentenceEntry(fixture, holder, state));
-        int targetHpBefore = target.current_hp;
-        int holderHpBefore = holder.current_hp;
+        int targetHpBefore = target.GetCurrentHp();
+        int holderHpBefore = holder.GetCurrentHp();
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(holder);
         ForceUnitActing(state, holder);
         BattlePreview markedPreview = fixture.Runtime.PreviewCommand(
@@ -311,9 +313,9 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             "executioner_forced_critical"
         );
 
-        _test.Eq(targetHpBefore - target.current_hp, 4, "固定每骰 1 时，1D12+2 的暴击应造成 4 点伤害。");
+        _test.Eq(targetHpBefore - target.GetCurrentHp(), 4, "固定每骰 1 时，1D12+2 的暴击应造成 4 点伤害。");
         _test.False(target.HasStatusEffect("soul_fracture"), "通过死亡判决后不得附带灵魂裂隙。");
-        _test.Eq(holder.current_hp, holderHpBefore, "持有者通过 DC14 自我处刑检定后不应受伤。");
+        _test.Eq(holder.GetCurrentHp(), holderHpBefore, "持有者通过 DC14 自我处刑检定后不应受伤。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "成功命中完整结算后应消费 typed 判决标记。");
         _test.False(target.HasStatusEffect(DeathSentenceStatusId), "成功命中后应清除判决镜像状态。");
         _test.True(
@@ -362,7 +364,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         );
 
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
-        _test.Eq(target.current_hp, 97, "禁暴击状态下固定每骰 1 的普通命中应造成 1D12+2 共 3 点伤害。");
+        _test.Eq(target.GetCurrentHp(), 97, "禁暴击状态下固定每骰 1 的普通命中应造成 1D12+2 共 3 点伤害。");
         AssertDeathSentenceMark(state, holder, target, "未形成暴击时不得消费判决标记。");
         _test.False(HasLogLineContaining(batch, "处刑成功"), "禁暴击普通命中不得触发判决处刑。");
         AssertNoInternalSkillIdentity(batch);
@@ -413,7 +415,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             "executioner_crit_lock_lethal_attack"
         );
 
-        _test.False(target.is_alive, "测试前提：禁暴击普通命中的 3 点伤害应恰好击倒目标。");
+        _test.False(target.IsAlive(), "测试前提：禁暴击普通命中的 3 点伤害应恰好击倒目标。");
         _test.False(
             witness.HasStatusEffect(FrightenedStatusId),
             "禁暴击普通击杀不得冒充判决处刑并触发恐惧。"
@@ -584,8 +586,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             "executioner_ordinary_execute_attack"
         );
 
-        _test.False(target.is_alive, "普通目标未通过 DC16 体质检定后应被处刑。");
-        _test.Eq(holder.current_hp, 100, "判决击杀成功时不得触发自我处刑。");
+        _test.False(target.IsAlive(), "普通目标未通过 DC16 体质检定后应被处刑。");
+        _test.Eq(holder.GetCurrentHp(), 100, "判决击杀成功时不得触发自我处刑。");
         _test.Eq(
             nearbyEnemy.GetStatusEffect(FrightenedStatusId)?.duration ?? -1,
             60,
@@ -651,7 +653,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         fixture.Runtime.SetupStateForTests(state);
 
         IssueDeathSentence(fixture.Runtime, holder, target, FindDeathSentenceEntry(fixture, holder, state));
-        int holderHpBefore = holder.current_hp;
+        int holderHpBefore = holder.GetCurrentHp();
         BattleEventBatch batch = IssueBasicAttackInCurrentState(
             fixture.Runtime,
             holder,
@@ -659,15 +661,15 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             $"executioner_{label}_attack"
         );
 
-        _test.Eq(target.is_alive, !expectExecution, $"{label} 的处决分支不符。");
+        _test.Eq(target.IsAlive(), !expectExecution, $"{label} 的处决分支不符。");
         if (expectExecution)
         {
-            _test.Eq(holder.current_hp, holderHpBefore, $"{label} 处决成功后不应自我处刑。");
+            _test.Eq(holder.GetCurrentHp(), holderHpBefore, $"{label} 处决成功后不应自我处刑。");
         }
         else
         {
-            _test.Eq(target.current_hp, currentHp - 7, $"{label} 应受到 4 点暴击武器伤害和 3 点 3D12 fallback。");
-            _test.Eq(holder.current_hp, holderHpBefore - 4, $"{label} 存活后持有者应承受 2D12+2 自我处刑。");
+            _test.Eq(target.GetCurrentHp(), currentHp - 7, $"{label} 应受到 4 点暴击武器伤害和 3 点 3D12 fallback。");
+            _test.Eq(holder.GetCurrentHp(), holderHpBefore - 4, $"{label} 存活后持有者应承受 2D12+2 自我处刑。");
         }
         _test.Eq(state.EquipmentTargetMarkCount, 0, $"{label} 完整命中结算后应消费判决标记。");
         AssertNoInternalSkillIdentity(batch);
@@ -707,10 +709,10 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             "executioner_death_prevention_attack"
         );
 
-        _test.True(target.is_alive, "高优先级死亡保护应阻止判决处决。");
+        _test.True(target.IsAlive(), "高优先级死亡保护应阻止判决处决。");
         _test.False(target.HasStatusEffect("death_ward"), "已触发的死亡保护应被消耗。");
         _test.False(target.HasStatusEffect("soul_fracture"), "死亡保护救下目标后不得附带灵魂裂隙。");
-        _test.Eq(holder.current_hp, 96, "判决被死亡保护阻止后应触发 4 点固定自我处刑伤害。");
+        _test.Eq(holder.GetCurrentHp(), 96, "判决被死亡保护阻止后应触发 4 点固定自我处刑伤害。");
         _test.False(witness.HasStatusEffect(FrightenedStatusId), "被死亡保护阻止的处刑不得触发恐惧。");
         AssertNoInternalSkillIdentity(batch);
     }
@@ -734,7 +736,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             firstBatch
         );
         _test.True(firstChanged, "推进 60TU 应使判决状态到期。");
-        _test.Eq(holder.current_hp, 96, "未使用的判决到期应触发一次 2D12+2 自我处刑。");
+        _test.Eq(holder.GetCurrentHp(), 96, "未使用的判决到期应触发一次 2D12+2 自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "判决到期后应清除 typed target mark。");
         _test.False(target.HasStatusEffect(DeathSentenceStatusId), "判决到期后应清除镜像状态。");
         _test.True(HasLogLineContaining(firstBatch, "自我处刑意志检定"), "到期日志应显示自我处刑检定。");
@@ -745,7 +747,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             60,
             secondBatch
         );
-        _test.Eq(holder.current_hp, 96, "已清理的判决继续推进时间不得重复自我处刑。");
+        _test.Eq(holder.GetCurrentHp(), 96, "已清理的判决继续推进时间不得重复自我处刑。");
         AssertNoInternalSkillIdentity(firstBatch);
         AssertNoInternalSkillIdentity(secondBatch);
     }
@@ -770,7 +772,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         StringName equipmentInstanceId = holder
             .GetEquipmentView()
             ?.GetEquippedInstanceId("main_hand") ?? new StringName("");
-        int holderHpBefore = holder.current_hp;
+        int holderHpBefore = holder.GetCurrentHp();
         holder.SetCurrentAp(2);
         ForceUnitActing(state, holder);
         BattleCommand command = BuildUnequipCommand(holder.unit_id, "main_hand", equipmentInstanceId);
@@ -794,7 +796,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         );
         _test.Eq(state.EquipmentTargetMarkCount, 0, "装备来源消失时应立即清理 typed 判决标记。");
         _test.False(target.HasStatusEffect(DeathSentenceStatusId), "装备来源消失时应立即清理判决镜像状态。");
-        _test.Eq(holder.current_hp, holderHpBefore, "来源消失清理不得触发自我处刑伤害。");
+        _test.Eq(holder.GetCurrentHp(), holderHpBefore, "来源消失清理不得触发自我处刑伤害。");
         _test.True(
             unequipBatch.ContainsChangedUnitId(target.unit_id),
             "清理目标镜像状态时事件批次应包含目标单位。"
@@ -806,7 +808,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             60,
             afterExpiryWindow
         );
-        _test.Eq(holder.current_hp, holderHpBefore, "卸装清理后再推进 60TU 也不得延迟触发反噬。");
+        _test.Eq(holder.GetCurrentHp(), holderHpBefore, "卸装清理后再推进 60TU 也不得延迟触发反噬。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "卸装清理后不得残留延迟到期的 typed mark。");
         AssertNoInternalSkillIdentity(unequipBatch);
         AssertNoInternalSkillIdentity(afterExpiryWindow);
@@ -854,7 +856,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         if (executionerInstance == null)
             throw new InvalidOperationException("executioner durability fixture missing main hand instance");
         executionerInstance.current_durability = 1;
-        int holderHpBefore = holder.current_hp;
+        int holderHpBefore = holder.GetCurrentHp();
 
         using BattleEventBatch batch = new();
         fixture.Runtime.GetDamageResolver().ResolveEffects(
@@ -894,7 +896,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             markedTarget.HasStatusEffect(DeathSentenceStatusId),
             "耐久摧毁应立即清理判决镜像状态。"
         );
-        _test.Eq(holder.current_hp, holderHpBefore - 1, "来源清理不得叠加自我处刑伤害。");
+        _test.Eq(holder.GetCurrentHp(), holderHpBefore - 1, "来源清理不得叠加自我处刑伤害。");
         _test.True(
             batch.ContainsChangedUnitId(markedTarget.unit_id),
             "耐久摧毁清理镜像时事件批次应包含被标记目标。"
@@ -933,7 +935,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             30,
             firstHalf
         );
-        _test.Eq(firstHolder.current_hp, 100, "首个判决推进 30TU 时不应提前反噬。");
+        _test.Eq(firstHolder.GetCurrentHp(), 100, "首个判决推进 30TU 时不应提前反噬。");
 
         IssueDeathSentence(
             fixture.Runtime,
@@ -950,8 +952,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             30,
             firstExpiry
         );
-        _test.Eq(firstHolder.current_hp, 96, "首个来源累计 60TU 后应独立触发自我处刑。");
-        _test.Eq(secondHolder.current_hp, 100, "后施放来源只经过 30TU，不应提前反噬。");
+        _test.Eq(firstHolder.GetCurrentHp(), 96, "首个来源累计 60TU 后应独立触发自我处刑。");
+        _test.Eq(secondHolder.GetCurrentHp(), 100, "后施放来源只经过 30TU，不应提前反噬。");
         _test.Eq(state.EquipmentTargetMarkCount, 1, "首个来源到期后应仅保留第二个判决标记。");
         AssertDeathSentenceMark(state, secondHolder, target, "第二个来源的判决标记应继续存在。");
 
@@ -961,7 +963,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             30,
             secondExpiry
         );
-        _test.Eq(secondHolder.current_hp, 96, "第二个来源累计 60TU 后应触发自己的自我处刑。");
+        _test.Eq(secondHolder.GetCurrentHp(), 96, "第二个来源累计 60TU 后应触发自己的自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "两个来源分别到期后不应残留 typed mark。");
         AssertNoInternalSkillIdentity(firstHalf);
         AssertNoInternalSkillIdentity(firstExpiry);
@@ -1031,7 +1033,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             30,
             firstExpiry
         );
-        _test.Eq(firstHolder.current_hp, 96, "首个来源剩余 30TU 到期后应正常自我处刑。");
+        _test.Eq(firstHolder.GetCurrentHp(), 96, "首个来源剩余 30TU 到期后应正常自我处刑。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "恢复显示的最后一份判决到期后应完整清理。");
         _test.False(target.HasStatusEffect(DeathSentenceStatusId), "最后一份判决到期后镜像应消失。");
         AssertNoInternalSkillIdentity(consumeBatch);
@@ -1067,9 +1069,9 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             throw new InvalidOperationException("self execution fatal preview should be allowed");
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
-        _test.False(holder.is_alive, "自我处刑伤害应能将持有者降至 0 并完成击倒。");
-        _test.Eq(holder.current_hp, 0, "致死自我处刑后持有者生命应为 0。");
-        _test.True(target.is_alive, "通过死亡判决的目标应继续存活。");
+        _test.False(holder.IsAlive(), "自我处刑伤害应能将持有者降至 0 并完成击倒。");
+        _test.Eq(holder.GetCurrentHp(), 0, "致死自我处刑后持有者生命应为 0。");
+        _test.True(target.IsAlive(), "通过死亡判决的目标应继续存活。");
         _test.Eq(state.EquipmentTargetMarkCount, 0, "致死自我处刑后判决标记仍应清理。");
         AssertNoInternalSkillIdentity(batch);
     }
@@ -1092,7 +1094,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             "executioner_unmarked_attack"
         );
 
-        _test.False(target.is_alive, "测试前提：1HP 未标记目标应被普通攻击击倒。");
+        _test.False(target.IsAlive(), "测试前提：1HP 未标记目标应被普通攻击击倒。");
         _test.False(witness.HasStatusEffect(FrightenedStatusId), "未标记击杀不得触发处刑恐惧。");
         _test.False(HasLogLineContaining(batch, "处刑成功"), "未标记击杀日志不得宣称处刑成功。");
         AssertNoInternalSkillIdentity(batch);
@@ -1150,8 +1152,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         StringName bindingId
     )
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"unit 应投影 trait {traitId}。");
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        _test.True(unit.HasEffectiveTrait(traitId), $"unit 应投影 trait {traitId}。");
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
             {
@@ -1164,8 +1169,11 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     private static bool UnitHasAbilitySource(BattleUnitState unit, StringName bindingId)
     {
         foreach (
-            BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources
-                ?? new List<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
         )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
@@ -1403,8 +1411,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         if (state == null || unit == null)
             return;
         state.SetUnit(unit);
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
         }
@@ -1451,8 +1458,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, maxHp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
-        unit.current_hp = currentHp;
-        unit.is_alive = currentHp > 0;
+        unit.SetCurrentHp(currentHp);
         return unit;
     }
 
@@ -1598,7 +1604,6 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
             unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
             unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 20);
             unit.SetCombatResources(100, 0, 100, 0, 2, 2);
-            unit.is_alive = true;
             return unit;
         }
 

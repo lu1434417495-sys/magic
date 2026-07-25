@@ -115,15 +115,19 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildStormsEyeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, StormsEyeItemId, "风暴之眼装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "风暴之眼应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "风暴之眼应投影为 axe。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "风暴之眼应为挥砍伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "风暴之眼攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "风暴之眼应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "风暴之眼单手应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "风暴之眼单手应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 1, "风暴之眼单手应为 1D8+1。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, StormsEyeItemId, "风暴之眼装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "风暴之眼应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "风暴之眼应投影为 axe。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "风暴之眼应为挥砍伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "风暴之眼攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "风暴之眼应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "风暴之眼单手应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "风暴之眼单手应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 1, "风暴之眼单手应为 1D8+1。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             LightningEdgeTraitId,
@@ -145,16 +149,22 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除风暴之眼后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除风暴之眼后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除风暴之眼后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除风暴之眼后装备能力源应清空。");
-        _test.False(equipped.effective_trait_ids.Contains(LightningEdgeTraitId), "移除后雷刃不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(ThunderRiftTraitId), "移除后雷鸣裂击不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(CloudsplitterTraitId), "移除后裂云重劈不应残留。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除风暴之眼后装备能力源应清空。"
+        );
+        _test.False(equipped.HasEffectiveTrait(LightningEdgeTraitId), "移除后雷刃不应残留。");
+        _test.False(equipped.HasEffectiveTrait(ThunderRiftTraitId), "移除后雷鸣裂击不应残留。");
+        _test.False(equipped.HasEffectiveTrait(CloudsplitterTraitId), "移除后裂云重劈不应残留。");
         BattleTestFixture.DisposeBattleUnit(equipped);
         BattleTestFixture.DisposeBattleUnit(baseline);
     }
@@ -171,11 +181,11 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "storms_eye_lightning_hit",
             previewCommand: false
         );
-        int lightningDamage = 100 - target.current_hp;
+        int lightningDamage = 100 - target.GetCurrentHp();
 
         using StormsEyeFixture plainFixture = StormsEyeFixture.Build(new[] { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildStormsEyeUnit("plain_hit");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildEnemy("storms_eye_plain_hit_target", new Vector2I(1, 0), hp: 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -184,7 +194,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "storms_eye_plain_hit",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(
             lightningDamage - plainDamage,
@@ -238,7 +248,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             new Vector2I(4, 3)
         );
         _test.Eq(
-            movedTarget.coord,
+            movedTarget.GetAnchorCoord(),
             new Vector2I(2, 0),
             "裂云重劈目标有合法退路时应被推动 1 格。"
         );
@@ -255,7 +265,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             new Vector2I(2, 3)
         );
         _test.Eq(
-            blockedTarget.coord,
+            blockedTarget.GetAnchorCoord(),
             new Vector2I(1, 0),
             "裂云重劈目标被地图边界挡住时不应位移。"
         );
@@ -264,7 +274,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             movedDamage + 10,
             "裂云重劈没有实际推动目标时，应额外结算固定骰 5+5 的 2D6 thunder。"
         );
-        _test.Eq(blockedHolder.current_stamina, 55, "裂云重劈应消耗 45 体力。");
+        _test.Eq(blockedHolder.GetCurrentStamina(), 55, "裂云重劈应消耗 45 体力。");
         _test.Eq(blockedHolder.GetCooldownTyped(CloudsplitterSkillId), 120, "裂云重劈应设置 120TU 冷却。");
     }
 
@@ -362,7 +372,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             CloudsplitterSkillId,
             state
         );
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildUnitSkillCommand(
             holder,
             target,
@@ -377,7 +387,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             );
         }
         fixture.Runtime.IssueCommand(command);
-        return hpBefore - target.current_hp;
+        return hpBefore - target.GetCurrentHp();
     }
 
     private static BattleAvailableSkillEntry FindRequiredEquipmentSkill(
@@ -445,15 +455,16 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            weapon_range_type = "melee",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.SetUnarmedWeaponProjectionTyped();
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -495,9 +506,9 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -510,12 +521,17 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

@@ -295,7 +295,7 @@ internal sealed class BattleRatingSystem
         if (_has_runtime() && GetState() != null && !IsEmpty(memberId))
         {
             BattleUnitState unitState = _find_unit_by_member_id(memberId);
-            survived = unitState != null && unitState.is_alive;
+            survived = unitState != null && unitState.IsAlive();
         }
 
         int score = 0;

@@ -140,7 +140,9 @@ internal sealed class BattleBossObjectiveRuntimeState : BattleObjectiveRuntimeSt
     }
 }
 
-internal sealed class BattleEscapeObjectiveRuntimeState : BattleObjectiveRuntimeState
+internal sealed class BattleEscapeObjectiveRuntimeState
+    : BattleObjectiveRuntimeState,
+        IBattleExitObjective
 {
     private readonly HashSet<Vector2I> _exitCoordSet;
 
@@ -201,7 +203,7 @@ internal sealed class BattleEscapeObjectiveRuntimeState : BattleObjectiveRuntime
     internal IReadOnlyList<StringName> RequiredUnitIds { get; }
     internal IReadOnlyList<Vector2I> ExitCoords { get; }
 
-    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+    public bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
 
     internal override BattleObjectiveRuntimeState DuplicateState() =>
         new BattleEscapeObjectiveRuntimeState(
@@ -283,7 +285,9 @@ internal sealed class BattleRescueObjectiveRuntimeState : BattleObjectiveRuntime
     }
 }
 
-internal sealed class BattleEscortObjectiveRuntimeState : BattleObjectiveRuntimeState
+internal sealed class BattleEscortObjectiveRuntimeState
+    : BattleObjectiveRuntimeState,
+        IBattleExitObjective
 {
     private readonly HashSet<Vector2I> _exitCoordSet;
 
@@ -363,7 +367,7 @@ internal sealed class BattleEscortObjectiveRuntimeState : BattleObjectiveRuntime
     internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
     internal IReadOnlyList<Vector2I> ExitCoords { get; }
 
-    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+    public bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
 
     internal override BattleObjectiveRuntimeState DuplicateState() =>
         new BattleEscortObjectiveRuntimeState(
@@ -449,7 +453,8 @@ internal sealed class BattleDefenseObjectiveRuntimeState
 }
 
 internal sealed class BattleInterceptObjectiveRuntimeState
-    : BattleObjectiveRuntimeState
+    : BattleObjectiveRuntimeState,
+        IBattleExitObjective
 {
     private readonly HashSet<Vector2I> _exitCoordSet;
 
@@ -531,7 +536,7 @@ internal sealed class BattleInterceptObjectiveRuntimeState
     internal IReadOnlyList<StringName> RequiredPartyUnitIds { get; }
     internal IReadOnlyList<Vector2I> ExitCoords { get; }
 
-    internal bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
+    public bool ContainsExitCoord(Vector2I coord) => _exitCoordSet.Contains(coord);
 
     internal override BattleObjectiveRuntimeState DuplicateState() =>
         new BattleInterceptObjectiveRuntimeState(

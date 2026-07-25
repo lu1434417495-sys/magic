@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -208,4 +209,107 @@ public sealed class BattleEquipmentAbilitySourceState
     {
         return ProgressionDataUtils.to_string_name(value);
     }
+}
+
+internal sealed class BattleEquipmentAbilityIdReadView :
+    IReadOnlyList<StringName>
+{
+    private static readonly List<StringName> Empty = new();
+    private readonly List<StringName> _values;
+
+    internal BattleEquipmentAbilityIdReadView(
+        List<StringName> values
+    )
+    {
+        _values = values;
+    }
+
+    internal bool IsPresent => _values != null;
+
+    private List<StringName> Values => _values ?? Empty;
+
+    public int Count => Values.Count;
+
+    public StringName this[int index] => Values[index];
+
+    internal bool Contains(StringName value) =>
+        Values.Contains(value);
+
+    public List<StringName>.Enumerator GetEnumerator() =>
+        Values.GetEnumerator();
+
+    IEnumerator<StringName>
+        IEnumerable<StringName>.GetEnumerator() =>
+            GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() =>
+        GetEnumerator();
+}
+
+internal sealed class BattleEquipmentAbilitySourceReadView
+{
+    internal BattleEquipmentAbilitySourceReadView(
+        BattleEquipmentAbilitySourceState source
+    )
+    {
+        EffectiveInstanceKey = source.EffectiveInstanceKey;
+        EquipmentDefId = source.EquipmentDefId;
+        SourceEquipmentInstanceId =
+            source.SourceEquipmentInstanceId;
+        SourceKind = source.SourceKind;
+        AbilityIds = source.AbilityIds == null
+            ? null
+            : new BattleEquipmentAbilityIdReadView(
+                source.AbilityIds
+            );
+    }
+
+    internal StringName EffectiveInstanceKey { get; }
+    internal StringName EquipmentDefId { get; }
+    internal StringName SourceEquipmentInstanceId { get; }
+    internal EquipmentAbilitySourceKind SourceKind { get; }
+    internal BattleEquipmentAbilityIdReadView AbilityIds { get; }
+}
+
+internal readonly struct
+    BattleEquipmentAbilitySourceListReadView :
+        IReadOnlyList<BattleEquipmentAbilitySourceReadView>
+{
+    private static readonly
+        List<BattleEquipmentAbilitySourceReadView> Empty =
+            new();
+    private readonly List<BattleEquipmentAbilitySourceReadView>
+        _values;
+
+    internal BattleEquipmentAbilitySourceListReadView(
+        List<BattleEquipmentAbilitySourceReadView> values
+    )
+    {
+        _values = values;
+    }
+
+    internal bool IsPresent => _values != null;
+
+    private List<BattleEquipmentAbilitySourceReadView>
+        Values =>
+            _values ?? Empty;
+
+    public int Count => Values.Count;
+
+    public BattleEquipmentAbilitySourceReadView this[
+        int index
+    ] =>
+        Values[index];
+
+    public List<BattleEquipmentAbilitySourceReadView>
+        .Enumerator GetEnumerator() =>
+            Values.GetEnumerator();
+
+    IEnumerator<BattleEquipmentAbilitySourceReadView>
+        IEnumerable<BattleEquipmentAbilitySourceReadView>
+            .GetEnumerator() =>
+                GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() =>
+        GetEnumerator();
 }

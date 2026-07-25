@@ -116,20 +116,24 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThunderfangUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ThunderfangItemId, "雷霆之牙装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("greataxe"), "雷霆之牙应投影为 greataxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "雷霆之牙应投影为 axe。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ThunderfangItemId, "雷霆之牙装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("greataxe"), "雷霆之牙应投影为 greataxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "雷霆之牙应投影为 axe。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "雷霆之牙基础伤害标签应为 physical_slash。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "雷霆之牙攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "雷霆之牙应占用双手。");
-        _test.False(equipped.weapon_is_versatile, "雷霆之牙不应是 versatile。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "雷霆之牙双手应为 1D12+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 12, "雷霆之牙双手应为 1D12+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "雷霆之牙双手应为 1D12+2。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "雷霆之牙攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "雷霆之牙应占用双手。");
+        _test.False(equippedWeapon.IsVersatile, "雷霆之牙不应是 versatile。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "雷霆之牙双手应为 1D12+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 12, "雷霆之牙双手应为 1D12+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "雷霆之牙双手应为 1D12+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             ThunderSlashTraitId,
@@ -151,23 +155,29 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除雷霆之牙后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除雷霆之牙后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除雷霆之牙后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除雷霆之牙后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除雷霆之牙后装备能力源应清空。"
+        );
         _test.False(
-            equipped.effective_trait_ids.Contains(ThunderSlashTraitId),
+            equipped.HasEffectiveTrait(ThunderSlashTraitId),
             "移除雷霆之牙后雷鸣斩 trait 不应残留。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(ThorsHammeringTraitId),
+            equipped.HasEffectiveTrait(ThorsHammeringTraitId),
             "移除雷霆之牙后托尔的锤打 trait 不应残留。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(StormConductorTraitId),
+            equipped.HasEffectiveTrait(StormConductorTraitId),
             "移除雷霆之牙后风暴导体 trait 不应残留。"
         );
     }
@@ -184,11 +194,11 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             "thunderfang_damage",
             previewCommand: false
         );
-        int thunderDamage = 100 - target.current_hp;
+        int thunderDamage = 100 - target.GetCurrentHp();
 
         using ThunderfangFixture plainFixture = ThunderfangFixture.Build(new GArray { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildThunderfangUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("plain_damage_target", new Vector2I(1, 0), hp: 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -197,7 +207,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             "thunderfang_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，雷霆之牙基础武器伤害应为 1D12+2。");
         _test.Eq(
@@ -261,7 +271,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             new GStringNameArray()
         );
         IssueBasicAttackInState(clearFixture.Runtime, clearState, clearAttacker, clearTarget);
-        int clearDamage = 100 - clearTarget.current_hp;
+        int clearDamage = 100 - clearTarget.GetCurrentHp();
 
         using ThunderfangFixture stormFixture = ThunderfangFixture.Build(new GArray { 1, 1 });
         BattleUnitState stormAttacker = stormFixture.BuildThunderfangUnit("storm_hammering");
@@ -273,7 +283,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             new GStringNameArray { "storm" }
         );
         IssueBasicAttackInState(stormFixture.Runtime, stormState, stormAttacker, stormTarget);
-        int stormDamage = 100 - stormTarget.current_hp;
+        int stormDamage = 100 - stormTarget.GetCurrentHp();
 
         _test.Eq(clearDamage, 4, "无 storm 时固定骰 1 应造成 1D12+2 加 1D6 thunder。");
         _test.Eq(stormDamage, 20, "storm 中托尔的锤打应让本次雷霆之牙伤害取最大值。");
@@ -328,7 +338,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
         using ThunderfangFixture fixture = ThunderfangFixture.Build(new GArray { 5 });
         BattleUnitState holder = fixture.BuildThunderfangUnit("storm_conductor");
         BattleUnitState meleeAttacker = BuildTarget("storm_conductor_melee", new Vector2I(1, 0), hp: 50);
-        meleeAttacker.weapon_range_type = "melee";
+        ApplyTestWeaponProjection(meleeAttacker, "melee");
         BattleState stormState = BuildStateWithEnvironmentTags(
             "thunderfang_storm_conductor",
             holder,
@@ -346,7 +356,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
             }
         );
         _test.Eq(
-            meleeAttacker.current_hp,
+            meleeAttacker.GetCurrentHp(),
             44,
             "storm 中近战命中持有者时，攻击者应受到风暴导体 1D6 lightning；托尔的锤打会将该伤害骰最大化。"
         );
@@ -354,7 +364,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
         using ThunderfangFixture clearFixture = ThunderfangFixture.Build(new GArray { 5 });
         BattleUnitState clearHolder = clearFixture.BuildThunderfangUnit("clear_conductor");
         BattleUnitState clearMeleeAttacker = BuildTarget("clear_conductor_melee", new Vector2I(1, 0), hp: 50);
-        clearMeleeAttacker.weapon_range_type = "melee";
+        ApplyTestWeaponProjection(clearMeleeAttacker, "melee");
         BattleState clearState = BuildStateWithEnvironmentTags(
             "thunderfang_clear_conductor",
             clearHolder,
@@ -371,12 +381,12 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
                 AttackSucceeded = true,
             }
         );
-        _test.Eq(clearMeleeAttacker.current_hp, 50, "无 storm 时风暴导体不应反伤。");
+        _test.Eq(clearMeleeAttacker.GetCurrentHp(), 50, "无 storm 时风暴导体不应反伤。");
 
         using ThunderfangFixture rangedFixture = ThunderfangFixture.Build(new GArray { 5 });
         BattleUnitState rangedHolder = rangedFixture.BuildThunderfangUnit("ranged_conductor");
         BattleUnitState rangedAttacker = BuildTarget("ranged_conductor_attacker", new Vector2I(1, 0), hp: 50);
-        rangedAttacker.weapon_range_type = "ranged";
+        ApplyTestWeaponProjection(rangedAttacker, "ranged");
         BattleState rangedStormState = BuildStateWithEnvironmentTags(
             "thunderfang_ranged_conductor",
             rangedHolder,
@@ -393,7 +403,7 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
                 AttackSucceeded = true,
             }
         );
-        _test.Eq(rangedAttacker.current_hp, 50, "storm 中非 melee 攻击命中时风暴导体不应反伤。");
+        _test.Eq(rangedAttacker.GetCurrentHp(), 50, "storm 中非 melee 攻击命中时风暴导体不应反伤。");
     }
 
     private static void ResolveThunderSlashAfterHit(
@@ -460,15 +470,16 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            weapon_range_type = "melee",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        ApplyTestWeaponProjection(unit, "melee");
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -477,6 +488,39 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.SetEquipmentView(new EquipmentState());
         return unit;
+    }
+
+    private static void ApplyTestWeaponProjection(
+        BattleUnitState unit,
+        StringName rangeType
+    )
+    {
+        bool usesTwoHands = rangeType == "ranged";
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = usesTwoHands ? "equipped" : "unarmed",
+                weapon_item_id = usesTwoHands
+                    ? "thunderfang_test_bow"
+                    : "",
+                weapon_profile_type_id = usesTwoHands ? "longbow" : "unarmed",
+                weapon_range_type = rangeType,
+                weapon_family = usesTwoHands ? "bow" : "unarmed",
+                weapon_current_grip = usesTwoHands ? "two_handed" : "one_handed",
+                weapon_attack_range = usesTwoHands ? 6 : 1,
+                weapon_one_handed_dice = usesTwoHands
+                    ? new WeaponDice()
+                    : new WeaponDice { dice_count = 1, dice_sides = 4 },
+                weapon_two_handed_dice = usesTwoHands
+                    ? new WeaponDice { dice_count = 1, dice_sides = 8 }
+                    : new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = usesTwoHands,
+                weapon_physical_damage_tag = usesTwoHands
+                    ? "physical_pierce"
+                    : "physical_blunt",
+            }
+        );
     }
 
     private static bool HasModifier(
@@ -508,9 +552,9 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -523,12 +567,17 @@ public partial class run_thunderfang_weapon_ability_regression : LifecycleTestSc
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

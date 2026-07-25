@@ -129,7 +129,7 @@ public static class BattleDamagePreviewRangeService
         DiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
         bool addWeaponDice = ShouldAddWeaponDice(effectDefinition);
         DiceRange weaponDiceRange = addWeaponDice
-            ? BuildWeaponDiceRange(sourceUnit)
+            ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
             : DiceRange.Empty;
         int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
         int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
@@ -155,7 +155,7 @@ public static class BattleDamagePreviewRangeService
         DiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
         bool addWeaponDice = ShouldAddWeaponDice(effectDefinition);
         DiceRange weaponDiceRange = addWeaponDice
-            ? BuildWeaponDiceRange(sourceUnit)
+            ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
             : DiceRange.Empty;
         int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
         int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
@@ -183,25 +183,45 @@ public static class BattleDamagePreviewRangeService
         return BuildDiceRange(diceCount, diceSides, diceBonus);
     }
 
-    private static DiceRange BuildWeaponDiceRange(BattleUnitState sourceUnit)
+    private static DiceRange BuildWeaponDiceRange(
+        BattleUnitState sourceUnit,
+        int weaponDiceMultiplier
+    )
     {
         PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == PreviewWeaponDice.Empty)
         {
             return DiceRange.Empty;
         }
-        return BuildDiceRange(dice.DiceCount, dice.DiceSides, dice.FlatBonus);
+        return BuildDiceRange(
+            SaturatingMultiply(dice.DiceCount, weaponDiceMultiplier),
+            dice.DiceSides,
+            dice.FlatBonus
+        );
     }
 
-    private static DiceRange BuildWeaponDiceRange(BattleUnitReadView sourceUnit)
+    private static DiceRange BuildWeaponDiceRange(
+        BattleUnitReadView sourceUnit,
+        int weaponDiceMultiplier
+    )
     {
         PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == PreviewWeaponDice.Empty)
         {
             return DiceRange.Empty;
         }
-        return BuildDiceRange(dice.DiceCount, dice.DiceSides, dice.FlatBonus);
+        return BuildDiceRange(
+            SaturatingMultiply(dice.DiceCount, weaponDiceMultiplier),
+            dice.DiceSides,
+            dice.FlatBonus
+        );
     }
+
+    private static int SaturatingMultiply(int value, int multiplier) =>
+        (int)Math.Min(
+            (long)Math.Max(value, 0) * Math.Max(multiplier, 1),
+            int.MaxValue
+        );
 
     private static DiceRange BuildDiceRange(int diceCount, int diceSides, int diceBonus)
     {
@@ -229,15 +249,17 @@ public static class BattleDamagePreviewRangeService
         {
             return PreviewWeaponDice.Empty;
         }
-        WeaponDice dice = unitState.GetActiveWeaponDiceTyped();
-        if (dice == null || dice.IsEmpty())
+        BattleWeaponProjectionValues weaponProjection =
+            unitState.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponDiceValues dice = weaponProjection.ActiveDice;
+        if (!dice.HasUsableDice)
         {
             return PreviewWeaponDice.Empty;
         }
         return new PreviewWeaponDice(
-            Mathf.Max(dice.dice_count, 0),
-            Mathf.Max(dice.dice_sides, 0),
-            dice.flat_bonus
+            Mathf.Max(dice.DiceCount, 0),
+            Mathf.Max(dice.DiceSides, 0),
+            dice.FlatBonus
         );
     }
 

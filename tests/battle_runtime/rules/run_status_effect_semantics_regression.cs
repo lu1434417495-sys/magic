@@ -215,7 +215,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         state.timeline.ready_unit_ids.Clear();
         state.timeline.ready_unit_ids.Add(target.unit_id);
         runtime.advance(0);
-        _test.Eq(target.current_ap, 1, "staggered 刷新后仍只应在回合开始扣 1 点行动点。");
+        _test.Eq(target.GetCurrentAp(), 1, "staggered 刷新后仍只应在回合开始扣 1 点行动点。");
 
         BattleCommand waitCommand = BuildWaitCommand(target.unit_id);
         runtime.IssueCommand(waitCommand);
@@ -241,7 +241,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         BattleStatusTickResult result =
             runtime._skill_turn_resolver.ApplyTurnStartStatusesResult(target, batch);
         _test.True(result.Changed, "meteor_concussed 参与回合开始结算后应报告 changed。");
-        _test.Eq(target.current_ap, 1, "meteor_concussed 与 staggered 同组时应只扣最高 AP 惩罚，而不是叠加扣 3。");
+        _test.Eq(target.GetCurrentAp(), 1, "meteor_concussed 与 staggered 同组时应只扣最高 AP 惩罚，而不是叠加扣 3。");
         _test.False(target.HasStatusEffect("meteor_concussed"), "meteor_concussed 应在参与回合开始 AP 惩罚后消耗。");
         _test.True(target.HasStatusEffect("staggered"), "同组结算不应顺带消耗普通 staggered。");
         _test.Eq(batch.log_lines.Count, 1, "同组 AP 惩罚应只产生一条日志。");
@@ -276,7 +276,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         BattleStatusTickResult result =
             runtime._skill_turn_resolver.ApplyTurnStartStatusesResult(target, batch);
         _test.True(result.Changed, "meteor_concussed 即使目标 AP 为 0，也应因状态消耗报告 changed。");
-        _test.Eq(target.current_ap, 0, "AP 为 0 时 meteor_concussed 不应产生负 AP。");
+        _test.Eq(target.GetCurrentAp(), 0, "AP 为 0 时 meteor_concussed 不应产生负 AP。");
         _test.False(target.HasStatusEffect("meteor_concussed"), "AP 为 0 时 meteor_concussed 仍应完成一次性消耗。");
         _test.Eq(batch.log_lines.Count, 0, "AP 为 0 时不应记录“少 AP”的误导日志。");
     }
@@ -288,7 +288,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         BattleUnitState caster = BuildUnit("burning_source", new Vector2I(0, 1), 2);
         BattleUnitState target = BuildUnit("burning_target", new Vector2I(2, 1), 2);
         target.faction_id = "enemy";
-        target.current_hp = 20;
+        target.SetCurrentHp(20);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
 
         AddUnit(runtime, state, caster);
@@ -310,7 +310,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         state.timeline.ready_unit_ids.Clear();
         state.timeline.ready_unit_ids.Add(target.unit_id);
         runtime.advance(0);
-        _test.Eq(target.current_hp, 20, "burning 不应在回合开始隐式结算伤害。");
+        _test.Eq(target.GetCurrentHp(), 20, "burning 不应在回合开始隐式结算伤害。");
         runtime.IssueCommand(BuildWaitCommand(target.unit_id));
         burningEntry = target.GetStatusEffect("burning");
         _test.Eq(burningEntry != null ? burningEntry.duration : -1, 20, "burning 不应在回合结束后递减 TU。");
@@ -318,19 +318,19 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         AdvanceTimelineTu(runtime, state, 10);
         burningEntry = target.GetStatusEffect("burning");
         _test.Eq(burningEntry != null ? burningEntry.duration : -1, 10, "burning 应随时间轴推进递减剩余 TU。");
-        _test.Eq(target.current_hp, 18, "2 层 burning 应在第一个周期 tick 结算 2 点灼烧伤害。");
+        _test.Eq(target.GetCurrentHp(), 18, "2 层 burning 应在第一个周期 tick 结算 2 点灼烧伤害。");
 
         state.phase = "timeline_running";
         state.active_unit_id = "";
         state.timeline.ready_unit_ids.Clear();
         state.timeline.ready_unit_ids.Add(target.unit_id);
         runtime.advance(0);
-        _test.Eq(target.current_hp, 18, "burning 不应因进入第二个行动窗口额外结算伤害。");
+        _test.Eq(target.GetCurrentHp(), 18, "burning 不应因进入第二个行动窗口额外结算伤害。");
         runtime.IssueCommand(BuildWaitCommand(target.unit_id));
         _test.True(target.HasStatusEffect("burning"), "burning 不应在第二个回合结束时被 turn end 提前清除。");
         AdvanceTimelineTu(runtime, state, 10);
         _test.False(target.HasStatusEffect("burning"), "burning 到期后应按 TU 正式移除。");
-        _test.Eq(target.current_hp, 16, "2 层 burning 应在到期边界完成第二个周期 tick。");
+        _test.Eq(target.GetCurrentHp(), 16, "2 层 burning 应在到期边界完成第二个周期 tick。");
     }
 
     private void TestBurningAppliedMidTimelineAnchorsNextTickToCurrentTu()
@@ -348,7 +348,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             2
         );
         target.faction_id = "enemy";
-        target.current_hp = 20;
+        target.SetCurrentHp(20);
         target.attribute_snapshot.SetValue(
             AttributeService.ToStringName(AttributeIdKind.HpMax),
             20
@@ -371,11 +371,11 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
 
         AdvanceTimelineTu(runtime, state, 5);
         _test.Eq(state.timeline.current_tu, 30, "第一步时间轴应推进到 30 TU。");
-        _test.Eq(target.current_hp, 20, "30 TU 尚未到首次 tick，不应提前造成伤害。");
+        _test.Eq(target.GetCurrentHp(), 20, "30 TU 尚未到首次 tick，不应提前造成伤害。");
 
         AdvanceTimelineTu(runtime, state, 5);
         _test.Eq(state.timeline.current_tu, 35, "第二步时间轴应推进到 35 TU。");
-        _test.Eq(target.current_hp, 19, "35 TU 到达首次 tick，应结算 1 点 burning 伤害。");
+        _test.Eq(target.GetCurrentHp(), 19, "35 TU 到达首次 tick，应结算 1 点 burning 伤害。");
     }
 
     private void TestShortBurningCanExpireBeforeFirstTick()
@@ -385,7 +385,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         BattleUnitState caster = BuildUnit("short_burning_source", new Vector2I(0, 1), 2);
         BattleUnitState target = BuildUnit("short_burning_target", new Vector2I(2, 1), 2);
         target.faction_id = "enemy";
-        target.current_hp = 20;
+        target.SetCurrentHp(20);
 
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, target);
@@ -396,7 +396,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         ApplyStatus(runtime, caster, target, "burning", 5, 1, 10);
         AdvanceTimelineTu(runtime, state, 5);
         _test.False(target.HasStatusEffect("burning"), "短于 tick 间隔的 burning 应按 TU 到期。");
-        _test.Eq(target.current_hp, 20, "短于 tick 间隔的 burning 不应保证至少触发一次伤害。");
+        _test.Eq(target.GetCurrentHp(), 20, "短于 tick 间隔的 burning 不应保证至少触发一次伤害。");
     }
 
     private void TestSlowIncreasesMoveCostAndExpiresOnTuProgress()
@@ -433,8 +433,8 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         _test.True(preview != null && preview.allowed, "slow 状态下的相邻移动仍应合法。");
 
         runtime.IssueCommand(moveCommand);
-        _test.Eq(target.current_move_points, 0, "移动成功后应耗尽本回合移动力，即使只移动 1 格。");
-        _test.Eq(target.current_ap, 3, "slow 只应抬高移动行动点消耗，不应继续扣除 AP。");
+        _test.Eq(target.GetCurrentMovePoints(), 0, "移动成功后应耗尽本回合移动力，即使只移动 1 格。");
+        _test.Eq(target.GetCurrentAp(), 3, "slow 只应抬高移动行动点消耗，不应继续扣除 AP。");
         runtime.IssueCommand(BuildWaitCommand(target.unit_id));
         _test.True(target.HasStatusEffect("slow"), "slow 不应在目标回合结束后按 turn end 立刻移除。");
         AdvanceTimelineTu(runtime, state, 15);
@@ -801,7 +801,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             bonusDamageDiceSides: 1
         );
         BattleUnitState formalLowHpTarget = BuildUnit("formal_low_hp_target", Vector2I.Zero, 2);
-        formalLowHpTarget.current_hp = 18;
+        formalLowHpTarget.SetCurrentHp(18);
         using GodotProjectionLease<GDictionary> formalLowHpResultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
@@ -811,7 +811,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         GDictionary formalLowHpResult = formalLowHpResultLease.Value;
         _test.Eq(DictInt(formalLowHpResult, "damage", -1), 14, "正式 hp_ratio_threshold_percent 应控制低血追加伤害骰阈值。");
         BattleUnitState formalLowHpCritTarget = BuildUnit("formal_low_hp_crit_target", Vector2I.Zero, 2);
-        formalLowHpCritTarget.current_hp = 18;
+        formalLowHpCritTarget.SetCurrentHp(18);
         using GodotProjectionLease<GDictionary> formalLowHpCritResultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
@@ -834,7 +834,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             }
         );
         BattleUnitState legacyLowHpTarget = BuildUnit("legacy_low_hp_target", Vector2I.Zero, 2);
-        legacyLowHpTarget.current_hp = 18;
+        legacyLowHpTarget.SetCurrentHp(18);
         using GodotProjectionLease<GDictionary> legacyLowHpResultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(runtime._damage_resolver.ResolveEffects(
             source,
@@ -1219,7 +1219,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
         foreach (BattleUnitState unitState in state.Units())
         {
             if (unitState != null)
-                unitState.action_threshold = 1000000;
+                unitState.SetActionThresholdTyped(1000000);
         }
         runtime.advance(totalTu / 5);
     }
@@ -1232,14 +1232,15 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
             source_member_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = currentAp,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            current_hp = 30,
-            current_mp = 4,
-            current_aura = 0,
-            current_stamina = 4,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 4,
+            stamina: 4,
+            aura: 0,
+            ap: currentAp,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
@@ -1251,7 +1252,7 @@ public partial class run_status_effect_semantics_regression : LifecycleTestScene
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static BattleCommand BuildWaitCommand(StringName unitId) =>

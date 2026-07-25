@@ -436,10 +436,11 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
             display_name = "Borrower Actor",
             faction_id = "player",
             control_mode = "manual",
-            current_hp = 10,
-            current_ap = 1,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            ap: 1,
+            isAlive: true
+        );
         actor.SetAnchorCoord(Vector2I.Zero);
         state.SetUnit(actor);
         state.ally_unit_ids.Add(actor.unit_id);

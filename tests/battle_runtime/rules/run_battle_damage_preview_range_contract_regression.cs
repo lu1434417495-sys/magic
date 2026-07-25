@@ -204,8 +204,9 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         return new BattleUnitState
         {
             unit_id = unitId,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100
+        );
     }
 
     private static void ApplyWeapon(

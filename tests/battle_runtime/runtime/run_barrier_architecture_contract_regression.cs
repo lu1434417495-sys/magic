@@ -11,6 +11,7 @@ public partial class run_barrier_architecture_contract_regression : LifecycleTes
         try
         {
             TestRequiredRuntimeBarrierFilesExist();
+            TestChangedCoordPathsStayTyped();
             RequestTestExit(_test.Finish("Barrier architecture contract regression"));
         }
         catch (Exception ex)
@@ -49,6 +50,32 @@ public partial class run_barrier_architecture_contract_regression : LifecycleTes
         AssertFileExists(
             "res://scripts/systems/battle/core/BattleBarrierOutcomeState.cs",
             "Typed barrier outcome state must replace anonymous outcome dictionaries."
+        );
+    }
+
+    private void TestChangedCoordPathsStayTyped()
+    {
+        AssertSourceUsesTypedChangedCoords(
+            "res://scripts/systems/battle/runtime/BattleBarrierService.cs",
+            "BattleBarrierService"
+        );
+        AssertSourceUsesTypedChangedCoords(
+            "res://scripts/systems/battle/runtime/BattleBarrierOutcomeResolver.cs",
+            "BattleBarrierOutcomeResolver"
+        );
+    }
+
+    private void AssertSourceUsesTypedChangedCoords(string path, string ownerName)
+    {
+        string source = Godot.FileAccess.GetFileAsString(path);
+        _test.True(
+            source.Contains("runtime._append_changed_coords_typed(batch, coords);"),
+            $"{ownerName} 应直接提交 CLR changed coords。"
+        );
+        _test.False(
+            source.Contains("ToGodotCoordArray")
+                || source.Contains("runtime._append_changed_coords(batch,"),
+            $"{ownerName} 不应把 CLR changed coords 转回旧 Godot collection 重载。"
         );
     }
 

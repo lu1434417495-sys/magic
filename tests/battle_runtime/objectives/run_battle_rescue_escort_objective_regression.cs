@@ -152,7 +152,7 @@ public partial class run_battle_rescue_escort_objective_regression
             CommandKind = BattleCommandKind.Interact,
             unit_id = ally.unit_id,
             target_unit_id = target.unit_id,
-            target_coord = target.coord,
+            target_coord = target.GetAnchorCoord(),
         };
 
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
@@ -167,9 +167,9 @@ public partial class run_battle_rescue_escort_objective_regression
         );
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
-        _test.Eq(ally.current_ap, 0, "解救交互应消耗 1 点行动力。");
+        _test.Eq(ally.GetCurrentAp(), 0, "解救交互应消耗 1 点行动力。");
         _test.True(batch.battle_ended, "成功解救应在同一原子命令结束战斗。");
-        _test.True(enemy.is_alive, "解救成功不要求消灭守卫。");
+        _test.True(enemy.IsAlive(), "解救成功不要求消灭守卫。");
         _test.True(
             BattleObjectiveProgressSnapshot.Capture(fixture.State).TargetSecured,
             "成功交互后 detached objective snapshot 应报告已获救。"
@@ -307,7 +307,7 @@ public partial class run_battle_rescue_escort_objective_regression
             BattleOutcomeFlushResult.Completed,
             "护送目标完整进入出口后应完成战斗。"
         );
-        _test.True(enemy.is_alive, "护送成功不要求消灭敌军。");
+        _test.True(enemy.IsAlive(), "护送成功不要求消灭敌军。");
         BattleHudObjectiveProgressSnapshot escortHud = new(
             BattleObjectiveProgressSnapshot.Capture(fixture.State)
         );

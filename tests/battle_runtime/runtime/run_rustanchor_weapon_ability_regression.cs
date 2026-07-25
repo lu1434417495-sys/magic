@@ -94,24 +94,34 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildRustanchorUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "锈锚装备后 unit 应保留 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("greataxe"), "锈锚应投影为 greataxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "锈锚应投影为 axe family。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "锈锚应为挥砍伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "锈锚投影攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "锈锚应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "锈锚应投影 1D12+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 12, "锈锚应投影 1D12+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 1, "锈锚应投影 1D12+1。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "锈锚装备后 unit 应保留 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("greataxe"), "锈锚应投影为 greataxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "锈锚应投影为 axe family。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "锈锚应为挥砍伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "锈锚投影攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "锈锚应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "锈锚应投影 1D12+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 12, "锈锚应投影 1D12+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 1, "锈锚应投影 1D12+1。");
         AssertUnitHasTraitAndAbilitySource(equipped, SunkAnchorTraitId, SunkAnchorBindingId, "eq_rustanchor_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, RustChainTraitId, RustChainBindingId, "eq_rustanchor_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, NoReturnTraitId, NoReturnBindingId, "eq_rustanchor_projection");
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除锈锚后 weapon_item_id 应清空。");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "移除锈锚后武器 profile 应恢复。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除锈锚后装备能力源应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除锈锚后 weapon_item_id 应清空。");
+        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除锈锚后武器 profile 应恢复。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除锈锚后装备能力源应清空。"
+        );
     }
 
     private void TestSunkAnchorSkillAppliesStatusBlocksForcedMoveAndReducesDamage()
@@ -140,7 +150,7 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         _test.Eq(entry.EquipmentBindingId, SunkAnchorBindingId, "沉锚守势入口应携带 binding id。");
         _test.Eq(entry.EquipmentGrantedActionId, SunkAnchorGrantId, "沉锚守势入口应携带 grant id。");
 
-        int staminaBefore = holder.current_stamina;
+        int staminaBefore = holder.GetCurrentStamina();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildUnitSkillCommand(
             holder,
             holder,
@@ -151,8 +161,8 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         _test.True(preview?.allowed == true, $"沉锚守势 self 技能 preview 应允许。logs={JoinLogs(preview?.LogLinesTyped)}");
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
         _test.True(batch != null, "沉锚守势 IssueCommand 应返回事件 batch。");
-        _test.Eq(holder.current_ap, 1, "沉锚守势应消耗 1AP。");
-        _test.Eq(holder.current_stamina, staminaBefore - 60, "沉锚守势应消耗 60 体力。");
+        _test.Eq(holder.GetCurrentAp(), 1, "沉锚守势应消耗 1AP。");
+        _test.Eq(holder.GetCurrentStamina(), staminaBefore - 60, "沉锚守势应消耗 60 体力。");
         _test.Eq(holder.GetCooldownTyped(SunkAnchorSkillId), 180, "沉锚守势应设置 180TU 冷却。");
 
         BattleStatusEffectState status = holder.GetStatusEffect(SunkAnchorStatusId);
@@ -194,7 +204,7 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
             BattleForcedMoveContext.Empty
         );
         _test.Eq(blockedSteps, 0, "敌方强制位移应被沉锚状态拦截。");
-        _test.Eq(holder.coord, new Vector2I(1, 1), "被沉锚拦截后坐标不应变化。");
+        _test.Eq(holder.GetAnchorCoord(), new Vector2I(1, 1), "被沉锚拦截后坐标不应变化。");
 
         holder.EraseStatusEffect(SunkAnchorStatusId);
         holder.ClampCurrentMovePointsToCapacity();
@@ -211,7 +221,7 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
             BattleForcedMoveContext.Empty
         );
         _test.Eq(movedSteps, 1, "没有沉锚状态时同一条合法强制位移应能推动 1 格。");
-        _test.Eq(holder.coord, new Vector2I(2, 1), "移除沉锚后锈锚持有者应被推动到合法相邻格。");
+        _test.Eq(holder.GetAnchorCoord(), new Vector2I(2, 1), "移除沉锚后锈锚持有者应被推动到合法相邻格。");
     }
 
     private void TestRustChainAndNoReturnChopAfterHit()
@@ -457,14 +467,15 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -496,9 +507,9 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -511,12 +522,17 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

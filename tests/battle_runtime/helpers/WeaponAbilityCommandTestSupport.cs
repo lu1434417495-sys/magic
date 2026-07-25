@@ -14,18 +14,18 @@ internal static class WeaponAbilityCommandTestSupport
         unit.AddKnownActiveSkill(BasicAttackSkillId);
         unit.SetKnownSkillLevelTyped(BasicAttackSkillId, Math.Max(skillLevel, 1));
         unit.SetCombatResources(
-            Math.Max(unit.current_hp, unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 30),
-            Math.Max(unit.current_mp, 0),
-            Math.Max(unit.current_stamina, 30),
-            Math.Max(unit.current_aura, 0),
-            Math.Max(unit.current_ap, 2),
-            Math.Max(unit.current_move_points, 2)
+            Math.Max(unit.GetCurrentHp(), unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 30),
+            Math.Max(unit.GetCurrentMp(), 0),
+            Math.Max(unit.GetCurrentStamina(), 30),
+            Math.Max(unit.GetCurrentAura(), 0),
+            Math.Max(unit.GetCurrentAp(), 2),
+            Math.Max(unit.GetCurrentMovePoints(), 2)
         );
         unit.attribute_snapshot.SetValue(
             AttributeService.HP_MAX,
-            Math.Max(unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? unit.current_hp, unit.current_hp)
+            Math.Max(unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? unit.GetCurrentHp(), unit.GetCurrentHp())
         );
-        unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, Math.Max(unit.current_stamina, 30));
+        unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, Math.Max(unit.GetCurrentStamina(), 30));
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 20);
     }
@@ -36,18 +36,18 @@ internal static class WeaponAbilityCommandTestSupport
             return;
 
         unit.SetCombatResources(
-            Math.Max(unit.current_hp, unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 30),
-            Math.Max(unit.current_mp, 10),
-            Math.Max(unit.current_stamina, 30),
-            Math.Max(unit.current_aura, 0),
-            Math.Max(unit.current_ap, ap),
-            Math.Max(unit.current_move_points, 2)
+            Math.Max(unit.GetCurrentHp(), unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 30),
+            Math.Max(unit.GetCurrentMp(), 10),
+            Math.Max(unit.GetCurrentStamina(), 30),
+            Math.Max(unit.GetCurrentAura(), 0),
+            Math.Max(unit.GetCurrentAp(), ap),
+            Math.Max(unit.GetCurrentMovePoints(), 2)
         );
         unit.attribute_snapshot.SetValue(
             AttributeService.HP_MAX,
-            Math.Max(unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? unit.current_hp, unit.current_hp)
+            Math.Max(unit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? unit.GetCurrentHp(), unit.GetCurrentHp())
         );
-        unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, Math.Max(unit.current_stamina, 30));
+        unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, Math.Max(unit.GetCurrentStamina(), 30));
     }
 
     internal static BattleCommand BuildBasicAttackCommand(
@@ -62,7 +62,7 @@ internal static class WeaponAbilityCommandTestSupport
             skill_entry_id = BattleSkillEntryIds.KnownSkill(BasicAttackSkillId),
             skill_id = BasicAttackSkillId,
             target_unit_id = target?.unit_id ?? new StringName(""),
-            target_coord = target?.coord ?? new Vector2I(-1, -1),
+            target_coord = target?.GetAnchorCoord() ?? new Vector2I(-1, -1),
         };
         if (target != null)
             command.AddTargetUnitId(target.unit_id);
@@ -83,7 +83,7 @@ internal static class WeaponAbilityCommandTestSupport
             skill_entry_id = entry?.EntryRef.SkillEntryId ?? new StringName(""),
             skill_id = skillId,
             target_unit_id = target?.unit_id ?? new StringName(""),
-            target_coord = target?.coord ?? new Vector2I(-1, -1),
+            target_coord = target?.GetAnchorCoord() ?? new Vector2I(-1, -1),
         };
         if (target != null)
             command.AddTargetUnitId(target.unit_id);
@@ -204,8 +204,7 @@ internal static class WeaponAbilityCommandTestSupport
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);

@@ -304,7 +304,7 @@ public partial class BattleDamageResolver
         GStringNameArray statusEffectIds
     )
     {
-        if (targetUnit == null || !targetUnit.is_alive || targetUnit.current_hp <= 0)
+        if (targetUnit == null || !targetUnit.IsAlive() || targetUnit.GetCurrentHp() <= 0)
         {
             return false;
         }
@@ -630,7 +630,7 @@ public partial class BattleDamageResolver
     )
     {
         return targetUnit != null
-            && Math.Max(targetUnit.current_hp, 0) <= Math.Max(executeThreshold, 0);
+            && Math.Max(targetUnit.GetCurrentHp(), 0) <= Math.Max(executeThreshold, 0);
     }
 
     private static int ResolveTargetMaxHp(BattleUnitState targetUnit)
@@ -643,7 +643,7 @@ public partial class BattleDamageResolver
             targetUnit,
             AttributeService.ToStringName(AttributeIdKind.HpMax)
         );
-        return Math.Max(maxHp, Math.Max(targetUnit.current_hp, 0));
+        return Math.Max(maxHp, Math.Max(targetUnit.GetCurrentHp(), 0));
     }
 
     private static GradedSaveExecuteEffectResult DiagnosticGradedSaveExecuteResult(
@@ -847,7 +847,7 @@ public partial class BattleDamageResolver
             return false;
         }
         int maxHp = Math.Max(GetAttributeValue(unitState, AttributeService.ToStringName(AttributeIdKind.HpMax)), 0);
-        return maxHp > 0 && unitState.current_hp <= maxHp * Math.Clamp(thresholdRatio, 0.0, 1.0);
+        return maxHp > 0 && unitState.GetCurrentHp() <= maxHp * Math.Clamp(thresholdRatio, 0.0, 1.0);
     }
 
 
@@ -904,10 +904,10 @@ public partial class BattleDamageResolver
 
     private static void ClearComboStackOnMiss(BattleUnitState sourceUnit)
     {
-        if (sourceUnit != null && sourceUnit.HasStatusEffect("combo_stack"))
-        {
-            sourceUnit.EraseStatusEffect("combo_stack");
-        }
+        if (sourceUnit == null)
+            return;
+        sourceUnit.EraseStatusEffect(StatusMeleeComboStack);
+        sourceUnit.EraseStatusEffect(StatusRangedComboStack);
     }
 
     private void RecordLastStandMastery(
@@ -994,7 +994,7 @@ public partial class BattleDamageResolver
                     .WithSourceSkillLevel(Math.Max(skillLevel, 1))
             );
         }
-        bool triggered = targetUnit.current_hp > 0;
+        bool triggered = targetUnit.GetCurrentHp() > 0;
         if (triggered)
         {
             RecordLastStandMastery(targetUnit, sourceUnit, "last_stand_triggered", 50);

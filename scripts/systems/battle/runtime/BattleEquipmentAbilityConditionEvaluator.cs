@@ -326,7 +326,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             BattleUnitState apSubject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);
             if (apSubject == null)
                 return false;
-            value = Math.Max(apSubject.current_ap, 0);
+            value = Math.Max(apSubject.GetCurrentAp(), 0);
             return true;
         }
         if (query.FactId == FactKillSourceIsAttack)
@@ -396,7 +396,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             BattleUnitState bodySizeSubject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);
             if (bodySizeSubject == null)
                 return false;
-            value = Math.Max(bodySizeSubject.body_size, 0);
+            value = Math.Max(bodySizeSubject.GetBodySize(), 0);
             return true;
         }
         if (query.FactId == FactAttributeValue)
@@ -604,7 +604,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         if (subject == null)
             return false;
         int maxHp = Math.Max(subject.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 0, 1);
-        value = Math.Clamp(subject.current_hp * 10000 / maxHp, 0, 10000);
+        value = Math.Clamp(subject.GetCurrentHp() * 10000 / maxHp, 0, 10000);
         return true;
     }
 
@@ -621,7 +621,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         {
             if (
                 candidate == null
-                || !candidate.is_alive
+                || !candidate.IsAlive()
                 || candidate.unit_id == sourceUnit.unit_id
                 || candidate.faction_id == sourceUnit.faction_id
             )
@@ -647,7 +647,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         {
             if (
                 candidate == null
-                || !candidate.is_alive
+                || !candidate.IsAlive()
                 || candidate.unit_id == sourceUnit.unit_id
                 || candidate.faction_id != sourceUnit.faction_id
             )
@@ -673,7 +673,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         {
             if (
                 candidate == null
-                || !candidate.is_alive
+                || !candidate.IsAlive()
                 || candidate.unit_id == sourceUnit.unit_id
             )
             {
@@ -698,7 +698,7 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         {
             BattleUnitState subject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);
             return subject != null
-                ? subject.creature_type_tags
+                ? subject.GetCreatureTypeTagsReadViewTyped().Tags
                 : Array.Empty<StringName>();
         }
         if (query.FactId == FactBattleEnvironmentTag)
@@ -724,7 +724,11 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         if (query.QueryKind == QueryKindFact && query.FactId == FactWeaponRangeType)
         {
             BattleUnitState subject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);
-            return ProgressionDataUtils.to_string_name(subject?.weapon_range_type ?? new StringName(""));
+            if (subject == null)
+                return "";
+            BattleWeaponProjectionValues weaponProjection =
+                subject.GetWeaponProjectionReadViewTyped().Values;
+            return ProgressionDataUtils.to_string_name(weaponProjection.RangeType);
         }
         IReadOnlyList<StringName> values = ResolveFactStringNameSet(
             query,

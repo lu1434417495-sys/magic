@@ -91,14 +91,16 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         }
 
         BattleUnitState equipped = fixture.BuildSandsTimeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, SandsTimeItemId, "时间之沙装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("dagger"), "时间之沙应投影为 dagger。");
-        _test.Eq(equipped.weapon_family, new StringName("exotic"), "时间之沙应投影为 exotic。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "时间之沙应投影为 physical_pierce。");
-        _test.Eq(equipped.weapon_attack_range, 1, "时间之沙攻击范围应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "时间之沙单手伤害应为 1D4+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 4, "时间之沙单手伤害应为 1D4+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "时间之沙单手伤害应为 1D4+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, SandsTimeItemId, "时间之沙装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("dagger"), "时间之沙应投影为 dagger。");
+        _test.Eq(equippedWeapon.Family, new StringName("exotic"), "时间之沙应投影为 exotic。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "时间之沙应投影为 physical_pierce。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "时间之沙攻击范围应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "时间之沙单手伤害应为 1D4+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 4, "时间之沙单手伤害应为 1D4+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "时间之沙单手伤害应为 1D4+2。");
         AssertUnitHasTraitAndAbilitySource(equipped, AccelerationTraitId, AccelerationBindingId, "eq_sands_time_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, DecelerationTraitId, DecelerationBindingId, "eq_sands_time_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, DislocationTraitId, DislocationBindingId, "eq_sands_time_projection");
@@ -141,7 +143,7 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
             "sands_time_acceleration"
         );
         _test.True(batch != null, "时间加速应返回 batch。");
-        _test.Eq(holder.current_ap, 3, "时间加速应在支付 1 AP 后把本行动回合 AP 总量翻倍。");
+        _test.Eq(holder.GetCurrentAp(), 3, "时间加速应在支付 1 AP 后把本行动回合 AP 总量翻倍。");
 
         BattleAvailableSkillEntry sameTurnEntry = FindRequiredEquipmentSkill(
             fixture,
@@ -178,8 +180,8 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         BattleUnitState target = BuildTarget("decelerate_target", new Vector2I(1, 0));
         SetBaseActionPoints(holder, 2);
         SetBaseActionPoints(target, 2);
-        target.current_ap = 2;
-        target.current_move_points = 0;
+        target.SetCurrentAp(2);
+        target.SetCurrentMovePoints(0);
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             "sands_time_decelerate",
             holder,
@@ -216,8 +218,8 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
 
         _test.Eq(state.active_unit_id, target.unit_id, "目标应从 ready 队列进入行动回合。");
-        _test.Eq(target.current_ap, 0, "时间减速应让目标下一行动回合 AP 归零。");
-        _test.True(target.current_move_points > 0, "时间减速不应剥夺目标移动。");
+        _test.Eq(target.GetCurrentAp(), 0, "时间减速应让目标下一行动回合 AP 归零。");
+        _test.True(target.GetCurrentMovePoints() > 0, "时间减速不应剥夺目标移动。");
         _test.False(target.HasStatusEffect(TemporalApStolenStatusId), "时间减速的下一回合 AP 标记应在生效后清除。");
     }
 
@@ -384,24 +386,25 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            current_stamina = 30,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            stamina: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 30);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 8);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 8);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 12);
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 
@@ -427,9 +430,9 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -442,12 +445,17 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

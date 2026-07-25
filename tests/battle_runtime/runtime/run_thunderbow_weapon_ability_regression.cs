@@ -116,15 +116,19 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         _test.False(HasDamageMitigation(baseline, "thunder"), "未装备雷鸣弓时不应拥有 thunder immune。");
 
         BattleUnitState equipped = fixture.BuildThunderbowUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ThunderbowItemId, "雷鸣弓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longbow"), "雷鸣弓应投影为 longbow。");
-        _test.Eq(equipped.weapon_family, new StringName("bow"), "雷鸣弓应投影为 bow family。");
-        _test.Eq(equipped.weapon_attack_range, 4, "雷鸣弓应继承 longbow 基础射程 4。");
-        _test.True(equipped.weapon_uses_two_hands, "雷鸣弓应占用双手。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "雷鸣弓应造成穿刺物理伤害。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "雷鸣弓应投影 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 8, "雷鸣弓应投影 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "雷鸣弓应投影 1D8+2。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ThunderbowItemId, "雷鸣弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longbow"), "雷鸣弓应投影为 longbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("bow"), "雷鸣弓应投影为 bow family。");
+        _test.Eq(equippedWeapon.AttackRange, 4, "雷鸣弓应继承 longbow 基础射程 4。");
+        _test.True(equippedWeapon.UsesTwoHands, "雷鸣弓应占用双手。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "雷鸣弓应造成穿刺物理伤害。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "雷鸣弓应投影 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 8, "雷鸣弓应投影 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "雷鸣弓应投影 1D8+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             ThunderArrowTraitId,
@@ -137,7 +141,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             StoredThunderShotBindingId,
             "eq_thunderbow_projection"
         );
-        _test.True(equipped.effective_trait_ids.Contains(DeafenedResonanceTraitId), "震鸣共振应投影为固定装备 trait。");
+        _test.True(equipped.HasEffectiveTrait(DeafenedResonanceTraitId), "震鸣共振应投影为固定装备 trait。");
         _test.Eq(
             GetDamageMitigation(equipped, "thunder"),
             new StringName("immune"),
@@ -167,13 +171,19 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除雷鸣弓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除雷鸣弓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除雷鸣弓后武器 profile 应恢复。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除雷鸣弓后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除雷鸣弓后装备能力源应清空。"
+        );
         _test.False(HasDamageMitigation(equipped, "thunder"), "移除雷鸣弓后 thunder immune 不应残留。");
         BattleTestFixture.DisposeBattleUnit(equipped);
         BattleTestFixture.DisposeBattleUnit(baseline);
@@ -193,11 +203,11 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             "thunderbow_thunder_damage",
             previewCommand: false
         );
-        int thunderDamage = 100 - target.current_hp;
+        int thunderDamage = 100 - target.GetCurrentHp();
 
         using ThunderbowFixture plainFixture = ThunderbowFixture.Build(new[] { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildThunderbowUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildEnemy("plain_thunder_damage_target", new Vector2I(1, 0), hp: 100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -207,7 +217,7 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
             "thunderbow_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，雷鸣弓基础武器伤害应为 1D8+2。");
         _test.Eq(
@@ -297,15 +307,15 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(preview?.allowed == true, $"蓄雷矢 preview 应允许。logs={JoinLogs(preview)}");
 
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         fixture.Runtime.IssueCommand(command);
 
         _test.Eq(
-            hpBefore - target.current_hp,
+            hpBefore - target.GetCurrentHp(),
             15,
             "蓄雷矢应结算武器 1D8+2、3D6 lightning，并触发雷鸣矢 1D6 thunder。"
         );
-        _test.Eq(holder.current_stamina, 40, "蓄雷矢应消耗 60 体力。");
+        _test.Eq(holder.GetCurrentStamina(), 40, "蓄雷矢应消耗 60 体力。");
         _test.Eq(holder.GetCooldownTyped(StoredThunderShotSkillId), 300, "蓄雷矢应设置 300TU 冷却。");
     }
 
@@ -446,15 +456,16 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            weapon_range_type = "melee",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.SetUnarmedWeaponProjectionTyped();
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -474,9 +485,9 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -489,12 +500,17 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -514,19 +530,15 @@ public partial class run_thunderbow_weapon_ability_regression : LifecycleTestSce
 
     private static bool HasDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
-            return false;
-        return unit.damage_resistances.ContainsKey(damageTag.ToString())
-            || unit.damage_resistances.ContainsKey(damageTag);
+        return unit != null
+            && unit.HasDamageResistanceTyped(damageTag);
     }
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }

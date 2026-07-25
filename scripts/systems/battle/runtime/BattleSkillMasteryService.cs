@@ -208,14 +208,16 @@ internal sealed class BattleSkillMasteryService : IDisposable
             return normalizedSkillId;
         if (sourceUnit == null)
             return normalizedSkillId;
-        var weaponFamily = ProgressionDataUtils.to_string_name(sourceUnit.weapon_family);
+        BattleWeaponProjectionValues weaponProjection =
+            sourceUnit.GetWeaponProjectionReadViewTyped().Values;
+        var weaponFamily = ProgressionDataUtils.to_string_name(weaponProjection.Family);
         if (weaponFamily == "sword")
             return SwordTrainingSkillId;
         if (weaponFamily == "bow")
             return BowTrainingSkillId;
         if (weaponFamily == "unarmed")
             return UnarmedTrainingSkillId;
-        var weaponKind = ProgressionDataUtils.to_string_name(sourceUnit.weapon_profile_kind);
+        var weaponKind = ProgressionDataUtils.to_string_name(weaponProjection.ProfileKind);
         if (
             weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed)
             || weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Natural)
@@ -251,7 +253,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
     {
         if (sourceUnit == null || targetUnit == null)
             return null;
-        if (targetUnit.source_member_id == "" || !targetUnit.is_alive)
+        if (targetUnit.source_member_id == "" || !targetUnit.IsAlive())
             return null;
         if (sourceUnit.faction_id.ToString() == targetUnit.faction_id.ToString())
             return null;
@@ -631,7 +633,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
         if (unitState == null || unitState.attribute_snapshot == null)
             return false;
         int hpMax = Mathf.Max(unitState.attribute_snapshot.GetValue(HpMax), 1);
-        return unitState.current_hp > 0 && unitState.current_hp * 3 < hpMax;
+        return unitState.GetCurrentHp() > 0 && unitState.GetCurrentHp() * 3 < hpMax;
     }
 
     private int _ResolveSkillMasteryTargetAmount(
@@ -653,7 +655,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                     sourceUnit.attribute_snapshot.GetValue(HpMax),
                     1
                 );
-                int currentHp = sourceUnit.current_hp;
+                int currentHp = sourceUnit.GetCurrentHp();
                 if (currentHp * 4 < hpMax)
                     return 4;
                 if (currentHp * 2 < hpMax)
@@ -685,7 +687,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                                 targetUnit.attribute_snapshot.GetValue(HpMax),
                                 1
                             );
-                            if (targetUnit.current_hp * 100 < hpMax * thresholdPercent)
+                            if (targetUnit.GetCurrentHp() * 100 < hpMax * thresholdPercent)
                                 baseAmount = multiplier;
                         }
                     }

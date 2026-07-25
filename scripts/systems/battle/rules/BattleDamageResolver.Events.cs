@@ -333,7 +333,7 @@ public partial class BattleDamageResolver
         int maxHp = GetAttributeValue(unitState, AttributeService.ToStringName(AttributeIdKind.HpMax));
         return unitState != null
             && maxHp > 0
-            && unitState.current_hp * 100
+            && unitState.GetCurrentHp() * 100
                 <= maxHp * BattleState.LowHpAttackDisadvantagePercent;
     }
 

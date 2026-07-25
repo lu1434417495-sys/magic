@@ -144,7 +144,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
             "normal DC15"
         );
 
-        target.save_advantage_tags.Add("illusion");
+        target.AddSaveAdvantageTagTyped("illusion");
         BattleGradedSaveGradeDistribution advantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
@@ -157,8 +157,12 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
             "advantage DC15"
         );
 
-        target.save_advantage_tags.Clear();
-        target.save_disadvantage_tags.Add("illusion");
+        target.ReplaceSaveTagsTyped(
+            new StringNameList(),
+            new StringNameList(),
+            new StringNameList()
+        );
+        target.AddSaveDisadvantageTagTyped("illusion");
         BattleGradedSaveGradeDistribution disadvantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(source, target, effect);
         AssertDistribution(
@@ -176,7 +180,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
     {
         BattleUnitState source = MakeUnit("immune_distribution_source");
         BattleUnitState target = MakeUnit("immune_distribution_target");
-        target.save_immunity_tags.Add("illusion");
+        target.AddSaveImmunityTagTyped("illusion");
 
         BattleGradedSaveGradeDistribution distribution =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(
@@ -219,7 +223,7 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
             "natural-one override"
         );
 
-        target.save_advantage_tags.Add("illusion");
+        target.AddSaveAdvantageTagTyped("illusion");
         BattleGradedSaveGradeDistribution selectedAdvantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
@@ -237,8 +241,12 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
             "advantage override should select the higher roll"
         );
 
-        target.save_advantage_tags.Clear();
-        target.save_disadvantage_tags.Add("illusion");
+        target.ReplaceSaveTagsTyped(
+            new StringNameList(),
+            new StringNameList(),
+            new StringNameList()
+        );
+        target.AddSaveDisadvantageTagTyped("illusion");
         BattleGradedSaveGradeDistribution selectedDisadvantage =
             PhantasmalKillExecutionRules.EstimateGradeDistribution(
                 source,
@@ -376,9 +384,10 @@ public partial class run_phantasmal_kill_execution_rules_regression : LifecycleT
             display_name = unitId.ToString(),
             faction_id = "enemy",
             control_mode = "manual",
-            current_hp = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);

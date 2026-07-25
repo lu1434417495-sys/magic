@@ -10,8 +10,13 @@ internal static class BattleTraitPassiveProjectionService
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs
     )
     {
+        BattleUnitEffectiveTraitReadView effectiveTraits =
+            unitState?.GetEffectiveTraitsReadViewTyped()
+            ?? BattleUnitEffectiveTraitReadView.MissingOwner;
         if (
-            unitState?.effective_trait_instances == null
+            unitState == null
+            || !effectiveTraits.OwnerPresent
+            || !effectiveTraits.Instances.IsPresent
             || traitDefs == null
             || traitDefs.Count == 0
         )
@@ -20,9 +25,14 @@ internal static class BattleTraitPassiveProjectionService
         }
 
         ClearTraitPassiveStatuses(unitState);
-        foreach (BattleEffectiveTraitInstanceState instance in unitState.effective_trait_instances)
+        foreach (
+            BattleEffectiveTraitInstanceReadView instance
+            in effectiveTraits.Instances
+        )
         {
-            StringName traitId = ProgressionDataUtils.to_string_name(instance?.trait_id ?? "");
+            StringName traitId = ProgressionDataUtils.to_string_name(
+                instance.IsPresent ? instance.TraitId : ""
+            );
             if (traitId == "" || !traitDefs.TryGetValue(traitId, out TraitDefinition traitDef) || traitDef == null)
                 continue;
 
@@ -77,7 +87,7 @@ internal static class BattleTraitPassiveProjectionService
 
     private static void ProjectSaveBonuses(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (unitState?.save_bonus_by_ability == null || traitDef == null)
+        if (unitState == null || traitDef == null)
             return;
 
         foreach (TraitSaveBonusEntryDefinition entry in traitDef.SaveBonusEntries)
@@ -86,8 +96,7 @@ internal static class BattleTraitPassiveProjectionService
             int bonus = entry?.Bonus ?? 0;
             if (saveAbility == "" || bonus == 0)
                 continue;
-            unitState.save_bonus_by_ability.TryGetValue(saveAbility, out int existing);
-            unitState.save_bonus_by_ability.Put(saveAbility, existing + bonus);
+            unitState.AddSaveBonusByAbilityTyped(saveAbility, bonus);
         }
     }
 
@@ -96,34 +105,16 @@ internal static class BattleTraitPassiveProjectionService
         if (unitState == null || traitDef == null)
             return;
 
-        AppendUniqueSaveTags(unitState.save_advantage_tags, traitDef.SaveAdvantageTags);
-        AppendUniqueSaveTags(unitState.save_disadvantage_tags, traitDef.SaveDisadvantageTags);
-        AppendUniqueSaveTags(unitState.save_immunity_tags, traitDef.SaveImmunityTags);
-    }
-
-    private static void AppendUniqueSaveTags(
-        StringNameList target,
-        IReadOnlyList<StringName> tags
-    )
-    {
-        if (target == null || tags == null)
-            return;
-
-        foreach (StringName rawTag in tags)
-        {
-            StringName tag = ProgressionDataUtils.to_string_name(rawTag);
-            if (tag == "" || target.Contains(tag))
-                continue;
-            target.Add(tag);
-        }
+        unitState.AppendSaveTagsTyped(
+            traitDef.SaveAdvantageTags,
+            traitDef.SaveDisadvantageTags,
+            traitDef.SaveImmunityTags
+        );
     }
 
     private static void ProjectDamageResistances(BattleUnitState unitState, TraitDefinition traitDef)
     {
-        if (
-            unitState?.damage_resistances == null
-            || traitDef == null
-        )
+        if (unitState == null || traitDef == null)
         {
             return;
         }
@@ -136,11 +127,17 @@ internal static class BattleTraitPassiveProjectionService
                 continue;
 
             if (
-                !unitState.damage_resistances.TryGetValue(damageTag, out StringName existingTier)
+                !unitState.TryGetDamageResistanceTyped(
+                    damageTag,
+                    out StringName existingTier
+                )
                 || IsStrongerMitigation(mitigationTier, existingTier)
             )
             {
-                unitState.damage_resistances.Put(damageTag, mitigationTier);
+                unitState.SetDamageResistanceTyped(
+                    damageTag,
+                    mitigationTier
+                );
             }
         }
     }

@@ -28,6 +28,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             TestPrismaticSphereCreatesOrderedLayers();
             TestLayerDamageUsesConfiguredDamageTagMitigation();
             TestProjectedCategoriesRespectRemainingLayersWithoutCatchAll();
+            TestCastVariantProjectileOverrideReachesBarrier();
             TestProjectedWeaponAbilityCategoriesRespectRangedBoundary();
             TestProjectedWeaponCategoriesMatchBasicAttackPreviewAndCommit();
             TestOrderedMultiHitBreakerPreviewMatchesCommit();
@@ -59,7 +60,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         AssertProjectedWeaponAbilityBarrierResult(
             "ash_longbow",
             "",
-            expectedCategory: "nonmagical_missile",
+            expectedCategory: "nonmagical_projectile",
             expectedBlocked: false,
             message: "普通远程武器伤害应投影为非魔法投射，但不应被只剩黄色层的法球阻挡。"
         );
@@ -93,7 +94,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             message: "近战岩石戟不得把石化类别带入投射屏障判定。",
             syntheticProjectedCategory: "petrification"
         );
-        AssertExplicitMagicalMissileDoesNotGainNonmagicalProjection();
+        AssertExplicitMagicalProjectileDoesNotGainNonmagicalProjection();
     }
 
     private void TestProjectedWeaponCategoriesMatchBasicAttackPreviewAndCommit()
@@ -135,7 +136,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
     }
 
-    private void AssertExplicitMagicalMissileDoesNotGainNonmagicalProjection()
+    private void AssertExplicitMagicalProjectileDoesNotGainNonmagicalProjection()
     {
         using Fixture fixture = BuildRuntimeWithSphereAndProjectedWeapon("ash_longbow", "");
         SetOnlyRemainingLayer(fixture.State, "red");
@@ -155,7 +156,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 targetMode: "unit",
                 targetTeamFilter: "enemy",
                 rangeValue: 10,
-                deliveryCategories: new[] { new StringName("magical_missile") }
+                projectileKind: "magical"
             )
         );
 
@@ -167,8 +168,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 magicalWeaponSkill
             );
         _test.False(
-            projectedCategories.Contains(new StringName("nonmagical_missile")),
-            "显式 magical_missile 的远程武器技能不得再投影 nonmagical_missile。"
+            projectedCategories.Contains(new StringName("nonmagical_projectile")),
+            "显式 magical projectile_kind 的远程武器技能不得再投影 nonmagical_projectile。"
         );
         IReadOnlyList<StringName> resolvedCategories = BattleEffectCategoryResolver.ResolveCategories(
             magicalWeaponSkill,
@@ -176,9 +177,9 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             projectedCategories
         );
         _test.True(
-            resolvedCategories.Contains(new StringName("magical_missile"))
-                && !resolvedCategories.Contains(new StringName("nonmagical_missile")),
-            "显式魔法投射应只保留 magical_missile，而不是同时命中红层类别。"
+            resolvedCategories.Contains(new StringName("magical_projectile"))
+                && !resolvedCategories.Contains(new StringName("nonmagical_projectile")),
+            "显式魔法投射应只保留 magical_projectile，而不是同时命中红层类别。"
         );
 
         BattleBarrierInteractionResult result = fixture.Runtime._layered_barrier_service
@@ -204,9 +205,9 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         using Fixture fixture = BuildRuntimeWithSphere(magicMissile);
         SetOnlyRemainingLayer(fixture.State, "blue");
         LearnSkill(fixture.Enemy, magicMissile.SkillId);
-        fixture.Enemy.current_ap = 2;
-        fixture.Enemy.current_mp = 120;
-        fixture.Enemy.current_stamina = 40;
+        fixture.Enemy.SetCurrentAp(2);
+        fixture.Enemy.SetCurrentMp(120);
+        fixture.Enemy.SetCurrentStamina(40);
         fixture.Enemy.UnlockCombatResource(
             CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
         );
@@ -229,7 +230,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             unit_id = fixture.Enemy.unit_id,
             skill_entry_id = BattleSkillEntryIds.KnownSkill(magicMissile.SkillId),
             skill_id = magicMissile.SkillId,
-            target_coord = fixture.Caster.coord,
+            target_coord = fixture.Caster.GetAnchorCoord(),
         };
         command.AddTargetUnitId(fixture.Caster.unit_id);
         command.AddTargetUnitId(fixture.Caster.unit_id);
@@ -270,10 +271,10 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 "重复预览不得累积破层副作用。"
             );
 
-            int hpBefore = fixture.Caster.current_hp;
+            int hpBefore = fixture.Caster.GetCurrentHp();
             BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
             _test.True(
-                fixture.Caster.current_hp < hpBefore,
+                fixture.Caster.GetCurrentHp() < hpBefore,
                 "正式执行时第一枚飞弹破蓝层后，第二枚应造成伤害。"
             );
             _test.Eq(
@@ -302,8 +303,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         using Fixture fixture = BuildRuntimeWithSphere(chainLightning);
         SetOnlyRemainingLayer(fixture.State, "indigo");
         LearnSkill(fixture.Enemy, chainLightning.SkillId);
-        fixture.Enemy.current_ap = 2;
-        fixture.Enemy.current_mp = 120;
+        fixture.Enemy.SetCurrentAp(2);
+        fixture.Enemy.SetCurrentMp(120);
         fixture.Enemy.UnlockCombatResource(
             CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
         );
@@ -381,16 +382,16 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                     ) == false,
                 "重复随机链预览必须保持相同的屏障过滤结果。"
             );
-            int insideHpBefore = fixture.Caster.current_hp;
-            int outsideHpBefore = outsideTarget.current_hp;
+            int insideHpBefore = fixture.Caster.GetCurrentHp();
+            int outsideHpBefore = outsideTarget.GetCurrentHp();
             fixture.Runtime.IssueCommand(command);
             _test.Eq(
-                fixture.Caster.current_hp,
+                fixture.Caster.GetCurrentHp(),
                 insideHpBefore,
                 "正式随机链执行中，法球内目标应被靛色层阻挡。"
             );
             _test.True(
-                outsideTarget.current_hp < outsideHpBefore,
+                outsideTarget.GetCurrentHp() < outsideHpBefore,
                 "正式随机链执行中，法球外目标仍应受到连锁闪电伤害。"
             );
             _test.Eq(
@@ -476,12 +477,12 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 $"{weaponItemId} 连续预览不得改变{remainingLayerLabel}。"
             );
 
-            int hpBefore = fixture.Caster.current_hp;
+            int hpBefore = fixture.Caster.GetCurrentHp();
             BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
             if (expectedBlocked)
             {
                 _test.Eq(
-                    fixture.Caster.current_hp,
+                    fixture.Caster.GetCurrentHp(),
                     hpBefore,
                     $"{weaponItemId} 被{remainingLayerLabel}阻挡后不得造成基础或装备附加伤害。"
                 );
@@ -500,7 +501,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             }
             else
             {
-                int damageDealt = hpBefore - fixture.Caster.current_hp;
+                int damageDealt = hpBefore - fixture.Caster.GetCurrentHp();
                 _test.True(
                     damageDealt > 0,
                     $"近战武器 {weaponItemId} 应穿过黄色层并造成真实武器伤害。"
@@ -514,12 +515,12 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 }
                 if (expectBonusDamage)
                 {
-                    WeaponDice activeDice = fixture.Enemy.weapon_uses_two_hands
-                        ? fixture.Enemy.weapon_two_handed_dice
-                        : fixture.Enemy.weapon_one_handed_dice;
+                    BattleWeaponProjectionValues enemyWeapon =
+                        fixture.Enemy.GetWeaponProjectionReadViewTyped().Values;
+                    BattleWeaponDiceValues activeDice = enemyWeapon.ActiveDice;
                     int fixedBaseDamage =
-                        Math.Max(activeDice?.dice_count ?? 0, 0)
-                        + (activeDice?.flat_bonus ?? 0);
+                        Math.Max(activeDice.DiceCount, 0)
+                        + activeDice.FlatBonus;
                     _test.True(
                         damageDealt > fixedBaseDamage,
                         $"近战武器 {weaponItemId} 应正常触发额外伤害型 after-hit，actual={damageDealt}, base={fixedBaseDamage}。"
@@ -581,12 +582,15 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 effects: new[] { weaponDamage },
                 targetMode: "unit",
                 targetTeamFilter: "enemy",
-                rangeValue: 10
+                rangeValue: 10,
+                projectileKind: "current_weapon"
             )
         );
 
         if (syntheticProjectedCategory != "")
         {
+            BattleWeaponProjectionValues enemyWeapon =
+                fixture.Enemy.GetWeaponProjectionReadViewTyped().Values;
             StringName syntheticBindingId = BuildSyntheticProjectedBindingId(
                 weaponItemId,
                 syntheticProjectedCategory
@@ -605,7 +609,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 $"测试夹具必须真实声明 {syntheticProjectedCategory} 投射类别。"
             );
             _test.Eq(
-                fixture.Enemy.weapon_range_type,
+                enemyWeapon.RangeType,
                 new StringName("melee"),
                 $"{weaponItemId} 的运行态必须保持近战武器。"
             );
@@ -649,7 +653,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             );
         _test.Eq(result.Blocked, expectedBlocked, message);
 
-        IReadOnlyList<Vector2I> effectCoords = new[] { fixture.Caster.coord };
+        IReadOnlyList<Vector2I> effectCoords = new[] { fixture.Caster.GetAnchorCoord() };
         BattleGroundEffectBarrierClipResult preview = fixture.Runtime._layered_barrier_service
             .PreviewGroundEffectBarrierClipResult(
                 fixture.State.GetUnitView(fixture.Enemy.unit_id),
@@ -736,7 +740,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             target_unit_id = fixture.Caster.unit_id,
-            target_coord = fixture.Caster.coord,
+            target_coord = fixture.Caster.GetAnchorCoord(),
         };
         command.AddTargetUnitId(fixture.Caster.unit_id);
         BattleEventBatch batch = null;
@@ -836,7 +840,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             skill_entry_id = BattleSkillEntryIds.KnownSkill(skillDefinition.SkillId),
             skill_id = skillDefinition.SkillId,
             target_unit_id = fixture.Caster.unit_id,
-            target_coord = fixture.Caster.coord,
+            target_coord = fixture.Caster.GetAnchorCoord(),
         };
         command.AddTargetUnitId(fixture.Caster.unit_id);
         BattlePreview preview = null;
@@ -902,7 +906,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         BattleUnitState target = fixture.Enemy;
         if (mitigationTier != "")
         {
-            target.damage_resistances["fire"] = mitigationTier;
+            target.SetDamageResistanceTyped("fire", mitigationTier);
         }
         MarkLayersBroken(
             fixture.State,
@@ -914,7 +918,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             "violet"
         );
         SetLayerSaveRollOverride(fixture.State, "red", 1);
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
 
         fixture.Runtime._layered_barrier_service.ResolveUnitBoundaryCrossingResult(
             target,
@@ -923,7 +927,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             new BattleEventBatch()
         );
 
-        _test.Eq(hpBefore - target.current_hp, expectedDamage, message);
+        _test.Eq(hpBefore - target.GetCurrentHp(), expectedDamage, message);
     }
 
     private void TestProjectedCategoriesRespectRemainingLayersWithoutCatchAll()
@@ -938,28 +942,41 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             "虹光法球正式 profile 不应再使用投射效果 catch-all。"
         );
 
-        var cases = new (StringName LayerId, StringName Category)[]
+        var cases = new (
+            StringName LayerId,
+            StringName Category,
+            CombatProjectileKind ProjectileKind
+        )[]
         {
-            (new StringName("red"), new StringName("nonmagical_missile")),
-            (new StringName("orange"), new StringName("magical_missile")),
-            (new StringName("yellow"), new StringName("poison")),
-            (new StringName("yellow"), new StringName("gas")),
-            (new StringName("yellow"), new StringName("petrification")),
-            (new StringName("green"), new StringName("breath_weapon")),
-            (new StringName("blue"), new StringName("location")),
-            (new StringName("blue"), new StringName("detection")),
-            (new StringName("blue"), new StringName("mental_attack")),
-            (new StringName("blue"), new StringName("psychic")),
-            (new StringName("indigo"), new StringName("spell")),
-            (new StringName("violet"), new StringName("force_effect")),
-            (new StringName("violet"), new StringName("antimagic")),
+            (new StringName("red"), new StringName("nonmagical_projectile"), CombatProjectileKind.Nonmagical),
+            (new StringName("orange"), new StringName("magical_projectile"), CombatProjectileKind.Magical),
+            (new StringName("yellow"), new StringName("poison"), CombatProjectileKind.None),
+            (new StringName("yellow"), new StringName("gas"), CombatProjectileKind.None),
+            (new StringName("yellow"), new StringName("petrification"), CombatProjectileKind.None),
+            (new StringName("green"), new StringName("breath_weapon"), CombatProjectileKind.None),
+            (new StringName("blue"), new StringName("location"), CombatProjectileKind.None),
+            (new StringName("blue"), new StringName("detection"), CombatProjectileKind.None),
+            (new StringName("blue"), new StringName("mental_attack"), CombatProjectileKind.None),
+            (new StringName("blue"), new StringName("psychic"), CombatProjectileKind.None),
+            (new StringName("indigo"), new StringName("spell"), CombatProjectileKind.None),
+            (new StringName("violet"), new StringName("force_effect"), CombatProjectileKind.None),
+            (new StringName("violet"), new StringName("antimagic"), CombatProjectileKind.None),
         };
-        foreach ((StringName layerId, StringName category) in cases)
+        foreach (
+            (
+                StringName layerId,
+                StringName category,
+                CombatProjectileKind projectileKind
+            ) in cases
+        )
         {
             SetOnlyRemainingLayer(state, layerId);
             SkillDefinition skill = BuildCategorizedSkill(
                 $"test_prismatic_{category}",
-                category
+                projectileKind,
+                projectileKind == CombatProjectileKind.None
+                    ? new[] { category }
+                    : Array.Empty<StringName>()
             );
             BattleBarrierInteractionResult result =
                 runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
@@ -978,8 +995,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         SetAllLayersUnbroken(state);
         SkillDefinition multiCategorySkill = BuildCategorizedSkill(
             "test_prismatic_multi_category",
-            "spell",
-            "magical_missile"
+            CombatProjectileKind.Magical,
+            "spell"
         );
         var orangeBatch = new BattleEventBatch();
         BattleBarrierInteractionResult orangeResult =
@@ -1042,6 +1059,62 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         _test.False(
             unmatchedResult.Blocked,
             "未匹配任何色层的投射类别必须穿透完整虹光法球。"
+        );
+    }
+
+    private void TestCastVariantProjectileOverrideReachesBarrier()
+    {
+        using Fixture fixture = BuildRuntimeWithSphere();
+        SetOnlyRemainingLayer(fixture.State, "orange");
+        SkillDefinition nonProjectileSkill = BuildCategorizedSkill(
+            "test_variant_projectile_override",
+            CombatProjectileKind.None
+        );
+        CombatCastVariantDefinition magicalVariant =
+            TestSkillDefinitionProjection.BuildCastVariant(
+                "magical_projectile",
+                0,
+                Array.Empty<CombatEffectDefinition>(),
+                projectileKindOverride: "magical"
+            );
+        BattleBarrierInteractionResult enabled =
+            fixture.Runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                fixture.Enemy,
+                fixture.Caster,
+                nonProjectileSkill,
+                Array.Empty<CombatEffectDefinition>(),
+                new BattleEventBatch(),
+                magicalVariant
+            );
+        _test.True(
+            enabled.Blocked,
+            "cast variant 的 magical projectile override 必须沿执行链抵达橙色层判定。"
+        );
+
+        SetOnlyRemainingLayer(fixture.State, "orange");
+        SkillDefinition magicalBase = BuildCategorizedSkill(
+            "test_variant_projectile_disable",
+            CombatProjectileKind.Magical
+        );
+        CombatCastVariantDefinition meleeVariant =
+            TestSkillDefinitionProjection.BuildCastVariant(
+                "melee",
+                0,
+                Array.Empty<CombatEffectDefinition>(),
+                projectileKindOverride: "none"
+            );
+        BattleBarrierInteractionResult disabled =
+            fixture.Runtime._layered_barrier_service.ResolveSkillBarrierInteractionResult(
+                fixture.Enemy,
+                fixture.Caster,
+                magicalBase,
+                Array.Empty<CombatEffectDefinition>(),
+                new BattleEventBatch(),
+                meleeVariant
+            );
+        _test.False(
+            disabled.Blocked,
+            "cast variant 的 none projectile override 必须关闭技能级魔法投射分类。"
         );
     }
 
@@ -1154,15 +1227,15 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             "只读预览不得改变虹光法球活动层。"
         );
 
-        int outsideHpBefore = outsideTarget.current_hp;
-        int insideHpBefore = insideTarget.current_hp;
-        int boundaryHpBefore = boundaryTarget.current_hp;
+        int outsideHpBefore = outsideTarget.GetCurrentHp();
+        int insideHpBefore = insideTarget.GetCurrentHp();
+        int boundaryHpBefore = boundaryTarget.GetCurrentHp();
         BattleEventBatch batch = runtime.IssueCommand(command);
 
-        _test.True(outsideTarget.current_hp < outsideHpBefore, "法球外允许地格上的单位应受到 AoE。");
-        _test.Eq(insideTarget.current_hp, insideHpBefore, "法球内被裁剪地格上的单位不应受到 AoE。");
+        _test.True(outsideTarget.GetCurrentHp() < outsideHpBefore, "法球外允许地格上的单位应受到 AoE。");
+        _test.Eq(insideTarget.GetCurrentHp(), insideHpBefore, "法球内被裁剪地格上的单位不应受到 AoE。");
         _test.True(
-            boundaryTarget.current_hp < boundaryHpBefore,
+            boundaryTarget.GetCurrentHp() < boundaryHpBefore,
             "跨边界大体型单位应按允许占用格命中，而不是按锚点整只阻挡。"
         );
         _test.True(
@@ -1233,19 +1306,19 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             ),
             ReleaseContext = releaseContext,
         };
-        int outsideHpBefore = outsideTarget.current_hp;
-        int insideHpBefore = insideTarget.current_hp;
+        int outsideHpBefore = outsideTarget.GetCurrentHp();
+        int insideHpBefore = insideTarget.GetCurrentHp();
         var batch = new BattleEventBatch();
 
         bool executed = runtime._skill_orchestrator.ExecuteAutoCast(request, batch);
 
         _test.True(executed, "Contingency 自动地面施法应在部分地格被裁剪时成功执行。");
         _test.True(
-            outsideTarget.current_hp < outsideHpBefore,
+            outsideTarget.GetCurrentHp() < outsideHpBefore,
             "Contingency 自动施法应影响法球外允许地格。"
         );
         _test.Eq(
-            insideTarget.current_hp,
+            insideTarget.GetCurrentHp(),
             insideHpBefore,
             "Contingency 自动施法不应把效果送入法球内被裁剪地格。"
         );
@@ -1344,8 +1417,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             new StringName("red"),
             "破解法术预览不得提前破坏红色层。"
         );
-        int outsideHpBefore = outsideTarget.current_hp;
-        int insideHpBefore = insideTarget.current_hp;
+        int outsideHpBefore = outsideTarget.GetCurrentHp();
+        int insideHpBefore = insideTarget.GetCurrentHp();
 
         runtime.IssueCommand(command);
 
@@ -1355,11 +1428,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             "一次地面 AoE 应只提交一次红层破解。"
         );
         _test.True(
-            outsideTarget.current_hp < outsideHpBefore,
+            outsideTarget.GetCurrentHp() < outsideHpBefore,
             "破解法术仍应影响法球外允许地格上的单位。"
         );
         _test.Eq(
-            insideTarget.current_hp,
+            insideTarget.GetCurrentHp(),
             insideHpBefore,
             "本次施法不得借刚破解的红层继续影响法球内单位。"
         );
@@ -1409,15 +1482,15 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             SkillId = groundAoe.SkillId,
             TargetMode = BattleTargetMode.Ground,
             BindingMode = PendingCastBindingModeKind.GroundBind,
-            StartedCoord = source.coord,
+            StartedCoord = source.GetAnchorCoord(),
             StartedTu = state.timeline?.current_tu ?? 0,
             BaseCastingTimeTu = 10,
             RemainingCastProgress = 0,
-            LastMaintenanceCheckpointHp = source.current_hp,
+            LastMaintenanceCheckpointHp = source.GetCurrentHp(),
         };
         pendingCast.SetTargetCoords(new[] { new Vector2I(4, 2) });
-        int outsideHpBefore = outsideTarget.current_hp;
-        int insideHpBefore = insideTarget.current_hp;
+        int outsideHpBefore = outsideTarget.GetCurrentHp();
+        int insideHpBefore = insideTarget.GetCurrentHp();
         var batch = new BattleEventBatch();
 
         bool resolved = runtime._skill_orchestrator.ResolvePendingCast(
@@ -1428,11 +1501,11 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
 
         _test.True(resolved, "读条地面法术应在部分地格被裁剪时成功释放。");
         _test.True(
-            outsideTarget.current_hp < outsideHpBefore,
+            outsideTarget.GetCurrentHp() < outsideHpBefore,
             "读条释放应影响法球外允许地格。"
         );
         _test.Eq(
-            insideTarget.current_hp,
+            insideTarget.GetCurrentHp(),
             insideHpBefore,
             "读条释放不应影响法球内被裁剪地格。"
         );
@@ -1603,7 +1676,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             "player",
             new Vector2I(1, 0)
         );
-        target.current_hp = 8;
+        target.SetCurrentHp(8);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 8);
         SetStatus(target, "death_ward", new GDictionary { ["damage_tag"] = "negative_energy" });
 
@@ -1626,8 +1699,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             8,
             "非 Last Stand 来源的 death_ward 不应吞掉普通致命 HP 伤害，damage 字段应记录实际 HP 损失。"
         );
-        _test.Eq(target.current_hp, 0, "非 Last Stand 来源的 death_ward 遭遇普通致命伤害时应正常归零。");
-        _test.False(target.is_alive, "非 Last Stand 来源的 death_ward 不应阻止死亡状态。");
+        _test.Eq(target.GetCurrentHp(), 0, "非 Last Stand 来源的 death_ward 遭遇普通致命伤害时应正常归零。");
+        _test.False(target.IsAlive(), "非 Last Stand 来源的 death_ward 不应阻止死亡状态。");
     }
 
     private void TestGreenLayerInstantDeathUsesFatalDamageChain()
@@ -1655,7 +1728,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 [(StringName)"warrior_last_stand"] = lastStandSkill
             }
         );
-        enemy.current_hp = 8;
+        enemy.SetCurrentHp(8);
         SetStatus(
             enemy,
             "death_ward",
@@ -1675,7 +1748,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 new BattleEventBatch()
             );
         _test.False(result.Blocked, "不屈抵消绿色层即死后，穿越不应因死亡终止。");
-        _test.True(enemy.is_alive && enemy.current_hp > 0, "绿色层即死应触发现有免死链并把目标救回正 HP。");
+        _test.True(enemy.IsAlive() && enemy.GetCurrentHp() > 0, "绿色层即死应触发现有免死链并把目标救回正 HP。");
         _test.False(enemy.HasStatusEffect("death_ward"), "绿色层即死触发不屈后应消耗 death_ward。");
         _test.False(enemy.HasStatusEffect("staggered"), "Lv5+ 不屈触发后仍应清理负面状态。");
         _test.True(enemy.HasStatusEffect("last_stand_active"), "Lv7 不屈触发后应保留 last_stand_active。");
@@ -1734,9 +1807,9 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 batch
             );
         _test.True(result.Blocked, "紫色层放逐应终止本次穿越。");
-        _test.True(enemy.is_alive, "非召唤物被紫色层命中后应保留存活状态。");
+        _test.True(enemy.IsAlive(), "非召唤物被紫色层命中后应保留存活状态。");
         _test.False(
-            CoordInsideBarrier(enemy.coord, FirstBarrier(state)),
+            CoordInsideBarrier(enemy.GetAnchorCoord(), FirstBarrier(state)),
             "非召唤物应被传送到法球外合法坐标。"
         );
 
@@ -1751,7 +1824,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 batch
             );
         _test.True(summonResult.Blocked, "召唤物被放逐也应终止穿越。");
-        _test.False(summon.is_alive, "召唤物应被紫色层直接移除。");
+        _test.False(summon.IsAlive(), "召唤物应被紫色层直接移除。");
     }
 
     private void TestCleanseHarmfulRemovesMadnessButNotPetrified()
@@ -1868,8 +1941,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             state = BuildState(new Vector2I(7, 5));
             caster = BuildUnit("mastery_caster", "虹光法球施法者", "player", new Vector2I(2, 2));
             caster.source_member_id = memberState.member_id;
-            caster.current_ap = 5;
-            caster.current_mp = 240;
+            caster.SetCurrentAp(5);
+            caster.SetCurrentMp(240);
             caster.UnlockCombatResource(
                 CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
             );
@@ -2024,40 +2097,57 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         );
         ItemDefinition weaponDefinition = snapshot.Items[weaponItemId];
         WeaponProfileDefinition weaponProfile = weaponDefinition.WeaponProfile;
-        source.weapon_profile_kind = BattleUnitState.ToStringName(
-            BattleWeaponProfileKind.Equipped
-        );
-        source.weapon_item_id = weaponItemId;
-        source.weapon_profile_type_id = weaponProfile?.WeaponTypeId ?? new StringName("");
-        source.weapon_range_type = weaponDefinition.GetWeaponRangeType();
-        source.weapon_family = weaponProfile?.Family ?? new StringName("");
-        source.weapon_attack_range = weaponDefinition.GetWeaponAttackRange();
-        source.weapon_one_handed_dice = BuildWeaponDice(weaponProfile?.OneHandedDice);
-        source.weapon_two_handed_dice = BuildWeaponDice(weaponProfile?.TwoHandedDice);
-        source.weapon_is_versatile =
+        bool weaponIsVersatile =
             weaponProfile?.OneHandedDice != null && weaponProfile?.TwoHandedDice != null;
-        source.weapon_uses_two_hands =
+        bool weaponUsesTwoHands =
             weaponProfile?.OneHandedDice == null && weaponProfile?.TwoHandedDice != null;
-        source.weapon_current_grip = BattleUnitState.ToStringName(
-            source.weapon_uses_two_hands
-                ? BattleWeaponGripKind.TwoHanded
-                : BattleWeaponGripKind.OneHanded
+        source.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = BattleUnitState.ToStringName(
+                    BattleWeaponProfileKind.Equipped
+                ),
+                weapon_item_id = weaponItemId,
+                weapon_profile_type_id =
+                    weaponProfile?.WeaponTypeId ?? new StringName(""),
+                weapon_range_type = weaponDefinition.GetWeaponRangeType(),
+                weapon_family = weaponProfile?.Family ?? new StringName(""),
+                weapon_current_grip = BattleUnitState.ToStringName(
+                    weaponUsesTwoHands
+                        ? BattleWeaponGripKind.TwoHanded
+                        : BattleWeaponGripKind.OneHanded
+                ),
+                weapon_attack_range = weaponDefinition.GetWeaponAttackRange(),
+                weapon_one_handed_dice = BuildWeaponDice(
+                    weaponProfile?.OneHandedDice
+                ),
+                weapon_two_handed_dice = BuildWeaponDice(
+                    weaponProfile?.TwoHandedDice
+                ),
+                weapon_is_versatile = weaponIsVersatile,
+                weapon_uses_two_hands = weaponUsesTwoHands,
+                weapon_physical_damage_tag =
+                    weaponDefinition.GetWeaponPhysicalDamageTag(),
+            }
         );
-        source.weapon_physical_damage_tag = weaponDefinition.GetWeaponPhysicalDamageTag();
         source.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         source.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
-        source.equipment_ability_sources.Add(
-            new BattleEquipmentAbilitySourceState
+        source.ReplaceEquipmentAbilityProjectionTyped(
+            new[]
             {
-                EffectiveInstanceKey = $"projected:{weaponItemId}",
-                EquipmentDefId = weaponItemId,
-                SourceEquipmentInstanceId = $"projected_instance:{weaponItemId}",
-                SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
-                AbilityIds =
-                    syntheticBindingId == ""
-                        ? new List<StringName> { bindingId }
-                        : new List<StringName> { bindingId, syntheticBindingId },
-            }
+                new BattleEquipmentAbilitySourceState
+                {
+                    EffectiveInstanceKey = $"projected:{weaponItemId}",
+                    EquipmentDefId = weaponItemId,
+                    SourceEquipmentInstanceId = $"projected_instance:{weaponItemId}",
+                    SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                    AbilityIds =
+                        syntheticBindingId == ""
+                            ? new List<StringName> { bindingId }
+                            : new List<StringName> { bindingId, syntheticBindingId },
+                },
+            },
+            temporalProgressModifiers: null
         );
         AddUnit(runtime, state, barrierOwner, false);
         if (!ReferenceEquals(target, barrierOwner))
@@ -2142,12 +2232,13 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 120,
-            current_mp = 120,
-            current_stamina = 40,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 120,
+            mp: 120,
+            stamina: 40,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 120);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 120);
@@ -2174,6 +2265,16 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
     private static SkillDefinition BuildCategorizedSkill(
         StringName skillId,
         params StringName[] deliveryCategories
+    ) => BuildCategorizedSkill(
+        skillId,
+        CombatProjectileKind.None,
+        deliveryCategories
+    );
+
+    private static SkillDefinition BuildCategorizedSkill(
+        StringName skillId,
+        CombatProjectileKind projectileKind,
+        params StringName[] deliveryCategories
     )
     {
         return TestSkillDefinitionProjection.BuildSkill(
@@ -2184,7 +2285,8 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
                 targetMode: "unit",
                 targetTeamFilter: "enemy",
                 rangeValue: 10,
-                deliveryCategories: deliveryCategories
+                deliveryCategories: deliveryCategories,
+                projectileKind: CombatProjectileContentRules.ToProjectileKindId(projectileKind)
             )
         );
     }
@@ -2321,8 +2423,12 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         int skillLevel = 1
     )
     {
-        unitState.known_active_skill_ids.Add(skillId);
-        unitState.known_skill_level_map[skillId] = skillLevel;
+        unitState.AddKnownActiveSkill(skillId);
+        unitState.SetKnownSkillLevelTyped(
+            skillId,
+            skillLevel,
+            preserveZero: skillLevel == 0
+        );
     }
 
     private static bool LogsContain(IEnumerable<string> logLines, string fragment)
@@ -2384,7 +2490,7 @@ public partial class run_prismatic_sphere_regression : LifecycleTestSceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        runtime?._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime?._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static void SetStatus(

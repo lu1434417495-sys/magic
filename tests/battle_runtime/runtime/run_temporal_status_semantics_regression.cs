@@ -21,6 +21,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         TestStasisFreezesCooldownProgress();
         TestReadyUnitActivationConsumesCooldownElapsedTu();
         TestTimeSlowAccumulatesProgressWithRemainder();
+        TestActionClockConsumesEveryCrossingWithoutDuplicateReady();
         TestStasisBlocksMovementFailClosed();
         TestStasisUnitSkipsReadyQueueActivation();
         TestStatusConstructionImportsTemporalTypedFields();
@@ -35,26 +36,39 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         BattleUnitState controlUnit = fixture.AddUnit("control_unit", "enemy", new Vector2I(2, 2));
         foreach (BattleUnitState unit in new[] { stasisUnit, controlUnit })
         {
-            unit.current_stamina = 10;
+            unit.SetCurrentStamina(10);
             unit.SetStatusEffect(BuildBurningStatus());
             unit.SetStatusEffect(BuildTimedBuffStatus("attack_up", 30));
-            unit.current_shield_hp = 5;
-            unit.shield_max_hp = 5;
-            unit.shield_duration = 20;
+            unit.ReplaceShieldStateTyped(
+                5,
+                5,
+                20,
+                "temporal_ward",
+                unit.unit_id,
+                "temporal_ward_skill"
+            );
         }
         ApplyTimeStasis(stasisUnit, 15);
 
         fixture.Step(5);
 
-        _test.Eq(controlUnit.current_hp, 98, "对照单位应照常吃到 burning tick。");
-        _test.Eq(stasisUnit.current_hp, 100, "静滞单位不应结算普通 DOT tick。");
-        _test.Eq(controlUnit.action_progress, 5, "对照单位应推进 action progress。");
-        _test.Eq(stasisUnit.action_progress, 0, "静滞单位不应推进 action progress。");
+        _test.Eq(controlUnit.GetCurrentHp(), 98, "对照单位应照常吃到 burning tick。");
+        _test.Eq(stasisUnit.GetCurrentHp(), 100, "静滞单位不应结算普通 DOT tick。");
+        _test.Eq(
+            controlUnit.GetActionProgressTyped(),
+            5,
+            "对照单位应推进 action progress。"
+        );
+        _test.Eq(
+            stasisUnit.GetActionProgressTyped(),
+            0,
+            "静滞单位不应推进 action progress。"
+        );
         _test.True(
-            controlUnit.current_stamina > 10,
+            controlUnit.GetCurrentStamina() > 10,
             "对照单位应推进 stamina recovery。"
         );
-        _test.Eq(stasisUnit.current_stamina, 10, "静滞单位不应推进 stamina recovery。");
+        _test.Eq(stasisUnit.GetCurrentStamina(), 10, "静滞单位不应推进 stamina recovery。");
         _test.Eq(
             GetStatusDuration(controlUnit, "attack_up"),
             25,
@@ -70,7 +84,16 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             30,
             "静滞单位的 DOT duration 不应减少。"
         );
-        _test.Eq(stasisUnit.shield_duration, 20, "静滞单位 shield duration 不应减少。");
+        _test.Eq(
+            controlUnit.GetShieldStateTyped().Duration,
+            15,
+            "对照单位 shield duration 应按战场 TU 减少。"
+        );
+        _test.Eq(
+            stasisUnit.GetShieldStateTyped().Duration,
+            20,
+            "静滞单位 shield duration 不应减少。"
+        );
         _test.Eq(
             GetStatusDuration(stasisUnit, BattleStatusSemanticTable.STATUS_TIME_STASIS),
             10,
@@ -80,6 +103,16 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         fixture.Step(5);
         fixture.Step(5);
 
+        _test.Eq(
+            controlUnit.GetShieldStateTyped().Duration,
+            5,
+            "对照单位 shield duration 应持续随每个 timeline step 减少。"
+        );
+        _test.Eq(
+            stasisUnit.GetShieldStateTyped().Duration,
+            20,
+            "time_stasis 在 step 内到期时，该 step 仍应冻结 shield duration。"
+        );
         _test.False(
             stasisUnit.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
             "time_stasis 到期后应自然消散。"
@@ -97,13 +130,31 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
                 "余波应携带 temporal per-tag save bonus。"
             );
         }
-        _test.Eq(stasisUnit.current_hp, 100, "静滞期间不应累积任何 DOT 伤害。");
-        _test.Eq(stasisUnit.action_progress, 0, "静滞期间 action progress 应保持冻结。");
+        _test.Eq(stasisUnit.GetCurrentHp(), 100, "静滞期间不应累积任何 DOT 伤害。");
+        _test.Eq(
+            stasisUnit.GetActionProgressTyped(),
+            0,
+            "静滞期间 action progress 应保持冻结。"
+        );
 
         fixture.Step(5);
 
-        _test.Eq(stasisUnit.current_hp, 98, "静滞解除后 DOT tick 应恢复结算。");
-        _test.Eq(stasisUnit.action_progress, 5, "静滞解除后 action progress 应恢复推进。");
+        _test.Eq(
+            controlUnit.GetShieldStateTyped(),
+            new BattleUnitShieldSnapshot(0, 0, -1, "", "", ""),
+            "shield duration 到期时应原子清空 HP、duration、family 与 source metadata。"
+        );
+        _test.Eq(
+            stasisUnit.GetShieldStateTyped().Duration,
+            15,
+            "time_stasis 解除后的下一 step 应恢复 shield duration 推进。"
+        );
+        _test.Eq(stasisUnit.GetCurrentHp(), 98, "静滞解除后 DOT tick 应恢复结算。");
+        _test.Eq(
+            stasisUnit.GetActionProgressTyped(),
+            5,
+            "静滞解除后 action progress 应恢复推进。"
+        );
     }
 
     private void TestStasisFreezesCooldownProgress()
@@ -111,7 +162,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         Fixture fixture = BuildFixture();
         BattleUnitState unit = fixture.AddUnit("cooldown_unit", "enemy", new Vector2I(1, 1));
         unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["skill_a"] = 30 });
-        unit.last_turn_tu = 0;
+        unit.SetCooldownAnchorTuTyped(0);
 
         fixture.Step(5);
         ApplyTimeStasis(unit, 10);
@@ -127,7 +178,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             30,
             "静滞期间冷却不应被消费。"
         );
-        _test.Eq(unit.last_turn_tu, 10, "冻结 anchor 应只吸收静滞时段。");
+        _test.Eq(unit.GetCooldownAnchorTuTyped(), 10, "冻结 anchor 应只吸收静滞时段。");
 
         fixture.Runtime._skill_turn_resolver.ConsumeTurnCooldownDelta(unit);
         _test.Eq(
@@ -146,7 +197,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             new Vector2I(1, 1)
         );
         unit.SetCooldownsTyped(new Dictionary<StringName, int> { ["skill_a"] = 30 });
-        unit.last_turn_tu = 0;
+        unit.SetCooldownAnchorTuTyped(0);
         fixture.State.timeline.current_tu = 10;
         fixture.State.timeline.ready_unit_ids.Add(unit.unit_id);
 
@@ -162,7 +213,11 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             20,
             "激活行动窗口时应消费自上次回合锚点起流逝的 10 TU 冷却。"
         );
-        _test.Eq(unit.last_turn_tu, 10, "真实激活路径应把回合锚点推进到当前 10 TU。");
+        _test.Eq(
+            unit.GetCooldownAnchorTuTyped(),
+            10,
+            "真实激活路径应把回合锚点推进到当前 10 TU。"
+        );
     }
 
     private void TestTimeSlowAccumulatesProgressWithRemainder()
@@ -173,9 +228,13 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         ApplyTimeSlow(slowUnit, 600);
 
         fixture.Step(5);
-        _test.Eq(slowUnit.action_progress, 2, "50% 减速下单个 5 TU tick 应只得 2 进度。");
         _test.Eq(
-            slowUnit.action_progress_rate_remainder,
+            slowUnit.GetActionProgressTyped(),
+            2,
+            "50% 减速下单个 5 TU tick 应只得 2 进度。"
+        );
+        _test.Eq(
+            slowUnit.GetActionProgressRateRemainderTyped(),
             50,
             "50% 减速下单个 5 TU tick 应携带 50 余数。"
         );
@@ -186,12 +245,49 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         }
 
         _test.Eq(
-            slowUnit.action_progress,
+            slowUnit.GetActionProgressTyped(),
             25,
             "10 个 5 TU tick 在 50% 减速下总进度应为 25，而不是逐 tick 截断。"
         );
-        _test.Eq(slowUnit.action_progress_rate_remainder, 0, "整除节点余数应归零。");
-        _test.Eq(controlUnit.action_progress, 50, "全速单位 10 个 tick 应得 50 进度。");
+        _test.Eq(
+            slowUnit.GetActionProgressRateRemainderTyped(),
+            0,
+            "整除节点余数应归零。"
+        );
+        _test.Eq(
+            controlUnit.GetActionProgressTyped(),
+            50,
+            "全速单位 10 个 tick 应得 50 进度。"
+        );
+    }
+
+    private void TestActionClockConsumesEveryCrossingWithoutDuplicateReady()
+    {
+        Fixture fixture = BuildFixture();
+        BattleUnitState unit = fixture.AddUnit(
+            "multi_crossing_unit",
+            "enemy",
+            new Vector2I(1, 1)
+        );
+        unit.SetActionThresholdTyped(100);
+        unit.SetActionProgressTyped(250);
+        fixture.State.timeline.ready_unit_ids.Add(unit.unit_id);
+
+        fixture.Runtime._timeline_driver.CollectTimelineReadyUnits(
+            new BattleEventBatch(),
+            5
+        );
+
+        _test.Eq(
+            unit.GetActionProgressTyped(),
+            55,
+            "已有 ready id 仍应扣除本 tick 跨越的全部 action thresholds。"
+        );
+        _test.Eq(
+            fixture.State.timeline.ready_unit_ids.Count,
+            1,
+            "同一单位跨越多个 action thresholds 时 ready queue 不应重复插入。"
+        );
     }
 
     private void TestStasisBlocksMovementFailClosed()
@@ -213,7 +309,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             ),
             "静滞单位经 BattleGridService.MoveUnit 的位移应 fail closed。"
         );
-        _test.Eq(stasisUnit.coord, new Vector2I(1, 1), "静滞单位坐标不应变化。");
+        _test.Eq(stasisUnit.GetAnchorCoord(), new Vector2I(1, 1), "静滞单位坐标不应变化。");
 
         CombatEffectDefinition knockback = TestSkillDefinitionProjection.BuildEffect(
             "forced_move",
@@ -228,7 +324,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             default
         );
         _test.Eq(movedSteps, 0, "静滞单位的 forced movement 应 fail closed。");
-        _test.Eq(stasisUnit.coord, new Vector2I(1, 1), "forced movement 后静滞单位坐标不应变化。");
+        _test.Eq(stasisUnit.GetAnchorCoord(), new Vector2I(1, 1), "forced movement 后静滞单位坐标不应变化。");
     }
 
     private void TestStasisUnitSkipsReadyQueueActivation()
@@ -236,7 +332,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         Fixture fixture = BuildFixture();
         BattleUnitState stasisUnit = fixture.AddUnit("stasis_ready", "enemy", new Vector2I(1, 1));
         ApplyTimeStasis(stasisUnit, 30);
-        stasisUnit.action_progress = 0;
+        stasisUnit.SetActionProgressTyped(0);
         fixture.State.timeline.ready_unit_ids.Add(stasisUnit.unit_id);
 
         fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
@@ -247,19 +343,23 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             "静滞单位不应被激活进入行动窗口。"
         );
         _test.Eq(
-            stasisUnit.current_ap,
+            stasisUnit.GetCurrentAp(),
             2,
             "静滞单位不应触发 turn start AP 重置。"
         );
 
         // ready 收集路径同样应跳过静滞单位。
-        stasisUnit.action_progress = 115;
+        stasisUnit.SetActionProgressTyped(115);
         fixture.Step(5);
         _test.False(
             fixture.State.timeline.ready_unit_ids.Contains(stasisUnit.unit_id),
             "静滞单位不应加入 ready 队列。"
         );
-        _test.Eq(stasisUnit.action_progress, 115, "静滞单位的 action progress 应保持冻结。");
+        _test.Eq(
+            stasisUnit.GetActionProgressTyped(),
+            115,
+            "静滞单位的 action progress 应保持冻结。"
+        );
     }
 
     private void TestStatusConstructionImportsTemporalTypedFields()
@@ -374,7 +474,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         }
 
         BattleUnitState deadUnit = BuildBareUnit("release_dead");
-        deadUnit.is_alive = false;
+        deadUnit.MarkDead();
         _test.False(
             BattleTemporalStatusService.HandleTemporalStatusRemoved(
                 deadUnit,
@@ -493,15 +593,16 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
 
     private static BattleUnitState BuildBareUnit(StringName unitId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
             control_mode = "manual",
-            current_hp = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         return unit;
     }
 
@@ -509,19 +610,20 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
     {
         internal BattleUnitState AddUnit(StringName unitId, StringName factionId, Vector2I coord)
         {
-            BattleUnitState unit = new()
+            BattleUnitState unit = new BattleUnitState()
             {
                 unit_id = unitId,
                 display_name = unitId.ToString(),
                 faction_id = factionId,
                 control_mode = "manual",
-                current_hp = 100,
-                current_mp = 20,
-                current_stamina = 20,
-                current_ap = 2,
-                current_move_points = 4,
-                is_alive = true,
-            };
+            }.WithCombatResourcesForTest(
+                hp: 100,
+                mp: 20,
+                stamina: 20,
+                ap: 2,
+                movePoints: 4,
+                isAlive: true
+            );
             unit.SetAnchorCoord(coord);
             unit.attribute_snapshot.SetValue(
                 AttributeService.ToStringName(AttributeIdKind.HpMax),
@@ -541,7 +643,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             {
                 State.enemy_unit_ids.Add(unit.unit_id);
             }
-            Runtime._grid_service.PlaceUnit(State, unit, unit.coord, true);
+            Runtime._grid_service.PlaceUnit(State, unit, unit.GetAnchorCoord(), true);
             return unit;
         }
 

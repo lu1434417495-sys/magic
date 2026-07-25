@@ -29,22 +29,28 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
         BattleUnitState sideEnemy = BuildUnit("read_view_side_enemy", "enemy", new Vector2I(9, 8));
         AddUnits(state, attacker, defender, sideEnemy);
 
-        defender.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            new Vector2I(3, 2),
-            new StringName("medium"),
-            BattleUnitState.BodySizeMedium,
-            Vector2I.One,
-            new[] { new Vector2I(8, 8) }
+        defender.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(3, 2),
+                BattleUnitState.BodySizeMedium,
+                new StringName("medium"),
+                Vector2I.One,
+                new Vector2IList { new Vector2I(8, 8) }
+            )
         );
-        sideEnemy.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            new Vector2I(2, 1),
-            new StringName("medium"),
-            BattleUnitState.BodySizeMedium,
-            Vector2I.One,
-            new[] { new Vector2I(9, 8) }
+        sideEnemy.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(2, 1),
+                BattleUnitState.BodySizeMedium,
+                new StringName("medium"),
+                Vector2I.One,
+                new Vector2IList { new Vector2I(9, 8) }
+            )
         );
-        Vector2IList defenderOccupiedBefore = defender.occupied_coords;
-        Vector2IList sideEnemyOccupiedBefore = sideEnemy.occupied_coords;
+        BattleUnitGeometrySnapshot defenderGeometryBefore =
+            defender.CaptureGeometryForMutationSnapshotExact();
+        BattleUnitGeometrySnapshot sideEnemyGeometryBefore =
+            sideEnemy.CaptureGeometryForMutationSnapshotExact();
         long revisionBefore = state.MovementGeometryRevision;
 
         _test.False(
@@ -54,12 +60,28 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
             ),
             "read-view 查询不得把无效投影静默修复成一次有效包夹。"
         );
-        _test.True(
-            ReferenceEquals(defender.occupied_coords, defenderOccupiedBefore),
+        BattleUnitGeometrySnapshot defenderGeometryAfter =
+            defender.CaptureGeometryForMutationSnapshotExact();
+        BattleUnitGeometrySnapshot sideEnemyGeometryAfter =
+            sideEnemy.CaptureGeometryForMutationSnapshotExact();
+        _test.Eq(
+            defenderGeometryAfter.AnchorCoord,
+            defenderGeometryBefore.AnchorCoord,
+            "read-view 查询不得修复 defender raw anchor。"
+        );
+        _test.Eq(
+            defenderGeometryAfter.OccupiedCoords[0],
+            defenderGeometryBefore.OccupiedCoords[0],
             "read-view 查询不得替换 defender occupied_coords。"
         );
-        _test.True(
-            ReferenceEquals(sideEnemy.occupied_coords, sideEnemyOccupiedBefore),
+        _test.Eq(
+            sideEnemyGeometryAfter.AnchorCoord,
+            sideEnemyGeometryBefore.AnchorCoord,
+            "read-view 查询不得修复候选单位 raw anchor。"
+        );
+        _test.Eq(
+            sideEnemyGeometryAfter.OccupiedCoords[0],
+            sideEnemyGeometryBefore.OccupiedCoords[0],
             "read-view 查询不得替换候选单位 occupied_coords。"
         );
         _test.Eq(
@@ -166,9 +188,9 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
         var state = new BattleState();
         BattleUnitState attacker = BuildUnit("economic_delay_attacker", "player", new Vector2I(1, 1));
         BattleUnitState defender = BuildUnit("economic_delay_defender", "enemy", new Vector2I(3, 1));
-        attacker.current_ap = 0;
-        attacker.current_aura = 0;
-        attacker.current_stamina = 0;
+        attacker.SetCurrentAp(0);
+        attacker.SetCurrentAura(0);
+        attacker.SetCurrentStamina(0);
         AddUnits(state, attacker, defender);
         _test.False(state.IsAttackDisadvantage(attacker, defender), "纯经济拖延或资源打空不应触发 attack disadvantage。");
     }
@@ -196,13 +218,14 @@ public partial class run_battle_state_disadvantage_regression : LifecycleTestSce
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = currentHp,
-            current_ap = 2,
-            current_mp = 4,
-            current_stamina = 4,
-            current_aura = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 4,
+            stamina: 4,
+            aura: 2,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, maxHp);
         return unit;

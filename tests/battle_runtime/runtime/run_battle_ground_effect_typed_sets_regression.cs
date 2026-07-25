@@ -37,8 +37,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             );
 
         _test.True(result.Applied, "wind push 应成功推动连锁单位。");
-        _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
-        _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
         _test.True(
             result.AffectedUnitIds.Contains(fixture.Front.unit_id),
             "typed affected set 应包含前排单位。"
@@ -72,8 +72,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
 
         _test.True(result.Applied, "ground unit effects 应应用 wind push。");
         _test.Eq(result.AffectedUnitCount, 2, "ground unit effects 应合并 wind push affected set。");
-        _test.Eq(fixture.Front.coord, new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
-        _test.Eq(fixture.Back.coord, new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
         CleanupFixture(fixture, batch);
     }
 
@@ -94,7 +94,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         _test.True(result.Applied, "typed forced move context 应触发 wind_push。");
         _test.Eq(result.MovedSteps, 1, "typed forced move context 应记录移动步数。");
         _test.Eq(
-            fixture.Front.coord,
+            fixture.Front.GetAnchorCoord(),
             new Vector2I(3, 0),
             "typed context direction 应覆盖 source->target fallback 方向。"
         );
@@ -391,9 +391,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
         return unit;
@@ -411,7 +412,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             state.enemy_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"单位应能放入测试棋盘：{unit.unit_id}"
         );
     }

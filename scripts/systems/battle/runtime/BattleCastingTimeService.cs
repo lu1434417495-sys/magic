@@ -147,11 +147,11 @@ internal sealed class BattleCastingTimeService
             VariantId = payloadCastVariantDefinition?.VariantId ?? "",
             TargetMode = payload.TargetMode,
             BindingMode = combatDefinition.GetEffectivePendingCastBindingMode(skillLevel),
-            StartedCoord = activeUnit.coord,
+            StartedCoord = activeUnit.GetAnchorCoord(),
             StartedTu = runtime._state?.timeline?.current_tu ?? 0,
             BaseCastingTimeTu = castingTimeTu,
             RemainingCastProgress = castingTimeTu * CastProgressPerTu,
-            LastMaintenanceCheckpointHp = activeUnit.current_hp,
+            LastMaintenanceCheckpointHp = activeUnit.GetCurrentHp(),
             CastSequence = runtime._state?.AllocateCastSequence() ?? 0,
             CostTransaction = transaction,
             SpellControlMetadata = spellControlMetadata,
@@ -159,6 +159,7 @@ internal sealed class BattleCastingTimeService
         pendingCast.SetTargetUnitIds(payload.TargetUnitIds);
         pendingCast.SetTargetCoords(payload.TargetCoords);
         activeUnit.SetPendingCast(pendingCast);
+        activeUnit.CommitActionTakenThisTurnTyped();
         activeUnit.SetCurrentAp(0);
         runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
         runtime._record_action_issued(
@@ -240,12 +241,12 @@ internal sealed class BattleCastingTimeService
             {
                 continue;
             }
-            if (!unitState.is_alive)
+            if (!unitState.IsAlive())
             {
                 ClearPendingCastNoCooldown(runtime, unitState, batch, "施法者已倒下，读条中断。");
                 continue;
             }
-            if (unitState.coord != pendingCast.StartedCoord)
+            if (unitState.GetAnchorCoord() != pendingCast.StartedCoord)
             {
                 InterruptPendingCastWithCooldown(
                     runtime,
@@ -505,7 +506,7 @@ internal sealed class BattleCastingTimeService
         BattleEventBatch batch
     )
     {
-        int hpLoss = pendingCast.LastMaintenanceCheckpointHp - unitState.current_hp;
+        int hpLoss = pendingCast.LastMaintenanceCheckpointHp - unitState.GetCurrentHp();
         if (hpLoss <= MinorHpLossThreshold)
         {
             return false;
@@ -519,7 +520,7 @@ internal sealed class BattleCastingTimeService
             dc = hpLoss <= MajorHpLossThreshold ? MediumMaintenanceDc : HeavyMaintenanceDc;
         }
         int roll = TrueRandomSeedService.RandiRange(1, 20) + GetWillpowerModifier(unitState);
-        pendingCast.LastMaintenanceCheckpointHp = unitState.current_hp;
+        pendingCast.LastMaintenanceCheckpointHp = unitState.GetCurrentHp();
         runtime._append_changed_unit_id(batch, unitState.unit_id);
         if (roll >= dc)
         {
@@ -551,7 +552,7 @@ internal sealed class BattleCastingTimeService
         List<StringName> invalidTargetIds = new();
         foreach (StringName targetUnitId in pendingCast.TargetUnitIds)
         {
-            if (!state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit) || !targetUnit.is_alive)
+            if (!state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit) || !targetUnit.IsAlive())
             {
                 invalidTargetIds.Add(targetUnitId);
             }

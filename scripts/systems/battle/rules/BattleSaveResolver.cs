@@ -414,9 +414,11 @@ public static class BattleSaveResolver
         // 豁免标签语义写死:字段即语义,值只接受裸 save tag(如 "poison"),
         // 不存在 "*_advantage/_disadvantage/_immunity" 后缀解析——后缀写法由
         // 各内容注册层在加载期拒绝。
+        BattleUnitSaveModifierReadView saveModifiers =
+            unitState.GetSaveModifiersReadViewTyped();
         ApplySaveTagValues(
             state,
-            unitState.save_advantage_tags,
+            saveModifiers.AdvantageTags,
             saveTag,
             "unit",
             "save_advantage_tags",
@@ -424,7 +426,7 @@ public static class BattleSaveResolver
         );
         ApplySaveTagValues(
             state,
-            unitState.save_disadvantage_tags,
+            saveModifiers.DisadvantageTags,
             saveTag,
             "unit",
             "save_disadvantage_tags",
@@ -432,7 +434,7 @@ public static class BattleSaveResolver
         );
         ApplySaveTagValues(
             state,
-            unitState.save_immunity_tags,
+            saveModifiers.ImmunityTags,
             saveTag,
             "unit",
             "save_immunity_tags",
@@ -487,26 +489,75 @@ public static class BattleSaveResolver
             return;
         }
         foreach (StringName parsedValue in values)
-        {
-            if (parsedValue != saveTag)
-            {
-                continue;
-            }
-            if (mode == AdvantageStateAdvantage)
-            {
-                state.Advantage = true;
-            }
-            else if (mode == AdvantageStateDisadvantage)
-            {
-                state.Disadvantage = true;
-            }
-            else if (mode == SaveModeImmunity)
-            {
-                state.Immune = true;
-            }
+            ApplySaveTagValue(
+                state,
+                parsedValue,
+                saveTag,
+                sourceId,
+                sourceType,
+                mode
+            );
+    }
 
-            state.Sources.Add(new BattleSaveSource(sourceId, sourceType, parsedValue, mode));
+    private static void ApplySaveTagValues(
+        BattleSaveTagState state,
+        BattleSaveModifierTagReadView values,
+        StringName saveTag,
+        StringName sourceId,
+        string sourceType,
+        StringName mode
+    )
+    {
+        if (IsEmpty(saveTag))
+            return;
+
+        List<StringName>.Enumerator enumerator = values.GetEnumerator();
+        while (enumerator.MoveNext())
+        {
+            ApplySaveTagValue(
+                state,
+                enumerator.Current,
+                saveTag,
+                sourceId,
+                sourceType,
+                mode
+            );
         }
+    }
+
+    private static void ApplySaveTagValue(
+        BattleSaveTagState state,
+        StringName parsedValue,
+        StringName saveTag,
+        StringName sourceId,
+        string sourceType,
+        StringName mode
+    )
+    {
+        if (parsedValue != saveTag)
+            return;
+
+        if (mode == AdvantageStateAdvantage)
+        {
+            state.Advantage = true;
+        }
+        else if (mode == AdvantageStateDisadvantage)
+        {
+            state.Disadvantage = true;
+        }
+        else if (mode == SaveModeImmunity)
+        {
+            state.Immune = true;
+        }
+
+        state.Sources.Add(
+            new BattleSaveSource(
+                sourceId,
+                sourceType,
+                parsedValue,
+                mode
+            )
+        );
     }
 
     private static StringName ResolveAdvantageState(BattleSaveTagState tagState)
@@ -711,13 +762,11 @@ public static class BattleSaveResolver
 
     private static int GetUnitAbilitySaveBonus(BattleUnitState targetUnit, StringName saveAbility)
     {
-        if (targetUnit?.save_bonus_by_ability == null || IsEmpty(saveAbility))
+        if (targetUnit == null || IsEmpty(saveAbility))
         {
             return 0;
         }
-        return targetUnit.save_bonus_by_ability.TryGetValue(saveAbility, out int bonus)
-            ? bonus
-            : 0;
+        return targetUnit.GetSaveBonusByAbilityTyped(saveAbility);
     }
 
     private static int GetStatusSaveBonus(BattleUnitState targetUnit, StringName saveTag)

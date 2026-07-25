@@ -117,7 +117,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
         hunter.SetKnownSkillLevelTyped(SkillId, 3);
         resolver.ResolveSkillResult(hunter, quarry, skill);
 
-        int beforeHunterHitHp = quarry.current_hp;
+        int beforeHunterHitHp = quarry.GetCurrentHp();
         AttackEffectResolutionResult hunterHit = resolver.ResolveAttackEffects(
             hunter,
             quarry,
@@ -125,10 +125,10 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             attackCheck
         );
         _test.Eq(hunterHit.Damage, 16, "施放者命中自己的猎人标记目标时应为 1D8+2+1D6 最大伤害。");
-        _test.Eq(beforeHunterHitHp - quarry.current_hp, 16, "hunter_marked 额外伤害应实际扣血。");
+        _test.Eq(beforeHunterHitHp - quarry.GetCurrentHp(), 16, "hunter_marked 额外伤害应实际扣血。");
 
-        quarry.current_hp = 100;
-        int beforeAllyHitHp = quarry.current_hp;
+        quarry.SetCurrentHp(100);
+        int beforeAllyHitHp = quarry.GetCurrentHp();
         AttackEffectResolutionResult allyHit = resolver.ResolveAttackEffects(
             ally,
             quarry,
@@ -136,12 +136,12 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             attackCheck
         );
         _test.Eq(allyHit.Damage, 10, "非施放者攻击同一个 hunter_marked 目标不应获得 1D6。");
-        _test.Eq(beforeAllyHitHp - quarry.current_hp, 10, "非施放者不应触发来源绑定额外伤害。");
+        _test.Eq(beforeAllyHitHp - quarry.GetCurrentHp(), 10, "非施放者不应触发来源绑定额外伤害。");
 
-        quarry.current_hp = 100;
+        quarry.SetCurrentHp(100);
         hunter.SetKnownSkillLevelTyped(SkillId, 5);
         resolver.ResolveSkillResult(hunter, quarry, skill);
-        int beforeLevelFiveHunterHitHp = quarry.current_hp;
+        int beforeLevelFiveHunterHitHp = quarry.GetCurrentHp();
         AttackEffectResolutionResult levelFiveHunterHit = resolver.ResolveAttackEffects(
             hunter,
             quarry,
@@ -149,7 +149,7 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             attackCheck
         );
         _test.Eq(levelFiveHunterHit.Damage, 18, "5 级猎人标记应升级为 1D8+2+2D4 最大伤害。");
-        _test.Eq(beforeLevelFiveHunterHitHp - quarry.current_hp, 18, "5 级 2D4 额外伤害应实际扣血。");
+        _test.Eq(beforeLevelFiveHunterHitHp - quarry.GetCurrentHp(), 18, "5 级 2D4 额外伤害应实际扣血。");
     }
 
     private static SkillDefinition LoadHunterMarkSkill() =>
@@ -219,25 +219,38 @@ public partial class run_hunter_mark_skill_regression : LifecycleTestSceneTree
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = hp,
-            is_alive = true,
-            weapon_profile_kind = "equipped",
-            weapon_current_grip = "one_handed",
-            weapon_attack_range = 1,
-            weapon_physical_damage_tag = "physical_slash",
-            weapon_one_handed_dice = new WeaponDice
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                dice_count = 1,
-                dice_sides = 8,
-                flat_bonus = 2,
-            },
-        };
+                weapon_profile_kind = "equipped",
+                weapon_item_id = "hunter_mark_test_weapon",
+                weapon_profile_type_id = "longsword",
+                weapon_range_type = "melee",
+                weapon_family = "sword",
+                weapon_current_grip = "one_handed",
+                weapon_attack_range = 1,
+                weapon_one_handed_dice = new WeaponDice
+                {
+                    dice_count = 1,
+                    dice_sides = 8,
+                    flat_bonus = 2,
+                },
+                weapon_two_handed_dice = new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = "physical_slash",
+            }
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, 80);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 8);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 8);
-        unit.current_stamina = 80;
+        unit.SetCurrentStamina(80);
         return unit;
     }
 

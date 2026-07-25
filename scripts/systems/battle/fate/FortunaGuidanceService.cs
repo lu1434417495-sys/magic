@@ -87,7 +87,7 @@ internal class FortunaGuidanceService
                 continue;
             if (
                 playerWon
-                && unitState.is_alive
+                && unitState.IsAlive()
                 && UnlockAchievement(unitState.source_member_id, AchievementGuidanceDevout)
             )
                 AppendUniqueStringName(unlockedIds, AchievementGuidanceDevout);

@@ -131,16 +131,15 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
 
         BattleUnitState activeUnit = BuildUnit("combo_mastery_user", new Vector2I(1, 1), 2);
         activeUnit.source_member_id = "hero";
-        activeUnit.current_aura = 99;
-        activeUnit.known_active_skill_ids = new Godot.Collections.Array<StringName>
-        {
-            "combo_mastery_stage_test",
-        };
-        activeUnit.known_skill_level_map["combo_mastery_stage_test"] = 1;
+        activeUnit.SetCurrentAura(99);
+        activeUnit.SetKnownActiveSkillIds(
+            new[] { new StringName("combo_mastery_stage_test") }
+        );
+        activeUnit.SetKnownSkillLevelTyped("combo_mastery_stage_test", 1);
 
         BattleUnitState targetUnit = BuildUnit("combo_mastery_target", new Vector2I(2, 1), 2);
         targetUnit.faction_id = "enemy";
-        targetUnit.current_hp = 999;
+        targetUnit.SetCurrentHp(999);
         targetUnit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 999);
 
         SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
@@ -169,13 +168,14 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = currentAp,
-            current_hp = 40,
-            current_mp = 4,
-            current_stamina = 60,
-            current_aura = 0,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 40,
+            mp: 4,
+            stamina: 60,
+            aura: 0,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
@@ -430,9 +430,10 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             display_name = unitId.ToString(),
             faction_id = factionId,
             source_member_id = memberId,
-            current_hp = 30,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         return unit;
     }

@@ -218,7 +218,7 @@ internal class BattleGroundSkillValidationService
             int targetDistance =
                 relocationEffectDefinition != null
                     ? GridService.GetChebyshevDistance(
-                        activeUnit.coord,
+                        activeUnit.GetAnchorCoord(),
                         coord
                     )
                     : GridService.GetDistanceFromUnitToCoord(
@@ -230,7 +230,7 @@ internal class BattleGroundSkillValidationService
                 return deniedResult with { Message = "目标地格超出技能施放距离。" };
             }
             string casterLineMessage = GetCasterTargetVectorLineValidationMessage(
-                activeUnit.coord,
+                activeUnit.GetAnchorCoord(),
                 coord,
                 combatProfile
             );

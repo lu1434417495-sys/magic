@@ -75,8 +75,7 @@ internal class TraitTriggerHooks
         TraitEffectKind EffectKind,
         TraitTriggerKind TriggerKind,
         TraitChargeScopeKind ChargeScope,
-        TraitChargeResetTimingKind ChargeResetTiming,
-        List<TraitRollValueState> RollValues
+        TraitChargeResetTimingKind ChargeResetTiming
     );
 
     private readonly record struct TraitChargeScopeEntry(
@@ -242,7 +241,7 @@ internal class TraitTriggerHooks
 
     internal static bool ReconcileChargesAfterEffectiveTraitProjection(
         BattleUnitState unitState,
-        IEnumerable<BattleEffectiveTraitInstanceState> previousEffectiveTraitInstances
+        BattleEffectiveTraitInstanceListReadView previousEffectiveTraitInstances
     )
     {
         if (unitState == null)
@@ -251,7 +250,9 @@ internal class TraitTriggerHooks
         List<TraitChargeScopeEntry> previousScopes =
             GetChargeScopesByEffectiveKey(previousEffectiveTraitInstances);
         List<TraitChargeScopeEntry> currentScopes =
-            GetChargeScopesByEffectiveKey(unitState.effective_trait_instances);
+            GetChargeScopesByEffectiveKey(
+                unitState.GetEffectiveTraitsReadViewTyped().Instances
+            );
         bool changed = false;
 
         foreach (TraitChargeScopeEntry previous in previousScopes)
@@ -415,29 +416,35 @@ internal class TraitTriggerHooks
 
     private static List<UnitEffectiveTrait> GetAllEffectiveInstances(BattleUnitState unitState)
     {
-        return GetAllEffectiveInstances(unitState?.effective_trait_instances);
+        return unitState == null
+            ? new List<UnitEffectiveTrait>()
+            : GetAllEffectiveInstances(
+                unitState.GetEffectiveTraitsReadViewTyped().Instances
+            );
     }
 
     private static List<UnitEffectiveTrait> GetAllEffectiveInstances(
-        IEnumerable<BattleEffectiveTraitInstanceState> effectiveTraitInstances)
+        BattleEffectiveTraitInstanceListReadView effectiveTraitInstances)
     {
         List<UnitEffectiveTrait> result = new();
-        if (effectiveTraitInstances == null)
+        if (!effectiveTraitInstances.IsPresent)
             return result;
 
-        foreach (BattleEffectiveTraitInstanceState entry in effectiveTraitInstances)
+        foreach (
+            BattleEffectiveTraitInstanceReadView entry
+            in effectiveTraitInstances
+        )
         {
-            if (entry == null)
+            if (!entry.IsPresent)
                 continue;
             result.Add(
                 new UnitEffectiveTrait(
-                    entry.trait_id,
-                    entry.effective_instance_key,
+                    entry.TraitId,
+                    entry.EffectiveInstanceKey,
                     entry.EffectKind,
                     entry.TriggerKind,
                     entry.ChargeScopeKind,
-                    entry.ChargeResetTimingKind,
-                    TraitInstanceState.NormalizeRollValues(entry.roll_values)
+                    entry.ChargeResetTimingKind
                 )
             );
         }
@@ -445,7 +452,7 @@ internal class TraitTriggerHooks
     }
 
     private static List<TraitChargeScopeEntry> GetChargeScopesByEffectiveKey(
-        IEnumerable<BattleEffectiveTraitInstanceState> effectiveTraitInstances
+        BattleEffectiveTraitInstanceListReadView effectiveTraitInstances
     )
     {
         List<TraitChargeScopeEntry> result = new();
@@ -527,14 +534,14 @@ internal class TraitTriggerHooks
             return false;
         if (scope == TraitChargeScopeKind.PerTurn)
         {
-            if (unitState.per_turn_charges.ContainsKey(chargeKey))
+            if (unitState.HasPerTurnChargeTyped(chargeKey))
                 return false;
             SetCharge(unitState, chargeKey, 1, true);
             return true;
         }
         if (scope == TraitChargeScopeKind.PerBattle)
         {
-            if (unitState.per_battle_charges.ContainsKey(chargeKey))
+            if (unitState.HasPerBattleChargeTyped(chargeKey))
                 return false;
             SetCharge(unitState, chargeKey, 1, false);
             return true;
@@ -554,22 +561,13 @@ internal class TraitTriggerHooks
         bool changed = false;
         if (scope == TraitChargeScopeKind.PerTurn)
         {
-            changed |= RemoveKey(unitState.per_turn_charges, chargeKey);
-            changed |= RemoveKey(unitState.per_turn_charge_limits, chargeKey);
+            changed = unitState.RemovePerTurnChargeAndLimitTyped(chargeKey);
         }
         else if (scope == TraitChargeScopeKind.PerBattle)
         {
-            changed |= RemoveKey(unitState.per_battle_charges, chargeKey);
+            changed = unitState.RemovePerBattleChargeTyped(chargeKey);
         }
         return changed;
-    }
-
-    private static bool RemoveKey(BattleStringNameIntMap source, StringName key)
-    {
-        if (source == null || IsEmpty(key) || !source.ContainsKey(key))
-            return false;
-        source.Remove(key);
-        return true;
     }
 
     private static StringName GetTraitChargeKey(StringName traitId)
@@ -592,11 +590,15 @@ internal class TraitTriggerHooks
         {
             return;
         }
-        BattleStringNameIntMap charges =
-            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        if (force || !charges.ContainsKey(chargeKey))
+        bool initialized = perTurn
+            ? unitState.HasPerTurnChargeTyped(chargeKey)
+            : unitState.HasPerBattleChargeTyped(chargeKey);
+        if (force || !initialized)
         {
-            charges.Put(chargeKey, Math.Max(value, 0));
+            if (perTurn)
+                unitState.SetPerTurnChargeTyped(chargeKey, value);
+            else
+                unitState.SetPerBattleChargeTyped(chargeKey, value);
         }
     }
 
@@ -611,18 +613,30 @@ internal class TraitTriggerHooks
         {
             return false;
         }
-        BattleStringNameIntMap charges =
-            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        if (!charges.ContainsKey(chargeKey))
+        bool initialized = perTurn
+            ? unitState.HasPerTurnChargeTyped(chargeKey)
+            : unitState.HasPerBattleChargeTyped(chargeKey);
+        if (!initialized)
         {
-            charges.Put(chargeKey, Math.Max(defaultValue, 0));
+            if (perTurn)
+                unitState.SetPerTurnChargeTyped(chargeKey, defaultValue);
+            else
+                unitState.SetPerBattleChargeTyped(chargeKey, defaultValue);
         }
-        int remaining = Math.Max(charges.Get(chargeKey), 0);
+        int remaining = Math.Max(
+            perTurn
+                ? unitState.GetPerTurnChargeTyped(chargeKey)
+                : unitState.GetPerBattleChargeTyped(chargeKey),
+            0
+        );
         if (remaining <= 0)
         {
             return false;
         }
-        charges.Put(chargeKey, remaining - 1);
+        if (perTurn)
+            unitState.SetPerTurnChargeTyped(chargeKey, remaining - 1);
+        else
+            unitState.SetPerBattleChargeTyped(chargeKey, remaining - 1);
         return true;
     }
 
@@ -632,9 +646,12 @@ internal class TraitTriggerHooks
         {
             return 0;
         }
-        BattleStringNameIntMap charges =
-            perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        return Math.Max(charges.Get(chargeKey), 0);
+        return Math.Max(
+            perTurn
+                ? unitState.GetPerTurnChargeTyped(chargeKey)
+                : unitState.GetPerBattleChargeTyped(chargeKey),
+            0
+        );
     }
 
     private static GDictionary GetDict(GDictionary source, string key)

@@ -98,18 +98,22 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         AssertDragonBalancePayload(fixture.Bindings[DragonBalanceBindingId], "registry");
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildDragonScaleUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "龙鳞之斧装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "龙鳞之斧应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "龙鳞之斧武器族应为 axe。");
-        _test.Eq(equipped.weapon_attack_range, 1, "龙鳞之斧攻击距离应为 1。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "龙鳞之斧基础伤害应为 physical_slash。");
-        _test.True(equipped.weapon_is_versatile, "龙鳞之斧应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "龙鳞之斧单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "龙鳞之斧单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "龙鳞之斧单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "龙鳞之斧双手应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "龙鳞之斧双手应为 1D10+3。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "龙鳞之斧装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "龙鳞之斧应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "龙鳞之斧武器族应为 axe。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "龙鳞之斧攻击距离应为 1。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "龙鳞之斧基础伤害应为 physical_slash。");
+        _test.True(equippedWeapon.IsVersatile, "龙鳞之斧应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "龙鳞之斧单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "龙鳞之斧单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "龙鳞之斧单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "龙鳞之斧双手应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "龙鳞之斧双手应为 1D10+3。");
 
         AssertTraitProjected(equipped, FivefoldScalesTraitId);
         AssertUnitHasTraitAndAbilitySource(equipped, DragonToothEdgeTraitId, DragonToothEdgeBindingId, "eq_dragon_scale_projection");
@@ -124,10 +128,15 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除龙鳞之斧后 weapon_item_id 应清空。");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "移除后武器 profile 应回到装备前状态。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除后装备能力源应清空。");
-        _test.Eq(equipped.effective_trait_instances.Count, baseline.effective_trait_instances.Count, "移除后装备 trait 实例应回到装备前状态。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除龙鳞之斧后 weapon_item_id 应清空。");
+        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后武器 profile 应回到装备前状态。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除后装备能力源应清空。"
+        );
+        _test.Eq(equipped.GetEffectiveTraitInstanceCountTyped(), baseline.GetEffectiveTraitInstanceCountTyped(), "移除后装备 trait 实例应回到装备前状态。");
     }
 
     private void TestDragonToothEdgeIsOncePerHolderTurnAndDragonBalanceOnlyAffectsDragons()
@@ -135,10 +144,10 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         using DragonScaleFixture fixture = DragonScaleFixture.Build(new GArray());
         BattleUnitState attacker = fixture.BuildDragonScaleUnit("damage");
         BattleUnitState humanoid = BuildTarget("dragon_tooth_humanoid", new Vector2I(1, 0), "humanoid");
-        humanoid.current_hp = 160;
+        humanoid.SetCurrentHp(160);
         humanoid.attribute_snapshot.SetValue(AttributeService.HP_MAX, 160);
 
-        int beforeFirst = humanoid.current_hp;
+        int beforeFirst = humanoid.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -146,9 +155,9 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             "dragon_scale_tooth_first",
             previewCommand: false
         );
-        int firstDamage = beforeFirst - humanoid.current_hp;
+        int firstDamage = beforeFirst - humanoid.GetCurrentHp();
 
-        int beforeSecond = humanoid.current_hp;
+        int beforeSecond = humanoid.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -156,11 +165,11 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             "dragon_scale_tooth_second",
             previewCommand: false
         );
-        int secondDamage = beforeSecond - humanoid.current_hp;
+        int secondDamage = beforeSecond - humanoid.GetCurrentHp();
         _test.True(firstDamage > secondDamage, "龙牙锋刃同一持有者回合第一次真实武器命中应多出 1D6。");
 
         attacker.ResetPerTurnCharges();
-        int beforeNextTurn = humanoid.current_hp;
+        int beforeNextTurn = humanoid.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -168,7 +177,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             "dragon_scale_tooth_next_turn",
             previewCommand: false
         );
-        int nextTurnDamage = beforeNextTurn - humanoid.current_hp;
+        int nextTurnDamage = beforeNextTurn - humanoid.GetCurrentHp();
         _test.True(nextTurnDamage > secondDamage, "重置持有者 per-turn charge 后龙牙锋刃应再次触发。");
 
         BattleUnitState warmup = BuildTarget("dragon_balance_warmup", new Vector2I(1, 0), "humanoid");
@@ -180,9 +189,9 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             previewCommand: false
         );
         BattleUnitState dragon = BuildTarget("dragon_balance_dragon", new Vector2I(1, 0), "dragon");
-        dragon.current_hp = 160;
+        dragon.SetCurrentHp(160);
         dragon.attribute_snapshot.SetValue(AttributeService.HP_MAX, 160);
-        int beforeDragon = dragon.current_hp;
+        int beforeDragon = dragon.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -190,15 +199,15 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             "dragon_scale_balance_dragon",
             previewCommand: false
         );
-        int dragonDamage = beforeDragon - dragon.current_hp;
+        int dragonDamage = beforeDragon - dragon.GetCurrentHp();
 
         using DragonScaleFixture plainFixture = DragonScaleFixture.Build(new GArray());
         BattleUnitState plainAttacker = plainFixture.BuildDragonScaleUnit("plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainDragon = BuildTarget("plain_dragon", new Vector2I(1, 0), "dragon");
-        plainDragon.current_hp = 160;
+        plainDragon.SetCurrentHp(160);
         plainDragon.attribute_snapshot.SetValue(AttributeService.HP_MAX, 160);
-        int beforePlainDragon = plainDragon.current_hp;
+        int beforePlainDragon = plainDragon.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
             plainAttacker,
@@ -206,7 +215,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
             "dragon_scale_balance_plain",
             previewCommand: false
         );
-        int plainDragonDamage = beforePlainDragon - plainDragon.current_hp;
+        int plainDragonDamage = beforePlainDragon - plainDragon.GetCurrentHp();
         _test.True(dragonDamage > plainDragonDamage, "屠龙制衡应只给 dragon 目标额外 1D8。");
     }
 
@@ -338,7 +347,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         using DragonScaleFixture fixture = DragonScaleFixture.Build(new GArray());
         BattleUnitState holder = fixture.BuildDragonScaleUnit("non_weapon_holder");
         BattleUnitState target = BuildTarget("non_weapon_target", new Vector2I(1, 0), "humanoid");
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             "dragon_scale_non_weapon_damage",
@@ -458,7 +467,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         out GDictionary firstDamageEvent
     )
     {
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             battleId,
@@ -483,7 +492,7 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, StringName tag)
     {
         BattleUnitState unit = BuildAttacker(unitId, coord, "enemy", "melee");
-        unit.creature_type_tags.Add(tag);
+        unit.AddCreatureTypeTagTyped(tag);
         return unit;
     }
 
@@ -494,14 +503,15 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         StringName weaponRangeType
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = true,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -509,15 +519,39 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         unit.attribute_snapshot.SetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 10);
         unit.attribute_snapshot.SetValue(AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.ConstitutionModifier), 0);
-        unit.weapon_attack_range = weaponRangeType == "ranged" ? 6 : 1;
-        unit.weapon_range_type = weaponRangeType;
+        bool usesTwoHands = weaponRangeType == "ranged";
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = usesTwoHands ? "equipped" : "unarmed",
+                weapon_item_id = usesTwoHands
+                    ? "dragon_scale_test_bow"
+                    : "",
+                weapon_profile_type_id = usesTwoHands ? "longbow" : "unarmed",
+                weapon_range_type = weaponRangeType,
+                weapon_family = usesTwoHands ? "bow" : "unarmed",
+                weapon_current_grip = usesTwoHands ? "two_handed" : "one_handed",
+                weapon_attack_range = usesTwoHands ? 6 : 1,
+                weapon_one_handed_dice = usesTwoHands
+                    ? new WeaponDice()
+                    : new WeaponDice { dice_count = 1, dice_sides = 4 },
+                weapon_two_handed_dice = usesTwoHands
+                    ? new WeaponDice { dice_count = 1, dice_sides = 8 }
+                    : new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = usesTwoHands,
+                weapon_physical_damage_tag = usesTwoHands
+                    ? "physical_pierce"
+                    : "physical_blunt",
+            }
+        );
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }
 
     private void AssertTraitProjected(BattleUnitState unit, StringName traitId)
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"unit 应投影 trait {traitId}。");
+        _test.True(unit.HasEffectiveTrait(traitId), $"unit 应投影 trait {traitId}。");
     }
 
     private void AssertMitigation(BattleUnitState unit, StringName damageTag, StringName mitigation)
@@ -527,11 +561,9 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }
@@ -545,9 +577,9 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -560,12 +592,18 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

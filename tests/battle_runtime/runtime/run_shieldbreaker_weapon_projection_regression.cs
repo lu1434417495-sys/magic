@@ -107,19 +107,19 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         BattleUnitState baseline = BuildSingleAllyUnit(factory, partyState, "baseline");
         int baselineAc = GetAttribute(baseline, AttributeService.ARMOR_CLASS);
         _test.False(
-            baseline.effective_trait_ids.Contains(GuardBreakerTraitId),
+            baseline.HasEffectiveTrait(GuardBreakerTraitId),
             "装备前 unit 不应拥有破盾者 trait。"
         );
         _test.False(
-            baseline.effective_trait_ids.Contains(SiegeAxeTraitId),
+            baseline.HasEffectiveTrait(SiegeAxeTraitId),
             "装备前 unit 不应拥有攻城之斧 trait。"
         );
         _test.False(
-            baseline.effective_trait_ids.Contains(DefenseEnemyTraitId),
+            baseline.HasEffectiveTrait(DefenseEnemyTraitId),
             "装备前 unit 不应拥有防御之敌 trait。"
         );
         _test.Eq(
-            baseline.equipment_ability_sources.Count,
+            baseline.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "装备前 unit 不应投影碎盾装备能力源。"
         );
@@ -135,41 +135,43 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             )
         );
         BattleUnitState equipped = BuildSingleAllyUnit(factory, partyState, "shieldbreaker");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
         _test.Eq(
-            equipped.weapon_item_id,
+            equippedWeapon.ItemId,
             ShieldbreakerItemId,
             "碎盾装备后 unit 应保留真实 item_id。"
         );
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("greataxe"),
             "碎盾应投影为 greataxe。"
         );
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "碎盾应投影为 physical_slash。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "碎盾攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "碎盾应占用双手。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "碎盾攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "碎盾应占用双手。");
         _test.Eq(
-            equipped.weapon_current_grip,
+            equippedWeapon.CurrentGrip,
             BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded),
             "碎盾当前握持应为 two_handed。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_count ?? 0,
+            equippedWeapon.TwoHandedDice.DiceCount,
             1,
             "碎盾双手骰数量应为 1。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_sides ?? 0,
+            equippedWeapon.TwoHandedDice.DiceSides,
             12,
             "碎盾双手骰面应为 12。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.flat_bonus ?? 0,
+            equippedWeapon.TwoHandedDice.FlatBonus,
             2,
             "碎盾双手骰固定加值应为 +2。"
         );
@@ -215,6 +217,10 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         int baselineAc
     )
     {
+        BattleWeaponProjectionValues unitWeapon =
+            unit.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
             ProgressionDataUtils.to_string_name(
                 unit.GetEquipmentView().GetEquippedItemId("main_hand")
@@ -229,40 +235,40 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             new StringName(""),
             "移除碎盾后 off_hand 占用应解除。"
         );
-        _test.Eq(unit.weapon_item_id, new StringName(""), "移除碎盾后 weapon_item_id 应清空。");
+        _test.Eq(unitWeapon.ItemId, new StringName(""), "移除碎盾后 weapon_item_id 应清空。");
         _test.Eq(
-            unit.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            unitWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除碎盾后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            unit.weapon_physical_damage_tag,
-            baseline.weapon_physical_damage_tag,
+            unitWeapon.PhysicalDamageTag,
+            baselineWeapon.PhysicalDamageTag,
             "移除碎盾后 weapon_physical_damage_tag 应回到装备前状态。"
         );
         _test.Eq(
-            unit.weapon_attack_range,
-            baseline.weapon_attack_range,
+            unitWeapon.AttackRange,
+            baselineWeapon.AttackRange,
             "移除碎盾后武器攻击距离应回到装备前状态。"
         );
         _test.Eq(
-            unit.weapon_uses_two_hands,
-            baseline.weapon_uses_two_hands,
+            unitWeapon.UsesTwoHands,
+            baselineWeapon.UsesTwoHands,
             "移除碎盾后双手武器标记应回到装备前状态。"
         );
         _test.Eq(
-            unit.weapon_current_grip,
-            baseline.weapon_current_grip,
+            unitWeapon.CurrentGrip,
+            baselineWeapon.CurrentGrip,
             "移除碎盾后当前握持应回到装备前状态。"
         );
         _test.Eq(
-            unit.weapon_two_handed_dice?.dice_count ?? 0,
-            baseline.weapon_two_handed_dice?.dice_count ?? 0,
+            unitWeapon.TwoHandedDice.DiceCount,
+            baselineWeapon.TwoHandedDice.DiceCount,
             "移除碎盾后双手武器骰数量应回到装备前状态。"
         );
         _test.Eq(
-            unit.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            unit.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除碎盾后装备 trait 实例应回到装备前状态。"
         );
         _test.Eq(
@@ -271,19 +277,19 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
             "移除碎盾后 AC 应回到装备前。"
         );
         _test.False(
-            unit.effective_trait_ids.Contains(GuardBreakerTraitId),
+            unit.HasEffectiveTrait(GuardBreakerTraitId),
             "移除碎盾后破盾者 trait 应消失。"
         );
         _test.False(
-            unit.effective_trait_ids.Contains(SiegeAxeTraitId),
+            unit.HasEffectiveTrait(SiegeAxeTraitId),
             "移除碎盾后攻城之斧 trait 应消失。"
         );
         _test.False(
-            unit.effective_trait_ids.Contains(DefenseEnemyTraitId),
+            unit.HasEffectiveTrait(DefenseEnemyTraitId),
             "移除碎盾后防御之敌 trait 应消失。"
         );
         _test.Eq(
-            unit.equipment_ability_sources.Count,
+            unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除碎盾后装备能力源应清空。"
         );
@@ -328,8 +334,8 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         StringName expectedInstanceId
     )
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"unit 应拥有 trait {traitId}。");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        _test.True(unit.HasEffectiveTrait(traitId), $"unit 应拥有 trait {traitId}。");
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         _test.True(source != null, $"unit 应投影装备能力源 {bindingId}。");
         if (source == null)
             return;
@@ -346,12 +352,15 @@ public partial class run_shieldbreaker_weapon_projection_regression : LifecycleT
         _test.Eq(source.EquipmentDefId, ShieldbreakerItemId, $"{bindingId} 应保留碎盾 item id。");
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

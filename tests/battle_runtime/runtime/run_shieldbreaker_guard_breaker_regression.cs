@@ -193,7 +193,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             durability: 12
         );
 
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 6 }
@@ -219,7 +219,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             rarity: (int)EquipmentInstanceState.RarityTier.COMMON,
             durability: 12
         );
-        failedRollTarget.current_hp = 100;
+        failedRollTarget.SetCurrentHp(100);
         failedRollTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 7 }
@@ -250,7 +250,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             rarity: (int)EquipmentInstanceState.RarityTier.COMMON,
             durability: 12
         );
-        missedTarget.current_hp = 100;
+        missedTarget.SetCurrentHp(100);
         missedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
@@ -283,7 +283,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             durability: 24
         );
 
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 6 }
@@ -312,12 +312,12 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
         using ShieldbreakerFixture fixture = ShieldbreakerFixture.Build(new GArray());
         BattleUnitState attacker = fixture.BuildShieldbreakerUnit("siege_axe");
         BattleUnitState construct = BuildTarget("construct_target", new Vector2I(1, 0));
-        construct.creature_type_tags.Add("construct");
+        construct.AddCreatureTypeTagTyped("construct");
         BattleUnitState humanoid = BuildTarget("humanoid_target", new Vector2I(1, 0));
-        humanoid.creature_type_tags.Add("humanoid");
-        construct.current_hp = 120;
+        humanoid.AddCreatureTypeTagTyped("humanoid");
+        construct.SetCurrentHp(120);
         construct.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
-        humanoid.current_hp = 120;
+        humanoid.SetCurrentHp(120);
         humanoid.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -327,7 +327,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             "shieldbreaker_siege_construct",
             previewCommand: false
         );
-        int constructDamage = 120 - construct.current_hp;
+        int constructDamage = 120 - construct.GetCurrentHp();
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -336,7 +336,7 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
             "shieldbreaker_siege_humanoid",
             previewCommand: false
         );
-        int humanoidDamage = 120 - humanoid.current_hp;
+        int humanoidDamage = 120 - humanoid.GetCurrentHp();
 
         _test.True(
             constructDamage > humanoidDamage,
@@ -411,14 +411,15 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
         int durability = 0
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

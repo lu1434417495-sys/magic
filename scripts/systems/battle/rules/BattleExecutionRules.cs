@@ -134,10 +134,10 @@ public static class BattleExecutionRules
     )
     {
         int maxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
-        int currentHp = targetUnit != null ? Math.Max(targetUnit.current_hp, 0) : 0;
+        int currentHp = targetUnit != null ? Math.Max(targetUnit.GetCurrentHp(), 0) : 0;
         int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
 
-        if (targetUnit != null && targetUnit.is_alive && currentHp > 0 && currentHp <= threshold)
+        if (targetUnit != null && targetUnit.IsAlive() && currentHp > 0 && currentHp <= threshold)
         {
             return new BattleExecutePlan(
                 BranchLowHpExecute,

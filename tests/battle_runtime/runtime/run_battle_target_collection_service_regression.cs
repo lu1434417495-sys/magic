@@ -70,7 +70,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
         BattleTargetCollectionResult selfResult = service.CollectCombatProfileTargetCoords(
             state,
             gridService,
-            sourceUnit.coord,
+            sourceUnit.GetAnchorCoord(),
             CombatSkillDefinition.FromResource(
                 new CombatSkillDef
                 {
@@ -94,7 +94,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
         BattleTargetCollectionResult unitResult = service.CollectCombatProfileTargetCoords(
             state,
             gridService,
-            sourceUnit.coord,
+            sourceUnit.GetAnchorCoord(),
             CombatSkillDefinition.FromResource(
                 new CombatSkillDef { target_mode = "unit" },
                 "target_collection_unit",
@@ -143,9 +143,10 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
-            current_hp = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         return unit;
     }

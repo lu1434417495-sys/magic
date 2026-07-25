@@ -130,7 +130,7 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
             );
         _test.True(executionResult.Executed, "typed validated move 应实际执行。");
         _test.True(executionResult.ReachedTarget, "typed validated move 应到达目标。");
-        _test.Eq(ally.coord, new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
+        _test.Eq(ally.GetAnchorCoord(), new Vector2I(1, 0), "typed validated move 应更新单位坐标。");
 
         runtime.dispose();
     }
@@ -194,11 +194,12 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = 2,
-            current_move_points = 2,
-            current_hp = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            ap: 2,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
         unit.SetAnchorCoord(coord);
         return unit;
@@ -216,7 +217,7 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
         state.SetUnit(enemy);
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
-        _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");
-        _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.coord, true), "测试敌方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.GetAnchorCoord(), true), "测试友方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.GetAnchorCoord(), true), "测试敌方应能放入战场。");
     }
 }

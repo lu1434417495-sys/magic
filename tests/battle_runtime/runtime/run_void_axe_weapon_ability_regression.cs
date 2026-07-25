@@ -95,12 +95,16 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildVoidAxeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "虚空之斧装备后 unit 应保留 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("greataxe"), "虚空之斧应投影为 greataxe。");
-        _test.Eq(equipped.weapon_attack_range, 1, "虚空之斧投影攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "虚空之斧应占用双手。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "虚空之斧装备后 unit 应保留 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("greataxe"), "虚空之斧应投影为 greataxe。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "虚空之斧投影攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "虚空之斧应占用双手。");
         foreach (StringName traitId in TraitIds())
-            _test.True(equipped.effective_trait_ids.Contains(traitId), $"装备后应投影 {traitId}。");
+            _test.True(equipped.HasEffectiveTrait(traitId), $"装备后应投影 {traitId}。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             BoundaryCutTraitId,
@@ -110,13 +114,19 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除虚空之斧后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除虚空之斧后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除虚空之斧后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除虚空之斧后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除虚空之斧后装备能力源应清空。"
+        );
     }
 
     private void TestBoundaryCutCreatesBlockingRiftOnRealWeaponHitAndExpiresAfter80Tu()
@@ -255,9 +265,12 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
         string instanceId
     )
     {
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"missing trait {traitId}");
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (
                 source?.SourceEquipmentInstanceId == instanceId
@@ -290,18 +303,18 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            coord = coord,
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -309,8 +322,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
     {
         state.SetUnit(unit);
         state.enemy_unit_ids.Add(unit.unit_id);
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
     }
 

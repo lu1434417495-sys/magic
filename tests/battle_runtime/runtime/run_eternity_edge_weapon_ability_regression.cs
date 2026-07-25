@@ -127,26 +127,28 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildEternityEdgeUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "永恒之刃装备后 unit 应保留真实 item_id。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "永恒之刃装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("longsword"),
             "永恒之刃应投影为 longsword。"
         );
-        _test.Eq(equipped.weapon_family, new StringName("sword"), "永恒之刃应投影为 sword family。");
+        _test.Eq(equippedWeapon.Family, new StringName("sword"), "永恒之刃应投影为 sword family。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "永恒之刃基础伤害应为 slash。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "永恒之刃攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "永恒之刃应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "永恒之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "永恒之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "永恒之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "永恒之刃双手应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "永恒之刃双手应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "永恒之刃双手应为 1D10+3。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "永恒之刃攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "永恒之刃应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "永恒之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "永恒之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "永恒之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "永恒之刃双手应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "永恒之刃双手应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "永恒之刃双手应为 1D10+3。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             EternalWoundTraitId,
@@ -196,11 +198,16 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除永恒之刃后 weapon_item_id 应清空。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除永恒之刃后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除永恒之刃后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除永恒之刃后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除永恒之刃后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -227,8 +234,8 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             EndHolderTurn(fixture.Runtime, holder);
         }
 
-        _test.Eq(target.current_hp, 79, "前三次命中应各造成永恒之刃 1D8+3。");
-        _test.Eq(holder.current_hp, 49, "前三次时间窃取应各恢复 1D8。");
+        _test.Eq(target.GetCurrentHp(), 79, "前三次命中应各造成永恒之刃 1D8+3。");
+        _test.Eq(holder.GetCurrentHp(), 49, "前三次时间窃取应各恢复 1D8。");
         AssertStatusStacks(holder, TimeDebtStatusId, 3, -1, "三次时间窃取后应达到 3 层时间债。");
         BattleStatusEffectState aging = target.GetStatusEffect(AgingStatusId);
         _test.True(aging != null, "目标应获得老化。");
@@ -244,9 +251,9 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             _test.Eq(wound.duration, -1, "永恒伤口应无自然 TU 衰减。");
             _test.Eq(wound.heal_multiplier_percent ?? 100, 0, "永恒伤口应把常规治疗倍率压到 0%。");
         }
-        int beforeHeal = target.current_hp;
+        int beforeHeal = target.GetCurrentHp();
         ResolveRegularHeal(holder, target, 10);
-        _test.Eq(target.current_hp, beforeHeal, "永恒伤口应阻止常规治疗恢复 HP。");
+        _test.Eq(target.GetCurrentHp(), beforeHeal, "永恒伤口应阻止常规治疗恢复 HP。");
 
         IssueBasicAttackPreservingHolderHp(
             fixture.Runtime,
@@ -256,11 +263,11 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             previewCommand: false
         );
         _test.Eq(
-            target.current_hp,
+            target.GetCurrentHp(),
             62,
             "命中 3 层老化目标时应造成武器 1D8+3 与时间闭环 2D8 force。"
         );
-        _test.Eq(holder.current_hp, 49, "3 层时间债时，本击不应再触发时间窃取治疗。");
+        _test.Eq(holder.GetCurrentHp(), 49, "3 层时间债时，本击不应再触发时间窃取治疗。");
         _test.False(holder.HasStatusEffect(TimeDebtStatusId), "时间闭环应清空持有者全部时间债。");
         AssertStatusStacks(target, AgingStatusId, 1, 30, "时间闭环应消耗旧 3 层老化，并由本击重新留下 1 层。");
     }
@@ -287,7 +294,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             EndHolderTurn(fixture.Runtime, holder);
         }
 
-        _test.Eq(holder.current_hp, 46, "前三次时间窃取应各恢复 2 点。");
+        _test.Eq(holder.GetCurrentHp(), 46, "前三次时间窃取应各恢复 2 点。");
         AssertStatusStacks(holder, TimeDebtStatusId, 3, -1, "时间债应达到 3 层。");
 
         BattleUnitState cappedTarget = BuildTarget("eternity_debt_capped_target", new Vector2I(1, 0), hp: 40);
@@ -298,7 +305,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             "eternity_debt_capped_hit",
             previewCommand: false
         );
-        _test.Eq(holder.current_hp, 46, "3 层时间债时，时间窃取应暂停。");
+        _test.Eq(holder.GetCurrentHp(), 46, "3 层时间债时，时间窃取应暂停。");
         AssertStatusStacks(holder, TimeDebtStatusId, 3, -1, "暂停时不应继续增加时间债。");
 
         EndHolderTurn(fixture.Runtime, holder);
@@ -335,8 +342,8 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             previewCommand: false
         );
 
-        _test.False(target.is_alive, "这一击应击杀目标。");
-        _test.Eq(holder.current_hp, 43, "击杀伤害仍应先触发时间窃取治疗。");
+        _test.False(target.IsAlive(), "这一击应击杀目标。");
+        _test.Eq(holder.GetCurrentHp(), 43, "击杀伤害仍应先触发时间窃取治疗。");
         AssertStatusStacks(
             holder,
             TimeDebtStatusId,
@@ -358,9 +365,12 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
         StringName expectedEquipmentInstanceId
     )
     {
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}");
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (
                 source != null
@@ -424,7 +434,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
         bool previewCommand = true
     )
     {
-        int holderHp = Math.Max(holder?.current_hp ?? 1, 1);
+        int holderHp = Math.Max(holder?.GetCurrentHp() ?? 1, 1);
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(holder);
         holder.SetCurrentHp(holderHp);
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
@@ -512,7 +522,7 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             if (text.EndsWith(suffix, StringComparison.Ordinal))
                 return key;
         }
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         StringName sourceKey = source?.SourceEquipmentInstanceId ?? new StringName("");
         if (sourceKey == "")
             sourceKey = source?.EquipmentDefId ?? new StringName("");
@@ -523,12 +533,15 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
             : new StringName($"equipment_ability|state|{sourceKey}|{stateKey}");
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -538,22 +551,20 @@ public partial class run_eternity_edge_weapon_ability_regression : LifecycleTest
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            coord = coord,
-            body_size = 1,
-            body_size_category = "medium",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.SetBodySizeCategory("medium");
         unit.SetCombatResources(hp, 0, 30, 0, 2, 2);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, Math.Max(hp, 1));
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.SetAnchorCoord(coord);
-        unit.RefreshFootprint();
         return unit;
     }
 

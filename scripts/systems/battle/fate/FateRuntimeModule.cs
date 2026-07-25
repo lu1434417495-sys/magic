@@ -482,7 +482,7 @@ internal sealed class FateRuntimeModule
                     unitState.unit_id,
                     unitState.source_member_id,
                     unitState.faction_id,
-                    unitState.is_alive,
+                    unitState.IsAlive(),
                     isEnemy,
                     isEliteOrBoss
                 )

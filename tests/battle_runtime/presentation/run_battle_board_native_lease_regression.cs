@@ -33,16 +33,18 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 1,
-                expectedImageTextureCount: 2,
+                expectedImageCount: 2,
+                expectedImageTextureCount: 3,
                 expectedStyleBoxCount: 0
             );
 
             renderState = BuildStyledRenderState();
             Vector2I badgeCoord = new(1, 0);
             var hitBadges = new Dictionary<Vector2I, string> { [badgeCoord] = "命中 75%" };
+            var snapshotBuilder = new BattleBoardSnapshotBuilder();
+            BattleBoardRenderSnapshot renderSnapshot = snapshotBuilder.Build(renderState);
             board.Configure(
-                renderState,
+                renderSnapshot,
                 Vector2I.Zero,
                 Array.Empty<Vector2I>(),
                 new[] { badgeCoord },
@@ -65,7 +67,12 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             int renderedTopCellCount = controller._count_rendered_top_cells();
             BattleUnitState styledUnit = renderState.GetUnit(renderState.active_unit_id);
             styledUnit.SetCurrentHp(17);
-            controller.RefreshUnits(renderState, new[] { styledUnit.unit_id });
+            BattleBoardUnitUpdateSnapshot targetedUpdate = snapshotBuilder.BuildUnitUpdate(
+                renderState,
+                new[] { styledUnit.unit_id }
+            );
+            renderSnapshot = renderSnapshot.ApplyUnitUpdate(targetedUpdate);
+            controller.RefreshUnits(renderSnapshot, targetedUpdate.RequestedUnitIds);
             _test.Eq(
                 board.unit_layer.GetChildCount(),
                 1,
@@ -87,7 +94,12 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
                 "unit delta 不得创建新的 render-generation native owner。"
             );
             ulong targetedUnitTokenId = board.unit_layer.GetChild<Node2D>(0).GetInstanceId();
-            controller.RefreshUnits(renderState, System.Array.Empty<StringName>());
+            BattleBoardUnitUpdateSnapshot fullUnitUpdate = snapshotBuilder.BuildUnitUpdate(
+                renderState,
+                System.Array.Empty<StringName>()
+            );
+            renderSnapshot = renderSnapshot.ApplyUnitUpdate(fullUnitUpdate);
+            controller.RefreshUnits(renderSnapshot, fullUnitUpdate.RequestedUnitIds);
             _test.Ne(
                 board.unit_layer.GetChild<Node2D>(0).GetInstanceId(),
                 targetedUnitTokenId,
@@ -101,14 +113,14 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 1,
-                expectedImageTextureCount: 2,
+                expectedImageCount: 2,
+                expectedImageTextureCount: 3,
                 expectedStyleBoxCount: 2
             );
             for (int redrawIndex = 0; redrawIndex < 4; redrawIndex++)
             {
                 board.Configure(
-                    renderState,
+                    renderSnapshot,
                     Vector2I.Zero,
                     Array.Empty<Vector2I>(),
                     new[] { badgeCoord },
@@ -127,8 +139,8 @@ public partial class run_battle_board_native_lease_regression : LifecycleTestSce
             AssertResourceOwnership(
                 controller,
                 baseline,
-                expectedImageCount: 3,
-                expectedImageTextureCount: 4,
+                expectedImageCount: 4,
+                expectedImageTextureCount: 5,
                 expectedStyleBoxCount: 2
             );
 

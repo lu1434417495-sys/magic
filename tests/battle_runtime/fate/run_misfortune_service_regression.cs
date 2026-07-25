@@ -58,11 +58,11 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
 
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
             runtime.MarkAppliedStatusesForTurnTiming(hero, new GArray { new StringName("stunned") });
-            buddy.current_hp = 0;
-            buddy.is_alive = false;
+            buddy.SetCurrentHp(0);
+            buddy.MarkDead();
             runtime.ClearDefeatedUnit(buddy);
-            hero.current_hp = 20;
-            hero.current_ap = 1;
+            hero.SetCurrentHp(20);
+            hero.SetCurrentAp(1);
             state.phase = "unit_acting";
             state.active_unit_id = hero.unit_id;
             runtime.IssueCommand(BuildWaitCommand(hero.unit_id));
@@ -134,8 +134,8 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
             runtime.MarkAppliedStatusesForTurnTiming(hero, new GArray { new StringName("fear") });
             runtime.GetFateRuntime()?.HandleMemberBossPhaseChanged("hero", "phase_2");
-            buddy.current_hp = 0;
-            buddy.is_alive = false;
+            buddy.SetCurrentHp(0);
+            buddy.MarkDead();
             runtime.ClearDefeatedUnit(buddy);
 
             _test.Eq(runtime.GetMemberCalamity("hero"), 3, "超出默认上限后 calamity 不应继续增长。");
@@ -235,13 +235,14 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
                 hiddenLuckAtBirth,
                 calamityCapacityBonus
             ),
-            current_hp = hpMax,
-            current_mp = 0,
-            current_stamina = 0,
-            current_aura = 0,
-            current_ap = 1,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hpMax,
+            mp: 0,
+            stamina: 0,
+            aura: 0,
+            ap: 1,
+            isAlive: true
+        );
     }
 
     private static BattleUnitState BuildEnemyUnit(StringName unitId, string displayName)
@@ -253,10 +254,11 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
             faction_id = "hostile",
             control_mode = "ai",
             attribute_snapshot = BuildAttributeSnapshot(160, 0, 0),
-            current_hp = 160,
-            current_ap = 1,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 160,
+            ap: 1,
+            isAlive: true
+        );
     }
 
     private static AttributeSnapshot BuildAttributeSnapshot(

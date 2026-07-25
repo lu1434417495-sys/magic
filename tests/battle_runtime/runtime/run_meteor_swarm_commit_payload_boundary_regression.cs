@@ -177,15 +177,16 @@ public partial class run_meteor_swarm_commit_payload_boundary_regression : Lifec
         Vector2I coord
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = factionId == "enemy" ? "ai" : "manual",
-            current_hp = 30,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         return unit;
     }

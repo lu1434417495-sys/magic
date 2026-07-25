@@ -83,8 +83,9 @@ public partial class run_battle_equipment_requirement_rules_regression : Lifecyc
         {
             unit_id = "shield_requirement_user",
             display_name = "Shield Requirement User",
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         unit.SetEquipmentView(equipmentState);
         return unit;
     }

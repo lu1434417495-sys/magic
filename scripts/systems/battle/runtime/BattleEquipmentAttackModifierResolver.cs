@@ -525,7 +525,8 @@ internal sealed class BattleEquipmentAttackModifierResolver
     internal IReadOnlyList<StringName> CollectProjectedWeaponEffectCategories(
         BattleUnitState sourceUnit,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        SkillDefinition skillDefinition = null
+        SkillDefinition skillDefinition = null,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         IReadOnlyList<CombatEffectDefinition> normalizedEffects =
@@ -533,17 +534,20 @@ internal sealed class BattleEquipmentAttackModifierResolver
             ?? new List<CombatEffectDefinition>(
                 effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
             );
+        BattleWeaponProjectionValues weaponProjection = sourceUnit != null
+            ? sourceUnit.GetWeaponProjectionReadViewTyped().Values
+            : BattleWeaponProjectionValues.Clear;
         if (
             sourceUnit == null
-            || sourceUnit.weapon_item_id == ""
-            || sourceUnit.weapon_range_type != "ranged"
+            || weaponProjection.ItemId == ""
+            || weaponProjection.RangeType != "ranged"
             || !EffectsIncludeWeaponDamage(normalizedEffects)
         )
         {
             return Array.Empty<StringName>();
         }
 
-        ItemDefinition weaponDefinition = _owner.ResolveItemDef(sourceUnit.weapon_item_id);
+        ItemDefinition weaponDefinition = _owner.ResolveItemDef(weaponProjection.ItemId);
         if (
             weaponDefinition == null
             || !weaponDefinition.IsWeapon()
@@ -557,7 +561,7 @@ internal sealed class BattleEquipmentAttackModifierResolver
         var seen = new HashSet<StringName>();
         foreach (BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding in _owner.CollectActiveBindings(sourceUnit))
         {
-            if (activeBinding.Source?.EquipmentDefId != sourceUnit.weapon_item_id)
+            if (activeBinding.Source?.EquipmentDefId != weaponProjection.ItemId)
                 continue;
             foreach (
                 EquipmentAbilityReactionDefinition reaction in activeBinding.Binding?.Reactions
@@ -584,22 +588,20 @@ internal sealed class BattleEquipmentAttackModifierResolver
             }
         }
 
-        IReadOnlyList<StringName> explicitCategories = BattleEffectCategoryResolver.ResolveCategories(
-            skillDefinition,
-            normalizedEffects,
-            categories
+        CombatProjectileKind projectileKind =
+            skillDefinition?.CombatProfile?.ProjectileKindTyped
+            ?? CombatProjectileKind.CurrentWeapon;
+        projectileKind = CombatProjectileContentRules.ResolveEffectiveKind(
+            projectileKind,
+            castVariantDefinition?.ProjectileKindOverrideTyped
+                ?? CombatProjectileKind.Inherit
         );
-        bool hasExplicitMissileCategory = false;
-        foreach (StringName category in explicitCategories)
+        if (projectileKind == CombatProjectileKind.CurrentWeapon)
         {
-            if (category != "nonmagical_missile" && category != "magical_missile")
-                continue;
-            hasExplicitMissileCategory = true;
-            break;
-        }
-        if (!hasExplicitMissileCategory)
-        {
-            categories.Insert(0, new StringName("nonmagical_missile"));
+            if (seen.Add(CombatEffectCategoryContentRules.Projectile))
+                categories.Insert(0, CombatEffectCategoryContentRules.Projectile);
+            if (seen.Add(CombatEffectCategoryContentRules.NonmagicalProjectile))
+                categories.Add(CombatEffectCategoryContentRules.NonmagicalProjectile);
         }
         return categories.Count == 0 ? Array.Empty<StringName>() : categories;
     }

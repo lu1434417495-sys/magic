@@ -102,28 +102,30 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
         }
 
         BattleUnitState equipped = fixture.BuildSmithUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "装备后 unit 应保留真实 item_id。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("longsword"),
             "铁匠的悔恨应投影为 longsword。"
         );
         _test.Eq(
-            equipped.weapon_one_handed_dice?.dice_count ?? 0,
+            equippedWeapon.OneHandedDice.DiceCount,
             1,
             "铁匠的悔恨单手应为 1D8+2。"
         );
         _test.Eq(
-            equipped.weapon_one_handed_dice?.dice_sides ?? 0,
+            equippedWeapon.OneHandedDice.DiceSides,
             8,
             "铁匠的悔恨单手应为 1D8+2。"
         );
         _test.Eq(
-            equipped.weapon_one_handed_dice?.flat_bonus ?? 0,
+            equippedWeapon.OneHandedDice.FlatBonus,
             2,
             "铁匠的悔恨单手应为 1D8+2。"
         );
-        _test.True(equipped.weapon_is_versatile, "铁匠的悔恨应保留 versatile 属性。");
+        _test.True(equippedWeapon.IsVersatile, "铁匠的悔恨应保留 versatile 属性。");
 
         EquipmentAbilityBindingDefinition flawed = fixture.Bindings[FlawedBeautyBindingId];
         EquipmentAbilityReactionDefinition reaction = flawed.Reactions[0];
@@ -161,7 +163,7 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
             previewCommand: false
         );
 
-        _test.Eq(100 - target.current_hp, 8, "火焰缺陷应造成基础 1D8+2 加 1D6 fire。");
+        _test.Eq(100 - target.GetCurrentHp(), 8, "火焰缺陷应造成基础 1D8+2 加 1D6 fire。");
         BattleStatusEffectState burning = target.GetStatusEffect(BurningStatusId);
         _test.True(burning != null, "D4=2 应施加 burning。");
         _test.Eq(burning?.duration ?? -1, 60, "burning 应持续 60 TU。");
@@ -193,7 +195,7 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
             previewCommand: false
         );
         _test.True(target.HasStatusEffect(ColdEchoStatusId), "D4=1 应留下寒冷共鸣标记。");
-        int afterCold = target.current_hp;
+        int afterCold = target.GetCurrentHp();
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -204,7 +206,7 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
         );
 
         _test.Eq(
-            afterCold - target.current_hp,
+            afterCold - target.GetCurrentHp(),
             14,
             "已有不同缺陷标记时，火焰缺陷应追加 2D6 force 超载伤害。"
         );
@@ -307,14 +309,15 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);

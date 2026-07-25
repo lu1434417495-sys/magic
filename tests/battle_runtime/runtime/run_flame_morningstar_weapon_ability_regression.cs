@@ -80,19 +80,21 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildFlameUnit("projection");
-        _test.Eq(equipped.weapon_item_id, FlameItemId, "火焰晨星装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("morningstar"), "火焰晨星应投影为 morningstar。");
-        _test.Eq(equipped.weapon_family, new StringName("mace"), "火焰晨星应保留 mace 家族。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, FlameItemId, "火焰晨星装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("morningstar"), "火焰晨星应投影为 morningstar。");
+        _test.Eq(equippedWeapon.Family, new StringName("mace"), "火焰晨星应保留 mace 家族。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_pierce"),
             "火焰晨星基础伤害标签应为 physical_pierce。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "火焰晨星攻击距离应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "火焰晨星单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "火焰晨星单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "火焰晨星单手应为 1D8+2。");
-        _test.True(equipped.weapon_is_versatile, "火焰晨星应保留 versatile 属性。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "火焰晨星攻击距离应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "火焰晨星单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "火焰晨星单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "火焰晨星单手应为 1D8+2。");
+        _test.True(equippedWeapon.IsVersatile, "火焰晨星应保留 versatile 属性。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             FlameStrikeTraitId,
@@ -100,7 +102,7 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
             "eq_flame_projection"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(FireImmunityTraitId),
+            equipped.HasEffectiveTrait(FireImmunityTraitId),
             "火焰免疫 trait 应作为固定装备 trait 投影到战斗单位。"
         );
         _test.Eq(
@@ -111,19 +113,20 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除火焰晨星后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除火焰晨星后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除火焰晨星后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除火焰晨星后装备 trait 实例应回到装备前状态。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(FireImmunityTraitId),
+            equipped.HasEffectiveTrait(FireImmunityTraitId),
             "移除火焰晨星后火焰免疫 trait 不应残留。"
         );
         _test.False(
@@ -137,7 +140,7 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
         using FlameFixture fixture = FlameFixture.Build(new GArray { 4, 2 });
         BattleUnitState attacker = fixture.BuildFlameUnit("fire_damage");
         BattleUnitState target = BuildTarget("fire_damage_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 10 }
@@ -149,13 +152,13 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
             "flame_morningstar_fire_damage",
             previewCommand: false
         );
-        int flameDamage = 100 - target.current_hp;
+        int flameDamage = 100 - target.GetCurrentHp();
 
         using FlameFixture plainFixture = FlameFixture.Build(new GArray { 4, 2 });
         BattleUnitState plainAttacker = plainFixture.BuildFlameUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("plain_damage_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -164,7 +167,7 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
             "flame_morningstar_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，火焰晨星基础武器伤害应为 1D8+2。");
         _test.Eq(
@@ -179,7 +182,7 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
         using FlameFixture failFixture = FlameFixture.Build(new GArray { 4, 2 });
         BattleUnitState failAttacker = failFixture.BuildFlameUnit("burn_fail");
         BattleUnitState failTarget = BuildTarget("burn_fail_target", new Vector2I(1, 0));
-        failTarget.current_hp = 100;
+        failTarget.SetCurrentHp(100);
         failTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         failFixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 10 }
@@ -199,7 +202,7 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
         using FlameFixture successFixture = FlameFixture.Build(new GArray { 4, 2 });
         BattleUnitState successAttacker = successFixture.BuildFlameUnit("burn_success");
         BattleUnitState successTarget = BuildTarget("burn_success_target", new Vector2I(1, 0));
-        successTarget.current_hp = 100;
+        successTarget.SetCurrentHp(100);
         successTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         successFixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 11 }
@@ -221,14 +224,15 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -247,9 +251,9 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -262,12 +266,18 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -277,19 +287,15 @@ public partial class run_flame_morningstar_weapon_ability_regression : Lifecycle
 
     private static bool HasDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
-            return false;
-        return unit.damage_resistances.ContainsKey(damageTag.ToString())
-            || unit.damage_resistances.ContainsKey(damageTag);
+        return unit != null
+            && unit.HasDamageResistanceTyped(damageTag);
     }
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }

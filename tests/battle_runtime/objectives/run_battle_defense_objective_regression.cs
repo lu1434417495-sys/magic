@@ -61,7 +61,7 @@ public partial class run_battle_defense_objective_regression
 
         _test.True(successBatch.battle_ended, "到达截止 TU 后应完成防守战斗。");
         _test.True(
-            fixture.Enemies[0].is_alive,
+            fixture.Enemies[0].IsAlive(),
             "防守成功不要求消灭敌军。"
         );
         AssertDecision(
@@ -127,7 +127,7 @@ public partial class run_battle_defense_objective_regression
             "初始持久队伍在截止前覆灭应立即完成失败结算。"
         );
         _test.True(
-            fixture.Allies[1].is_alive,
+            fixture.Allies[1].IsAlive(),
             "队伍覆灭失败路径中防守目标应仍然存活。"
         );
         AssertDecision(
@@ -207,7 +207,7 @@ public partial class run_battle_defense_objective_regression
             "队伍覆灭与到时同批发生时应完成防守结算。"
         );
         _test.True(
-            fixture.Allies[1].is_alive,
+            fixture.Allies[1].IsAlive(),
             "守时成功路径要求防守目标仍然存活。"
         );
         AssertDecision(
@@ -437,7 +437,7 @@ public partial class run_battle_defense_objective_regression
             new[] { enemy }
         );
         foreach (BattleUnitState unit in fixture.State.GetUnitsTyped())
-            unit.action_threshold = 1_000_000;
+            unit.SetActionThresholdTyped(1_000_000);
         fixture.State.timeline.current_tu = startTu;
         fixture.State.PhaseKind = BattlePhaseKind.TimelineRunning;
         fixture.State.active_unit_id = "";

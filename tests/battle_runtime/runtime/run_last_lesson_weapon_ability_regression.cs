@@ -135,17 +135,19 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildLastLessonUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, LastLessonItemId, "最后一课装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "最后一课应投影为 longsword。");
-        _test.Eq(equipped.weapon_attack_range, 1, "最后一课攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "最后一课应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "最后一课单手骰应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "最后一课单手骰应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "最后一课单手骰固定加值应为 +2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "最后一课双手骰应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "最后一课双手骰应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "最后一课双手骰固定加值应为 +2。");
+        _test.Eq(equippedWeapon.ItemId, LastLessonItemId, "最后一课装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "最后一课应投影为 longsword。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "最后一课攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "最后一课应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "最后一课单手骰应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "最后一课单手骰应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "最后一课单手骰固定加值应为 +2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "最后一课双手骰应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "最后一课双手骰应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "最后一课双手骰固定加值应为 +2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             OldChenLegacyTraitId,
@@ -173,11 +175,16 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除最后一课后 weapon_item_id 应清空。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除最后一课后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除最后一课后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除最后一课后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除最后一课后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -200,7 +207,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
         state.PhaseKind = BattlePhaseKind.UnitActing;
         state.active_unit_id = holder.unit_id;
         holder.ResetPerTurnCharges();
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -316,7 +323,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "最后一课技能应使下一次攻击检定获得 advantage。"
         );
 
-        int beforeAdvantageHitHp = target.current_hp;
+        int beforeAdvantageHitHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -324,7 +331,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "last_lesson_after_advantage_hit",
             previewCommand: false
         );
-        _test.True(target.current_hp < beforeAdvantageHitHp, "真实基础攻击应造成伤害。");
+        _test.True(target.GetCurrentHp() < beforeAdvantageHitHp, "真实基础攻击应造成伤害。");
         _test.Eq(
             GetAbilityState(holder, LastLessonBindingId, NextAttackAdvantageStateKey),
             0,
@@ -351,9 +358,9 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             1,
             "传承之印应使下回合不能获得教诲。"
         );
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
-        int beforeMaxedHp = target.current_hp;
+        int beforeMaxedHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -361,12 +368,12 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "last_lesson_inheritance_seal_maxed",
             previewCommand: false
         );
-        int maxedDamage = beforeMaxedHp - target.current_hp;
+        int maxedDamage = beforeMaxedHp - target.GetCurrentHp();
 
         using LastLessonFixture controlFixture = LastLessonFixture.Build(new GArray { 1, 1, 1, 1, 1, 1 });
         BattleUnitState controlHolder = controlFixture.BuildLastLessonUnit("skills_control");
         BattleUnitState controlTarget = BuildTarget("skills_control_target", new Vector2I(1, 0));
-        controlTarget.current_hp = 100;
+        controlTarget.SetCurrentHp(100);
         controlTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             controlFixture.Runtime,
@@ -375,7 +382,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "last_lesson_inheritance_seal_control",
             previewCommand: false
         );
-        int controlDamage = 100 - controlTarget.current_hp;
+        int controlDamage = 100 - controlTarget.GetCurrentHp();
         _test.True(
             maxedDamage > controlDamage,
             "传承之印应让下一次真实基础攻击伤害高于同武器未最大化的低骰攻击。"
@@ -540,7 +547,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             if (text.EndsWith(suffix, StringComparison.Ordinal))
                 return key;
         }
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         StringName sourceKey = source?.SourceEquipmentInstanceId ?? new StringName("");
         if (sourceKey == "")
             sourceKey = source?.EquipmentDefId ?? new StringName("");
@@ -623,9 +630,9 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -638,12 +645,15 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -699,8 +709,7 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -709,14 +718,15 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

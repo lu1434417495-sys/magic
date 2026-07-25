@@ -204,7 +204,7 @@ internal class BattleBarrierService
         instance.SourceUnitId = sourceUnit.unit_id;
         instance.SourceSkillId = skillDefinition != null ? skillDefinition.SkillId : "";
         instance.AnchorMode = profile.AnchorModeKind;
-        instance.AnchorCoord = anchorUnit.coord;
+        instance.AnchorCoord = anchorUnit.GetAnchorCoord();
         instance.RadiusCells = radiusCells;
         instance.AreaPattern = areaPattern;
         instance.RemainingTu = durationTu;
@@ -216,7 +216,7 @@ internal class BattleBarrierService
         _PutBarrier(instanceId, instance);
         _AppendChangedCoords(batch, _GetBarrierCoords(instance));
         var line =
-            $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.coord.X}, {anchorUnit.coord.Y})，半径 {radiusCells} 格。";
+            $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.GetAnchorCoord().X}, {anchorUnit.GetAnchorCoord().Y})，半径 {radiusCells} 格。";
         _AppendLog(batch, line);
         return new BattleLayeredBarrierApplyResult(true, instanceId, new[] { line }, "");
     }
@@ -259,7 +259,7 @@ internal class BattleBarrierService
             runtime == null
             || runtime._state == null
             || unitState == null
-            || !unitState.is_alive
+            || !unitState.IsAlive()
         )
             return new BattleBarrierInteractionResult(false, false);
         foreach (StringName barrierKey in _SortedBarrierKeys())
@@ -271,11 +271,11 @@ internal class BattleBarrierService
             var barrierCoords = _GetBarrierCoords(barrier);
             var fromFootprint = runtime._grid_service.GetFootprintCoords(
                 fromCoord,
-                unitState.footprint_size
+                unitState.GetFootprintSize()
             );
             var toFootprint = runtime._grid_service.GetFootprintCoords(
                 toCoord,
-                unitState.footprint_size
+                unitState.GetFootprintSize()
             );
             var transition = BattleBarrierGeometryService.ClassifyFootprintTransition(
                 fromFootprint,
@@ -294,25 +294,63 @@ internal class BattleBarrierService
         return new BattleBarrierInteractionResult(false, applied);
     }
 
+    internal bool HasUnitBoundaryBarrier(
+        BattleUnitState unitState,
+        Vector2I fromCoord,
+        Vector2I toCoord
+    )
+    {
+        var runtime = _ResolveRuntime();
+        if (
+            runtime == null
+            || runtime._state == null
+            || unitState == null
+        )
+            return false;
+        foreach (StringName barrierKey in _SortedBarrierKeys())
+        {
+            if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
+                continue;
+            if (_IsBarrierCreator(unitState, barrier))
+                continue;
+            var transition = BattleBarrierGeometryService.ClassifyFootprintTransition(
+                runtime._grid_service.GetFootprintCoords(
+                    fromCoord,
+                    unitState.GetFootprintSize()
+                ),
+                runtime._grid_service.GetFootprintCoords(
+                    toCoord,
+                    unitState.GetFootprintSize()
+                ),
+                _GetBarrierCoords(barrier)
+            );
+            if (transition.CrossesBoundary)
+                return true;
+        }
+        return false;
+    }
+
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         if (sourceUnit == null || targetUnit == null)
             return new BattleBarrierInteractionResult(false, false);
         return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
-            sourceUnit.coord,
-            targetUnit.coord,
+            sourceUnit.GetAnchorCoord(),
+            targetUnit.GetAnchorCoord(),
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,
             batch,
-            commit: true
+            commit: true,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -321,7 +359,8 @@ internal class BattleBarrierService
         BattleUnitReadView targetUnit,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleBarrierPreviewSession previewSession = null
+        BattleBarrierPreviewSession previewSession = null,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         if (!sourceUnit.IsValid || !targetUnit.IsValid)
@@ -335,7 +374,8 @@ internal class BattleBarrierService
             effectDefinitions,
             batch: null,
             commit: false,
-            previewSession: previewSession
+            previewSession: previewSession,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -357,7 +397,8 @@ internal class BattleBarrierService
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         if (sourceUnit == null || targetUnit == null)
@@ -365,12 +406,13 @@ internal class BattleBarrierService
         return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
             effectOriginCoord,
-            targetUnit.coord,
+            targetUnit.GetAnchorCoord(),
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,
             batch,
-            commit: true
+            commit: true,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -379,18 +421,20 @@ internal class BattleBarrierService
         Vector2I targetCoord,
         SkillDefinition skillDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
-            sourceUnit?.coord ?? new Vector2I(-1, -1),
+            sourceUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
             targetCoord,
             $"({targetCoord.X}, {targetCoord.Y})",
             skillDefinition,
             effectDefinitions,
             batch,
-            commit: true
+            commit: true,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -400,19 +444,21 @@ internal class BattleBarrierService
         IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
         IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
         IReadOnlyList<Vector2I> effectCoords,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
             sourceUnit,
-            sourceUnit?.coord ?? new Vector2I(-1, -1),
+            sourceUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
             sourceUnit?.display_name ?? "",
             skillDefinition,
             unitEffectDefinitions,
             terrainEffectDefinitions,
             effectCoords,
             batch,
-            commit: true
+            commit: true,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -421,7 +467,8 @@ internal class BattleBarrierService
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
         IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
-        IReadOnlyList<Vector2I> effectCoords
+        IReadOnlyList<Vector2I> effectCoords,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
@@ -433,7 +480,8 @@ internal class BattleBarrierService
             terrainEffectDefinitions,
             effectCoords,
             batch: null,
-            commit: false
+            commit: false,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -443,7 +491,8 @@ internal class BattleBarrierService
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
         IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
-        IReadOnlyList<Vector2I> effectCoords
+        IReadOnlyList<Vector2I> effectCoords,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
@@ -455,7 +504,8 @@ internal class BattleBarrierService
             terrainEffectDefinitions,
             effectCoords,
             batch: null,
-            commit: false
+            commit: false,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -465,7 +515,8 @@ internal class BattleBarrierService
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> unitEffectDefinitions,
         IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
-        IReadOnlyList<Vector2I> effectCoords
+        IReadOnlyList<Vector2I> effectCoords,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         return _ResolveGroundEffectBarrierClipResult(
@@ -477,7 +528,8 @@ internal class BattleBarrierService
             terrainEffectDefinitions,
             effectCoords,
             batch: null,
-            commit: false
+            commit: false,
+            castVariantDefinition: castVariantDefinition
         );
     }
 
@@ -490,7 +542,8 @@ internal class BattleBarrierService
         IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions,
         IReadOnlyList<Vector2I> effectCoords,
         BattleEventBatch batch,
-        bool commit
+        bool commit,
+        CombatCastVariantDefinition castVariantDefinition
     )
     {
         IReadOnlyList<CombatEffectDefinition> normalizedUnitEffects =
@@ -524,20 +577,23 @@ internal class BattleBarrierService
                     .CollectProjectedWeaponEffectCategories(
                         sourceUnit,
                         normalizedUnitEffects,
-                        skillDefinition
+                        skillDefinition,
+                        castVariantDefinition
                     )
                 : System.Array.Empty<StringName>();
             IReadOnlyList<StringName> unitCategories = hasUnitEffects
                 ? BattleEffectCategoryResolver.ResolveCategories(
                     skillDefinition,
                     normalizedUnitEffects,
-                    projectedWeaponCategories
+                    projectedWeaponCategories,
+                    castVariantDefinition
                 )
                 : System.Array.Empty<StringName>();
             IReadOnlyList<StringName> terrainCategories = hasTerrainEffects
                 ? BattleEffectCategoryResolver.ResolveCategories(
                     skillDefinition,
-                    normalizedTerrainEffects
+                    normalizedTerrainEffects,
+                    castVariantDefinition: castVariantDefinition
                 )
                 : System.Array.Empty<StringName>();
 
@@ -682,7 +738,8 @@ internal class BattleBarrierService
         IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
         bool commit,
-        BattleBarrierPreviewSession previewSession = null
+        BattleBarrierPreviewSession previewSession = null,
+        CombatCastVariantDefinition castVariantDefinition = null
     )
     {
         if (_IsProjectedBarrierExempt(skillDefinition))
@@ -704,12 +761,14 @@ internal class BattleBarrierService
             .CollectProjectedWeaponEffectCategories(
                 sourceUnit,
                 normalizedEffects,
-                skillDefinition
+                skillDefinition,
+                castVariantDefinition
             );
         IReadOnlyList<StringName> categories = BattleEffectCategoryResolver.ResolveCategories(
             skillDefinition,
             normalizedEffects,
-            projectedWeaponCategories
+            projectedWeaponCategories,
+            castVariantDefinition
         );
         IReadOnlyList<StringName> barrierKeys =
             previewSession?.OrderedBarrierKeys ?? _SortedBarrierKeys();
@@ -817,7 +876,7 @@ internal class BattleBarrierService
                 batch
             );
             applied = true;
-            if (layerResult.Stopped || !unitState.is_alive)
+            if (layerResult.Stopped || !unitState.IsAlive())
             {
                 return new BattleBarrierPassageResult(applied, true);
             }
@@ -1261,12 +1320,7 @@ internal class BattleBarrierService
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null)
             return;
-        var payload = new Godot.Collections.Array();
-        foreach (Vector2I coord in coords ?? new List<Vector2I>())
-        {
-            payload.Add(coord);
-        }
-        runtime._append_changed_coords(batch, payload);
+        runtime._append_changed_coords_typed(batch, coords);
     }
 
     private void _AppendLog(BattleEventBatch batch, string line)

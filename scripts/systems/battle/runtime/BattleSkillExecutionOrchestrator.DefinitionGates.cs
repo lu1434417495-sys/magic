@@ -20,7 +20,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
         int snapshotMaxHp =
             unitState.attribute_snapshot?.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) ?? 0;
-        return Math.Max(snapshotMaxHp, unitState.current_hp);
+        return Math.Max(snapshotMaxHp, unitState.GetCurrentHp());
     }
 
     private static bool HasRepeatAttackEffectDefinition(
@@ -126,7 +126,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 skillDefinition,
                 new StringName("skill_attack_preview"),
                 new StringName("hud_preview"),
-                skillResolutionRules.IsForceHitNoCritSkill(skillDefinition)
+                skillResolutionRules.IsForceHitNoCritSkill(skillDefinition, active_unit)
             );
             return attackPolicy.BuildAttackPreview(attackContext);
         }

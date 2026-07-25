@@ -140,6 +140,19 @@ public static class BattleTerrainRules
             || HasMovementTag(movement_tags, TagAmphibious);
     }
 
+    internal static bool CanUnitEnterTerrain(
+        StringName terrain_id,
+        BattleMovementTagReadView movementTags
+    )
+    {
+        if (movementTags.Contains(TagFly))
+        {
+            return true;
+        }
+        return ToTerrainKind(terrain_id) != BattleTerrainKind.DeepWater
+            || movementTags.Contains(TagAmphibious);
+    }
+
     internal static int GetUnitMoveCost(StringName terrain_id, GArray movement_tags = null)
     {
         BattleTerrainKind kind = ToTerrainKind(terrain_id);
@@ -212,6 +225,47 @@ public static class BattleTerrainRules
         if (kind == BattleTerrainKind.DeepWater)
         {
             return HasMovementTag(movement_tags, TagAmphibious) ? 2 : 999999;
+        }
+        return GetBaseMoveCost(ToStringName(kind));
+    }
+
+    internal static int GetUnitMoveCost(
+        StringName terrain_id,
+        BattleMovementTagReadView movementTags
+    )
+    {
+        BattleTerrainKind kind = ToTerrainKind(terrain_id);
+        if (movementTags.Contains(TagFly) && IsWaterTerrain(terrain_id))
+        {
+            return 1;
+        }
+
+        if (kind == BattleTerrainKind.ShallowWater)
+        {
+            if (
+                movementTags.Contains(TagAmphibious)
+                || movementTags.Contains(TagWade)
+            )
+            {
+                return 1;
+            }
+            return 2;
+        }
+        if (kind == BattleTerrainKind.FlowingWater)
+        {
+            if (movementTags.Contains(TagAmphibious))
+            {
+                return 1;
+            }
+            if (movementTags.Contains(TagWade))
+            {
+                return 2;
+            }
+            return 3;
+        }
+        if (kind == BattleTerrainKind.DeepWater)
+        {
+            return movementTags.Contains(TagAmphibious) ? 2 : 999999;
         }
         return GetBaseMoveCost(ToStringName(kind));
     }

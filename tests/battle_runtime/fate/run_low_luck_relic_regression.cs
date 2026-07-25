@@ -225,9 +225,9 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         BattleState state = BuildRuntimeState("blood_debt_runtime");
         BattleUnitState wearer = BuildBattleUnit("披肩佩戴者", "player", hpMax: 100, currentHp: 80, sourceMemberId: HeroId);
         wearer.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
-        wearer.current_ap = 1;
+        wearer.SetCurrentAp(1);
         BattleUnitState fallenAlly = BuildBattleUnit("倒地队友", "player", hpMax: 100, currentHp: 0, sourceMemberId: AllyId);
-        fallenAlly.is_alive = false;
+        fallenAlly.MarkDead();
         BattleUnitState enemy = BuildBattleUnit("敌人", "enemy", hpMax: 100, currentHp: 0, sourceMemberId: "enemy");
         AddUnitToState(state, wearer);
         AddUnitToState(state, fallenAlly);
@@ -236,7 +236,7 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         runtime.SetupStateForTests(state);
         runtime.ClearDefeatedUnit(fallenAlly, new BattleEventBatch());
-        _test.Eq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
+        _test.Eq(wearer.GetCurrentAp(), 2, "血债披肩应在队友倒地时返还 1 点行动点。");
         runtime.Dispose();
 
         AssertBloodDebtRecoveryPenalty();
@@ -458,17 +458,18 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
         StringName sourceMemberId = default
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = displayName,
             display_name = displayName,
             faction_id = factionId,
             source_member_id = sourceMemberId,
-            is_alive = currentHp > 0,
-            current_hp = currentHp,
-            current_mp = 0,
-            current_ap = 1,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 0,
+            ap: 1,
+            isAlive: currentHp > 0
+        );
         unit.SetAnchorCoord(Vector2I.Zero);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 30);
@@ -529,7 +530,6 @@ public partial class run_low_luck_relic_regression : LifecycleTestSceneTree
 
     private static void AddUnitToState(BattleState state, BattleUnitState unit)
     {
-        unit.RefreshFootprint();
         state.SetUnit(unit);
     }
 

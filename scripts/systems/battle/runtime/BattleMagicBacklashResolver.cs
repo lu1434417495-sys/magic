@@ -197,11 +197,11 @@ internal sealed class BattleMagicBacklashResolver
         refund = Mathf.Clamp(Mathf.Max(refund, 1), 0, spentMp);
         int mpMax = GetMpMax(sourceUnit);
         if (mpMax > 0)
-            refund = Mathf.Min(refund, Mathf.Max(mpMax - sourceUnit.current_mp, 0));
+            refund = Mathf.Min(refund, Mathf.Max(mpMax - sourceUnit.GetCurrentMp(), 0));
         if (refund <= 0)
             return 0;
 
-        sourceUnit.SetCurrentMp(sourceUnit.current_mp + refund);
+        sourceUnit.SetCurrentMp(sourceUnit.GetCurrentMp() + refund);
         return refund;
     }
 
@@ -221,8 +221,8 @@ internal sealed class BattleMagicBacklashResolver
 
         int drain = Mathf.RoundToInt((float)spentMp * drainPercent / 100.0f);
         drain = Mathf.Max(drain, 1);
-        drain = Mathf.Min(drain, Mathf.Max(sourceUnit.current_mp, 0));
-        sourceUnit.SetCurrentMp(sourceUnit.current_mp - drain);
+        drain = Mathf.Min(drain, Mathf.Max(sourceUnit.GetCurrentMp(), 0));
+        sourceUnit.SetCurrentMp(sourceUnit.GetCurrentMp() - drain);
         return drain;
     }
 

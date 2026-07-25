@@ -51,9 +51,8 @@ internal sealed class BattleSkillPreviewService
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:skill.orchestrator");
+        using BattleAiTraceSpan trace = new("preview:skill.orchestrator");
         _preview_skill_command_impl(active_unit, command, preview);
-        AiTraceRecorder.Exit("preview:skill.orchestrator");
     }
 
     internal void _preview_skill_command_impl(
@@ -74,16 +73,18 @@ internal sealed class BattleSkillPreviewService
             == new StringName("meteor_swarm");
         if (runtime != null && isMeteorSwarm)
         {
-            AiTraceRecorder.Enter("preview:skill.meteor_gate");
-            BattleSpecialProfileGateResult gateResult = runtime._special_profile_gate != null
-                ? runtime._special_profile_gate.PreviewSkill(
-                    skillDefinition,
-                    command,
-                    active_unit,
-                    runtime._state
-                )
-                : null;
-            AiTraceRecorder.Exit("preview:skill.meteor_gate");
+            BattleSpecialProfileGateResult gateResult;
+            using (new BattleAiTraceSpan("preview:skill.meteor_gate"))
+            {
+                gateResult = runtime._special_profile_gate != null
+                    ? runtime._special_profile_gate.PreviewSkill(
+                        skillDefinition,
+                        command,
+                        active_unit,
+                        runtime._state
+                    )
+                    : null;
+            }
             preview.special_profile_gate_result = gateResult;
             if (gateResult == null || !gateResult.Allowed)
             {
@@ -120,20 +121,23 @@ internal sealed class BattleSkillPreviewService
             preview.AddLogLine("该禁咒结算尚未接入。");
             return;
         }
-        AiTraceRecorder.Enter("preview:skill.resolve_options");
-        bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
-        BattleSkillResolutionPolicy policy = Runtime?._skill_resolution_rules
-            ?.BuildSkillResolutionPolicy(
-                skillDefinition,
-                active_unit,
-                command != null ? command.skill_variant_id : new StringName(""),
-                _targetValidationService._normalize_target_unit_ids(command, allowRepeat)
-            );
-        bool routesToUnitTargeting = policy?.RoutesToUnitTargeting == true;
-        AiTraceRecorder.Exit("preview:skill.resolve_options");
-        AiTraceRecorder.Enter("preview:skill.option_block");
-        string optionBlockReason = policy?.OptionErrorMessage ?? "技能或目标无效。";
-        AiTraceRecorder.Exit("preview:skill.option_block");
+        BattleSkillResolutionPolicy policy;
+        bool routesToUnitTargeting;
+        using (new BattleAiTraceSpan("preview:skill.resolve_options"))
+        {
+            bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
+            policy = Runtime?._skill_resolution_rules
+                ?.BuildSkillResolutionPolicy(
+                    skillDefinition,
+                    active_unit,
+                    command != null ? command.skill_variant_id : new StringName(""),
+                    _targetValidationService._normalize_target_unit_ids(command, allowRepeat)
+                );
+            routesToUnitTargeting = policy?.RoutesToUnitTargeting == true;
+        }
+        string optionBlockReason;
+        using (new BattleAiTraceSpan("preview:skill.option_block"))
+            optionBlockReason = policy?.OptionErrorMessage ?? "技能或目标无效。";
         if (!string.IsNullOrEmpty(optionBlockReason))
         {
             preview.AddLogLine(optionBlockReason);
@@ -177,7 +181,7 @@ internal sealed class BattleSkillPreviewService
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:unit_skill");
+        using BattleAiTraceSpan trace = new("preview:unit_skill");
         _preview_unit_skill_command_impl(
             active_unit,
             command,
@@ -185,7 +189,6 @@ internal sealed class BattleSkillPreviewService
             skillDefinition,
             castVariantDefinition
         );
-        AiTraceRecorder.Exit("preview:unit_skill");
     }
 
     internal void _preview_unit_skill_command_impl(
@@ -218,14 +221,16 @@ internal sealed class BattleSkillPreviewService
             return;
         }
 
-        AiTraceRecorder.Enter("preview:unit_skill.validate_targets");
-        BattleUnitSkillPreviewValidationResult validation = _targetValidationService._validate_unit_skill_preview_targets_result(
-            active_unit,
-            command,
-            skillDefinition,
-            castVariantDefinition
-        );
-        AiTraceRecorder.Exit("preview:unit_skill.validate_targets");
+        BattleUnitSkillPreviewValidationResult validation;
+        using (new BattleAiTraceSpan("preview:unit_skill.validate_targets"))
+        {
+            validation = _targetValidationService._validate_unit_skill_preview_targets_result(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition
+            );
+        }
         var previewTargetUnits = new List<BattleUnitReadView>();
         var previewTargetUnitIds = new List<StringName>();
         var barrierBlockLines = new List<string>();
@@ -257,7 +262,8 @@ internal sealed class BattleSkillPreviewService
                             targetUnit,
                             skillDefinition,
                             previewEffectDefinitions,
-                            barrierPreviewSession
+                            barrierPreviewSession,
+                            castVariantDefinition
                         ) ?? new BattleBarrierInteractionResult(false, false);
                     if (barrierResult.Blocked)
                     {
@@ -285,7 +291,8 @@ internal sealed class BattleSkillPreviewService
                             active_unit,
                             targetUnit,
                             skillDefinition,
-                            previewEffectDefinitions
+                            previewEffectDefinitions,
+                            castVariantDefinition: castVariantDefinition
                         ) ?? new BattleBarrierInteractionResult(false, false);
                     if (barrierResult.Blocked)
                     {
@@ -322,7 +329,8 @@ internal sealed class BattleSkillPreviewService
                                 breakerTarget,
                                 skillDefinition,
                                 previewEffectDefinitions,
-                                barrierPreviewSession
+                                barrierPreviewSession,
+                                castVariantDefinition
                             ) ?? new BattleBarrierInteractionResult(false, false);
                         if (!breakerResult.WouldBreakLayer)
                             continue;
@@ -332,7 +340,8 @@ internal sealed class BattleSkillPreviewService
                                 targetUnit,
                                 skillDefinition,
                                 previewEffectDefinitions,
-                                barrierPreviewSession
+                                barrierPreviewSession,
+                                castVariantDefinition
                             ) ?? new BattleBarrierInteractionResult(false, false);
                         if (followUpResult.Blocked)
                             continue;
@@ -359,21 +368,20 @@ internal sealed class BattleSkillPreviewService
                 previewTargetUnits
             );
         }
-        AiTraceRecorder.Enter("preview:unit_skill.copy_validation");
-        preview.allowed = validation.Allowed;
-        preview.SetTargetUnitIds(
-            isRandomChain ? Array.Empty<StringName>() : previewTargetUnitIds
-        );
-        preview.SetRandomChainCandidateUnitIds(validation.RandomChainCandidateUnitIds);
-        preview.SetRandomChainImpactCandidateUnitIds(
-            isRandomChain ? previewTargetUnitIds : Array.Empty<StringName>()
-        );
-        preview.ClearTargetCoords();
-        foreach (Vector2I previewCoord in previewCoords)
+        using (new BattleAiTraceSpan("preview:unit_skill.copy_validation"))
         {
-            preview.AddTargetCoord(previewCoord);
+            preview.allowed = validation.Allowed;
+            preview.SetTargetUnitIds(
+                isRandomChain ? Array.Empty<StringName>() : previewTargetUnitIds
+            );
+            preview.SetRandomChainCandidateUnitIds(validation.RandomChainCandidateUnitIds);
+            preview.SetRandomChainImpactCandidateUnitIds(
+                isRandomChain ? previewTargetUnitIds : Array.Empty<StringName>()
+            );
+            preview.ClearTargetCoords();
+            foreach (Vector2I previewCoord in previewCoords)
+                preview.AddTargetCoord(previewCoord);
         }
-        AiTraceRecorder.Exit("preview:unit_skill.copy_validation");
         if (preview.allowed)
         {
             preview.hit_preview = null;
@@ -381,40 +389,50 @@ internal sealed class BattleSkillPreviewService
             preview.ClearSaveBranchPreview();
             if (hasPreviewImpactTargets)
             {
-                AiTraceRecorder.Enter("preview:unit_skill.hit_preview");
-                preview.hit_preview = _owner._build_unit_skill_hit_preview(
-                    active_unit,
-                    previewTargetUnits,
-                    skillDefinition,
-                    castVariantDefinition
-                );
-                AiTraceRecorder.Exit("preview:unit_skill.hit_preview");
-                AiTraceRecorder.Enter("preview:unit_skill.damage_preview");
-                preview.SetDamagePreview(
-                    BuildUnitSkillDamagePreviewTyped(
-                        active_unit,
-                        skillDefinition,
-                        castVariantDefinition
-                    )
-                );
-                preview.SetSaveBranchPreview(
-                    BuildUnitSkillSaveBranchPreview(
+                using (new BattleAiTraceSpan("preview:unit_skill.hit_preview"))
+                {
+                    preview.hit_preview = _owner._build_unit_skill_hit_preview(
                         active_unit,
                         previewTargetUnits,
                         skillDefinition,
                         castVariantDefinition
-                    )
-                );
-                AiTraceRecorder.Exit("preview:unit_skill.damage_preview");
+                    );
+                }
+                using (new BattleAiTraceSpan("preview:unit_skill.damage_preview"))
+                {
+                    preview.SetDamagePreview(
+                        BuildUnitSkillDamagePreviewTyped(
+                            active_unit,
+                            skillDefinition,
+                            castVariantDefinition
+                        )
+                    );
+                    preview.SetSaveBranchPreview(
+                        BuildUnitSkillSaveBranchPreview(
+                            active_unit,
+                            previewTargetUnits,
+                            skillDefinition,
+                            castVariantDefinition
+                        )
+                    );
+                }
             }
-            AiTraceRecorder.Enter("preview:unit_skill.log_lines");
+            using BattleAiTraceSpan logLinesTrace = new("preview:unit_skill.log_lines");
             string skillLabel = _owner._format_skill_variant_label(skillDefinition, castVariantDefinition);
             foreach (string barrierBlockLine in barrierBlockLines)
                 preview.AddLogLine(barrierBlockLine);
             if (isRandomChain)
             {
+                int configuredAttackCount =
+                    skillDefinition?.CombatProfile?.GetEffectiveRandomChainAttackCount(
+                        active_unit.GetKnownSkillLevel(skillDefinition.SkillId)
+                    ) ?? 0;
+                string attackCountText =
+                    configuredAttackCount > 0
+                        ? $"，将执行 {configuredAttackCount} 次独立攻击"
+                        : "";
                 preview.AddLogLine(
-                    $"{active_unit.DisplayName} 可用 {skillLabel} 从 {preview.RandomChainCandidateUnitIdsTyped.Count} 个候选单位中随机连击；按当前屏障状态，其中 {previewTargetUnits.Count} 个单位可受到影响。"
+                    $"{active_unit.DisplayName} 可用 {skillLabel} 从 {preview.RandomChainCandidateUnitIdsTyped.Count} 个候选单位中随机连击{attackCountText}；按当前屏障状态，其中 {previewTargetUnits.Count} 个单位可受到影响。"
                 );
                 if (previewTargetUnits.Count == 0)
                 {
@@ -424,7 +442,6 @@ internal sealed class BattleSkillPreviewService
                 {
                     _owner._append_damage_preview_line(preview);
                 }
-                AiTraceRecorder.Exit("preview:unit_skill.log_lines");
                 return;
             }
             if (previewTargetUnits.Count == 0)
@@ -432,7 +449,6 @@ internal sealed class BattleSkillPreviewService
                 preview.AddLogLine(
                     $"{active_unit.DisplayName} 仍可使用 {skillLabel}，但本次没有单位会受到影响。"
                 );
-                AiTraceRecorder.Exit("preview:unit_skill.log_lines");
                 return;
             }
             if (previewTargetUnits.Count == 1)
@@ -448,7 +464,6 @@ internal sealed class BattleSkillPreviewService
                         preview.AddLogLine(preview.hit_preview.SummaryText);
                     }
                     _owner._append_damage_preview_line(preview);
-                    AiTraceRecorder.Exit("preview:unit_skill.log_lines");
                     return;
                 }
             }
@@ -460,7 +475,6 @@ internal sealed class BattleSkillPreviewService
                 preview.AddLogLine(preview.hit_preview.SummaryText);
             }
             _owner._append_damage_preview_line(preview);
-            AiTraceRecorder.Exit("preview:unit_skill.log_lines");
             return;
         }
         preview.AddLogLine(
@@ -501,7 +515,7 @@ internal sealed class BattleSkillPreviewService
         BattlePreview preview
     )
     {
-        AiTraceRecorder.Enter("preview:ground_skill");
+        using BattleAiTraceSpan trace = new("preview:ground_skill");
         _preview_ground_skill_command_impl(
             active_unit,
             command,
@@ -509,7 +523,6 @@ internal sealed class BattleSkillPreviewService
             skillDefinition,
             castVariantDefinition
         );
-        AiTraceRecorder.Exit("preview:ground_skill");
     }
 
     internal void _preview_ground_skill_command_impl(
@@ -541,133 +554,146 @@ internal sealed class BattleSkillPreviewService
             preview.AddLogLine(blockReason);
             return;
         }
-        AiTraceRecorder.Enter("preview:ground_skill.validate");
-        BattleGroundSkillValidationResult validation =
-            Runtime?.ValidateGroundSkillCommandResultTyped(
-                active_unit,
-                skillDefinition,
-                castVariantDefinition,
-                command
-            ) ?? BattleGroundSkillValidationResult.Denied("地面技能目标无效。");
-        AiTraceRecorder.Exit("preview:ground_skill.validate");
-        AiTraceRecorder.Enter("preview:ground_skill.preview_coords");
-        preview.ClearTargetCoords();
-        IReadOnlyList<Vector2I> previewCoords;
-        if (validation.HasPreviewCoords)
+        BattleGroundSkillValidationResult validation;
+        using (new BattleAiTraceSpan("preview:ground_skill.validate"))
         {
-            previewCoords = validation.PreviewCoords;
-        }
-        else
-        {
-            Vector2I sourceCoord = active_unit.IsValid
-                ? active_unit.Coord
-                : new Vector2I(-1, -1);
-            IReadOnlyList<Vector2I> builtCoords =
-                Runtime?.BuildGroundEffectCoordsTyped(
-                    skillDefinition,
-                    validation.TargetCoords,
-                    sourceCoord,
+            validation =
+                Runtime?.ValidateGroundSkillCommandResultTyped(
                     active_unit,
-                    castVariantDefinition
-                ) ?? Array.Empty<Vector2I>();
-            previewCoords = builtCoords;
+                    skillDefinition,
+                    castVariantDefinition,
+                    command
+                ) ?? BattleGroundSkillValidationResult.Denied("地面技能目标无效。");
         }
-        preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
-        bool allowed = validation.Allowed;
+        IReadOnlyList<Vector2I> previewCoords;
+        bool allowed;
         IReadOnlyList<CombatEffectDefinition> previewUnitEffectDefinitions;
         IReadOnlyList<Vector2I> previewUnitEffectCoords;
-        bool chargePathPreview = false;
-        if (allowed && Runtime?._charge_resolver != null)
+        using (new BattleAiTraceSpan("preview:ground_skill.preview_coords"))
         {
-            CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
-                .GetChargePathStepAoeEffectDefinition(
-                    castVariantDefinition,
-                    skillDefinition,
-                    active_unit
-                );
-            if (pathStepAoeEffect != null)
+            preview.ClearTargetCoords();
+            if (validation.HasPreviewCoords)
             {
-                chargePathPreview = true;
-                previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
-                    active_unit,
-                    skillDefinition,
-                    validation.Direction,
-                    validation.Distance,
-                    pathStepAoeEffect
-                );
+                previewCoords = validation.PreviewCoords;
             }
-        }
-        if (chargePathPreview)
-        {
-            previewUnitEffectDefinitions = Runtime?.CollectGroundUnitEffectDefinitionsTyped(
-                    skillDefinition,
-                    castVariantDefinition,
-                    active_unit
-                ) ?? Array.Empty<CombatEffectDefinition>();
-            previewUnitEffectCoords = previewCoords;
-        }
-        else
-        {
-            BattleSkillExecutionOrchestrator.GroundEffectBarrierClipContext barrierClip = _owner.PreviewGroundEffectBarrierClipContext(
-                active_unit,
-                skillDefinition,
-                castVariantDefinition,
-                validation.TargetCoords,
-                previewCoords
-            );
-            previewCoords = barrierClip.VisibleEffectCoords;
-            previewUnitEffectDefinitions = barrierClip.UnitEffectDefinitions;
-            previewUnitEffectCoords = barrierClip.UnitEffectCoords;
-        }
-        foreach (Vector2I targetCoord in previewCoords)
-        {
-            preview.AddTargetCoord(targetCoord);
-        }
-        AiTraceRecorder.Exit("preview:ground_skill.preview_coords");
-        AiTraceRecorder.Enter("preview:ground_skill.collect_unit_ids");
-        IReadOnlyList<StringName> previewUnitIds =
-            Runtime?.CollectGroundPreviewUnitIdsTyped(
-                active_unit,
-                skillDefinition,
-                previewUnitEffectDefinitions,
-                previewUnitEffectCoords
-            ) ?? Array.Empty<StringName>();
-        preview.SetTargetUnitIds(previewUnitIds);
-        AiTraceRecorder.Exit("preview:ground_skill.collect_unit_ids");
-        if (allowed && Runtime?._charge_resolver != null)
-        {
-            AiTraceRecorder.Enter("preview:ground_skill.path_step_aoe");
-            CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
-                .GetChargePathStepAoeEffectDefinition(
-                    castVariantDefinition,
-                    skillDefinition,
-                    active_unit
-                );
-            if (pathStepAoeEffect != null)
+            else
             {
-                StringName pathStepTargetFilter =
-                    Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+                Vector2I sourceCoord = active_unit.IsValid
+                    ? active_unit.Coord
+                    : new Vector2I(-1, -1);
+                IReadOnlyList<Vector2I> builtCoords =
+                    Runtime?.BuildGroundEffectCoordsTyped(
                         skillDefinition,
-                        pathStepAoeEffect
-                    ) ?? new StringName("");
-                foreach (
-                    BattleUnitReadView targetUnit in _owner.CollectUnitsInCoordsReadView(
-                        preview.TargetCoordsTyped
-                    )
-                )
+                        validation.TargetCoords,
+                        sourceCoord,
+                        active_unit,
+                        castVariantDefinition
+                    ) ?? Array.Empty<Vector2I>();
+                previewCoords = builtCoords;
+            }
+            preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
+            allowed = validation.Allowed;
+            bool chargePathPreview = false;
+            if (allowed && Runtime?._charge_resolver != null)
+            {
+                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                    .GetChargePathStepAoeEffectDefinition(
+                        castVariantDefinition,
+                        skillDefinition,
+                        active_unit
+                    );
+                if (pathStepAoeEffect != null)
                 {
-                    if (!_owner._is_unit_valid_for_effect(active_unit, targetUnit, pathStepTargetFilter))
-                    {
-                        continue;
-                    }
-                    if (preview.ContainsTargetUnitId(targetUnit.UnitId))
-                    {
-                        continue;
-                    }
-                    preview.AddTargetUnitId(targetUnit.UnitId);
+                    chargePathPreview = true;
+                    previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
+                        active_unit,
+                        skillDefinition,
+                        validation.Direction,
+                        validation.Distance,
+                        pathStepAoeEffect,
+                        castVariantDefinition
+                    );
                 }
             }
-            AiTraceRecorder.Exit("preview:ground_skill.path_step_aoe");
+            if (chargePathPreview)
+            {
+                previewUnitEffectDefinitions =
+                    Runtime?.CollectGroundUnitEffectDefinitionsTyped(
+                        skillDefinition,
+                        castVariantDefinition,
+                        active_unit
+                    ) ?? Array.Empty<CombatEffectDefinition>();
+                previewUnitEffectCoords = previewCoords;
+            }
+            else
+            {
+                BattleSkillExecutionOrchestrator.GroundEffectBarrierClipContext barrierClip =
+                    _owner.PreviewGroundEffectBarrierClipContext(
+                        active_unit,
+                        skillDefinition,
+                        castVariantDefinition,
+                        validation.TargetCoords,
+                        previewCoords
+                    );
+                previewCoords = barrierClip.VisibleEffectCoords;
+                previewUnitEffectDefinitions = barrierClip.UnitEffectDefinitions;
+                previewUnitEffectCoords = barrierClip.UnitEffectCoords;
+            }
+            foreach (Vector2I targetCoord in previewCoords)
+                preview.AddTargetCoord(targetCoord);
+        }
+        using (new BattleAiTraceSpan("preview:ground_skill.collect_unit_ids"))
+        {
+            IReadOnlyList<StringName> previewUnitIds =
+                Runtime?.CollectGroundPreviewUnitIdsTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewUnitEffectDefinitions,
+                    previewUnitEffectCoords
+                ) ?? Array.Empty<StringName>();
+            preview.SetTargetUnitIds(previewUnitIds);
+        }
+        if (allowed && Runtime?._charge_resolver != null)
+        {
+            using (new BattleAiTraceSpan("preview:ground_skill.path_step_aoe"))
+            {
+                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                    .GetChargePathStepAoeEffectDefinition(
+                        castVariantDefinition,
+                        skillDefinition,
+                        active_unit
+                    );
+                if (pathStepAoeEffect != null)
+                {
+                    StringName pathStepTargetFilter =
+                        Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+                            skillDefinition,
+                            pathStepAoeEffect
+                        ) ?? new StringName("");
+                    foreach (
+                        BattleUnitReadView targetUnit in _owner.CollectUnitsInCoordsReadView(
+                            preview.TargetCoordsTyped
+                        )
+                    )
+                    {
+                        if (
+                            !_owner._is_unit_valid_for_effect(
+                                active_unit,
+                                targetUnit,
+                                pathStepTargetFilter
+                            )
+                        )
+                        {
+                            continue;
+                        }
+                        if (preview.ContainsTargetUnitId(targetUnit.UnitId))
+                        {
+                            continue;
+                        }
+                        preview.AddTargetUnitId(targetUnit.UnitId);
+                    }
+                }
+            }
         }
         preview.allowed = allowed;
         if (preview.allowed)
@@ -681,22 +707,23 @@ internal sealed class BattleSkillPreviewService
                 )
             );
         }
-        AiTraceRecorder.Enter("preview:ground_skill.log_lines");
-        if (preview.allowed)
+        using (new BattleAiTraceSpan("preview:ground_skill.log_lines"))
         {
-            preview.AddLogLine(
-                $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
-            );
+            if (preview.allowed)
+            {
+                preview.AddLogLine(
+                    $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
+                );
+            }
+            else
+            {
+                preview.AddLogLine(
+                    string.IsNullOrEmpty(validation.Message)
+                        ? "地面技能目标无效。"
+                        : validation.Message
+                );
+            }
         }
-        else
-        {
-            preview.AddLogLine(
-                string.IsNullOrEmpty(validation.Message)
-                    ? "地面技能目标无效。"
-                    : validation.Message
-            );
-        }
-        AiTraceRecorder.Exit("preview:ground_skill.log_lines");
     }
 
     private BattleSaveBranchPreviewData BuildGroundSkillGradedSaveExecutePreview(
@@ -817,14 +844,14 @@ internal sealed class BattleSkillPreviewService
             int targetMaxHp = BattleSkillExecutionOrchestrator.GetUnitMaxHp(targetUnit);
             bool failureExecuteRisk =
                 distribution.FailureBasisPoints > 0
-                && targetUnit.current_hp
+                && targetUnit.GetCurrentHp()
                     <= PhantasmalKillExecutionRules.ResolveFailureExecuteThreshold(
                         profile,
                         targetMaxHp
                     );
             bool criticalFailureExecuteRisk =
                 distribution.CriticalFailureBasisPoints > 0
-                && targetUnit.current_hp
+                && targetUnit.GetCurrentHp()
                     <= PhantasmalKillExecutionRules.ResolveCriticalFailureExecuteThreshold(
                         profile,
                         targetMaxHp

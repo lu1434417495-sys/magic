@@ -868,8 +868,10 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         BattleDamageApplicationHookContext context
     )
     {
-        Vector2I sourceCell = context.SourceUnit?.coord ?? new Vector2I(-1, -1);
-        Vector2I targetCell = context.TargetUnit?.coord ?? new Vector2I(-1, -1);
+        Vector2I sourceCell =
+            context.SourceUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
+        Vector2I targetCell =
+            context.TargetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return new ContingencyFrozenTriggerFacts
         {
             TriggerSourceUnitId = context.SourceUnit?.unit_id ?? "",
@@ -921,9 +923,9 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
     private static int GetMaxHp(BattleUnitState unitState)
     {
         if (unitState?.attribute_snapshot == null)
-            return Math.Max(unitState?.current_hp ?? 0, 0);
+            return Math.Max(unitState?.GetCurrentHp() ?? 0, 0);
         int maxHp = unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX);
-        return Math.Max(maxHp, Math.Max(unitState.current_hp, 0));
+        return Math.Max(maxHp, Math.Max(unitState.GetCurrentHp(), 0));
     }
 
     private bool MatchesHpBelowPercent(BattleContingencyInstance instance, ContingencyHookFact fact)
@@ -973,8 +975,14 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         int radius = instance.Setup?.Trigger?.Radius ?? 0;
         if (radius <= 0)
             return false;
-        int previousDistance = Manhattan(ownerUnit.coord, fact.PreviousSourceCell);
-        int currentDistance = Manhattan(ownerUnit.coord, fact.SourceCell);
+        int previousDistance = Manhattan(
+            ownerUnit.GetAnchorCoord(),
+            fact.PreviousSourceCell
+        );
+        int currentDistance = Manhattan(
+            ownerUnit.GetAnchorCoord(),
+            fact.SourceCell
+        );
         return currentDistance <= radius && previousDistance > radius;
     }
 
@@ -1005,7 +1013,7 @@ internal sealed class BattleContingencySystem : IBattleDamageApplicationHook, ID
         return state != null
             && ownerUnitId != ""
             && state.TryGetUnitTyped(ownerUnitId, out BattleUnitState ownerUnit)
-            && ownerUnit?.is_alive == true;
+            && ownerUnit?.IsAlive() == true;
     }
 
     private bool ReserveSourceEventQueueSlot(

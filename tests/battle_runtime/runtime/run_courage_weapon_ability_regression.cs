@@ -97,16 +97,20 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildCourageUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "勇气之刃应投影为 longsword。");
-        _test.Eq(equipped.weapon_attack_range, 1, "勇气之刃攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "勇气之刃应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "勇气之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "勇气之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "勇气之刃单手应为 1D8+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "勇气之刃双手应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "勇气之刃双手应为 1D10+3。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "勇气之刃应投影为 longsword。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "勇气之刃攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "勇气之刃应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "勇气之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "勇气之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "勇气之刃单手应为 1D8+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "勇气之刃双手应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "勇气之刃双手应为 1D10+3。");
 
         AssertUnitHasTrait(equipped, FearlessTraitId);
         AssertUnitHasTraitAndAbilitySource(equipped, InspireTraitId, InspireBindingId, "eq_courage_projection");
@@ -142,10 +146,11 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除勇气之刃后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除勇气之刃后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除勇气之刃后武器 profile 应回到装备前状态。"
         );
         _test.False(equipped.HasStatusEffect(FearlessStatusId), "移除勇气之刃后无畏被动状态应移除。");
@@ -180,9 +185,9 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         BattleCommand command = BuildUnitSkillCommand(holder, ally, entry);
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(preview?.allowed == true, $"鼓舞应允许选择 6 格内盟友。logs={JoinLogs(preview)}");
-        int apBefore = holder.current_ap;
+        int apBefore = holder.GetCurrentAp();
         fixture.Runtime.IssueCommand(command);
-        _test.Eq(holder.current_ap, apBefore, "鼓舞为 0AP，不应消耗 AP。");
+        _test.Eq(holder.GetCurrentAp(), apBefore, "鼓舞为 0AP，不应消耗 AP。");
         _test.Eq(holder.GetCooldownTyped(InspireSkillId), 60, "鼓舞使用后应设置 60TU 冷却。");
 
         BattleStatusEffectState inspired = ally.GetStatusEffect(InspiredStatusId);
@@ -204,7 +209,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(ally);
         SkillDefinition basicAttack = fixture.SkillDefs[WeaponAbilityCommandTestSupport.BasicAttackSkillId];
         AttackCheckInput inspiredCheck = BuildAttackCheck(fixture, state, ally, enemy, basicAttack);
-        BattleUnitState plainAlly = BuildAlly("courage_plain_ally", ally.coord);
+        BattleUnitState plainAlly = BuildAlly("courage_plain_ally", ally.GetAnchorCoord());
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(plainAlly);
         AttackCheckInput plainCheck = BuildAttackCheck(fixture, state, plainAlly, enemy, basicAttack);
         _test.Eq(
@@ -349,7 +354,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             skill_entry_id = entry?.EntryRef.SkillEntryId ?? new StringName(""),
             skill_id = entry?.EntryRef.SkillId ?? new StringName(""),
             target_unit_id = target?.unit_id ?? new StringName(""),
-            target_coord = target?.coord ?? new Vector2I(-1, -1),
+            target_coord = target?.GetAnchorCoord() ?? new Vector2I(-1, -1),
         };
         if (target != null)
             command.AddTargetUnitId(target.unit_id);
@@ -397,13 +402,13 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         BattleState state = runtime.GetState();
         if (state != null)
             state.active_unit_id = attacker.unit_id;
-        int before = target.current_hp;
+        int before = target.GetCurrentHp();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildBasicAttackCommand(
             attacker,
             target
         );
         runtime.IssueCommand(command);
-        return Math.Max(before - target.current_hp, 0);
+        return Math.Max(before - target.GetCurrentHp(), 0);
     }
 
     private static BattleState BuildState(
@@ -458,8 +463,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         {
             state.enemy_unit_ids.Add(unit.unit_id);
         }
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -482,23 +486,22 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
 
     private static BattleUnitState BuildUnit(StringName unitId, Vector2I coord, StringName faction, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = faction,
-            is_alive = true,
-            current_hp = hp,
-            coord = coord,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 18);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue("willpower", 14);
         unit.attribute_snapshot.SetValue("willpower_modifier", 2);
-        unit.body_size_category = "medium";
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -521,7 +524,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
 
     private void AssertUnitHasTrait(BattleUnitState unit, StringName traitId)
     {
-        _test.True(unit.effective_trait_ids.Contains(traitId), $"unit 应投影 trait {traitId}。");
+        _test.True(unit.HasEffectiveTrait(traitId), $"unit 应投影 trait {traitId}。");
     }
 
     private void AssertUnitHasTraitAndAbilitySource(
@@ -533,8 +536,8 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
     {
         AssertUnitHasTrait(unit, traitId);
         foreach (
-            BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources
-                ?? new List<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
         )
         {
             if (
@@ -627,8 +630,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
                 throw new InvalidOperationException($"{label} scenario should build exactly one ally unit.");
             BattleUnitState unit = units[0];
             unit.faction_id = "ally";
-            unit.coord = new Vector2I(0, 0);
-            unit.RefreshFootprint();
+            unit.SetAnchorCoord(new Vector2I(0, 0));
             WeaponAbilityCommandTestSupport.PrimeBasicAttack(unit);
             return unit;
         }

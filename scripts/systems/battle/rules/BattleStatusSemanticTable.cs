@@ -21,6 +21,15 @@ public readonly record struct BattleStatusSemantic(
 
 public static class BattleStatusSemanticTable
 {
+    private static readonly StringName[] HardControlStatusIds =
+    {
+        "prone",
+        "stunned",
+        "paralyzed",
+        "frozen",
+        "petrified",
+    };
+
     internal static readonly StringName STACK_REFRESH = "refresh",
         STACK_ADD = "add";
     internal static readonly StringName TICK_NONE = "none",
@@ -43,6 +52,7 @@ public static class BattleStatusSemanticTable
         STATUS_FROZEN = "frozen",
         STATUS_GUARDING = "guarding",
         STATUS_HEX_OF_FRAILTY = "hex_of_frailty",
+        STATUS_NIGHT_PRESSURE = "night_pressure",
         STATUS_MAGIC_SHIELD = "magic_shield",
         STATUS_MARKED = "marked",
         STATUS_METEOR_CONCUSSED = "meteor_concussed",
@@ -62,6 +72,7 @@ public static class BattleStatusSemanticTable
         STATUS_REACTION_LOCK = "reaction_lock",
         STATUS_FRIGHTENED = "frightened",
         STATUS_STUNNED = "stunned",
+        STATUS_KNOCKDOWN_IMMUNITY = StatusContentRules.KnockdownImmunity,
         STATUS_TAUNTED = "taunted",
         STATUS_TENDON_CUT = "tendon_cut",
         STATUS_CROWN_BREAK_BROKEN_FANG = "crown_break_broken_fang",
@@ -113,6 +124,10 @@ public static class BattleStatusSemanticTable
         [STATUS_ARCHER_RANGE_UP] = new() { Semantic = RefreshSemantic() },
         [STATUS_ARCHER_SHOOTING_SPECIALIZATION] = new() { Semantic = RefreshSemantic() },
         [STATUS_GUARDING] = new() { Semantic = RefreshSemantic() },
+        [STATUS_KNOCKDOWN_IMMUNITY] = new()
+        {
+            Semantic = RefreshSemantic(displayLabel: "击倒免疫"),
+        },
         [STATUS_LAST_STAND_ACTIVE] = new() { Semantic = RefreshSemantic() },
         [STATUS_TIME_REVERBERATION] = new() { Semantic = RefreshSemantic() },
 
@@ -132,6 +147,7 @@ public static class BattleStatusSemanticTable
         [STATUS_SHOCKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_TAUNTED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_HEX_OF_FRAILTY] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_NIGHT_PRESSURE] = new() { Semantic = RefreshSemantic(displayLabel: "夜幕压迫"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_DOOM_SENTENCE_VERDICT] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
         [STATUS_BURNING] = new() { Semantic = BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_SLOW] = new() { Semantic = RefreshSemantic(moveCostDelta: 1), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
@@ -284,6 +300,31 @@ public static class BattleStatusSemanticTable
         return IsDispellableBeneficialStatus(statusEntry.status_id);
     }
 
+    public static bool IsHardControlled(BattleUnitState unitState)
+    {
+        if (unitState == null)
+            return false;
+        foreach (StringName statusId in HardControlStatusIds)
+        {
+            BattleStatusEffectState status = unitState.GetStatusEffect(statusId);
+            if (status != null && status.stacks > 0)
+                return true;
+        }
+        return false;
+    }
+
+    internal static bool IsHardControlled(BattleUnitReadView unitView)
+    {
+        if (!unitView.IsValid)
+            return false;
+        foreach (StringName statusId in HardControlStatusIds)
+        {
+            if (unitView.HasStatusEffect(statusId) && unitView.GetStatusStacks(statusId) > 0)
+                return true;
+        }
+        return false;
+    }
+
     public static int GetDispelPriority(StringName statusId) =>
         GetDescriptor(statusId)?.DispelPriority ?? DEFAULT_DISPEL_PRIORITY;
 
@@ -414,8 +455,35 @@ public static class BattleStatusSemanticTable
         statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
             effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
         );
-        statusEntry.attack_roll_penalty = effectDefinition.AttackRollPenalty;
+        statusEntry.attack_roll_penalty = Math.Max(
+            statusEntry.attack_roll_penalty,
+            effectDefinition.AttackRollPenalty
+        );
         statusEntry.attack_roll_bonus = effectDefinition.AttackRollBonus;
+        statusEntry.melee_combo_stack_gain_bonus =
+            effectDefinition.MeleeComboStackGainBonus;
+        statusEntry.combo_attack_bonus_status_id =
+            effectDefinition.ComboAttackBonusStatusId;
+        statusEntry.combo_attack_bonus_stack_divisor =
+            effectDefinition.ComboAttackBonusStackDivisor;
+        statusEntry.upkeep_resource = effectDefinition.UpkeepResource;
+        statusEntry.upkeep_interval_tu = effectDefinition.UpkeepIntervalTu;
+        statusEntry.upkeep_base_cost = effectDefinition.UpkeepBaseCost;
+        statusEntry.upkeep_escalation_interval_tu =
+            effectDefinition.UpkeepEscalationIntervalTu;
+        statusEntry.upkeep_cost_multiplier = effectDefinition.UpkeepCostMultiplier;
+        statusEntry.break_on_hard_control = effectDefinition.BreakOnHardControl;
+        statusEntry.termination_status_id = effectDefinition.TerminationStatusId;
+        statusEntry.termination_status_duration_tu =
+            effectDefinition.TerminationStatusDurationTu;
+        statusEntry.termination_attack_roll_penalty =
+            effectDefinition.TerminationAttackRollPenalty;
+        statusEntry.termination_cooldown_tu =
+            effectDefinition.TerminationCooldownTu;
+        if (statusEntry.upkeep_interval_tu > 0)
+        {
+            statusEntry.tick_interval_tu = statusEntry.upkeep_interval_tu;
+        }
         statusEntry.attack_roll_advantage = effectDefinition.AttackRollAdvantage;
         statusEntry.consume_on_next_attack_check = effectDefinition.ConsumeOnNextAttackCheck;
         statusEntry.consume_on_next_save = effectDefinition.ConsumeOnNextSave;

@@ -135,7 +135,8 @@ public partial class run_battle_target_team_rules_regression : LifecycleTestScen
         {
             unit_id = unitId,
             faction_id = factionId,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
     }
 }

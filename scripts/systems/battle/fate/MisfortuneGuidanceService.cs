@@ -117,7 +117,7 @@ internal class MisfortuneGuidanceService
         foreach (var enemyUnitId in battleState.enemy_unit_ids)
         {
             var defeatedUnit = battleState.GetUnit(enemyUnitId);
-            if (defeatedUnit == null || defeatedUnit.is_alive)
+            if (defeatedUnit == null || defeatedUnit.IsAlive())
                 continue;
 
             var sealedMemberId = ResolveEliteSealSourceMemberId(battleState, defeatedUnit);

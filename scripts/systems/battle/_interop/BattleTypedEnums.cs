@@ -85,8 +85,10 @@ internal enum BattleEffectKind
     ChainDamage,
     Charge,
     ForcedMove,
+    VaultBehindTarget,
     PathStepAoe,
     RepeatAttackUntilFail,
+    FixedRepeatAttack,
     EquipmentDurabilityDamage,
     DispelMagic,
     Heal,
@@ -109,6 +111,17 @@ internal enum BattleEffectKind
     HeightDelta,
     TerrainEffect,
     EdgeClear,
+}
+
+internal enum BattleDamageBonusConditionKind
+{
+    Unknown = 0,
+    None,
+    TargetLowHp,
+    TargetDebuffCount,
+    TargetCreatureType,
+    TargetHardControlled,
+    TargetHasShield,
 }
 
 internal enum BattleForcedMoveMode
@@ -251,6 +264,7 @@ internal static class BattleTypedNames
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectVaultBehindTarget = "vault_behind_target";
     internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
     internal static readonly StringName EffectHeal = "heal";
     internal static readonly StringName EffectHealFatal = "heal_fatal";
@@ -260,6 +274,7 @@ internal static class BattleTypedNames
     internal static readonly StringName EffectOnKillGainResources = "on_kill_gain_resources";
     internal static readonly StringName EffectPathStepAoe = "path_step_aoe";
     internal static readonly StringName EffectRepeatAttackUntilFail = "repeat_attack_until_fail";
+    internal static readonly StringName EffectFixedRepeatAttack = "fixed_repeat_attack";
     internal static readonly StringName EffectShield = "shield";
     internal static readonly StringName EffectStaminaRestore = "stamina_restore";
     internal static readonly StringName EffectStatus = "status";
@@ -269,6 +284,15 @@ internal static class BattleTypedNames
     internal static readonly StringName EffectTerrainEffect = "terrain_effect";
     internal static readonly StringName EffectTerrainReplace = "terrain_replace";
     internal static readonly StringName EffectTerrainReplaceTo = "terrain_replace_to";
+    internal static readonly StringName DamageBonusConditionTargetLowHp = "target_low_hp";
+    internal static readonly StringName DamageBonusConditionTargetDebuffCount =
+        "target_debuff_count";
+    internal static readonly StringName DamageBonusConditionTargetCreatureType =
+        "target_creature_type";
+    internal static readonly StringName DamageBonusConditionTargetHardControlled =
+        "target_hard_controlled";
+    internal static readonly StringName DamageBonusConditionTargetHasShield =
+        "target_has_shield";
     internal static readonly StringName ForcedMoveBlink = "blink";
     internal static readonly StringName ForcedMoveJump = "jump";
     internal static readonly StringName ForcedMoveWindPush = "wind_push";
@@ -551,10 +575,14 @@ internal static class BattleTypedNames
             return BattleEffectKind.Charge;
         if (value == EffectForcedMove)
             return BattleEffectKind.ForcedMove;
+        if (value == EffectVaultBehindTarget)
+            return BattleEffectKind.VaultBehindTarget;
         if (value == EffectPathStepAoe)
             return BattleEffectKind.PathStepAoe;
         if (value == EffectRepeatAttackUntilFail)
             return BattleEffectKind.RepeatAttackUntilFail;
+        if (value == EffectFixedRepeatAttack)
+            return BattleEffectKind.FixedRepeatAttack;
         if (value == EffectEquipmentDurabilityDamage)
             return BattleEffectKind.EquipmentDurabilityDamage;
         if (value == EffectDispelMagic)
@@ -610,8 +638,10 @@ internal static class BattleTypedNames
             BattleEffectKind.ChainDamage => EffectChainDamage,
             BattleEffectKind.Charge => EffectCharge,
             BattleEffectKind.ForcedMove => EffectForcedMove,
+            BattleEffectKind.VaultBehindTarget => EffectVaultBehindTarget,
             BattleEffectKind.PathStepAoe => EffectPathStepAoe,
             BattleEffectKind.RepeatAttackUntilFail => EffectRepeatAttackUntilFail,
+            BattleEffectKind.FixedRepeatAttack => EffectFixedRepeatAttack,
             BattleEffectKind.EquipmentDurabilityDamage => EffectEquipmentDurabilityDamage,
             BattleEffectKind.DispelMagic => EffectDispelMagic,
             BattleEffectKind.Heal => EffectHeal,
@@ -634,6 +664,43 @@ internal static class BattleTypedNames
             BattleEffectKind.HeightDelta => EffectHeightDelta,
             BattleEffectKind.TerrainEffect => EffectTerrainEffect,
             BattleEffectKind.EdgeClear => EffectEdgeClear,
+            _ => Empty,
+        };
+    }
+
+    internal static BattleDamageBonusConditionKind ToDamageBonusConditionKind(
+        StringName value
+    )
+    {
+        if (value == Empty)
+            return BattleDamageBonusConditionKind.None;
+        if (value == DamageBonusConditionTargetLowHp)
+            return BattleDamageBonusConditionKind.TargetLowHp;
+        if (value == DamageBonusConditionTargetDebuffCount)
+            return BattleDamageBonusConditionKind.TargetDebuffCount;
+        if (value == DamageBonusConditionTargetCreatureType)
+            return BattleDamageBonusConditionKind.TargetCreatureType;
+        if (value == DamageBonusConditionTargetHardControlled)
+            return BattleDamageBonusConditionKind.TargetHardControlled;
+        if (value == DamageBonusConditionTargetHasShield)
+            return BattleDamageBonusConditionKind.TargetHasShield;
+        return BattleDamageBonusConditionKind.Unknown;
+    }
+
+    internal static StringName ToStringName(BattleDamageBonusConditionKind kind)
+    {
+        return kind switch
+        {
+            BattleDamageBonusConditionKind.None => Empty,
+            BattleDamageBonusConditionKind.TargetLowHp => DamageBonusConditionTargetLowHp,
+            BattleDamageBonusConditionKind.TargetDebuffCount =>
+                DamageBonusConditionTargetDebuffCount,
+            BattleDamageBonusConditionKind.TargetCreatureType =>
+                DamageBonusConditionTargetCreatureType,
+            BattleDamageBonusConditionKind.TargetHardControlled =>
+                DamageBonusConditionTargetHardControlled,
+            BattleDamageBonusConditionKind.TargetHasShield =>
+                DamageBonusConditionTargetHasShield,
             _ => Empty,
         };
     }
@@ -919,7 +986,10 @@ internal static class BattleTypedNames
                 or BattleEffectKind.GradedSaveExecute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.PathStepAoe
+                or BattleEffectKind.RepeatAttackUntilFail
+                or BattleEffectKind.FixedRepeatAttack
                 or BattleEffectKind.Status;
     }
 
@@ -951,6 +1021,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.Execute
                 or BattleEffectKind.GradedSaveExecute;
     }

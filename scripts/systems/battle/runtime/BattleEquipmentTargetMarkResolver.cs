@@ -430,7 +430,7 @@ internal sealed class BattleEquipmentTargetMarkResolver
             return false;
 
         BattleUnitState sourceUnit = state.GetUnit(mark.SourceUnitId);
-        if (sourceUnit?.is_alive == true)
+        if (sourceUnit?.IsAlive() == true)
         {
             var context = new BattleEquipmentAbilityTargetMarkExpiredContext
             {
@@ -716,8 +716,8 @@ internal sealed class BattleEquipmentTargetMarkResolver
         if (sourceUnit == null || mark?.IsValid != true)
             return false;
         foreach (
-            BattleEquipmentAbilitySourceState source in sourceUnit.equipment_ability_sources
-                ?? new List<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in sourceUnit.GetEquipmentAbilitySourcesReadViewTyped()
         )
         {
             if (
@@ -747,7 +747,7 @@ internal sealed class BattleEquipmentTargetMarkResolver
     }
 
     private static bool IsLivingUnit(BattleUnitState unit) =>
-        unit != null && unit.is_alive && unit.current_hp > 0;
+        unit != null && unit.IsAlive() && unit.GetCurrentHp() > 0;
 
     private static bool ShouldRemoveTargetMarkOnTargetDefeated(
         EquipmentAbilityBindingDefinition binding,

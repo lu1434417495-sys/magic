@@ -149,6 +149,7 @@ public partial class BattleDamageResolver
         );
         DicePoolRollResult weaponRoll = RollWeaponDice(
             sourceUnit,
+            targetUnit,
             effectDefinition,
             true,
             "weapon_damage_dice",
@@ -156,7 +157,8 @@ public partial class BattleDamageResolver
         );
         bool criticalHit = damageContext.CriticalHit;
         bool bonusConditionMet = HasBonusCondition(effectDefinition, targetUnit);
-        DicePoolRollResult bonusDamageRoll = bonusConditionMet
+        DicePoolRollResult bonusDamageRoll =
+            bonusConditionMet && !effectDefinition.BonusDamageSeparateEvent
             ? RollBonusDamageDice(effectDefinition, true, "bonus_damage_dice", rollMode)
             : DicePoolRollResult.Empty;
         SourceBoundWeaponBonusDamageRoll sourceBoundWeaponBonusRoll =
@@ -206,6 +208,7 @@ public partial class BattleDamageResolver
             criticalHit && weaponRoll.HasDice
                 ? RollWeaponDice(
                     sourceUnit,
+                    targetUnit,
                     effectDefinition,
                     false,
                     "critical_extra_weapon_damage_dice",
@@ -533,6 +536,213 @@ public partial class BattleDamageResolver
             lowLuckBlackStarWedgeTriggered,
             damageDiceEventFlags.Snapshot
         );
+    }
+
+    private bool TryResolveConditionalBonusWeaponDamageOutcome(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        DamageResolutionContext damageContext,
+        out DamageOutcomeResult outcome
+    )
+    {
+        outcome = default;
+        bool hasSeparateBonusDice =
+            effectDefinition?.BonusDamageSeparateEvent == true
+            && effectDefinition.BonusDamageDiceCount > 0
+            && effectDefinition.BonusDamageDiceSides > 0;
+        if (
+            sourceUnit == null
+            || targetUnit == null
+            || effectDefinition == null
+            || (
+                effectDefinition.BonusWeaponDiceMultiplier <= 0
+                && !hasSeparateBonusDice
+            )
+            || !HasBonusCondition(effectDefinition, targetUnit)
+        )
+        {
+            return false;
+        }
+
+        StringName damageTag = ResolveDamageTag(sourceUnit, effectDefinition);
+        if (damageTag == "")
+        {
+            outcome = BuildInvalidDamageTagOutcome(sourceUnit, effectDefinition);
+            return true;
+        }
+        BattleWeaponDiceValues weaponDice = GetCurrentWeaponDamageDice(sourceUnit);
+        if (
+            effectDefinition.BonusWeaponDiceMultiplier > 0
+            && !weaponDice.HasUsableDice
+        )
+            return false;
+
+        StringName rollMode =
+            (damageContext ?? DamageResolutionContext.Empty()).DamageRollMode;
+        int diceCount =
+            effectDefinition.BonusWeaponDiceMultiplier > 0
+                ? (int)Math.Min(
+                    (long)Math.Max(weaponDice.DiceCount, 0)
+                        * effectDefinition.BonusWeaponDiceMultiplier,
+                    int.MaxValue
+                )
+                : 0;
+        DicePoolRollResult weaponRoll =
+            diceCount > 0
+                ? RollDicePool(
+                    diceCount,
+                    Math.Max(weaponDice.DiceSides, 0),
+                    0,
+                    "conditional_bonus_weapon_damage_dice",
+                    rollMode
+                )
+                : DicePoolRollResult.Empty;
+        DicePoolRollResult bonusDamageRoll =
+            hasSeparateBonusDice
+                ? RollBonusDamageDice(
+                    effectDefinition,
+                    true,
+                    "separate_conditional_bonus_damage_dice",
+                    rollMode
+                )
+                : DicePoolRollResult.Empty;
+        bool criticalHit = damageContext?.CriticalHit == true;
+        DicePoolRollResult criticalWeaponRoll =
+            criticalHit && weaponRoll.HasDice
+                ? RollDicePool(
+                    diceCount,
+                    Math.Max(weaponDice.DiceSides, 0),
+                    0,
+                    "critical_extra_conditional_bonus_weapon_damage_dice",
+                    rollMode
+                )
+                : DicePoolRollResult.Empty;
+        DicePoolRollResult criticalBonusDamageRoll =
+            criticalHit && bonusDamageRoll.HasDice
+                ? RollBonusDamageDice(
+                    effectDefinition,
+                    false,
+                    "critical_extra_separate_conditional_bonus_damage_dice",
+                    rollMode
+                )
+                : DicePoolRollResult.Empty;
+        int baseDamage =
+            weaponRoll.TotalWithBonus
+            + criticalWeaponRoll.TotalWithBonus
+            + bonusDamageRoll.TotalWithBonus
+            + criticalBonusDamageRoll.TotalWithBonus;
+        double offenseMultiplier = BuildOffenseMultiplier(
+            sourceUnit,
+            targetUnit,
+            effectDefinition
+        );
+        int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
+        MitigationTierResolution mitigationTierResult = ResolveMitigationTierResult(
+            targetUnit,
+            damageTag,
+            effectDefinition.MitigationBypassDamageTags,
+            effectDefinition.MitigationBypassTiers
+        );
+        StringName mitigationTier = mitigationTierResult.Tier;
+        int tierAdjustedDamage = rolledDamage;
+        if (mitigationTier == MitigationTierImmune)
+            tierAdjustedDamage = 0;
+        else if (mitigationTier == MitigationTierHalf)
+            tierAdjustedDamage /= 2;
+        else if (mitigationTier == MitigationTierDouble)
+            tierAdjustedDamage *= 2;
+
+        FixedMitigationResult mitigation = BuildFixedMitigation(
+            sourceUnit,
+            targetUnit,
+            effectDefinition,
+            damageTag,
+            damageContext
+        );
+        ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
+        bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
+            mitigation,
+            sourceUnit
+        );
+        TrimFixedMitigationSources(mitigation);
+        int resolvedDamage = Math.Max(
+            tierAdjustedDamage - mitigation.Total,
+            MinDamageFloor
+        );
+        DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
+            criticalHit,
+            DicePoolRollResult.Empty,
+            weaponRoll,
+            bonusDamageRoll
+        );
+        DamageDiceEventSnapshot diceSnapshot = damageDiceEventFlags.Snapshot;
+        DamageEventResult result = new()
+        {
+            DamageTag = damageTag,
+            MitigationTier = AttackEffectResolutionResultReader.ParseMitigationTier(
+                mitigationTier
+            ),
+            MitigationSources = mitigationTierResult.Sources,
+            BaseDamage = baseDamage,
+            CriticalHit = criticalHit,
+            AddWeaponDice = weaponRoll.HasDice,
+            DamageDice = DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            BonusConditionMet = true,
+            BonusDamageDice = bonusDamageRoll.ToDamageDiceRollDetail(),
+            WeaponDamageDice = weaponRoll.ToDamageDiceRollDetail(),
+            CriticalExtraDamageDice =
+                DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            CriticalExtraBonusDamageDice =
+                criticalBonusDamageRoll.ToDamageDiceRollDetail(),
+            CriticalExtraWeaponDamageDice =
+                criticalWeaponRoll.ToDamageDiceRollDetail(),
+            TraitExtraWeaponDamageDice =
+                DicePoolRollResult.Empty.ToDamageDiceRollDetail(),
+            OffenseMultiplier = offenseMultiplier,
+            RolledDamage = rolledDamage,
+            TierAdjustedDamage = tierAdjustedDamage,
+            ResolvedDamage = resolvedDamage,
+            BuffReduction = mitigation.BuffReduction,
+            StanceReduction = mitigation.StanceReduction,
+            PassiveReduction = mitigation.PassiveReduction,
+            ContentDr = mitigation.ContentDr,
+            GuardBlock = mitigation.GuardBlock,
+            GuardIgnoreApplied = mitigation.GuardIgnoreApplied,
+            FixedMitigationSourceLabels = mitigation.SourceLabels(),
+            LowLuckBlackStarWedgeTriggered = lowLuckBlackStarWedgeTriggered,
+            FixedMitigationTotal = mitigation.Total,
+            FullyAbsorbedByMitigation =
+                resolvedDamage <= 0
+                && mitigationTier != MitigationTierImmune
+                && tierAdjustedDamage > 0,
+            TraitTriggerResults = Array.Empty<TraitTriggerEventResult>(),
+            DamageDiceHighTotalRoll = diceSnapshot.DamageDiceHighTotalRoll,
+            DamageDiceHighTotalRollReason =
+                diceSnapshot.DamageDiceHighTotalRollReason,
+            SkillDamageDiceIsMax = diceSnapshot.SkillDamageDiceIsMax,
+            SkillDamageDiceIsMaxReason =
+                diceSnapshot.SkillDamageDiceIsMaxReason,
+            WeaponDamageDiceIsMax = diceSnapshot.WeaponDamageDiceIsMax,
+            WeaponDamageDiceIsMaxReason =
+                diceSnapshot.WeaponDamageDiceIsMaxReason,
+        };
+        outcome = new DamageOutcomeResult(
+            result,
+            false,
+            "",
+            "",
+            "",
+            damageTag,
+            resolvedDamage,
+            false,
+            false,
+            100.0,
+            0,
+            lowLuckBlackStarWedgeTriggered,
+            diceSnapshot
+        );
+        return true;
     }
 
     private DamageOutcomeResult ResolveEquipmentAbilityBonusDamageOutcome(

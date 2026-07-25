@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
 internal readonly record struct BattleBarrierOutcomeResult(bool Stopped);
 
@@ -128,7 +127,7 @@ internal sealed class BattleBarrierOutcomeResolver
                 continue;
             var outcomeResult = _ApplyOutcome(unitState, barrier, layer, outcome, batch);
             applied = true;
-            if (outcomeResult.Stopped || !unitState.is_alive)
+            if (outcomeResult.Stopped || !unitState.IsAlive())
             {
                 return new BattleBarrierPassageResult(applied, true);
             }
@@ -181,7 +180,7 @@ internal sealed class BattleBarrierOutcomeResolver
             batch,
             $"{unitState.display_name} 触碰 {_GetLayerLabel(layer)}，受到 {damage} 点伤害。"
         );
-        if (!unitState.is_alive)
+        if (!unitState.IsAlive())
         {
             _HandleDefeatedByBarrier(unitState, barrier, batch);
             return new BattleBarrierOutcomeResult(true);
@@ -213,7 +212,7 @@ internal sealed class BattleBarrierOutcomeResolver
                 batch,
                 $"{unitState.display_name} 通过 {_GetLayerLabel(layer)} 的豁免，仍受到 {damage} 点伤害。"
             );
-            if (!unitState.is_alive)
+            if (!unitState.IsAlive())
             {
                 _HandleDefeatedByBarrier(unitState, barrier, batch);
                 return new BattleBarrierOutcomeResult(true);
@@ -221,8 +220,8 @@ internal sealed class BattleBarrierOutcomeResolver
             return new BattleBarrierOutcomeResult(false);
         }
         var fatalDamage = Mathf.Max(
-            unitState.current_hp
-                + unitState.current_shield_hp
+            unitState.GetCurrentHp()
+                + unitState.GetShieldStateTyped().CurrentHp
                 + Mathf.Max(outcome?.FatalDamage ?? DEFAULT_FATAL_DAMAGE, 1),
             Mathf.Max(outcome?.FatalDamage ?? DEFAULT_FATAL_DAMAGE, 1)
         );
@@ -232,7 +231,7 @@ internal sealed class BattleBarrierOutcomeResolver
             batch,
             $"{unitState.display_name} 未通过 {_GetLayerLabel(layer)} 的豁免，触发即死效果。"
         );
-        if (!unitState.is_alive)
+        if (!unitState.IsAlive())
         {
             _HandleDefeatedByBarrier(unitState, barrier, batch);
             return new BattleBarrierOutcomeResult(true);
@@ -297,13 +296,19 @@ internal sealed class BattleBarrierOutcomeResolver
             return new BattleBarrierOutcomeResult(true);
         }
         var previousCoords = new List<Vector2I>();
-        foreach (Vector2I coord in unitState.occupied_coords)
+        foreach (
+            Vector2I coord in unitState.GetOccupiedCoordsReadViewTyped()
+        )
             previousCoords.Add(coord);
         var runtime = _ResolveRuntime();
         var state = runtime._state;
         runtime._grid_service.ClearUnitOccupancy(state, unitState);
         unitState.SetAnchorCoord(destination);
-        runtime._grid_service.SetOccupantsTyped(state, unitState.occupied_coords, unitState.unit_id);
+        runtime._grid_service.SetOccupantsTyped(
+            state,
+            unitState.GetOccupiedCoordsReadViewTyped(),
+            unitState.unit_id
+        );
         _AppendChangedCoords(batch, previousCoords);
         _AppendChangedUnit(batch, unitState);
         _AppendLog(
@@ -384,7 +389,7 @@ internal sealed class BattleBarrierOutcomeResolver
                 sourceUnit,
                 runtime.GetState()
             );
-        unitState.SetCurrentHp(unitState.current_hp);
+        unitState.SetCurrentHp(unitState.GetCurrentHp());
         return damage;
     }
 
@@ -442,7 +447,7 @@ internal sealed class BattleBarrierOutcomeResolver
                 !gridService.CanPlaceFootprint(
                         state,
                         coord,
-                        unitState.footprint_size,
+                        unitState.GetFootprintSize(),
                         unitState.unit_id,
                         unitState
                     )
@@ -555,7 +560,7 @@ internal sealed class BattleBarrierOutcomeResolver
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null)
             return;
-        runtime._append_changed_coords(batch, ToGodotCoordArray(coords));
+        runtime._append_changed_coords_typed(batch, coords);
     }
 
     private void _AppendLog(BattleEventBatch batch, string line)
@@ -575,13 +580,4 @@ internal sealed class BattleBarrierOutcomeResolver
         return target;
     }
 
-    private static GArray ToGodotCoordArray(IEnumerable<Vector2I> coords)
-    {
-        var result = new GArray();
-        foreach (Vector2I coord in coords ?? System.Array.Empty<Vector2I>())
-        {
-            result.Add(coord);
-        }
-        return result;
-    }
 }

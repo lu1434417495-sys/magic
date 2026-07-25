@@ -33,10 +33,15 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         BattleUnitState target = MakeUnit("preview_target", "enemy");
         SetStatus(source, "attack_up", 2, new GDictionary());
         SetStatus(target, "damage_reduction_up", 1, new GDictionary());
-        target.damage_resistances["fire"] = "half";
-        target.current_shield_hp = 5;
-        target.shield_max_hp = 5;
-        target.shield_duration = 100;
+        target.SetDamageResistanceTyped("fire", "half");
+        target.ReplaceShieldStateTyped(
+            5,
+            5,
+            100,
+            "preview_shield",
+            source.unit_id,
+            "preview_shield_skill"
+        );
         CombatEffectDefinition effect = MakeDamageEffect(
             "fire",
             10,
@@ -78,8 +83,12 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         GDictionary worstPreview = worstPreviewLease.Value;
         _test.Eq(DictInt(worstPreview, "post_save_damage", -1), 11, "Worst preview should use max dice and same mitigation chain.");
         _test.Eq(DictInt(worstPreview, "hp_damage", -1), 6, "Worst preview should resolve hp damage on cloned shield state.");
-        _test.Eq(target.current_hp, 30, "Preview should not mutate target HP.");
-        _test.Eq(target.current_shield_hp, 5, "Preview should not mutate target shield.");
+        _test.Eq(target.GetCurrentHp(), 30, "Preview should not mutate target HP.");
+        _test.Eq(
+            target.GetShieldStateTyped().CurrentHp,
+            5,
+            "Preview should not mutate target shield."
+        );
         _test.True(target.HasStatusEffect("damage_reduction_up"), "Preview should not mutate target statuses.");
         _test.True(source.HasStatusEffect("attack_up"), "Preview should not mutate source statuses.");
     }
@@ -120,7 +129,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             "save_roll_override=20 should become 100% success probability."
         );
         _test.Eq(DictInt(preview, "post_save_damage", -1), 10, "Successful partial save should halve damage.");
-        _test.Eq(target.current_hp, 30, "Save preview should not mutate the target by rolling a real save.");
+        _test.Eq(target.GetCurrentHp(), 30, "Save preview should not mutate the target by rolling a real save.");
     }
 
     private void TestAttributeScaledRecoveryDiceUseFormalFields()
@@ -133,7 +142,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         source.attribute_snapshot.SetValue("willpower_modifier", 2);
 
         BattleUnitState healTarget = MakeUnit("heal_target", "player");
-        healTarget.current_hp = 10;
+        healTarget.SetCurrentHp(10);
         CombatEffectDefinition healEffect = TestSkillDefinitionProjection.BuildEffect(
             "heal",
             effectTargetTeamFilter: "ally",
@@ -152,10 +161,10 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         GDictionary healResult = healResultLease.Value;
         int healing = DictInt(healResult, "healing");
         _test.True(healing >= 2 && healing <= 14, "Healing should use typed 2D(4+CON+WILL) dice sides.");
-        _test.Eq(healTarget.current_hp, 10 + healing, "Typed healing dice should write back HP.");
+        _test.Eq(healTarget.GetCurrentHp(), 10 + healing, "Typed healing dice should write back HP.");
 
         BattleUnitState staminaTarget = MakeUnit("stamina_target", "player");
-        staminaTarget.current_stamina = 0;
+        staminaTarget.SetCurrentStamina(0);
         staminaTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 30);
         CombatEffectDefinition staminaEffect = TestSkillDefinitionProjection.BuildEffect(
             "stamina_restore",
@@ -172,7 +181,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             DamageResolutionContext.Empty()
         );
         _test.True(
-            staminaTarget.current_stamina >= 2 && staminaTarget.current_stamina <= 14,
+            staminaTarget.GetCurrentStamina() >= 2 && staminaTarget.GetCurrentStamina() <= 14,
             "Stamina restore should use typed attribute-scaled dice sides."
         );
 
@@ -194,7 +203,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         var resolver = new BattleDamageResolver();
         BattleUnitState source = MakeUnit("heal_fatal_source", "player");
         BattleUnitState target = MakeUnit("heal_fatal_target", "player");
-        target.current_hp = 5;
+        target.SetCurrentHp(5);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
         target.attribute_snapshot.SetValue("constitution", 14);
         target.attribute_snapshot.SetValue("constitution_modifier", 2);
@@ -215,7 +224,7 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
         ));
         GDictionary result = resultLease.Value;
         _test.Eq(DictInt(result, "healing"), 22, "heal_fatal 应按 typed 参数公式结算治疗量。");
-        _test.Eq(target.current_hp, 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
+        _test.Eq(target.GetCurrentHp(), 27, "heal_fatal 应按 typed 参数公式回写目标 HP。");
     }
 
     private void TestDispelMagicUsesTypedEffectParams()
@@ -286,12 +295,13 @@ public partial class run_battle_damage_resolver_preview_contract_regression : Li
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = 30,
-            current_mp = 0,
-            current_ap = 2,
-            current_stamina = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 0,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);

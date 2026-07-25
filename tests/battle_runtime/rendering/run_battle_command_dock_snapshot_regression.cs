@@ -107,8 +107,8 @@ public partial class run_battle_command_dock_snapshot_regression : LifecycleTest
     {
         caster = BattleTestFixture.BuildUnit("dock_caster", "player", new Vector2I(1, 1), currentAp: 3);
         caster.control_mode = controlMode;
-        caster.known_active_skill_ids.Add(SkillId);
-        caster.known_skill_level_map[SkillId] = 1;
+        caster.AddKnownActiveSkill(SkillId);
+        caster.SetKnownSkillLevelTyped(SkillId, 1);
         BattleUnitState enemy = BattleTestFixture.BuildUnit("dock_enemy", "enemy", new Vector2I(3, 1));
         return BattleTestFixture.CreateFlatBattle(
             "command_dock_snapshot",

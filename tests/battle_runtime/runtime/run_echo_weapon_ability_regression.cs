@@ -95,20 +95,24 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildEchoUnit("projection");
-        _test.Eq(equipped.weapon_item_id, EchoItemId, "回音装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("handaxe"), "回音应投影为 handaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "回音应投影为 axe family。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, EchoItemId, "回音装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("handaxe"), "回音应投影为 handaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "回音应投影为 axe family。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "回音应为挥砍伤害。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "回音近战攻击距离应为 1。");
-        _test.False(equipped.weapon_uses_two_hands, "回音应是单手手斧。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "回音单手应为 1D6+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "回音单手应为 1D6+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 1, "回音单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "回音近战攻击距离应为 1。");
+        _test.False(equippedWeapon.UsesTwoHands, "回音应是单手手斧。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "回音单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "回音单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 1, "回音单手应为 1D6+1。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             EchoThrowTraitId,
@@ -140,13 +144,18 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除回音后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除回音后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除回音后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除回音后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除回音后装备能力源应清空。"
+        );
     }
 
     private void TestEchoThrowUsesCasterLineAndStacksForDamagedTargets()
@@ -203,20 +212,20 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
         _test.True(ContainsCoord(preview.TargetCoordsTyped, new Vector2I(2, 1)), "预览应包含第 2 格路径。");
         _test.True(ContainsCoord(preview.TargetCoordsTyped, new Vector2I(3, 1)), "预览应包含第 3 格路径。");
         _test.True(ContainsCoord(preview.TargetCoordsTyped, new Vector2I(4, 1)), "预览应包含目标格。");
-        _test.False(ContainsCoord(preview.TargetCoordsTyped, holder.coord), "预览不应包含使用者所在格。");
+        _test.False(ContainsCoord(preview.TargetCoordsTyped, holder.GetAnchorCoord()), "预览不应包含使用者所在格。");
         _test.False(ContainsCoord(preview.TargetCoordsTyped, new Vector2I(1, 2)), "预览不应包含偏离直线的格。");
         _test.True(ContainsStringName(preview.TargetUnitIdsTyped, firstEnemy.unit_id), "预览应包含直线路径第一个敌人。");
         _test.True(ContainsStringName(preview.TargetUnitIdsTyped, secondEnemy.unit_id), "预览应包含直线路径第二个敌人。");
         _test.False(ContainsStringName(preview.TargetUnitIdsTyped, offLineEnemy.unit_id), "预览不应包含偏离直线的敌人。");
 
-        int staminaBefore = holder.current_stamina;
+        int staminaBefore = holder.GetCurrentStamina();
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
         _test.True(batch != null, "回音投掷 IssueCommand 应返回事件 batch。");
-        _test.Eq(firstEnemy.current_hp, 25, "直线路径第一个敌人应受到 1D6+1 挥砍伤害。");
-        _test.Eq(secondEnemy.current_hp, 25, "直线路径第二个敌人应受到 1D6+1 挥砍伤害。");
-        _test.Eq(offLineEnemy.current_hp, 30, "偏离直线的敌人不应受伤。");
-        _test.Eq(holder.current_stamina, staminaBefore - 40, "回音投掷应消耗 40 体力。");
-        _test.Eq(holder.current_ap, 1, "回音投掷应消耗 1 AP。");
+        _test.Eq(firstEnemy.GetCurrentHp(), 25, "直线路径第一个敌人应受到 1D6+1 挥砍伤害。");
+        _test.Eq(secondEnemy.GetCurrentHp(), 25, "直线路径第二个敌人应受到 1D6+1 挥砍伤害。");
+        _test.Eq(offLineEnemy.GetCurrentHp(), 30, "偏离直线的敌人不应受伤。");
+        _test.Eq(holder.GetCurrentStamina(), staminaBefore - 40, "回音投掷应消耗 40 体力。");
+        _test.Eq(holder.GetCurrentAp(), 1, "回音投掷应消耗 1 AP。");
         _test.Eq(holder.GetCooldownTyped(EchoThrowSkillId), 90, "回音投掷应设置 90TU 冷却。");
 
         BattleStatusEffectState reverberation = holder.GetStatusEffect(ReverberationStatusId);
@@ -259,7 +268,7 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
         );
 
         _test.Eq(
-            target.current_hp,
+            target.GetCurrentHp(),
             39,
             "3 层余音的下一次真实命中应造成武器 1D6+1 与 3D6 雷鸣伤害。"
         );
@@ -421,8 +430,7 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -431,16 +439,16 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            body_size = 1,
-            body_size_category = "small",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.SetBodySizeCategory("small");
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -459,9 +467,9 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -474,12 +482,18 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -593,8 +607,7 @@ public partial class run_echo_weapon_ability_regression : LifecycleTestSceneTree
                 EquipmentInstanceState.CreateInstance(EchoItemId, $"eq_echo_{label}")
             );
             BattleUnitState unit = BuildSingleAllyUnit(label);
-            unit.body_size = 1;
-            unit.body_size_category = "small";
+            unit.SetBodySizeCategory("small");
             unit.SetAnchorCoord(Vector2I.Zero);
             unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
             unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);

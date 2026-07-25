@@ -57,7 +57,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             );
             if (
                 targetUnit == null
-                || !targetUnit.is_alive
+                || !targetUnit.IsAlive()
                 || seenUnitIds.Contains(targetUnit.unit_id)
             )
             {
@@ -276,7 +276,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 return 0;
             }
         }
-        return unit_state.known_active_skill_ids.Contains(skill_id) ? 1 : 0;
+        return unit_state.KnowsActiveSkill(skill_id) ? 1 : 0;
     }
 
     internal string _format_skill_variant_label(

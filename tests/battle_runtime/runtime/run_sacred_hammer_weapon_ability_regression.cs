@@ -117,15 +117,19 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildSacredUnit("projection");
-        _test.Eq(equipped.weapon_item_id, SacredItemId, "神圣之锤装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("warhammer"), "神圣之锤应投影为 warhammer。");
-        _test.Eq(equipped.weapon_family, new StringName("hammer"), "神圣之锤应保留 hammer 家族。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_blunt"), "神圣之锤应是 blunt 物理伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "神圣之锤攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "神圣之锤应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "神圣之锤单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "神圣之锤单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "神圣之锤单手应为 1D8+2。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, SacredItemId, "神圣之锤装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("warhammer"), "神圣之锤应投影为 warhammer。");
+        _test.Eq(equippedWeapon.Family, new StringName("hammer"), "神圣之锤应保留 hammer 家族。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_blunt"), "神圣之锤应是 blunt 物理伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "神圣之锤攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "神圣之锤应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "神圣之锤单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "神圣之锤单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "神圣之锤单手应为 1D8+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             RadiantStrikeTraitId,
@@ -145,26 +149,28 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             "eq_sacred_projection"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(FaithCostTraitId),
+            equipped.HasEffectiveTrait(FaithCostTraitId),
             "装备神圣之锤不应投影信仰的代价占位 trait。"
         );
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除神圣之锤后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除神圣之锤后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除神圣之锤后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除神圣之锤后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除神圣之锤后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -204,7 +210,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
 
         using SacredFixture plainFixture = SacredFixture.Build(new GArray { 4, 3, 1, 2, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildSacredUnit("undead_plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildEnemy(
             "sacred_undead_plain_target",
             new Vector2I(1, 0),
@@ -214,7 +220,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         BattleState plainState = BuildState("sacred_undead_plain_attack", plainAttacker, plainTarget, worldStep: 0);
         plainFixture.Runtime.SetupStateForTests(plainState);
         IssueBasicAttackInCurrentState(plainFixture.Runtime, plainAttacker, plainTarget, "sacred_undead_plain_attack");
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         using SacredFixture fixture = SacredFixture.Build(new GArray { 4, 3, 1, 2, 3 });
         BattleUnitState attacker = fixture.BuildSacredUnit("undead_damage");
@@ -228,7 +234,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         fixture.Runtime.SetupStateForTests(state);
         BattleEventBatch undeadBatch =
             IssueBasicAttackInCurrentState(fixture.Runtime, attacker, target, "sacred_undead_attack");
-        int undeadDamage = 100 - target.current_hp;
+        int undeadDamage = 100 - target.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "undead 基准伤害仍应只有 1D8+2 武器伤害。");
         _test.Eq(
@@ -323,7 +329,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             SacredHealSkillId
         );
         _test.True(firstBatch != null, "第一次神圣治疗应返回 batch。");
-        _test.Eq(ally.current_hp, 19, "固定骰 4、5 时，神圣治疗应恢复 2D8 HP。");
+        _test.Eq(ally.GetCurrentHp(), 19, "固定骰 4、5 时，神圣治疗应恢复 2D8 HP。");
 
         EquipmentInstanceState instance = FindEquippedInstance(holder, "eq_sacred_heal");
         _test.True(instance != null, "神圣治疗测试应能找到装备实例。");
@@ -341,7 +347,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             );
         }
 
-        holder.current_ap = 2;
+        holder.SetCurrentAp(2);
         BattleSkillAvailabilityView sameTurnView = BuildEquipmentSkillView(
             fixture,
             holder,
@@ -362,8 +368,8 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         for (int use = 2; use <= 3; use++)
         {
             holder.ResetPerTurnCharges();
-            holder.current_ap = 2;
-            ally.current_hp = 10;
+            holder.SetCurrentAp(2);
+            ally.SetCurrentHp(10);
             ForceUnitActing(state, holder);
             BattleAvailableSkillEntry nextEntry =
                 FindRequiredEquipmentSkill(fixture, holder, SacredHealSkillId, state, 0);
@@ -377,7 +383,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         }
 
         holder.ResetPerTurnCharges();
-        holder.current_ap = 2;
+        holder.SetCurrentAp(2);
         ForceUnitActing(state, holder);
         BattleSkillAvailabilityView exhaustedView = BuildEquipmentSkillView(
             fixture,
@@ -422,7 +428,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             stripAbilitySources ? $"plain_attack_{tagLabel}" : $"sacred_attack_{tagLabel}"
         );
         if (stripAbilitySources)
-            attacker.equipment_ability_sources.Clear();
+            attacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState target = BuildEnemy(
             $"sacred_attack_target_{tagLabel}",
             new Vector2I(1, 0),
@@ -440,7 +446,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             target,
             battleId
         );
-        return 100 - target.current_hp;
+        return 100 - target.GetCurrentHp();
     }
 
     private void AssertSacredHealSkillConfig(SacredFixture fixture)
@@ -521,9 +527,9 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
                 $"skill preview blocked: allowed={preview?.allowed} "
                     + $"phase={state?.PhaseKind.ToString() ?? "<null>"} active={state?.active_unit_id.ToString() ?? "<null>"} "
                     + $"entry_selectable={entry?.IsSelectable.ToString() ?? "<null>"} entry_disabled={entry?.DisabledReason.ToString() ?? "<null>"} "
-                    + $"user_ap={runtimeUser?.current_ap.ToString() ?? "<null>"} user_turn_keys={string.Join(",", turnKeys)} "
-                    + $"target_alive={runtimeTarget?.is_alive.ToString() ?? "<null>"} target_hp={runtimeTarget?.current_hp.ToString() ?? "<null>"} "
-                    + $"target_coord={runtimeTarget?.coord.ToString() ?? "<null>"} command_target={command.target_unit_id} "
+                    + $"user_ap={runtimeUser?.GetCurrentAp().ToString() ?? "<null>"} user_turn_keys={string.Join(",", turnKeys)} "
+                    + $"target_alive={runtimeTarget?.IsAlive().ToString() ?? "<null>"} target_hp={runtimeTarget?.GetCurrentHp().ToString() ?? "<null>"} "
+                    + $"target_coord={runtimeTarget?.GetAnchorCoord().ToString() ?? "<null>"} command_target={command.target_unit_id} "
                     + $"target_ids={string.Join(",", preview?.TargetUnitIdsTyped ?? Array.Empty<StringName>())} logs={string.Join(" | ", preview?.LogLinesTyped ?? Array.Empty<string>())}"
             );
         }
@@ -677,9 +683,9 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -692,12 +698,17 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -767,8 +778,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -798,15 +808,16 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         IReadOnlyList<StringName> tags
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = hp > 0,
-            current_hp = Math.Max(hp, 0),
-            current_ap = 2,
-        };
+        }.WithCombatResourcesForTest(
+            hp: Math.Max(hp, 0),
+            ap: 2,
+            isAlive: hp > 0
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -816,7 +827,7 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         foreach (StringName tag in tags ?? Array.Empty<StringName>())
         {
             if (tag != "")
-                unit.creature_type_tags.Add(tag);
+                unit.AddCreatureTypeTagTyped(tag);
         }
         unit.SetEquipmentView(new EquipmentState());
         return unit;

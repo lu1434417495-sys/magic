@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -14,6 +15,9 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         "intelligence",
         "willpower",
     };
+    private static readonly StringName TemporalWeaponItemId =
+        "weapon_unique_sands_time_480";
+    private static readonly StringName TemporalHostileMemberId = "hostile_sword_0";
 
     private readonly TestHarness _test = new();
     private readonly List<BattleSimFormalCombatFixture> _fixtures = new();
@@ -37,6 +41,8 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         {
             TestFixtureNoLongerRegistersGlobalClass();
             TestRosterMemberIdsUsePlainCollections();
+            TestRosterConstructionUsesPlainContracts();
+            TestRosterBuildClosesCreationPayloadLeases();
             TestDefaultMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterUsesConfiguredRerollCount();
@@ -49,7 +55,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
             TestMixed6v12StartsAllUnitsAtFullEffectiveHp();
             TestMixed6v12EquipsRoleArmor();
             TestFormalFixtureRequestsBidirectionalSpawnReachability();
-            TestMixed6v12ContextBorrowingDoesNotCreateOwnershipConflicts();
+            TestMixed6v12TypedEnemyHandoffPreservesRuntimeProjection();
         }
         finally
         {
@@ -57,6 +63,58 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         }
 
         RequestTestExit(_test.Finish("BattleSimFormalCombatFixture regression"));
+    }
+
+    private void TestRosterConstructionUsesPlainContracts()
+    {
+        MethodInfo addMemberMethod = typeof(BattleSimFormalCombatFixture).GetMethod(
+            "_add_member",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        if (addMemberMethod == null)
+        {
+            _test.Fail("formal fixture 应保留单一 typed roster member 构建入口。");
+            return;
+        }
+
+        ParameterInfo[] parameters = addMemberMethod.GetParameters();
+        _test.Eq(
+            parameters[3].ParameterType,
+            typeof(BattleSimFormalCreationAttributesData),
+            "formal fixture 建卡属性应由 plain CLR 值对象承载。"
+        );
+        _test.Eq(
+            parameters[5].ParameterType,
+            typeof(IReadOnlyList<BattleSimFormalSkillConfigData>),
+            "formal fixture 技能配置应由 plain CLR 只读列表承载。"
+        );
+
+        MethodInfo battleAchievementMethod = typeof(IBattleRatingCharacterGateway).GetMethod(
+            nameof(IBattleRatingCharacterGateway.RecordAchievementEvent),
+            new[] { typeof(StringName), typeof(StringName), typeof(int) }
+        );
+        _test.Eq(
+            battleAchievementMethod?.ReturnType,
+            typeof(IReadOnlyList<StringName>),
+            "battle achievement gateway 不应把 Godot typed Array 作为内部返回值。"
+        );
+    }
+
+    private void TestRosterBuildClosesCreationPayloadLeases()
+    {
+        LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        BuildFixture(BattleSimFormalCombatFixture.ROSTER_MIXED_6V12);
+        LifecycleAuditSnapshot afterBuild = LifecycleAuditRegistry.Shared.CaptureSnapshot();
+        _test.Eq(
+            afterBuild.ActiveLeaseCount,
+            baseline.ActiveLeaseCount,
+            "formal fixture 每个成员的 legacy creation payload lease 应在同步建卡后关闭。"
+        );
+        _test.Eq(
+            afterBuild.ViolationCount,
+            baseline.ViolationCount,
+            "formal fixture roster 构建不应新增生命周期违规。"
+        );
     }
 
     private void TestFixtureNoLongerRegistersGlobalClass()
@@ -329,12 +387,12 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                 fixture.GetMemberAttributeSnapshotForEquipmentView(
                     "elite_sword_0",
                     eliteSword.equipment_state
-                );
+            );
             _test.Eq(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus)), 20, "精英剑士有效生命上限应包含强健的 20% 人物生命加成。");
             eliteSword.current_hp = 1;
             using GDictionary baseContext = new();
-            using GodotProjectionLease<GDictionary> contextLease =
-                fixture.BuildRuntimeContextLease(null, baseContext);
+            using BattleSimFormalRuntimeStartInput startInput =
+                fixture.BuildRuntimeStartInput(null, baseContext);
             _test.Eq(eliteSword.current_hp, Mathf.Max(eliteSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), 1), "build_runtime_context 开战前应重新把模拟单位补到有效生命上限。");
         }
     }
@@ -371,21 +429,23 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
     {
         BattleSimFormalCombatFixture fixture = BuildFixture(BattleSimFormalCombatFixture.ROSTER_MIXED_6V12);
         using GDictionary baseContext = new();
-        using GodotProjectionLease<GDictionary> contextLease =
-            fixture.BuildRuntimeContextLease(null, baseContext);
-        GDictionary context = contextLease.Value;
+        using BattleSimFormalRuntimeStartInput startInput =
+            fixture.BuildRuntimeStartInput(null, baseContext);
+        GDictionary context = startInput.Context;
         _test.True(ReadBool(context, "validate_spawn_reachability"), "formal combat fixture 模拟应开启出生可达性验证。");
         _test.True(ReadBool(context, "validate_bidirectional_spawn_reachability"), "formal combat fixture 模拟应开启玩家/敌方双向可攻击验证。");
         _test.True(ReadBool(context, "enforce_opposing_spawn_sides"), "formal combat fixture 模拟应开启玩家/敌方对侧出生约束。");
     }
 
-    private void TestMixed6v12ContextBorrowingDoesNotCreateOwnershipConflicts()
+    private void TestMixed6v12TypedEnemyHandoffPreservesRuntimeProjection()
     {
         const string scenarioPath =
             "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
         BattleSimFormalCombatFixture fixture = BuildFixture(
             BattleSimFormalCombatFixture.ROSTER_MIXED_6V12
         );
+        if (!EquipTemporalWeaponForTypedHandoff(fixture))
+            return;
         BattleSimScenarioDefinition scenario;
         using (var loader = new TestContentResourceLoader())
             scenario = loader.LoadCanonical<BattleSimScenarioDef>(scenarioPath).ToDefinition();
@@ -414,11 +474,11 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
             LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
             using (
                 GodotProjectionLease<GDictionary> baseContextLease =
-                    scenario.BuildStartContextLease()
+                    scenario.BuildRuntimeStartContextLease()
             )
             using (
-                GodotProjectionLease<GDictionary> contextLease =
-                    fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value)
+                BattleSimFormalRuntimeStartInput startInput =
+                    fixture.BuildRuntimeStartInput(runtime, baseContextLease.Value)
             )
             {
                 LifecycleAuditSnapshot afterContext =
@@ -438,6 +498,19 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                     baseline.ActiveLeaseCount + 2,
                     "scenario 与 formal context 应各保持一个 caller-owned request lease。"
                 );
+                _test.False(
+                    startInput.Context.ContainsKey("enemy_units"),
+                    "formal typed start context 不应再携带 canonical enemy payload。"
+                );
+                BattleStartUnitRoster enemyUnitRoster = startInput.TakeEnemyUnitRoster();
+                _test.True(
+                    enemyUnitRoster.ProvidesEnemyUnits,
+                    "formal start input 应显式提供 typed enemy roster。"
+                );
+                _test.False(
+                    enemyUnitRoster.ProvidesAllyUnits,
+                    "formal start input 的 ally 仍应由 character gateway 构建。"
+                );
 
                 var encounterAnchor = new EncounterAnchorData
                 {
@@ -451,7 +524,8 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                     encounterAnchor,
                     101,
                     BattleEliminationObjectiveDefinition.Instance,
-                    contextLease.Value
+                    startInput.Context,
+                    enemyUnitRoster
                 );
 
                 LifecycleAuditSnapshot afterStart =
@@ -462,6 +536,36 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                     18,
                     "6v12 borrowed context 应保留全部 18 个单位。"
                 );
+                BattleUnitState temporalHostile = state?.GetUnit(TemporalHostileMemberId);
+                _test.True(
+                    temporalHostile != null,
+                    "formal typed start 应保留指定 hostile runtime unit。"
+                );
+                if (temporalHostile != null)
+                {
+                    temporalHostile.attribute_snapshot.SetValue(
+                        AttributeService.INTELLIGENCE_MODIFIER,
+                        0
+                    );
+                    BattleTemporalStatusService.SetForcedTemporalProgressRollsForTests(
+                        new[] { 1 }
+                    );
+                    try
+                    {
+                        _test.Eq(
+                            BattleTemporalStatusService.ConsumeActionProgressGain(
+                                temporalHostile,
+                                10
+                            ),
+                            5,
+                            "formal typed enemy handoff 应保留 runtime-only temporal 行为。"
+                        );
+                    }
+                    finally
+                    {
+                        BattleTemporalStatusService.ClearForcedTemporalProgressRollsForTests();
+                    }
+                }
                 _test.Eq(
                     afterStart.OwnerConflictCount,
                     baseline.OwnerConflictCount,
@@ -478,7 +582,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
                     "borrowed battle start 不应关闭或新增 caller request lease。"
                 );
                 _test.True(
-                    contextLease.Value.ContainsKey("enemy_units"),
+                    startInput.Context.ContainsKey("battle_party"),
                     "borrowed battle start 返回后 caller lease 仍应可用。"
                 );
             }
@@ -510,6 +614,44 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         {
             BattleTestFixture.DisposeBattleFixture(runtime, state);
         }
+    }
+
+    private bool EquipTemporalWeaponForTypedHandoff(
+        BattleSimFormalCombatFixture fixture
+    )
+    {
+        if (
+            !_contentSnapshot.Items.TryGetValue(
+                TemporalWeaponItemId,
+                out ItemDefinition temporalWeapon
+            )
+        )
+        {
+            _test.Fail("formal typed handoff 回归缺少 temporal weapon definition。");
+            return false;
+        }
+
+        PartyMemberState member = fixture.GetMemberState(TemporalHostileMemberId);
+        if (member == null)
+        {
+            _test.Fail("formal typed handoff 回归缺少目标 hostile member。");
+            return false;
+        }
+
+        EquipmentState equipment = member.equipment_state ?? new EquipmentState();
+        bool equipped = equipment.SetEquippedEntry(
+            "main_hand",
+            TemporalWeaponItemId,
+            temporalWeapon.GetFinalOccupiedSlotIdsTyped("main_hand"),
+            EquipmentInstanceState.CreateInstance(
+                TemporalWeaponItemId,
+                "formal_typed_handoff_temporal_weapon"
+            )
+        );
+        _test.True(equipped, "formal typed handoff 回归应能安装 temporal weapon。");
+        if (equipped)
+            member.equipment_state = equipment;
+        return equipped;
     }
 
     private BattleSimFormalCombatFixture BuildFixture(

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -32,8 +31,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
 
     private async Task<int> Run()
     {
-        using GodotProjectionLease<GDictionary> layoutLease = BuildCanyonLayout();
-        GDictionary layout = layoutLease.Value;
+        using BattleTerrainLayout layout = BuildCanyonLayout();
         BattleState state = BuildState(layout);
         Root.Size = ViewportSize;
 
@@ -48,10 +46,10 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         Root.AddChild(board);
         await ProcessFrames(1);
 
-        Vector2I selectedCoord = DictVector2I(layout, "player_coord");
+        Vector2I selectedCoord = layout.PlayerCoord;
         board.SetViewportSize(ViewportSize);
         board.Configure(
-            state,
+            new BattleBoardSnapshotBuilder().Build(state),
             selectedCoord,
             new GVector2IArray(),
             new GVector2IArray(),
@@ -65,9 +63,9 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             ConsoleProcessOutput.WriteFailure("Battle board capture did not reach render-ready state before screenshot.");
             return 1;
         }
-        if (!ValidateUnitPlacement(state, "ally_capture", DictVector2I(layout, "player_coord"), "ally_capture"))
+        if (!ValidateUnitPlacement(state, "ally_capture", layout.PlayerCoord, "ally_capture"))
             return 1;
-        if (!ValidateUnitPlacement(state, "enemy_capture", DictVector2I(layout, "enemy_coord"), "enemy_capture"))
+        if (!ValidateUnitPlacement(state, "enemy_capture", layout.EnemyCoord, "enemy_capture"))
             return 1;
 
         if (DisplayServer.GetName() == "headless")
@@ -96,7 +94,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
         return 0;
     }
 
-    private GodotProjectionLease<GDictionary> BuildCanyonLayout()
+    private BattleTerrainLayout BuildCanyonLayout()
     {
         using var generator = new BattleTerrainGenerator();
         using GDictionary context = new()
@@ -106,11 +104,10 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             ["battle_terrain_profile"] = "canyon",
             ["battle_map_size"] = TestMapSize,
         };
-        return generator.GenerateLease(
+        return generator.GenerateTyped(
             BuildEncounterAnchor(),
             TestSeed,
-            context,
-            LifetimeDomain.Request
+            context
         );
     }
 
@@ -125,24 +122,23 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             encounter_kind = "single",
         };
 
-    private BattleState BuildState(GDictionary layout)
+    private BattleState BuildState(BattleTerrainLayout layout)
     {
         var state = new BattleState
         {
             battle_id = "battle_board_capture",
             seed = TestSeed,
-            map_size = DictVector2I(layout, "map_size"),
+            map_size = layout.MapSize,
             world_coord = TestWorldCoord,
-            terrain_profile_id = DictStringName(layout, "terrain_profile_id", "default"),
+            terrain_profile_id = layout.TerrainProfileId,
             ally_unit_ids = new GStringNameArray(),
             enemy_unit_ids = new GStringNameArray(),
         };
-        using (GDictionary cells = DictDict(layout, "cells"))
-            state.SetCellsFromDictionary(cells, duplicateCells: true);
+        state.SetCells(layout.TakeCells(), rebuildColumns: true);
         BattleUnitState ally = BuildUnit("ally_capture", "队员", "player");
         BattleUnitState enemy = BuildUnit("enemy_capture", "敌人", "hostile");
-        RegisterAndPlace(state, ally, DictVector2I(layout, "player_coord"), false);
-        RegisterAndPlace(state, enemy, DictVector2I(layout, "enemy_coord"), true);
+        RegisterAndPlace(state, ally, layout.PlayerCoord, false);
+        RegisterAndPlace(state, enemy, layout.EnemyCoord, true);
         state.active_unit_id = ally.unit_id;
         return state;
     }
@@ -154,17 +150,17 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             unit_id = unitId,
             display_name = displayName,
             faction_id = factionId,
-            current_hp = 12,
-            current_mp = 4,
-            current_stamina = 8,
-            current_ap = 1,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 12,
+            mp: 4,
+            stamina: 8,
+            ap: 1,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 12);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 8);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 1);
-        unit.RefreshFootprint();
         return unit;
     }
 
@@ -207,7 +203,7 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
     )
     {
         BattleUnitState unit = state.GetUnit(unitId);
-        if (unit == null || unit.coord != expectedCoord)
+        if (unit == null || unit.GetAnchorCoord() != expectedCoord)
         {
             ConsoleProcessOutput.WriteFailure($"{label} should be anchored at {expectedCoord} before capture.");
             return false;
@@ -326,26 +322,4 @@ public partial class capture_canyon_battle_board : LifecycleTestSceneTree
             names.Add($"{prefix}{height}");
     }
 
-    private static GDictionary DictDict(GDictionary dict, Variant key) =>
-        dict != null && dict.ContainsKey(key) && dict[key].VariantType == Variant.Type.Dictionary
-            ? dict[key].AsGodotDictionary()
-            : new GDictionary();
-
-    private static Vector2I DictVector2I(GDictionary dict, Variant key, Vector2I fallback = default) =>
-        dict != null && dict.ContainsKey(key) && dict[key].VariantType == Variant.Type.Vector2I
-            ? dict[key].AsVector2I()
-            : fallback;
-
-    private static StringName DictStringName(GDictionary dict, Variant key, StringName fallback = default)
-    {
-        if (dict == null || !dict.ContainsKey(key))
-            return fallback;
-        Variant value = dict[key];
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback,
-        };
-    }
 }

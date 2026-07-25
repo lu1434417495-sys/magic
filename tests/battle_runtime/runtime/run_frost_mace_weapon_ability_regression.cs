@@ -118,16 +118,20 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostMaceUnit("projection");
-        _test.Eq(equipped.weapon_item_id, FrostMaceItemId, "冰霜锤装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("mace"), "冰霜锤应投影为 mace。");
-        _test.Eq(equipped.weapon_family, new StringName("mace"), "冰霜锤应保留 mace 家族。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_blunt"), "冰霜锤应造成钝击。");
-        _test.Eq(equipped.weapon_attack_range, 1, "冰霜锤攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "冰霜锤应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "冰霜锤单手应为 1D6+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "冰霜锤单手应为 1D6+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "冰霜锤单手应为 1D6+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, FrostMaceItemId, "冰霜锤装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("mace"), "冰霜锤应投影为 mace。");
+        _test.Eq(equippedWeapon.Family, new StringName("mace"), "冰霜锤应保留 mace 家族。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_blunt"), "冰霜锤应造成钝击。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "冰霜锤攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "冰霜锤应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "冰霜锤单手应为 1D6+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "冰霜锤单手应为 1D6+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "冰霜锤单手应为 1D6+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             FrozenStrikeTraitId,
@@ -147,34 +151,35 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             "eq_frost_mace_projection"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(PolarAdaptationTraitId),
+            equipped.HasEffectiveTrait(PolarAdaptationTraitId),
             "装备冰霜锤不应投影极地适应占位 trait。"
         );
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除冰霜锤后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除冰霜锤后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除冰霜锤后武器 profile 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除冰霜锤后装备能力源应清空。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(FrozenStrikeTraitId),
+            equipped.HasEffectiveTrait(FrozenStrikeTraitId),
             "移除冰霜锤后冰冻打击 trait 不应残留。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(SealPowerTraitId),
+            equipped.HasEffectiveTrait(SealPowerTraitId),
             "移除冰霜锤后封印之力 trait 不应残留。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除冰霜锤后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -192,11 +197,11 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             "frost_mace_normal_damage",
             previewCommand: false
         );
-        int frostDamage = 100 - target.current_hp;
+        int frostDamage = 100 - target.GetCurrentHp();
 
         using FrostMaceFixture plainFixture = FrostMaceFixture.Build(new GArray { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildFrostMaceUnit("normal_plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget(
             "normal_plain_target",
             new Vector2I(1, 0),
@@ -210,7 +215,7 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             "frost_mace_normal_plain",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，冰霜锤基础武器伤害应为 1D6+2。");
         _test.Eq(
@@ -246,7 +251,7 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
         );
 
         _test.Eq(
-            100 - target.current_hp,
+            100 - target.GetCurrentHp(),
             20,
             $"{creatureTag} 目标命中后应造成基础 1D6+2、1D6 cold 与额外 2D6 cold。"
         );
@@ -322,9 +327,9 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -337,12 +342,18 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -357,21 +368,22 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
         int hp
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         if (creatureTag != "")
-            unit.creature_type_tags.Add(creatureTag);
+            unit.AddCreatureTypeTagTyped(creatureTag);
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }

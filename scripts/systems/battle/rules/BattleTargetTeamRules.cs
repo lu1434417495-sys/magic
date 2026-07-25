@@ -36,7 +36,7 @@ public static class BattleTargetTeamRules
 
         TargetFilterOptions opts = options ?? TargetFilterOptions.Default;
 
-        if (!opts.AllowDeadTargets && !target_unit.is_alive)
+        if (!opts.AllowDeadTargets && !target_unit.IsAlive())
             return false;
 
         if (source_unit != null && opts.MadnessTargetAnyTeam)

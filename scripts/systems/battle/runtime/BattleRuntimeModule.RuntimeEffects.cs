@@ -337,12 +337,13 @@ public sealed partial class BattleRuntimeModule
         )
             return;
         _battle_rating_system.RecordSkillSuccess(active_unit, skillId);
+        using var achievementMeta = new GDictionary();
         _characterGateway.RecordAchievementEvent(
             active_unit.source_member_id,
             "skill_used",
             1,
             skillId,
-            new GDictionary()
+            achievementMeta
         );
         int masteryAmount = _skill_mastery_service.ResolveActiveSkillMasteryAmount();
         if (masteryAmount <= 0)
@@ -403,13 +404,16 @@ public sealed partial class BattleRuntimeModule
         if (grant?.IsValid != true || _characterGateway == null)
             return;
         if (grant.RecordNearDeathUnbrokenManual)
+        {
+            using var achievementMeta = new GDictionary();
             _characterGateway.RecordAchievementEvent(
                 grant.MemberId,
                 "near_death_unbroken_manual",
                 1,
                 "",
-                new GDictionary()
+                achievementMeta
             );
+        }
         CharacterProgressionDelta delta = _characterGateway.GrantSkillMasteryFromSource(
             grant.MemberId,
             grant.SkillId,
@@ -621,7 +625,10 @@ public sealed partial class BattleRuntimeModule
     {
         if (unit_state == null)
             return;
-        _append_changed_coords(batch, unit_state.occupied_coords);
+        _append_changed_coords(
+            batch,
+            unit_state.GetOccupiedCoordsReadViewTyped()
+        );
     }
 
     internal void _collect_defeated_unit_loot(

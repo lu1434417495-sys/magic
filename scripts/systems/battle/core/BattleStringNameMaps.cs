@@ -99,6 +99,9 @@ public sealed class BattleStringNameIntMap : IEnumerable<KeyValuePair<StringName
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
+    internal Dictionary<StringName, int>.Enumerator GetStructEnumerator() =>
+        _values.GetEnumerator();
+
     internal static BattleStringNameIntMap FromPayloadOrNull(
         GDictionary values,
         bool requireNonEmptyKey
@@ -139,7 +142,7 @@ public sealed class BattleStringNameIntMap : IEnumerable<KeyValuePair<StringName
     }
 }
 
-public sealed class BattleStringNameMap : IEnumerable<KeyValuePair<StringName, StringName>>
+internal sealed class BattleStringNameMap : IEnumerable<KeyValuePair<StringName, StringName>>
 {
     private readonly Dictionary<StringName, StringName> _values = new();
 
@@ -235,6 +238,9 @@ public sealed class BattleStringNameMap : IEnumerable<KeyValuePair<StringName, S
         _values.GetEnumerator();
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    internal Dictionary<StringName, StringName>.Enumerator GetStructEnumerator() =>
+        _values.GetEnumerator();
 
     internal static BattleStringNameMap FromPayloadOrNull(GDictionary values)
     {

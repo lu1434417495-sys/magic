@@ -78,28 +78,30 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
         memberState.equipment_state = new EquipmentState();
         BattleUnitState unarmed = BuildSingleAllyUnit(factory, partyState, "unarmed");
+        BattleWeaponProjectionValues unarmedWeapon =
+            unarmed?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.Eq(
-            unarmed?.weapon_profile_kind ?? (StringName)"",
+            unarmedWeapon.ProfileKind,
             BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed),
             "unarmed player should project unarmed weapon kind."
         );
         _test.Eq(
-            unarmed?.weapon_profile_type_id ?? (StringName)"",
+            unarmedWeapon.ProfileTypeId,
             (StringName)"unarmed",
             "unarmed player should project unarmed profile type."
         );
         _test.Eq(
-            DiceInt(unarmed?.weapon_one_handed_dice, "dice_sides"),
+            unarmedWeapon.OneHandedDice.DiceSides,
             4,
             "unarmed player should project 1D4 weapon dice."
         );
         _test.Eq(
-            unarmed?.weapon_physical_damage_tag ?? (StringName)"",
+            unarmedWeapon.PhysicalDamageTag,
             ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "unarmed player should project blunt damage tag."
         );
         _test.Eq(
-            unarmed?.weapon_attack_range ?? 0,
+            unarmedWeapon.AttackRange,
             1,
             "unarmed player should project range 1."
         );
@@ -112,37 +114,39 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             MakeEquipmentInstance(bronzeSword.item_id, "weapon_projection_bronze")
         );
         BattleUnitState oneHanded = BuildSingleAllyUnit(factory, partyState, "one-handed");
+        BattleWeaponProjectionValues oneHandedWeapon =
+            oneHanded?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.Eq(
-            oneHanded?.weapon_profile_kind ?? (StringName)"",
+            oneHandedWeapon.ProfileKind,
             BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
             "one-handed weapon should project equipped weapon kind."
         );
         _test.Eq(
-            oneHanded?.weapon_item_id ?? (StringName)"",
+            oneHandedWeapon.ItemId,
             bronzeSword.item_id,
             "one-handed weapon should preserve item id."
         );
         _test.Eq(
-            oneHanded?.weapon_profile_type_id ?? (StringName)"",
+            oneHandedWeapon.ProfileTypeId,
             (StringName)"shortsword",
             "one-handed weapon should preserve profile type."
         );
         _test.Eq(
-            DiceInt(oneHanded?.weapon_one_handed_dice, "dice_sides"),
+            oneHandedWeapon.OneHandedDice.DiceSides,
             6,
             "one-handed weapon should preserve 1D6 dice."
         );
         _test.True(
-            oneHanded == null || oneHanded.weapon_two_handed_dice == null || oneHanded.weapon_two_handed_dice.IsEmpty(),
+            oneHanded == null || !oneHandedWeapon.TwoHandedDice.HasUsableDice,
             "one-handed weapon should not project two-handed dice."
         );
         _test.Eq(
-            oneHanded?.weapon_physical_damage_tag ?? (StringName)"",
+            oneHandedWeapon.PhysicalDamageTag,
             ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "one-handed weapon should preserve damage tag."
         );
         _test.True(
-            oneHanded != null && !oneHanded.weapon_uses_two_hands,
+            oneHanded != null && !oneHandedWeapon.UsesTwoHands,
             "one-handed weapon should not mark two-handed grip."
         );
 
@@ -154,32 +158,34 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             MakeEquipmentInstance(ironGreatsword.item_id, "weapon_projection_greatsword")
         );
         BattleUnitState twoHanded = BuildSingleAllyUnit(factory, partyState, "two-handed");
+        BattleWeaponProjectionValues twoHandedWeapon =
+            twoHanded?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.Eq(
-            twoHanded?.weapon_profile_type_id ?? (StringName)"",
+            twoHandedWeapon.ProfileTypeId,
             (StringName)"greatsword",
             "two-handed weapon should preserve greatsword profile."
         );
         _test.True(
-            twoHanded == null || twoHanded.weapon_one_handed_dice == null || twoHanded.weapon_one_handed_dice.IsEmpty(),
+            twoHanded == null || !twoHandedWeapon.OneHandedDice.HasUsableDice,
             "two-handed weapon should not project one-handed dice."
         );
         _test.Eq(
-            DiceInt(twoHanded?.weapon_two_handed_dice, "dice_count"),
+            twoHandedWeapon.TwoHandedDice.DiceCount,
             2,
             "two-handed weapon should preserve 2D6 dice count."
         );
         _test.Eq(
-            twoHanded?.weapon_physical_damage_tag ?? (StringName)"",
+            twoHandedWeapon.PhysicalDamageTag,
             ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             "two-handed weapon should preserve slash damage tag."
         );
         _test.Eq(
-            twoHanded?.weapon_current_grip ?? (StringName)"",
+            twoHandedWeapon.CurrentGrip,
             BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded),
             "two-handed weapon should project two-handed grip."
         );
         _test.True(
-            twoHanded != null && twoHanded.weapon_uses_two_hands,
+            twoHanded != null && twoHandedWeapon.UsesTwoHands,
             "two-handed weapon should mark two-handed usage."
         );
 
@@ -191,27 +197,29 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             MakeEquipmentInstance(trainingLongsword.item_id, "weapon_projection_longsword")
         );
         BattleUnitState versatile = BuildSingleAllyUnit(factory, partyState, "versatile");
+        BattleWeaponProjectionValues versatileWeapon =
+            versatile?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.True(
-            versatile != null && versatile.weapon_is_versatile,
+            versatile != null && versatileWeapon.IsVersatile,
             "versatile weapon should preserve versatile flag."
         );
         _test.Eq(
-            DiceInt(versatile?.weapon_one_handed_dice, "dice_sides"),
+            versatileWeapon.OneHandedDice.DiceSides,
             8,
             "versatile weapon should preserve one-handed dice."
         );
         _test.Eq(
-            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            versatileWeapon.TwoHandedDice.DiceSides,
             10,
             "versatile weapon should preserve two-handed dice."
         );
         _test.Eq(
-            versatile?.weapon_current_grip ?? (StringName)"",
+            versatileWeapon.CurrentGrip,
             BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded),
             "versatile weapon with empty off-hand should use two-handed grip."
         );
         _test.True(
-            versatile != null && versatile.weapon_uses_two_hands,
+            versatile != null && versatileWeapon.UsesTwoHands,
             "versatile weapon with empty off-hand should mark two-handed usage."
         );
         versatile?.GetEquipmentView()
@@ -222,17 +230,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
                 MakeEquipmentInstance(trainingShield.item_id, "weapon_projection_shield")
             );
         factory.RefreshWeaponProjection(versatile);
+        versatileWeapon =
+            versatile?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.Eq(
-            versatile?.weapon_current_grip ?? (StringName)"",
+            versatileWeapon.CurrentGrip,
             BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
             "versatile weapon with occupied off-hand should fall back to one-handed grip."
         );
         _test.True(
-            versatile != null && !versatile.weapon_uses_two_hands,
+            versatile != null && !versatileWeapon.UsesTwoHands,
             "versatile weapon with occupied off-hand should clear two-handed usage."
         );
         _test.Eq(
-            DiceInt(versatile?.weapon_two_handed_dice, "dice_sides"),
+            versatileWeapon.TwoHandedDice.DiceSides,
             10,
             "versatile refresh should preserve two-handed dice for later switching."
         );
@@ -275,6 +285,8 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
         BattleUnitState unit = BuildSingleAllyUnit(factory, partyState, "battle-local");
+        BattleWeaponProjectionValues unitWeapon =
+            unit?.GetWeaponProjectionReadViewTyped().Values ?? default;
         _test.True(unit != null, "test setup should build one ally unit.");
         if (unit == null)
         {
@@ -286,7 +298,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             "battle unit should duplicate equipment view instead of sharing member state."
         );
         _test.Eq(
-            unit.weapon_item_id,
+            unitWeapon.ItemId,
             bronzeSword.item_id,
             "initial weapon projection should come from battle-local equipment view."
         );
@@ -299,8 +311,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             );
 
         factory.RefreshWeaponProjection(unit);
+        unitWeapon = unit.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            unit.weapon_item_id,
+            unitWeapon.ItemId,
             ironGreatsword.item_id,
             "refresh_weapon_projection should continue reading battle-local equipment view."
         );
@@ -313,8 +326,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
 
         factory.RefreshBattleUnit(unit);
+        unitWeapon = unit.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            unit.weapon_item_id,
+            unitWeapon.ItemId,
             ironGreatsword.item_id,
             "refresh_battle_unit should not rehydrate equipment view from member state."
         );
@@ -337,28 +351,29 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
 
         _test.Eq(
-            unit.effective_trait_instances.Count,
+            unit.GetEffectiveTraitInstanceCountTyped(),
             1,
             "BattleUnitFactory should project effective trait payload for player units."
         );
-        BattleEffectiveTraitInstanceState first = unit.effective_trait_instances[0];
+        BattleEffectiveTraitInstanceReadView first =
+            unit.GetEffectiveTraitsReadViewTyped().Instances[0];
         _test.Eq(
-            first.trait_id,
+            first.TraitId,
             new StringName("halfling_luck"),
             "effective trait payload should preserve trait id."
         );
         _test.Eq(
-            first.effective_instance_key,
+            first.EffectiveInstanceKey,
             new StringName("halfling_luck"),
             "unique character trait should collapse to trait id effective key."
         );
         _test.Eq(
-            first.source_type,
+            first.SourceType,
             new StringName("character"),
             "effective trait payload should preserve source type."
         );
         _test.True(
-            unit.effective_trait_ids.Contains("halfling_luck"),
+            unit.HasEffectiveTrait("halfling_luck"),
             "effective_trait_ids should be derived from projected effective payload."
         );
     }
@@ -380,7 +395,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
         BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-traits");
         _test.Eq(
-            unit.effective_trait_instances.Count,
+            unit.GetEffectiveTraitInstanceCountTyped(),
             0,
             "unit without equipped trait item should start with empty effective trait payload."
         );
@@ -395,32 +410,33 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         factory.RefreshEquipmentProjection(unit);
 
         _test.Eq(
-            unit.effective_trait_instances.Count,
+            unit.GetEffectiveTraitInstanceCountTyped(),
             1,
             "refresh_equipment_projection should rebuild effective trait payload from battle-local equipment view."
         );
-        BattleEffectiveTraitInstanceState first = unit.effective_trait_instances[0];
+        BattleEffectiveTraitInstanceReadView first =
+            unit.GetEffectiveTraitsReadViewTyped().Instances[0];
         _test.Eq(
-            first.trait_id,
+            first.TraitId,
             new StringName("lucky_blade_trait"),
             "refreshed equipment trait payload should preserve fixed trait id."
         );
         _test.Eq(
-            first.source_type,
+            first.SourceType,
             new StringName("equipment_fixed"),
             "refreshed equipment trait payload should preserve equipment fixed source type."
         );
         _test.Eq(
-            first.source_id,
+            first.SourceId,
             new StringName("battle_lucky_sword"),
             "refreshed equipment trait payload should use battle-local equipment instance id."
         );
         _test.True(
-            unit.effective_trait_ids.Contains("lucky_blade_trait"),
+            unit.HasEffectiveTrait("lucky_blade_trait"),
             "refreshed effective_trait_ids should be derived from battle-local equipment payload."
         );
         _test.Eq(
-            DictInt(unit.per_turn_charges, "lucky_blade_trait", -1),
+            unit.GetPerTurnChargeTyped("lucky_blade_trait", -1),
             1,
             "refresh_equipment_projection should seed newly added per-turn trait charges."
         );
@@ -429,12 +445,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         factory.RefreshEquipmentProjection(unit);
 
         _test.Eq(
-            unit.effective_trait_instances.Count,
+            unit.GetEffectiveTraitInstanceCountTyped(),
             0,
             "refresh_equipment_projection should clear effective trait payload after trait equipment removal."
         );
         _test.True(
-            !unit.per_turn_charges.ContainsKey("lucky_blade_trait"),
+            !unit.HasPerTurnChargeTyped("lucky_blade_trait"),
             "refresh_equipment_projection should clear removed trait per-turn charges."
         );
     }
@@ -466,11 +482,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
         BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-ability");
         _test.Eq(
-            unit.equipment_ability_sources.Count,
+            unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             1,
             "BattleUnitFactory should project matching player equipment ability source."
         );
-        BattleEquipmentAbilitySourceState source = unit.equipment_ability_sources[0];
+        BattleEquipmentAbilitySourceReadView source =
+            unit.GetEquipmentAbilitySourcesReadViewTyped()[0];
         _test.Eq(
             source.SourceKind,
             EquipmentAbilitySourceKind.PlayerPersistentEquipment,
@@ -494,7 +511,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         unit.GetEquipmentView().ClearSlot("main_hand");
         factory.RefreshEquipmentProjection(unit);
         _test.Eq(
-            unit.equipment_ability_sources.Count,
+            unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "refresh_equipment_projection should clear ability sources after equipment removal."
         );
@@ -858,31 +875,11 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return result;
     }
 
-    private static int DiceInt(WeaponDice source, string key)
-    {
-        if (source == null)
-        {
-            return 0;
-        }
-        return key switch
-        {
-            "dice_count" => source.dice_count,
-            "dice_sides" => source.dice_sides,
-            "flat_bonus" => source.flat_bonus,
-            _ => 0,
-        };
-    }
-
     private static int DictInt(GDictionary source, StringName key, int fallback)
     {
         if (source == null || !source.ContainsKey(key))
             return fallback;
         return source[key].AsInt32();
-    }
-
-    private static int DictInt(BattleStringNameIntMap source, StringName key, int fallback)
-    {
-        return source?.Get(key, fallback) ?? fallback;
     }
 
     private sealed class BattleRuntimeScope : IDisposable

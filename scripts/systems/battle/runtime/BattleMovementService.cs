@@ -49,7 +49,10 @@ internal class BattleMovementService
         {
             return;
         }
-        AppendChangedCoords(batch, unit_state.occupied_coords);
+        AppendChangedCoords(
+            batch,
+            unit_state.GetOccupiedCoordsReadViewTyped()
+        );
     }
 
     internal IReadOnlyList<Vector2I> SortCoords(IEnumerable<Vector2I> target_coords)
@@ -86,7 +89,7 @@ internal class BattleMovementService
     {
         BattleState state = State;
         BattleGridService gridService = GridService;
-        if (state == null || gridService == null || unit_state == null || !unit_state.is_alive)
+        if (state == null || gridService == null || unit_state == null || !unit_state.IsAlive())
         {
             return Array.Empty<Vector2I>();
         }
@@ -95,7 +98,7 @@ internal class BattleMovementService
             return Array.Empty<Vector2I>();
         }
 
-        Vector2I origin = unit_state.coord;
+        Vector2I origin = unit_state.GetAnchorCoord();
         int maxMovePoints = GetAvailableMovePoints(unit_state);
         var bestCoordCosts = new Dictionary<Vector2I, int>
         {
@@ -269,7 +272,7 @@ internal class BattleMovementService
             moveResult = gridService.ResolveUnitMovePathTyped(
                 state,
                 active_unit,
-                active_unit.coord,
+                active_unit.GetAnchorCoord(),
                 target_coord,
                 availableMovePoints,
                 GetMoveCostForUnitTarget);
@@ -402,7 +405,7 @@ internal class BattleMovementService
         {
             return 0;
         }
-        int normalMovePoints = Math.Max(unit_state.current_move_points, 0);
+        int normalMovePoints = Math.Max(unit_state.GetCurrentMovePoints(), 0);
         if (normalMovePoints <= 0)
         {
             return 0;
@@ -411,7 +414,7 @@ internal class BattleMovementService
         {
             return normalMovePoints;
         }
-        return unit_state.can_use_locked_move_points_this_turn ? normalMovePoints : 0;
+        return unit_state.CanUseLockedMovePointsThisTurnTyped() ? normalMovePoints : 0;
     }
 
     internal int GetAvailableMovePoints(BattleUnitReadView unitView)
@@ -434,7 +437,7 @@ internal class BattleMovementService
 
     internal bool IsNormalMovementLocked(BattleUnitState unit_state)
     {
-        return unit_state != null && (unit_state.has_taken_action_this_turn || unit_state.has_moved_this_turn);
+        return unit_state?.IsNormalMovementLockedThisTurnTyped() ?? false;
     }
 
     internal bool IsNormalMovementLocked(BattleUnitReadView unitView)
@@ -471,14 +474,16 @@ internal class BattleMovementService
         int moveCost = moveResult.Cost;
         IReadOnlyList<Vector2I> anchorPath = moveResult.Path;
 
-        Vector2I previousAnchor = active_unit.coord;
-        List<Vector2I> previousCoords = CloneCoords(active_unit.occupied_coords);
+        Vector2I previousAnchor = active_unit.GetAnchorCoord();
+        List<Vector2I> previousCoords = CloneCoords(
+            active_unit.GetOccupiedCoordsReadViewTyped()
+        );
         BattleValidatedMoveExecutionResult executionResult =
             MoveUnitAlongValidatedPathTyped(active_unit, anchorPath, targetCoord, batch);
         if (executionResult.Executed)
         {
             moveCost = GetMovePathCost(active_unit, executionResult.ExecutedPath);
-            active_unit.SetCurrentMovePoints(active_unit.current_move_points - moveCost);
+            active_unit.SetCurrentMovePoints(active_unit.GetCurrentMovePoints() - moveCost);
             RecordActionIssued(active_unit, BattleTypedNames.ToStringName(BattleCommandKind.Move));
             if (batch != null)
             {
@@ -487,17 +492,17 @@ internal class BattleMovementService
             AppendChangedCoords(batch, previousCoords);
             AppendChangedUnitCoords(batch, active_unit);
 
-            targetCell = GetCell(active_unit.coord);
+            targetCell = GetCell(active_unit.GetAnchorCoord());
             string terrainName = targetCell != null
                 ? GridService.GetTerrainDisplayName(targetCell.base_terrain.ToString())
                 : "地格";
             AppendLog(
                 batch,
-                $"{active_unit.display_name} 从 ({previousAnchor.X}, {previousAnchor.Y}) 移动到 ({active_unit.coord.X}, {active_unit.coord.Y})，移动距离消耗 {moveCost} 点，剩余移动力 {active_unit.current_move_points} 点并锁定。{terrainName}。");
+                $"{active_unit.display_name} 从 ({previousAnchor.X}, {previousAnchor.Y}) 移动到 ({active_unit.GetAnchorCoord().X}, {active_unit.GetAnchorCoord().Y})，移动距离消耗 {moveCost} 点，剩余移动力 {active_unit.GetCurrentMovePoints()} 点并锁定。{terrainName}。");
             _runtime?.EmitContingencyPositionChanged(
                 active_unit,
                 previousAnchor,
-                active_unit.coord,
+                active_unit.GetAnchorCoord(),
                 _runtime.AllocateContingencySourceEventId("position_changed")
             );
             if (executionResult.StoppedByBarrier)
@@ -520,16 +525,21 @@ internal class BattleMovementService
         }
 
         List<Vector2I> path = CloneCoords(anchor_path);
-        if (path.Count == 0 || path[0] != active_unit.coord || path[^1] != target_coord)
+        if (
+            path.Count == 0
+            || path[0] != active_unit.GetAnchorCoord()
+            || path[^1] != target_coord
+        )
         {
             return result;
         }
 
         List<Vector2I> executedPath = result.ExecutedPath;
-        executedPath.Add(active_unit.coord);
+        executedPath.Add(active_unit.GetAnchorCoord());
         if (path.Count == 1)
         {
-            bool reachedCurrentTarget = active_unit.coord == target_coord;
+            bool reachedCurrentTarget =
+                active_unit.GetAnchorCoord() == target_coord;
             result.Executed = reachedCurrentTarget;
             result.ReachedTarget = reachedCurrentTarget;
             return result;
@@ -545,7 +555,15 @@ internal class BattleMovementService
         for (int pathIndex = 1; pathIndex < path.Count; pathIndex++)
         {
             Vector2I nextCoord = path[pathIndex];
-            if (!CanUnitStepBetweenAnchors(state, gridService, active_unit, active_unit.coord, nextCoord))
+            if (
+                !CanUnitStepBetweenAnchors(
+                    state,
+                    gridService,
+                    active_unit,
+                    active_unit.GetAnchorCoord(),
+                    nextCoord
+                )
+            )
             {
                 AppendLog(batch, $"{active_unit.display_name} 的移动路径第 {pathIndex} 步已不可通行。");
                 return result;
@@ -557,12 +575,16 @@ internal class BattleMovementService
             {
                 barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossingResult(
                     active_unit,
-                    active_unit.coord,
+                    active_unit.GetAnchorCoord(),
                     nextCoord,
                     batch
                 );
             }
-            if (barrierResult.Blocked || !active_unit.is_alive || active_unit.coord != path[pathIndex - 1])
+            if (
+                barrierResult.Blocked
+                || !active_unit.IsAlive()
+                || active_unit.GetAnchorCoord() != path[pathIndex - 1]
+            )
             {
                 result.Executed = executedPath.Count > 1;
                 result.StoppedByBarrier = barrierResult.Blocked;
@@ -575,19 +597,20 @@ internal class BattleMovementService
                 return result;
             }
             result.Executed = true;
-            executedPath.Add(active_unit.coord);
+            executedPath.Add(active_unit.GetAnchorCoord());
             TerrainEffectSystem?.ApplyContactEffectsForUnit(
                 active_unit,
                 BattleSaveContext.Empty,
                 batch
             );
-            if (!active_unit.is_alive)
+            if (!active_unit.IsAlive())
             {
                 return result;
             }
         }
 
-        result.ReachedTarget = active_unit.coord == target_coord;
+        result.ReachedTarget =
+            active_unit.GetAnchorCoord() == target_coord;
         return result;
     }
 

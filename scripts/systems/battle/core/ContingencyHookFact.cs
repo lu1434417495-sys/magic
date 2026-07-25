@@ -168,7 +168,7 @@ internal sealed class ContingencyHookFact
         if (explicitCell != MissingCell)
             return explicitCell;
         if (state != null && unitId != "" && state.TryGetUnitTyped(unitId, out BattleUnitState unitState))
-            return unitState?.coord ?? MissingCell;
+            return unitState?.GetAnchorCoord() ?? MissingCell;
         return MissingCell;
     }
 

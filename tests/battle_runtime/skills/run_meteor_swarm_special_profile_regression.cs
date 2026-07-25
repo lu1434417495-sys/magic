@@ -217,9 +217,9 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             {
                 return;
             }
-            _test.True(enemyCenter.current_hp < 160, "中心敌人应受到 typed component 伤害。");
-            _test.True(enemyOuter.current_hp < 160, "最外层敌人也应受到灾害波及伤害。");
-            _test.True(allyInner.current_hp < 160, "友军应走全量数值结算，不应免友伤。");
+            _test.True(enemyCenter.GetCurrentHp() < 160, "中心敌人应受到 typed component 伤害。");
+            _test.True(enemyOuter.GetCurrentHp() < 160, "最外层敌人也应受到灾害波及伤害。");
+            _test.True(allyInner.GetCurrentHp() < 160, "友军应走全量数值结算，不应免友伤。");
             _test.True(allyInner.HasStatusEffect("meteor_concussed"), "内环友军同样应按全量结算获得震眩。");
 
             BattleCellState centerCell = Cell(setup.Runtime.GetState(), new Vector2I(4, 4));
@@ -457,7 +457,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
                     meteorSkill,
                     barrierProbeEffects,
                     Array.Empty<CombatEffectDefinition>(),
-                    new[] { protectedTarget.coord },
+                    new[] { protectedTarget.GetAnchorCoord() },
                     barrierProbeBatch
                 );
             _test.Eq(
@@ -469,7 +469,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             {
                 _test.Eq(
                     groundProbe.UnitEffects.AllowedCoords[0],
-                    protectedTarget.coord,
+                    protectedTarget.GetAnchorCoord(),
                     "meteor_swarm 通用裁剪豁免应保留原始落点坐标。"
                 );
             }
@@ -490,10 +490,10 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
                 "垂直坠落的陨星雨预览不应裁掉法球内目标。"
             );
 
-            int hpBefore = protectedTarget.current_hp;
+            int hpBefore = protectedTarget.GetCurrentHp();
             BattleEventBatch batch = setup.Track(setup.Runtime.IssueCommand(command));
             _test.True(
-                protectedTarget.current_hp < hpBefore,
+                protectedTarget.GetCurrentHp() < hpBefore,
                 $"垂直坠落的陨星雨执行不应被虹光法球阻挡。logs={FormatLogs(batch?.LogLinesTyped)}"
             );
             _test.Eq(
@@ -550,11 +550,11 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = BuildState(mapSize);
         BattleUnitState caster = BuildUnit("meteor_caster", "陨星术者", "player", new Vector2I(4, 0), 180);
-        caster.known_active_skill_ids.Add("mage_meteor_swarm");
-        caster.known_skill_level_map[new StringName("mage_meteor_swarm")] = 9;
-        caster.current_ap = 4;
-        caster.current_mp = 200;
-        caster.current_aura = 3;
+        caster.AddKnownActiveSkill("mage_meteor_swarm");
+        caster.SetKnownSkillLevelTyped("mage_meteor_swarm", 9);
+        caster.SetCurrentAp(4);
+        caster.SetCurrentMp(200);
+        caster.SetCurrentAura(3);
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         state.SetUnit(caster);
@@ -579,7 +579,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         foreach (BattleUnitState unitState in state.Units())
         {
             _test.True(
-                runtime._grid_service.PlaceUnit(state, unitState, unitState.coord, true),
+                runtime._grid_service.PlaceUnit(state, unitState, unitState.GetAnchorCoord(), true),
                 $"单位应能放入陨星雨测试棋盘：{unitState?.unit_id}"
             );
         }
@@ -705,13 +705,13 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             unit_id = unitId,
             display_name = displayName,
             faction_id = factionId,
-            coord = coord,
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         SeedBaseAttributesAndDeriveAc(unit);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

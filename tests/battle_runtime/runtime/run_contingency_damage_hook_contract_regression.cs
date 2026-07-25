@@ -55,8 +55,12 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
         );
 
-        _test.Eq(hero.current_hp, 20, "incoming_damage_percent auto-shield should resolve before HP mutation.");
-        _test.Eq(hero.current_shield_hp, 8, "incoming_damage_percent auto-shield should absorb the triggering hit.");
+        _test.Eq(hero.GetCurrentHp(), 20, "incoming_damage_percent auto-shield should resolve before HP mutation.");
+        _test.Eq(
+            hero.GetShieldStateTyped().CurrentHp,
+            8,
+            "incoming_damage_percent auto-shield should absorb the triggering hit."
+        );
         _test.True(
             runtime.GetContingencySystemTyped().IsSetupConsumedForMember("hero", "incoming_guard"),
             "incoming_damage_percent should consume the matching setup."
@@ -86,7 +90,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         );
         BattleUnitState hero = runtime.GetState().GetUnit("hero_unit");
         BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
-        hero.current_hp = 10;
+        hero.SetCurrentHp(10);
 
         using BattleEventBatch batch = new();
         runtime.GetDamageResolver().ResolveEffects(
@@ -98,8 +102,8 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
         );
 
-        _test.True(hero.is_alive, "fatal_damage_incoming should react before the fatal HP mutation.");
-        _test.Eq(hero.current_hp, 5, "fatal_damage_incoming shield should leave projected nonfatal HP.");
+        _test.True(hero.IsAlive(), "fatal_damage_incoming should react before the fatal HP mutation.");
+        _test.Eq(hero.GetCurrentHp(), 5, "fatal_damage_incoming shield should leave projected nonfatal HP.");
         _test.True(
             runtime.GetContingencySystemTyped().IsSetupConsumedForMember("hero", "fatal_guard"),
             "fatal_damage_incoming should consume the matching setup."
@@ -118,8 +122,8 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         );
         BattleUnitState hero = runtime.GetState().GetUnit("hero_unit");
         BattleUnitState enemy = runtime.GetState().GetUnit("enemy_unit");
-        hero.current_hp = 10;
-        Vector2I originalCoord = hero.coord;
+        hero.SetCurrentHp(10);
+        Vector2I originalCoord = hero.GetAnchorCoord();
 
         using BattleEventBatch batch = new();
         runtime.GetDamageResolver().ResolveEffects(
@@ -131,13 +135,13 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
                 .WithDamageApplicationHookContext(batch, BattleEffectOrigin.PlayerCommand())
         );
 
-        _test.True(hero.is_alive, "fatal blink should keep the owner alive.");
+        _test.True(hero.IsAlive(), "fatal blink should keep the owner alive.");
         _test.Eq(
-            hero.current_hp,
+            hero.GetCurrentHp(),
             10,
             "fatal blink outside the current damage area should cancel the triggering damage."
         );
-        _test.Ne(hero.coord, originalCoord, "fatal blink should relocate the owner before HP mutation.");
+        _test.Ne(hero.GetAnchorCoord(), originalCoord, "fatal blink should relocate the owner before HP mutation.");
         _test.True(
             runtime.GetContingencySystemTyped().IsSetupConsumedForMember("hero", "fatal_blink"),
             "fatal blink should consume the matching setup."
@@ -167,7 +171,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             DamageResolutionContext.ForSkill("cancel_then_status")
         );
 
-        _test.Eq(target.current_hp, 20, "CancelDamage should cancel only the current damage effect.");
+        _test.Eq(target.GetCurrentHp(), 20, "CancelDamage should cancel only the current damage effect.");
         _test.True(target.HasStatusEffect("burning"), "CancelDamage should not stop later effects in the same skill.");
     }
 
@@ -559,8 +563,8 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
             currentAp: 2
         );
         unit.source_member_id = memberId == default ? new StringName("") : memberId;
-        unit.current_hp = hp;
-        unit.current_mp = 200;
+        unit.SetCurrentHp(hp);
+        unit.SetCurrentMp(200);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.MP_MAX, 200);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
@@ -815,21 +819,21 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         ) =>
             new();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount
         ) =>
-            new();
+            Array.Empty<StringName>();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount,
             StringName subject_id,
             GDictionary meta
         ) =>
-            new();
+            Array.Empty<StringName>();
 
         public PendingCharacterReward BuildPendingSkillMasteryReward(
             StringName member_id,

@@ -758,21 +758,22 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
         Vector2I? coord = null
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             source_member_id = memberId,
             display_name = "Hero",
             faction_id = "player",
             control_mode = "manual",
-            current_hp = 20,
-            current_mp = 18,
-            current_stamina = 10,
-            current_ap = 2,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            is_alive = true,
             attribute_snapshot = snapshot ?? new AttributeSnapshot(),
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 18,
+            stamina: 10,
+            ap: 2,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.SetEquipmentView(new EquipmentState());
         unit.SetAnchorCoord(coord ?? Vector2I.Zero);
         return unit;
