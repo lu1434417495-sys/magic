@@ -4,29 +4,70 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_skill"]
 
+[sub_resource type="Resource" id="Resource_rhythm_0_6"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"perfect_rhythm"
+min_skill_level = 0
+max_skill_level = 6
+power = 1
+display_name = "完美节奏"
+melee_combo_stack_gain_bonus = 1
+combo_attack_bonus_status_id = &"melee_combo_stack"
+combo_attack_bonus_stack_divisor = 10
+upkeep_resource = &"aura"
+upkeep_interval_tu = 5
+upkeep_base_cost = 10
+upkeep_escalation_interval_tu = 60
+upkeep_cost_multiplier = 2
+break_on_hard_control = true
+termination_status_id = &"rhythm_disrupted"
+termination_status_duration_tu = 90
+termination_attack_roll_penalty = 3
+termination_cooldown_tu = 120
+
+[sub_resource type="Resource" id="Resource_rhythm_7"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"perfect_rhythm"
+min_skill_level = 7
+max_skill_level = -1
+power = 1
+display_name = "完美节奏"
+melee_combo_stack_gain_bonus = 2
+combo_attack_bonus_status_id = &"melee_combo_stack"
+combo_attack_bonus_stack_divisor = 10
+upkeep_resource = &"aura"
+upkeep_interval_tu = 5
+upkeep_base_cost = 10
+upkeep_escalation_interval_tu = 60
+upkeep_cost_multiplier = 2
+break_on_hard_control = true
+termination_status_id = &"rhythm_disrupted"
+termination_status_duration_tu = 90
+termination_attack_roll_penalty = 3
+termination_cooldown_tu = 120
+
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_perfect_rhythm"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
 range_value = 0
 ap_cost = 1
 stamina_cost = 0
-aura_cost = 35
-cooldown_tu = 120
-attack_roll_bonus = 0
-level_overrides = {
-	3: {
-		"aura_cost": 28
-	}
-}
-mastery_trigger_mode = &"skill_damage_dice_max"
+aura_cost = 200
+cooldown_tu = 0
+mastery_trigger_mode = &"effect_applied"
 mastery_amount_mode = &"per_target_rank"
-effect_defs = Array[ExtResource("3_effect")]([])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_rhythm_0_6"), SubResource("Resource_rhythm_7")])
 
 [resource]
 script = ExtResource("5_skill")
 skill_id = &"warrior_perfect_rhythm"
 display_name = "完美节奏"
-description = "2回合每次命中叠加连击层。"
+description = "启动后持续维持节奏。近战武器每次命中额外获得连击层，并且每10层近战连击使近战武器攻击检定+1。每5TU消耗斗气，维持费用每60TU翻倍；硬控或斗气不足会终止，并在90TU内使攻击检定-3。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)

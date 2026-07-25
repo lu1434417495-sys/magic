@@ -114,8 +114,8 @@ terms = Array[Resource]([SubResource("Dice_term_2d6_cold")])
 script = ExtResource("12_add_damage")
 target_selector = &"attack_target"
 dice = SubResource("Dice_1d6_cold")
-damage_type = &"cold"
-damage_tags = Array[StringName]([&"cold"])
+damage_type = &"freeze"
+damage_tags = Array[StringName]([&"freeze"])
 
 [sub_resource type="Resource" id="Action_frozen_strike_damage"]
 script = ExtResource("11_action")
@@ -127,8 +127,8 @@ payload = SubResource("Action_frozen_strike_damage_payload")
 script = ExtResource("12_add_damage")
 target_selector = &"attack_target"
 dice = SubResource("Dice_2d6_cold")
-damage_type = &"cold"
-damage_tags = Array[StringName]([&"cold"])
+damage_type = &"freeze"
+damage_tags = Array[StringName]([&"freeze"])
 
 [sub_resource type="Resource" id="Action_seal_power_damage"]
 script = ExtResource("11_action")

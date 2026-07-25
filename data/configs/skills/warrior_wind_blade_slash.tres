@@ -19,7 +19,7 @@ dice_sides = 8
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_wind_blade_slash"
-delivery_categories = Array[StringName]([&"magical_missile"])
+projectile_kind = &"magical"
 range_value = 3
 area_pattern = &"line"
 area_value = 3

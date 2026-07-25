@@ -63,7 +63,8 @@ dice_bonus = 5
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_arcane_missile"
-delivery_categories = Array[StringName]([&"spell", &"magical_missile"])
+delivery_categories = Array[StringName]([&"spell"])
+projectile_kind = &"magical"
 range_value = 3
 mp_cost = 20
 stamina_cost = 15

@@ -86,7 +86,8 @@ duration_tu = 40
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")
 skill_id = &"mage_earthen_grasp"
-delivery_categories = Array[StringName]([&"spell", &"magical_missile"])
+delivery_categories = Array[StringName]([&"spell"])
+projectile_kind = &"magical"
 range_value = 4
 mp_cost = 70
 cooldown_tu = 10

@@ -40,7 +40,8 @@ max_target_count = 1
 allow_repeat_target = false
 selection_order_mode = &"stable"
 required_weapon_families = Array[StringName]([&"bow"])
-delivery_categories = Array[StringName]([&"equipment", &"thunderbow", &"bow", &"weapon", &"thunder", &"lightning", &"magical_missile"])
+delivery_categories = Array[StringName]([&"equipment", &"thunderbow", &"bow", &"weapon", &"thunder", &"lightning"])
+projectile_kind = &"magical"
 effect_defs = Array[ExtResource("1_effect")]([SubResource("Effect_stored_thunder_weapon_damage"), SubResource("Effect_stored_thunder_lightning_damage")])
 
 [resource]

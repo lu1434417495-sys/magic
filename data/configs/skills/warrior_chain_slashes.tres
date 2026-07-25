@@ -14,29 +14,33 @@ requires_weapon = true
 use_weapon_physical_damage_tag = true
 dice_count = 1
 dice_sides = 4
-params = {
-"grant_status_id": "combo_stack",
-"grant_status_power": 1,
-"grant_status_duration_tu": 180,
-"grant_status_stack_limit": 20
-}
 
 [sub_resource type="Resource" id="Resource_ef1"]
 script = ExtResource("3_effect")
 effect_type = &"damage"
 min_skill_level = 4
-max_skill_level = -1
+max_skill_level = 6
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
 dice_count = 1
 dice_sides = 6
-params = {
-"grant_status_id": "combo_stack",
-"grant_status_power": 1,
-"grant_status_duration_tu": 180,
-"grant_status_stack_limit": 20
-}
+
+[sub_resource type="Resource" id="Resource_ef2"]
+script = ExtResource("3_effect")
+effect_type = &"damage"
+min_skill_level = 7
+max_skill_level = -1
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 8
+
+[sub_resource type="Resource" id="Resource_repeat"]
+script = ExtResource("3_effect")
+effect_type = &"fixed_repeat_attack"
+fixed_attack_count = 3
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
@@ -52,20 +56,61 @@ level_overrides = {
 	},
 	5: {
 		"attack_roll_bonus": 1
+	},
+	6: {
+		"stamina_cost": 20
 	}
 }
 mastery_trigger_mode = &"skill_damage_dice_max"
 mastery_amount_mode = &"per_target_rank"
-effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0"), SubResource("Resource_ef1")])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_ef0"), SubResource("Resource_ef1"), SubResource("Resource_ef2"), SubResource("Resource_repeat")])
 
 [resource]
 script = ExtResource("5_skill")
 skill_id = &"warrior_chain_slashes"
-display_name = "连斩"
-description = "多段命中连斩。"
+display_name = "三连斩"
+description = "对同一目标连续发动三次近战攻击，每段独立结算；每段命中获得1层近战连击。"
+level_description_template = "连续攻击3次，每段追加{skill_dice}技能骰。{{?attack}}攻击检定{attack}，{{/attack}}体力消耗{stamina}。"
+level_description_configs = {
+"0": {
+"skill_dice": "1D4",
+"stamina": "30"
+},
+"1": {
+"skill_dice": "1D4",
+"stamina": "30"
+},
+"2": {
+"skill_dice": "1D4",
+"stamina": "30"
+},
+"3": {
+"skill_dice": "1D4",
+"stamina": "24"
+},
+"4": {
+"skill_dice": "1D6",
+"stamina": "24"
+},
+"5": {
+"skill_dice": "1D6",
+"attack": "+1",
+"stamina": "24"
+},
+"6": {
+"skill_dice": "1D6",
+"attack": "+1",
+"stamina": "20"
+},
+"7": {
+"skill_dice": "1D8",
+"attack": "+1",
+"stamina": "20"
+}
+}
 max_level = 7
 non_core_max_level = 5
-mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600, 3800, 5300)
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800)
 growth_tier = &"intermediate"
 attribute_growth_progress = { "constitution": 50, "strength": 70 }
 tags = Array[StringName]([&"warrior", &"melee", &"combo"])

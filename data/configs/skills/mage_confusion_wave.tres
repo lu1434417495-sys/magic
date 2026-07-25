@@ -101,7 +101,8 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_2caef"]
 script = ExtResource("4_5jut0")
 skill_id = &"mage_confusion_wave"
-delivery_categories = Array[StringName]([&"spell", &"magical_missile"])
+delivery_categories = Array[StringName]([&"spell"])
+projectile_kind = &"magical"
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4

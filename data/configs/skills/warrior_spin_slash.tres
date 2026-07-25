@@ -19,13 +19,13 @@ skill_id = &"warrior_spin_slash"
 target_mode = &"ground"
 target_team_filter = &"enemy"
 range_value = 0
+weapon_range_policy = &"configured"
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 1
 stamina_cost = 50
 cooldown_tu = 0
 attack_roll_bonus = -2
-area_value_from_weapon_range = true
 level_overrides = {
 1: {
 "attack_roll_bonus": -1
@@ -42,7 +42,6 @@ level_overrides = {
 }
 mastery_trigger_mode = &"weapon_attack_quality"
 mastery_amount_mode = &"per_target_rank"
-excluded_weapon_families = Array[StringName]([&"spear", &"dagger"])
 effect_defs = Array[ExtResource("3_spin")]([SubResource("Resource_spin_damage")])
 
 [resource]
@@ -50,7 +49,7 @@ script = ExtResource("5_spin")
 skill_id = &"warrior_spin_slash"
 display_name = "旋斩"
 icon_id = &"warrior_spin_slash"
-description = "原地旋转斩击周围敌人，范围等于武器攻击范围，长枪和匕首不可用。高等级降低命中惩罚。"
+description = "使用当前近战武器原地旋转，攻击周围一格内的敌人。高等级降低命中惩罚。"
 max_level = 7
 non_core_max_level = 5
 mastery_curve = PackedInt32Array(200, 500, 1100, 2000, 3200, 4700, 6500)

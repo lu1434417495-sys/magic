@@ -98,7 +98,8 @@ duration_tu = 120
 [sub_resource type="Resource" id="Resource_fviji"]
 script = ExtResource("4_ikahb")
 skill_id = &"mage_warding_skull"
-delivery_categories = Array[StringName]([&"spell", &"magical_missile", &"detection"])
+delivery_categories = Array[StringName]([&"spell", &"detection"])
+projectile_kind = &"magical"
 target_mode = &"ground"
 target_team_filter = &"ally"
 range_value = 4
