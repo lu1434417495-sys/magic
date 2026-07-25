@@ -4,38 +4,71 @@
 [ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_combat"]
 [ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_skill"]
 
-[sub_resource type="Resource" id="Resource_status"]
+[sub_resource type="Resource" id="Resource_status_low"]
 script = ExtResource("3_effect")
 effect_type = &"status"
-status_id = &"hex_of_frailty"
+effect_target_team_filter = &"enemy"
+status_id = &"night_pressure"
 power = 1
+attack_roll_penalty = 1
 duration_tu = 80
+max_skill_level = 2
+
+[sub_resource type="Resource" id="Resource_status_mid"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+status_id = &"night_pressure"
+power = 2
+attack_roll_penalty = 2
+duration_tu = 100
+min_skill_level = 3
+max_skill_level = 4
+
+[sub_resource type="Resource" id="Resource_status_high"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+effect_target_team_filter = &"enemy"
+status_id = &"night_pressure"
+power = 2
+attack_roll_penalty = 2
+duration_tu = 120
+min_skill_level = 5
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_night_pressure"
 target_mode = &"ground"
 target_team_filter = &"enemy"
-range_value = 3
+range_value = 0
+weapon_range_policy = &"configured"
 area_pattern = &"radius"
 area_value = 1
 ap_cost = 1
 aura_cost = 30
-cooldown_tu = 200
+cooldown_tu = 120
+level_overrides = {
+	3: {
+		"aura_cost": 25
+	},
+	5: {
+		"area_value": 2
+	}
+}
 mastery_trigger_mode = &"status_applied"
 mastery_amount_mode = &"per_target_rank"
-effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_status")])
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_status_low"), SubResource("Resource_status_mid"), SubResource("Resource_status_high")])
 
 [resource]
 script = ExtResource("5_skill")
 skill_id = &"warrior_night_pressure"
 display_name = "夜幕压迫"
 icon_id = &"warrior_night_pressure"
-description = "释放夜幕压制周围敌人，降低其命中。"
-max_level = 3
+description = "以自身为中心释放夜幕压迫，使范围内敌人的所有攻击检定降低；重复施加不叠加，只刷新持续时间，且弱效果不会覆盖强效果。"
+max_level = 5
 non_core_max_level = 3
-mastery_curve = PackedInt32Array(100, 250, 550)
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1700)
 growth_tier = &"intermediate"
 attribute_growth_progress = { "willpower": 80, "agility": 40 }
-tags = Array[StringName]([&"warrior", &"melee", &"debuff", &"aoe"])
+tags = Array[StringName]([&"warrior", &"melee", &"qi", &"debuff", &"aoe"])
 combat_profile = SubResource("Resource_combat")

@@ -17,6 +17,6 @@ script = ExtResource("1_layer")
 layer_id = &"orange"
 display_name = "橙色层"
 order = 2
-blocked_categories = Array[StringName]([&"magical_missile"])
+blocked_categories = Array[StringName]([&"magical_projectile"])
 breaker_skill_ids = Array[StringName]([&"mage_gust_of_wind"])
 passage_outcomes = Array[ExtResource("2_outcome")]([SubResource("Outcome_orange")])

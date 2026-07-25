@@ -27,7 +27,7 @@ effect_target_team_filter = &"enemy"
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_wind_pressure_thrust"
-delivery_categories = Array[StringName]([&"magical_missile"])
+projectile_kind = &"magical"
 range_value = 4
 area_pattern = &"line"
 area_value = 4

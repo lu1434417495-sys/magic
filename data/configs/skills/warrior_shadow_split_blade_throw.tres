@@ -18,7 +18,7 @@ dice_sides = 6
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")
 skill_id = &"warrior_shadow_split_blade_throw"
-delivery_categories = Array[StringName]([&"nonmagical_missile"])
+projectile_kind = &"nonmagical"
 range_value = 3
 ap_cost = 1
 stamina_cost = 18

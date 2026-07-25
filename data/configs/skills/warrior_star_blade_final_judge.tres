@@ -18,12 +18,6 @@ use_weapon_physical_damage_tag = true
 dice_count = 2
 dice_sides = 8
 debuff_count_threshold = 3
-params = {
-"grant_status_id": "combo_stack",
-"grant_status_power": 1,
-"grant_status_duration_tu": 180,
-"grant_status_stack_limit": 20
-}
 
 [sub_resource type="Resource" id="Resource_ef1"]
 script = ExtResource("3_effect")
@@ -39,12 +33,6 @@ use_weapon_physical_damage_tag = true
 dice_count = 3
 dice_sides = 8
 debuff_count_threshold = 3
-params = {
-"grant_status_id": "combo_stack",
-"grant_status_power": 1,
-"grant_status_duration_tu": 180,
-"grant_status_stack_limit": 20
-}
 
 [sub_resource type="Resource" id="Resource_ef2"]
 script = ExtResource("3_effect")

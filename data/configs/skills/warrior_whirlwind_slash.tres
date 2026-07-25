@@ -19,18 +19,15 @@ requires_weapon = true
 use_weapon_physical_damage_tag = true
 resolve_as_weapon_attack = true
 allow_repeat_hits_across_steps = true
-params = {
-"apply_on_successful_step_only": true,
-"path_step_log_label": "旋斩",
-"repeat_hit_status_duration_tu": 60,
-"repeat_hit_status_id": "staggered",
-"repeat_hit_status_log_template": "{target} 被{skill}连续命中 {hit_count} 次，陷入踉跄。",
-"repeat_hit_status_min_skill_level": 9,
-"repeat_hit_status_power": 1,
-"repeat_hit_status_threshold": 4,
-"step_radius": 1,
-"step_shape": "diamond"
-}
+path_step_area_pattern = &"diamond"
+path_step_radius = 1
+path_step_log_label = "旋斩"
+repeat_hit_status_id = &"staggered"
+repeat_hit_status_threshold = 4
+repeat_hit_status_min_skill_level = 9
+repeat_hit_status_power = 1
+repeat_hit_status_duration_tu = 60
+repeat_hit_status_log_template = "{target} 被{skill}连续命中 {hit_count} 次，陷入踉跄。"
 
 [sub_resource type="Resource" id="Resource_xn254"]
 script = ExtResource("2_657aj")

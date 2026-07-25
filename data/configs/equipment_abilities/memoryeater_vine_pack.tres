@@ -323,8 +323,8 @@ terms = Array[Resource]([SubResource("Dice_term_memory_thorn")])
 script = ExtResource("12_add_damage")
 target_selector = &"attack_target"
 dice = SubResource("Dice_memory_thorn")
-damage_type = &"necrotic"
-damage_tags = Array[StringName]([&"necrotic"])
+damage_type = &"negative_energy"
+damage_tags = Array[StringName]([&"negative_energy"])
 
 [sub_resource type="Resource" id="Action_memory_thorn_damage"]
 script = ExtResource("11_action")

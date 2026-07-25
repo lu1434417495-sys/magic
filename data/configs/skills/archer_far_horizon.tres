@@ -15,7 +15,7 @@ damage_tag = &"physical_pierce"
 [sub_resource type="Resource" id="Resource_2eo21"]
 script = ExtResource("4_dedob")
 skill_id = &"archer_far_horizon"
-delivery_categories = Array[StringName]([&"nonmagical_missile"])
+projectile_kind = &"current_weapon"
 range_value = 7
 ap_cost = 2
 cooldown_tu = 15
