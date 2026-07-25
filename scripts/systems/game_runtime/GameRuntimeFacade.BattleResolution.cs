@@ -29,7 +29,7 @@ public sealed partial class GameRuntimeFacade
         _last_battle_loot_snapshot.Clear();
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
-        _pending_promotion_prompt.Clear();
+        _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
         _battle_selection.ClearBattleSkillSelection(false);
         _character_management.SetPartyState(_party_state);
     }

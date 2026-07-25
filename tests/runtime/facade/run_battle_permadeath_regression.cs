@@ -275,17 +275,18 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
         int currentHp
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             source_member_id = memberId,
             display_name = memberId.ToString(),
             faction_id = "player",
             control_mode = "manual",
-            is_alive = isAlive,
-            current_hp = currentHp,
-            current_mp = 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 0,
+            isAlive: isAlive
+        );
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }

@@ -222,6 +222,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     private SaveIndexFileSignature _saveIndexCacheSignature = SaveIndexFileSignature.Missing;
 
     public bool fail_payload_write;
+    public bool fail_index_write;
 
     public GameSession()
         : this(GameSessionPersistenceOptions.Production)
@@ -493,9 +494,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         state.active_member_ids.Clear();
         state.reserve_member_ids.Clear();
         state.pending_character_rewards.Clear();
-        state.active_quests.Clear();
-        state.claimable_quests.Clear();
-        state.completed_quest_ids.Clear();
+        state.ClearQuestJournal();
     }
 
     private static void DisposePartyMemberStateGraph(PartyMemberState memberState)
@@ -1559,11 +1558,8 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         if (payloadWriteError != (int)Error.Ok)
             return payloadWriteError;
 
-        int indexError = WriteSaveIndexPlain(
-            UpsertSaveMetaPlain(LoadSaveIndexEntriesPlain(), _activeSaveMeta)
-        );
-        if (indexError != (int)Error.Ok)
-            return indexError;
+        // payload 是权威提交点；index 只做可从 payload 重建的 best-effort cache。
+        UpdateSaveIndexAfterPayloadCommit();
 
         _battle_save_dirty = false;
         return (int)Error.Ok;
@@ -2027,6 +2023,13 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     {
         var failValue = Get("fail_payload_write");
         return fail_payload_write
+            || (failValue.VariantType == Variant.Type.Bool && failValue.AsBool());
+    }
+
+    private bool ShouldFailIndexWrite()
+    {
+        var failValue = Get("fail_index_write");
+        return fail_index_write
             || (failValue.VariantType == Variant.Type.Bool && failValue.AsBool());
     }
 

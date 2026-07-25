@@ -568,11 +568,16 @@ public sealed class SaveSerializer
             )
                 return $"Corrupt save world_data: {optionalStringField} must be a String.";
         }
-        if (
-            worldData.ContainsKey("fog_states")
-            && worldData["fog_states"].VariantType != Variant.Type.Dictionary
-        )
-            return "Corrupt save world_data: fog_states must be a Dictionary.";
+        if (worldData.ContainsKey("fog_states"))
+        {
+            if (worldData["fog_states"].VariantType != Variant.Type.Dictionary)
+                return "Corrupt save world_data: fog_states must be a Dictionary.";
+            using GDictionary fogStates = worldData["fog_states"].AsGodotDictionary();
+            string fogStateError =
+                WorldMapFogSystem.GetPersistentStateSchemaValidationError(fogStates);
+            if (!string.IsNullOrEmpty(fogStateError))
+                return $"Corrupt save world_data.fog_states: {fogStateError}";
+        }
         return "";
     }
 

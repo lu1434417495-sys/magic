@@ -64,13 +64,14 @@ public partial class run_character_info_identity_regression : LifecycleTestScene
             GameRuntimeCharacterInfoBuilder builder = new();
             builder.Setup(runtime);
 
-            BattleUnitState unit = new()
+            BattleUnitState unit = new BattleUnitState()
             {
                 source_member_id = "hero",
-                coord = new Vector2I(2, 3),
-                current_hp = 10,
-                current_mp = 2,
-            };
+            }.WithCombatResourcesForTest(
+                hp: 10,
+                mp: 2
+            );
+            unit.SetAnchorCoord(new Vector2I(2, 3));
             unit.attribute_snapshot.SetValue("hp_max", 20);
             unit.attribute_snapshot.SetValue("mp_max", 5);
 

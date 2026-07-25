@@ -220,16 +220,18 @@ internal sealed class GameRuntimeCharacterInfoBuilder
         string factionLabel
     )
     {
+        BattleUnitCombatResourceValues combatResources =
+            unit.GetCombatResourcesReadViewTyped().Values;
         var entries = new List<GameRuntimeCharacterInfoEntry>
         {
             GameRuntimeCharacterInfoEntry.Pair("类型", typeLabel),
             GameRuntimeCharacterInfoEntry.Pair("阵营", factionLabel),
-            GameRuntimeCharacterInfoEntry.Pair("坐标", FormatCoord(unit.coord)),
+            GameRuntimeCharacterInfoEntry.Pair("坐标", FormatCoord(unit.GetAnchorCoord())),
             GameRuntimeCharacterInfoEntry.Pair(
                 "HP",
                 string.Format(
                     "{0} / {1}",
-                    (int)(unit.current_hp),
+                    combatResources.Hp,
                     Mathf.Max(GetBattleUnitAttributeValue(unit, "hp_max"), 1)
                 )
             ),
@@ -237,39 +239,39 @@ internal sealed class GameRuntimeCharacterInfoBuilder
                 "MP",
                 string.Format(
                     "{0} / {1}",
-                    (int)(unit.current_mp),
+                    combatResources.Mp,
                     Mathf.Max(GetBattleUnitAttributeValue(unit, "mp_max"), 0)
                 )
             ),
             GameRuntimeCharacterInfoEntry.Pair(
                 "AP",
-                string.Format("{0}", (int)(unit.current_ap))
+                string.Format("{0}", combatResources.Ap)
             ),
             GameRuntimeCharacterInfoEntry.Pair(
                 "行动",
-                string.Format("{0}", (int)(unit.current_move_points))
+                string.Format("{0}", combatResources.MovePoints)
             ),
         };
         var staminaMax = GetBattleUnitAttributeValue(unit, "stamina_max");
-        if (staminaMax > 0 || (int)(unit.current_stamina) > 0)
+        if (staminaMax > 0 || combatResources.Stamina > 0)
             entries.Add(
                 GameRuntimeCharacterInfoEntry.Pair(
                     "ST",
                     string.Format(
                         "{0} / {1}",
-                        (int)(unit.current_stamina),
+                        combatResources.Stamina,
                         Mathf.Max(staminaMax, 0)
                     )
                 )
             );
         var auraMax = GetBattleUnitAttributeValue(unit, "aura_max");
-        if (auraMax > 0 || (int)(unit.current_aura) > 0)
+        if (auraMax > 0 || combatResources.Aura > 0)
             entries.Add(
                 GameRuntimeCharacterInfoEntry.Pair(
                     "Aura",
                     string.Format(
                         "{0} / {1}",
-                        (int)(unit.current_aura),
+                        combatResources.Aura,
                         Mathf.Max(auraMax, 0)
                     )
                 )
@@ -287,6 +289,8 @@ internal sealed class GameRuntimeCharacterInfoBuilder
         IGameRuntimeCharacterInfoQuery query = _query;
         if (query == null)
             return entries.AsReadOnly();
+        BattleWeaponProjectionValues weaponProjection =
+            unit.GetWeaponProjectionReadViewTyped().Values;
 
         var renderedItemIds = new System.Collections.Generic.HashSet<StringName>();
         EquipmentState equipmentView = unit.GetEquipmentView();
@@ -313,11 +317,14 @@ internal sealed class GameRuntimeCharacterInfoBuilder
 
         // Enemy units carry their weapon via weapon_item_id with an empty equipment view;
         // surface it too so their weapon traits are inspectable.
-        if (unit.weapon_item_id != "" && !renderedItemIds.Contains(unit.weapon_item_id))
+        if (
+            weaponProjection.ItemId != ""
+            && !renderedItemIds.Contains(weaponProjection.ItemId)
+        )
             AppendEquipmentItemEntries(
                 entries,
                 query,
-                unit.weapon_item_id,
+                weaponProjection.ItemId,
                 "武器",
                 renderedItemIds
             );
@@ -388,7 +395,7 @@ internal sealed class GameRuntimeCharacterInfoBuilder
     )
     {
         var entries = new List<GameRuntimeCharacterInfoEntry>();
-        foreach (var skillId in unit.known_active_skill_ids)
+        foreach (var skillId in unit.GetKnownActiveSkillsViewTyped())
         {
             var resolvedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (resolvedSkillId == "")

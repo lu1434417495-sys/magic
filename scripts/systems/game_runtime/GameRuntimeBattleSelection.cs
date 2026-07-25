@@ -20,23 +20,27 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private readonly BattleTargetCollectionService _targetCollectionService = new();
     private readonly Dictionary<StringName, CombatCastVariantDefinition> _implicitGroundCastVariantsBySkillId =
         new();
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeBattleSelectionPort> _portRef;
 
-    private GameRuntimeFacade Runtime
+    private IGameRuntimeBattleSelectionPort Port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_portRef);
+        set =>
+            _portRef =
+                value != null
+                    ? new WeakReference<IGameRuntimeBattleSelectionPort>(value)
+                    : null;
     }
 
-    internal void Setup(GameRuntimeFacade runtime)
+    internal void Setup(IGameRuntimeBattleSelectionPort port)
     {
-        Runtime = runtime;
+        Port = port;
     }
 
     public void Dispose()
     {
         _implicitGroundCastVariantsBySkillId.Clear();
-        Runtime = null;
+        Port = null;
     }
 
     internal string GetSelectedBattleSkillName()
@@ -94,7 +98,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     internal BattlePreview GetSelectedBattleSkillPreview()
     {
         return PreviewSelectedBattleSkillAtCoord(
-            Runtime?.GetBattleSelectedCoord() ?? new Vector2I(-1, -1)
+            Port?.GetBattleSelectedCoord() ?? new Vector2I(-1, -1)
         );
     }
 
@@ -105,7 +109,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         return command != null ? PreviewBattleCommand(command) : null;
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult SelectBattleSkillSlotTyped(int index)
+    internal BattleSelectionCommandResult SelectBattleSkillSlotTyped(int index)
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
         if (activeUnit == null)
@@ -474,7 +478,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 CommandKind = BattleCommandKind.Interact,
                 unit_id = activeUnit.unit_id,
                 target_unit_id = targetUnit.unit_id,
-                target_coord = targetUnit.coord,
+                target_coord = targetUnit.GetAnchorCoord(),
             };
         }
         if (
@@ -510,7 +514,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return BattleRefreshMode.Overlay;
         }
 
-        SetBattleSelectedCoord(activeUnit.coord);
+        SetBattleSelectedCoord(activeUnit.GetAnchorCoord());
         RefreshBattleSelectionState();
         UpdateStatus("已聚焦当前行动单位。");
         return BattleRefreshMode.Overlay;
@@ -560,7 +564,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 skill_id = skillId,
                 skill_variant_id = GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
                 target_unit_id = targetUnit.unit_id,
-                target_coord = targetUnit.coord,
+                target_coord = targetUnit.GetAnchorCoord(),
             };
         }
         return null;
@@ -599,7 +603,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             skill_id = GetSelectedSkillId(),
             skill_variant_id = GetSelectedSkillVariantId(),
             target_unit_id = targetUnit.unit_id,
-            target_coord = targetUnit.coord,
+            target_coord = targetUnit.GetAnchorCoord(),
         };
     }
 
@@ -656,7 +660,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             return null;
 
         command.target_unit_id = targetUnit.unit_id;
-        command.target_coord = targetUnit.coord;
+        command.target_coord = targetUnit.GetAnchorCoord();
         return command;
     }
 
@@ -688,7 +692,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         BattleUnitState firstTarget = GetBattleUnitById(targetUnitIds[0]);
         if (firstTarget != null)
         {
-            command.target_coord = firstTarget.coord;
+            command.target_coord = firstTarget.GetAnchorCoord();
         }
         return command;
     }
@@ -1014,20 +1018,11 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private SkillDefinition GetSkillDefinition(StringName skillId)
     {
-        if (Runtime == null)
-        {
-            return null;
-        }
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            Runtime.GetSkillDefinitionsTyped();
-        if (
-            skillDefinitions == null
-            || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
-        )
-        {
-            return null;
-        }
-        return skillDefinition;
+        ISkillCatalog skillCatalog = GetSkillCatalog();
+        return skillCatalog != null
+            && skillCatalog.TryGetSkillDefinition(skillId, out SkillDefinition skillDefinition)
+            ? skillDefinition
+            : null;
     }
 
     private List<Vector2I> CollectSelectedBattleSkillValidTargetCoordsTyped()
@@ -1104,11 +1099,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             }
             if (useAnchorCoords)
             {
-                coordSet.Add(targetUnit.coord);
+                coordSet.Add(targetUnit.GetAnchorCoord());
             }
             else
             {
-                foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+                foreach (
+                    Vector2I occupiedCoord
+                    in targetUnit.GetOccupiedCoordsReadViewTyped()
+                )
                 {
                     coordSet.Add(occupiedCoord);
                 }
@@ -1257,7 +1255,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             }
             int targetDistance =
                 relocationEffectDefinition != null
-                    ? battleGridService.GetChebyshevDistance(activeUnit.coord, coord)
+                    ? battleGridService.GetChebyshevDistance(
+                        activeUnit.GetAnchorCoord(),
+                        coord
+                    )
                     : battleGridService.GetDistanceFromUnitToCoord(activeUnit, coord);
             if (targetDistance > GetEffectiveSkillRange(activeUnit, skillDefinition))
             {
@@ -1551,7 +1552,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return false;
         }
-        if (!targetUnit.is_alive)
+        if (!targetUnit.IsAlive())
         {
             return false;
         }
@@ -1664,9 +1665,9 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         SkillDefinition skillDefinition
     )
     {
-        if (Runtime != null)
+        if (Port != null)
         {
-            return Runtime.GetBattleSkillCastBlockMessage(
+            return Port.GetBattleSkillCastBlockMessage(
                 activeUnit,
                 skillDefinition?.SkillId ?? ""
             );
@@ -1690,7 +1691,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         {
             return 0;
         }
-        return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
+        return unitState.KnowsActiveSkill(skillId) ? 1 : 0;
     }
 
     private SkillEffectiveCombatDefinition GetEffectiveCombatProfileForUnit(
@@ -1935,7 +1936,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             BattleUnitState firstTarget = GetBattleUnitById(skillCommand.target_unit_ids[0]);
             if (firstTarget != null)
             {
-                skillCommand.target_coord = firstTarget.coord;
+                skillCommand.target_coord = firstTarget.GetAnchorCoord();
             }
         }
 
@@ -1969,7 +1970,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
         int selectedCount = GetTargetUnitIdsStateTyped().Count;
         if (selectedCount >= minTargetCount && selectedCount < maxTargetCount)
         {
-            SetBattleSelectedCoord(activeUnit.coord);
+            SetBattleSelectedCoord(activeUnit.GetAnchorCoord());
         }
     }
 
@@ -2015,7 +2016,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             BattleUnitState targetUnit = GetBattleUnitById(targetUnitId);
             if (targetUnit != null)
             {
-                targetCoords.Add(targetUnit.coord);
+                targetCoords.Add(targetUnit.GetAnchorCoord());
             }
         }
         SetTargetCoordsStateTyped(SortCoordsTyped(targetCoords));
@@ -2055,7 +2056,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             _targetCollectionService.CollectCombatProfileTargetCoords(
                 GetBattleState(),
                 GetBattleGridService(),
-                activeUnit.coord,
+                activeUnit.GetAnchorCoord(),
                 combatProfile,
                 targetCoords,
                 activeUnit,
@@ -2132,42 +2133,42 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private BattleUnitState GetManualActiveUnit()
     {
-        return Runtime?.GetManualBattleUnit();
+        return Port?.GetManualBattleUnit();
     }
 
     private BattleUnitState GetRuntimeActiveUnit()
     {
-        return Runtime?.GetRuntimeBattleActiveUnit();
+        return Port?.GetRuntimeBattleActiveUnit();
     }
 
     private BattleUnitState GetRuntimeUnitAtCoord(Vector2I coord)
     {
-        return Runtime?.GetRuntimeBattleUnitAtCoord(coord);
+        return Port?.GetRuntimeBattleUnitAtCoord(coord);
     }
 
     private BattleUnitState GetBattleUnitById(StringName unitId)
     {
-        return Runtime?.GetRuntimeBattleUnitById(unitId);
+        return Port?.GetRuntimeBattleUnitById(unitId);
     }
 
     private BattleState GetBattleState()
     {
-        return Runtime?.GetBattleState();
+        return Port?.GetBattleState();
     }
 
     private BattleGridService GetBattleGridService()
     {
-        return Runtime?.GetBattleGridService();
+        return Port?.GetBattleGridService();
     }
 
     private ISkillCatalog GetSkillCatalog()
     {
-        return Runtime?.GetSkillCatalogTyped();
+        return Port?.GetSkillCatalog();
     }
 
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings()
     {
-        return Runtime?.GetBattleRuntime()?.GetEquipmentAbilityBindingIndexTyped();
+        return Port?.GetEquipmentAbilityBindings();
     }
 
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(
@@ -2186,7 +2187,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 Consumer = consumer,
                 IncludeEquipmentSkills = true,
                 WorldStep = GetBattleWorldStep(),
-                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
+                BattleState = GetBattleState(),
             }
         );
     }
@@ -2209,7 +2210,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 Consumer = consumer,
                 IncludeEquipmentSkills = true,
                 WorldStep = GetBattleWorldStep(),
-                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
+                BattleState = GetBattleState(),
             },
             index,
             out entry
@@ -2234,21 +2235,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable
                 Consumer = consumer,
                 IncludeEquipmentSkills = true,
                 WorldStep = GetBattleWorldStep(),
-                BattleState = Runtime?.GetBattleRuntime()?.GetState(),
+                BattleState = GetBattleState(),
             },
             skillEntryId,
             out entry
         );
     }
 
-    private int GetBattleWorldStep() =>
-        Runtime?.GetBattleRuntime()?.GetBattleWorldStep()
-        ?? Runtime?.GetWorldStep()
-        ?? -1;
+    private int GetBattleWorldStep() => Port?.GetBattleWorldStep() ?? -1;
 
     private BattlePreview PreviewBattleCommand(BattleCommand command)
     {
-        return Runtime?.PreviewBattleCommand(command);
+        return Port?.PreviewBattleCommand(command);
     }
 
     private BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
@@ -2279,7 +2277,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable
             skill_variant_id =
                 castVariant?.VariantId ?? GetDefaultUnitSkillVariantId(activeUnit, skillDefinition),
             target_unit_id = targetUnit.unit_id,
-            target_coord = targetUnit.coord,
+            target_coord = targetUnit.GetAnchorCoord(),
         };
         BattlePreview preview = PreviewBattleCommand(command);
         if (preview != null && preview.allowed)
@@ -2295,81 +2293,81 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private BattleRefreshMode IssueBattleCommand(BattleCommand command)
     {
-        return Runtime?.IssueBattleCommand(command) ?? BattleRefreshMode.Overlay;
+        return Port?.IssueBattleCommand(command) ?? BattleRefreshMode.Overlay;
     }
 
     private void RefreshBattleSelectionState()
     {
-        Runtime?.RefreshBattleSelectionState();
+        Port?.RefreshBattleSelectionState();
     }
 
     private void UpdateStatus(string message)
     {
-        Runtime?.UpdateStatus(message);
+        Port?.UpdateStatus(message);
     }
 
     private string FormatCoord(Vector2I coord)
     {
-        return Runtime?.FormatCoord(coord) ?? $"({coord.X},{coord.Y})";
+        return Port?.FormatCoord(coord) ?? $"({coord.X},{coord.Y})";
     }
 
     private bool IsBattleActive()
     {
-        return Runtime?.IsBattleActive() ?? false;
+        return Port?.IsBattleActive() ?? false;
     }
 
     private StringName GetSelectedSkillId()
     {
-        return Runtime?.GetSelectedBattleSkillId() ?? new StringName("");
+        return Port?.GetSelectedSkillId() ?? new StringName("");
     }
 
     private StringName GetSelectedSkillEntryId()
     {
-        return Runtime?.GetSelectedBattleSkillEntryId() ?? new StringName("");
+        return Port?.GetSelectedSkillEntryId() ?? new StringName("");
     }
 
     private void SetSelectedSkillEntryId(StringName skillEntryId)
     {
-        Runtime?.SetBattleSelectionSkillEntryId(skillEntryId);
+        Port?.SetSelectedSkillEntryId(skillEntryId);
     }
 
     private void SetSelectedSkillId(StringName skillId)
     {
-        Runtime?.SetBattleSelectionSkillId(skillId);
+        Port?.SetSelectedSkillId(skillId);
     }
 
     private StringName GetSelectedSkillVariantId()
     {
-        return Runtime?.GetSelectedBattleSkillVariantId() ?? new StringName("");
+        return Port?.GetSelectedSkillVariantId() ?? new StringName("");
     }
 
     private void SetSelectedSkillVariantId(StringName optionId)
     {
-        Runtime?.SetBattleSelectionSkillVariantId(optionId);
+        Port?.SetSelectedSkillVariantId(optionId);
     }
 
     private StringName GetLastManualUnitId()
     {
-        return Runtime?.GetBattleSelectionLastManualUnitId() ?? new StringName("");
+        return Port?.GetLastManualUnitId() ?? new StringName("");
     }
 
     private void SetLastManualUnitId(StringName unitId)
     {
-        Runtime?.SetBattleSelectionLastManualUnitId(unitId);
+        Port?.SetLastManualUnitId(unitId);
     }
 
     private List<Vector2I> GetTargetCoordsStateTyped()
     {
-        if (Runtime == null)
+        if (Port == null)
         {
             return new List<Vector2I>();
         }
-        return new List<Vector2I>(Runtime.GetBattleSelectionTargetCoordsStateTyped());
+        return new List<Vector2I>(Port.GetTargetCoords());
     }
 
     private void SetTargetCoordsStateTyped(IEnumerable<Vector2I> targetCoords)
     {
-        Runtime?.SetBattleSelectionTargetCoordsStateTyped(targetCoords ?? Array.Empty<Vector2I>());
+        Port?.SetTargetCoords(targetCoords ?? Array.Empty<Vector2I>());
     }
 
     private void ClearTargetCoordsState()
@@ -2379,16 +2377,16 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private List<StringName> GetTargetUnitIdsStateTyped()
     {
-        if (Runtime == null)
+        if (Port == null)
         {
             return new List<StringName>();
         }
-        return new List<StringName>(Runtime.GetBattleSelectionTargetUnitIdsStateTyped());
+        return new List<StringName>(Port.GetTargetUnitIds());
     }
 
     private void SetTargetUnitIdsStateTyped(IEnumerable<StringName> targetUnitIds)
     {
-        Runtime?.SetBattleSelectionTargetUnitIdsStateTyped(targetUnitIds ?? Array.Empty<StringName>());
+        Port?.SetTargetUnitIds(targetUnitIds ?? Array.Empty<StringName>());
     }
 
     private void ClearTargetUnitIdsState()
@@ -2398,20 +2396,17 @@ public sealed class GameRuntimeBattleSelection : IDisposable
 
     private void SetBattleSelectedCoord(Vector2I coord)
     {
-        Runtime?.SetRuntimeBattleSelectedCoord(coord);
+        Port?.SetBattleSelectedCoord(coord);
     }
 
-    private static GameRuntimeFacade.RuntimeCommandResult SelectionOkTyped()
+    private static BattleSelectionCommandResult SelectionOkTyped()
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success();
+        return BattleSelectionCommandResult.Success();
     }
 
-    private static GameRuntimeFacade.RuntimeCommandResult SelectionErrorTyped(string message)
+    private static BattleSelectionCommandResult SelectionErrorTyped(string message)
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
-            message,
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
-        );
+        return BattleSelectionCommandResult.Failure(message);
     }
 
     private static int PosMod(int value, int modulo)
@@ -2436,9 +2431,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     private static StringNameList DuplicateStringNameArray(IEnumerable<StringName> values) =>
         new(values);
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static IGameRuntimeBattleSelectionPort ResolveWeakRef(
+        WeakReference<IGameRuntimeBattleSelectionPort> weakRef
+    )
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out IGameRuntimeBattleSelectionPort target)
+        )
         {
             return null;
         }

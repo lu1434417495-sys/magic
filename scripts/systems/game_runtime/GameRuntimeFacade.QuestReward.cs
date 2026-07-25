@@ -47,7 +47,7 @@ public sealed partial class GameRuntimeFacade
             if (
                 !battle_state.TryGetUnitTyped(enemyUnitId, out BattleUnitState enemyUnit)
                 || enemyUnit == null
-                || enemyUnit.is_alive
+                || enemyUnit.IsAlive()
                 || enemyUnit.enemy_template_id == ""
             )
             {

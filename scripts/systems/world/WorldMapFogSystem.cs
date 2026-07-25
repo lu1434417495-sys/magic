@@ -14,7 +14,7 @@ internal enum WorldMapFogStateKind
 public sealed class WorldMapFogSystem
 {
     internal const string WorldDataFogStatesKey = "fog_states";
-    internal const int PersistentStateVersion = 1;
+    internal const int PersistentStateVersion = 2;
 
     private Vector2I _world_size_cells = Vector2I.Zero;
     private readonly Dictionary<string, WorldMapFogFactionState> _statesByFaction =
@@ -168,10 +168,10 @@ public sealed class WorldMapFogSystem
         {
             factions[factionId] = new Dictionary<string, object>(StringComparer.Ordinal)
             {
-                ["explored"] = SerializeCoordKeysPlain(
+                ["explored"] = SerializeCoordsPlain(
                     GetOrCreateState(factionId).ExploredCoords
                 ),
-                ["revealed"] = SerializeCoordKeysPlain(GetRevealedState(factionId)),
+                ["revealed"] = SerializeCoordsPlain(GetRevealedState(factionId)),
             };
         }
         return new Dictionary<string, object>(StringComparer.Ordinal)
@@ -343,7 +343,74 @@ public sealed class WorldMapFogSystem
         return orderedIds;
     }
 
-    private List<object> SerializeCoordKeysPlain(IEnumerable<Vector2I> coordSet)
+    internal static string GetPersistentStateSchemaValidationError(
+        GDictionary persistentState
+    )
+    {
+        if (persistentState == null)
+            return "expected Dictionary.";
+        if (
+            persistentState.Count != 2
+            || !persistentState.ContainsKey("version")
+            || !persistentState.ContainsKey("factions")
+        )
+        {
+            return "fields must exactly match current schema.";
+        }
+        if (persistentState["version"].VariantType != Variant.Type.Int)
+            return "version must be an int.";
+        if (persistentState["version"].AsInt32() != PersistentStateVersion)
+            return $"version must be {PersistentStateVersion}.";
+        if (persistentState["factions"].VariantType != Variant.Type.Dictionary)
+            return "factions must be a Dictionary.";
+
+        using GDictionary factions = persistentState["factions"].AsGodotDictionary();
+        foreach (KeyValuePair<Variant, Variant> factionEntry in factions)
+        {
+            Variant factionKey = factionEntry.Key;
+            if (
+                factionKey.VariantType != Variant.Type.String
+                && factionKey.VariantType != Variant.Type.StringName
+            )
+            {
+                return "faction keys must be String.";
+            }
+            string factionId = factionKey.ToString().StripEdges();
+            if (string.IsNullOrEmpty(factionId))
+                return "faction id must be non-empty.";
+            if (!factionEntry.Value.TryAsDictionary(out GDictionary factionPayload))
+                return $"factions[{factionId}] must be a Dictionary.";
+            using (factionPayload)
+            {
+                if (
+                    factionPayload.Count != 2
+                    || !factionPayload.ContainsKey("explored")
+                    || !factionPayload.ContainsKey("revealed")
+                )
+                {
+                    return $"factions[{factionId}] fields must exactly match current schema.";
+                }
+                foreach (string coordArrayField in new[] { "explored", "revealed" })
+                {
+                    if (factionPayload[coordArrayField].VariantType != Variant.Type.Array)
+                    {
+                        return $"factions[{factionId}].{coordArrayField} must be an Array.";
+                    }
+                    using GArray coordValues = factionPayload[coordArrayField].AsGodotArray();
+                    foreach (Variant coordValue in coordValues)
+                    {
+                        if (coordValue.VariantType != Variant.Type.Vector2I)
+                        {
+                            return $"factions[{factionId}].{coordArrayField} must contain native Vector2i values.";
+                        }
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    private List<object> SerializeCoordsPlain(IEnumerable<Vector2I> coordSet)
     {
         var coords = new List<Vector2I>();
         foreach (Vector2I coord in coordSet)
@@ -354,16 +421,10 @@ public sealed class WorldMapFogSystem
             }
         }
         coords.Sort(CompareCoords);
-        var serialized = new List<object>();
+        var serialized = new List<object>(coords.Count);
         foreach (Vector2I coord in coords)
         {
-            serialized.Add(
-                new Dictionary<string, object>(StringComparer.Ordinal)
-                {
-                    ["x"] = coord.X,
-                    ["y"] = coord.Y,
-                }
-            );
+            serialized.Add(coord);
         }
         return serialized;
     }
@@ -381,34 +442,18 @@ public sealed class WorldMapFogSystem
             return CoordParseResult.Fail();
         }
         using GArray coordValues = payload[key].AsGodotArray();
-        foreach (var coordValue in coordValues)
+        foreach (Variant coordValue in coordValues)
         {
-            if (!coordValue.TryAsDictionary(out GDictionary coordPayload))
+            if (coordValue.VariantType != Variant.Type.Vector2I)
+                return CoordParseResult.Fail();
+            Vector2I coord = coordValue.AsVector2I();
+            if (!IsInsideWorld(coord))
             {
                 return CoordParseResult.Fail();
             }
-            using (coordPayload)
+            if (seen.Add(coord))
             {
-                if (!coordPayload.ContainsKey("x") || !coordPayload.ContainsKey("y"))
-                {
-                    return CoordParseResult.Fail();
-                }
-                if (
-                    coordPayload["x"].VariantType != Variant.Type.Int
-                    || coordPayload["y"].VariantType != Variant.Type.Int
-                )
-                {
-                    return CoordParseResult.Fail();
-                }
-                Vector2I coord = new(coordPayload["x"].AsInt32(), coordPayload["y"].AsInt32());
-                if (!IsInsideWorld(coord))
-                {
-                    return CoordParseResult.Fail();
-                }
-                if (seen.Add(coord))
-                {
-                    coords.Add(coord);
-                }
+                coords.Add(coord);
             }
         }
         return CoordParseResult.Success(coords);

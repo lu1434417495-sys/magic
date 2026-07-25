@@ -337,15 +337,38 @@ public sealed partial class GameRuntimeFacade
             "settlement",
             new GDictionary
             {
-                ["settlement_id"] = request.SettlementId.ToString(),
-                ["service_id"] = request.ServiceId.ToString(),
-                ["action_id"] = request.ActionId.ToString(),
-                ["member_id"] = request.MemberId.ToString(),
+                ["settlement_id"] = SettlementActionRequest.ToText(request.SettlementId),
+                ["service_id"] = SettlementActionRequest.ToText(request.ServiceId),
+                ["action_id"] = SettlementActionRequest.ToText(request.ActionId),
+                ["member_id"] = SettlementActionRequest.ToText(request.MemberId),
                 ["quantity"] = request.Quantity,
                 ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(request.Source),
             },
             () =>
                 _settlement_command_handler.CommandExecuteSettlementActionRuntimeTyped(
+                    request
+                )
+        );
+
+    internal RuntimeCommandResult CommandExecuteForgeActionTyped(
+        ForgeActionRequest request
+    ) =>
+        ExecuteLoggedCommandTyped(
+            "settlement.execute_action",
+            "settlement",
+            new GDictionary
+            {
+                ["settlement_id"] = SettlementActionRequest.ToText(request.SettlementId),
+                ["service_id"] = SettlementActionRequest.ToText(request.ServiceId),
+                ["action_id"] = SettlementActionRequest.ToText(request.ActionId),
+                ["member_id"] = SettlementActionRequest.ToText(request.MemberId),
+                ["recipe_id"] = SettlementActionRequest.ToText(request.RecipeId),
+                ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
+                    SettlementSubmissionSource.Forge
+                ),
+            },
+            () =>
+                _settlement_command_handler.CommandExecuteForgeActionRuntimeTyped(
                     request
                 )
         );
@@ -856,9 +879,6 @@ public sealed partial class GameRuntimeFacade
         _command_logger.LogBattleBatchEntries(batch);
 
     private GDictionary _build_battle_log_state() => _command_logger.BuildBattleLogState();
-
-    private GDictionary _build_battle_batch_log_context(BattleEventBatch batch) =>
-        _command_logger.BuildBattleBatchLogContext(batch);
 
     private string ResolveCommandSettlementId() =>
         _settlement_command_handler.ResolveCommandSettlementId();

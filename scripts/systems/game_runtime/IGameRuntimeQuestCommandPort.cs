@@ -42,11 +42,18 @@ internal readonly struct QuestCommandStateData
     internal bool IsActive { get; }
     internal bool IsClaimable { get; }
     internal bool IsCompleted { get; }
+    internal bool IsFailed { get; }
 
-    internal QuestCommandStateData(bool isActive, bool isClaimable, bool isCompleted)
+    internal QuestCommandStateData(
+        bool isActive,
+        bool isClaimable,
+        bool isCompleted,
+        bool isFailed
+    )
     {
         IsActive = isActive;
         IsClaimable = isClaimable;
         IsCompleted = isCompleted;
+        IsFailed = isFailed;
     }
 }

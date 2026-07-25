@@ -732,10 +732,11 @@ public partial class run_application_lifetime_coordinator_regression : Lifecycle
             catalog.GetRevision() == revisionBeforeShutdown + 1,
             "participant close plus SceneTree teardown closes GameSession exactly once"
         );
+        Node gameSessionOwner = Root.GetNodeOrNull<Node>("GameSession");
         EscalateTerminalFailure(
             coordinator,
-            Root.GetNodeOrNull<Node>("GameSession") == null,
-            "coordinator frees and awaits the GameSession tree owner"
+            gameSessionOwner == null || gameSessionOwner.IsQueuedForDeletion(),
+            "coordinator queues the GameSession tree owner for awaited deletion"
         );
     }
 

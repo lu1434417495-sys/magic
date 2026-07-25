@@ -8,6 +8,40 @@ using Godot;
 public partial class run_direct_field_write_guard_regression : LifecycleTestSceneTree
 {
     private readonly TestHarness _test = new();
+    private static readonly string[] BattleUnitWeaponFieldNames =
+    {
+        "weapon_profile_kind",
+        "weapon_item_id",
+        "weapon_profile_type_id",
+        "weapon_range_type",
+        "weapon_family",
+        "weapon_current_grip",
+        "weapon_attack_range",
+        "weapon_one_handed_dice",
+        "weapon_two_handed_dice",
+        "weapon_is_versatile",
+        "weapon_uses_two_hands",
+        "weapon_physical_damage_tag",
+    };
+    private static readonly string[] BattleUnitCombatResourceFieldNames =
+    {
+        "current_hp",
+        "current_mp",
+        "current_stamina",
+        "current_aura",
+        "current_ap",
+        "current_move_points",
+        "stamina_recovery_progress",
+        "is_alive",
+    };
+    private static readonly string[] BattleUnitGeometryFieldNames =
+    {
+        "coord",
+        "body_size",
+        "body_size_category",
+        "footprint_size",
+        "occupied_coords",
+    };
 
     private static readonly Dictionary<string, HashSet<string>> ProtectedOwnerFields =
         new(StringComparer.Ordinal)
@@ -46,6 +80,7 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                 "current_aura",
                 "current_ap",
                 "current_move_points",
+                "stamina_recovery_progress",
                 "is_alive",
                 "coord",
                 "body_size",
@@ -54,7 +89,19 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                 "occupied_coords",
                 "status_effects",
                 "known_active_skill_ids",
-                "versatility_pick"
+                "versatility_pick",
+                "weapon_profile_kind",
+                "weapon_item_id",
+                "weapon_profile_type_id",
+                "weapon_range_type",
+                "weapon_family",
+                "weapon_current_grip",
+                "weapon_attack_range",
+                "weapon_one_handed_dice",
+                "weapon_two_handed_dice",
+                "weapon_is_versatile",
+                "weapon_uses_two_hands",
+                "weapon_physical_damage_tag"
             ),
             ["BattleCellState"] = NewFieldSet("coord"),
             ["PartyState"] = NewFieldSet("member_states"),
@@ -130,10 +177,10 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
     );
 
     private const string ProtectedFieldPattern =
-        "current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|is_alive|is_dead|coord|body_size|body_size_category|footprint_size|occupied_coords|status_effects|known_active_skill_ids|member_states|race_id|subrace_id|age_years|birth_at_world_step|age_profile_id|natural_age_stage_id|effective_age_stage_id|effective_age_stage_source_type|effective_age_stage_source_id|bloodline_id|bloodline_stage_id|ascension_id|ascension_stage_id|ascension_started_at_world_step|original_race_id_before_ascension|biological_age_years|astral_memory_years|versatility_pick|active_stage_advancement_modifier_ids";
+        "current_hp|current_mp|current_stamina|current_aura|current_ap|current_move_points|stamina_recovery_progress|is_alive|is_dead|coord|body_size|body_size_category|footprint_size|occupied_coords|status_effects|known_active_skill_ids|member_states|race_id|subrace_id|age_years|birth_at_world_step|age_profile_id|natural_age_stage_id|effective_age_stage_id|effective_age_stage_source_type|effective_age_stage_source_id|bloodline_id|bloodline_stage_id|ascension_id|ascension_stage_id|ascension_started_at_world_step|original_race_id_before_ascension|biological_age_years|astral_memory_years|versatility_pick|active_stage_advancement_modifier_ids|weapon_profile_kind|weapon_item_id|weapon_profile_type_id|weapon_range_type|weapon_family|weapon_current_grip|weapon_attack_range|weapon_one_handed_dice|weapon_two_handed_dice|weapon_is_versatile|weapon_uses_two_hands|weapon_physical_damage_tag";
 
-    private const string BattleUnitStateOwnerPath =
-        "scripts/systems/battle/core/BattleUnitState.cs";
+    private const string BattleUnitGeometryOwnerPath =
+        "scripts/systems/battle/core/BattleUnitGeometryState.cs";
 
     private static readonly Regex ExternalFootprintRefreshPattern = new(
         @"\.\s*RefreshFootprint\s*\(",
@@ -169,6 +216,34 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
             public sealed class BattleAiUnitSnapshot
             {
                 public int current_hp;
+                public int current_mp;
+                public int current_stamina;
+                public int current_aura;
+                public int current_ap;
+                public int current_move_points;
+                public int stamina_recovery_progress;
+                public bool is_alive;
+                public Vector2I coord;
+                public int body_size;
+                public StringName body_size_category;
+                public Vector2I footprint_size;
+                public Vector2IList occupied_coords;
+            }
+
+            public sealed class WeaponProjection
+            {
+                public StringName weapon_profile_kind;
+                public StringName weapon_item_id;
+                public StringName weapon_profile_type_id;
+                public StringName weapon_range_type;
+                public StringName weapon_family;
+                public StringName weapon_current_grip;
+                public int weapon_attack_range;
+                public WeaponDice weapon_one_handed_dice;
+                public WeaponDice weapon_two_handed_dice;
+                public bool weapon_is_versatile;
+                public bool weapon_uses_two_hands;
+                public StringName weapon_physical_damage_tag;
             }
 
             public sealed class Probe
@@ -179,6 +254,63 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                     context.versatility_pick = "agility";
                     var snapshot = new BattleAiUnitSnapshot();
                     snapshot.current_hp = 10;
+                    snapshot.current_mp = 9;
+                    snapshot.current_stamina = 8;
+                    snapshot.current_aura = 7;
+                    snapshot.current_ap = 6;
+                    snapshot.current_move_points = 5;
+                    snapshot.stamina_recovery_progress = 4;
+                    snapshot.is_alive = true;
+                    snapshot.coord = Vector2I.Zero;
+                    snapshot.body_size = 2;
+                    snapshot.body_size_category = "medium";
+                    snapshot.footprint_size = Vector2I.One;
+                    snapshot.occupied_coords = new();
+                    var snapshotFromInitializer = new BattleAiUnitSnapshot
+                    {
+                        current_hp = 10,
+                        current_mp = 9,
+                        current_stamina = 8,
+                        current_aura = 7,
+                        current_ap = 6,
+                        current_move_points = 5,
+                        stamina_recovery_progress = 4,
+                        is_alive = true,
+                        coord = Vector2I.Zero,
+                        body_size = 2,
+                        body_size_category = "medium",
+                        footprint_size = Vector2I.One,
+                        occupied_coords = new(),
+                    };
+                    WeaponProjection projection = new();
+                    projection.weapon_profile_kind = "equipped";
+                    projection.weapon_item_id = "test_weapon";
+                    projection.weapon_profile_type_id = "test_profile";
+                    projection.weapon_range_type = "melee";
+                    projection.weapon_family = "sword";
+                    projection.weapon_current_grip = "one_handed";
+                    projection.weapon_attack_range = 1;
+                    projection.weapon_one_handed_dice = new();
+                    projection.weapon_two_handed_dice = new();
+                    projection.weapon_is_versatile = true;
+                    projection.weapon_uses_two_hands = false;
+                    projection.weapon_physical_damage_tag = "physical_slash";
+
+                    WeaponProjection projectionFromInitializer = new()
+                    {
+                        weapon_profile_kind = "natural",
+                        weapon_item_id = "",
+                        weapon_profile_type_id = "claw",
+                        weapon_range_type = "melee",
+                        weapon_family = "claw",
+                        weapon_current_grip = "one_handed",
+                        weapon_attack_range = 1,
+                        weapon_one_handed_dice = new(),
+                        weapon_two_handed_dice = new(),
+                        weapon_is_versatile = false,
+                        weapon_uses_two_hands = false,
+                        weapon_physical_damage_tag = "physical_slash",
+                    };
                 }
             }
             """;
@@ -202,9 +334,30 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                     member.versatility_pick = "strength";
                     var unit = new BattleUnitState();
                     unit.current_hp = 1;
+                    unit.current_mp = 2;
+                    unit.current_stamina = 3;
+                    unit.current_aura = 4;
+                    unit.current_ap = 5;
+                    unit.current_move_points = 6;
+                    unit.stamina_recovery_progress = 7;
+                    unit.is_alive = true;
                     unit.coord = Vector2I.Zero;
+                    unit.body_size = 2;
+                    unit.body_size_category = "medium";
                     unit.footprint_size = Vector2I.One;
                     unit.occupied_coords = new();
+                    unit.weapon_profile_kind = "equipped";
+                    unit.weapon_item_id = "test_weapon";
+                    unit.weapon_profile_type_id = "test_profile";
+                    unit.weapon_range_type = "melee";
+                    unit.weapon_family = "sword";
+                    unit.weapon_current_grip = "one_handed";
+                    unit.weapon_attack_range = 1;
+                    unit.weapon_one_handed_dice = new();
+                    unit.weapon_two_handed_dice = new();
+                    unit.weapon_is_versatile = true;
+                    unit.weapon_uses_two_hands = false;
+                    unit.weapon_physical_damage_tag = "physical_slash";
                     PartyState party = new();
                     party.member_states = new();
                 }
@@ -214,33 +367,47 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         List<string> violations = FindViolationsForSource("tests/synthetic/protected_owner.cs", source);
         _test.Eq(
             violations.Count,
-            6,
+            27,
             $"受保护 owner 字段直接写入应被识别。violations={string.Join("\n", violations)}"
         );
         _test.True(
             ContainsViolation(violations, "PartyMemberState.versatility_pick"),
             "PartyMemberState.versatility_pick 直接写入应被 guard 拦截。"
         );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.current_hp"),
-            "BattleUnitState.current_hp 直接写入应被 guard 拦截。"
-        );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.coord"),
-            "BattleUnitState.coord 直接写入应被 guard 拦截。"
-        );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.footprint_size"),
-            "BattleUnitState.footprint_size 直接写入应被 guard 拦截。"
-        );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.occupied_coords"),
-            "BattleUnitState.occupied_coords 直接写入应被 guard 拦截。"
-        );
+        foreach (string fieldName in BattleUnitCombatResourceFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} 直接写入应被 guard 拦截。"
+            );
+        }
+        foreach (string fieldName in BattleUnitGeometryFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} 直接写入应被 guard 拦截。"
+            );
+        }
         _test.True(
             ContainsViolation(violations, "PartyState.member_states"),
             "PartyState.member_states 直接写入应被 guard 拦截。"
         );
+        foreach (string fieldName in BattleUnitWeaponFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} 直接写入应被 guard 拦截。"
+            );
+        }
     }
 
     private void TestScannerRejectsProtectedOwnerObjectInitializers()
@@ -253,7 +420,30 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
                     var unit = new BattleUnitState
                     {
                         current_hp = 1,
+                        current_mp = 2,
+                        current_stamina = 3,
+                        current_aura = 4,
+                        current_ap = 5,
+                        current_move_points = 6,
+                        stamina_recovery_progress = 7,
+                        is_alive = true,
                         coord = Vector2I.Zero,
+                        body_size = 2,
+                        body_size_category = "medium",
+                        footprint_size = Vector2I.One,
+                        occupied_coords = new(),
+                        weapon_profile_kind = "equipped",
+                        weapon_item_id = "test_weapon",
+                        weapon_profile_type_id = "test_profile",
+                        weapon_range_type = "melee",
+                        weapon_family = "sword",
+                        weapon_current_grip = "one_handed",
+                        weapon_attack_range = 1,
+                        weapon_one_handed_dice = new(),
+                        weapon_two_handed_dice = new(),
+                        weapon_is_versatile = true,
+                        weapon_uses_two_hands = false,
+                        weapon_physical_damage_tag = "physical_slash",
                     };
                     PartyMemberState member = new()
                     {
@@ -266,21 +456,43 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         List<string> violations = FindViolationsForSource("tests/synthetic/object_initializer.cs", source);
         _test.Eq(
             violations.Count,
-            3,
+            26,
             $"受保护 owner 字段 object initializer 写入应被识别。violations={string.Join("\n", violations)}"
         );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.current_hp"),
-            "BattleUnitState.current_hp object initializer 写入应被 guard 拦截。"
-        );
-        _test.True(
-            ContainsViolation(violations, "BattleUnitState.coord"),
-            "BattleUnitState.coord object initializer 写入应被 guard 拦截。"
-        );
+        foreach (string fieldName in BattleUnitCombatResourceFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} object initializer 写入应被 guard 拦截。"
+            );
+        }
+        foreach (string fieldName in BattleUnitGeometryFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} object initializer 写入应被 guard 拦截。"
+            );
+        }
         _test.True(
             ContainsViolation(violations, "PartyMemberState.current_mp"),
             "target-typed PartyMemberState.current_mp object initializer 写入应被 guard 拦截。"
         );
+        foreach (string fieldName in BattleUnitWeaponFieldNames)
+        {
+            _test.True(
+                ContainsViolation(
+                    violations,
+                    $"BattleUnitState.{fieldName}"
+                ),
+                $"BattleUnitState.{fieldName} object initializer 写入应被 guard 拦截。"
+            );
+        }
     }
 
     private void TestScannerResolvesProtectedOwnerThroughMemberChain()
@@ -357,12 +569,15 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
         _test.Eq(
             violations.Count,
             1,
-            "BattleUnitState 之外不得重新引入 RefreshFootprint 查询式调用。"
+            "BattleUnitGeometryState 之外不得重新引入 RefreshFootprint 查询式调用。"
         );
         _test.Eq(
-            FindExternalFootprintRefreshViolations(BattleUnitStateOwnerPath, source).Count,
+            FindExternalFootprintRefreshViolations(
+                BattleUnitGeometryOwnerPath,
+                source
+            ).Count,
             0,
-            "BattleUnitState owner 文件内部允许维护自身投影。"
+            "BattleUnitGeometryState owner 文件内部允许维护自身投影。"
         );
     }
 
@@ -394,7 +609,13 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
     )
     {
         var violations = new List<string>();
-        if (string.Equals(repoPath, BattleUnitStateOwnerPath, StringComparison.Ordinal))
+        if (
+            string.Equals(
+                repoPath,
+                BattleUnitGeometryOwnerPath,
+                StringComparison.Ordinal
+            )
+        )
             return violations;
 
         string[] lines = SanitizeSource(source).Replace("\r\n", "\n").Split('\n');
@@ -403,7 +624,7 @@ public partial class run_direct_field_write_guard_regression : LifecycleTestScen
             if (!ExternalFootprintRefreshPattern.IsMatch(lines[index]))
                 continue;
             violations.Add(
-                $"{repoPath}:{index + 1}: 禁止在 BattleUnitState owner 外调用 RefreshFootprint；读路径必须保持纯只读。"
+                $"{repoPath}:{index + 1}: 禁止在 BattleUnitGeometryState owner 外调用 RefreshFootprint；读路径必须保持纯只读。"
             );
         }
         return violations;

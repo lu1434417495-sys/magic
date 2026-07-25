@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -6,6 +7,8 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class ShopWindow : ModalWindowShell
 {
+    internal event Action<ForgeActionRequest> ForgeActionRequested;
+
     [Signal]
     public delegate void action_requestedEventHandler(
         string settlement_id,
@@ -452,6 +455,18 @@ public partial class ShopWindow : ModalWindowShell
         }
     }
 
+    private ForgeActionRequest _build_forge_action_request()
+    {
+        ShopEntry entry = _get_selected_entry();
+        return new ForgeActionRequest(
+            new StringName(_settlementId),
+            new StringName(_actionId),
+            new StringName(_actionId),
+            _selectedMemberId,
+            entry?.RecipeId ?? default
+        );
+    }
+
     private void _on_entry_selected(int index)
     {
         _select_entry(index);
@@ -493,6 +508,16 @@ public partial class ShopWindow : ModalWindowShell
         )
         {
             _show_confirmation_panel();
+            return;
+        }
+
+        if (_windowData.PanelKind == SettlementPanelKind.Forge)
+        {
+            ForgeActionRequest request = _build_forge_action_request();
+            if (!request.IsValid)
+                return;
+            HideWindow();
+            ForgeActionRequested?.Invoke(request);
             return;
         }
 
@@ -606,6 +631,13 @@ public partial class ShopWindow : ModalWindowShell
             List<ShopEntry> entries = BuildEntries(data);
             if (entries == null)
                 return null;
+            if (
+                panelKind == SettlementPanelKind.Forge
+                && entries.Exists(entry => entry.RecipeId == "")
+            )
+            {
+                return null;
+            }
 
             PartyState partyState = GetPartyState(data);
             List<MemberOption> memberOptions = BuildMemberOptions(data, partyState);
@@ -721,6 +753,7 @@ public partial class ShopWindow : ModalWindowShell
         public string CostLabel { get; private init; } = "";
         public bool IsEnabled { get; private init; }
         public string DisabledReason { get; private init; } = "";
+        public StringName RecipeId { get; private init; } = "";
         public Dictionary<string, object> Payload { get; private init; } = new();
 
         public static ShopEntry From(GDictionary data)
@@ -783,6 +816,7 @@ public partial class ShopWindow : ModalWindowShell
                 CostLabel = costLabel,
                 IsEnabled = isEnabled,
                 DisabledReason = disabledReason,
+                RecipeId = DictStringName(data, "recipe_id"),
                 Payload = payload,
             };
         }

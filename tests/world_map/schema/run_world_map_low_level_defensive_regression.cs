@@ -128,6 +128,16 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
                 LifetimeDomain.Request,
                 "WorldMapLowLevelDefensiveRegression.fog_state"
             );
+        using GDictionary factions = persistedStateLease.Value["factions"].AsGodotDictionary();
+        using GDictionary playerFogState = factions["player"].AsGodotDictionary();
+        using GArray exploredCoords = playerFogState["explored"].AsGodotArray();
+        using GArray revealedStateCoords = playerFogState["revealed"].AsGodotArray();
+        _test.True(
+            exploredCoords.Count > 0
+                && AllCoordsAreNativeVector2I(exploredCoords)
+                && AllCoordsAreNativeVector2I(revealedStateCoords),
+            "迷雾持久态的 explored/revealed 数组应只包含原生 Vector2I。"
+        );
         var restoredFogSystem = new WorldMapFogSystem();
         restoredFogSystem.Setup(new Vector2I(8, 8), persistedStateLease.Value);
 
@@ -181,6 +191,16 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
             revealRevision,
             "重复揭示同一区域不应制造虚假的 persistent revision。"
         );
+    }
+
+    private static bool AllCoordsAreNativeVector2I(GArray coords)
+    {
+        foreach (Variant coord in coords)
+        {
+            if (coord.VariantType != Variant.Type.Vector2I)
+                return false;
+        }
+        return true;
     }
 
 }

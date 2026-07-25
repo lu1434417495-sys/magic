@@ -49,12 +49,8 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
                 "close party 后应清空 modal。"
             );
 
-            runtime.SetPendingWorldPromotionPromptStatePlain(
-                new Dictionary<string, object>(System.StringComparer.Ordinal)
-                {
-                    ["member_id"] = "player_sword_01",
-                    ["choices"] = new List<object>(),
-                }
+            runtime.SetPendingWorldPromotionPromptState(
+                BuildPromotionPrompt("player_sword_01")
             );
             _test.True(
                 runtime.PresentPendingRewardIfReady(),
@@ -147,6 +143,24 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
             entries = new List<PendingCharacterRewardEntry> { entry },
         };
     }
+
+    private static GameRuntimePromotionPromptContext BuildPromotionPrompt(StringName memberId) =>
+        new(
+            memberId,
+            memberId.ToString(),
+            new[]
+            {
+                new GameRuntimePromotionChoiceContext(
+                    "test_profession",
+                    "Test Profession",
+                    "Rank 1",
+                    "",
+                    System.Array.Empty<StringName>(),
+                    "",
+                    PromotionSelectionData.Empty
+                ),
+            }
+        );
 
     private static string SnapshotString(
         IReadOnlyDictionary<string, object> snapshot,

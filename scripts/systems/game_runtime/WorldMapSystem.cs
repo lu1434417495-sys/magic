@@ -998,14 +998,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
     }
 
-    public void _on_forge_service_modal_action_requested(
-        string _settlement_id,
-        string action_id,
-        GDictionary payload
-    )
+    private void _on_forge_service_modal_action_requested(ForgeActionRequest request)
     {
         if (_runtime != null)
-            _runtime_proxy.CommandExecuteSettlementAction(action_id, payload);
+            _runtime_proxy.CommandExecuteForgeAction(request);
     }
 
     public void _on_stagecoach_service_modal_action_requested(
@@ -1372,7 +1368,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         contract_board_service_modal.closed += _on_contract_board_service_modal_closed;
         shop_service_modal.action_requested += _on_shop_service_modal_action_requested;
         shop_service_modal.closed += _on_shop_service_modal_closed;
-        forge_service_modal.action_requested += _on_forge_service_modal_action_requested;
+        forge_service_modal.ForgeActionRequested +=
+            _on_forge_service_modal_action_requested;
         forge_service_modal.closed += _on_forge_service_modal_closed;
         stagecoach_service_modal.action_requested += _on_stagecoach_service_modal_action_requested;
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
@@ -1439,7 +1436,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
         if (forge_service_modal != null)
         {
-            forge_service_modal.action_requested -= _on_forge_service_modal_action_requested;
+            forge_service_modal.ForgeActionRequested -=
+                _on_forge_service_modal_action_requested;
             forge_service_modal.closed -= _on_forge_service_modal_closed;
         }
         if (stagecoach_service_modal != null)

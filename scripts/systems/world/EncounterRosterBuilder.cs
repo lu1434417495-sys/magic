@@ -146,6 +146,9 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
+    // Canonical Godot projection boundary only. Formal battle startup must
+    // consume BuildEnemyUnitStatesFromDefinitions so runtime-only unit state
+    // does not cross a lossy codec round-trip.
     internal GodotProjectionLease<GArray> BuildEnemyUnitsLease(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
@@ -171,6 +174,8 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
+    // Canonical Godot projection boundary only; not an internal runtime
+    // handoff for the returned BattleUnitState graph.
     internal GodotProjectionLease<GArray> BuildEnemyUnitsFromDefinitionsLease(
         EncounterAnchorData encounterAnchor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
@@ -183,19 +188,18 @@ public sealed class EncounterRosterBuilder : IDisposable
         int? enemyUnitCountOverride = null
     )
     {
-        EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
-            encounterAnchor,
-            skillDefinitions,
-            enemyTemplates,
-            enemyAiBrains,
-            itemDefs,
-            traitDefs,
-            equipmentAbilityBindings,
-            growthStageOverride,
-            enemyUnitCountOverride,
-            allowSetupEnemyTemplateFallback: false
-        );
-        List<BattleUnitState> units = BuildEnemyUnitsWithContext(encounterAnchor, buildContext);
+        IReadOnlyList<BattleUnitState> units =
+            BuildEnemyUnitStatesFromDefinitions(
+                encounterAnchor,
+                skillDefinitions,
+                enemyTemplates,
+                enemyAiBrains,
+                itemDefs,
+                traitDefs,
+                equipmentAbilityBindings,
+                growthStageOverride,
+                enemyUnitCountOverride
+            );
         var root = new GArray();
         GodotProjectionLease<GArray> lease = GodotProjectionLease<GArray>.CreateOwnedRoot(
             root,
@@ -224,6 +228,38 @@ public sealed class EncounterRosterBuilder : IDisposable
             lease.Dispose();
             throw;
         }
+    }
+
+    internal IReadOnlyList<BattleUnitState>
+        BuildEnemyUnitStatesFromDefinitions(
+            EncounterAnchorData encounterAnchor,
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+            IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+            IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyAiBrains,
+            IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+            IReadOnlyDictionary<StringName, TraitDefinition> traitDefs = null,
+            IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+                equipmentAbilityBindings = null,
+            int? growthStageOverride = null,
+            int? enemyUnitCountOverride = null
+        )
+    {
+        EncounterBuildContextData buildContext = BuildEncounterBuildContextFromTyped(
+            encounterAnchor,
+            skillDefinitions,
+            enemyTemplates,
+            enemyAiBrains,
+            itemDefs,
+            traitDefs,
+            equipmentAbilityBindings,
+            growthStageOverride,
+            enemyUnitCountOverride,
+            allowSetupEnemyTemplateFallback: false
+        );
+        return BuildEnemyUnitsWithContext(
+            encounterAnchor,
+            buildContext
+        );
     }
 
     internal IReadOnlyList<BattleScenarioActorSpawnRequest>
@@ -727,23 +763,35 @@ public sealed class EncounterRosterBuilder : IDisposable
                         ? template.GetInitialStateId(brain)
                         : new StringName("engage"),
                 ai_blackboard = new BattleAiBlackboard(),
-                action_threshold =
-                    template != null
-                        ? template.ActionThreshold
-                        : BattleUnitState.DefaultActionThreshold,
             };
+            unitState.SetActionThresholdTyped(
+                template != null
+                    ? template.ActionThreshold
+                    : BattleUnitState.DefaultActionThreshold
+            );
             unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.BodySize : 1, 1));
             ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
-            unitState.creature_type_tags =
-                BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(template);
-            unitState.equipment_ability_sources =
-                BattleEquipmentAbilityProjectionService.ProjectEnemyBattleOnlySources(
-                    unitState,
-                    template,
-                    buildContext.EquipmentAbilityBindings,
-                    buildContext.TraitDefs,
-                    buildContext.ItemDefs
-                );
+            unitState.ReplaceCreatureTypeTagsTyped(
+                BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(
+                    template
+                )
+            );
+            BattleEquipmentAbilityProjectionResult
+                equipmentAbilityProjection =
+                    BattleEquipmentAbilityProjectionService
+                        .ProjectEnemyBattleOnly(
+                            unitState,
+                            template,
+                            buildContext
+                                .EquipmentAbilityBindings,
+                            buildContext.TraitDefs,
+                            buildContext.ItemDefs
+                        );
+            unitState.ReplaceEquipmentAbilityProjectionTyped(
+                equipmentAbilityProjection.Sources,
+                equipmentAbilityProjection
+                    .TemporalProgressModifiers
+            );
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
                 template,
                 buildContext.ItemDefs
@@ -753,30 +801,34 @@ public sealed class EncounterRosterBuilder : IDisposable
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0,
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax)) : 0,
-                unitState.current_aura,
+                unitState.GetCurrentAura(),
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints)) : 0,
                 BattleUnitState.DefaultMovePointsPerTurn
             );
-            unitState.save_advantage_tags = CopyTemplateSaveTags(template?.SaveAdvantageTags);
-            unitState.save_disadvantage_tags = CopyTemplateSaveTags(template?.SaveDisadvantageTags);
-            unitState.save_immunity_tags = CopyTemplateSaveTags(template?.SaveImmunityTags);
+            unitState.ReplaceSaveTagsTyped(
+                template?.SaveAdvantageTags,
+                template?.SaveDisadvantageTags,
+                template?.SaveImmunityTags
+            );
             if (template != null)
             {
-                unitState.damage_resistances.ReplaceWithTyped(
+                unitState.ReplaceDamageResistancesTyped(
                     template.DamageResistances
                 );
             }
             unitState.SetKnownActiveSkillIds(
                 template?.SkillIds ?? Array.Empty<StringName>()
             );
-            if (unitState.known_active_skill_ids.Count == 0)
+            if (unitState.GetKnownActiveSkillsViewTyped().Count == 0)
             {
                 unitState.SetKnownActiveSkillIds(
                     PickDefaultEnemySkillIds(buildContext.SkillDefinitions)
                 );
             }
             EnsureBasicAttackSkill(unitState, buildContext.SkillDefinitions);
-            foreach (StringName rawSkillId in unitState.known_active_skill_ids)
+            foreach (
+                StringName rawSkillId in unitState.GetKnownActiveSkillsViewTyped()
+            )
             {
                 StringName normalizedSkillId = new StringName(rawSkillId.ToString());
                 int configuredLevel = template != null
@@ -788,11 +840,6 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyUnits.Add(unitState);
         }
         return enemyUnits;
-    }
-
-    private static StringNameList CopyTemplateSaveTags(IReadOnlyList<StringName> tags)
-    {
-        return tags != null ? new StringNameList(tags) : new StringNameList();
     }
 
     private static string ResolveEnemyUnitDisplayName(
@@ -1074,15 +1121,15 @@ public sealed class EncounterRosterBuilder : IDisposable
             mpMax = snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax));
             auraMax = snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax));
         }
-        if (unitState.current_mp > 0 || mpMax > 0)
+        if (unitState.GetCurrentMp() > 0 || mpMax > 0)
         {
             unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         }
-        if (unitState.current_aura > 0 || auraMax > 0)
+        if (unitState.GetCurrentAura() > 0 || auraMax > 0)
         {
             unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         }
-        foreach (StringName skillId in unitState.known_active_skill_ids)
+        foreach (StringName skillId in unitState.GetKnownActiveSkillsViewTyped())
         {
             SkillDefinition skillDefinition = GetSkillDefinition(skillDefinitions, skillId);
             CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;

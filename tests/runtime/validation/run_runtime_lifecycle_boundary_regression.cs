@@ -73,6 +73,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
                 "EquipmentAbilityBindingValidator",
                 "EquipmentAbilityDefinitionProjection",
                 "EquipmentAbilityPayloadValidators",
+                "EquipmentAbilityStatusDeclarationCatalog",
                 "FaithContentRegistry",
                 "IdentityContentRegistryBase",
                 "IdentityDefinitionProjection",

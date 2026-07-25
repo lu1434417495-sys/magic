@@ -192,7 +192,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         _test.True(activeUnit != null, "战斗换装文本回归前置：应存在当前行动单位。");
         if (activeUnit == null)
             return;
-        activeUnit.current_ap = currentAp;
+        activeUnit.SetCurrentAp(currentAp);
         activeUnit.attribute_snapshot?.SetValue("action_points", Math.Max(currentAp, 1));
     }
 
@@ -202,8 +202,8 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         _test.True(activeUnit != null, "HP clamp 文本回归前置：应存在当前行动单位。");
         if (activeUnit == null)
             return;
-        activeUnit.current_hp = currentHp;
-        activeUnit.current_ap = currentAp;
+        activeUnit.SetCurrentHp(currentHp);
+        activeUnit.SetCurrentAp(currentAp);
     }
 
     private static BattleUnitState GetActiveUnitState(GameTextCommandRunner runner)

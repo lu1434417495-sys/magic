@@ -26,6 +26,7 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
         await TestShopWindowRejectsStringNameEntryFields();
         await TestShopWindowRejectsStringNameMemberOptionFields();
         await TestShopWindowConfirmationFlow();
+        await TestForgeWindowRaisesTypedCSharpEvent();
         RequestTestExit(_test.Finish("Settlement/shop window schema regression"));
     }
 
@@ -306,12 +307,104 @@ public partial class run_settlement_shop_window_schema_regression : LifecycleTes
         await DisposeWindow(window);
     }
 
+    private async Task TestForgeWindowRaisesTypedCSharpEvent()
+    {
+        ShopWindow window = await CreateShopWindow();
+        ForgeActionRequest capturedRequest = default;
+        bool typedEventRaised = false;
+        bool legacySignalRaised = false;
+        window.ForgeActionRequested += request =>
+        {
+            typedEventRaised = true;
+            capturedRequest = request;
+        };
+        window.action_requested += (_, _, _) => legacySignalRaised = true;
+
+        window.ShowShop(MakeForgePayload());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(window.Visible, "正式 forge payload 应正常显示 ShopWindow。");
+        _test.False(window.confirm_button.Disabled, "可用配方应允许提交。");
+
+        window.confirm_button.EmitSignal(BaseButton.SignalName.Pressed);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        _test.True(typedEventRaised, "forge 提交应触发强类型 C# 事件。");
+        _test.False(legacySignalRaised, "forge 提交不应再触发 Dictionary action_requested signal。");
+        _test.Eq(
+            capturedRequest.SettlementId.ToString(),
+            "graystone_town_01",
+            "typed forge request 应保留 settlement id。"
+        );
+        _test.Eq(
+            capturedRequest.ServiceId.ToString(),
+            "service:repair_gear",
+            "typed forge request 应保留 service id。"
+        );
+        _test.Eq(
+            capturedRequest.ActionId.ToString(),
+            "service:repair_gear",
+            "typed forge request 应保留 action id。"
+        );
+        _test.Eq(
+            capturedRequest.MemberId.ToString(),
+            "mage",
+            "typed forge request 应保留当前成员。"
+        );
+        _test.Eq(
+            capturedRequest.RecipeId.ToString(),
+            "forge_militia_axe",
+            "typed forge request 应保留 recipe id。"
+        );
+        _test.False(window.Visible, "提交 forge request 后应隐藏窗口。");
+
+        await DisposeWindow(window);
+    }
+
     private static GDictionary MakeConfirmationShopPayload()
     {
         GDictionary payload = MakeShopPayload().Duplicate(true);
         payload["pending_confirmation_quest_id"] = "contract_confirmation_quest";
         payload["pending_confirmation_text"] = "确认要接取这个契约吗？";
         payload["pending_confirmation_source"] = "contract_board";
+        return payload;
+    }
+
+    private static GDictionary MakeForgePayload()
+    {
+        GDictionary payload = MakeShopPayload().Duplicate(true);
+        payload["action_id"] = "service:repair_gear";
+        payload["panel_kind"] = "forge";
+        payload["interaction_script_id"] = "service_smith_forge";
+        payload["default_member_id"] = "mage";
+        payload["selected_member_id"] = "mage";
+        payload["member_options"] = new Godot.Collections.Array<GDictionary>
+        {
+            new()
+            {
+                ["member_id"] = "mage",
+                ["display_name"] = "法师",
+                ["roster_role"] = "队员",
+                ["is_leader"] = false,
+                ["current_hp"] = 18,
+                ["current_mp"] = 12,
+            },
+        };
+        payload["entries"] = new Godot.Collections.Array<GDictionary>
+        {
+            new()
+            {
+                ["entry_id"] = "recipe:forge_militia_axe",
+                ["recipe_id"] = "forge_militia_axe",
+                ["display_name"] = "民兵手斧",
+                ["summary_text"] = "铁矿石 + 硬木板 -> 民兵手斧",
+                ["details_text"] = "锻造一把民兵手斧。",
+                ["state_label"] = "状态：可锻造",
+                ["cost_label"] = "材料：铁矿石、硬木板",
+                ["is_enabled"] = true,
+                ["disabled_reason"] = "",
+            },
+        };
         return payload;
     }
 

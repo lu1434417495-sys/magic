@@ -16,6 +16,8 @@ public sealed class GameRuntimeSnapshotBuilder
         "accepted_at_world_step",
         "completed_at_world_step",
         "reward_claimed_at_world_step",
+        "failed_at_world_step",
+        "failure_reason_id",
         "last_progress_context",
     };
 
@@ -319,24 +321,32 @@ public sealed class GameRuntimeSnapshotBuilder
             partyState.GetClaimableQuestsTyped(),
             "claimable"
         );
+        var failedQuestEntries = BuildQuestEntries(
+            partyState.GetFailedQuestsTyped(),
+            "failed"
+        );
         var completedQuestIds = StringNameArrayToStringArray(
             partyState.GetCompletedQuestIdsTyped()
         );
         if (
             activeQuestEntries.Count == 0
             && claimableQuestEntries.Count == 0
+            && failedQuestEntries.Count == 0
             && completedQuestIds.Count == 0
         )
             return new PlainDictionary(StringComparer.Ordinal);
         var activeQuestIds = BuildQuestIds(activeQuestEntries);
         var claimableQuestIds = BuildQuestIds(claimableQuestEntries);
+        var failedQuestIds = BuildQuestIds(failedQuestEntries);
         return new PlainDictionary(StringComparer.Ordinal)
         {
             ["active_quest_ids"] = activeQuestIds,
             ["claimable_quest_ids"] = claimableQuestIds,
+            ["failed_quest_ids"] = failedQuestIds,
             ["completed_quest_ids"] = completedQuestIds,
             ["active_quests"] = activeQuestEntries,
             ["claimable_quests"] = claimableQuestEntries,
+            ["failed_quests"] = failedQuestEntries,
         };
     }
 
@@ -398,6 +408,7 @@ public sealed class GameRuntimeSnapshotBuilder
             !IsValidQuestStep(questData, "accepted_at_world_step")
             || !IsValidQuestStep(questData, "completed_at_world_step")
             || !IsValidQuestStep(questData, "reward_claimed_at_world_step")
+            || !IsValidQuestStep(questData, "failed_at_world_step")
         )
             return new PlainDictionary(StringComparer.Ordinal);
         var objectiveProgress = NormalizeQuestProgressMap(questData, "objective_progress");
@@ -411,6 +422,10 @@ public sealed class GameRuntimeSnapshotBuilder
         questData["quest_id"] = questId;
         questData["stage_id"] = stageId;
         questData["status_id"] = statusId;
+        questData["failure_reason_id"] = ReadQuestString(
+            questData,
+            "failure_reason_id"
+        );
         questData["objective_progress"] = objectiveProgress;
         questData["last_progress_context"] = RuntimePlainPayload.CloneDictionary(contextValue);
         return questData;
@@ -821,6 +836,9 @@ public sealed class GameRuntimeSnapshotBuilder
             if (unitState == null)
                 continue;
             var attributeSnapshot = unitState.attribute_snapshot;
+            BattleUnitShieldSnapshot shieldState = unitState.GetShieldStateTyped();
+            BattleUnitCombatResourceValues combatResources =
+                unitState.GetCombatResourcesReadViewTyped().Values;
             units.Add(
                 new PlainDictionary(StringComparer.Ordinal)
                 {
@@ -828,22 +846,23 @@ public sealed class GameRuntimeSnapshotBuilder
                     ["display_name"] = !string.IsNullOrEmpty(unitState.display_name)
                         ? unitState.display_name
                         : unitState.unit_id.ToString(),
-                    ["coord"] = CoordToDict(unitState.coord),
+                    ["coord"] = CoordToDict(unitState.GetAnchorCoord()),
                     ["faction_id"] = unitState.faction_id.ToString(),
                     ["control_mode"] = unitState.control_mode.ToString(),
-                    ["is_alive"] = unitState.is_alive,
-                    ["current_hp"] = unitState.current_hp,
-                    ["current_mp"] = unitState.current_mp,
-                    ["current_stamina"] = unitState.current_stamina,
+                    ["is_alive"] = combatResources.IsAlive,
+                    ["current_hp"] = combatResources.Hp,
+                    ["current_mp"] = combatResources.Mp,
+                    ["current_stamina"] = combatResources.Stamina,
                     ["stamina_max"] = attributeSnapshot?.GetValue("stamina_max") ?? 0,
-                    ["current_aura"] = unitState.current_aura,
+                    ["current_aura"] = combatResources.Aura,
                     ["aura_max"] = unitState.GetAuraMax(),
-                    ["current_shield_hp"] = unitState.current_shield_hp,
-                    ["shield_max_hp"] = unitState.shield_max_hp,
-                    ["shield_duration"] = unitState.shield_duration,
-                    ["shield_family"] = unitState.shield_family.ToString(),
-                    ["current_ap"] = unitState.current_ap,
-                    ["current_move_points"] = unitState.current_move_points,
+                    ["current_shield_hp"] = shieldState.CurrentHp,
+                    ["shield_max_hp"] = shieldState.MaxHp,
+                    ["shield_duration"] = shieldState.Duration,
+                    ["shield_family"] = shieldState.Family.ToString(),
+                    ["current_ap"] = combatResources.Ap,
+                    ["current_move_points"] =
+                        combatResources.MovePoints,
                     ["has_pending_cast"] = unitState.HasPendingCast(),
                     ["pending_cast"] = BuildPendingCastSnapshot(unitState.pending_cast),
                 }

@@ -217,12 +217,13 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
             string stateId = _resolve_contract_board_quest_state_id(
                 questData.QuestId,
-                questData.IsRepeatable
+                questData.IsRepeatable,
+                questDefinition.CanRestartAfterFailure
             );
             bool isEnabled;
             string disabledReason = "";
             StringName lockReasonId = "";
-            if (stateId is "available" or "repeatable")
+            if (stateId is "available" or "repeatable" or "restartable_failed")
             {
                 QuestAcceptAvailabilityResult availability = _owner._quest_accept_evaluator.Evaluate(
                     questDefinition,
@@ -324,6 +325,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             "active" => "进行中",
             "claimable" => "领取奖励",
             "completed" => "已完成",
+            "failed" => "已失败",
+            "restartable_failed" => "重新接取",
             _ => "接取悬赏",
         };
     }
@@ -411,7 +414,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
         string stateId = _resolve_contract_board_quest_state_id(
             questData.QuestId,
-            questData.IsRepeatable
+            questData.IsRepeatable,
+            questDefinition.CanRestartAfterFailure
         );
         GameRuntimeFacade.RuntimeCommandResult commandResult;
         bool isAcceptAction = false;
@@ -430,6 +434,13 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         {
             commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
                 $"悬赏《{questData.DisplayName}》已完成，不能再次接取。",
+                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            );
+        }
+        else if (stateId == "failed")
+        {
+            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+                $"悬赏《{questData.DisplayName}》已经失败，不能再次接取。",
                 GameRuntimeFacade.RuntimeCommandCode.InvalidState
             );
         }
@@ -611,14 +622,15 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
         string stateId = _resolve_contract_board_quest_state_id(
             questData.QuestId,
-            questData.IsRepeatable
+            questData.IsRepeatable,
+            quest_definition.CanRestartAfterFailure
         );
 
         string disabledReason = "";
         StringName lockReasonId = "";
         bool isEnabled = true;
 
-        if (stateId is "available" or "repeatable")
+        if (stateId is "available" or "repeatable" or "restartable_failed")
         {
             QuestAcceptAvailabilityResult availability = _owner._quest_accept_evaluator.Evaluate(
                 quest_definition,
@@ -627,6 +639,11 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             isEnabled = availability.CanAccept;
             disabledReason = availability.DisabledReason;
             lockReasonId = availability.LockReasonId;
+        }
+        else if (stateId == "failed")
+        {
+            isEnabled = false;
+            disabledReason = "该任务已经失败，不能重新接取。";
         }
 
         return new GDictionary
@@ -657,7 +674,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
     internal string _resolve_contract_board_quest_state_id(
         StringName quest_id,
-        bool is_repeatable = false
+        bool is_repeatable = false,
+        bool can_restart_after_failure = false
     )
     {
         PartyState partyState = _owner.GetPartyState();
@@ -672,6 +690,12 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         if (partyState.HasClaimableQuest(quest_id))
         {
             return "claimable";
+        }
+        if (partyState.HasFailedQuest(quest_id))
+        {
+            return can_restart_after_failure
+                ? "restartable_failed"
+                : "failed";
         }
         if (partyState.HasCompletedQuest(quest_id))
         {
@@ -694,6 +718,10 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                 return "状态：待领奖励";
             case "repeatable":
                 return "状态：可重复接取";
+            case "restartable_failed":
+                return "状态：失败，可重新接取";
+            case "failed":
+                return "状态：已失败";
             case "completed":
                 return "状态：已完成";
             case "empty":
@@ -709,6 +737,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         int availableCount = 0;
         int claimableCount = 0;
         int repeatableCount = 0;
+        int restartableFailedCount = 0;
+        int failedCount = 0;
         int completedCount = 0;
         foreach (GDictionary entry in entries)
         {
@@ -722,6 +752,12 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                     break;
                 case "repeatable":
                     repeatableCount += 1;
+                    break;
+                case "restartable_failed":
+                    restartableFailedCount += 1;
+                    break;
+                case "failed":
+                    failedCount += 1;
                     break;
                 case "completed":
                     completedCount += 1;
@@ -741,6 +777,14 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         if (repeatableCount > 0)
         {
             parts.Add($"可重复 {repeatableCount}");
+        }
+        if (restartableFailedCount > 0)
+        {
+            parts.Add($"失败可重试 {restartableFailedCount}");
+        }
+        if (failedCount > 0)
+        {
+            parts.Add($"已失败 {failedCount}");
         }
         parts.Add($"已完成 {completedCount}");
         return string.Join("  |  ", parts);
@@ -777,7 +821,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         QuestState questState = _get_active_quest_state(quest_data.QuestId);
         string stateId = _resolve_contract_board_quest_state_id(
             quest_data.QuestId,
-            quest_data.IsRepeatable
+            quest_data.IsRepeatable,
+            quest_data.QuestDefinition.CanRestartAfterFailure
         );
         bool isCompleted = _is_contract_board_completed_state(stateId);
         foreach (QuestObjectiveDefinition objectiveData in quest_data.ObjectiveEntries)
@@ -1053,7 +1098,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
         string stateId = _resolve_contract_board_quest_state_id(
             questData.QuestId,
-            questData.IsRepeatable
+            questData.IsRepeatable,
+            questData.QuestDefinition.CanRestartAfterFailure
         );
         GameRuntimeFacade.RuntimeCommandResult commandResult;
         bool isAcceptAction = false;
@@ -1082,6 +1128,13 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                 commandResult = _owner.Runtime.CommandAcceptQuestTyped(questId, questData.IsRepeatable);
                 isAcceptAction = true;
             }
+        }
+        else if (stateId == "failed")
+        {
+            commandResult = GameRuntimeFacade.RuntimeCommandResult.Failure(
+                $"契约《{questData.DisplayName}》已经失败，不能再次接取。",
+                GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            );
         }
         else
         {

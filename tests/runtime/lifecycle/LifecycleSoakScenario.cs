@@ -115,8 +115,8 @@ internal sealed class LifecycleSoakScenario
             $"cycle {cycle}: CreateNewSave failed with {(Error)createError}."
         );
         Require(
-            GameSession.CurrentSaveVersion == 15,
-            $"cycle {cycle}: lifecycle soak requires save version 15."
+            GameSession.CurrentSaveVersion == 17,
+            $"cycle {cycle}: lifecycle soak requires save version 17."
         );
 
         GameRuntimeFacade facade = new(new FixedBattleSeedSource(FixedBattleSeed));
