@@ -41,6 +41,7 @@ public partial class QuestDef : Resource
         "objective_defs",
         "reward_entries",
         "is_repeatable",
+        "failure_policy",
         "danger_tier_override",
         "accept_dialogue_text",
         "accept_feedback_success",
@@ -121,6 +122,9 @@ public partial class QuestDef : Resource
 
     [Export]
     public bool is_repeatable { get; set; }
+
+    [Export]
+    public StringName failure_policy { get; set; } = "";
 
     // 0 = 自动推导危险度；1..5 = 作者显式覆盖星级。派生结果只用于投影，不进存档。
     [Export(PropertyHint.Range, "0,5")]
@@ -346,6 +350,10 @@ public partial class QuestDef : Resource
             errors.Add(
                 $"QuestDef {(string)quest_id} 的 danger_tier_override 必须在 0..5 之间（0 表示自动推导）。"
             );
+        if (QuestFailurePolicyRules.ToKind(failure_policy) == QuestFailurePolicyKind.Unknown)
+            errors.Add(
+                $"QuestDef {(string)quest_id} 的 failure_policy 必须为 terminal 或 restartable。"
+            );
 
         var seenObjectiveIds = new System.Collections.Generic.HashSet<StringName>();
         foreach (ObjectiveEntryData objective in GetObjectiveEntriesTyped())
@@ -522,6 +530,12 @@ public partial class QuestDef : Resource
             return null;
         if (!TryReadBoolField(payload, "is_repeatable", out bool isRepeatableValue))
             return null;
+        StringName failurePolicyValue = ReadStringName(payload, "failure_policy");
+        if (
+            QuestFailurePolicyRules.ToKind(failurePolicyValue)
+            == QuestFailurePolicyKind.Unknown
+        )
+            return null;
         if (!TryGetStrictInt(payload, "danger_tier_override", out int dangerTierOverrideValue))
             return null;
 
@@ -536,6 +550,7 @@ public partial class QuestDef : Resource
             objective_defs = objectiveDefValues,
             reward_entries = rewardEntryValues,
             is_repeatable = isRepeatableValue,
+            failure_policy = failurePolicyValue,
             danger_tier_override = dangerTierOverrideValue,
             provider_kind = ReadStringName(payload, "provider_kind"),
             listing_channels = ReadStringNameArray(payload, "listing_channels"),

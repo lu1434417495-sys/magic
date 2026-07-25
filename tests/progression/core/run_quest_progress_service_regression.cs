@@ -17,8 +17,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
     {
         TestFormalProgressEventSchema();
         TestDirectRecordProgressMovesCompletedQuestToClaimable();
+        TestAuthoredFailurePolicyProjection();
+        TestFailureTransitionsAndRestartPolicy();
         TestStringKeyOnlyQuestDefsAreRejected();
         TestMissingObjectiveTargetValueDoesNotDefaultToOne();
+        TestAcceptEventRejectsNegativeWorldStep();
 
         RequestTestExit(_test.Finish("Quest progress service regression"));
     }
@@ -56,9 +59,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             );
         }
         _test.Eq(
-            activeQuest.GetObjectiveProgress("train_once"),
+            partyState.GetActiveQuestState(questDef.quest_id)?.GetObjectiveProgress(
+                "train_once"
+            ) ?? -1,
             0,
-            "amount / 缺 event_type / 字符串字段 / 缺 world_step 不应被兼容成任务进度。"
+            "amount / 缺 event_type / 字符串字段 / 缺 world_step / 负 world_step 不应被兼容成任务进度。"
         );
         _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "坏 progress event 不应把任务推进到 claimable。");
 
@@ -80,7 +85,13 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             )
         );
         _test.Eq(SummaryCount(formalSummary, "progressed_quest_ids"), 1, "正式 progress_delta 应能推进任务。");
-        _test.Eq(activeQuest.GetObjectiveProgress("train_once"), 1, "直接 quest progress event 应从 QuestDef 读取 target_value。");
+        _test.Eq(
+            partyState.GetActiveQuestState(questDef.quest_id)?.GetObjectiveProgress(
+                "train_once"
+            ) ?? -1,
+            1,
+            "直接 quest progress event 应从 QuestDef 读取 target_value。"
+        );
         _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "未达到 QuestDef target_value 前不应完成。");
 
         GDictionary matchedSummary = QuestProgressResultProjection.Project(
@@ -158,6 +169,144 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             partyState.GetClaimableQuestState(questDef.QuestId)?.status_id ?? new StringName(""),
             QuestState.ToStringName(QuestStatusKind.Completed),
             "claimable 任务应保留 completed 状态。"
+        );
+    }
+
+    private void TestFailureTransitionsAndRestartPolicy()
+    {
+        QuestDefinition terminalQuest = BuildFailureQuestDefinition(
+            "contract_terminal_failure",
+            false
+        );
+        QuestDefinition restartableQuest = BuildFailureQuestDefinition(
+            "contract_restartable_failure",
+            true
+        );
+        PartyState partyState = new();
+        QuestProgressService service = new();
+        service.Setup(
+            partyState,
+            new Dictionary<StringName, QuestDefinition>
+            {
+                [terminalQuest.QuestId] = terminalQuest,
+                [restartableQuest.QuestId] = restartableQuest,
+            }
+        );
+
+        _test.True(service.AcceptQuest(terminalQuest.QuestId, 1), "terminal 失败任务应可初次接取。");
+        _test.True(
+            service.FailQuest(
+                new QuestFailureRequest(
+                    terminalQuest.QuestId,
+                    5,
+                    "protected_target_lost"
+                )
+            ),
+            "active terminal 任务应能原子迁移到 failed。"
+        );
+        _test.False(partyState.HasActiveQuest(terminalQuest.QuestId), "失败后不得残留 active。");
+        _test.True(partyState.HasFailedQuest(terminalQuest.QuestId), "失败任务应进入 failed 集合。");
+        _test.False(
+            service.RecordProgress(terminalQuest.QuestId, "survive", 1, 1),
+            "failed 任务不得继续推进。"
+        );
+        _test.False(service.CompleteQuest(terminalQuest.QuestId, 6), "failed 任务不得完成。");
+        _test.False(service.ClaimReward(terminalQuest.QuestId), "failed 任务不得领奖。");
+        _test.False(
+            service.AcceptQuest(terminalQuest.QuestId, 7, true),
+            "terminal failure 不得借 allow_reaccept 绕过失败策略。"
+        );
+
+        _test.True(
+            service.AcceptQuest(restartableQuest.QuestId, 10),
+            "restartable 失败任务应可初次接取。"
+        );
+        _test.True(
+            service.RecordProgress(restartableQuest.QuestId, "survive", 1, 2),
+            "失败前应能记录目标进度。"
+        );
+        _test.True(
+            service.FailQuest(
+                new QuestFailureRequest(
+                    restartableQuest.QuestId,
+                    12,
+                    "deadline_expired"
+                )
+            ),
+            "restartable 任务应能进入 failed。"
+        );
+        _test.True(
+            service.AcceptQuest(restartableQuest.QuestId, 15),
+            "restartable failure 应独立于 is_repeatable 允许重新接取。"
+        );
+        _test.False(
+            partyState.HasFailedQuest(restartableQuest.QuestId),
+            "重新接取后旧 failed 状态应被原子移除。"
+        );
+        QuestState restarted = partyState.GetActiveQuestState(restartableQuest.QuestId);
+        _test.True(restarted != null && restarted.IsActive(), "重新接取后应创建新的 active 状态。");
+        if (restarted != null)
+        {
+            _test.Eq(restarted.GetObjectiveProgress("survive"), 0, "重新接取必须清空旧目标进度。");
+            _test.Eq(restarted.accepted_at_world_step, 15, "重新接取应记录新的接取时间。");
+            _test.Eq(restarted.failed_at_world_step, -1, "新 active 状态不得继承失败时间。");
+            _test.Eq(
+                restarted.failure_reason_id,
+                new StringName(""),
+                "新 active 状态不得继承失败原因。"
+            );
+        }
+    }
+
+    private void TestAuthoredFailurePolicyProjection()
+    {
+        QuestDef questDef = BuildQuestDef(
+            "contract_authored_restartable_failure",
+            "可重启失败策略",
+            "survive",
+            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+            "service:survive",
+            2
+        );
+        questDef.failure_policy = "restartable";
+
+        QuestDefinition definition = TestProgressionDefinitionProjection.Quest(questDef);
+        _test.True(
+            definition.CanRestartAfterFailure,
+            "Authored restartable failure_policy must project to the runtime semantic flag."
+        );
+    }
+
+    private static QuestDefinition BuildFailureQuestDefinition(
+        StringName questId,
+        bool canRestartAfterFailure
+    )
+    {
+        return new QuestDefinition(
+            questId,
+            questId.ToString(),
+            "",
+            "service_contract_board",
+            System.Array.Empty<StringName>(),
+            System.Array.Empty<QuestAcceptRequirementDefinition>(),
+            new[]
+            {
+                new QuestObjectiveDefinition(
+                    "survive",
+                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    "service:survive",
+                    2
+                ),
+            },
+            System.Array.Empty<QuestRewardDefinition>(),
+            false,
+            "service_contract_board",
+            new[] { new StringName("contract_board") },
+            "",
+            "",
+            "",
+            "",
+            canRestartAfterFailure: canRestartAfterFailure
         );
     }
 
@@ -249,6 +398,70 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             _test.Eq(questState.GetObjectiveProgress("bad_target"), 0, "缺正式 target_value 时不应按默认 1 推进任务。");
     }
 
+    private void TestAcceptEventRejectsNegativeWorldStep()
+    {
+        QuestDef questDef = BuildQuestDef(
+            "contract_negative_step_accept",
+            "负时间戳接取事件",
+            "train_once",
+            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+            "service:training",
+            1
+        );
+        PartyState partyState = new();
+        CharacterManagementModule manager = BuildManager(partyState, questDef);
+
+        foreach (int badWorldStep in new[] { -1, -5 })
+        {
+            GDictionary summary = QuestProgressResultProjection.Project(
+                manager.ApplyQuestProgressEventsTyped(
+                    new[]
+                    {
+                        QuestProgressEvent(
+                            new GDictionary
+                            {
+                                ["event_type"] = "accept",
+                                ["quest_id"] = questDef.quest_id.ToString(),
+                                ["world_step"] = badWorldStep,
+                            }
+                        ),
+                    }
+                )
+            );
+            _test.Eq(
+                SummaryCount(summary, "accepted_quest_ids"),
+                0,
+                $"负 world_step accept 事件不应接取任务：world_step={badWorldStep}"
+            );
+        }
+        _test.True(
+            !partyState.HasActiveQuest(questDef.quest_id),
+            "负 world_step accept 事件不应写入 active_quests（避免坏时间戳进入存档）。"
+        );
+
+        GDictionary formalSummary = QuestProgressResultProjection.Project(
+            manager.ApplyQuestProgressEventsTyped(
+                new[]
+                {
+                    QuestProgressEvent(
+                        new GDictionary
+                        {
+                            ["event_type"] = "accept",
+                            ["quest_id"] = questDef.quest_id.ToString(),
+                            ["world_step"] = 2,
+                        }
+                    ),
+                }
+            )
+        );
+        _test.Eq(SummaryCount(formalSummary, "accepted_quest_ids"), 1, "正式 accept 事件应能接取任务。");
+        _test.Eq(
+            partyState.GetActiveQuestState(questDef.quest_id)?.accepted_at_world_step ?? -1,
+            2,
+            "正式 accept 事件应记录接取时间。"
+        );
+    }
+
     private static CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
     {
         return BuildManager(
@@ -317,6 +530,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
             listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            failure_policy = "terminal",
         };
         GDictionary objectiveDef = new()
         {
@@ -386,6 +600,22 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                 ["objective_id"] = "train_once",
                 ["progress_delta"] = 1,
                 ["world_step"] = 2,
+            },
+            new GDictionary
+            {
+                ["event_type"] = "progress",
+                ["quest_id"] = questId.ToString(),
+                ["objective_id"] = "train_once",
+                ["progress_delta"] = 1,
+                ["world_step"] = -1,
+            },
+            new GDictionary
+            {
+                ["event_type"] = "progress",
+                ["quest_id"] = questId.ToString(),
+                ["objective_id"] = "train_once",
+                ["progress_delta"] = 1,
+                ["world_step"] = -5,
             },
         };
 

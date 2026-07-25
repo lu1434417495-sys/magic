@@ -20,4 +20,5 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_enemy_once", &"objective_type": &"defeat_enemy", &"target_id": &"", &"target_value": 1}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 120}])
 is_repeatable = false
+failure_policy = &"terminal"
 danger_tier_override = 2

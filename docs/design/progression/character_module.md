@@ -77,10 +77,13 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 - mastery reward 进入 PendingCharacterReward 队列；确认奖励后再写 party state。
 - reward 队列真源在 PartyState，不能只放 WorldMapSystem 内存。
 - `PendingCharacterReward` / `PendingCharacterRewardEntry` 是 `scripts/player/progression/` 下的 Party save graph DTO；progression service 只负责生成、应用和编排奖励，不拥有这两个持久数据类型。
+- battle/world 两套待确认晋升 prompt 的长期 owner 是 `GameRuntimePromotionPromptContext`，其中 choice 以 `GameRuntimePromotionChoiceContext` 保存 profession、展示信息、授予技能和 immutable `PromotionSelectionData`。`GameRuntimeRewardFlowHandler` 只弱借 `IGameRuntimeRewardFlowPort`，不读取 `PartyState`、character/battle module、session 或内容索引；队列取下一项、晋升/奖励提交、持久化和 modal 清理由 facade 的奖励域 capability 提供。headless、proxy 与 UI 仍按既有 `{member_id, member_name, choices}` schema 获取 detached plain snapshot，长期 owner 不保存 Dictionary/Variant 图。
 
 ## 任务与成就
 
-Quest runtime setup 直接消费 typed `QuestDef`。任务 accept/progress/complete/claim 都必须校验 quest id/objective id、状态、提交物品、奖励空间。contract board 只投影 UI 字典，不反向驱动任务业务。
+Quest runtime setup 直接消费 typed `QuestDefinition`。`PartyState` 内部的 `QuestJournalState` 是任务阶段唯一 owner，active、claimable、failed 与 rewarded id 的迁移必须原子完成；对外任务查询返回 detached `QuestState`。任务 accept/progress/complete/claim/fail 都必须校验 quest id/objective id、状态、提交物品、奖励空间或失败原因。contract board 只投影 UI 字典，不反向驱动任务业务。
+
+成功领奖后的重复接取由 `is_repeatable` 控制；失败后的重启由独立的 `failure_policy = terminal/restartable` 控制。失败任务保存 `failed_at_world_step`、`failure_reason_id` 与失败上下文，不能继续推进、完成或领奖；restartable 重新接取时创建全新的 active state，不继承旧进度和失败元数据。
 
 Achievement progress 应根据 typed event 更新，并把 reward 交给统一 reward flow。
 
@@ -167,10 +170,11 @@ setup 后应建立并持有以下 typed 索引：
 
 ## 实现级补充：Quest 状态机
 
-QuestState 至少包含：quest id、status、objective progress、accepted/completed/claimed flags。状态流：
+QuestState 至少包含：quest id、status、objective progress、accepted/completed/claimed/failed 时间、failure reason 与最近上下文。状态流：
 
 ```text
 not accepted -> active -> completed -> claimed
+                      \-> failed -> restartable ? fresh active : terminal
 ```
 
 - accept 校验 provider/前置/是否允许 reaccept。
@@ -178,6 +182,9 @@ not accepted -> active -> completed -> claimed
 - submit item 先 preview warehouse 扣除，再更新 objective；失败不扣物品。
 - complete 校验所有 required objectives。
 - claim 发奖励，奖励入 reward flow/warehouse/party，再置 claimed。
+- fail 只允许从 active 进入，必须提供 typed `QuestFailureRequest` 和非空 reason id。
+- terminal failed 不可重启；restartable failed 重启时清除旧失败记录并创建全新 active 状态。
+- 一个 quest id 在 active、claimable、failed、rewarded 中必须至多出现一次。
 
 ## 实现级补充：Achievement 状态机
 
@@ -198,7 +205,7 @@ AchievementProgressState 记录 progress、unlocked、claimed/reward state。事
 
 ## 实现级补充：奖励队列
 
-PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化；源码物理迁移不得改变 PartyState v7、顶层 SaveVersion、类型名、字段或 payload key。奖励确认流程：
+PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化。当前 quest journal 破坏性调整后的持久化契约是 PartyState v8、顶层 SaveVersion 17；旧版本不提供兼容迁移。后续源码物理迁移不得隐式改变版本、类型名、字段或 payload key。奖励确认流程：
 
 1. peek active reward。
 2. UI 展示 reward choices。
@@ -339,10 +346,13 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public PartyState GetPartyState() => _party_state;`
 - `public List<QuestState> GetActiveQuestsTyped()`
 - `public List<QuestState> GetClaimableQuestsTyped()`
+- `public List<QuestState> GetFailedQuestsTyped()`
 - `public List<StringName> GetClaimableQuestIdsTyped()`
 - `public List<StringName> GetCompletedQuestIdsTyped()`
 - `public bool AcceptQuest(StringName questId, int worldStep = -1, bool allowReaccept = false)`
 - `public bool CompleteQuest(StringName questId, int worldStep = -1)`
+- `public bool RecordProgress(StringName questId, StringName objectiveId, int delta, int targetValue = 0, QuestProgressContext context = null)`
+- `public bool FailQuest(QuestFailureRequest request)`
 - `public bool MarkCompleted(StringName questId)`
 - `public bool ClaimReward(StringName questId, GDictionary claimContext = null)`
 - `public Godot.Collections.Array<GDictionary> GetQuestProgressEvents(StringName questId)`
@@ -457,9 +467,10 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public void SetMetaFlag(StringName id, bool en = true)`
 - `public void ClearMetaFlag(StringName id)`
 - `public void RemoveMemberFromRosters(StringName id)`
-- `public List<QuestState> GetActiveQuestsTyped() => new(active_quests);`
-- `public List<QuestState> GetClaimableQuestsTyped() => new(claimable_quests);`
-- `public List<StringName> GetCompletedQuestIdsTyped() => new(completed_quest_ids);`
+- `public List<QuestState> GetActiveQuestsTyped()`
+- `public List<QuestState> GetClaimableQuestsTyped()`
+- `public List<QuestState> GetFailedQuestsTyped()`
+- `public List<StringName> GetCompletedQuestIdsTyped()`
 - `public int GetGold() => Mathf.Max(gold, 0);`
 - `public PartyState DuplicateState()`
 - `public void SetGold(int v) => gold = Mathf.Max(v, 0);`
@@ -476,21 +487,31 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public bool HasActiveQuest(StringName qid) => GetActiveQuestState(qid) != null;`
 - `public QuestState GetClaimableQuestState(StringName qid)`
 - `public bool HasClaimableQuest(StringName qid) => GetClaimableQuestState(qid) != null;`
+- `public QuestState GetFailedQuestState(StringName qid)`
+- `public bool HasFailedQuest(StringName qid)`
 - `public QuestState GetQuestState(StringName qid)`
-- `public void SetQuestState(StringName qid, QuestState q)`
-- `public void SetActiveQuestState(QuestState q)`
-- `public void SetClaimableQuestState(QuestState q)`
-- `public bool RemoveActiveQuest(StringName qid)`
-- `public bool RemoveClaimableQuest(StringName qid)`
+- `internal bool SetQuestState(StringName qid, QuestState q)`
+- `internal bool SetActiveQuestState(QuestState q)`
+- `internal bool SetClaimableQuestState(QuestState q)`
+- `internal bool SetFailedQuestState(QuestState q)`
 - `public List<StringName> GetActiveQuestIdsTyped()`
 - `public List<StringName> GetClaimableQuestIdsTyped()`
-- `public bool HasCompletedQuest(StringName qid) => completed_quest_ids.Contains(qid);`
-- `public void AddCompletedQuestId(StringName qid)`
+- `public List<StringName> GetFailedQuestIdsTyped()`
+- `public bool HasCompletedQuest(StringName qid)`
 - `public bool MarkQuestClaimable(StringName qid, int ws = -1)`
 - `public bool MarkQuestCompleted(StringName qid, int ws = -1) => MarkQuestClaimable(qid, ws);`
 - `public bool MarkQuestRewardClaimed(StringName qid, int ws = -1)`
 - `public Godot.Collections.Dictionary ToDictionary()`
 - `public static PartyState FromDictionary(Godot.Collections.Dictionary data)`
+
+`PartyState` 的 quest query 均由内部 `QuestJournalState` 返回 detached clone；内部 set/restart/progress/fail API 只供 progression 编排和严格反序列化使用，不能把外借 `QuestState` 当作 canonical 引用继续修改。
+
+### `scripts/player/progression/QuestJournalState.cs`
+
+- active、claimable、failed、rewarded 四个集合的唯一 mutation owner
+- `SetState(...)` 与全部状态迁移同步维护集合互斥
+- accept/restart/progress/complete/reward/fail 只在合法来源状态上成功
+- query 返回排序后的 id 或 detached `QuestState`
 
 ### `scripts/player/progression/PartyMemberState.cs`
 
@@ -565,7 +586,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public void MarkAccepted(int worldStep = -1)`
 - `public void MarkCompleted(int worldStep = -1)`
 - `public void MarkRewardClaimed(int worldStep = -1)`
-- `public void MarkFailed()`
+- `internal bool MarkFailed(int worldStep, StringName reasonId, QuestProgressContext context = null)`
 - `public QuestState DuplicateState()`
 - `public Godot.Collections.Dictionary ToDictionary()`
 - `public static QuestState FromDictionary(Godot.Collections.Dictionary payload)`

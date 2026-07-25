@@ -32,12 +32,14 @@ public class QuestState
         "accepted_at_world_step",
         "completed_at_world_step",
         "reward_claimed_at_world_step",
+        "failed_at_world_step",
+        "failure_reason_id",
         "last_progress_context",
     };
 
     public StringName quest_id = "";
 
-    public StringName status_id = StatusInactive;
+    public StringName status_id { get; private set; } = StatusInactive;
 
     public QuestObjectiveProgressState objective_progress = new();
 
@@ -46,6 +48,10 @@ public class QuestState
     public int completed_at_world_step = -1;
 
     public int reward_claimed_at_world_step = -1;
+
+    public int failed_at_world_step = -1;
+
+    public StringName failure_reason_id { get; private set; } = "";
 
     public QuestProgressContext last_progress_context { get; private set; } =
         QuestProgressContext.Empty();
@@ -147,6 +153,8 @@ public class QuestState
     {
         status_id = StatusActive;
         accepted_at_world_step = worldStep;
+        failed_at_world_step = -1;
+        failure_reason_id = "";
 
         if (completed_at_world_step < accepted_at_world_step)
             completed_at_world_step = -1;
@@ -159,17 +167,33 @@ public class QuestState
     {
         status_id = StatusCompleted;
         completed_at_world_step = worldStep;
+        failed_at_world_step = -1;
+        failure_reason_id = "";
     }
 
     public void MarkRewardClaimed(int worldStep = -1)
     {
         status_id = StatusRewarded;
         reward_claimed_at_world_step = worldStep;
+        failed_at_world_step = -1;
+        failure_reason_id = "";
     }
 
-    public void MarkFailed()
+    internal bool MarkFailed(
+        int worldStep,
+        StringName reasonId,
+        QuestProgressContext context = null
+    )
     {
+        if (!IsActive() || reasonId == "" || worldStep < -1)
+            return false;
         status_id = StatusFailed;
+        completed_at_world_step = -1;
+        reward_claimed_at_world_step = -1;
+        failed_at_world_step = worldStep;
+        failure_reason_id = reasonId;
+        last_progress_context = context?.DuplicateState() ?? QuestProgressContext.Empty();
+        return true;
     }
 
     public QuestState DuplicateState()
@@ -183,6 +207,8 @@ public class QuestState
             accepted_at_world_step = accepted_at_world_step,
             completed_at_world_step = completed_at_world_step,
             reward_claimed_at_world_step = reward_claimed_at_world_step,
+            failed_at_world_step = failed_at_world_step,
+            failure_reason_id = failure_reason_id,
             last_progress_context =
                 last_progress_context?.DuplicateState() ?? QuestProgressContext.Empty(),
         };
@@ -201,6 +227,8 @@ public class QuestState
             { "accepted_at_world_step", accepted_at_world_step },
             { "completed_at_world_step", completed_at_world_step },
             { "reward_claimed_at_world_step", reward_claimed_at_world_step },
+            { "failed_at_world_step", failed_at_world_step },
+            { "failure_reason_id", (string)failure_reason_id },
             { "last_progress_context", last_progress_context.ToDictionary() },
         };
     }
@@ -251,6 +279,8 @@ public class QuestState
             ["accepted_at_world_step"] = accepted_at_world_step,
             ["completed_at_world_step"] = completed_at_world_step,
             ["reward_claimed_at_world_step"] = reward_claimed_at_world_step,
+            ["failed_at_world_step"] = failed_at_world_step,
+            ["failure_reason_id"] = failure_reason_id.ToString(),
             ["last_progress_context"] = progressContext,
         };
     }
@@ -287,6 +317,16 @@ public class QuestState
             || payload["completed_at_world_step"].AsInt32() < -1
             || payload["reward_claimed_at_world_step"].VariantType != Variant.Type.Int
             || payload["reward_claimed_at_world_step"].AsInt32() < -1
+            || payload["failed_at_world_step"].VariantType != Variant.Type.Int
+            || payload["failed_at_world_step"].AsInt32() < -1
+        )
+            return null;
+
+        if (
+            !_try_read_optional_string_name(
+                payload["failure_reason_id"],
+                out StringName failureReasonId
+            )
         )
             return null;
 
@@ -320,30 +360,48 @@ public class QuestState
 
         int rewardAt = payload["reward_claimed_at_world_step"].AsInt32();
 
+        int failedAt = payload["failed_at_world_step"].AsInt32();
+
         QuestStatusKind statusKind = ToStatusKind(statusId);
         if (statusKind == QuestStatusKind.Inactive)
         {
-            if (acceptedAt != -1 || completedAt != -1 || rewardAt != -1)
+            if (
+                acceptedAt != -1
+                || completedAt != -1
+                || rewardAt != -1
+                || failedAt != -1
+                || failureReasonId != ""
+            )
                 return null;
         }
         else if (statusKind == QuestStatusKind.Active)
         {
-            if (completedAt != -1 || rewardAt != -1)
+            if (
+                completedAt != -1
+                || rewardAt != -1
+                || failedAt != -1
+                || failureReasonId != ""
+            )
                 return null;
         }
         else if (statusKind == QuestStatusKind.Completed)
         {
-            if (rewardAt != -1)
+            if (rewardAt != -1 || failedAt != -1 || failureReasonId != "")
                 return null;
         }
         else if (statusKind == QuestStatusKind.Rewarded)
         {
-            if (completedAt < 0 || rewardAt < 0)
+            if (
+                completedAt < 0
+                || rewardAt < 0
+                || failedAt != -1
+                || failureReasonId != ""
+            )
                 return null;
         }
         else if (statusKind == QuestStatusKind.Failed)
         {
-            if (rewardAt != -1)
+            if (completedAt != -1 || rewardAt != -1 || failureReasonId == "")
                 return null;
         }
 
@@ -355,6 +413,8 @@ public class QuestState
             accepted_at_world_step = acceptedAt,
             completed_at_world_step = completedAt,
             reward_claimed_at_world_step = rewardAt,
+            failed_at_world_step = failedAt,
+            failure_reason_id = failureReasonId,
             last_progress_context = progressContext,
         };
     }
@@ -383,6 +443,23 @@ public class QuestState
         string text = value.AsString().StripEdges();
 
         return text.Length > 0 ? new StringName(text) : new StringName("");
+    }
+
+    private static bool _try_read_optional_string_name(
+        object rawValue,
+        out StringName result
+    )
+    {
+        result = "";
+        if (rawValue is not Variant value)
+            return false;
+        if (
+            value.VariantType != Variant.Type.String
+            && value.VariantType != Variant.Type.StringName
+        )
+            return false;
+        result = new StringName(value.AsString().StripEdges());
+        return true;
     }
 
     private static bool _is_valid_status_id(StringName statusId)

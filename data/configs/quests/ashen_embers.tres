@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"gather_coal", &"objective_type": &"submit_item", &"target_id": &"forge_coal", &"target_value": 5}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 150}, {&"reward_type": &"item", &"item_id": &"dead_road_lantern", &"quantity": 1}])
 is_repeatable = false
+failure_policy = &"terminal"

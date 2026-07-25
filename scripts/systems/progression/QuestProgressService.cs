@@ -97,6 +97,11 @@ public sealed class QuestProgressService
         return _party_state?.GetClaimableQuestsTyped() ?? new List<QuestState>();
     }
 
+    public List<QuestState> GetFailedQuestsTyped()
+    {
+        return _party_state?.GetFailedQuestsTyped() ?? new List<QuestState>();
+    }
+
     public List<StringName> GetClaimableQuestIdsTyped()
     {
         return _party_state?.GetClaimableQuestIdsTyped() ?? new List<StringName>();
@@ -111,21 +116,34 @@ public sealed class QuestProgressService
     {
         if (_party_state == null || questId == "")
             return false;
-        if (_has_quest_def_catalog && !_quest_def_index.ContainsKey(questId))
+        QuestDefinition questDefinition = GetQuestDefObject(questId);
+        if (_has_quest_def_catalog && questDefinition == null)
             return false;
         if (_party_state.HasActiveQuest(questId))
             return false;
         if (_party_state.HasClaimableQuest(questId))
             return false;
-        if (_party_state.HasCompletedQuest(questId) && !allowReaccept)
-            return false;
-        if (allowReaccept && _party_state.HasCompletedQuest(questId))
-            _party_state.completed_quest_ids.Remove(questId);
 
-        QuestState questState = new() { quest_id = questId };
-        questState.MarkAccepted(worldStep);
-        _party_state.SetActiveQuestState(questState);
-        return true;
+        if (_party_state.HasFailedQuest(questId))
+        {
+            return questDefinition != null
+                && questDefinition.CanRestartAfterFailure
+                && _party_state.RestartFailedQuest(questId, worldStep);
+        }
+
+        if (_party_state.HasCompletedQuest(questId))
+        {
+            bool canRestartCompleted =
+                allowReaccept
+                && (
+                    questDefinition == null
+                    || questDefinition.IsRepeatable
+                );
+            return canRestartCompleted
+                && _party_state.RestartRewardedQuest(questId, worldStep);
+        }
+
+        return _party_state.AcceptNewQuest(questId, worldStep);
     }
 
     public bool CompleteQuest(StringName questId, int worldStep = -1)
@@ -150,10 +168,6 @@ public sealed class QuestProgressService
         if (_party_state == null || questId == "" || objectiveId == "" || delta <= 0)
             return false;
 
-        QuestState questState = _party_state.GetActiveQuestState(questId);
-        if (questState == null || !questState.IsActive())
-            return false;
-
         int resolvedTarget =
             targetValue > 0
                 ? targetValue
@@ -161,11 +175,38 @@ public sealed class QuestProgressService
         if (resolvedTarget <= 0)
             return false;
 
-        questState.RecordObjectiveProgress(objectiveId, delta, resolvedTarget, context);
+        if (
+            !_party_state.RecordQuestObjectiveProgress(
+                questId,
+                objectiveId,
+                delta,
+                resolvedTarget,
+                context,
+                out QuestState questState
+            )
+        )
+            return false;
         QuestDefinition questDef = GetQuestDefObject(questId);
         if (questDef != null && questState.HasCompletedAllObjectives(questDef))
             return CompleteQuest(questId, GetWorldStep());
         return true;
+    }
+
+    public bool FailQuest(QuestFailureRequest request)
+    {
+        if (
+            _party_state == null
+            || request == null
+            || !request.IsValid
+            || GetQuestDefObject(request.QuestId) == null
+        )
+            return false;
+        return _party_state.MarkQuestFailed(
+            request.QuestId,
+            request.WorldStep,
+            request.ReasonId,
+            request.Context
+        );
     }
 
     public bool MarkCompleted(StringName questId)
@@ -295,15 +336,11 @@ public sealed class QuestProgressService
 
         if (questId != "")
         {
-            QuestState questState = _party_state.GetActiveQuestState(questId);
-            if (questState == null && eventData.AutoAccept)
+            if (!_party_state.HasActiveQuest(questId) && eventData.AutoAccept)
             {
-                if (
-                    AcceptQuest(questId, eventData.WorldStep, eventData.AllowReaccept)
-                )
-                    questState = _party_state.GetActiveQuestState(questId);
+                AcceptQuest(questId, eventData.WorldStep, eventData.AllowReaccept);
             }
-            if (questState == null)
+            if (!_party_state.HasActiveQuest(questId))
                 return progressedQuestIds;
 
             StringName objectiveId = eventData.ObjectiveId;
@@ -314,12 +351,17 @@ public sealed class QuestProgressService
             if (targetValue <= 0)
                 return progressedQuestIds;
 
-            questState.RecordObjectiveProgress(
-                objectiveId,
-                progressDelta,
-                targetValue,
-                eventData.BuildContext()
-            );
+            if (
+                !_party_state.RecordQuestObjectiveProgress(
+                    questId,
+                    objectiveId,
+                    progressDelta,
+                    targetValue,
+                    eventData.BuildContext(),
+                    out _
+                )
+            )
+                return progressedQuestIds;
             progressedQuestIds.Add(questId);
             return progressedQuestIds;
         }
@@ -339,13 +381,17 @@ public sealed class QuestProgressService
             if (targetValue <= 0)
                 continue;
 
-            questState.RecordObjectiveProgress(
-                objectiveId,
-                progressDelta,
-                targetValue,
-                eventData.BuildContext()
-            );
-            AppendUniqueStringName(progressedQuestIds, questState.quest_id);
+            if (
+                _party_state.RecordQuestObjectiveProgress(
+                    questState.quest_id,
+                    objectiveId,
+                    progressDelta,
+                    targetValue,
+                    eventData.BuildContext(),
+                    out _
+                )
+            )
+                AppendUniqueStringName(progressedQuestIds, questState.quest_id);
         }
         return progressedQuestIds;
     }
@@ -651,7 +697,10 @@ public sealed class QuestProgressService
             StringName eventType = QuestProgressDataReader.ReadStringName(data, "event_type");
             if (eventType != EventAccept && eventType != EventProgress && eventType != EventComplete)
                 return Invalid();
-            if (!QuestProgressDataReader.TryReadInt(data, "world_step", out int worldStep))
+            if (
+                !QuestProgressDataReader.TryReadInt(data, "world_step", out int worldStep)
+                || worldStep < 0
+            )
                 return Invalid();
             if (
                 QuestProgressDataReader.HasKey(data, "allow_reaccept")

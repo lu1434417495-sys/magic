@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"gather_lanterns", &"objective_type": &"submit_item", &"target_id": &"dead_road_lantern", &"target_value": 2}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 200}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"attribute_progress", &"target_id": &"willpower", &"amount": 15}])}])
 is_repeatable = false
+failure_policy = &"terminal"

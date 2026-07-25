@@ -18,11 +18,12 @@ public partial class PartyState
         "pending_character_rewards",
         "active_quests",
         "claimable_quests",
+        "failed_quests",
         "completed_quest_ids",
         "warehouse_state",
     };
 
-    public int version = 7;
+    public int version = 8;
     public int gold;
     public StringName leader_member_id = "",
         main_character_member_id = "";
@@ -32,9 +33,7 @@ public partial class PartyState
         reserve_member_ids = new();
     public PartyMemberStateCollection member_states = new();
     public List<PendingCharacterReward> pending_character_rewards = new();
-    public List<QuestState> active_quests = new(),
-        claimable_quests = new();
-    public StringNameList completed_quest_ids = new();
+    private QuestJournalState quest_journal = new();
     public WarehouseState warehouse_state = new WarehouseState();
 
     public PartyMemberState GetMemberState(StringName id)
@@ -152,11 +151,14 @@ public partial class PartyState
                 active_member_ids.Count > 0 ? active_member_ids[0] : new StringName("");
     }
 
-    public List<QuestState> GetActiveQuestsTyped() => new(active_quests);
+    public List<QuestState> GetActiveQuestsTyped() => quest_journal.GetActiveQuests();
 
-    public List<QuestState> GetClaimableQuestsTyped() => new(claimable_quests);
+    public List<QuestState> GetClaimableQuestsTyped() => quest_journal.GetClaimableQuests();
 
-    public List<StringName> GetCompletedQuestIdsTyped() => new(completed_quest_ids);
+    public List<QuestState> GetFailedQuestsTyped() => quest_journal.GetFailedQuests();
+
+    public List<StringName> GetCompletedQuestIdsTyped() =>
+        quest_journal.GetRewardedQuestIds();
 
     public int GetGold() => Mathf.Max(gold, 0);
 
@@ -174,9 +176,7 @@ public partial class PartyState
             reserve_member_ids = reserve_member_ids?.Duplicate() ?? new StringNameList(),
             member_states = member_states?.DuplicateState() ?? new PartyMemberStateCollection(),
             pending_character_rewards = DuplicatePendingCharacterRewards(pending_character_rewards),
-            active_quests = DuplicateQuestStates(active_quests),
-            claimable_quests = DuplicateQuestStates(claimable_quests),
-            completed_quest_ids = completed_quest_ids?.Duplicate() ?? new StringNameList(),
+            quest_journal = quest_journal?.DuplicateState() ?? new QuestJournalState(),
             warehouse_state = warehouse_state?.DuplicateState() ?? new WarehouseState(),
         };
     }
@@ -245,169 +245,150 @@ public partial class PartyState
 
     public QuestState GetActiveQuestState(StringName qid)
     {
-        foreach (var q in active_quests)
-            if (q != null && q.quest_id == qid)
-                return q;
-        return null;
+        return quest_journal.GetActiveQuest(qid);
     }
 
-    public bool HasActiveQuest(StringName qid) => GetActiveQuestState(qid) != null;
+    public bool HasActiveQuest(StringName qid) => quest_journal.HasActiveQuest(qid);
 
     public QuestState GetClaimableQuestState(StringName qid)
     {
-        foreach (var q in claimable_quests)
-            if (q != null && q.quest_id == qid)
-                return q;
-        return null;
+        return quest_journal.GetClaimableQuest(qid);
     }
 
-    public bool HasClaimableQuest(StringName qid) => GetClaimableQuestState(qid) != null;
+    public bool HasClaimableQuest(StringName qid) =>
+        quest_journal.HasClaimableQuest(qid);
+
+    public QuestState GetFailedQuestState(StringName qid)
+    {
+        return quest_journal.GetFailedQuest(qid);
+    }
+
+    public bool HasFailedQuest(StringName qid) => quest_journal.HasFailedQuest(qid);
 
     public QuestState GetQuestState(StringName qid)
     {
-        var activeQuest = GetActiveQuestState(qid);
-        if (activeQuest != null)
-            return activeQuest;
-        return GetClaimableQuestState(qid);
+        return quest_journal.GetQuest(qid);
     }
 
-    public void SetQuestState(StringName qid, QuestState q)
+    internal bool SetQuestState(StringName qid, QuestState q)
     {
         if (q == null)
-            return;
+            return false;
+        if (qid != "" && q.quest_id != "" && q.quest_id != qid)
+            return false;
         if (q.quest_id == "")
             q.quest_id = qid;
         if (q.quest_id == "")
-            return;
-        QuestStatusKind statusKind = QuestState.ToStatusKind(q.status_id);
-        if (statusKind == QuestStatusKind.Active)
-        {
-            SetActiveQuestState(q);
-        }
-        else if (statusKind == QuestStatusKind.Completed)
-        {
-            SetClaimableQuestState(q);
-        }
-        else if (statusKind == QuestStatusKind.Rewarded)
-        {
-            AddCompletedQuestId(q.quest_id);
-        }
-        // Failed quests do not yet have a canonical PartyState collection or save
-        // contract. Reject failed/inactive/unknown states instead of placing them
-        // in active_quests, where strict save loading would reject them.
+            return false;
+        return quest_journal.SetState(q);
     }
 
-    public void SetActiveQuestState(QuestState q)
+    internal bool SetActiveQuestState(QuestState q)
     {
-        if (q == null || q.quest_id == "")
-            return;
-        RemoveClaimableQuest(q.quest_id);
-        completed_quest_ids.Remove(q.quest_id);
-        for (int i = 0; i < active_quests.Count; i++)
-        {
-            if (active_quests[i] != null && active_quests[i].quest_id == q.quest_id)
-            {
-                active_quests[i] = q;
-                return;
-            }
-        }
-        active_quests.Add(q);
+        return quest_journal.SetActiveQuest(q);
     }
 
-    public void SetClaimableQuestState(QuestState q)
+    internal bool SetClaimableQuestState(QuestState q)
     {
-        if (q == null || q.quest_id == "")
-            return;
-        RemoveActiveQuest(q.quest_id);
-        completed_quest_ids.Remove(q.quest_id);
-        for (int i = 0; i < claimable_quests.Count; i++)
-        {
-            if (claimable_quests[i] != null && claimable_quests[i].quest_id == q.quest_id)
-            {
-                claimable_quests[i] = q;
-                return;
-            }
-        }
-        claimable_quests.Add(q);
+        return quest_journal.SetClaimableQuest(q);
     }
 
-    public bool RemoveActiveQuest(StringName qid)
+    internal bool SetFailedQuestState(QuestState q)
     {
-        for (int i = 0; i < active_quests.Count; i++)
-        {
-            if (active_quests[i] != null && active_quests[i].quest_id == qid)
-            {
-                active_quests.RemoveAt(i);
-                return true;
-            }
-        }
-        return false;
+        return quest_journal.SetFailedQuest(q);
     }
 
-    public bool RemoveClaimableQuest(StringName qid)
+    internal bool RemoveActiveQuest(StringName qid)
     {
-        for (int i = 0; i < claimable_quests.Count; i++)
-        {
-            if (claimable_quests[i] != null && claimable_quests[i].quest_id == qid)
-            {
-                claimable_quests.RemoveAt(i);
-                return true;
-            }
-        }
-        return false;
+        return quest_journal.RemoveActiveQuest(qid);
     }
 
-    public List<StringName> GetActiveQuestIdsTyped()
+    internal bool RemoveClaimableQuest(StringName qid)
     {
-        var r = new List<StringName>();
-        foreach (var q in active_quests)
-            if (q != null && q.quest_id != "")
-                r.Add(q.quest_id);
-        return r;
+        return quest_journal.RemoveClaimableQuest(qid);
     }
 
-    public List<StringName> GetClaimableQuestIdsTyped()
+    internal bool RemoveFailedQuest(StringName qid)
     {
-        var r = new List<StringName>();
-        foreach (var q in claimable_quests)
-            if (q != null && q.quest_id != "")
-                r.Add(q.quest_id);
-        return r;
+        return quest_journal.RemoveFailedQuest(qid);
     }
 
-    public bool HasCompletedQuest(StringName qid) => completed_quest_ids.Contains(qid);
+    public List<StringName> GetActiveQuestIdsTyped() =>
+        quest_journal.GetActiveQuestIds();
 
-    public void AddCompletedQuestId(StringName qid)
+    public List<StringName> GetClaimableQuestIdsTyped() =>
+        quest_journal.GetClaimableQuestIds();
+
+    public List<StringName> GetFailedQuestIdsTyped() =>
+        quest_journal.GetFailedQuestIds();
+
+    public bool HasCompletedQuest(StringName qid) =>
+        quest_journal.HasRewardedQuest(qid);
+
+    internal bool AddCompletedQuestId(StringName qid)
     {
-        if (qid == "" || completed_quest_ids.Contains(qid))
-            return;
-        RemoveActiveQuest(qid);
-        RemoveClaimableQuest(qid);
-        completed_quest_ids.Add(qid);
+        return quest_journal.AddRewardedQuest(qid);
+    }
+
+    internal bool AcceptNewQuest(StringName qid, int worldStep)
+    {
+        return quest_journal.TryAcceptNewQuest(qid, worldStep);
+    }
+
+    internal bool RestartRewardedQuest(StringName qid, int worldStep)
+    {
+        return quest_journal.TryRestartRewardedQuest(qid, worldStep);
+    }
+
+    internal bool RestartFailedQuest(StringName qid, int worldStep)
+    {
+        return quest_journal.TryRestartFailedQuest(qid, worldStep);
+    }
+
+    internal bool RecordQuestObjectiveProgress(
+        StringName qid,
+        StringName objectiveId,
+        int delta,
+        int targetValue,
+        QuestProgressContext context,
+        out QuestState updatedState
+    )
+    {
+        return quest_journal.TryRecordObjectiveProgress(
+            qid,
+            objectiveId,
+            delta,
+            targetValue,
+            context,
+            out updatedState
+        );
     }
 
     public bool MarkQuestClaimable(StringName qid, int ws = -1)
     {
-        var q = GetActiveQuestState(qid);
-        if (q == null)
-            return false;
-        q.MarkCompleted(ws);
-        RemoveActiveQuest(qid);
-        SetClaimableQuestState(q);
-        return true;
+        return quest_journal.TryMarkClaimable(qid, ws);
     }
 
     public bool MarkQuestCompleted(StringName qid, int ws = -1) => MarkQuestClaimable(qid, ws);
 
     public bool MarkQuestRewardClaimed(StringName qid, int ws = -1)
     {
-        var q = GetClaimableQuestState(qid);
-        if (q == null)
-            return false;
-        q.MarkRewardClaimed(ws);
-        RemoveClaimableQuest(qid);
-        AddCompletedQuestId(qid);
-        return true;
+        return quest_journal.TryMarkRewarded(qid, ws);
+    }
+
+    internal bool MarkQuestFailed(
+        StringName qid,
+        int worldStep,
+        StringName reasonId,
+        QuestProgressContext context
+    )
+    {
+        return quest_journal.TryMarkFailed(qid, worldStep, reasonId, context);
+    }
+
+    internal void ClearQuestJournal()
+    {
+        quest_journal.Clear();
     }
 
     internal GodotProjectionLease<Godot.Collections.Dictionary> ToDictionaryLease(
@@ -447,7 +428,7 @@ public partial class PartyState
             return null;
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
-        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 7)
+        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 8)
             return null;
         if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
             return null;
@@ -458,6 +439,8 @@ public partial class PartyState
         if (data["active_quests"].VariantType != Variant.Type.Array)
             return null;
         if (data["claimable_quests"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["failed_quests"].VariantType != Variant.Type.Array)
             return null;
         if (data["completed_quest_ids"].VariantType != Variant.Type.Array)
             return null;
@@ -569,6 +552,7 @@ public partial class PartyState
             partyState.pending_character_rewards.Add(reward);
         }
 
+        var seenQuestIds = new HashSet<StringName>();
         foreach (var questValue in data["active_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
@@ -577,12 +561,13 @@ public partial class PartyState
             if (
                 questState == null
                 || questState.quest_id == ""
-                || partyState.HasActiveQuest(questState.quest_id)
+                || !seenQuestIds.Add(questState.quest_id)
             )
                 return null;
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Active))
                 return null;
-            partyState.active_quests.Add(questState);
+            if (!partyState.SetActiveQuestState(questState))
+                return null;
         }
 
         foreach (var questValue in data["claimable_quests"].AsGodotArray())
@@ -593,12 +578,30 @@ public partial class PartyState
             if (
                 questState == null
                 || questState.quest_id == ""
-                || partyState.HasClaimableQuest(questState.quest_id)
+                || !seenQuestIds.Add(questState.quest_id)
             )
                 return null;
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Completed))
                 return null;
-            partyState.claimable_quests.Add(questState);
+            if (!partyState.SetClaimableQuestState(questState))
+                return null;
+        }
+
+        foreach (var questValue in data["failed_quests"].AsGodotArray())
+        {
+            if (questValue.VariantType != Variant.Type.Dictionary)
+                return null;
+            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
+            if (
+                questState == null
+                || questState.quest_id == ""
+                || !seenQuestIds.Add(questState.quest_id)
+            )
+                return null;
+            if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Failed))
+                return null;
+            if (!partyState.SetFailedQuestState(questState))
+                return null;
         }
 
         var parsedCompletedQuestIds = _parse_completed_quest_ids(
@@ -606,21 +609,9 @@ public partial class PartyState
         );
         if (parsedCompletedQuestIds == null)
             return null;
-        partyState.completed_quest_ids = parsedCompletedQuestIds;
-
-        var activeQuestIds = partyState.GetActiveQuestIdsTyped();
-        var claimableQuestIds = partyState.GetClaimableQuestIdsTyped();
-        foreach (var questId in activeQuestIds)
+        foreach (StringName questId in parsedCompletedQuestIds)
         {
-            if (
-                claimableQuestIds.Contains(questId)
-                || partyState.completed_quest_ids.Contains(questId)
-            )
-                return null;
-        }
-        foreach (var questId in claimableQuestIds)
-        {
-            if (partyState.completed_quest_ids.Contains(questId))
+            if (!seenQuestIds.Add(questId) || !partyState.AddCompletedQuestId(questId))
                 return null;
         }
         if (
@@ -649,17 +640,6 @@ public partial class PartyState
         foreach (var reward in values)
             if (reward != null)
                 result.Add(reward.DuplicateState());
-        return result;
-    }
-
-    private static List<QuestState> DuplicateQuestStates(IEnumerable<QuestState> values)
-    {
-        var result = new List<QuestState>();
-        if (values == null)
-            return result;
-        foreach (var questState in values)
-            if (questState != null)
-                result.Add(questState.DuplicateState());
         return result;
     }
 

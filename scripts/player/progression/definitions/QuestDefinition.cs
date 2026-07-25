@@ -117,7 +117,8 @@ public sealed class QuestDefinition
         string acceptFeedbackFailure,
         string acceptConfirmationText,
         int dangerTierOverride = 0,
-        IReadOnlyList<StringName> listingSettlementIds = null
+        IReadOnlyList<StringName> listingSettlementIds = null,
+        bool canRestartAfterFailure = false
     )
     {
         QuestId = questId;
@@ -173,6 +174,7 @@ public sealed class QuestDefinition
             listingSettlementIds ?? System.Array.Empty<StringName>(),
             "QuestDefinition.ListingSettlementIds"
         );
+        CanRestartAfterFailure = canRestartAfterFailure;
     }
 
     public StringName QuestId { get; }
@@ -192,6 +194,7 @@ public sealed class QuestDefinition
     public string AcceptConfirmationText { get; }
     public int DangerTierOverride { get; }
     public IReadOnlyList<StringName> ListingSettlementIds { get; }
+    public bool CanRestartAfterFailure { get; }
 
     internal static QuestDefinition FromResource(QuestDef source, string path)
     {
@@ -205,6 +208,15 @@ public sealed class QuestDefinition
             $"{rootPath}.provider_interaction_id"
         );
         RequireNonEmpty(source.provider_kind, $"{rootPath}.provider_kind");
+        QuestFailurePolicyKind failurePolicy = QuestFailurePolicyRules.ToKind(
+            source.failure_policy
+        );
+        if (failurePolicy == QuestFailurePolicyKind.Unknown)
+        {
+            throw new InvalidDataException(
+                $"Content value at '{rootPath}.failure_policy' must be terminal or restartable."
+            );
+        }
         RequireString(source.accept_dialogue_text, $"{rootPath}.accept_dialogue_text");
         RequireString(
             source.accept_feedback_success,
@@ -289,7 +301,8 @@ public sealed class QuestDefinition
             source.accept_feedback_failure,
             source.accept_confirmation_text,
             source.danger_tier_override,
-            listingSettlementIds
+            listingSettlementIds,
+            failurePolicy == QuestFailurePolicyKind.Restartable
         );
     }
 

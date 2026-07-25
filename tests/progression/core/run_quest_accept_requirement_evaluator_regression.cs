@@ -66,7 +66,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 			"前置任务未完成时的锁定原因应为 quest_not_completed。"
 		);
 
-		partyState.completed_quest_ids.Add("pre_req");
+		partyState.AddCompletedQuestId("pre_req");
 		QuestAcceptAvailabilityResult resultAfter = evaluator.Evaluate(targetQuest, context);
 		_test.True(resultAfter.CanAccept, "前置任务已完成后应允许接取。");
 	}
@@ -100,7 +100,9 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 			"前置任务未激活时的锁定原因应为 quest_not_active。"
 		);
 
-		partyState.SetActiveQuestState(new QuestState { quest_id = "pre_req" });
+		QuestState activePrerequisite = new() { quest_id = "pre_req" };
+		activePrerequisite.MarkAccepted();
+		partyState.SetActiveQuestState(activePrerequisite);
 		QuestAcceptAvailabilityResult resultAfter = evaluator.Evaluate(targetQuest, context);
 		_test.True(resultAfter.CanAccept, "前置任务已激活时应允许接取。");
 	}
@@ -129,7 +131,7 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 		QuestAcceptAvailabilityResult resultBefore = evaluator.Evaluate(targetQuest, context);
 		_test.True(resultBefore.CanAccept, "前置任务未完成时应允许接取。");
 
-		partyState.completed_quest_ids.Add("pre_req");
+		partyState.AddCompletedQuestId("pre_req");
 		QuestAcceptAvailabilityResult resultAfter = evaluator.Evaluate(targetQuest, context);
 		_test.False(resultAfter.CanAccept, "前置任务已完成后应拒绝接取。");
 		_test.Eq(
@@ -165,13 +167,15 @@ public partial class run_quest_accept_requirement_evaluator_regression : Lifecyc
 		QuestAcceptRequirementEvaluator evaluator = new();
 		QuestAcceptContext context = BuildContext(partyState, questDefs);
 
-		partyState.completed_quest_ids.Add("pre_req_a");
+		partyState.AddCompletedQuestId("pre_req_a");
 		_test.False(
 			evaluator.Evaluate(targetQuest, context).CanAccept,
 			"仅满足部分多需求时仍应拒绝。"
 		);
 
-		partyState.SetActiveQuestState(new QuestState { quest_id = "pre_req_b" });
+		QuestState activePrerequisiteB = new() { quest_id = "pre_req_b" };
+		activePrerequisiteB.MarkAccepted();
+		partyState.SetActiveQuestState(activePrerequisiteB);
 		_test.True(
 			evaluator.Evaluate(targetQuest, context).CanAccept,
 			"满足全部多需求时应允许接取。"

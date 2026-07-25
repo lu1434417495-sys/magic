@@ -20,3 +20,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_alphas", &"objective_type": &"defeat_enemy", &"target_id": &"wolf_alpha", &"target_value": 3}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 1500}, {&"reward_type": &"item", &"item_id": &"black_crown_core", &"quantity": 1}])
 is_repeatable = false
+failure_policy = &"terminal"
