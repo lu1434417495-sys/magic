@@ -331,14 +331,15 @@ public partial class run_fortuna_guidance_regression : LifecycleTestSceneTree
         {
             battle_id = battleId,
         };
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = "hero_unit",
             source_member_id = HeroId,
             faction_id = "player",
             display_name = "Hero",
-            is_alive = isAlive,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: isAlive
+        );
         battleState.SetUnit(unit);
         battleState.ally_unit_ids = new GStringNameArray { unit.unit_id };
         return battleState;

@@ -96,6 +96,12 @@ public partial class CombatEffectDef : Resource
     public double pre_resistance_damage_multiplier { get; set; } = 1.0;
 
     [Export]
+    public int weapon_dice_multiplier { get; set; } = 1;
+
+    [Export]
+    public int bonus_weapon_dice_multiplier { get; set; }
+
+    [Export]
     public StringName damage_tag { get; set; } = "";
 
     [Export]
@@ -146,6 +152,9 @@ public partial class CombatEffectDef : Resource
     public int bonus_damage_dice_bonus { get; set; }
 
     [Export]
+    public bool bonus_damage_separate_event { get; set; }
+
+    [Export]
     public int source_bound_weapon_bonus_damage_dice_count { get; set; }
 
     [Export]
@@ -170,6 +179,38 @@ public partial class CombatEffectDef : Resource
     public bool allow_repeat_hits_across_steps { get; set; }
 
     [Export]
+    public StringName path_step_area_pattern { get; set; } = "diamond";
+    internal BattleAreaPattern PathStepAreaPatternKind
+    {
+        get => BattleTypedNames.ToAreaPattern(path_step_area_pattern);
+        set => path_step_area_pattern = BattleTypedNames.ToStringName(value);
+    }
+
+    [Export]
+    public int path_step_radius { get; set; } = 1;
+
+    [Export]
+    public string path_step_log_label { get; set; } = "";
+
+    [Export]
+    public StringName repeat_hit_status_id { get; set; } = "";
+
+    [Export]
+    public int repeat_hit_status_threshold { get; set; }
+
+    [Export]
+    public int repeat_hit_status_min_skill_level { get; set; }
+
+    [Export]
+    public int repeat_hit_status_power { get; set; } = 1;
+
+    [Export]
+    public int repeat_hit_status_duration_tu { get; set; }
+
+    [Export]
+    public string repeat_hit_status_log_template { get; set; } = "";
+
+    [Export]
     public bool prevent_repeat_target { get; set; } = true;
 
     [Export]
@@ -177,6 +218,9 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public bool stop_on_target_down { get; set; } = true;
+
+    [Export]
+    public int fixed_attack_count { get; set; }
 
     [Export]
     public bool remove_harmful { get; set; }
@@ -340,6 +384,11 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public StringName bonus_condition { get; set; } = "";
+    internal BattleDamageBonusConditionKind BonusConditionKind
+    {
+        get => BattleTypedNames.ToDamageBonusConditionKind(bonus_condition);
+        set => bonus_condition = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public StringName bonus_condition_creature_type_tag { get; set; } = "";
@@ -452,6 +501,45 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int main_skill_lock_other_debuff_count { get; set; }
+
+    [Export]
+    public int melee_combo_stack_gain_bonus { get; set; }
+
+    [Export]
+    public StringName combo_attack_bonus_status_id { get; set; } = "";
+
+    [Export]
+    public int combo_attack_bonus_stack_divisor { get; set; }
+
+    [Export]
+    public StringName upkeep_resource { get; set; } = "";
+
+    [Export]
+    public int upkeep_interval_tu { get; set; }
+
+    [Export]
+    public int upkeep_base_cost { get; set; }
+
+    [Export]
+    public int upkeep_escalation_interval_tu { get; set; }
+
+    [Export]
+    public int upkeep_cost_multiplier { get; set; } = 1;
+
+    [Export]
+    public bool break_on_hard_control { get; set; }
+
+    [Export]
+    public StringName termination_status_id { get; set; } = "";
+
+    [Export]
+    public int termination_status_duration_tu { get; set; }
+
+    [Export]
+    public int termination_attack_roll_penalty { get; set; }
+
+    [Export]
+    public int termination_cooldown_tu { get; set; }
 
     [Export]
     public Godot.Collections.Array<StringName> save_advantage_tags { get; set; } = new();

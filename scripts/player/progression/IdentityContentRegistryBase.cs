@@ -200,31 +200,15 @@ public class IdentityContentRegistryBase : System.IDisposable
             errors.Add($"{ownerLabel}.{fieldLabel} must be a non-empty StringName.");
     }
 
-    protected void _append_string_field_error(
+    protected static void _append_required_string_field_error(
         System.Collections.Generic.ICollection<string> errors,
         string ownerLabel,
         string fieldLabel,
         string value
     )
     {
-    }
-
-    protected void _append_int_field_error(
-        System.Collections.Generic.ICollection<string> errors,
-        string ownerLabel,
-        string fieldLabel,
-        int value
-    )
-    {
-    }
-
-    protected void _append_bool_field_error(
-        System.Collections.Generic.ICollection<string> errors,
-        string ownerLabel,
-        string fieldLabel,
-        bool value
-    )
-    {
+        if (string.IsNullOrWhiteSpace(value))
+            errors.Add($"{ownerLabel}.{fieldLabel} must be a non-empty String.");
     }
 
     protected void _append_string_name_array_errors(

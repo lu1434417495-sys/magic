@@ -4,8 +4,9 @@ using Godot;
 internal static class CombatEffectCategoryContentRules
 {
     internal static readonly StringName Spell = "spell";
-    internal static readonly StringName NonmagicalMissile = "nonmagical_missile";
-    internal static readonly StringName MagicalMissile = "magical_missile";
+    internal static readonly StringName Projectile = "projectile";
+    internal static readonly StringName NonmagicalProjectile = "nonmagical_projectile";
+    internal static readonly StringName MagicalProjectile = "magical_projectile";
     internal static readonly StringName Poison = "poison";
     internal static readonly StringName Petrification = "petrification";
     internal static readonly StringName BreathWeapon = "breath_weapon";
@@ -16,28 +17,29 @@ internal static class CombatEffectCategoryContentRules
 
     internal static IReadOnlyList<StringName> RequiredDeliveryCategories(
         bool isMageMagic,
-        bool isDragonBreath,
-        bool isArcherRanged,
-        int rangeValue,
-        bool hasDamageEffect,
-        bool hasAttackDamage
+        bool isDragonBreath
     )
     {
         var required = new List<StringName>();
         if (isMageMagic)
-        {
             required.Add(Spell);
-            if (rangeValue > 0 && hasAttackDamage)
-                required.Add(MagicalMissile);
-        }
 
         if (isDragonBreath)
             required.Add(BreathWeapon);
 
-        if (isArcherRanged && hasDamageEffect)
-            required.Add(NonmagicalMissile);
-
         return required;
+    }
+
+    internal static bool IsDerivedProjectileCategory(StringName value)
+    {
+        return value == Projectile
+            || value == NonmagicalProjectile
+            || value == MagicalProjectile;
+    }
+
+    internal static bool IsRemovedProjectileCategory(StringName value)
+    {
+        return value == "nonmagical_missile" || value == "magical_missile";
     }
 
     internal static IReadOnlyList<StringName> RequiredEffectCategories(

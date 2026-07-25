@@ -52,7 +52,10 @@ internal static class EquipmentAbilityPayloadValidators
                 "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
             );
         }
-        if (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(payload.damage_type))
+        if (
+            payload.damage_type != ""
+            && DamageTagContentRules.ToDamageTagKind(payload.damage_type) == DamageTagKind.Unknown
+        )
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,
@@ -149,7 +152,10 @@ internal static class EquipmentAbilityPayloadValidators
                 "deal_damage requires target_selector, damage_type, and dice terms or positive flat_bonus"
             );
         }
-        if (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(payload.damage_type))
+        if (
+            payload.damage_type != ""
+            && DamageTagContentRules.ToDamageTagKind(payload.damage_type) == DamageTagKind.Unknown
+        )
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,
@@ -272,7 +278,7 @@ internal static class EquipmentAbilityPayloadValidators
                 );
                 continue;
             }
-            if (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownDamageTypes) && !context.KnownDamageTypes.Contains(damageTag))
+            if (DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown)
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -886,7 +892,7 @@ internal static class EquipmentAbilityPayloadValidators
                 );
                 continue;
             }
-            if (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownSkillIds) && !context.KnownSkillIds.Contains(normalizedSkillId))
+            if (!context.KnownSkillIds.Contains(normalizedSkillId))
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -1537,19 +1543,19 @@ internal static class EquipmentAbilityPayloadValidators
                 "max_target_rarity must be -1 or a valid EquipmentInstanceState.RarityTier value"
             );
         }
-        if (EquipmentAbilityContentRegistry.HasKnownValues(context.KnownEquipmentSlotIds))
+        foreach (
+            StringName slot in payload.target_slots
+                ?? new Godot.Collections.Array<StringName>()
+        )
         {
-            foreach (StringName slot in payload.target_slots)
+            if (!EquipmentRules.IsValidSlot(slot))
             {
-                if (!context.KnownEquipmentSlotIds.Contains(slot))
-                {
-                    EquipmentAbilityContentRegistry.AddError(
-                        errors,
-                        "EQA_REFERENCE_UNKNOWN_SLOT",
-                        $"{path}.payload.target_slots[{slot}]",
-                        $"equipment slot {slot} is not known"
-                    );
-                }
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REFERENCE_UNKNOWN_SLOT",
+                    $"{path}.payload.target_slots[{slot}]",
+                    $"equipment slot {slot} is not known"
+                );
             }
         }
         HashSet<StringName> weightedSlots = new();
@@ -1577,10 +1583,7 @@ internal static class EquipmentAbilityPayloadValidators
                         $"slot_weight for {weight.slot_id} is duplicated"
                     );
                 }
-                if (
-                    EquipmentAbilityContentRegistry.HasKnownValues(context.KnownEquipmentSlotIds)
-                    && !context.KnownEquipmentSlotIds.Contains(weight.slot_id)
-                )
+                if (!EquipmentRules.IsValidSlot(weight.slot_id))
                 {
                     EquipmentAbilityContentRegistry.AddError(
                         errors,

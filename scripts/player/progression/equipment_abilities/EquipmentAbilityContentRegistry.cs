@@ -76,11 +76,28 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     {
         _revision++;
         var errors = new List<string>();
-        validationContext ??= new EquipmentAbilityContentValidationContext();
         List<EquipmentAbilityContentPackDef> sortedPacks = SortPacks(packs, errors);
         var nextPacks = new Dictionary<StringName, EquipmentAbilityContentPackDefinition>();
         var nextBindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
         var nextByTrait = new Dictionary<StringName, List<EquipmentAbilityBindingDefinition>>();
+
+        if (!HasCompleteValidationContext(validationContext))
+        {
+            AddError(
+                errors,
+                "EQA_VALIDATION_CONTEXT_INCOMPLETE",
+                "equipment_ability.validation_context",
+                "KnownTraitIds, KnownSkillIds, and KnownStatusIds must all be supplied; non-null empty sets are authoritative"
+            );
+        }
+        else
+        {
+            validationContext =
+                EquipmentAbilityStatusDeclarationCatalog.ExpandWithEquipmentDeclarations(
+                    validationContext,
+                    sortedPacks
+                );
+        }
 
         if (errors.Count == 0)
         {
@@ -307,11 +324,15 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             : string.CompareOrdinal(left.pack_id.ToString(), right.pack_id.ToString());
     }
 
-    internal static bool HasKnownValues(IReadOnlySet<StringName> values) =>
-        values != null && values.Count > 0;
-
     internal static bool ContainsValue(IReadOnlySet<StringName> source, StringName key) =>
         source != null && source.Contains(key);
+
+    private static bool HasCompleteValidationContext(
+        EquipmentAbilityContentValidationContext context
+    ) =>
+        context?.KnownTraitIds != null
+        && context.KnownSkillIds != null
+        && context.KnownStatusIds != null;
 
     private static bool IsAllowed(StringName value, params string[] allowed)
     {

@@ -104,9 +104,19 @@ public class RaceContentRegistry : IdentityContentRegistryBase
 
             _append_string_name_field_error(errors, label, "race_id", raceDef.RaceId);
 
-            _append_string_field_error(errors, label, "display_name", raceDef.DisplayName);
+            _append_required_string_field_error(
+                errors,
+                label,
+                "display_name",
+                raceDef.DisplayName
+            );
 
-            _append_string_field_error(errors, label, "description", raceDef.Description);
+            _append_required_string_field_error(
+                errors,
+                label,
+                "description",
+                raceDef.Description
+            );
 
             _append_string_name_field_error(
                 errors,
@@ -130,8 +140,6 @@ public class RaceContentRegistry : IdentityContentRegistryBase
                 "body_size_category",
                 raceDef.BodySizeCategory
             );
-
-            _append_int_field_error(errors, label, "base_speed", raceDef.BaseSpeed);
 
             if (raceDef.BaseSpeed <= 0)
                 errors.Add($"{label}.base_speed must be > 0.");
@@ -161,25 +169,22 @@ public class RaceContentRegistry : IdentityContentRegistryBase
 
             _append_string_name_array_errors(errors, label, raceDef.VisionTags, "vision_tags");
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                raceDef.SaveAdvantageTags,
-                "save_advantage_tags"
+                $"{label}.save_advantage_tags",
+                raceDef.SaveAdvantageTags
             );
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                raceDef.SaveDisadvantageTags,
-                "save_disadvantage_tags"
+                $"{label}.save_disadvantage_tags",
+                raceDef.SaveDisadvantageTags
             );
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                raceDef.SaveImmunityTags,
-                "save_immunity_tags"
+                $"{label}.save_immunity_tags",
+                raceDef.SaveImmunityTags
             );
 
             _append_string_name_to_string_name_dictionary_errors(

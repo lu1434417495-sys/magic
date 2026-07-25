@@ -722,6 +722,11 @@ public class ProgressionContentRegistry : IValidatableRegistry, System.IDisposab
         {
             KnownTraitIds = ReadOnlyKeySet(_traitDefIndex),
             KnownSkillIds = ReadOnlyKeySet(_skillDefinitionIndex),
+            KnownStatusIds =
+                EquipmentAbilityStatusDeclarationCatalog.CollectExternalStatusDeclarations(
+                    _traitDefIndex.Values,
+                    _skillDefinitionIndex.Values
+                ),
         };
     }
 

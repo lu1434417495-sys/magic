@@ -570,7 +570,13 @@ public sealed class CombatSkillDefinition
         bool requiresEquippedShield,
         int masteryLowHpBonusMultiplier,
         int masteryLowHpThresholdPercent,
-        StringName weaponRangePolicy = default
+        StringName weaponRangePolicy = default,
+        StringName projectileKind = default,
+        StringName attackRollBonusStatusId = default,
+        int attackRollBonusStatusStackDivisor = 0,
+        int randomChainAttackCount = 0,
+        bool randomChainContinueOnMiss = false,
+        IReadOnlyList<StringName> requiredWeaponTypeIds = null
     )
     {
         SkillId = skillId;
@@ -626,6 +632,9 @@ public sealed class CombatSkillDefinition
         RequiredWeaponFamilies = SkillDefinitionCollectionFreeze.List(
             requiredWeaponFamilies
         );
+        RequiredWeaponTypeIds = SkillDefinitionCollectionFreeze.List(
+            requiredWeaponTypeIds
+        );
         ExcludedWeaponFamilies = SkillDefinitionCollectionFreeze.List(
             excludedWeaponFamilies
         );
@@ -636,6 +645,11 @@ public sealed class CombatSkillDefinition
         MasteryLowHpBonusMultiplier = masteryLowHpBonusMultiplier;
         MasteryLowHpThresholdPercent = masteryLowHpThresholdPercent;
         WeaponRangePolicy = weaponRangePolicy;
+        ProjectileKind = projectileKind;
+        AttackRollBonusStatusId = attackRollBonusStatusId;
+        AttackRollBonusStatusStackDivisor = attackRollBonusStatusStackDivisor;
+        RandomChainAttackCount = randomChainAttackCount;
+        RandomChainContinueOnMiss = randomChainContinueOnMiss;
     }
 
     public StringName SkillId { get; }
@@ -673,17 +687,23 @@ public sealed class CombatSkillDefinition
     public StringName AreaDirectionMode { get; }
     public IReadOnlyList<StringName> AiTags { get; }
     public IReadOnlyList<StringName> DeliveryCategories { get; }
+    public StringName ProjectileKind { get; }
+    public StringName AttackRollBonusStatusId { get; }
+    public int AttackRollBonusStatusStackDivisor { get; }
     public StringName SpecialResolutionProfileId { get; }
     public StringName TargetSelectionMode { get; }
     public int MinTargetCount { get; }
     public int MaxTargetCount { get; }
     public bool AllowRepeatTarget { get; }
     public int MaxHitsPerTarget { get; }
+    public int RandomChainAttackCount { get; }
+    public bool RandomChainContinueOnMiss { get; }
     public StringName SelectionOrderMode { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public IReadOnlyList<CombatEffectDefinition> PassiveEffectDefinitions { get; }
     public IReadOnlyList<CombatCastVariantDefinition> CastVariants { get; }
     public IReadOnlyList<StringName> RequiredWeaponFamilies { get; }
+    public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
     public bool RequiresEquippedShield { get; }
@@ -705,6 +725,17 @@ public sealed class CombatSkillDefinition
         CombatSkillContentRules.ToSpellFateMode(SpellFateMode);
     internal CombatSkillAttackResolutionMode AttackResolutionModeKind =>
         CombatSkillContentRules.ToAttackResolutionMode(AttackResolutionMode);
+    internal CombatSkillAttackResolutionMode GetEffectiveAttackResolutionMode(int skillLevel)
+    {
+        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
+        return overrides != null
+            && overrides.TryGetValue("attack_resolution_mode", out object rawValue)
+            && TryReadStringName(rawValue, out StringName value)
+            ? CombatSkillContentRules.ToAttackResolutionMode(value)
+            : AttackResolutionModeKind;
+    }
+    internal CombatProjectileKind ProjectileKindTyped =>
+        CombatProjectileContentRules.ToProjectileKind(ProjectileKind);
     internal CombatSpellCriticalMode SpellCriticalModeKind =>
         CombatSkillDef.ToSpellCriticalMode(SpellCriticalMode);
     internal CombatSkillBacklashMode BacklashModeKind =>
@@ -785,6 +816,13 @@ public sealed class CombatSkillDefinition
     public int GetEffectiveMaxTargetCount(int skillLevel) =>
         ReadIntOverride(BuildLevelOverride(skillLevel), "max_target_count", MaxTargetCount);
 
+    public int GetEffectiveRandomChainAttackCount(int skillLevel) =>
+        ReadIntOverride(
+            BuildLevelOverride(skillLevel),
+            "random_chain_attack_count",
+            RandomChainAttackCount
+        );
+
     public bool HasCastingTime(int skillLevel) => GetEffectiveCastingTimeTu(skillLevel) > 0;
 
     public bool HasSpellFateControl() => SpellFateModeKind == CombatSpellFateMode.ControlRoll;
@@ -841,7 +879,13 @@ public sealed class CombatSkillDefinition
             RequiresEquippedShield,
             MasteryLowHpBonusMultiplier,
             MasteryLowHpThresholdPercent,
-            WeaponRangePolicy
+            WeaponRangePolicy,
+            ProjectileKind,
+            AttackRollBonusStatusId,
+            AttackRollBonusStatusStackDivisor,
+            RandomChainAttackCount,
+            RandomChainContinueOnMiss,
+            RequiredWeaponTypeIds
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -896,7 +940,13 @@ public sealed class CombatSkillDefinition
             RequiresEquippedShield,
             MasteryLowHpBonusMultiplier,
             MasteryLowHpThresholdPercent,
-            WeaponRangePolicy
+            WeaponRangePolicy,
+            ProjectileKind,
+            AttackRollBonusStatusId,
+            AttackRollBonusStatusStackDivisor,
+            RandomChainAttackCount,
+            RandomChainContinueOnMiss,
+            RequiredWeaponTypeIds
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -987,7 +1037,13 @@ public sealed class CombatSkillDefinition
             source.requires_equipped_shield,
             source.mastery_low_hp_bonus_multiplier,
             source.mastery_low_hp_threshold_percent,
-            source.weapon_range_policy
+            source.weapon_range_policy,
+            source.projectile_kind,
+            source.attack_roll_bonus_status_id,
+            source.attack_roll_bonus_status_stack_divisor,
+            source.random_chain_attack_count,
+            source.random_chain_continue_on_miss,
+            CopyStringNameArray(source.required_weapon_type_ids)
         );
     }
 
@@ -1215,7 +1271,8 @@ public sealed class CombatCastVariantDefinition
         int requiredCoordCount,
         IReadOnlyList<StringName> allowedBaseTerrains,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> parameters
+        IReadOnlyDictionary<string, object> parameters,
+        StringName projectileKindOverride = default
     )
     {
         VariantId = variantId;
@@ -1229,6 +1286,7 @@ public sealed class CombatCastVariantDefinition
             allowedBaseTerrains
         );
         EffectDefinitions = SkillDefinitionCollectionFreeze.List(effectDefinitions);
+        ProjectileKindOverride = projectileKindOverride;
         Parameters = ContentValueNormalizer.NormalizeDictionary(
             parameters,
             "CombatCastVariantDefinition.Parameters"
@@ -1244,10 +1302,13 @@ public sealed class CombatCastVariantDefinition
     public int RequiredCoordCount { get; }
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
+    public StringName ProjectileKindOverride { get; }
     public IReadOnlyDictionary<string, object> Parameters { get; }
     internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
     internal CombatCastFootprintPattern FootprintPatternKind =>
         CombatSkillTargetingContentRules.ToFootprintPattern(FootprintPattern);
+    internal CombatProjectileKind ProjectileKindOverrideTyped =>
+        CombatProjectileContentRules.ToProjectileKind(ProjectileKindOverride);
 
     internal static CombatCastVariantDefinition FromResource(
         CombatCastVariantDef source,
@@ -1269,7 +1330,8 @@ public sealed class CombatCastVariantDefinition
             ContentValueNormalizer.NormalizeDictionary(
                 source.@params,
                 $"{path}.params"
-            )
+            ),
+            source.projectile_kind_override
         );
     }
 
@@ -1445,20 +1507,20 @@ public sealed class CombatTargetDamageMultiplierRuleDefinition
 
     internal bool Matches(BattleUnitState targetUnit)
     {
-        if (targetUnit == null || targetUnit.creature_type_tags == null)
+        if (targetUnit == null)
         {
             return false;
         }
         foreach (StringName excluded in ExcludedCreatureTypeTags)
         {
-            if (excluded != "" && targetUnit.creature_type_tags.Contains(excluded))
+            if (excluded != "" && targetUnit.HasCreatureTypeTag(excluded))
             {
                 return false;
             }
         }
         foreach (StringName required in AllCreatureTypeTags)
         {
-            if (required == "" || !targetUnit.creature_type_tags.Contains(required))
+            if (required == "" || !targetUnit.HasCreatureTypeTag(required))
             {
                 return false;
             }
@@ -1469,7 +1531,7 @@ public sealed class CombatTargetDamageMultiplierRuleDefinition
         }
         foreach (StringName candidate in AnyCreatureTypeTags)
         {
-            if (candidate != "" && targetUnit.creature_type_tags.Contains(candidate))
+            if (candidate != "" && targetUnit.HasCreatureTypeTag(candidate))
             {
                 return true;
             }
@@ -1679,7 +1741,33 @@ public sealed class CombatEffectDefinition
         int sourceBoundWeaponBonusDamageDiceCount = 0,
         int sourceBoundWeaponBonusDamageDiceSides = 0,
         int sourceBoundWeaponBonusDamageDiceBonus = 0,
-        int chargeTrapImmunityMinSkillLevel = -1
+        int chargeTrapImmunityMinSkillLevel = -1,
+        StringName pathStepAreaPattern = default,
+        int pathStepRadius = 1,
+        string pathStepLogLabel = "",
+        StringName repeatHitStatusId = default,
+        int repeatHitStatusThreshold = 0,
+        int repeatHitStatusMinSkillLevel = 0,
+        int repeatHitStatusPower = 1,
+        int repeatHitStatusDurationTu = 0,
+        string repeatHitStatusLogTemplate = "",
+        int fixedAttackCount = 0,
+        int weaponDiceMultiplier = 1,
+        int bonusWeaponDiceMultiplier = 0,
+        bool bonusDamageSeparateEvent = false,
+        int meleeComboStackGainBonus = 0,
+        StringName comboAttackBonusStatusId = default,
+        int comboAttackBonusStackDivisor = 0,
+        StringName upkeepResource = default,
+        int upkeepIntervalTu = 0,
+        int upkeepBaseCost = 0,
+        int upkeepEscalationIntervalTu = 0,
+        int upkeepCostMultiplier = 1,
+        bool breakOnHardControl = false,
+        StringName terminationStatusId = default,
+        int terminationStatusDurationTu = 0,
+        int terminationAttackRollPenalty = 0,
+        int terminationCooldownTu = 0
     )
     {
         EffectType = effectType;
@@ -1698,6 +1786,8 @@ public sealed class CombatEffectDefinition
         DamageTag = damageTag;
         DamageRatioPercent = damageRatioPercent;
         PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
+        WeaponDiceMultiplier = System.Math.Max(weaponDiceMultiplier, 1);
+        BonusWeaponDiceMultiplier = System.Math.Max(bonusWeaponDiceMultiplier, 0);
         BonusCondition = bonusCondition;
         BonusConditionCreatureTypeTag = bonusConditionCreatureTypeTag;
         HpRatioThresholdPercent = hpRatioThresholdPercent;
@@ -1709,6 +1799,22 @@ public sealed class CombatEffectDefinition
         BonusDamageDiceCount = bonusDamageDiceCount;
         BonusDamageDiceSides = bonusDamageDiceSides;
         BonusDamageDiceBonus = bonusDamageDiceBonus;
+        BonusDamageSeparateEvent = bonusDamageSeparateEvent;
+        MeleeComboStackGainBonus = System.Math.Max(meleeComboStackGainBonus, 0);
+        ComboAttackBonusStatusId = ProgressionDataUtils.to_string_name(
+            comboAttackBonusStatusId
+        );
+        ComboAttackBonusStackDivisor = System.Math.Max(comboAttackBonusStackDivisor, 0);
+        UpkeepResource = ProgressionDataUtils.to_string_name(upkeepResource);
+        UpkeepIntervalTu = System.Math.Max(upkeepIntervalTu, 0);
+        UpkeepBaseCost = System.Math.Max(upkeepBaseCost, 0);
+        UpkeepEscalationIntervalTu = System.Math.Max(upkeepEscalationIntervalTu, 0);
+        UpkeepCostMultiplier = System.Math.Max(upkeepCostMultiplier, 1);
+        BreakOnHardControl = breakOnHardControl;
+        TerminationStatusId = ProgressionDataUtils.to_string_name(terminationStatusId);
+        TerminationStatusDurationTu = System.Math.Max(terminationStatusDurationTu, 0);
+        TerminationAttackRollPenalty = System.Math.Max(terminationAttackRollPenalty, 0);
+        TerminationCooldownTu = System.Math.Max(terminationCooldownTu, 0);
         SourceBoundWeaponBonusDamageDiceCount = sourceBoundWeaponBonusDamageDiceCount;
         SourceBoundWeaponBonusDamageDiceSides = sourceBoundWeaponBonusDamageDiceSides;
         SourceBoundWeaponBonusDamageDiceBonus = sourceBoundWeaponBonusDamageDiceBonus;
@@ -1770,6 +1876,7 @@ public sealed class CombatEffectDefinition
         ResolveAsWeaponAttack = resolveAsWeaponAttack;
         StopOnMiss = stopOnMiss;
         StopOnTargetDown = stopOnTargetDown;
+        FixedAttackCount = fixedAttackCount;
         RemoveHarmful = removeHarmful;
         RemoveHarmfulFromAllies = removeHarmfulFromAllies;
         RemoveBeneficial = removeBeneficial;
@@ -1835,6 +1942,16 @@ public sealed class CombatEffectDefinition
         TargetDamageMultiplierRules = SkillDefinitionCollectionFreeze.List(
             targetDamageMultiplierRules
         );
+        PathStepAreaPattern =
+            pathStepAreaPattern == "" ? (StringName)"diamond" : pathStepAreaPattern;
+        PathStepRadius = pathStepRadius;
+        PathStepLogLabel = pathStepLogLabel ?? "";
+        RepeatHitStatusId = repeatHitStatusId;
+        RepeatHitStatusThreshold = repeatHitStatusThreshold;
+        RepeatHitStatusMinSkillLevel = repeatHitStatusMinSkillLevel;
+        RepeatHitStatusPower = repeatHitStatusPower;
+        RepeatHitStatusDurationTu = repeatHitStatusDurationTu;
+        RepeatHitStatusLogTemplate = repeatHitStatusLogTemplate ?? "";
     }
 
     public StringName EffectType { get; }
@@ -1853,6 +1970,8 @@ public sealed class CombatEffectDefinition
     public StringName DamageTag { get; }
     public int DamageRatioPercent { get; }
     public double PreResistanceDamageMultiplier { get; }
+    public int WeaponDiceMultiplier { get; }
+    public int BonusWeaponDiceMultiplier { get; }
     public StringName BonusCondition { get; }
     public StringName BonusConditionCreatureTypeTag { get; }
     public int HpRatioThresholdPercent { get; }
@@ -1864,6 +1983,20 @@ public sealed class CombatEffectDefinition
     public int BonusDamageDiceCount { get; }
     public int BonusDamageDiceSides { get; }
     public int BonusDamageDiceBonus { get; }
+    public bool BonusDamageSeparateEvent { get; }
+    public int MeleeComboStackGainBonus { get; }
+    public StringName ComboAttackBonusStatusId { get; }
+    public int ComboAttackBonusStackDivisor { get; }
+    public StringName UpkeepResource { get; }
+    public int UpkeepIntervalTu { get; }
+    public int UpkeepBaseCost { get; }
+    public int UpkeepEscalationIntervalTu { get; }
+    public int UpkeepCostMultiplier { get; }
+    public bool BreakOnHardControl { get; }
+    public StringName TerminationStatusId { get; }
+    public int TerminationStatusDurationTu { get; }
+    public int TerminationAttackRollPenalty { get; }
+    public int TerminationCooldownTu { get; }
     public int SourceBoundWeaponBonusDamageDiceCount { get; }
     public int SourceBoundWeaponBonusDamageDiceSides { get; }
     public int SourceBoundWeaponBonusDamageDiceBonus { get; }
@@ -1918,6 +2051,7 @@ public sealed class CombatEffectDefinition
     public bool ResolveAsWeaponAttack { get; }
     public bool StopOnMiss { get; }
     public bool StopOnTargetDown { get; }
+    public int FixedAttackCount { get; }
     public bool RemoveHarmful { get; }
     public bool RemoveHarmfulFromAllies { get; }
     public bool RemoveBeneficial { get; }
@@ -1973,7 +2107,20 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<EquipmentSlotWeightDefinition> EquipmentDurabilitySlotWeights { get; }
     public IReadOnlyList<CombatDamageSegmentDefinition> ExtraDamageSegments { get; }
     public IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> TargetDamageMultiplierRules { get; }
+    public StringName PathStepAreaPattern { get; }
+    internal BattleAreaPattern PathStepAreaPatternKind =>
+        BattleTypedNames.ToAreaPattern(PathStepAreaPattern);
+    public int PathStepRadius { get; }
+    public string PathStepLogLabel { get; }
+    public StringName RepeatHitStatusId { get; }
+    public int RepeatHitStatusThreshold { get; }
+    public int RepeatHitStatusMinSkillLevel { get; }
+    public int RepeatHitStatusPower { get; }
+    public int RepeatHitStatusDurationTu { get; }
+    public string RepeatHitStatusLogTemplate { get; }
     internal BattleEffectKind EffectKind => BattleTypedNames.ToEffectKind(EffectType);
+    internal BattleDamageBonusConditionKind BonusConditionKind =>
+        BattleTypedNames.ToDamageBonusConditionKind(BonusCondition);
     internal CombatEffectTriggerCondition TriggerConditionKind =>
         CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
     internal CombatEffectTriggerEvent TriggerEventKind =>
@@ -2246,11 +2393,46 @@ public sealed class CombatEffectDefinition
             sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
             sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
             sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus,
-            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel
+            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel,
+            pathStepAreaPattern: PathStepAreaPattern,
+            pathStepRadius: PathStepRadius,
+            pathStepLogLabel: PathStepLogLabel,
+            repeatHitStatusId: RepeatHitStatusId,
+            repeatHitStatusThreshold: RepeatHitStatusThreshold,
+            repeatHitStatusMinSkillLevel: RepeatHitStatusMinSkillLevel,
+            repeatHitStatusPower: RepeatHitStatusPower,
+            repeatHitStatusDurationTu: RepeatHitStatusDurationTu,
+            repeatHitStatusLogTemplate: RepeatHitStatusLogTemplate,
+            fixedAttackCount: FixedAttackCount,
+            weaponDiceMultiplier: WeaponDiceMultiplier,
+            bonusWeaponDiceMultiplier: BonusWeaponDiceMultiplier,
+            bonusDamageSeparateEvent: BonusDamageSeparateEvent,
+            meleeComboStackGainBonus: MeleeComboStackGainBonus,
+            comboAttackBonusStatusId: ComboAttackBonusStatusId,
+            comboAttackBonusStackDivisor: ComboAttackBonusStackDivisor,
+            upkeepResource: UpkeepResource,
+            upkeepIntervalTu: UpkeepIntervalTu,
+            upkeepBaseCost: UpkeepBaseCost,
+            upkeepEscalationIntervalTu: UpkeepEscalationIntervalTu,
+            upkeepCostMultiplier: UpkeepCostMultiplier,
+            breakOnHardControl: BreakOnHardControl,
+            terminationStatusId: TerminationStatusId,
+            terminationStatusDurationTu: TerminationStatusDurationTu,
+            terminationAttackRollPenalty: TerminationAttackRollPenalty,
+            terminationCooldownTu: TerminationCooldownTu
         );
     }
 
-    internal CombatEffectDefinition WithPreResistanceDamageMultiplier(double multiplier)
+    internal CombatEffectDefinition WithWeaponDiceMultiplier(int multiplier) =>
+        WithPreResistanceDamageMultiplier(
+            PreResistanceDamageMultiplier,
+            multiplier
+        );
+
+    internal CombatEffectDefinition WithPreResistanceDamageMultiplier(
+        double multiplier,
+        int? weaponDiceMultiplierOverride = null
+    )
     {
         return new CombatEffectDefinition(
             EffectType,
@@ -2386,7 +2568,34 @@ public sealed class CombatEffectDefinition
             sourceBoundWeaponBonusDamageDiceCount: SourceBoundWeaponBonusDamageDiceCount,
             sourceBoundWeaponBonusDamageDiceSides: SourceBoundWeaponBonusDamageDiceSides,
             sourceBoundWeaponBonusDamageDiceBonus: SourceBoundWeaponBonusDamageDiceBonus,
-            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel
+            chargeTrapImmunityMinSkillLevel: ChargeTrapImmunityMinSkillLevel,
+            pathStepAreaPattern: PathStepAreaPattern,
+            pathStepRadius: PathStepRadius,
+            pathStepLogLabel: PathStepLogLabel,
+            repeatHitStatusId: RepeatHitStatusId,
+            repeatHitStatusThreshold: RepeatHitStatusThreshold,
+            repeatHitStatusMinSkillLevel: RepeatHitStatusMinSkillLevel,
+            repeatHitStatusPower: RepeatHitStatusPower,
+            repeatHitStatusDurationTu: RepeatHitStatusDurationTu,
+            repeatHitStatusLogTemplate: RepeatHitStatusLogTemplate,
+            fixedAttackCount: FixedAttackCount,
+            weaponDiceMultiplier:
+                weaponDiceMultiplierOverride ?? WeaponDiceMultiplier,
+            bonusWeaponDiceMultiplier: BonusWeaponDiceMultiplier,
+            bonusDamageSeparateEvent: BonusDamageSeparateEvent,
+            meleeComboStackGainBonus: MeleeComboStackGainBonus,
+            comboAttackBonusStatusId: ComboAttackBonusStatusId,
+            comboAttackBonusStackDivisor: ComboAttackBonusStackDivisor,
+            upkeepResource: UpkeepResource,
+            upkeepIntervalTu: UpkeepIntervalTu,
+            upkeepBaseCost: UpkeepBaseCost,
+            upkeepEscalationIntervalTu: UpkeepEscalationIntervalTu,
+            upkeepCostMultiplier: UpkeepCostMultiplier,
+            breakOnHardControl: BreakOnHardControl,
+            terminationStatusId: TerminationStatusId,
+            terminationStatusDurationTu: TerminationStatusDurationTu,
+            terminationAttackRollPenalty: TerminationAttackRollPenalty,
+            terminationCooldownTu: TerminationCooldownTu
         );
     }
 
@@ -2542,7 +2751,33 @@ public sealed class CombatEffectDefinition
                 sourceBoundWeaponBonusDamageDiceBonus:
                     source.source_bound_weapon_bonus_damage_dice_bonus,
                 chargeTrapImmunityMinSkillLevel:
-                    source.charge_trap_immunity_min_skill_level
+                    source.charge_trap_immunity_min_skill_level,
+                pathStepAreaPattern: source.path_step_area_pattern,
+                pathStepRadius: source.path_step_radius,
+                pathStepLogLabel: source.path_step_log_label,
+                repeatHitStatusId: source.repeat_hit_status_id,
+                repeatHitStatusThreshold: source.repeat_hit_status_threshold,
+                repeatHitStatusMinSkillLevel: source.repeat_hit_status_min_skill_level,
+                repeatHitStatusPower: source.repeat_hit_status_power,
+                repeatHitStatusDurationTu: source.repeat_hit_status_duration_tu,
+                repeatHitStatusLogTemplate: source.repeat_hit_status_log_template,
+                fixedAttackCount: source.fixed_attack_count,
+                weaponDiceMultiplier: source.weapon_dice_multiplier,
+                bonusWeaponDiceMultiplier: source.bonus_weapon_dice_multiplier,
+                bonusDamageSeparateEvent: source.bonus_damage_separate_event,
+                meleeComboStackGainBonus: source.melee_combo_stack_gain_bonus,
+                comboAttackBonusStatusId: source.combo_attack_bonus_status_id,
+                comboAttackBonusStackDivisor: source.combo_attack_bonus_stack_divisor,
+                upkeepResource: source.upkeep_resource,
+                upkeepIntervalTu: source.upkeep_interval_tu,
+                upkeepBaseCost: source.upkeep_base_cost,
+                upkeepEscalationIntervalTu: source.upkeep_escalation_interval_tu,
+                upkeepCostMultiplier: source.upkeep_cost_multiplier,
+                breakOnHardControl: source.break_on_hard_control,
+                terminationStatusId: source.termination_status_id,
+                terminationStatusDurationTu: source.termination_status_duration_tu,
+                terminationAttackRollPenalty: source.termination_attack_roll_penalty,
+                terminationCooldownTu: source.termination_cooldown_tu
             );
     }
 

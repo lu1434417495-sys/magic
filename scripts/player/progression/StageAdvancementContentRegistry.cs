@@ -113,12 +113,16 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
     {
         var ownerLabel = $"StageAdvancement {modifierId}";
         _append_string_name_field_error(errors, ownerLabel, "modifier_id", modifier.ModifierId);
-        _append_string_field_error(errors, ownerLabel, "display_name", modifier.DisplayName);
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "display_name",
+            modifier.DisplayName
+        );
         _append_string_name_field_error(errors, ownerLabel, "target_axis", modifier.TargetAxis);
         StageAdvancementTargetAxis axisKind = modifier.TargetAxisKind;
         if (axisKind == StageAdvancementTargetAxis.Unknown)
             errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.TargetAxis}.");
-        _append_int_field_error(errors, ownerLabel, "stage_offset", modifier.StageOffset);
         _append_string_name_field_error(
             errors,
             ownerLabel,
@@ -167,19 +171,6 @@ public class StageAdvancementContentRegistry : IdentityContentRegistryBase
             ownerLabel,
             modifier.AppliesToAscensionIds,
             "applies_to_ascension_ids"
-        );
-        _append_bool_field_error(
-            errors,
-            ownerLabel,
-            "grants_attributes",
-            modifier.GrantsAttributes
-        );
-        _append_bool_field_error(errors, ownerLabel, "grants_traits", modifier.GrantsTraits);
-        _append_bool_field_error(
-            errors,
-            ownerLabel,
-            "grants_body_size_change",
-            modifier.GrantsBodySizeChange
         );
     }
 

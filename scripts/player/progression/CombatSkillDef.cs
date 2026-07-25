@@ -251,6 +251,20 @@ public partial class CombatSkillDef : Resource
     public Godot.Collections.Array<StringName> delivery_categories { get; set; } = new();
 
     [Export]
+    public StringName attack_roll_bonus_status_id { get; set; } = "";
+
+    [Export]
+    public int attack_roll_bonus_status_stack_divisor { get; set; }
+
+    [Export]
+    public StringName projectile_kind { get; set; } = "none";
+    internal CombatProjectileKind ProjectileKindTyped
+    {
+        get => CombatProjectileContentRules.ToProjectileKind(projectile_kind);
+        set => projectile_kind = CombatProjectileContentRules.ToProjectileKindId(value);
+    }
+
+    [Export]
     public StringName special_resolution_profile_id { get; set; } = "";
 
     [Export]
@@ -275,6 +289,12 @@ public partial class CombatSkillDef : Resource
     public int max_hits_per_target { get; set; }
 
     [Export]
+    public int random_chain_attack_count { get; set; }
+
+    [Export]
+    public bool random_chain_continue_on_miss { get; set; }
+
+    [Export]
     public StringName selection_order_mode { get; set; } = "stable";
 
     internal BattleTargetSelectionOrderMode SelectionOrderModeKind
@@ -294,6 +314,9 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public Godot.Collections.Array<StringName> required_weapon_families { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> required_weapon_type_ids { get; set; } = new();
 
     [Export]
     public Godot.Collections.Array<StringName> excluded_weapon_families { get; set; } = new();
@@ -460,6 +483,16 @@ public partial class CombatSkillDef : Resource
             : attack_roll_bonus;
     }
 
+    internal CombatSkillAttackResolutionMode GetEffectiveAttackResolutionMode(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return o.ContainsKey("attack_resolution_mode")
+            ? CombatSkillContentRules.ToAttackResolutionMode(
+                ProgressionDataUtils.to_string_name(o["attack_resolution_mode"])
+            )
+            : AttackResolutionModeKind;
+    }
+
     public int GetEffectiveCastingTimeTu(int sl)
     {
         var o = GetCachedLevelOverride(sl);
@@ -520,6 +553,14 @@ public partial class CombatSkillDef : Resource
         return o.ContainsKey("max_target_count")
             ? o["max_target_count"].AsInt32()
             : max_target_count;
+    }
+
+    public int GetEffectiveRandomChainAttackCount(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return o.ContainsKey("random_chain_attack_count")
+            ? o["random_chain_attack_count"].AsInt32()
+            : random_chain_attack_count;
     }
 
     public bool HasCastingTime(int sl) => GetEffectiveCastingTimeTu(sl) > 0;

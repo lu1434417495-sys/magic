@@ -111,9 +111,19 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
                 subraceDef.ParentRaceId
             );
 
-            _append_string_field_error(errors, label, "display_name", subraceDef.DisplayName);
+            _append_required_string_field_error(
+                errors,
+                label,
+                "display_name",
+                subraceDef.DisplayName
+            );
 
-            _append_string_field_error(errors, label, "description", subraceDef.Description);
+            _append_required_string_field_error(
+                errors,
+                label,
+                "description",
+                subraceDef.Description
+            );
 
             _append_string_name_field_error(
                 errors,
@@ -122,8 +132,6 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
                 subraceDef.BodySizeCategoryOverride,
                 true
             );
-
-            _append_int_field_error(errors, label, "speed_bonus", subraceDef.SpeedBonus);
 
             _append_attribute_modifier_array_errors(
                 errors,
@@ -155,25 +163,22 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
                 "vision_tags"
             );
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                subraceDef.SaveAdvantageTags,
-                "save_advantage_tags"
+                $"{label}.save_advantage_tags",
+                subraceDef.SaveAdvantageTags
             );
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                subraceDef.SaveDisadvantageTags,
-                "save_disadvantage_tags"
+                $"{label}.save_disadvantage_tags",
+                subraceDef.SaveDisadvantageTags
             );
 
-            _append_string_name_array_errors(
+            SaveTagListContentRules.AppendValidationErrors(
                 errors,
-                label,
-                subraceDef.SaveImmunityTags,
-                "save_immunity_tags"
+                $"{label}.save_immunity_tags",
+                subraceDef.SaveImmunityTags
             );
 
             _append_string_name_to_string_name_dictionary_errors(

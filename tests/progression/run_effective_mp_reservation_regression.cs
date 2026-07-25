@@ -166,7 +166,7 @@ public partial class run_effective_mp_reservation_regression : LifecycleTestScen
             "Battle unit snapshot should inherit effective mp_max."
         );
         _test.Eq(
-            unit?.current_mp ?? -1,
+            unit?.GetCurrentMp() ?? -1,
             18,
             "Battle unit current MP should clamp to effective mp_max."
         );

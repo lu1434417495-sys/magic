@@ -188,68 +188,23 @@ public class TraitContentRegistry : IdentityContentRegistryBase
         AppendHighestRollValidationErrors(errors, ownerLabel, traitDef);
     }
 
-    // 豁免标签语义写死:字段即语义,值必须是裸 save tag;
-    // "*_advantage/_disadvantage/_immunity" 后缀写法已废除,加载期拒绝。
-    private static void ValidateBareSaveTagList(
-        ICollection<string> errors,
-        string fieldLabel,
-        IReadOnlyList<StringName> tags
-    )
-    {
-        HashSet<StringName> seenTags = new();
-        for (int index = 0; index < (tags?.Count ?? 0); index++)
-        {
-            StringName tag = tags[index];
-            if (tag == "")
-            {
-                errors.Add($"{fieldLabel}[{index}] must be a non-empty StringName.");
-                continue;
-            }
-            string text = tag.ToString();
-            bool hasLegacySuffix = false;
-            foreach (string suffix in new[] { "_advantage", "_disadvantage", "_immunity" })
-            {
-                if (text.EndsWith(suffix, System.StringComparison.Ordinal))
-                {
-                    errors.Add(
-                        $"{fieldLabel}[{index}] entry {tag} uses removed suffix syntax; write the bare save tag {text[..^suffix.Length]} in the field matching its semantics."
-                    );
-                    hasLegacySuffix = true;
-                    break;
-                }
-            }
-            if (hasLegacySuffix)
-            {
-                continue;
-            }
-            if (!BattleSaveContentRules.IsValidSaveTag(tag))
-            {
-                errors.Add($"{fieldLabel}[{index}] entry {tag} is not a supported save tag.");
-            }
-            if (!seenTags.Add(tag))
-            {
-                errors.Add($"{fieldLabel}[{index}] duplicates save tag {tag}.");
-            }
-        }
-    }
-
     private static void AppendPassiveProjectionValidationErrors(
         ICollection<string> errors,
         string ownerLabel,
         TraitDefinition traitDef
     )
     {
-        ValidateBareSaveTagList(
+        SaveTagListContentRules.AppendValidationErrors(
             errors,
             $"{ownerLabel}.save_advantage_tags",
             traitDef.SaveAdvantageTags
         );
-        ValidateBareSaveTagList(
+        SaveTagListContentRules.AppendValidationErrors(
             errors,
             $"{ownerLabel}.save_disadvantage_tags",
             traitDef.SaveDisadvantageTags
         );
-        ValidateBareSaveTagList(
+        SaveTagListContentRules.AppendValidationErrors(
             errors,
             $"{ownerLabel}.save_immunity_tags",
             traitDef.SaveImmunityTags
@@ -357,28 +312,11 @@ public class TraitContentRegistry : IdentityContentRegistryBase
             if (entry.CountsAsDebuff && !entry.CountsAsDebuffOverride)
                 errors.Add($"{entryLabel}.counts_as_debuff requires counts_as_debuff_override.");
 
-            HashSet<StringName> seenImmunityTags = new();
-            for (int tagIndex = 0; tagIndex < entry.SaveImmunityTags.Count; tagIndex++)
-            {
-                StringName saveTag = entry.SaveImmunityTags[tagIndex];
-                if (saveTag == "")
-                {
-                    errors.Add($"{entryLabel}.save_immunity_tags[{tagIndex}] must be non-empty.");
-                    continue;
-                }
-                if (!BattleSaveContentRules.IsValidSaveTag(saveTag))
-                {
-                    errors.Add(
-                        $"{entryLabel}.save_immunity_tags[{tagIndex}] references unsupported save tag {saveTag}."
-                    );
-                }
-                if (!seenImmunityTags.Add(saveTag))
-                {
-                    errors.Add(
-                        $"{entryLabel}.save_immunity_tags[{tagIndex}] duplicates save tag {saveTag}."
-                    );
-                }
-            }
+            SaveTagListContentRules.AppendValidationErrors(
+                errors,
+                $"{entryLabel}.save_immunity_tags",
+                entry.SaveImmunityTags
+            );
         }
     }
 

@@ -177,8 +177,18 @@ public class BloodlineContentRegistry : IdentityContentRegistryBase
             "bloodline_id",
             bloodlineDef.BloodlineId
         );
-        _append_string_field_error(errors, ownerLabel, "display_name", bloodlineDef.DisplayName);
-        _append_string_field_error(errors, ownerLabel, "description", bloodlineDef.Description);
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "display_name",
+            bloodlineDef.DisplayName
+        );
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "description",
+            bloodlineDef.Description
+        );
         _append_string_name_array_errors(
             errors,
             ownerLabel,
@@ -220,8 +230,18 @@ public class BloodlineContentRegistry : IdentityContentRegistryBase
         var ownerLabel = $"BloodlineStage {stageId}";
         _append_string_name_field_error(errors, ownerLabel, "stage_id", stageDef.StageId);
         _append_string_name_field_error(errors, ownerLabel, "bloodline_id", stageDef.BloodlineId);
-        _append_string_field_error(errors, ownerLabel, "display_name", stageDef.DisplayName);
-        _append_string_field_error(errors, ownerLabel, "description", stageDef.Description);
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "display_name",
+            stageDef.DisplayName
+        );
+        _append_required_string_field_error(
+            errors,
+            ownerLabel,
+            "description",
+            stageDef.Description
+        );
         _append_attribute_modifier_array_errors(
             errors,
             ownerLabel,
