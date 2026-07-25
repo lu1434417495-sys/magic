@@ -31,7 +31,6 @@ public partial class BattleUnitState
     private static readonly StringName WeaponGripNone = "none";
     private static readonly StringName WeaponGripOneHanded = "one_handed";
     private static readonly StringName WeaponGripTwoHanded = "two_handed";
-    private static readonly StringName BodySizeCategoryMedium = "medium";
     private static readonly string[] EffectiveTraitFields =
     {
         "trait_id",
@@ -197,73 +196,35 @@ public partial class BattleUnitState
     public StringName ai_brain_id = "";
     public StringName ai_state_id = "";
     internal BattleAiBlackboard ai_blackboard = new();
-    public Vector2I coord { get; internal set; } = Vector2I.Zero;
-    public int body_size { get; internal set; } = BodySizeMedium;
-    public StringName body_size_category { get; internal set; } = BodySizeCategoryMedium;
-    public Vector2I footprint_size { get; internal set; } = Vector2I.One;
-    public Vector2IList occupied_coords { get; internal set; } = new();
-    public bool is_alive { get; internal set; } = true;
+    private BattleUnitGeometryState _geometryState = new();
     public AttributeSnapshot attribute_snapshot = NewAttributeSnapshot();
     public EquipmentState equipment_view = NewEquipmentState();
     public bool equipment_view_initialized;
-    public int current_hp { get; internal set; }
-    public int current_mp { get; internal set; }
-    public int current_stamina { get; internal set; }
-    public int current_aura { get; internal set; }
-    public int current_ap { get; internal set; }
-    public int current_move_points { get; internal set; } = DefaultMovePointsPerTurn;
-    public StringNameList unlocked_combat_resource_ids =
-        CreateDefaultUnlockedCombatResourceProjection();
-    public int stamina_recovery_progress;
-    public bool is_resting;
-    public bool has_taken_action_this_turn;
-    public bool has_moved_this_turn;
-    public bool can_use_locked_move_points_this_turn;
-    public int current_shield_hp;
-    public int shield_max_hp;
-    public int shield_duration = -1;
-    public StringName shield_family = "";
-    public StringName shield_source_unit_id = "";
-    public StringName shield_source_skill_id = "";
+    private BattleUnitCombatResourceState _combatResourceState = new();
+    private BattleUnitRestState _restState = new();
+    private BattleUnitCombatResourceUnlockState _combatResourceUnlockState = new();
+    private BattleUnitTurnState _turnState = new();
+    private BattleUnitShieldState _shieldState = new();
     private BattleConsumedContingencySetupCollection _consumedContingencySetups = new();
-    public int action_progress;
-    public int action_threshold = DefaultActionThreshold;
-    public StringNameList known_active_skill_ids { get; internal set; } = new();
-    public BattleStringNameIntMap known_skill_level_map = new();
-    public BattleStringNameIntMap known_skill_lock_hit_bonus_map = new();
-    public StringNameList movement_tags = new();
-    public StringNameList vision_tags = new();
-    public StringNameList proficiency_tags = new();
-    public StringNameList save_advantage_tags = new();
-    public StringNameList save_disadvantage_tags = new();
-    public StringNameList save_immunity_tags = new();
-    public BattleStringNameMap damage_resistances = new();
-    public BattleStringNameIntMap save_bonus_by_ability = new();
-    public List<BattleEffectiveTraitInstanceState> effective_trait_instances = new();
-    public StringNameList effective_trait_ids = new();
-    public List<BattleEquipmentAbilitySourceState> equipment_ability_sources = new();
-    internal List<BattleTemporalProgressModifierState> temporal_progress_modifiers = new();
-    public StringNameList creature_type_tags = new();
+    private BattleUnitChargeState _chargeState = new();
+    private BattleUnitActionClockState _actionClockState = new();
+    private BattleUnitKnownSkillState _knownSkillState = new();
+    private BattleUnitMovementTagState _movementTagState = new();
+    private BattleUnitVisionProficiencyState _visionProficiencyState = new();
+    private BattleUnitSaveModifierState _saveModifierState = new();
+    private BattleUnitDamageResistanceState _damageResistanceState = new();
+    private BattleUnitEffectiveTraitState _effectiveTraitState = new();
+    private BattleUnitEquipmentAbilityProjectionState
+        _equipmentAbilityProjectionState = new();
+    private BattleUnitCreatureTypeState _creatureTypeState = new();
     internal BattleUnitControlMode ControlModeKind
     {
         get => BattleTypedNames.ToControlMode(control_mode);
         set => control_mode = BattleTypedNames.ToStringName(value);
     }
     public StringName versatility_pick = "";
-    public StringName weapon_profile_kind = WeaponProfileKindNone;
-    public StringName weapon_item_id = "";
-    public StringName weapon_profile_type_id = "";
-    public StringName weapon_range_type = "";
-    public StringName weapon_family = "";
-    public StringName weapon_current_grip = WeaponGripNone;
-    public int weapon_attack_range;
-    public WeaponDice weapon_one_handed_dice = new();
-    public WeaponDice weapon_two_handed_dice = new();
-    public bool weapon_is_versatile;
-    public bool weapon_uses_two_hands;
-    public StringName weapon_physical_damage_tag = "";
-    public BattleStringNameIntMap cooldowns = new();
-    public int last_turn_tu = -1;
+    private BattleUnitWeaponProjectionState _weaponProjectionState = new();
+    private BattleUnitCooldownState _cooldownState = new();
     private BattleStatusEffectCollection _statusEffects = new();
     private BattleStatusEffectCollection StatusEffectCollection
     {
@@ -275,25 +236,102 @@ public partial class BattleUnitState
         get => _consumedContingencySetups;
         set => _consumedContingencySetups = value ?? new();
     }
-    public BattleStringNameIntMap per_battle_charges = new();
-    public BattleStringNameIntMap per_turn_charges = new();
-    public BattleStringNameIntMap per_turn_charge_limits = new();
-    public BattleStringNameIntMap fumble_protection_used = new();
+    private BattleUnitTurnState TurnState
+    {
+        get => _turnState ??= new();
+        set => _turnState = value ?? new();
+    }
+    private BattleUnitShieldState ShieldState
+    {
+        get => _shieldState ??= new();
+        set => _shieldState = value ?? new();
+    }
+    private BattleUnitChargeState ChargeState
+    {
+        get => _chargeState;
+        set => _chargeState = value ?? new();
+    }
+    private BattleUnitCooldownState CooldownState
+    {
+        get => _cooldownState ??= new();
+        set => _cooldownState = value ?? new();
+    }
+    private BattleUnitActionClockState ActionClockState
+    {
+        get => _actionClockState ??= new();
+        set => _actionClockState = value ?? new();
+    }
+    private BattleUnitKnownSkillState WritableKnownSkillState =>
+        _knownSkillState ??= new();
+    private BattleUnitCombatResourceUnlockState CombatResourceUnlockState
+    {
+        get => _combatResourceUnlockState ??= new();
+        set => _combatResourceUnlockState = value ?? new();
+    }
+    private BattleUnitCombatResourceState CombatResourceState
+    {
+        get => _combatResourceState ??= new();
+        set => _combatResourceState = value ?? new();
+    }
+    private BattleUnitRestState RestState
+    {
+        get => _restState ??= new();
+        set => _restState = value ?? new();
+    }
+    private BattleUnitWeaponProjectionState WeaponProjectionState
+    {
+        get => _weaponProjectionState ??= new();
+        set => _weaponProjectionState = value ?? new();
+    }
+    private BattleUnitGeometryState GeometryState
+    {
+        get => _geometryState ??= new();
+        set => _geometryState = value ?? new();
+    }
+    private BattleUnitMovementTagState MovementTagState
+    {
+        get => _movementTagState ??= new();
+        set => _movementTagState = value ?? new();
+    }
+    private BattleUnitVisionProficiencyState VisionProficiencyState
+    {
+        get => _visionProficiencyState ??= new();
+        set => _visionProficiencyState = value ?? new();
+    }
+    private BattleUnitSaveModifierState SaveModifierState
+    {
+        get => _saveModifierState ??= new();
+        set => _saveModifierState = value ?? new();
+    }
+    private BattleUnitDamageResistanceState DamageResistanceState
+    {
+        get => _damageResistanceState ??= new();
+        set => _damageResistanceState = value ?? new();
+    }
+    private BattleUnitEffectiveTraitState EffectiveTraitState
+    {
+        get => _effectiveTraitState ??= new();
+        set => _effectiveTraitState = value ?? new();
+    }
+    private BattleUnitEquipmentAbilityProjectionState
+        EquipmentAbilityProjectionState
+    {
+        get => _equipmentAbilityProjectionState ??= new();
+        set => _equipmentAbilityProjectionState = value ?? new();
+    }
+    private BattleUnitCreatureTypeState CreatureTypeState
+    {
+        get => _creatureTypeState ??= new();
+        set => _creatureTypeState = value ?? new();
+    }
     public bool death_ward_consumed_this_battle;
     internal BattlePendingCastState pending_cast;
-    internal bool turn_casting_exhausted;
-    // M2 temporal：time_slow 进度获取率的 runtime-only 余数累加器，不进入 save payload。
-    internal int action_progress_rate_remainder;
+    // M2 temporal：施法进度获取率的 runtime-only 余数累加器，不进入 save payload。
     internal int cast_progress_rate_remainder;
-
-    public BattleUnitState()
-    {
-        RefreshFootprint();
-    }
 
     internal bool HasPendingCast() => pending_cast != null;
 
-    internal bool IsCasting() => is_alive && pending_cast != null;
+    internal bool IsCasting() => IsAlive() && pending_cast != null;
 
     internal void SetPendingCast(BattlePendingCastState pendingCast)
     {
@@ -307,52 +345,547 @@ public partial class BattleUnitState
         return pendingCast;
     }
 
-    internal void ClearCastingTurnFlags()
-    {
-        turn_casting_exhausted = false;
-    }
+    internal BattleUnitRestSnapshot GetRestStateTyped() =>
+        RestState.CaptureRaw();
 
-    public void SetAnchorCoord(Vector2I anchor_coord)
-    {
-        coord = anchor_coord;
-        RefreshFootprint();
-    }
+    internal BattleUnitRestSnapshot CaptureRestForMutationSnapshotExact() =>
+        _restState?.CaptureRaw() ?? BattleUnitRestSnapshot.MissingOwner;
 
-    internal void RefreshFootprint()
+    internal void RestoreRestForMutationSnapshotExact(
+        BattleUnitRestSnapshot snapshot
+    )
     {
-        Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
-        if (
-            footprint_size == resolvedFootprint
-            && OccupiedCoordsMatch(coord, resolvedFootprint, occupied_coords)
-        )
+        if (!snapshot.OwnerPresent)
         {
+            _restState = null;
             return;
         }
-        footprint_size = resolvedFootprint;
-        occupied_coords = BuildOccupiedCoords(coord, resolvedFootprint);
+        RestState.RestoreRaw(snapshot);
     }
 
-    public bool OccupiesCoord(Vector2I target_coord)
+    internal bool IsRestingTyped() => RestState.IsResting();
+
+    internal void MarkRestingTyped() => RestState.MarkResting();
+
+    internal void ClearRestingTyped() => RestState.ClearResting();
+
+    internal BattleUnitCreatureTypeReadView
+        GetCreatureTypeTagsReadViewTyped() =>
+            _creatureTypeState?.GetReadView()
+            ?? BattleUnitCreatureTypeReadView.MissingOwner;
+
+    internal BattleUnitCreatureTypeSnapshot
+        CaptureCreatureTypesForMutationSnapshotExact() =>
+            _creatureTypeState?.CaptureRaw()
+            ?? BattleUnitCreatureTypeSnapshot.MissingOwner;
+
+    internal void RestoreCreatureTypesForMutationSnapshotExact(
+        BattleUnitCreatureTypeSnapshot snapshot
+    )
     {
-        return occupied_coords.Contains(target_coord);
+        if (!snapshot.OwnerPresent)
+        {
+            _creatureTypeState = null;
+            return;
+        }
+        CreatureTypeState.RestoreRaw(snapshot);
     }
 
-    public bool HasMovementTag(StringName tag)
+    internal bool HasCreatureTypeTag(StringName tag) =>
+        _creatureTypeState?.Contains(tag) == true;
+
+    internal void ReplaceCreatureTypeTagsTyped(
+        IEnumerable<StringName> tags
+    ) =>
+        CreatureTypeState.ReplaceNormalized(tags);
+
+    internal bool AddCreatureTypeTagTyped(StringName tag) =>
+        CreatureTypeState.AddNormalized(tag);
+
+    internal BattleUnitTurnSnapshot GetTurnStateTyped() =>
+        TurnState.CaptureRaw();
+
+    internal BattleUnitTurnSnapshot CaptureTurnForMutationSnapshotExact() =>
+        _turnState?.CaptureRaw() ?? BattleUnitTurnSnapshot.MissingOwner;
+
+    internal void RestoreTurnForMutationSnapshotExact(
+        BattleUnitTurnSnapshot snapshot
+    )
     {
-        return movement_tags.Contains(tag);
+        if (!snapshot.OwnerPresent)
+        {
+            _turnState = null;
+            return;
+        }
+        TurnState.RestoreRaw(snapshot);
     }
 
-    public int GetCurrentHp() => current_hp;
+    internal bool HasTakenActionThisTurnTyped() =>
+        TurnState.HasTakenActionThisTurn();
 
-    public int GetCurrentMp() => current_mp;
+    internal bool HasMovedThisTurnTyped() =>
+        TurnState.HasMovedThisTurn();
 
-    public int GetCurrentStamina() => current_stamina;
+    internal bool CanUseLockedMovePointsThisTurnTyped() =>
+        TurnState.CanUseLockedMovePointsThisTurn();
 
-    public int GetCurrentAura() => current_aura;
+    internal bool IsTurnCastingExhaustedTyped() =>
+        TurnState.IsCastingExhausted();
 
-    public int GetCurrentAp() => current_ap;
+    internal bool IsNormalMovementLockedThisTurnTyped() =>
+        TurnState.IsNormalMovementLocked();
 
-    public int GetCurrentMovePoints() => current_move_points;
+    internal void MarkActionTakenThisTurnTyped() =>
+        TurnState.MarkActionTaken();
+
+    internal void CommitActionTakenThisTurnTyped()
+    {
+        TurnState.MarkActionTaken();
+        RestState.ClearResting();
+    }
+
+    internal void MarkMovedThisTurnTyped() =>
+        TurnState.MarkMoved();
+
+    internal void GrantLockedMovePointsThisTurnTyped() =>
+        TurnState.GrantLockedMovePoints();
+
+    internal void MarkTurnCastingExhaustedTyped() =>
+        TurnState.MarkCastingExhausted();
+
+    internal void ResetTurnStateForTurnStartTyped() =>
+        TurnState.ResetForTurnStart();
+
+    internal void ClearCastingTurnFlags() =>
+        TurnState.ClearCastingExhaustion();
+
+    internal BattleUnitActionClockSnapshot GetActionClockStateTyped() =>
+        ActionClockState.CaptureRaw();
+
+    internal BattleUnitActionClockSnapshot CaptureActionClockForMutationSnapshotExact() =>
+        _actionClockState?.CaptureRaw()
+        ?? BattleUnitActionClockSnapshot.MissingOwner;
+
+    internal void RestoreActionClockForMutationSnapshotExact(
+        BattleUnitActionClockSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _actionClockState = null;
+            return;
+        }
+        ActionClockState.RestoreRaw(snapshot);
+    }
+
+    internal int GetActionProgressTyped() =>
+        ActionClockState.GetProgress();
+
+    internal void SetActionProgressTyped(int value) =>
+        ActionClockState.SetProgressRaw(value);
+
+    internal int GetActionThresholdTyped() =>
+        ActionClockState.GetThreshold();
+
+    internal void SetActionThresholdTyped(int value) =>
+        ActionClockState.SetThresholdRaw(value);
+
+    internal int GetActionProgressRateRemainderTyped() =>
+        ActionClockState.GetProgressRateRemainder();
+
+    internal int ConsumeActionProgressRateGainTyped(
+        int baseProgressDelta,
+        int ratePercent
+    ) => ActionClockState.ConsumeRateScaledGain(baseProgressDelta, ratePercent);
+
+    internal bool AdvanceActionClockTyped(
+        int progressGain,
+        int positiveThreshold
+    ) =>
+        ActionClockState.AdvanceAndConsumeThresholds(
+            progressGain,
+            positiveThreshold
+        );
+
+    internal BattleUnitGeometryReadView GetGeometryReadViewTyped() =>
+        _geometryState?.GetReadView()
+        ?? BattleUnitGeometryReadView.MissingOwner;
+
+    internal BattleUnitGeometrySnapshot
+        CaptureGeometryForMutationSnapshotExact() =>
+            _geometryState?.CaptureRaw()
+            ?? BattleUnitGeometrySnapshot.MissingOwner;
+
+    internal void RestoreGeometryForMutationSnapshotExact(
+        BattleUnitGeometrySnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _geometryState = null;
+            return;
+        }
+        GeometryState.RestoreRaw(snapshot);
+    }
+
+    public Vector2I GetAnchorCoord() =>
+        GetGeometryReadViewTyped().AnchorCoord;
+
+    public int GetBodySize() =>
+        GetGeometryReadViewTyped().BodySize;
+
+    public StringName GetBodySizeCategory() =>
+        GetGeometryReadViewTyped().BodySizeCategory;
+
+    public Vector2I GetFootprintSize() =>
+        GetGeometryReadViewTyped().FootprintSize;
+
+    internal BattleOccupiedCoordReadView
+        GetOccupiedCoordsReadViewTyped() =>
+            GetGeometryReadViewTyped().OccupiedCoords;
+
+    public void SetAnchorCoord(Vector2I anchor_coord) =>
+        GeometryState.SetAnchorCoord(anchor_coord);
+
+    public bool OccupiesCoord(Vector2I target_coord) =>
+        _geometryState?.OccupiesCoord(target_coord) == true;
+
+    internal BattleUnitMovementTagReadView
+        GetMovementTagsReadViewTyped() =>
+            _movementTagState?.GetReadView()
+            ?? BattleUnitMovementTagReadView.MissingOwner;
+
+    internal BattleUnitMovementTagSnapshot
+        CaptureMovementTagsForMutationSnapshotExact() =>
+            _movementTagState?.CaptureRaw()
+            ?? BattleUnitMovementTagSnapshot.MissingOwner;
+
+    internal void RestoreMovementTagsForMutationSnapshotExact(
+        BattleUnitMovementTagSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _movementTagState = null;
+            return;
+        }
+        MovementTagState.RestoreRaw(snapshot);
+    }
+
+    public bool HasMovementTag(StringName tag) =>
+        _movementTagState?.Contains(tag) == true;
+
+    internal void ReplaceMovementTagsTyped(
+        IEnumerable<StringName> tags
+    ) =>
+        MovementTagState.ReplaceNormalized(tags);
+
+    internal bool AddMovementTagTyped(StringName tag) =>
+        MovementTagState.AddNormalized(tag);
+
+    internal BattleUnitVisionProficiencyReadView
+        GetVisionProficiencyReadViewTyped() =>
+            _visionProficiencyState?.GetReadView()
+            ?? BattleUnitVisionProficiencyReadView.MissingOwner;
+
+    internal BattleUnitVisionProficiencySnapshot
+        CaptureVisionProficiencyForMutationSnapshotExact() =>
+            _visionProficiencyState?.CaptureRaw()
+            ?? BattleUnitVisionProficiencySnapshot.MissingOwner;
+
+    internal void RestoreVisionProficiencyForMutationSnapshotExact(
+        BattleUnitVisionProficiencySnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _visionProficiencyState = null;
+            return;
+        }
+        VisionProficiencyState.RestoreRaw(snapshot);
+    }
+
+    internal void ResetVisionProficiencyTagsTyped() =>
+        VisionProficiencyState.ResetNormalized();
+
+    internal void ReplaceVisionProficiencyTagsTyped(
+        IEnumerable<StringName> visionTags,
+        IEnumerable<StringName> proficiencyTags
+    ) =>
+        VisionProficiencyState.ReplaceNormalized(
+            visionTags,
+            proficiencyTags
+        );
+
+    public bool HasVisionTag(StringName tag) =>
+        _visionProficiencyState?.ContainsVision(tag) == true;
+
+    public bool HasProficiencyTag(StringName tag) =>
+        _visionProficiencyState?.ContainsProficiency(tag) == true;
+
+    internal bool AddVisionTagTyped(StringName tag) =>
+        VisionProficiencyState.AddVisionNormalized(tag);
+
+    internal bool AddProficiencyTagTyped(StringName tag) =>
+        VisionProficiencyState.AddProficiencyNormalized(tag);
+
+    internal BattleUnitSaveModifierReadView
+        GetSaveModifiersReadViewTyped() =>
+            _saveModifierState?.GetReadView()
+            ?? BattleUnitSaveModifierReadView.MissingOwner;
+
+    internal BattleUnitSaveModifierSnapshot
+        CaptureSaveModifiersForMutationSnapshotExact() =>
+            _saveModifierState?.CaptureRaw()
+            ?? BattleUnitSaveModifierSnapshot.MissingOwner;
+
+    internal void RestoreSaveModifiersForMutationSnapshotExact(
+        BattleUnitSaveModifierSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _saveModifierState = null;
+            return;
+        }
+        SaveModifierState.RestoreRaw(snapshot);
+    }
+
+    internal void ResetSaveModifiersTyped() =>
+        SaveModifierState.ResetNormalized();
+
+    internal void ReplaceSaveModifiersTyped(
+        IEnumerable<StringName> advantageTags,
+        IEnumerable<StringName> disadvantageTags,
+        IEnumerable<StringName> immunityTags,
+        IReadOnlyDictionary<StringName, int> bonusByAbility
+    ) =>
+        SaveModifierState.ReplaceNormalized(
+            advantageTags,
+            disadvantageTags,
+            immunityTags,
+            bonusByAbility
+        );
+
+    internal void ReplaceSaveTagsTyped(
+        IEnumerable<StringName> advantageTags,
+        IEnumerable<StringName> disadvantageTags,
+        IEnumerable<StringName> immunityTags
+    ) =>
+        SaveModifierState.ReplaceTagsNormalized(
+            advantageTags,
+            disadvantageTags,
+            immunityTags
+        );
+
+    internal void ReplaceSaveBonusesTyped(
+        IReadOnlyDictionary<StringName, int> bonusByAbility
+    ) =>
+        SaveModifierState.ReplaceBonusesNormalized(bonusByAbility);
+
+    internal void AppendSaveTagsTyped(
+        IEnumerable<StringName> advantageTags,
+        IEnumerable<StringName> disadvantageTags,
+        IEnumerable<StringName> immunityTags
+    ) =>
+        SaveModifierState.AppendTagsNormalized(
+            advantageTags,
+            disadvantageTags,
+            immunityTags
+        );
+
+    public bool HasSaveAdvantageTag(StringName tag) =>
+        _saveModifierState?.ContainsAdvantage(tag) == true;
+
+    public bool HasSaveDisadvantageTag(StringName tag) =>
+        _saveModifierState?.ContainsDisadvantage(tag) == true;
+
+    public bool HasSaveImmunityTag(StringName tag) =>
+        _saveModifierState?.ContainsImmunity(tag) == true;
+
+    internal bool AddSaveAdvantageTagTyped(StringName tag) =>
+        SaveModifierState.AddAdvantageNormalized(tag);
+
+    internal bool AddSaveDisadvantageTagTyped(StringName tag) =>
+        SaveModifierState.AddDisadvantageNormalized(tag);
+
+    internal BattleUnitEffectiveTraitReadView
+        GetEffectiveTraitsReadViewTyped() =>
+            _effectiveTraitState?.GetReadView()
+            ?? BattleUnitEffectiveTraitReadView.MissingOwner;
+
+    internal BattleEffectiveTraitIdReadView
+        GetCanonicalEffectiveTraitIdsReadViewTyped() =>
+            _effectiveTraitState?.GetDerivedTraitIdsReadView()
+            ?? new BattleEffectiveTraitIdReadView(null);
+
+    internal BattleUnitEffectiveTraitSnapshot
+        CaptureEffectiveTraitsForMutationSnapshotExact() =>
+            _effectiveTraitState?.CaptureRaw()
+            ?? BattleUnitEffectiveTraitSnapshot.MissingOwner;
+
+    internal void RestoreEffectiveTraitsForMutationSnapshotExact(
+        BattleUnitEffectiveTraitSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _effectiveTraitState = null;
+            return;
+        }
+        EffectiveTraitState.RestoreRaw(snapshot);
+    }
+
+    internal void ReplaceEffectiveTraitsTyped(
+        IEnumerable<BattleEffectiveTraitInstanceState> instances
+    ) =>
+        EffectiveTraitState.ReplaceNormalized(instances);
+
+    internal List<BattleEffectiveTraitInstanceState>
+        CopyEffectiveTraitInstancesTyped() =>
+            _effectiveTraitState?.CopyInstancesNormalized()
+            ?? new List<BattleEffectiveTraitInstanceState>();
+
+    internal int GetEffectiveTraitInstanceCountTyped() =>
+        _effectiveTraitState?.GetInstanceCount() ?? 0;
+
+    internal bool HasEffectiveTrait(StringName traitId) =>
+        _effectiveTraitState?.ContainsTraitId(traitId) == true;
+
+    internal BattleUnitEquipmentAbilityProjectionReadView
+        GetEquipmentAbilityProjectionReadViewTyped() =>
+            _equipmentAbilityProjectionState?.GetReadView()
+            ?? BattleUnitEquipmentAbilityProjectionReadView
+                .MissingOwner;
+
+    internal BattleEquipmentAbilitySourceListReadView
+        GetEquipmentAbilitySourcesReadViewTyped() =>
+            GetEquipmentAbilityProjectionReadViewTyped().Sources;
+
+    internal BattleTemporalProgressModifierListReadView
+        GetTemporalProgressModifiersReadViewTyped() =>
+            GetEquipmentAbilityProjectionReadViewTyped()
+                .TemporalProgressModifiers;
+
+    internal BattleUnitEquipmentAbilityProjectionSnapshot
+        CaptureEquipmentAbilityProjectionForMutationSnapshotExact() =>
+            _equipmentAbilityProjectionState?.CaptureRaw()
+            ?? BattleUnitEquipmentAbilityProjectionSnapshot
+                .MissingOwner;
+
+    internal BattleUnitEquipmentAbilityProjectionSeed
+        CaptureEquipmentAbilityProjectionSeedTyped() =>
+            _equipmentAbilityProjectionState
+                ?.CaptureNormalizedSeed()
+            ?? BattleUnitEquipmentAbilityProjectionSeed.Empty
+                .DeepClone();
+
+    internal void
+        RestoreEquipmentAbilityProjectionForMutationSnapshotExact(
+            BattleUnitEquipmentAbilityProjectionSnapshot snapshot
+        )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _equipmentAbilityProjectionState = null;
+            return;
+        }
+
+        EquipmentAbilityProjectionState.RestoreRaw(snapshot);
+    }
+
+    internal void ReplaceEquipmentAbilityProjectionTyped(
+        IEnumerable<BattleEquipmentAbilitySourceState> sources,
+        IEnumerable<BattleTemporalProgressModifierState>
+            temporalProgressModifiers
+    ) =>
+        EquipmentAbilityProjectionState.ReplaceNormalized(
+            sources,
+            temporalProgressModifiers
+        );
+
+    internal void ClearEquipmentAbilityProjectionTyped() =>
+        EquipmentAbilityProjectionState.ReplaceNormalized(
+            null,
+            null
+        );
+
+    internal BattleTemporalProgressModifierReadView
+        GetSelectedTemporalProgressModifierTyped(
+            bool actionProgress
+        ) =>
+            _equipmentAbilityProjectionState
+                ?.GetSelectedTemporalProgressModifier(
+                    actionProgress
+                );
+
+    internal bool AddSaveImmunityTagTyped(StringName tag) =>
+        SaveModifierState.AddImmunityNormalized(tag);
+
+    public int GetSaveBonusByAbilityTyped(
+        StringName ability,
+        int fallback = 0
+    ) =>
+        _saveModifierState?.GetAbilityBonus(ability, fallback)
+        ?? fallback;
+
+    internal bool AddSaveBonusByAbilityTyped(
+        StringName ability,
+        int bonus
+    ) =>
+        SaveModifierState.AddAbilityBonusNormalized(ability, bonus);
+
+    internal BattleUnitCombatResourceReadView
+        GetCombatResourcesReadViewTyped() =>
+            _combatResourceState?.GetReadView()
+            ?? BattleUnitCombatResourceReadView.MissingOwner;
+
+    internal BattleUnitCombatResourceSnapshot
+        CaptureCombatResourcesForMutationSnapshotExact() =>
+            _combatResourceState?.CaptureRaw()
+            ?? BattleUnitCombatResourceSnapshot.MissingOwner;
+
+    internal void RestoreCombatResourcesForMutationSnapshotExact(
+        BattleUnitCombatResourceSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
+        {
+            _combatResourceState = null;
+            return;
+        }
+        CombatResourceState.RestoreRaw(snapshot);
+    }
+
+    public int GetCurrentHp() => CombatResourceState.GetCurrentHp();
+
+    public int GetCurrentMp() => CombatResourceState.GetCurrentMp();
+
+    public int GetCurrentStamina() =>
+        CombatResourceState.GetCurrentStamina();
+
+    public int GetCurrentAura() => CombatResourceState.GetCurrentAura();
+
+    public int GetCurrentAp() => CombatResourceState.GetCurrentAp();
+
+    public int GetCurrentMovePoints() =>
+        CombatResourceState.GetCurrentMovePoints();
+
+    internal int GetStaminaRecoveryProgressTyped() =>
+        CombatResourceState.GetStaminaRecoveryProgress();
+
+    internal bool ApplyStaminaRecoveryTyped(
+        int tickCount,
+        int staminaMax,
+        int progressGainPerTick,
+        int progressDenominator
+    ) =>
+        CombatResourceState.ApplyStaminaRecovery(
+            tickCount,
+            staminaMax,
+            progressGainPerTick,
+            progressDenominator
+        );
 
     public int GetMovePointCapacity()
     {
@@ -368,72 +901,69 @@ public partial class BattleUnitState
 
     public void ClampCurrentMovePointsToCapacity()
     {
-        current_move_points = Math.Min(Math.Max(current_move_points, 0), GetMovePointCapacity());
+        SetCurrentMovePoints(
+            Math.Min(
+                Math.Max(GetCurrentMovePoints(), 0),
+                GetMovePointCapacity()
+            )
+        );
     }
 
-    public bool IsAlive() => is_alive;
+    public bool IsAlive() => CombatResourceState.IsAlive();
 
     public void SetCurrentHp(int value)
     {
-        current_hp = Math.Max(value, 0);
-        is_alive = current_hp > 0;
+        CombatResourceState.SetCurrentHp(value);
     }
 
     public void SetCurrentHpClamped(int value, int hpMax)
     {
-        int normalizedMax = Math.Max(hpMax, 0);
-        SetCurrentHp(normalizedMax > 0 ? Math.Clamp(value, 0, normalizedMax) : 0);
+        CombatResourceState.SetCurrentHpClamped(value, hpMax);
     }
 
     public int ApplyHpDamage(int damage)
     {
-        int previousHp = current_hp;
-        SetCurrentHp(current_hp - Math.Max(damage, 0));
-        return previousHp - current_hp;
+        return CombatResourceState.ApplyHpDamage(damage);
     }
 
     public int ApplyHealing(int amount, int hpMax)
     {
-        int previousHp = current_hp;
-        SetCurrentHpClamped(current_hp + Math.Max(amount, 0), hpMax);
-        return current_hp - previousHp;
+        return CombatResourceState.ApplyHealing(amount, hpMax);
     }
 
     public void MarkDead()
     {
-        current_hp = 0;
-        is_alive = false;
+        CombatResourceState.MarkDead();
     }
 
     public void ReviveWithHp(int hp, int hpMax)
     {
-        int normalizedMax = Math.Max(hpMax, 1);
-        SetCurrentHpClamped(Math.Max(hp, 1), normalizedMax);
+        CombatResourceState.ReviveWithHp(hp, hpMax);
     }
 
     public void SetCurrentMp(int value)
     {
-        current_mp = Math.Max(value, 0);
+        CombatResourceState.SetCurrentMp(value);
     }
 
     public void SetCurrentStamina(int value)
     {
-        current_stamina = Math.Max(value, 0);
+        CombatResourceState.SetCurrentStamina(value);
     }
 
     public void SetCurrentAura(int value)
     {
-        current_aura = Math.Max(value, 0);
+        CombatResourceState.SetCurrentAura(value);
     }
 
     public void SetCurrentAp(int value)
     {
-        current_ap = Math.Max(value, 0);
+        CombatResourceState.SetCurrentAp(value);
     }
 
     public void SetCurrentMovePoints(int value)
     {
-        current_move_points = Math.Max(value, 0);
+        CombatResourceState.SetCurrentMovePoints(value);
     }
 
     public void SetCombatResources(
@@ -445,12 +975,14 @@ public partial class BattleUnitState
         int movePoints
     )
     {
-        SetCurrentHp(hp);
-        SetCurrentMp(mp);
-        SetCurrentStamina(stamina);
-        SetCurrentAura(aura);
-        SetCurrentAp(ap);
-        SetCurrentMovePoints(movePoints);
+        CombatResourceState.SetAllNormalized(
+            hp,
+            mp,
+            stamina,
+            aura,
+            ap,
+            movePoints
+        );
     }
 
     internal void RestoreCombatResourceProjection(
@@ -463,42 +995,20 @@ public partial class BattleUnitState
         bool alive
     )
     {
-        current_hp = Math.Max(hp, 0);
-        current_mp = Math.Max(mp, 0);
-        current_stamina = Math.Max(stamina, 0);
-        current_aura = Math.Max(aura, 0);
-        current_ap = Math.Max(ap, 0);
-        current_move_points = Math.Max(movePoints, 0);
-        is_alive = alive;
-    }
-
-    internal void RestoreCombatResourceProjectionForMutationSnapshotExact(
-        int hp,
-        int mp,
-        int stamina,
-        int aura,
-        int ap,
-        int movePoints,
-        bool alive
-    )
-    {
-        current_hp = hp;
-        current_mp = mp;
-        current_stamina = stamina;
-        current_aura = aura;
-        current_ap = ap;
-        current_move_points = movePoints;
-        is_alive = alive;
+        CombatResourceState.RestoreProjectionNormalized(
+            hp,
+            mp,
+            stamina,
+            aura,
+            ap,
+            movePoints,
+            alive
+        );
     }
 
     internal void ClampCombatResources(BattleResourceCaps caps)
     {
-        SetCurrentHpClamped(current_hp, caps.HpMax);
-        current_mp = ClampResource(current_mp, caps.MpMax);
-        current_stamina = ClampResource(current_stamina, caps.StaminaMax);
-        current_aura = ClampResource(current_aura, caps.AuraMax);
-        current_ap = ClampResource(current_ap, caps.ApMax);
-        current_move_points = ClampResource(current_move_points, caps.MovePointMax);
+        CombatResourceState.ClampToCaps(caps);
     }
 
     internal void SpendSkillCosts(
@@ -511,11 +1021,7 @@ public partial class BattleUnitState
         {
             return;
         }
-        if (includeAp)
-            SetCurrentAp(current_ap - costs.ApCost);
-        SetCurrentMp(current_mp - costs.MpCost);
-        SetCurrentStamina(current_stamina - costs.StaminaCost);
-        SetCurrentAura(current_aura - costs.AuraCost);
+        CombatResourceState.SpendSkillCosts(costs, includeAp);
         if (includeCooldown && costs.SkillId != "" && costs.CooldownTurns > 0)
             SetCooldownTyped(costs.SkillId, costs.CooldownTurns);
     }
@@ -526,55 +1032,28 @@ public partial class BattleUnitState
         {
             return;
         }
-        SetCurrentMp(Math.Min(current_mp + Math.Max(costs.MpCost, 0), Math.Max(caps.MpMax, 0)));
-        SetCurrentStamina(
-            Math.Min(current_stamina + Math.Max(costs.StaminaCost, 0), Math.Max(caps.StaminaMax, 0))
-        );
-        SetCurrentAura(
-            Math.Min(current_aura + Math.Max(costs.AuraCost, 0), Math.Max(caps.AuraMax, 0))
-        );
+        CombatResourceState.RefundSkillCosts(costs, caps);
     }
 
     internal void RefundSkillResources(int mp, int stamina, int aura, BattleResourceCaps caps)
     {
-        SetCurrentMp(Math.Min(current_mp + Math.Max(mp, 0), Math.Max(caps.MpMax, 0)));
-        SetCurrentStamina(
-            Math.Min(current_stamina + Math.Max(stamina, 0), Math.Max(caps.StaminaMax, 0))
+        CombatResourceState.RefundSkillResources(
+            mp,
+            stamina,
+            aura,
+            caps
         );
-        SetCurrentAura(Math.Min(current_aura + Math.Max(aura, 0), Math.Max(caps.AuraMax, 0)));
     }
 
     public IReadOnlyList<Vector2I> GetOccupiedCoordsTyped()
-    {
-        var results = new List<Vector2I>();
-        foreach (Vector2I occupiedCoord in occupied_coords ?? new Vector2IList())
-            results.Add(occupiedCoord);
-        return results;
-    }
+        => _geometryState?.GetOccupiedCoordsDetached()
+        ?? System.Array.Empty<Vector2I>();
 
     public bool SetBodySizeCategory(StringName category)
-    {
-        if (!IsValidBodySizeCategory(category))
-        {
-            return false;
-        }
-        body_size_category = category;
-        body_size = GetBodySizeForCategory(category);
-        RefreshFootprint();
-        return true;
-    }
+        => GeometryState.SetBodySizeCategory(category);
 
     public bool SetBodySizeProjection(int size)
-    {
-        if (!IsValidBodySize(size))
-        {
-            return false;
-        }
-        body_size = size;
-        body_size_category = GetBodySizeCategoryForSize(size);
-        RefreshFootprint();
-        return true;
-    }
+        => GeometryState.SetBodySizeProjection(size);
 
     internal void RestoreBodyShapeProjection(
         StringName category,
@@ -582,64 +1061,35 @@ public partial class BattleUnitState
         Vector2I footprint,
         IEnumerable<Vector2I> occupiedCoords
     )
-    {
-        body_size_category = IsValidBodySizeCategory(category)
-            ? category
-            : GetBodySizeCategoryForSize(Math.Clamp(size, BodySizeSmall, BodySizeBoss));
-        body_size = IsValidBodySize(size) ? size : GetBodySizeForCategory(body_size_category);
-        footprint_size = footprint;
-        occupied_coords = DuplicateVector2IArray(occupiedCoords);
-    }
-
-    internal void RestoreBodyShapeProjectionForMutationSnapshotExact(
-        Vector2I anchorCoord,
-        StringName category,
-        int size,
-        Vector2I footprint,
-        IEnumerable<Vector2I> occupiedCoords
-    )
-    {
-        coord = anchorCoord;
-        body_size_category = category;
-        body_size = size;
-        footprint_size = footprint;
-        occupied_coords = occupiedCoords == null
-            ? null
-            : new Vector2IList(occupiedCoords);
-    }
+        => GeometryState.RestoreBodyShapeProjection(
+            category,
+            size,
+            footprint,
+            occupiedCoords
+        );
 
     internal void NormalizeBodySizeProjectionForOwnerWrite()
     {
-        EnsureBodySizeIdentityInvariant();
-        RefreshFootprint();
+        if (_geometryState == null)
+        {
+            throw new InvalidOperationException(
+                $"BattleUnitState geometry owner 缺失: "
+                + $"unit_id='{unit_id}'。"
+            );
+        }
+        _geometryState.NormalizeForOwnerWrite(unit_id);
     }
 
     internal void EnsureBodySizeProjectionInvariant()
     {
-        EnsureBodySizeIdentityInvariant();
-        Vector2I resolvedFootprint = GetFootprintSizeForBodySize(body_size);
-        if (
-            footprint_size != resolvedFootprint
-            || !OccupiedCoordsMatch(coord, resolvedFootprint, occupied_coords)
-        )
+        if (_geometryState == null)
         {
             throw new InvalidOperationException(
-                $"BattleUnitState footprint 投影不一致: unit_id='{unit_id}', " +
-                $"coord={coord}, body_size={body_size}, footprint_size={footprint_size}。 " +
-                "请通过 owner 写入口修改坐标或体型。"
+                $"BattleUnitState geometry owner 缺失: "
+                + $"unit_id='{unit_id}'。"
             );
         }
-    }
-
-    private void EnsureBodySizeIdentityInvariant()
-    {
-        if (BodySizeMatchesCategory(body_size_category, body_size))
-            return;
-        throw new InvalidOperationException(
-            $"BattleUnitState body_size/body_size_category 不一致: " +
-            $"body_size={body_size}, body_size_category='{body_size_category}'。 " +
-            $"请检查数据构造路径是否绕过 SetBodySizeCategory()。"
-        );
+        _geometryState.EnsureProjectionInvariant(unit_id);
     }
 
     public bool HasStatusEffect(StringName status_id)
@@ -649,8 +1099,49 @@ public partial class BattleUnitState
 
     public bool HasShield()
     {
-        return current_shield_hp > 0 && shield_max_hp > 0 && shield_duration > 0;
+        return ShieldState.HasActiveShield();
     }
+
+    internal BattleUnitShieldSnapshot GetShieldStateTyped() =>
+        ShieldState.CaptureRaw();
+
+    internal BattleUnitShieldSnapshot CaptureShieldStateCanonical() =>
+        ShieldState.CaptureCanonical();
+
+    internal BattleUnitShieldSnapshot CaptureShieldForMutationSnapshotExact() =>
+        _shieldState?.CaptureRaw() ?? BattleUnitShieldSnapshot.MissingOwner;
+
+    internal void ReplaceShieldStateTyped(
+        int currentHp,
+        int maxHp,
+        int duration,
+        StringName family,
+        StringName sourceUnitId,
+        StringName sourceSkillId
+    ) =>
+        ShieldState.ReplaceAndNormalize(
+            new BattleUnitShieldSnapshot(
+                currentHp,
+                maxHp,
+                duration,
+                family,
+                sourceUnitId,
+                sourceSkillId
+            )
+        );
+
+    internal void RestoreShieldForMutationSnapshotExact(
+        BattleUnitShieldSnapshot snapshot
+    ) => ShieldState.RestoreRaw(snapshot);
+
+    internal void SetCurrentShieldHpAndNormalizeTyped(int currentHp) =>
+        ShieldState.SetCurrentHpAndNormalize(currentHp);
+
+    internal bool AdvanceShieldDurationTyped(int elapsedTu) =>
+        ShieldState.AdvanceDuration(elapsedTu);
+
+    internal BattleUnitShieldDrainResult DrainShieldTyped(int requestedDrain) =>
+        ShieldState.DrainCurrentHp(requestedDrain);
 
     public int GetAuraMax()
     {
@@ -659,424 +1150,342 @@ public partial class BattleUnitState
 
     public void SyncDefaultCombatResourceUnlocks()
     {
-        foreach (StringName resourceId in CombatResourceIds.DefaultUnlocked)
-        {
-            UnlockCombatResource(resourceId);
-        }
+        CombatResourceUnlockState.SyncDefaults();
     }
 
-    public bool HasCombatResourceUnlocked(StringName resource_id)
-    {
-        return unlocked_combat_resource_ids.Contains(resource_id);
-    }
+    public bool HasCombatResourceUnlocked(StringName resource_id) =>
+        _combatResourceUnlockState?.Contains(resource_id) == true;
 
-    internal int GetKnownSkillLevelTyped(StringName skillId, int fallback = 0)
-    {
-        if (IsEmpty(skillId) || known_skill_level_map == null || !known_skill_level_map.ContainsKey(skillId))
-        {
-            return fallback;
-        }
+    internal BattleUnitCombatResourceUnlockReadView
+        GetCombatResourceUnlocksReadViewTyped() =>
+            _combatResourceUnlockState?.GetReadView()
+            ?? BattleUnitCombatResourceUnlockReadView.MissingOwner;
 
-        return known_skill_level_map.Get(skillId, fallback);
-    }
+    internal BattleUnitCombatResourceUnlockSnapshot
+        CaptureCombatResourceUnlocksForMutationSnapshotExact() =>
+            _combatResourceUnlockState?.CaptureRaw()
+            ?? BattleUnitCombatResourceUnlockSnapshot.MissingOwner;
 
-    internal bool HasKnownSkillLevelTyped(StringName skillId)
-    {
-        if (IsEmpty(skillId) || known_skill_level_map == null || !known_skill_level_map.ContainsKey(skillId))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    internal int GetCooldownTyped(StringName skillId, int fallback = 0)
-    {
-        if (IsEmpty(skillId) || cooldowns == null || !cooldowns.ContainsKey(skillId))
-        {
-            return fallback;
-        }
-
-        return cooldowns.Get(skillId, fallback);
-    }
-
-    internal void SetCooldownTyped(StringName skillId, int value)
-    {
-        if (IsEmpty(skillId))
-        {
-            return;
-        }
-
-        int normalizedValue = Math.Max(value, 0);
-        if (normalizedValue <= 0)
-        {
-            cooldowns.Remove(skillId);
-            return;
-        }
-
-        cooldowns.Put(skillId, normalizedValue);
-    }
-
-    internal void SetCooldownsTyped(IReadOnlyDictionary<StringName, int> values)
-    {
-        cooldowns = new BattleStringNameIntMap();
-        if (values == null)
-        {
-            return;
-        }
-
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            if (IsEmpty(entry.Key))
-            {
-                continue;
-            }
-
-            int normalizedValue = Math.Max(entry.Value, 0);
-            if (normalizedValue > 0)
-            {
-                cooldowns.Put(entry.Key, normalizedValue);
-            }
-        }
-    }
-
-    internal int GetPerBattleChargeTyped(StringName chargeKey, int fallback = 0)
-    {
-        if (IsEmpty(chargeKey) || per_battle_charges == null || !per_battle_charges.ContainsKey(chargeKey))
-        {
-            return fallback;
-        }
-
-        return per_battle_charges.Get(chargeKey, fallback);
-    }
-
-    internal bool HasPerBattleChargeTyped(StringName chargeKey)
-    {
-        return !IsEmpty(chargeKey)
-            && per_battle_charges != null
-            && per_battle_charges.ContainsKey(chargeKey);
-    }
-
-    internal void SetPerBattleChargeTyped(StringName chargeKey, int value)
-    {
-        if (IsEmpty(chargeKey))
-        {
-            return;
-        }
-
-        per_battle_charges.Put(chargeKey, Math.Max(value, 0));
-    }
-
-    internal int GetPerTurnChargeTyped(StringName chargeKey, int fallback = 0)
-    {
-        if (IsEmpty(chargeKey) || per_turn_charges == null || !per_turn_charges.ContainsKey(chargeKey))
-        {
-            return fallback;
-        }
-
-        return per_turn_charges.Get(chargeKey, fallback);
-    }
-
-    internal bool HasPerTurnChargeTyped(StringName chargeKey)
-    {
-        return !IsEmpty(chargeKey)
-            && per_turn_charges != null
-            && per_turn_charges.ContainsKey(chargeKey);
-    }
-
-    internal void SetPerTurnChargeTyped(StringName chargeKey, int value)
-    {
-        if (IsEmpty(chargeKey))
-        {
-            return;
-        }
-
-        per_turn_charges.Put(chargeKey, Math.Max(value, 0));
-    }
-
-    internal int GetPerTurnChargeLimitTyped(StringName chargeKey, int fallback = 0)
-    {
-        if (
-            IsEmpty(chargeKey)
-            || per_turn_charge_limits == null
-            || !per_turn_charge_limits.ContainsKey(chargeKey)
-        )
-        {
-            return fallback;
-        }
-
-        return per_turn_charge_limits.Get(chargeKey, fallback);
-    }
-
-    internal bool HasPerTurnChargeLimitTyped(StringName chargeKey)
-    {
-        return !IsEmpty(chargeKey)
-            && per_turn_charge_limits != null
-            && per_turn_charge_limits.ContainsKey(chargeKey);
-    }
-
-    internal void SetPerTurnChargeLimitTyped(StringName chargeKey, int value)
-    {
-        if (IsEmpty(chargeKey))
-        {
-            return;
-        }
-
-        per_turn_charge_limits.Put(chargeKey, Math.Max(value, 0));
-    }
-
-    internal int GetFumbleProtectionUsedTyped(StringName skillId, int fallback = 0)
-    {
-        if (
-            IsEmpty(skillId)
-            || fumble_protection_used == null
-            || !fumble_protection_used.ContainsKey(skillId)
-        )
-        {
-            return fallback;
-        }
-
-        return fumble_protection_used.Get(skillId, fallback);
-    }
-
-    internal void SetFumbleProtectionUsedTyped(StringName skillId, int value)
-    {
-        if (IsEmpty(skillId))
-        {
-            return;
-        }
-
-        fumble_protection_used.Put(skillId, Math.Max(value, 0));
-    }
-
-    internal Dictionary<StringName, int> GetKnownSkillLevelsTyped()
-    {
-        return known_skill_level_map?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
-    }
-
-    internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped()
-    {
-        return known_skill_lock_hit_bonus_map?.ToTypedDictionary()
-            ?? new Dictionary<StringName, int>();
-    }
-
-    internal List<StringName> GetKnownActiveSkillIdsTyped()
-    {
-        return CopyStringNameListTyped(known_active_skill_ids);
-    }
-
-    internal bool KnowsActiveSkill(StringName skillId)
-    {
-        return !IsEmpty(skillId)
-            && known_active_skill_ids != null
-            && known_active_skill_ids.Contains(skillId);
-    }
-
-    internal void SetKnownActiveSkillIds(IEnumerable<StringName> skillIds)
-    {
-        known_active_skill_ids = new StringNameList();
-        if (skillIds == null)
-        {
-            return;
-        }
-
-        HashSet<StringName> seen = new();
-        foreach (StringName skillId in skillIds)
-        {
-            StringName normalized = ToStringName(skillId);
-            if (IsEmpty(normalized) || !seen.Add(normalized))
-            {
-                continue;
-            }
-            known_active_skill_ids.Add(normalized);
-        }
-    }
-
-    internal void RestoreKnownActiveSkillIdsForMutationSnapshotExact(
-        IEnumerable<StringName> skillIds
+    internal void RestoreCombatResourceUnlocksForMutationSnapshotExact(
+        BattleUnitCombatResourceUnlockSnapshot snapshot
     )
     {
-        known_active_skill_ids = skillIds == null ? null : new StringNameList(skillIds);
-    }
-
-    internal void AddKnownActiveSkill(StringName skillId)
-    {
-        StringName normalized = ToStringName(skillId);
-        if (IsEmpty(normalized))
+        if (!snapshot.OwnerPresent)
         {
+            _combatResourceUnlockState = null;
             return;
         }
-        known_active_skill_ids ??= new StringNameList();
-        if (!known_active_skill_ids.Contains(normalized))
+
+        CombatResourceUnlockState.RestoreRaw(snapshot);
+    }
+
+    internal int GetKnownSkillLevelTyped(StringName skillId, int fallback = 0) =>
+        _knownSkillState?.GetSkillLevel(skillId, fallback) ?? fallback;
+
+    internal bool HasKnownSkillLevelTyped(StringName skillId) =>
+        _knownSkillState?.HasSkillLevel(skillId) ?? false;
+
+    internal int GetCooldownTyped(StringName skillId, int fallback = 0) =>
+        CooldownState.Get(skillId, fallback);
+
+    internal void SetCooldownTyped(StringName skillId, int value) =>
+        CooldownState.Set(skillId, value);
+
+    internal void SetCooldownsTyped(IReadOnlyDictionary<StringName, int> values) =>
+        CooldownState.ReplaceNormalized(values);
+
+    internal BattleUnitCooldownSnapshot GetCooldownStateTyped() =>
+        CooldownState.CaptureRaw();
+
+    internal int GetCooldownAnchorTuTyped() => CooldownState.GetLastTurnTu();
+
+    internal void SetCooldownAnchorTuTyped(int value) =>
+        CooldownState.SetLastTurnTu(value);
+
+    internal void EnsureCooldownAnchorTyped(int currentTu) =>
+        CooldownState.EnsureAnchor(currentTu);
+
+    internal BattleUnitCooldownAdvanceResult AdvanceCooldownClockToTyped(
+        int currentTu,
+        int granularity
+    ) => CooldownState.AdvanceTo(currentTu, granularity);
+
+    internal void AdvanceCooldownAnchorForStasisTyped(int elapsedTu, int currentTu) =>
+        CooldownState.AdvanceFrozenAnchor(elapsedTu, currentTu);
+
+    internal int GetPerBattleChargeTyped(StringName chargeKey, int fallback = 0) =>
+        ChargeState.GetPerBattle(chargeKey, fallback);
+
+    internal bool HasPerBattleChargeTyped(StringName chargeKey) =>
+        ChargeState.HasPerBattle(chargeKey);
+
+    internal void SetPerBattleChargeTyped(StringName chargeKey, int value) =>
+        ChargeState.SetPerBattle(chargeKey, value);
+
+    internal bool RemovePerBattleChargeTyped(StringName chargeKey) =>
+        ChargeState.RemovePerBattle(chargeKey);
+
+    internal int GetPerTurnChargeTyped(StringName chargeKey, int fallback = 0) =>
+        ChargeState.GetPerTurn(chargeKey, fallback);
+
+    internal bool HasPerTurnChargeTyped(StringName chargeKey) =>
+        ChargeState.HasPerTurn(chargeKey);
+
+    internal void SetPerTurnChargeTyped(StringName chargeKey, int value) =>
+        ChargeState.SetPerTurn(chargeKey, value);
+
+    internal int GetPerTurnChargeLimitTyped(StringName chargeKey, int fallback = 0) =>
+        ChargeState.GetPerTurnLimit(chargeKey, fallback);
+
+    internal bool HasPerTurnChargeLimitTyped(StringName chargeKey) =>
+        ChargeState.HasPerTurnLimit(chargeKey);
+
+    internal void SetPerTurnChargeLimitTyped(StringName chargeKey, int value) =>
+        ChargeState.SetPerTurnLimit(chargeKey, value);
+
+    internal bool RemovePerTurnChargeAndLimitTyped(StringName chargeKey) =>
+        ChargeState.RemovePerTurnAndLimit(chargeKey);
+
+    internal int GetFumbleProtectionUsedTyped(StringName skillId, int fallback = 0) =>
+        ChargeState.GetFumbleProtectionUsed(skillId, fallback);
+
+    internal void SetFumbleProtectionUsedTyped(StringName skillId, int value) =>
+        ChargeState.SetFumbleProtectionUsed(skillId, value);
+
+    internal Dictionary<StringName, int> GetKnownSkillLevelsTyped() =>
+        _knownSkillState?.SnapshotSkillLevels()
+        ?? new Dictionary<StringName, int>();
+
+    internal Dictionary<StringName, int> GetKnownSkillLockHitBonusesTyped() =>
+        _knownSkillState?.SnapshotLockHitBonuses()
+        ?? new Dictionary<StringName, int>();
+
+    internal List<StringName> GetKnownActiveSkillIdsTyped() =>
+        _knownSkillState?.SnapshotActiveSkills()
+        ?? new List<StringName>();
+
+    internal BattleKnownActiveSkillReadView GetKnownActiveSkillsViewTyped() =>
+        _knownSkillState?.GetActiveSkillsView() ?? new(null);
+
+    internal BattleUnitKnownSkillReadView GetKnownSkillsReadViewTyped() =>
+        _knownSkillState?.GetReadView()
+        ?? BattleUnitKnownSkillReadView.MissingOwner;
+
+    internal bool KnowsActiveSkill(StringName skillId) =>
+        _knownSkillState?.KnowsActiveSkill(skillId) ?? false;
+
+    internal bool TryGetFirstKnownActiveSkillIdTyped(out StringName skillId)
+    {
+        if (_knownSkillState != null)
+            return _knownSkillState.TryGetFirstActiveSkill(out skillId);
+
+        skillId = new StringName("");
+        return false;
+    }
+
+    internal void SetKnownActiveSkillIds(IEnumerable<StringName> skillIds) =>
+        WritableKnownSkillState.ReplaceActiveSkillsNormalized(skillIds);
+
+    internal void AddKnownActiveSkill(StringName skillId) =>
+        WritableKnownSkillState.AddActiveSkillNormalized(skillId);
+
+    internal void CopyKnownSkillLevelEntriesTo(
+        List<KeyValuePair<StringName, int>> destination
+    )
+    {
+        if (_knownSkillState != null)
+            _knownSkillState.CopySkillLevelEntriesTo(destination);
+    }
+
+    internal BattleUnitKnownSkillSnapshot CaptureKnownSkillsForMutationSnapshotExact() =>
+        _knownSkillState?.CaptureRaw()
+        ?? BattleUnitKnownSkillSnapshot.MissingOwner;
+
+    internal void RestoreKnownSkillsForMutationSnapshotExact(
+        BattleUnitKnownSkillSnapshot snapshot
+    )
+    {
+        if (!snapshot.OwnerPresent)
         {
-            known_active_skill_ids.Add(normalized);
+            _knownSkillState = null;
+            return;
         }
+        WritableKnownSkillState.RestoreRaw(snapshot);
     }
 
     internal void SetKnownSkillLevelsTyped(
         IReadOnlyDictionary<StringName, int> values,
         bool preserveZero = false
-    )
-    {
-        known_skill_level_map = new BattleStringNameIntMap();
-        if (values == null)
-        {
-            return;
-        }
+    ) =>
+        WritableKnownSkillState.ReplaceSkillLevelsNormalized(
+            values,
+            preserveZero
+        );
 
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            SetKnownSkillLevelTyped(entry.Key, entry.Value, preserveZero);
-        }
-    }
+    internal void SetKnownSkillLevelTyped(
+        StringName skillId,
+        int level,
+        bool preserveZero = false
+    ) =>
+        WritableKnownSkillState.SetSkillLevelNormalized(
+            skillId,
+            level,
+            preserveZero
+        );
 
-    internal void SetKnownSkillLevelTyped(StringName skillId, int level, bool preserveZero = false)
-    {
-        if (IsEmpty(skillId))
-        {
-            return;
-        }
-        int normalizedLevel = Math.Max(level, 0);
-        if (normalizedLevel <= 0 && !preserveZero)
-        {
-            known_skill_level_map.Remove(skillId);
-            return;
-        }
-        known_skill_level_map.Put(skillId, normalizedLevel);
-    }
+    internal void RemoveKnownSkillLevelTyped(StringName skillId) =>
+        _knownSkillState?.RemoveSkillLevel(skillId);
 
-    internal void RemoveKnownSkillLevelTyped(StringName skillId)
-    {
-        if (!IsEmpty(skillId))
-            known_skill_level_map?.Remove(skillId);
-    }
+    internal void SetKnownSkillLockHitBonusesTyped(
+        IReadOnlyDictionary<StringName, int> values
+    ) =>
+        WritableKnownSkillState.ReplaceLockHitBonusesNormalized(values);
 
-    internal void SetKnownSkillLockHitBonusesTyped(IReadOnlyDictionary<StringName, int> values)
-    {
-        known_skill_lock_hit_bonus_map = new BattleStringNameIntMap();
-        if (values == null)
-        {
-            return;
-        }
-
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            StringName skillId = ToStringName(entry.Key);
-            int normalizedBonus = Math.Max(entry.Value, 0);
-            if (IsEmpty(skillId) || normalizedBonus <= 0)
-            {
-                continue;
-            }
-            known_skill_lock_hit_bonus_map.Put(skillId, normalizedBonus);
-        }
-    }
+    internal void SetKnownSkillLockHitBonusTyped(
+        StringName skillId,
+        int bonus
+    ) =>
+        WritableKnownSkillState.SetLockHitBonusNormalized(skillId, bonus);
 
     internal void SetVersatilityPick(StringName value)
     {
         versatility_pick = value;
     }
 
-    internal int GetKnownSkillLockHitBonusTyped(StringName skillId, int fallback = 0)
+    internal int GetKnownSkillLockHitBonusTyped(StringName skillId, int fallback = 0) =>
+        _knownSkillState?.GetLockHitBonus(skillId, fallback)
+        ?? fallback;
+
+    internal Dictionary<StringName, int> GetCooldownsTyped() =>
+        CooldownState.Snapshot();
+
+    internal Dictionary<StringName, int> GetPerBattleChargesTyped() =>
+        ChargeState.SnapshotPerBattle();
+
+    internal Dictionary<StringName, int> GetPerTurnChargesTyped() =>
+        ChargeState.SnapshotPerTurn();
+
+    internal Dictionary<StringName, int> GetPerTurnChargeLimitsTyped() =>
+        ChargeState.SnapshotPerTurnLimits();
+
+    internal Dictionary<StringName, int> GetFumbleProtectionUsedTyped() =>
+        ChargeState.SnapshotFumbleProtectionUsed();
+
+    internal BattleUnitDamageResistanceReadView
+        GetDamageResistancesReadViewTyped() =>
+            _damageResistanceState?.GetReadView()
+            ?? BattleUnitDamageResistanceReadView.MissingOwner;
+
+    internal BattleUnitDamageResistanceSnapshot
+        CaptureDamageResistancesForMutationSnapshotExact() =>
+            _damageResistanceState?.CaptureRaw()
+            ?? BattleUnitDamageResistanceSnapshot.MissingOwner;
+
+    internal void RestoreDamageResistancesForMutationSnapshotExact(
+        BattleUnitDamageResistanceSnapshot snapshot
+    )
     {
-        if (IsEmpty(skillId) || known_skill_lock_hit_bonus_map == null)
+        if (!snapshot.OwnerPresent)
         {
-            return fallback;
+            _damageResistanceState = null;
+            return;
         }
 
-        if (known_skill_lock_hit_bonus_map.TryGetValue(skillId, out int value))
-        {
-            return value;
-        }
-        return fallback;
+        DamageResistanceState.RestoreRaw(snapshot);
     }
 
-    internal Dictionary<StringName, int> GetCooldownsTyped()
+    internal void ResetDamageResistancesTyped() =>
+        DamageResistanceState.ResetNormalized();
+
+    internal void ReplaceDamageResistancesTyped(
+        IReadOnlyDictionary<StringName, StringName> resistances
+    ) =>
+        DamageResistanceState.ReplaceNormalized(resistances);
+
+    internal void MergeDamageResistancesTyped(
+        IReadOnlyDictionary<StringName, StringName> resistances
+    ) =>
+        DamageResistanceState.MergeOverrideNormalized(resistances);
+
+    internal bool SetDamageResistanceTyped(
+        StringName damageTag,
+        StringName mitigationTier
+    ) =>
+        DamageResistanceState.SetNormalized(
+            damageTag,
+            mitigationTier
+        );
+
+    internal bool HasDamageResistanceTyped(StringName damageTag) =>
+        _damageResistanceState?.Contains(damageTag) == true;
+
+    internal StringName GetDamageResistanceTyped(
+        StringName damageTag,
+        StringName fallback = default
+    ) =>
+        _damageResistanceState?.Get(damageTag, fallback)
+        ?? fallback;
+
+    internal bool TryGetDamageResistanceTyped(
+        StringName damageTag,
+        out StringName mitigationTier
+    )
     {
-        return cooldowns?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
+        mitigationTier = default;
+        return _damageResistanceState?.TryGetValue(
+            damageTag,
+            out mitigationTier
+        ) == true;
     }
 
-    internal Dictionary<StringName, int> GetPerBattleChargesTyped()
-    {
-        return per_battle_charges?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
-    }
-
-    internal Dictionary<StringName, int> GetPerTurnChargesTyped()
-    {
-        return per_turn_charges?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
-    }
-
-    internal Dictionary<StringName, int> GetPerTurnChargeLimitsTyped()
-    {
-        return per_turn_charge_limits?.ToTypedDictionary()
-            ?? new Dictionary<StringName, int>();
-    }
-
-    internal Dictionary<StringName, int> GetFumbleProtectionUsedTyped()
-    {
-        return fumble_protection_used?.ToTypedDictionary()
-            ?? new Dictionary<StringName, int>();
-    }
-
-    internal Dictionary<StringName, StringName> GetDamageResistancesTyped()
-    {
-        return damage_resistances?.ToTypedDictionary()
+    internal Dictionary<StringName, StringName>
+        GetDamageResistancesTyped() =>
+            _damageResistanceState?.CopyNormalized()
             ?? new Dictionary<StringName, StringName>();
-    }
 
-    internal WeaponDice GetWeaponOneHandedDiceTyped()
-    {
-        return CopyWeaponDiceTyped(weapon_one_handed_dice);
-    }
+    internal BattleUnitWeaponProjectionReadView
+        GetWeaponProjectionReadViewTyped() =>
+            _weaponProjectionState?.GetReadView()
+            ?? BattleUnitWeaponProjectionReadView.MissingOwner;
 
-    internal WeaponDice GetWeaponTwoHandedDiceTyped()
-    {
-        return CopyWeaponDiceTyped(weapon_two_handed_dice);
-    }
+    internal BattleUnitWeaponProjectionSnapshot
+        CaptureWeaponProjectionForMutationSnapshotExact() =>
+            _weaponProjectionState?.CaptureRaw()
+            ?? BattleUnitWeaponProjectionSnapshot.MissingOwner;
 
-    internal WeaponDice GetActiveWeaponDiceTyped()
+    internal void RestoreWeaponProjectionForMutationSnapshotExact(
+        BattleUnitWeaponProjectionSnapshot snapshot
+    )
     {
-        return weapon_uses_two_hands ? GetWeaponTwoHandedDiceTyped() : GetWeaponOneHandedDiceTyped();
-    }
-
-    public bool UnlockCombatResource(StringName resource_id)
-    {
-        if (IsEmpty(resource_id))
+        if (!snapshot.OwnerPresent)
         {
-            return false;
+            _weaponProjectionState = null;
+            return;
         }
-        if (!IsValidCombatResourceId(resource_id))
-        {
-            return false;
-        }
-        if (unlocked_combat_resource_ids.Contains(resource_id))
-        {
-            return false;
-        }
-        unlocked_combat_resource_ids.Add(resource_id);
-        return true;
+
+        WeaponProjectionState.RestoreRaw(snapshot);
     }
+
+    internal WeaponDice GetWeaponOneHandedDiceTyped() =>
+        WeaponProjectionState.CopyOneHandedDice();
+
+    internal WeaponDice GetWeaponTwoHandedDiceTyped() =>
+        WeaponProjectionState.CopyTwoHandedDice();
+
+    internal WeaponDice GetActiveWeaponDiceTyped() =>
+        WeaponProjectionState.CopyActiveDice();
+
+    public bool UnlockCombatResource(StringName resource_id) =>
+        CombatResourceUnlockState.Unlock(resource_id);
 
     public void SetUnlockedCombatResourceIds(IEnumerable<StringName> resource_ids)
     {
-        unlocked_combat_resource_ids = new StringNameList();
-        if (resource_ids != null)
-        {
-            foreach (StringName resourceId in resource_ids)
-            {
-                UnlockCombatResource(resourceId);
-            }
-        }
-        SyncDefaultCombatResourceUnlocks();
+        CombatResourceUnlockState.ReplaceNormalized(resource_ids);
     }
 
     public void ClearShield()
     {
-        current_shield_hp = 0;
-        shield_max_hp = 0;
-        shield_duration = -1;
-        shield_family = "";
-        shield_source_unit_id = "";
-        shield_source_skill_id = "";
+        ShieldState.Clear();
     }
 
     internal void MarkContingencySetupConsumed(StringName setupId)
@@ -1099,17 +1508,7 @@ public partial class BattleUnitState
 
     public void NormalizeShieldState()
     {
-        if (current_shield_hp <= 0 || shield_max_hp <= 0 || shield_duration <= 0)
-        {
-            ClearShield();
-            return;
-        }
-        shield_max_hp = Math.Max(shield_max_hp, 1);
-        current_shield_hp = Math.Clamp(current_shield_hp, 0, shield_max_hp);
-        if (current_shield_hp <= 0)
-        {
-            ClearShield();
-        }
+        ShieldState.Normalize();
     }
 
     public EquipmentState GetEquipmentView()
@@ -1129,18 +1528,7 @@ public partial class BattleUnitState
 
     public void ClearWeaponProjection()
     {
-        weapon_profile_kind = WeaponProfileKindNone;
-        weapon_item_id = "";
-        weapon_profile_type_id = "";
-        weapon_range_type = "";
-        weapon_family = "";
-        weapon_current_grip = WeaponGripNone;
-        weapon_attack_range = 0;
-        weapon_one_handed_dice = new WeaponDice();
-        weapon_two_handed_dice = new WeaponDice();
-        weapon_is_versatile = false;
-        weapon_uses_two_hands = false;
-        weapon_physical_damage_tag = "";
+        WeaponProjectionState.Clear();
     }
 
     public void SetUnarmedWeaponProjection(
@@ -1229,50 +1617,11 @@ public partial class BattleUnitState
 
     internal void ApplyWeaponProjectionTyped(WeaponProjection projection)
     {
-        if (projection == null || projection.IsEmpty())
-        {
-            ClearWeaponProjection();
-            return;
-        }
-        weapon_profile_kind = NormalizeWeaponProfileKind(
-            ToStringName(projection.weapon_profile_kind)
-        );
-        weapon_item_id = ToStringName(projection.weapon_item_id);
-        weapon_profile_type_id = ToStringName(projection.weapon_profile_type_id);
-        weapon_range_type = ToStringName(projection.weapon_range_type);
-        weapon_family = ToStringName(projection.weapon_family);
-        weapon_current_grip = NormalizeWeaponGrip(ToStringName(projection.weapon_current_grip));
-        weapon_attack_range = Math.Max(projection.weapon_attack_range, 0);
-        weapon_one_handed_dice = NormalizeWeaponDice(projection.weapon_one_handed_dice);
-        weapon_two_handed_dice = NormalizeWeaponDice(projection.weapon_two_handed_dice);
-        weapon_is_versatile = projection.weapon_is_versatile;
-        weapon_uses_two_hands = projection.weapon_uses_two_hands;
-        if (weapon_uses_two_hands)
-        {
-            weapon_current_grip = WeaponGripTwoHanded;
-        }
-        else if (weapon_current_grip == WeaponGripTwoHanded)
-        {
-            weapon_current_grip =
-                HasWeaponDice(weapon_one_handed_dice) ? WeaponGripOneHanded : WeaponGripNone;
-        }
-        weapon_physical_damage_tag = ToStringName(projection.weapon_physical_damage_tag);
-        if (weapon_profile_kind == WeaponProfileKindNone)
-        {
-            ClearWeaponProjection();
-            return;
-        }
-        if (weapon_attack_range <= 0)
-        {
-            weapon_current_grip = WeaponGripNone;
-            weapon_uses_two_hands = false;
-        }
+        WeaponProjectionState.ApplyNormalized(projection);
     }
 
-    public int GetWeaponAttackRange()
-    {
-        return Math.Max(weapon_attack_range, 0);
-    }
+    public int GetWeaponAttackRange() =>
+        WeaponProjectionState.GetAttackRangeClamped();
 
     public BattleStatusEffectState GetStatusEffect(StringName status_id)
     {
@@ -1343,20 +1692,42 @@ public partial class BattleUnitState
         CaptureStatusEffectsForMutationSnapshotExact() =>
         _statusEffects.SnapshotEntriesForMutationSnapshotExact();
 
-    public void ResetPerTurnCharges()
-    {
-        per_turn_charges.Clear();
-        foreach (KeyValuePair<StringName, int> entry in GetPerTurnChargeLimitsTyped())
-        {
-            StringName chargeKey = entry.Key;
-            int chargeLimit = Math.Max(entry.Value, 0);
-            if (IsEmpty(chargeKey) || chargeLimit <= 0)
-            {
-                continue;
-            }
-            SetPerTurnChargeTyped(chargeKey, chargeLimit);
-        }
-    }
+    internal BattleUnitCooldownSnapshot CaptureCooldownForMutationSnapshotExact() =>
+        _cooldownState?.CaptureRaw() ?? BattleUnitCooldownSnapshot.MissingOwner;
+
+    internal void RestoreCooldownForMutationSnapshotExact(
+        BattleUnitCooldownSnapshot snapshot
+    ) => CooldownState.RestoreRaw(snapshot);
+
+    internal BattleStringNameIntMap CapturePerBattleChargesForMutationSnapshotExact() =>
+        ChargeState.CapturePerBattleForMutationSnapshotExact();
+
+    internal BattleStringNameIntMap CapturePerTurnChargesForMutationSnapshotExact() =>
+        ChargeState.CapturePerTurnForMutationSnapshotExact();
+
+    internal BattleStringNameIntMap CapturePerTurnChargeLimitsForMutationSnapshotExact() =>
+        ChargeState.CapturePerTurnLimitsForMutationSnapshotExact();
+
+    internal BattleStringNameIntMap CaptureFumbleProtectionForMutationSnapshotExact() =>
+        ChargeState.CaptureFumbleProtectionForMutationSnapshotExact();
+
+    internal void RestorePerBattleChargesForMutationSnapshotExact(
+        BattleStringNameIntMap values
+    ) => ChargeState.RestorePerBattleForMutationSnapshotExact(values);
+
+    internal void RestorePerTurnChargesForMutationSnapshotExact(
+        BattleStringNameIntMap values
+    ) => ChargeState.RestorePerTurnForMutationSnapshotExact(values);
+
+    internal void RestorePerTurnChargeLimitsForMutationSnapshotExact(
+        BattleStringNameIntMap values
+    ) => ChargeState.RestorePerTurnLimitsForMutationSnapshotExact(values);
+
+    internal void RestoreFumbleProtectionForMutationSnapshotExact(
+        BattleStringNameIntMap values
+    ) => ChargeState.RestoreFumbleProtectionForMutationSnapshotExact(values);
+
+    public void ResetPerTurnCharges() => ChargeState.ResetPerTurn();
 
     public BattleUnitState clone()
     {
@@ -1378,82 +1749,48 @@ public partial class BattleUnitState
             ai_brain_id = ai_brain_id,
             ai_state_id = ai_state_id,
             ai_blackboard = ai_blackboard?.Clone() ?? new BattleAiBlackboard(),
-            coord = coord,
-            body_size = body_size,
-            body_size_category = body_size_category,
-            footprint_size = footprint_size,
-            occupied_coords = DuplicateVector2IArray(occupied_coords),
-            is_alive = is_alive,
+            GeometryState = GeometryState.DuplicateState(),
             attribute_snapshot = DuplicateAttributeSnapshot(attribute_snapshot),
             equipment_view = GetEquipmentView()?.DuplicateState() ?? NewEquipmentState(),
             equipment_view_initialized = true,
-            current_hp = current_hp,
-            current_mp = current_mp,
-            current_stamina = current_stamina,
-            current_aura = current_aura,
-            current_ap = current_ap,
-            current_move_points = current_move_points,
-            unlocked_combat_resource_ids =
-                unlocked_combat_resource_ids?.Duplicate() ?? new StringNameList(),
-            stamina_recovery_progress = stamina_recovery_progress,
-            is_resting = is_resting,
-            has_taken_action_this_turn = has_taken_action_this_turn,
-            has_moved_this_turn = has_moved_this_turn,
-            can_use_locked_move_points_this_turn = can_use_locked_move_points_this_turn,
-            current_shield_hp = current_shield_hp,
-            shield_max_hp = shield_max_hp,
-            shield_duration = shield_duration,
-            shield_family = shield_family,
-            shield_source_unit_id = shield_source_unit_id,
-            shield_source_skill_id = shield_source_skill_id,
-            action_progress = action_progress,
-            action_threshold = action_threshold,
-            known_active_skill_ids =
-                known_active_skill_ids?.Duplicate() ?? new StringNameList(),
-            known_skill_level_map = known_skill_level_map?.Clone() ?? new BattleStringNameIntMap(),
-            known_skill_lock_hit_bonus_map =
-                known_skill_lock_hit_bonus_map?.Clone() ?? new BattleStringNameIntMap(),
-            movement_tags = movement_tags?.Duplicate() ?? new StringNameList(),
-            vision_tags = vision_tags?.Duplicate() ?? new StringNameList(),
-            proficiency_tags = proficiency_tags?.Duplicate() ?? new StringNameList(),
-            save_advantage_tags = save_advantage_tags?.Duplicate() ?? new StringNameList(),
-            save_disadvantage_tags = save_disadvantage_tags?.Duplicate() ?? new StringNameList(),
-            save_immunity_tags = save_immunity_tags?.Duplicate() ?? new StringNameList(),
-            damage_resistances = damage_resistances?.Clone() ?? new BattleStringNameMap(),
-            save_bonus_by_ability = save_bonus_by_ability?.Clone() ?? new BattleStringNameIntMap(),
-            effective_trait_instances = DuplicateEffectiveTraitInstances(effective_trait_instances),
-            effective_trait_ids = DeriveEffectiveTraitIdsFromInstances(effective_trait_instances),
-            equipment_ability_sources = DuplicateEquipmentAbilitySources(equipment_ability_sources),
-            temporal_progress_modifiers = DuplicateTemporalProgressModifiers(
-                temporal_progress_modifiers
-            ),
-            creature_type_tags = creature_type_tags?.Duplicate() ?? new StringNameList(),
+            CombatResourceState = CombatResourceState.DuplicateState(),
+            CombatResourceUnlockState =
+                CombatResourceUnlockState.DuplicateState(),
+            RestState = RestState.DuplicateState(),
+            TurnState = TurnState.DuplicateState(),
+            ShieldState = ShieldState.DuplicateState(),
+            ActionClockState = ActionClockState.DuplicateState(),
+            _knownSkillState =
+                _knownSkillState?.DuplicateState()
+                ?? new BattleUnitKnownSkillState(),
+            MovementTagState =
+                _movementTagState?.DuplicateState()
+                ?? new BattleUnitMovementTagState(),
+            VisionProficiencyState =
+                _visionProficiencyState?.DuplicateState()
+                ?? new BattleUnitVisionProficiencyState(),
+            SaveModifierState =
+                _saveModifierState?.DuplicateState()
+                ?? new BattleUnitSaveModifierState(),
+            DamageResistanceState =
+                _damageResistanceState?.DuplicateState()
+                ?? new BattleUnitDamageResistanceState(),
+            EffectiveTraitState =
+                _effectiveTraitState?.DuplicateState()
+                ?? new BattleUnitEffectiveTraitState(),
+            EquipmentAbilityProjectionState =
+                _equipmentAbilityProjectionState?.DuplicateState()
+                ?? new BattleUnitEquipmentAbilityProjectionState(),
+            CreatureTypeState =
+                _creatureTypeState?.DuplicateState()
+                ?? new BattleUnitCreatureTypeState(),
             versatility_pick = versatility_pick,
-            weapon_profile_kind = weapon_profile_kind,
-            weapon_item_id = weapon_item_id,
-            weapon_profile_type_id = weapon_profile_type_id,
-            weapon_range_type = weapon_range_type,
-            weapon_family = weapon_family,
-            weapon_current_grip = weapon_current_grip,
-            weapon_attack_range = weapon_attack_range,
-            weapon_one_handed_dice = CopyWeaponDiceTyped(weapon_one_handed_dice),
-            weapon_two_handed_dice = CopyWeaponDiceTyped(weapon_two_handed_dice),
-            weapon_is_versatile = weapon_is_versatile,
-            weapon_uses_two_hands = weapon_uses_two_hands,
-            weapon_physical_damage_tag = weapon_physical_damage_tag,
-            cooldowns = cooldowns?.Clone() ?? new BattleStringNameIntMap(),
-            last_turn_tu = last_turn_tu,
+            WeaponProjectionState = WeaponProjectionState.DuplicateState(),
+            CooldownState = CooldownState.DuplicateState(),
             StatusEffectCollection = _statusEffects.DuplicateState(),
-            per_battle_charges = per_battle_charges?.Clone() ?? new BattleStringNameIntMap(),
-            per_turn_charges = per_turn_charges?.Clone() ?? new BattleStringNameIntMap(),
-            per_turn_charge_limits =
-                per_turn_charge_limits?.Clone() ?? new BattleStringNameIntMap(),
-            fumble_protection_used =
-                fumble_protection_used?.Clone() ?? new BattleStringNameIntMap(),
+            ChargeState = ChargeState.DuplicateState(),
             death_ward_consumed_this_battle = death_ward_consumed_this_battle,
             pending_cast = pending_cast?.Clone(),
-            turn_casting_exhausted = turn_casting_exhausted,
-            action_progress_rate_remainder = action_progress_rate_remainder,
             cast_progress_rate_remainder = cast_progress_rate_remainder,
             ConsumedContingencySetups = ConsumedContingencySetups.DuplicateState(),
         };
@@ -1461,15 +1798,40 @@ public partial class BattleUnitState
 
     public static Vector2I GetFootprintSizeForBodySize(int size_value)
     {
-        return GetFootprintForBodySize(Math.Max(size_value, BodySizeSmall));
+        return BattleUnitGeometryState.GetFootprintSizeForBodySize(
+            size_value
+        );
     }
 
     internal IReadOnlyDictionary<string, object> BuildSnapshotPlain()
     {
         EnsureBodySizeProjectionInvariant();
-        NormalizeShieldState();
-        NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
+        BattleUnitTurnSnapshot turnState = GetTurnStateTyped();
+        BattleUnitShieldSnapshot shieldState = CaptureShieldStateCanonical();
+        BattleUnitCooldownSnapshot cooldownState = GetCooldownStateTyped();
+        BattleUnitActionClockSnapshot actionClockState =
+            GetActionClockStateTyped();
+        BattleUnitKnownSkillReadView knownSkillState =
+            GetKnownSkillsReadViewTyped();
+        BattleUnitCombatResourceUnlockReadView combatResourceUnlockState =
+            GetCombatResourceUnlocksReadViewTyped();
+        BattleUnitCombatResourceValues combatResources =
+            GetCombatResourcesReadViewTyped().Values;
+        BattleUnitGeometryReadView geometry =
+            GetGeometryReadViewTyped();
+        BattleUnitSaveModifierReadView saveModifiers =
+            GetSaveModifiersReadViewTyped();
+        BattleUnitDamageResistanceReadView damageResistances =
+            GetDamageResistancesReadViewTyped();
+        BattleUnitEffectiveTraitReadView effectiveTraits =
+            GetEffectiveTraitsReadViewTyped();
+        BattleUnitEquipmentAbilityProjectionReadView
+            equipmentAbilityProjection =
+                GetEquipmentAbilityProjectionReadViewTyped();
+        NormalizeWeaponProjection();
+        BattleWeaponProjectionValues weaponProjection =
+            GetWeaponProjectionReadViewTyped().Values;
 
         return new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -1484,76 +1846,107 @@ public partial class BattleUnitState
             ["ai_brain_id"] = ai_brain_id.ToString(),
             ["ai_state_id"] = ai_state_id.ToString(),
             // ai_blackboard is runtime-only and not serialized
-            ["coord"] = coord,
-            ["body_size"] = body_size,
-            ["body_size_category"] = body_size_category.ToString(),
-            ["footprint_size"] = footprint_size,
-            ["occupied_coords"] = ProjectVector2IListPlain(occupied_coords),
-            ["is_alive"] = is_alive,
+            ["coord"] = geometry.AnchorCoord,
+            ["body_size"] = geometry.BodySize,
+            ["body_size_category"] =
+                geometry.BodySizeCategory.ToString(),
+            ["footprint_size"] = geometry.FootprintSize,
+            ["occupied_coords"] =
+                ProjectVector2IListPlain(geometry.OccupiedCoords),
+            ["is_alive"] = combatResources.IsAlive,
             ["attribute_snapshot"] = AttributeSnapshotToPlain(attribute_snapshot),
             ["equipment_view"] = EquipmentViewToPlain(GetEquipmentView()),
-            ["current_hp"] = current_hp,
-            ["current_mp"] = current_mp,
-            ["current_stamina"] = current_stamina,
-            ["current_aura"] = current_aura,
+            ["current_hp"] = combatResources.Hp,
+            ["current_mp"] = combatResources.Mp,
+            ["current_stamina"] = combatResources.Stamina,
+            ["current_aura"] = combatResources.Aura,
             ["aura_max"] = GetAuraMax(),
-            ["current_ap"] = current_ap,
-            ["current_move_points"] = current_move_points,
-            ["unlocked_combat_resource_ids"] = StringNameListToPlain(
-                unlocked_combat_resource_ids
+            ["current_ap"] = combatResources.Ap,
+            ["current_move_points"] = combatResources.MovePoints,
+            ["unlocked_combat_resource_ids"] = CombatResourceUnlockViewToPlain(
+                combatResourceUnlockState.ResourceIds
             ),
-            ["stamina_recovery_progress"] = stamina_recovery_progress,
-            ["is_resting"] = is_resting,
-            ["has_taken_action_this_turn"] = has_taken_action_this_turn,
-            ["can_use_locked_move_points_this_turn"] = can_use_locked_move_points_this_turn,
-            ["current_shield_hp"] = current_shield_hp,
-            ["shield_max_hp"] = shield_max_hp,
-            ["shield_duration"] = shield_duration,
-            ["shield_family"] = shield_family.ToString(),
-            ["shield_source_unit_id"] = shield_source_unit_id.ToString(),
-            ["shield_source_skill_id"] = shield_source_skill_id.ToString(),
-            ["action_progress"] = action_progress,
-            ["action_threshold"] = action_threshold,
-            ["known_active_skill_ids"] = StringNameListToPlain(known_active_skill_ids),
+            ["stamina_recovery_progress"] =
+                combatResources.StaminaRecoveryProgress,
+            ["is_resting"] = IsRestingTyped(),
+            ["has_taken_action_this_turn"] = turnState.HasTakenActionThisTurn,
+            ["can_use_locked_move_points_this_turn"] =
+                turnState.CanUseLockedMovePointsThisTurn,
+            ["current_shield_hp"] = shieldState.CurrentHp,
+            ["shield_max_hp"] = shieldState.MaxHp,
+            ["shield_duration"] = shieldState.Duration,
+            ["shield_family"] = shieldState.Family.ToString(),
+            ["shield_source_unit_id"] = shieldState.SourceUnitId.ToString(),
+            ["shield_source_skill_id"] = shieldState.SourceSkillId.ToString(),
+            ["action_progress"] = actionClockState.ActionProgress,
+            ["action_threshold"] = actionClockState.ActionThreshold,
+            ["known_active_skill_ids"] = KnownActiveSkillViewToPlain(
+                knownSkillState.ActiveSkills
+            ),
             ["known_skill_level_map"] =
-                StringNameIntMapToPlain(known_skill_level_map),
+                KnownSkillLevelViewToPlain(knownSkillState.SkillLevels),
             ["known_skill_lock_hit_bonus_map"] =
-                StringNameIntMapToPlain(known_skill_lock_hit_bonus_map),
-            ["movement_tags"] = StringNameListToPlain(movement_tags),
-            ["vision_tags"] = StringNameListToPlain(vision_tags),
-            ["proficiency_tags"] = StringNameListToPlain(proficiency_tags),
-            ["save_advantage_tags"] = StringNameListToPlain(save_advantage_tags),
-            ["save_disadvantage_tags"] = StringNameListToPlain(save_disadvantage_tags),
-            ["save_immunity_tags"] = StringNameListToPlain(save_immunity_tags),
+                KnownSkillLevelViewToPlain(knownSkillState.LockHitBonuses),
+            ["movement_tags"] = StringNameListToPlain(
+                GetMovementTagsReadViewTyped().Tags
+            ),
+            ["vision_tags"] = StringNameListToPlain(
+                GetVisionProficiencyReadViewTyped().VisionTags
+            ),
+            ["proficiency_tags"] = StringNameListToPlain(
+                GetVisionProficiencyReadViewTyped().ProficiencyTags
+            ),
+            ["save_advantage_tags"] = StringNameListToPlain(
+                saveModifiers.AdvantageTags
+            ),
+            ["save_disadvantage_tags"] = StringNameListToPlain(
+                saveModifiers.DisadvantageTags
+            ),
+            ["save_immunity_tags"] = StringNameListToPlain(
+                saveModifiers.ImmunityTags
+            ),
             ["damage_resistances"] =
-                StringNameMapToPlain(damage_resistances),
+                DamageResistanceViewToPlain(
+                    damageResistances.Resistances
+                ),
             ["save_bonus_by_ability"] =
-                StringNameIntMapToPlain(save_bonus_by_ability),
+                SaveAbilityBonusViewToPlain(
+                    saveModifiers.BonusByAbility
+                ),
             ["effective_trait_instances"] = EffectiveTraitInstancesToPlain(
-                effective_trait_instances
+                effectiveTraits.Instances
             ),
             ["effective_trait_ids"] = StringNameListToPlain(
-                DeriveEffectiveTraitIdsFromInstances(effective_trait_instances)
+                GetCanonicalEffectiveTraitIdsReadViewTyped()
             ),
             ["equipment_ability_sources"] = EquipmentAbilitySourcesToPlain(
-                equipment_ability_sources
+                equipmentAbilityProjection.Sources
             ),
-            ["creature_type_tags"] = StringNameListToPlain(creature_type_tags),
+            ["creature_type_tags"] = StringNameListToPlain(
+                GetCreatureTypeTagsReadViewTyped().Tags
+            ),
             ["versatility_pick"] = versatility_pick.ToString(),
-            ["weapon_profile_kind"] = weapon_profile_kind.ToString(),
-            ["weapon_item_id"] = weapon_item_id.ToString(),
-            ["weapon_profile_type_id"] = weapon_profile_type_id.ToString(),
-            ["weapon_range_type"] = weapon_range_type.ToString(),
-            ["weapon_family"] = weapon_family.ToString(),
-            ["weapon_current_grip"] = weapon_current_grip.ToString(),
-            ["weapon_attack_range"] = weapon_attack_range,
-            ["weapon_one_handed_dice"] = WeaponDiceToPlain(weapon_one_handed_dice),
-            ["weapon_two_handed_dice"] = WeaponDiceToPlain(weapon_two_handed_dice),
-            ["weapon_is_versatile"] = weapon_is_versatile,
-            ["weapon_uses_two_hands"] = weapon_uses_two_hands,
-            ["weapon_physical_damage_tag"] = weapon_physical_damage_tag.ToString(),
-            ["cooldowns"] = StringNameIntMapToStringNameKeyPlain(cooldowns),
-            ["last_turn_tu"] = last_turn_tu,
+            ["weapon_profile_kind"] = weaponProjection.ProfileKind.ToString(),
+            ["weapon_item_id"] = weaponProjection.ItemId.ToString(),
+            ["weapon_profile_type_id"] = weaponProjection.ProfileTypeId.ToString(),
+            ["weapon_range_type"] = weaponProjection.RangeType.ToString(),
+            ["weapon_family"] = weaponProjection.Family.ToString(),
+            ["weapon_current_grip"] = weaponProjection.CurrentGrip.ToString(),
+            ["weapon_attack_range"] = weaponProjection.AttackRange,
+            ["weapon_one_handed_dice"] = WeaponDiceToPlain(
+                weaponProjection.OneHandedDice
+            ),
+            ["weapon_two_handed_dice"] = WeaponDiceToPlain(
+                weaponProjection.TwoHandedDice
+            ),
+            ["weapon_is_versatile"] = weaponProjection.IsVersatile,
+            ["weapon_uses_two_hands"] = weaponProjection.UsesTwoHands,
+            ["weapon_physical_damage_tag"] =
+                weaponProjection.PhysicalDamageTag.ToString(),
+            ["cooldowns"] = StringNameIntMapToStringNameKeyPlain(
+                cooldownState.Cooldowns
+            ),
+            ["last_turn_tu"] = cooldownState.LastTurnTu,
             ["status_effects"] = _statusEffects.BuildSnapshotPlain(),
         };
     }
@@ -1629,19 +2022,23 @@ public partial class BattleUnitState
             return null;
         }
         StringName parsedBodySizeCategory = ToStringName(bodySizeCategoryValue);
-        if (!IsValidBodySizeCategory(parsedBodySizeCategory))
+        if (
+            !BattleUnitGeometryState.IsValidBodySizeCategory(
+                parsedBodySizeCategory
+            )
+        )
         {
             return null;
         }
-        if (GetBodySizeForCategory(parsedBodySizeCategory) != bodySizeInt)
+        if (
+            BattleUnitGeometryState.GetBodySizeForCategory(
+                parsedBodySizeCategory
+            ) != bodySizeInt
+        )
         {
             return null;
         }
         Vector2I expectedFootprint = GetFootprintSizeForBodySize(bodySizeInt);
-        Vector2IList expectedOccupied = BuildOccupiedCoords(
-            coordValue.AsVector2I(),
-            expectedFootprint
-        );
         if (footprintSizeValue.AsVector2I() != expectedFootprint)
         {
             return null;
@@ -1659,7 +2056,13 @@ public partial class BattleUnitState
             }
             parsedOccupiedCoords.Add(occupiedCoordValue.AsVector2I());
         }
-        if (!Vector2IArraysEqual(parsedOccupiedCoords, expectedOccupied))
+        if (
+            !BattleUnitGeometryState.OccupiedCoordsMatch(
+                coordValue.AsVector2I(),
+                expectedFootprint,
+                parsedOccupiedCoords
+            )
+        )
         {
             return null;
         }
@@ -1870,7 +2273,9 @@ public partial class BattleUnitState
             parsedEffectiveTraitIds == null
             || !StringNameSetEquals(
                 parsedEffectiveTraitIds,
-                DeriveEffectiveTraitIdsFromInstances(parsedEffectiveTraitInstances)
+                BattleUnitEffectiveTraitState.DeriveTraitIds(
+                    parsedEffectiveTraitInstances
+                )
             )
         )
         {
@@ -1962,71 +2367,155 @@ public partial class BattleUnitState
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
             ai_state_id = ToStringName(payload["ai_state_id"]),
             ai_blackboard = new BattleAiBlackboard(),
-            coord = coordValue.AsVector2I(),
-            body_size = bodySizeInt,
-            body_size_category = parsedBodySizeCategory,
-            footprint_size = footprintSizeValue.AsVector2I(),
-            occupied_coords = parsedOccupiedCoords,
-            is_alive = ReadBool(payload, "is_alive"),
+            GeometryState = BattleUnitGeometryState.FromRaw(
+                BattleUnitGeometrySnapshot.Present(
+                    coordValue.AsVector2I(),
+                    bodySizeInt,
+                    parsedBodySizeCategory,
+                    footprintSizeValue.AsVector2I(),
+                    parsedOccupiedCoords
+                )
+            ),
             attribute_snapshot = parsedAttributeSnapshot,
             equipment_view = parsedEquipmentState,
             equipment_view_initialized = true,
-            current_hp = payload["current_hp"].AsInt32(),
-            current_mp = payload["current_mp"].AsInt32(),
-            current_stamina = payload["current_stamina"].AsInt32(),
-            current_aura = payload["current_aura"].AsInt32(),
-            current_ap = payload["current_ap"].AsInt32(),
-            current_move_points = payload["current_move_points"].AsInt32(),
-            unlocked_combat_resource_ids = parsedUnlockedResources,
-            stamina_recovery_progress = payload["stamina_recovery_progress"].AsInt32(),
-            is_resting = ReadBool(payload, "is_resting"),
-            has_taken_action_this_turn = ReadBool(payload, "has_taken_action_this_turn"),
-            can_use_locked_move_points_this_turn = ReadBool(
-                payload,
-                "can_use_locked_move_points_this_turn"
+            CombatResourceState =
+                BattleUnitCombatResourceState.FromRaw(
+                    BattleUnitCombatResourceSnapshot.Present(
+                        new BattleUnitCombatResourceValues(
+                            payload["current_hp"].AsInt32(),
+                            payload["current_mp"].AsInt32(),
+                            payload["current_stamina"].AsInt32(),
+                            payload["current_aura"].AsInt32(),
+                            payload["current_ap"].AsInt32(),
+                            payload["current_move_points"].AsInt32(),
+                            payload[
+                                "stamina_recovery_progress"
+                            ].AsInt32(),
+                            ReadBool(payload, "is_alive")
+                        )
+                    )
+                ),
+            CombatResourceUnlockState =
+                BattleUnitCombatResourceUnlockState.FromRaw(
+                    BattleUnitCombatResourceUnlockSnapshot.Present(
+                        parsedUnlockedResources
+                    )
+                ),
+            RestState = BattleUnitRestState.FromRaw(
+                BattleUnitRestSnapshot.Present(
+                    ReadBool(payload, "is_resting")
+                )
             ),
-            current_shield_hp = payload["current_shield_hp"].AsInt32(),
-            shield_max_hp = payload["shield_max_hp"].AsInt32(),
-            shield_duration = payload["shield_duration"].AsInt32(),
-            shield_family = ToStringName(payload["shield_family"]),
-            shield_source_unit_id = ToStringName(payload["shield_source_unit_id"]),
-            shield_source_skill_id = ToStringName(payload["shield_source_skill_id"]),
-            action_progress = payload["action_progress"].AsInt32(),
-            action_threshold = payload["action_threshold"].AsInt32(),
-            known_active_skill_ids = parsedKnownActiveSkillIds,
-            known_skill_level_map = parsedKnownSkillLevelMap,
-            known_skill_lock_hit_bonus_map = parsedKnownSkillLockHitBonusMap,
-            movement_tags = parsedMovementTags,
-            vision_tags = parsedVisionTags,
-            proficiency_tags = parsedProficiencyTags,
-            save_advantage_tags = parsedSaveAdvantageTags,
-            save_disadvantage_tags = parsedSaveDisadvantageTags,
-            save_immunity_tags = parsedSaveImmunityTags,
-            damage_resistances = parsedDamageResistances,
-            save_bonus_by_ability = parsedSaveBonusByAbility,
-            effective_trait_instances = parsedEffectiveTraitInstances,
-            effective_trait_ids = parsedEffectiveTraitIds,
-            equipment_ability_sources = parsedEquipmentAbilitySources,
-            creature_type_tags = parsedCreatureTypeTags,
-            versatility_pick = ToStringName(payload["versatility_pick"]),
-            weapon_profile_kind = parsedWeaponProfileKind,
-            weapon_item_id = ToStringName(payload["weapon_item_id"]),
-            weapon_profile_type_id = ToStringName(payload["weapon_profile_type_id"]),
-            weapon_range_type = ToStringName(payload["weapon_range_type"]),
-            weapon_family = ToStringName(payload["weapon_family"]),
-            weapon_current_grip = parsedWeaponCurrentGrip,
-            weapon_attack_range = payload["weapon_attack_range"].AsInt32(),
-            weapon_one_handed_dice = parsedWeaponOneHandedDice,
-            weapon_two_handed_dice = parsedWeaponTwoHandedDice,
-            weapon_is_versatile = ReadBool(payload, "weapon_is_versatile"),
-            weapon_uses_two_hands = ReadBool(payload, "weapon_uses_two_hands"),
-            weapon_physical_damage_tag = ToStringName(payload["weapon_physical_damage_tag"]),
-            cooldowns =
-                BattleStringNameIntMap.FromPayloadOrNull(
-                    payload["cooldowns"].AsGodotDictionary(),
+            TurnState = BattleUnitTurnState.FromRaw(
+                BattleUnitTurnSnapshot.Present(
+                    ReadBool(payload, "has_taken_action_this_turn"),
+                    false,
+                    ReadBool(payload, "can_use_locked_move_points_this_turn"),
                     false
-                ) ?? new BattleStringNameIntMap(),
-            last_turn_tu = payload["last_turn_tu"].AsInt32(),
+                )
+            ),
+            ShieldState = BattleUnitShieldState.FromRaw(
+                new BattleUnitShieldSnapshot(
+                    payload["current_shield_hp"].AsInt32(),
+                    payload["shield_max_hp"].AsInt32(),
+                    payload["shield_duration"].AsInt32(),
+                    ToStringName(payload["shield_family"]),
+                    ToStringName(payload["shield_source_unit_id"]),
+                    ToStringName(payload["shield_source_skill_id"])
+                )
+            ),
+            ActionClockState = BattleUnitActionClockState.FromRaw(
+                BattleUnitActionClockSnapshot.Present(
+                    payload["action_progress"].AsInt32(),
+                    payload["action_threshold"].AsInt32(),
+                    0
+                )
+            ),
+            _knownSkillState = BattleUnitKnownSkillState.FromRaw(
+                BattleUnitKnownSkillSnapshot.Present(
+                    parsedKnownActiveSkillIds,
+                    parsedKnownSkillLevelMap,
+                    parsedKnownSkillLockHitBonusMap
+                )
+            ),
+            MovementTagState = BattleUnitMovementTagState.FromRaw(
+                BattleUnitMovementTagSnapshot.Present(
+                    parsedMovementTags
+                )
+            ),
+            VisionProficiencyState =
+                BattleUnitVisionProficiencyState.FromRaw(
+                    BattleUnitVisionProficiencySnapshot.Present(
+                        parsedVisionTags,
+                        parsedProficiencyTags
+                    )
+                ),
+            SaveModifierState =
+                BattleUnitSaveModifierState.FromRaw(
+                    BattleUnitSaveModifierSnapshot.Present(
+                        parsedSaveAdvantageTags,
+                        parsedSaveDisadvantageTags,
+                        parsedSaveImmunityTags,
+                        parsedSaveBonusByAbility
+                    )
+                ),
+            DamageResistanceState =
+                BattleUnitDamageResistanceState.FromRaw(
+                    BattleUnitDamageResistanceSnapshot.Present(
+                        parsedDamageResistances
+                    )
+                ),
+            EffectiveTraitState = BattleUnitEffectiveTraitState.FromRaw(
+                BattleUnitEffectiveTraitSnapshot.Present(
+                    parsedEffectiveTraitInstances,
+                    parsedEffectiveTraitIds
+                )
+            ),
+            EquipmentAbilityProjectionState =
+                BattleUnitEquipmentAbilityProjectionState
+                    .FromSourcesNormalized(
+                        parsedEquipmentAbilitySources
+                    ),
+            CreatureTypeState = BattleUnitCreatureTypeState.FromRaw(
+                BattleUnitCreatureTypeSnapshot.Present(
+                    parsedCreatureTypeTags
+                )
+            ),
+            versatility_pick = ToStringName(payload["versatility_pick"]),
+            WeaponProjectionState = BattleUnitWeaponProjectionState.FromRaw(
+                BattleUnitWeaponProjectionSnapshot.Present(
+                    new BattleWeaponProjectionValues(
+                        parsedWeaponProfileKind,
+                        ToStringName(payload["weapon_item_id"]),
+                        ToStringName(payload["weapon_profile_type_id"]),
+                        ToStringName(payload["weapon_range_type"]),
+                        ToStringName(payload["weapon_family"]),
+                        parsedWeaponCurrentGrip,
+                        payload["weapon_attack_range"].AsInt32(),
+                        BattleWeaponDiceValues.FromRaw(
+                            parsedWeaponOneHandedDice
+                        ),
+                        BattleWeaponDiceValues.FromRaw(
+                            parsedWeaponTwoHandedDice
+                        ),
+                        ReadBool(payload, "weapon_is_versatile"),
+                        ReadBool(payload, "weapon_uses_two_hands"),
+                        ToStringName(
+                            payload["weapon_physical_damage_tag"]
+                        )
+                    )
+                )
+            ),
+            CooldownState = BattleUnitCooldownState.FromRaw(
+                new BattleUnitCooldownSnapshot(
+                    BattleStringNameIntMap.FromPayloadOrNull(
+                        payload["cooldowns"].AsGodotDictionary(),
+                        false
+                    ) ?? new BattleStringNameIntMap(),
+                    payload["last_turn_tu"].AsInt32()
+                )
+            ),
             StatusEffectCollection = parsedStatusEffects,
         };
         unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
@@ -2065,42 +2554,6 @@ public partial class BattleUnitState
             return false;
         var value = payload[key];
         return value.VariantType.ToString() == "Bool" && value.AsBool();
-    }
-
-    private static Vector2IList BuildOccupiedCoords(Vector2I anchor_coord, Vector2I footprint)
-    {
-        Vector2IList results = new();
-        for (int y = 0; y < footprint.Y; y++)
-        {
-            for (int x = 0; x < footprint.X; x++)
-            {
-                results.Add(anchor_coord + new Vector2I(x, y));
-            }
-        }
-        return results;
-    }
-
-    private static bool OccupiedCoordsMatch(
-        Vector2I anchorCoord,
-        Vector2I footprint,
-        IReadOnlyList<Vector2I> occupiedCoords
-    )
-    {
-        int width = Math.Max(footprint.X, 0);
-        int height = Math.Max(footprint.Y, 0);
-        if (occupiedCoords == null || occupiedCoords.Count != width * height)
-            return false;
-        int index = 0;
-        for (int y = 0; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                if (occupiedCoords[index] != anchorCoord + new Vector2I(x, y))
-                    return false;
-                index += 1;
-            }
-        }
-        return true;
     }
 
     private static bool HasExactFields(GDictionary data, string[] expected_fields)
@@ -2249,26 +2702,14 @@ public partial class BattleUnitState
         return result;
     }
 
-    internal static List<BattleEffectiveTraitInstanceState> DuplicateEffectiveTraitInstances(
-        IEnumerable<BattleEffectiveTraitInstanceState> source)
-    {
-        List<BattleEffectiveTraitInstanceState> result = new();
-        if (source == null)
-            return result;
-        foreach (BattleEffectiveTraitInstanceState entry in source)
-            if (entry != null)
-                result.Add(entry.DuplicateState());
-        return result;
-    }
-
     private static List<object> EffectiveTraitInstancesToPlain(
-        IEnumerable<BattleEffectiveTraitInstanceState> source)
+        IEnumerable<BattleEffectiveTraitInstanceReadView> source)
     {
         List<object> result = new();
         if (source == null)
             return result;
-        foreach (BattleEffectiveTraitInstanceState entry in source)
-            if (entry != null)
+        foreach (BattleEffectiveTraitInstanceReadView entry in source)
+            if (entry.IsPresent)
                 result.Add(EffectiveTraitInstanceToPlain(entry));
         return result;
     }
@@ -2299,65 +2740,18 @@ public partial class BattleUnitState
         return result;
     }
 
-    internal static List<BattleEquipmentAbilitySourceState> DuplicateEquipmentAbilitySources(
-        IEnumerable<BattleEquipmentAbilitySourceState> source
-    )
-    {
-        List<BattleEquipmentAbilitySourceState> result = new();
-        if (source == null)
-            return result;
-        foreach (BattleEquipmentAbilitySourceState entry in source)
-            if (entry != null)
-                result.Add(entry.DuplicateState());
-        return result;
-    }
-
-    internal static List<BattleTemporalProgressModifierState> DuplicateTemporalProgressModifiers(
-        IEnumerable<BattleTemporalProgressModifierState> source
-    )
-    {
-        List<BattleTemporalProgressModifierState> result = new();
-        if (source == null)
-            return result;
-        foreach (BattleTemporalProgressModifierState entry in source)
-            if (entry != null)
-                result.Add(entry.DuplicateState());
-        return result;
-    }
-
     private static List<object> EquipmentAbilitySourcesToPlain(
-        IEnumerable<BattleEquipmentAbilitySourceState> source
+        IEnumerable<BattleEquipmentAbilitySourceReadView> source
     )
     {
         List<object> result = new();
         if (source == null)
             return result;
-        foreach (BattleEquipmentAbilitySourceState entry in source)
+        foreach (
+            BattleEquipmentAbilitySourceReadView entry in source
+        )
             if (entry != null)
                 result.Add(EquipmentAbilitySourceToPlain(entry));
-        return result;
-    }
-
-    internal static StringNameList DeriveEffectiveTraitIdsFromInstances(
-        IEnumerable<BattleEffectiveTraitInstanceState> source)
-    {
-        List<StringName> values = new();
-        if (source != null)
-        {
-            foreach (BattleEffectiveTraitInstanceState entry in source)
-            {
-                if (entry == null)
-                    continue;
-                if (IsEmpty(entry.trait_id) || ContainsStringName(values, entry.trait_id))
-                    continue;
-                values.Add(entry.trait_id);
-            }
-        }
-        values.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
-
-        StringNameList result = new();
-        foreach (StringName value in values)
-            result.Add(value);
         return result;
     }
 
@@ -2469,67 +2863,8 @@ public partial class BattleUnitState
         };
     }
 
-    private static WeaponDice NormalizeWeaponDice(WeaponDice dice)
-    {
-        if (dice == null || dice.IsEmpty())
-        {
-            return new WeaponDice();
-        }
-        return dice.DuplicateState();
-    }
-
-    private void NormalizeWeaponProjection()
-    {
-        weapon_profile_kind = NormalizeWeaponProfileKind(weapon_profile_kind);
-        weapon_range_type = ToStringName(weapon_range_type);
-        weapon_current_grip = NormalizeWeaponGrip(weapon_current_grip);
-        weapon_attack_range = Math.Max(weapon_attack_range, 0);
-        weapon_one_handed_dice = NormalizeWeaponDice(weapon_one_handed_dice);
-        weapon_two_handed_dice = NormalizeWeaponDice(weapon_two_handed_dice);
-        if (weapon_uses_two_hands)
-        {
-            weapon_current_grip = WeaponGripTwoHanded;
-        }
-        else if (weapon_current_grip == WeaponGripTwoHanded)
-        {
-            weapon_current_grip =
-                HasWeaponDice(weapon_one_handed_dice) ? WeaponGripOneHanded : WeaponGripNone;
-        }
-        if (weapon_profile_kind == WeaponProfileKindNone)
-        {
-            ClearWeaponProjection();
-            return;
-        }
-        if (weapon_attack_range <= 0)
-        {
-            weapon_current_grip = WeaponGripNone;
-            weapon_uses_two_hands = false;
-        }
-    }
-
-    private static StringName NormalizeWeaponProfileKind(StringName value)
-    {
-        StringName normalized = ToStringName(value);
-        if (
-            normalized == WeaponProfileKindUnarmed
-            || normalized == WeaponProfileKindNatural
-            || normalized == WeaponProfileKindEquipped
-        )
-        {
-            return normalized;
-        }
-        return WeaponProfileKindNone;
-    }
-
-    private static StringName NormalizeWeaponGrip(StringName value)
-    {
-        StringName normalized = ToStringName(value);
-        if (normalized == WeaponGripOneHanded || normalized == WeaponGripTwoHanded)
-        {
-            return normalized;
-        }
-        return WeaponGripNone;
-    }
+    private void NormalizeWeaponProjection() =>
+        WeaponProjectionState.NormalizeCanonicalInPlace();
 
     private static List<object> StringNameListToPlain(IEnumerable<StringName> values)
     {
@@ -2545,10 +2880,24 @@ public partial class BattleUnitState
         return results;
     }
 
-    private static int ClampResource(int value, int maxValue)
+    private static List<object> KnownActiveSkillViewToPlain(
+        BattleKnownActiveSkillReadView values
+    )
     {
-        int normalizedMax = Math.Max(maxValue, 0);
-        return normalizedMax > 0 ? Math.Clamp(value, 0, normalizedMax) : 0;
+        List<object> results = new();
+        foreach (StringName value in values)
+            results.Add(value.ToString());
+        return results;
+    }
+
+    private static List<object> CombatResourceUnlockViewToPlain(
+        BattleCombatResourceUnlockReadView values
+    )
+    {
+        List<object> results = new();
+        foreach (StringName value in values)
+            results.Add(value.ToString());
+        return results;
     }
 
     private static List<StringName> CopyStringNameListTyped(IEnumerable<StringName> values)
@@ -2716,28 +3065,17 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static WeaponDice CopyWeaponDiceTyped(WeaponDice source)
+    private static IReadOnlyDictionary<string, object> WeaponDiceToPlain(
+        BattleWeaponDiceValues dice
+    )
     {
-        if (source == null || source.IsEmpty())
-        {
-            return new WeaponDice();
-        }
-
-        return source.DuplicateState();
-    }
-
-    private static bool HasWeaponDice(WeaponDice dice) => dice != null && !dice.IsEmpty();
-
-    private static IReadOnlyDictionary<string, object> WeaponDiceToPlain(WeaponDice dice)
-    {
-        dice ??= new WeaponDice();
-        if (dice.IsEmpty())
+        if (!dice.HasUsableDice)
             return new Dictionary<string, object>(StringComparer.Ordinal);
         return new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["dice_count"] = dice.dice_count,
-            ["dice_sides"] = dice.dice_sides,
-            ["flat_bonus"] = dice.flat_bonus,
+            ["dice_count"] = dice.DiceCount,
+            ["dice_sides"] = dice.DiceSides,
+            ["flat_bonus"] = dice.FlatBonus,
         };
     }
 
@@ -2750,20 +3088,6 @@ public partial class BattleUnitState
         }
 
         return int.TryParse(value.ToString(), out parsedValue);
-    }
-
-    private static Vector2IList DuplicateVector2IArray(IEnumerable<Vector2I> source)
-    {
-        Vector2IList result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (Vector2I coordValue in source)
-        {
-            result.Add(coordValue);
-        }
-        return result;
     }
 
     private static List<object> ProjectVector2IListPlain(IEnumerable<Vector2I> source)
@@ -2953,25 +3277,27 @@ public partial class BattleUnitState
     }
 
     private static IReadOnlyDictionary<string, object> EffectiveTraitInstanceToPlain(
-        BattleEffectiveTraitInstanceState entry
+        BattleEffectiveTraitInstanceReadView entry
     ) =>
         new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["trait_id"] = entry.trait_id.ToString(),
-            ["effective_instance_key"] = entry.effective_instance_key.ToString(),
-            ["source_type"] = entry.source_type.ToString(),
-            ["source_id"] = entry.source_id.ToString(),
-            ["effect_type"] = entry.effect_type.ToString(),
-            ["trigger_type"] = entry.trigger_type.ToString(),
-            ["charge_scope"] = entry.charge_scope.ToString(),
-            ["charge_reset_timing"] = entry.charge_reset_timing.ToString(),
-            ["rank"] = Math.Max(entry.rank, 1),
-            ["stacks"] = Math.Max(entry.stacks, 1),
-            ["roll_values"] = TraitRollValuesToPlain(entry.roll_values),
+            ["trait_id"] = entry.TraitId.ToString(),
+            ["effective_instance_key"] = entry.EffectiveInstanceKey.ToString(),
+            ["source_type"] = entry.SourceType.ToString(),
+            ["source_id"] = entry.SourceId.ToString(),
+            ["effect_type"] = entry.EffectType.ToString(),
+            ["trigger_type"] = entry.TriggerType.ToString(),
+            ["charge_scope"] = entry.ChargeScope.ToString(),
+            ["charge_reset_timing"] = entry.ChargeResetTiming.ToString(),
+            ["rank"] = Math.Max(entry.Rank, 1),
+            ["stacks"] = Math.Max(entry.Stacks, 1),
+            ["roll_values"] = TraitRollValuesToPlain(
+                entry.RollValues.CopyNormalized()
+            ),
         };
 
     private static IReadOnlyDictionary<string, object> EquipmentAbilitySourceToPlain(
-        BattleEquipmentAbilitySourceState entry
+        BattleEquipmentAbilitySourceReadView entry
     ) =>
         new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -2996,17 +3322,37 @@ public partial class BattleUnitState
         return result;
     }
 
+    private static IReadOnlyDictionary<string, object> KnownSkillLevelViewToPlain(
+        BattleKnownSkillLevelReadView source
+    )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<StringName, int> entry in source)
+            result[entry.Key.ToString()] = entry.Value;
+        return result;
+    }
+
+    private static IReadOnlyDictionary<string, object>
+        SaveAbilityBonusViewToPlain(
+            BattleSaveAbilityBonusReadView source
+        )
+    {
+        Dictionary<string, object> result = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<StringName, int> entry in source)
+            result[entry.Key.ToString()] = entry.Value;
+        return result;
+    }
+
     private static IReadOnlyDictionary<StringName, int> StringNameIntMapToStringNameKeyPlain(
         BattleStringNameIntMap source
     ) => source?.ToTypedDictionary() ?? new Dictionary<StringName, int>();
 
-    private static IReadOnlyDictionary<string, object> StringNameMapToPlain(
-        BattleStringNameMap source
+    private static IReadOnlyDictionary<string, object>
+        DamageResistanceViewToPlain(
+        BattleDamageResistanceReadView source
     )
     {
         Dictionary<string, object> result = new(StringComparer.Ordinal);
-        if (source == null)
-            return result;
         foreach (KeyValuePair<StringName, StringName> entry in source)
             result[entry.Key.ToString()] = entry.Value.ToString();
         return result;
@@ -3025,84 +3371,6 @@ public partial class BattleUnitState
     private static EquipmentState NewEquipmentState()
     {
         return new EquipmentState();
-    }
-
-    private static bool IsValidBodySizeCategory(StringName category)
-    {
-        string text = category.ToString();
-        return text == "tiny"
-            || text == "small"
-            || text == "medium"
-            || text == "large"
-            || text == "huge"
-            || text == "gargantuan"
-            || text == "boss";
-    }
-
-    private static bool IsValidBodySize(int size)
-    {
-        return size >= BodySizeSmall && size <= BodySizeBoss;
-    }
-
-    private static int GetBodySizeForCategory(StringName category)
-    {
-        return category.ToString() switch
-        {
-            "tiny" => BodySizeTiny,
-            "small" => BodySizeSmall,
-            "large" => BodySizeLarge,
-            "huge" => BodySizeHuge,
-            "gargantuan" => BodySizeGargantuan,
-            "boss" => BodySizeBoss,
-            _ => BodySizeMedium,
-        };
-    }
-
-
-    private static bool BodySizeMatchesCategory(StringName category, int size)
-    {
-        return GetBodySizeForCategory(category) == size;
-    }
-
-    private static StringName GetBodySizeCategoryForSize(int size)
-    {
-        return size switch
-        {
-            BodySizeMedium => "medium",
-            BodySizeLarge => "large",
-            BodySizeHuge => "huge",
-            BodySizeGargantuan => "gargantuan",
-            BodySizeBoss => "boss",
-            _ => "small",
-        };
-    }
-
-    private static Vector2I GetFootprintForBodySize(int size)
-    {
-        return size switch
-        {
-            BodySizeLarge => new Vector2I(2, 2),
-            BodySizeHuge => new Vector2I(3, 3),
-            BodySizeGargantuan => new Vector2I(4, 4),
-            BodySizeBoss => new Vector2I(5, 5),
-            _ => Vector2I.One,
-        };
-    }
-
-    private static bool Vector2IArraysEqual(IReadOnlyList<Vector2I> left, IReadOnlyList<Vector2I> right)
-    {
-        if (left == null || right == null || left.Count != right.Count)
-        {
-            return false;
-        }
-        for (int i = 0; i < left.Count; i++)
-        {
-            if (left[i] != right[i])
-            {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static List<StringName> SortedStatusEffectIds(GDictionary values)

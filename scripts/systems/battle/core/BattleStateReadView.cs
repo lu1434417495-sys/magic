@@ -89,31 +89,45 @@ internal readonly struct BattleUnitReadView
     internal StringName FactionId => _unit?.faction_id ?? "";
     internal StringName ControlMode => _unit?.control_mode ?? "";
     internal bool MadnessTargetAnyTeam => _unit?.ai_blackboard?.madness_target_any_team == true;
-    internal Vector2I Coord => _unit?.coord ?? Vector2I.Zero;
-    internal Vector2I FootprintSize => _unit?.footprint_size ?? Vector2I.One;
-    internal int BodySize => _unit?.body_size ?? BattleUnitState.BodySizeMedium;
-    internal StringName BodySizeCategory => _unit?.body_size_category ?? "";
-    internal bool IsAlive => _unit?.is_alive ?? false;
-    internal int CurrentHp => _unit?.current_hp ?? 0;
-    internal int CurrentShieldHp => _unit?.current_shield_hp ?? 0;
-    internal int CurrentMp => _unit?.current_mp ?? 0;
-    internal int CurrentStamina => _unit?.current_stamina ?? 0;
-    internal int CurrentAura => _unit?.current_aura ?? 0;
-    internal int CurrentAp => _unit?.current_ap ?? 0;
-    internal int CurrentMovePoints => _unit?.current_move_points ?? 0;
-    internal bool HasTakenActionThisTurn => _unit?.has_taken_action_this_turn ?? false;
-    internal bool HasMovedThisTurn => _unit?.has_moved_this_turn ?? false;
+    private BattleUnitGeometryReadView Geometry =>
+        _unit?.GetGeometryReadViewTyped()
+        ?? BattleUnitGeometryReadView.MissingOwner;
+    internal Vector2I Coord => Geometry.AnchorCoord;
+    internal Vector2I FootprintSize => Geometry.FootprintSize;
+    internal int BodySize => Geometry.BodySize;
+    internal StringName BodySizeCategory => Geometry.BodySizeCategory;
+    private BattleUnitCombatResourceValues CombatResources =>
+        _unit?.GetCombatResourcesReadViewTyped().Values ?? default;
+
+    internal bool IsAlive => CombatResources.IsAlive;
+    internal int CurrentHp => CombatResources.Hp;
+    internal int CurrentShieldHp =>
+        _unit?.GetShieldStateTyped().CurrentHp ?? 0;
+    internal int CurrentMp => CombatResources.Mp;
+    internal int CurrentStamina => CombatResources.Stamina;
+    internal int CurrentAura => CombatResources.Aura;
+    internal int CurrentAp => CombatResources.Ap;
+    internal int CurrentMovePoints => CombatResources.MovePoints;
+    internal bool HasTakenActionThisTurn =>
+        _unit?.HasTakenActionThisTurnTyped() ?? false;
+    internal bool HasMovedThisTurn =>
+        _unit?.HasMovedThisTurnTyped() ?? false;
     internal bool CanUseLockedMovePointsThisTurn =>
-        _unit?.can_use_locked_move_points_this_turn ?? false;
-    internal bool TurnCastingExhausted => _unit?.turn_casting_exhausted ?? false;
-    internal StringName WeaponFamily => _unit?.weapon_family ?? "";
-    internal StringName WeaponProfileTypeId => _unit?.weapon_profile_type_id ?? "";
-    internal StringName WeaponProfileKind => _unit?.weapon_profile_kind ?? "";
-    internal StringName WeaponRangeType => _unit?.weapon_range_type ?? "";
-    internal StringName WeaponCurrentGrip => _unit?.weapon_current_grip ?? "";
-    internal int WeaponAttackRange => _unit?.weapon_attack_range ?? 0;
-    internal bool WeaponUsesTwoHands => _unit?.weapon_uses_two_hands ?? false;
-    internal StringName WeaponPhysicalDamageTag => _unit?.weapon_physical_damage_tag ?? "";
+        _unit?.CanUseLockedMovePointsThisTurnTyped() ?? false;
+    internal bool TurnCastingExhausted =>
+        _unit?.IsTurnCastingExhaustedTyped() ?? false;
+    private BattleWeaponProjectionValues WeaponProjection =>
+        _unit?.GetWeaponProjectionReadViewTyped().Values
+        ?? BattleWeaponProjectionValues.Clear;
+    internal StringName WeaponFamily => WeaponProjection.Family;
+    internal StringName WeaponProfileTypeId => WeaponProjection.ProfileTypeId;
+    internal StringName WeaponProfileKind => WeaponProjection.ProfileKind;
+    internal StringName WeaponRangeType => WeaponProjection.RangeType;
+    internal StringName WeaponCurrentGrip => WeaponProjection.CurrentGrip;
+    internal int WeaponAttackRange => WeaponProjection.AttackRange;
+    internal bool WeaponUsesTwoHands => WeaponProjection.UsesTwoHands;
+    internal StringName WeaponPhysicalDamageTag =>
+        WeaponProjection.PhysicalDamageTag;
     internal int CurrentWeaponDamageDiceCount =>
         CurrentWeaponDamageDice().DiceCount;
     internal int CurrentWeaponDamageDiceSides =>
@@ -216,21 +230,19 @@ internal readonly struct BattleUnitReadView
     internal bool HasCombatResourceUnlocked(StringName resourceId) =>
         _unit != null
         && resourceId != ""
-        && _unit.unlocked_combat_resource_ids != null
-        && _unit.unlocked_combat_resource_ids.Contains(resourceId);
+        && _unit.HasCombatResourceUnlocked(resourceId);
 
     internal EquipmentState DuplicateEquipmentView() =>
         _unit?.GetEquipmentView()?.DuplicateState();
 
     internal StringName FirstKnownActiveSkillId =>
-        _unit?.known_active_skill_ids != null && _unit.known_active_skill_ids.Count > 0
-            ? _unit.known_active_skill_ids[0]
+        _unit != null
+        && _unit.TryGetFirstKnownActiveSkillIdTyped(out StringName skillId)
+            ? skillId
             : "";
 
     internal bool KnowsActiveSkill(StringName skillId) =>
-        _unit?.known_active_skill_ids != null
-        && skillId != ""
-        && _unit.known_active_skill_ids.Contains(skillId);
+        _unit?.KnowsActiveSkill(skillId) == true;
 
     internal bool HasAttributeValue(StringName attributeId)
     {
@@ -279,11 +291,11 @@ internal readonly struct BattleUnitReadView
         _unit?.GetPerTurnChargeTyped(chargeKey) ?? 0;
 
     internal bool HasMovementTag(StringName tag) =>
-        _unit != null && tag != "" && _unit.movement_tags != null && _unit.movement_tags.Contains(tag);
+        _unit?.HasMovementTag(tag) == true;
 
     // 零拷贝：读取写入口已经维护好的稳定投影；read view 不归一化或替换引用。
     internal IReadOnlyList<Vector2I> GetOccupiedCoords() =>
-        (IReadOnlyList<Vector2I>)_unit?.occupied_coords ?? System.Array.Empty<Vector2I>();
+        Geometry.OccupiedCoords;
 
     internal IReadOnlyList<Vector2I> GetTargetCoords(Vector2I anchorCoord)
     {
@@ -300,8 +312,10 @@ internal readonly struct BattleUnitReadView
         return result;
     }
 
-    internal IReadOnlyList<StringName> GetMovementTags() =>
-        (IReadOnlyList<StringName>)_unit?.movement_tags ?? System.Array.Empty<StringName>();
+    internal BattleMovementTagReadView GetMovementTags() =>
+        _unit == null
+            ? new BattleMovementTagReadView(null)
+            : _unit.GetMovementTagsReadViewTyped().Tags;
 
     internal IReadOnlyList<StringName> GetSortedStatusEffectIds() =>
         (IReadOnlyList<StringName>)_unit?.GetSortedStatusEffectIdsTyped()
@@ -344,17 +358,21 @@ internal readonly record struct BattleWeaponDamageDiceReadData(
     {
         if (unit == null)
             return Empty;
-        return FromDice(unit.GetActiveWeaponDiceTyped());
+        return FromValues(
+            unit.GetWeaponProjectionReadViewTyped().Values.ActiveDice
+        );
     }
 
-    internal static BattleWeaponDamageDiceReadData FromDice(WeaponDice dice)
+    internal static BattleWeaponDamageDiceReadData FromValues(
+        BattleWeaponDiceValues dice
+    )
     {
-        if (dice == null || dice.IsEmpty())
+        if (!dice.HasUsableDice)
             return Empty;
         return new BattleWeaponDamageDiceReadData(
-            Mathf.Max(dice.dice_count, 0),
-            Mathf.Max(dice.dice_sides, 0),
-            dice.flat_bonus
+            Mathf.Max(dice.DiceCount, 0),
+            Mathf.Max(dice.DiceSides, 0),
+            dice.FlatBonus
         );
     }
 }
@@ -382,6 +400,10 @@ internal readonly struct BattleStatusReadView
     internal int Power => _status?.power ?? 0;
     internal int RangeBonus => _status?.range_bonus ?? 0;
     internal int AttackRollBonus => _status?.attack_roll_bonus ?? 0;
+    internal StringName ComboAttackBonusStatusId =>
+        _status?.combo_attack_bonus_status_id ?? "";
+    internal int ComboAttackBonusStackDivisor =>
+        _status?.combo_attack_bonus_stack_divisor ?? 0;
     internal bool AttackRollAdvantage => _status?.attack_roll_advantage ?? false;
     internal int SourceBoundAttackRollPenalty =>
         _status?.source_bound_attack_roll_penalty ?? 0;

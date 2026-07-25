@@ -23,9 +23,32 @@ public partial class BattleUnitState
     internal Dictionary<string, object> BuildPlainSnapshotDetached()
     {
         EnsureBodySizeProjectionInvariant();
-        NormalizeShieldState();
-        NormalizeWeaponProjection();
         SyncDefaultCombatResourceUnlocks();
+        BattleUnitTurnSnapshot turnState = GetTurnStateTyped();
+        BattleUnitShieldSnapshot shieldState = CaptureShieldStateCanonical();
+        BattleUnitCooldownSnapshot cooldownState = GetCooldownStateTyped();
+        BattleUnitActionClockSnapshot actionClockState =
+            GetActionClockStateTyped();
+        BattleUnitKnownSkillReadView knownSkillState =
+            GetKnownSkillsReadViewTyped();
+        BattleUnitCombatResourceUnlockReadView combatResourceUnlockState =
+            GetCombatResourceUnlocksReadViewTyped();
+        BattleUnitCombatResourceValues combatResources =
+            GetCombatResourcesReadViewTyped().Values;
+        BattleUnitGeometryReadView geometry =
+            GetGeometryReadViewTyped();
+        BattleUnitSaveModifierReadView saveModifiers =
+            GetSaveModifiersReadViewTyped();
+        BattleUnitDamageResistanceReadView damageResistances =
+            GetDamageResistancesReadViewTyped();
+        BattleUnitEffectiveTraitReadView effectiveTraits =
+            GetEffectiveTraitsReadViewTyped();
+        BattleUnitEquipmentAbilityProjectionReadView
+            equipmentAbilityProjection =
+                GetEquipmentAbilityProjectionReadViewTyped();
+        NormalizeWeaponProjection();
+        BattleWeaponProjectionValues weaponProjection =
+            GetWeaponProjectionReadViewTyped().Values;
 
         return Map(
             ("unit_id", unit_id.ToString()),
@@ -38,76 +61,151 @@ public partial class BattleUnitState
             ("control_mode", control_mode.ToString()),
             ("ai_brain_id", ai_brain_id.ToString()),
             ("ai_state_id", ai_state_id.ToString()),
-            ("coord", coord),
-            ("body_size", body_size),
-            ("body_size_category", body_size_category.ToString()),
-            ("footprint_size", footprint_size),
-            ("occupied_coords", BuildVectorList(occupied_coords)),
-            ("is_alive", is_alive),
+            ("coord", geometry.AnchorCoord),
+            ("body_size", geometry.BodySize),
+            (
+                "body_size_category",
+                geometry.BodySizeCategory.ToString()
+            ),
+            ("footprint_size", geometry.FootprintSize),
+            (
+                "occupied_coords",
+                BuildVectorList(geometry.OccupiedCoords)
+            ),
+            ("is_alive", combatResources.IsAlive),
             ("attribute_snapshot", BuildAttributeSnapshotPlain(attribute_snapshot)),
             ("equipment_view", BuildEquipmentStatePlain(GetEquipmentView())),
-            ("current_hp", current_hp),
-            ("current_mp", current_mp),
-            ("current_stamina", current_stamina),
-            ("current_aura", current_aura),
+            ("current_hp", combatResources.Hp),
+            ("current_mp", combatResources.Mp),
+            ("current_stamina", combatResources.Stamina),
+            ("current_aura", combatResources.Aura),
             ("aura_max", GetAuraMax()),
-            ("current_ap", current_ap),
-            ("current_move_points", current_move_points),
-            ("unlocked_combat_resource_ids", BuildStringList(unlocked_combat_resource_ids)),
-            ("stamina_recovery_progress", stamina_recovery_progress),
-            ("is_resting", is_resting),
-            ("has_taken_action_this_turn", has_taken_action_this_turn),
-            ("can_use_locked_move_points_this_turn", can_use_locked_move_points_this_turn),
-            ("current_shield_hp", current_shield_hp),
-            ("shield_max_hp", shield_max_hp),
-            ("shield_duration", shield_duration),
-            ("shield_family", shield_family.ToString()),
-            ("shield_source_unit_id", shield_source_unit_id.ToString()),
-            ("shield_source_skill_id", shield_source_skill_id.ToString()),
-            ("action_progress", action_progress),
-            ("action_threshold", action_threshold),
-            ("known_active_skill_ids", BuildStringList(known_active_skill_ids)),
-            ("known_skill_level_map", BuildStringIntMap(known_skill_level_map)),
+            ("current_ap", combatResources.Ap),
+            ("current_move_points", combatResources.MovePoints),
+            (
+                "unlocked_combat_resource_ids",
+                BuildCombatResourceUnlockList(
+                    combatResourceUnlockState.ResourceIds
+                )
+            ),
+            (
+                "stamina_recovery_progress",
+                combatResources.StaminaRecoveryProgress
+            ),
+            ("is_resting", IsRestingTyped()),
+            ("has_taken_action_this_turn", turnState.HasTakenActionThisTurn),
+            (
+                "can_use_locked_move_points_this_turn",
+                turnState.CanUseLockedMovePointsThisTurn
+            ),
+            ("current_shield_hp", shieldState.CurrentHp),
+            ("shield_max_hp", shieldState.MaxHp),
+            ("shield_duration", shieldState.Duration),
+            ("shield_family", shieldState.Family.ToString()),
+            ("shield_source_unit_id", shieldState.SourceUnitId.ToString()),
+            ("shield_source_skill_id", shieldState.SourceSkillId.ToString()),
+            ("action_progress", actionClockState.ActionProgress),
+            ("action_threshold", actionClockState.ActionThreshold),
+            (
+                "known_active_skill_ids",
+                BuildKnownActiveSkillList(knownSkillState.ActiveSkills)
+            ),
+            (
+                "known_skill_level_map",
+                BuildKnownSkillLevelMap(knownSkillState.SkillLevels)
+            ),
             (
                 "known_skill_lock_hit_bonus_map",
-                BuildStringIntMap(known_skill_lock_hit_bonus_map)
+                BuildKnownSkillLevelMap(knownSkillState.LockHitBonuses)
             ),
-            ("movement_tags", BuildStringList(movement_tags)),
-            ("vision_tags", BuildStringList(vision_tags)),
-            ("proficiency_tags", BuildStringList(proficiency_tags)),
-            ("save_advantage_tags", BuildStringList(save_advantage_tags)),
-            ("save_disadvantage_tags", BuildStringList(save_disadvantage_tags)),
-            ("save_immunity_tags", BuildStringList(save_immunity_tags)),
-            ("damage_resistances", BuildStringMap(damage_resistances)),
-            ("save_bonus_by_ability", BuildStringIntMap(save_bonus_by_ability)),
+            (
+                "movement_tags",
+                BuildStringList(
+                    GetMovementTagsReadViewTyped().Tags
+                )
+            ),
+            (
+                "vision_tags",
+                BuildStringList(
+                    GetVisionProficiencyReadViewTyped().VisionTags
+                )
+            ),
+            (
+                "proficiency_tags",
+                BuildStringList(
+                    GetVisionProficiencyReadViewTyped().ProficiencyTags
+                )
+            ),
+            (
+                "save_advantage_tags",
+                BuildStringList(saveModifiers.AdvantageTags)
+            ),
+            (
+                "save_disadvantage_tags",
+                BuildStringList(saveModifiers.DisadvantageTags)
+            ),
+            (
+                "save_immunity_tags",
+                BuildStringList(saveModifiers.ImmunityTags)
+            ),
+            (
+                "damage_resistances",
+                BuildDamageResistanceMap(
+                    damageResistances.Resistances
+                )
+            ),
+            (
+                "save_bonus_by_ability",
+                BuildSaveAbilityBonusMap(saveModifiers.BonusByAbility)
+            ),
             (
                 "effective_trait_instances",
-                BuildEffectiveTraitInstancesPlain(effective_trait_instances)
+                BuildEffectiveTraitInstancesPlain(
+                    effectiveTraits.Instances
+                )
             ),
             (
                 "effective_trait_ids",
-                BuildStringList(DeriveEffectiveTraitIdsFromInstances(effective_trait_instances))
+                BuildStringList(
+                    GetCanonicalEffectiveTraitIdsReadViewTyped()
+                )
             ),
             (
                 "equipment_ability_sources",
-                BuildEquipmentAbilitySourcesPlain(equipment_ability_sources)
+                BuildEquipmentAbilitySourcesPlain(
+                    equipmentAbilityProjection.Sources
+                )
             ),
-            ("creature_type_tags", BuildStringList(creature_type_tags)),
+            (
+                "creature_type_tags",
+                BuildStringList(
+                    GetCreatureTypeTagsReadViewTyped().Tags
+                )
+            ),
             ("versatility_pick", versatility_pick.ToString()),
-            ("weapon_profile_kind", weapon_profile_kind.ToString()),
-            ("weapon_item_id", weapon_item_id.ToString()),
-            ("weapon_profile_type_id", weapon_profile_type_id.ToString()),
-            ("weapon_range_type", weapon_range_type.ToString()),
-            ("weapon_family", weapon_family.ToString()),
-            ("weapon_current_grip", weapon_current_grip.ToString()),
-            ("weapon_attack_range", weapon_attack_range),
-            ("weapon_one_handed_dice", BuildWeaponDicePlain(weapon_one_handed_dice)),
-            ("weapon_two_handed_dice", BuildWeaponDicePlain(weapon_two_handed_dice)),
-            ("weapon_is_versatile", weapon_is_versatile),
-            ("weapon_uses_two_hands", weapon_uses_two_hands),
-            ("weapon_physical_damage_tag", weapon_physical_damage_tag.ToString()),
-            ("cooldowns", BuildStringNameIntMap(cooldowns)),
-            ("last_turn_tu", last_turn_tu),
+            ("weapon_profile_kind", weaponProjection.ProfileKind.ToString()),
+            ("weapon_item_id", weaponProjection.ItemId.ToString()),
+            ("weapon_profile_type_id", weaponProjection.ProfileTypeId.ToString()),
+            ("weapon_range_type", weaponProjection.RangeType.ToString()),
+            ("weapon_family", weaponProjection.Family.ToString()),
+            ("weapon_current_grip", weaponProjection.CurrentGrip.ToString()),
+            ("weapon_attack_range", weaponProjection.AttackRange),
+            (
+                "weapon_one_handed_dice",
+                BuildWeaponDicePlain(weaponProjection.OneHandedDice)
+            ),
+            (
+                "weapon_two_handed_dice",
+                BuildWeaponDicePlain(weaponProjection.TwoHandedDice)
+            ),
+            ("weapon_is_versatile", weaponProjection.IsVersatile),
+            ("weapon_uses_two_hands", weaponProjection.UsesTwoHands),
+            (
+                "weapon_physical_damage_tag",
+                weaponProjection.PhysicalDamageTag.ToString()
+            ),
+            ("cooldowns", BuildStringNameIntMap(cooldownState.Cooldowns)),
+            ("last_turn_tu", cooldownState.LastTurnTu),
             ("status_effects", BuildStatusEffectsPlain())
         );
     }
@@ -283,30 +381,42 @@ public partial class BattleUnitState
     }
 
     private static List<object> BuildEffectiveTraitInstancesPlain(
-        IEnumerable<BattleEffectiveTraitInstanceState> instances
+        IEnumerable<BattleEffectiveTraitInstanceReadView> instances
     )
     {
         var result = new List<object>();
         foreach (
-            BattleEffectiveTraitInstanceState instance
-            in instances ?? Array.Empty<BattleEffectiveTraitInstanceState>()
+            BattleEffectiveTraitInstanceReadView instance
+            in instances
+            ?? Array.Empty<BattleEffectiveTraitInstanceReadView>()
         )
         {
-            if (instance == null)
+            if (!instance.IsPresent)
                 continue;
             result.Add(
                 Map(
-                    ("trait_id", instance.trait_id.ToString()),
-                    ("effective_instance_key", instance.effective_instance_key.ToString()),
-                    ("source_type", instance.source_type.ToString()),
-                    ("source_id", instance.source_id.ToString()),
-                    ("effect_type", instance.effect_type.ToString()),
-                    ("trigger_type", instance.trigger_type.ToString()),
-                    ("charge_scope", instance.charge_scope.ToString()),
-                    ("charge_reset_timing", instance.charge_reset_timing.ToString()),
-                    ("rank", Math.Max(instance.rank, 1)),
-                    ("stacks", Math.Max(instance.stacks, 1)),
-                    ("roll_values", BuildRollValuesPlain(instance.roll_values))
+                    ("trait_id", instance.TraitId.ToString()),
+                    (
+                        "effective_instance_key",
+                        instance.EffectiveInstanceKey.ToString()
+                    ),
+                    ("source_type", instance.SourceType.ToString()),
+                    ("source_id", instance.SourceId.ToString()),
+                    ("effect_type", instance.EffectType.ToString()),
+                    ("trigger_type", instance.TriggerType.ToString()),
+                    ("charge_scope", instance.ChargeScope.ToString()),
+                    (
+                        "charge_reset_timing",
+                        instance.ChargeResetTiming.ToString()
+                    ),
+                    ("rank", Math.Max(instance.Rank, 1)),
+                    ("stacks", Math.Max(instance.Stacks, 1)),
+                    (
+                        "roll_values",
+                        BuildRollValuesPlain(
+                            instance.RollValues.CopyNormalized()
+                        )
+                    )
                 )
             );
         }
@@ -335,13 +445,16 @@ public partial class BattleUnitState
     }
 
     private static List<object> BuildEquipmentAbilitySourcesPlain(
-        IEnumerable<BattleEquipmentAbilitySourceState> sources
+        IEnumerable<BattleEquipmentAbilitySourceReadView> sources
     )
     {
         var result = new List<object>();
         foreach (
-            BattleEquipmentAbilitySourceState source
-            in sources ?? Array.Empty<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in sources
+                ?? Array.Empty<
+                    BattleEquipmentAbilitySourceReadView
+                >()
         )
         {
             if (source == null)
@@ -365,14 +478,16 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static Dictionary<string, object> BuildWeaponDicePlain(WeaponDice dice)
+    private static Dictionary<string, object> BuildWeaponDicePlain(
+        BattleWeaponDiceValues dice
+    )
     {
-        if (dice == null || dice.IsEmpty())
+        if (!dice.HasUsableDice)
             return EmptyMap();
         return Map(
-            ("dice_count", dice.dice_count),
-            ("dice_sides", dice.dice_sides),
-            ("flat_bonus", dice.flat_bonus)
+            ("dice_count", dice.DiceCount),
+            ("dice_sides", dice.DiceSides),
+            ("flat_bonus", dice.FlatBonus)
         );
     }
 
@@ -381,6 +496,26 @@ public partial class BattleUnitState
         var result = EmptyMap();
         if (values == null)
             return result;
+        foreach ((StringName key, int value) in values)
+            result[key.ToString()] = value;
+        return result;
+    }
+
+    private static Dictionary<string, object> BuildKnownSkillLevelMap(
+        BattleKnownSkillLevelReadView values
+    )
+    {
+        var result = EmptyMap();
+        foreach ((StringName key, int value) in values)
+            result[key.ToString()] = value;
+        return result;
+    }
+
+    private static Dictionary<string, object> BuildSaveAbilityBonusMap(
+        BattleSaveAbilityBonusReadView values
+    )
+    {
+        var result = EmptyMap();
         foreach ((StringName key, int value) in values)
             result[key.ToString()] = value;
         return result;
@@ -398,11 +533,12 @@ public partial class BattleUnitState
         return result;
     }
 
-    private static Dictionary<string, object> BuildStringMap(BattleStringNameMap values)
+    private static Dictionary<string, object>
+        BuildDamageResistanceMap(
+        BattleDamageResistanceReadView values
+    )
     {
         var result = EmptyMap();
-        if (values == null)
-            return result;
         foreach ((StringName key, StringName value) in values)
             result[key.ToString()] = value.ToString();
         return result;
@@ -412,6 +548,26 @@ public partial class BattleUnitState
     {
         var result = new List<object>();
         foreach (StringName value in values ?? Array.Empty<StringName>())
+            result.Add(value.ToString());
+        return result;
+    }
+
+    private static List<object> BuildCombatResourceUnlockList(
+        BattleCombatResourceUnlockReadView values
+    )
+    {
+        var result = new List<object>();
+        foreach (StringName value in values)
+            result.Add(value.ToString());
+        return result;
+    }
+
+    private static List<object> BuildKnownActiveSkillList(
+        BattleKnownActiveSkillReadView values
+    )
+    {
+        var result = new List<object>();
+        foreach (StringName value in values)
             result.Add(value.ToString());
         return result;
     }

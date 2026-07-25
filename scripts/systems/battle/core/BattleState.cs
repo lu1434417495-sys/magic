@@ -346,7 +346,7 @@ public partial class BattleState
 
     public bool IsAttackDisadvantage(BattleUnitState attacker, BattleUnitState defender = null)
     {
-        if (attacker == null || !attacker.is_alive)
+        if (attacker == null || !attacker.IsAlive())
             return false;
 
         if (defender == attacker)
@@ -510,7 +510,7 @@ public partial class BattleState
     internal BattleUnitState GetAliveUnit(StringName unitId)
     {
         BattleUnitState unitState = GetUnit(unitId);
-        return unitState != null && unitState.is_alive ? unitState : null;
+        return unitState != null && unitState.IsAlive() ? unitState : null;
     }
 
     internal BattleUnitReadView GetUnitView(StringName unitId) => new(GetUnit(unitId));
@@ -539,7 +539,7 @@ public partial class BattleState
     {
         foreach (BattleUnitState unitState in Units())
         {
-            if (unitState.is_alive)
+            if (unitState.IsAlive())
                 yield return unitState;
         }
     }
@@ -1129,7 +1129,7 @@ public partial class BattleState
             if (feature.SourceUnitId != "")
             {
                 BattleUnitState sourceUnit = GetUnit(feature.SourceUnitId);
-                if (sourceUnit == null || !sourceUnit.is_alive)
+                if (sourceUnit == null || !sourceUnit.IsAlive())
                     continue;
             }
             result.Add(feature.DuplicateState());
@@ -1188,7 +1188,7 @@ public partial class BattleState
                 || feature.IsExpired(currentTu)
                 || (
                     feature.SourceUnitId != ""
-                    && (GetUnit(feature.SourceUnitId)?.is_alive != true)
+                    && (GetUnit(feature.SourceUnitId)?.IsAlive() != true)
                 );
             if (!remove)
                 continue;
@@ -1550,7 +1550,7 @@ public partial class BattleState
 
     private static bool _is_enemy_unit(BattleUnitState a, BattleUnitState c)
     {
-        if (a == null || c == null || c == a || c.unit_id == a.unit_id || !c.is_alive)
+        if (a == null || c == null || c == a || c.unit_id == a.unit_id || !c.IsAlive())
             return false;
         return a.faction_id != c.faction_id;
     }
@@ -1571,8 +1571,8 @@ public partial class BattleState
     {
         if (a == null || b == null)
             return false;
-        foreach (var ac in a.occupied_coords)
-        foreach (var bc in b.occupied_coords)
+        foreach (Vector2I ac in a.GetOccupiedCoordsReadViewTyped())
+        foreach (Vector2I bc in b.GetOccupiedCoordsReadViewTyped())
             if (Mathf.Abs(ac.X - bc.X) + Mathf.Abs(ac.Y - bc.Y) == 1)
                 return true;
         return false;
@@ -1599,7 +1599,7 @@ public partial class BattleState
         if (maxHp <= 0)
             return false;
 
-        return attacker.current_hp * 100 <= maxHp * LowHpAttackDisadvantagePercent;
+        return attacker.GetCurrentHp() * 100 <= maxHp * LowHpAttackDisadvantagePercent;
     }
 
     private bool _is_low_hp_hardship(BattleUnitReadView attacker)
