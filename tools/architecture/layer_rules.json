@@ -53,6 +53,7 @@
     { "glob": "scripts/systems/content/ContentValueNormalizer.cs", "layer": "infrastructure" },
 
     { "glob": "scripts/player/**/*Definition*.cs", "layer": "content_definition" },
+    { "glob": "scripts/player/warehouse/ItemPriceRules.cs", "layer": "content_definition" },
     { "glob": "scripts/player/progression/*ContentRules.cs", "layer": "content_definition" },
     { "glob": "scripts/player/progression/CombatResourceIds.cs", "layer": "content_definition" },
     { "glob": "scripts/player/progression/CombatSkillResourceCosts.cs", "layer": "content_definition" },

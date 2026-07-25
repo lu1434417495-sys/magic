@@ -50,7 +50,7 @@
 - `TraitDef.@params` 禁止出现；effect-specific 配置必须落成显式 typed 字段，例如 `highest_roll_compare_key`、`vision_range`、`proficiency_choice_count`。
 - `TraitInstanceState.roll_values` 在内存中是 `Array<TraitRollValueState>`，由 `TraitDef.roll_value_schema` 约束；只有 party/equipment/battle save payload 的 `roll_values` 字段序列化为 dictionary。
 - `BattleUnitState.effective_trait_instances` 在内存中是 `Array<BattleEffectiveTraitInstanceState>`；只有 battle save schema 的 `effective_trait_instances` 字段序列化为 dictionary 数组。
-- 必须保留 `tests/progression/schema/run_trait_dictionary_boundary_regression.cs`，防止 trait 正式路径回退到 dictionary-backed runtime data。
+- 不使用读取 C# 或 `.tres` 文本的回归来约束 dictionary 边界。静态依赖约束归 architecture analyzer 与代码检视；资源和运行时契约分别由 trait registry、instance schema、effective-set 与 battle owner 行为回归覆盖。
 
 ## 决策冻结（实施前置）
 

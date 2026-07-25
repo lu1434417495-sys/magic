@@ -1,7 +1,9 @@
 # 战斗目标与终局运行时
 
 > 状态：`Current / Implemented (9/9: elimination + boss + rescue + escape + escort + defense + intercept + node_operation + control)`
-> 核对日期：`2026-07-24`
+> 核对日期：`2026-07-25`
+
+九种模式的玩家体验、当前正式样例、关卡节奏、敌方/地图制作原则和后续内容池见 [`../../content/battle/objective_modes.md`](../../content/battle/objective_modes.md)。本文只维护运行时与内容 schema 的当前实现真相。
 
 ## 当前实现边界
 

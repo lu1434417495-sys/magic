@@ -127,21 +127,21 @@ encounter_profile_id, growth_stage, suppressed_until_step
 
 ### fog_states
 
-`WorldMapFogSystem.ExportPersistentState()` 生成：
+`WorldMapFogSystem.BuildPersistentStatePlain()` 生成：
 
 ```text
 {
-  version: 1,
+  version: 2,
   factions: {
     faction_id: {
-      explored: Array<String>,
-      revealed: Array<String>
+      explored: Array<Vector2I>,
+      revealed: Array<Vector2I>
     }
   }
 }
 ```
 
-坐标字符串必须使用可逆格式实现，重建时建议统一为 `"x,y"`。读取时必须严格校验 version、factions 类型、faction id、坐标格式；失败返回 false 并保持系统为空状态，不要做旧 schema 兼容。
+`explored`、`revealed` 只允许 Godot 原生 `Vector2I`，不接受 `"x,y"` 字符串或 `{x,y}` Dictionary。读取时严格校验 version、精确字段、factions 类型、faction id 与数组元素 Variant 类型；失败返回 false 并保持系统为空状态，不提供旧 schema 迁移或 fallback。该破坏性变更对应顶层 save version 16。
 
 ## 世界生成算法
 
@@ -499,6 +499,12 @@ settlement encounter 也属于当前生成行为：若规则显式声明 `settle
 - `IsModalWindowOpenInternal()`：窗口打开时禁止打开另一个世界窗口或移动。
 
 失败返回 `RuntimeCommandResult.Failure(message)`，不抛异常给 UI。
+
+### Command log 边界
+
+`GameRuntimeCommandLogger` 拥有 command scope、before/after runtime context、battle batch context 合并和 pending command battle batches。它只弱借 `IGameRuntimeCommandLogPort`：facade port 在同步调用时把 session/world/modal/battle/selection 与单位资源投影成 detached `CommandLogRuntimeSnapshot`、`CommandLogBattleSnapshot` 和 `CommandLogBattleUnitSnapshot`，logger 不读取 live `GameRuntimeFacade`、`GameSession`、`WorldMapDataContext`、`BattleState` 或 `BattleUnitState`。
+
+battle command 开始时清空 logger-owned pending batches；执行期间每个 `BattleEventBatch` 立即冻结为 plain context；结束时按原顺序写入 `battle_batches`、最后一个 `battle_batch` 和按 unit id 后写覆盖的 `battle_changed_units`，然后清空当前 scope 并恢复上一层 scope。日志 schema 与 session sink 不变，Godot Dictionary/Array 只在同步 normalization、JSON projection 和既有 Godot-facing返回值中短暂存在。
 
 ### CommandWorldMoveTyped
 

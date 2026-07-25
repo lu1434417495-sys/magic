@@ -36,7 +36,7 @@
 - `scripts/systems/battle/runtime/BattleUnitFactory.cs`
   - 战斗开始时把成员装备与武器投影写入 `BattleUnitState`。
 - `scripts/systems/battle/rules/BattleRangeService.cs`
-  - 战斗射程读取 `BattleUnitState.weapon_attack_range` 并叠加临时修正，不回读旧属性字段或旧物品字段。
+  - 战斗射程读取 `BattleUnitState.GetWeaponProjectionReadViewTyped()` 的 attack range 并叠加临时修正，不回读旧属性字段或旧物品字段。
 
 ## 伤害与武器骰
 
@@ -50,8 +50,12 @@ base_damage = weapon_dice_if_add_weapon_dice
 ```
 
 - `CombatEffectDef.add_weapon_dice = true` 是加入武器骰的唯一入口。
+- `CombatEffectDef.weapon_dice_multiplier` 只复制当前武器的基础物理伤害骰，不复制武器骰的 flat bonus、装备能力追加骰或其他非物理附伤；因此“3 倍武器伤害”应写成基础物理武器骰 ×3，而不是对整次伤害套总倍率。
+- `CombatEffectDef.bonus_weapon_dice_multiplier` 在 `bonus_condition` 成立时生成一条独立 `DamageEventResult`，只复制基础物理武器骰并独立承受减伤；它继承本次攻击的重击，但同一条件即使由多个状态同时满足也只结算一次。
+- `CombatEffectDef.bonus_damage_separate_event = true` 把条件 `bonus_damage_dice_*` 从主伤害中拆成独立 `DamageEventResult`；该段复用主伤害类型、条件、豁免结果与重击事实，但独立承受固定减伤。
 - `physical` damage 不自动加入武器骰。
 - 多段 damage effect 各自读取 `add_weapon_dice`，允许每段重复计算当前武器骰。
+- 多次常规武器攻击仍逐次进入完整命中与伤害管线，所以装备提供的非物理命中附伤可在每次命中分别触发；武器骰倍率不会改变触发次数。
 - 暴击额外再掷一组 weapon dice / skill dice；`power` 与骰子 flat bonus 不因暴击重复。
 - `CombatEffectDef.use_weapon_physical_damage_tag = true` 只负责把伤害类型替换为当前武器投影标签。
 - `CombatEffectDef.requires_weapon = true` 才表达必须装备武器；空手与天生武器可提供射程 / 伤害骰，但不能满足 `requires_weapon`，也不参与武器熟练 / 武器精通。

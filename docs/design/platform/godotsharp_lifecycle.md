@@ -7,7 +7,7 @@
 
 版本注记（2026-07-23）：本文中的 version 12 是 2026-07-10 生命周期迁移的历史验收基线，
 不是当前存档版本。显式 `BattleEncounter` / encounter anchor schema 落地后，当前 save/index
-版本为 `15 / 4`，并按项目兼容策略严格拒绝旧版本，不提供 migration 或 fallback。
+版本为 `16 / 4`，并按项目兼容策略严格拒绝旧版本，不提供 migration 或 fallback。
 
 ## 问题
 
@@ -419,6 +419,14 @@ ApplicationLifetimeCoordinator._Ready
 内容加载必须从 `GameSession` constructor 移到 coordinator 可控的初始化阶段，避免 GameSession 在
 process owner 尚未就绪时自行建立 raw registry graph。
 
+若 `ProcessContentHost.Load/Validate/Project` 在 autoload `_Ready()` 期间失败，coordinator 记录
+`process-content-startup` failure 并以非零请求复用同一 shutdown pipeline。此时 SceneTree root
+可能仍在挂载后续 autoload 或 main scene，scene drain 只能对已出现的 owner 调用 `QueueFree()`，
+等待一个 process frame 后再扫描一次启动期迟到的 `GameSession` / current scene，并在必要时再等
+一个 frame；不能在 parent busy 的 `_Ready()` 调用栈中同步 `Free()`。owner 稳定离树后仍执行正式
+content-release gate、finalizer gate/barrier 和唯一 `SceneTree.Quit`，因此内容错误只保留原始启动
+失败，不额外制造 scene-owner、cast 或 barrier 生命周期失败。
+
 ### 普通 session recreate
 
 ```text
@@ -550,13 +558,13 @@ domain 的 wrapper/resource-in-use 计数必须精确记录为 baseline，不能
 ## Save、snapshot 与兼容边界
 
 - 生命周期迁移落地时 `GameSession.SaveVersion` / `SaveSerializer` 使用 version 12；当前正式值为
-  save/index `15 / 4`。
+  save/index `16 / 4`。
 - 生命周期内部 state/definition 迁移不改变当时 serialized key、value 类型和 required field；
   后续显式 battle encounter schema 已通过正式版本升级落地。
 - save adapter 在边界把 plain state 投影为当前 Godot Dictionary shape；load adapter立即归一化为 plain
   state，不把 payload wrapper 保存进 session/runtime。
 - golden save、text snapshot、AI fingerprint 和 battle result 必须在迁移前后相同。
-- 生命周期任务若不能保持其当时 schema，必须停止并请求决定；当前 15/4 升级已有明确授权，仍不
+- 生命周期任务若不能保持其当时 schema，必须停止并请求决定；当前 16/4 升级已有明确授权，仍不
   增加旧版 migration。
 
 ## 分阶段实施边界
@@ -707,7 +715,7 @@ Resource；阶段 5 才执行本 spec 的全部静态、行为和稳定性合同
    和 256 KiB/轮。
 4. AI 子集与完整回归各运行 10 轮、`jobs=16`，runner 无 finalizer retry 参数或实现；`jobs=16` 指 16 个
    独立 Godot 进程，不代表单进程 AI worker。
-5. Phase 6 当时以 save version 12 golden payload 验收；当前回归应使用 save/index `15 / 4`，并继续
+5. Phase 6 当时以 save version 12 golden payload 验收；当前回归应使用 save/index `16 / 4`，并继续
    校验 text/headless snapshot、AI fingerprint 和战斗结果。
 
 ## 落地文件边界
@@ -768,7 +776,7 @@ coordinator participant、测试退出/量测 helper 与累计 lifecycle gate �
 - 采用方案 B，不采用持续 suppress/quarantine，也暂不采用离线内容编译。
 - 最终状态不保留 project-level Godot wrapper suppress fallback。
 - V1 无运行时内容热重载。
-- 生命周期架构不自行改变 save schema；当前正式 save/index 为 `15 / 4`，旧版本无兼容路径。
+- 生命周期架构不自行改变 save schema；当前正式 save/index 为 `16 / 4`，旧版本无兼容路径。
 - raw `.tres` 是 immutable authoring source，runtime 只消费 plain snapshot。
 - process shutdown 必须在 Godot 存活时完成 owner drain 与 GC barrier。
 - 完整实施拆成五个顺序阶段，每阶段单独计划、直接实现、验证和提交；本轮生命周期整改不要求 TDD。

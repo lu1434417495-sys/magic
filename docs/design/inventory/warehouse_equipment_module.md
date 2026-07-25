@@ -18,7 +18,9 @@ GameContentCatalog.GetItemDefsTyped / GetSkillDefinitionsTyped
   -> PartyItemUseService(PartyState + ItemDef + SkillDefinition + CharacterManagement)
 GameRuntimeWarehouseHandler -> PartyWarehouseWindow
 GameRuntimePartyCommandHandler -> IGameRuntimePartyCommandPort -> PartyManagementWindow
-Facade-owned semantic mutations -> existing runtime transaction / party persistence owner
+GameRuntimeBattleLootCommitService -> IGameRuntimeBattleLootCommitPort -> facade-owned warehouse/session/drop capabilities
+Warehouse mutations -> facade party staging -> GameSession pending dirty -> canonical flush
+Other facade-owned semantic mutations -> existing runtime transaction / party persistence owner
 ```
 
 仓库真实状态在 `PartyState.warehouse` 与成员 `EquipmentState`；窗口只展示 handler 构建的数据。正式内容读取必须用 typed item/skill catalog，不恢复 string-key fallback。
@@ -26,6 +28,8 @@ Facade-owned semantic mutations -> existing runtime transaction / party persiste
 ## 静态内容契约
 
 `ItemDef` 至少描述 item id、显示名、类别、堆叠上限、是否装备、装备类型、使用效果、价格、武器 profile、耐久/稀有度相关字段。装备类物品必须能创建 `EquipmentInstanceState`，非装备类只以 stack 数量存在。
+
+`ItemPriceRules` 是物品价格 basis-point 缩放的唯一规则 owner。价格与倍率先归一化为非负值，乘法与 half-up 舍入全部使用 `long`；若结果超出公开 `int` 价格接口的表达范围则饱和到 `int.MaxValue`，不得回绕为负数。`ItemDef` 的 authoring 便利入口与正式运行时 `ItemDefinition` 均委托该规则，不各自维护公式。
 
 `RecipeDef` 只消费 typed item catalog 校验输入/输出；forge 服务调用 warehouse batch 预览/提交时 entry 必须是 `{ item_id = StringName, quantity = int }` 等正式字典，不用裸 Variant item id。
 
@@ -81,25 +85,32 @@ Facade-owned semantic mutations -> existing runtime transaction / party persiste
 
 ## UI / runtime handler
 
-`GameRuntimeWarehouseHandler`：打开仓库、discard、use item、构建 window data、按 entry label 区分“据点服务/队伍管理”。`PartyWarehouseWindow` 不直接修改 party state。
+`GameRuntimeWarehouseHandler`：打开仓库、提交 discard/use/add typed intent、解释 typed mutation result、构建 window data，并按 entry label 区分“据点服务/队伍管理”。它只弱借 `IGameRuntimeWarehousePort`，不读取 `PartyState`、仓库/物品使用 service、`GameSession`、world context 或内容 catalog。port 返回 detached `WarehouseCommandContextSnapshot` / `WarehouseWindowSnapshot`，window snapshot 已包含最终成员、容量、inventory scalar facts、trait detail 文本和技能显示名；handler 只在同步 UI/plain 输出边界生成原 payload。`PartyWarehouseWindow` 不直接修改 party state。
+
+仓库 mutation 的事务 owner 在 `GameRuntimeFacade.WarehousePort`：facade 在调用 `PartyWarehouseService` / `PartyItemUseService` 前捕获 runtime state、party、world data 与 selected member，成功后调用 `StagePartyStateInternal()`；stage 失败则在同一 port 内恢复 session/runtime canonical owner、world context 和选择状态，再交付 detached failure result。handler 不持有 rollback snapshot，也不能单独调用 service 后再决定是否 stage。打开窗口时的 service rebind 和关闭时的 `modal = None -> entry label 清空 -> status 更新 -> PresentPendingRewardIfReady()` 顺序也归 port 的语义操作。
 
 `GameRuntimePartyCommandHandler`：队伍编成、选择成员、装备与卸装。它只弱借 `IGameRuntimePartyCommandPort`，查询使用 detached `PartyCommandSnapshot`，mutation 由 facade 的语义 port 执行；handler 不拥有仓库入口。队伍管理中的“仓库”动作仍走 `WorldMapSystem -> WorldMapRuntimeProxy -> GameRuntimeFacade.CommandOpenPartyWarehouseTyped() -> GameRuntimeWarehouseHandler`。装备错误消息由 detached `PartyEquipmentCommandResult` 解释，不从 UI payload 推断。
 
 ## 事务与持久化
 
-仓库、装备、物品使用成功后必须沿各自 facade/handler 的既有事务边界提交：
+仓库、装备、物品使用成功后必须沿各自 facade/handler 的既有事务边界同步 canonical state：
 
 1. 更新 `PartyState` 内存对象。
 2. 由 facade owner 同步 character management 或重算成员摘要。
-3. 通过 facade 的语义 mutation 进入既有 runtime transaction / party persistence owner。
-4. 刷新仓库/队伍窗口。
+3. 仓库直接加入、丢弃和技能书使用由 `IGameRuntimeWarehousePort` 的 facade 实现调用 `StagePartyStateInternal()`，把当前 `PartyState` 交给 `GameSession.SetPartyState(...)` 并标记 `party_state` pending dirty；这些普通运行态命令不调用 `CommitRuntimeState(...)`，也不自行建立磁盘保存点。
+4. 返回标题、runtime dispose、主动保存或世界卸载等 canonical flush 时机负责同步全部 canonical owner 并写入完整存档。
+5. 其他明确要求立即提交的语义 mutation 继续进入既有 runtime transaction / party persistence owner。
+6. 刷新仓库/队伍窗口。
 
-队长/编成 mutation 在 party port 内同步 canonical party 并持久化；装备/卸装把 service mutation 与持久化封装成单一 port 操作。装备 mutation 成功而持久化失败时不回滚内存状态，typed command 仍保持成功结果，并在 status 中明确追加“队伍状态持久化失败”。仓库 discard/use 等路径继续保留各自现有的 snapshot/transaction 语义，不能套用 party 装备路径的返回约定。
+队长/编成 mutation 在 party port 内同步 canonical party 并持久化；装备/卸装把 service mutation 与持久化封装成单一 port 操作。装备 mutation 成功而持久化失败时不回滚内存状态，typed command 仍保持成功结果，并在 status 中明确追加“队伍状态持久化失败”。仓库 discard/use/add 仍保留 mutation snapshot，只在 session staging 失败、无法维持 canonical party owner 一致时回滚；磁盘 I/O 不再参与这些仓库命令的成功判定。
+
+战斗战利品提交不复用普通仓库命令的 stage transaction。`GameRuntimeBattleLootCommitService` 经 `IGameRuntimeBattleLootCommitPort` 操作同一个 warehouse owner：每条掉落建立 opaque checkpoint，用于丢弃无定义或 payload 不合法的单条奖励；整批另有 checkpoint，在装备随机服务不可用这类致命错误时恢复此前全部掉落与 fate flags。service 不持有 `PartyState`、仓库/session/drop service 或 item catalog；战斗终局随后统一执行 party/world staging 与 canonical flush，任一步失败仍由外围 battle finalization transaction 完整回滚。
 
 ## 回归入口
 
 ```bash
 godot --headless -s res://tests/world_map/schema/run_world_map_low_level_defensive_regression.cs
+godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
 godot --headless -s res://tests/world_map/runtime/run_game_runtime_party_command_handler_regression.cs
 godot --headless -s res://tests/world_map/ui/run_party_management_window_regression.cs
 godot --headless -s res://tests/equipment/run_party_equipment_regression.cs
@@ -378,13 +389,24 @@ Batch swap 用于 forge、商店、任务提交等“扣多个输入、给多个
 ### `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs`
 
 - `public sealed class GameRuntimeWarehouseHandler`
-- `private sealed class WarehouseTransactionSnapshot`
-- `public void Setup(GameRuntimeFacade runtime)`
+- `internal void Setup(IGameRuntimeWarehousePort port)`
 - `public void Dispose()`
 - `internal Dictionary GetWarehouseWindowData()`
 - `internal GameRuntimeFacade.RuntimeCommandResult CommandOpenPartyWarehouseTyped()`
 - `public void OpenPartyWarehouseWindow(string entryLabel)`
 - `public void OnPartyWarehouseWindowClosed()`
+
+### `scripts/systems/game_runtime/IGameRuntimeWarehousePort.cs`
+
+- `IGameRuntimeWarehousePort`：detached command/window query、modal open/close、status、add/discard/use typed mutation。
+- `WarehouseWindowSnapshot`：容量、入口、默认目标、detached target member 与 inventory entry；不暴露 item definition、trait catalog 或 service。
+- `WarehouseDiscardMutationResult` / `WarehouseUseMutationResult` / `WarehouseAddMutationResult`：以 typed failure kind 和显示 facts 表达 mutation/stage 结果，不向 handler 透传 service result。
+
+### `scripts/systems/game_runtime/GameRuntimeFacade.WarehousePort.cs`
+
+- 显式实现 `IGameRuntimeWarehousePort`，是仓库 command 的 query、mutation、stage 和 rollback capability owner。
+- `WarehouseTransactionSnapshot` 为 facade-private；捕获 runtime、party、world 与 selected member，不能逃逸到 handler。
+- window capture 在 facade 内读取 warehouse service 与 catalog，输出已脱离 owner 的 scalar snapshot。
 
 ### `scripts/systems/game_runtime/IGameRuntimePartyCommandPort.cs`
 

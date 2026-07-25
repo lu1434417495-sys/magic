@@ -3,10 +3,12 @@
 > **当前修复说明（2026-07-23）**：`shop_inventory_seed` / `shop_last_refresh_step` 已从据点顶层 schema 删除，F-14 不再是待修 finding；各商店继续独立使用真随机并只持有自己的 seed、刷新步数和库存，save v15 严格拒绝 v14。
 
 - 原始审查日期：`2026-06-17`
-- 当前代码复核：`2026-07-24`
+- 当前代码复核：`2026-07-25`
 - 原始索引：466 个脚本文件；清除 19 个已失效条目后保留 447 个历史条目。当前 `scripts/` 规模已超过历史索引，因此下方矩阵不再用固定文件数声称当前覆盖率。
 - 当前定位：本文件是 `scripts/` 检视意见的主索引。下方 2026-06-17 矩阵只保留为历史路由，不再声称覆盖当前全部文件；是否需要修复，以上方 findings-first 为准。
 - 复核方法：按职责把旧 GDScript、旧路径和旧类型映射到当前 C#、GDScript 或 Python owner，再检查同一失败模式是否仍存在。不能以语言迁移、文件改名或模板命中本身作为“已修复”或“仍有问题”的证据。
+- 2026-07-25 批量复核：原 288 条“需跟进”中，224 条已依据当前 typed owner、校验/投影边界、正式调用链和 focused regression 改为“通过”；剩余 64 条仍是待完成复核的历史路由，不代表已确认存在 64 个 bug。
+- 当前验证阻断：复核后段的 process-content 启动被并发内容变更 `warrior_over_shoulder` 的未注册 `vault_behind_target` effect type 拒绝，启动失败清理还触发 Node 释放错误；随后并发中的任务失败系统又令 `dotnet build` 出现 1 个未定义变量错误和 11 个架构层依赖违规。因此正在变化的 `PartyState`、game-runtime、persistence、world/UI 和陨石雨链条目没有借用此前结果强行改为“通过”；这些阻断也不自动证明历史条目存在其模板所述问题。
 
 ## 当前确认需要修复（findings-first）
 
@@ -16,12 +18,14 @@
 
 ### 低优先级但逻辑确实不闭合
 
-- `GameRuntimeWarehouseHandler` 在技能书使用、丢弃和直接加入库存成功后调用 `PersistPartyState()`；该调用会沿 `RuntimeTransaction.Commit(...) → GameSession.CommitRuntimeState(...) → PersistGameState()` 立即写入完整存档。仓库内的普通运行态变更不应自行建立磁盘保存点；应只把当前 `PartyState` stage 到 `GameSession` 并标记 `party_state` pending dirty，交给既定的 canonical flush 时机统一落盘。
+当前没有已确认需要继续修复的低优先级 correctness 项。
 - **接受风险，暂不修复**：`UnitProgress.cs:225-251` 在递归访问子节点后才写 `visited`，循环 merge source 会无限递归；已确认当前递归 getter 没有生产调用，并在 API 旁注明无环前提和未来接线要求。
-- `BattleTerrainGenerator` 的 typed cells → Godot Dictionary → typed cells 往返，以及 settlement handler/forge/shop 核心的 `GDictionary` 状态处理仍是架构债；当前没有证据把它们升级成 correctness bug。
+- settlement 通用 action/service-entry 分发与 forge 的 facility/recipe/window build 仍大量解析 `GDictionary`，属于 typed-boundary 架构债；forge 确认提交已于 2026-07-25 改为 `ForgeActionRequest` 强类型 C# 事件并沿 proxy/facade/handler typed 入口传递，不再发出 Dictionary signal。商店库存、刷新和买卖事务已使用 typed owner/result，剩余 Dictionary 主要位于同步窗口投影，不再列入核心状态债。当前没有证据把保留项升级成 correctness bug。
 
 ## 已移除的过时结论
 
+- `BattleTerrainGenerator` 的 typed cells → Godot Dictionary → typed cells 往返已于 2026-07-24 移除：生成器现在直接返回一次性 managed `BattleTerrainLayout`，`BattleUnitFactory` 以 typed `List<Vector2I>` 应用出生点覆盖，`BattleRuntimeModule` 通过 `TakeCells()` 把唯一 cell graph 移交 `BattleState` 并在 owner 内重建 columns；未移交的 layout 会释放 cells。固定种子地形确定性、typed columns、出生点避水、启动重试、异常清理和 pending 语义均由 focused regression 覆盖。该项原本只是架构债，本次直接消除，不追溯改判为 correctness bug。
+- 仓库普通运行态立即写入完整存档的问题已于 2026-07-24 修复：`GameRuntimeWarehouseHandler` 的直接加入、丢弃一件、丢弃全部和技能书使用成功后统一调用 `StagePartyState()`；facade 只通过 `GameSession.SetPartyState(...)` 同步 canonical party 并标记 `party_state` pending dirty，不进入 `RuntimeTransaction.Commit(...)` 或磁盘写入。仓库 mutation snapshot 仅在 session staging 失败时回滚，payload 写入失败不再影响库存命令；focused runtime 回归以强制 payload 写入失败验证四条命令仍成功、状态保留且没有 save error，最终由 canonical flush 落盘。
 - 存档文件缺失的异常契约已于 2026-07-24 修复：`SaveRepository.ReadSavePayload(...)` 对检查前缺失和检查后打开失败都会返回 typed I/O 错误，其中缺失统一归一化为 `Error.DoesNotExist`，`emitErrors` 只控制诊断记录、不再控制是否抛异常；`GameSession.LoadSave(...)` 对不存在的槽位同样返回 `DoesNotExist`，并在缓存索引仍引用已消失 payload 时移除失效索引项。回归覆盖“创建并缓存槽位 → 清空运行态 → 只删除 `.dat` → 加载”的完整路径，确认不抛异常、不创建 active world 且索引完成修复。
 - “技能书使用不是原子事务”结论已于 2026-07-24 撤销：`UseItemTyped(...)` 先通过同一个 `PartyWarehouseService` 确认库存大于零，随后同步学习技能；学习路径只修改角色成长/成就状态，不触碰仓库，也没有异步、回调或其他可重入点。因而在当前正式路径中，紧接着从同一仓库扣减 1 本技能书必然成功，`consume_failed` 只是不可达的防御分支，不能据此认定存在“失败但技能已学习”的 correctness bug。上层成功后的存档提交及其失败回滚与该不可达分支无关。
 - Quest public API 的非法 active 状态缺口已于 2026-07-24 临时封口：`QuestProgressService.RecordProgress(...)` 达成全部目标后复用 `CompleteQuest → MarkQuestClaimable`，不会把 completed 对象留在 `active_quests`；`PartyState.SetQuestState(...)` 只路由 Active、Completed、Rewarded，尚无正式 owner/save contract 的 Failed、Inactive、Unknown 暂时拒绝，不新增 `failed_quests` 或存档兼容逻辑。service、typed PartyState、quest save round-trip 与正式文本任务流程回归均通过。
@@ -63,30 +67,27 @@
 
 ### 2. `scripts/enemies/AiActionTrace.cs`
 
-- 复审状态：**需跟进**；规模：193 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：AiActionTrace；主要方法：IsEmpty, Increment, AddBlockReason, OfferCandidate, ApplyBestDecision, MarkChosen, ToDictionary, CopyObjectDictionary, CopyScoreInput。
+- 复审状态：**通过**；规模：188 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 关键类型/入口：AiActionTrace；主要方法：IsEmpty, Increment, AddBlockReason, OfferCandidate, ApplyBestDecision, MarkChosen, ToTraceDictionary, CopyObjectDictionary, CopyScoreInput。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×2; runtime mutation collections×21。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前结论：AI 决策仍由 typed `BattleAiDecision`、`BattleCommand` 与 `BattleAiScoreInput` 驱动；本类只持有 plain C# 诊断快照，CLR `Dictionary<string, object>` 不作为战斗状态或决策真相源。Godot Dictionary / JSON 只由 `TraceDictionaryProjection` 在输出边界集中生成，未知值类型会失败而非静默字符串化；`BattleAiDecisionResult` 会深拷贝 action trace、候选和嵌套 metadata，并清除 runtime preview 引用。
+- 建议验证：`run_battle_ai_trace_summary_regression.cs`、`run_battle_ai_decision_lifetime_regression.cs`；避免默认跑 battle simulation/balance。
 
 ### 3. `scripts/enemies/AiCandidateSummary.cs`
 
-- 复审状态：**需跟进**；规模：122 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：AiCandidateSummary；主要方法：Clone, Create, ToDictionary, CopyDictionary, ReadInt。
+- 复审状态：**通过**；规模：117 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 关键类型/入口：AiCandidateSummary；主要方法：Clone, Create, ToTraceDictionary, CopyDictionary, ReadInt。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×2; runtime mutation collections×15。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前结论：本类从 typed `BattleCommand` / `BattleAiScoreInput` 构造 plain C# 诊断摘要，不参与评分、候选选择或战斗状态提交。候选进入 `AiActionTrace` 时会立即深拷贝；`RuntimePlainPayload.CloneDictionary` 递归复制嵌套数据并拒绝 `Variant`、`GodotObject` 与 `IDisposable`，不会把 runtime borrower 带入 trace。`Create(...)` 还会移除 extra 中与稳定字段冲突的 key，Godot Dictionary / JSON 只在最终 trace/report 输出边界生成。
+- 建议验证：`run_battle_ai_trace_summary_regression.cs`、`run_battle_ai_decision_lifetime_regression.cs`；避免默认跑 battle simulation/balance。
 
 ### 4. `scripts/enemies/AiCommandSummary.cs`
 
-- 复审状态：**需跟进**；规模：121 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：AiCommandSummary；主要方法：FromCommand, Clone, ToDictionary, AddStringNames, AddCoords。
+- 复审状态：**通过**；规模：116 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 关键类型/入口：AiCommandSummary；主要方法：FromCommand, Clone, ToTraceDictionary, AddStringNames, AddCoords。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×2; runtime mutation collections×14。
-- 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前结论：本类只从正式 `BattleCommand` 复制 AI trace 所需的命令、技能、变体和目标字段，两个目标集合均重新分配，clone 与最终投影不会反向修改原命令。当前 AI planning 只包含 known skills，显式排除 equipment skills 与 scoped auto-cast，因此未记录 `skill_entry_id` 不会混淆现有 AI 技能来源；若未来开放其他 entry source，应同步扩展摘要 schema。
+- 建议验证：`run_battle_ai_trace_summary_regression.cs`、`run_battle_ai_decision_lifetime_regression.cs`；避免默认跑 battle simulation/balance。
 
 ### 5. `scripts/enemies/DropEntryDef.cs`
 
@@ -107,20 +108,19 @@
 
 ### 7. `scripts/enemies/EnemyAiActionHelper.cs`
 
-- 复审状态：**需跟进**；规模：231 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
-- 关键类型/入口：EnemyAiActionHelper；主要方法：CreateDecision, CreateScoredDecision, BuildWaitCommand, BuildMoveCommand, BuildUnitSkillCommand, BuildGroundSkillCommand, SortCoords, CoordSetKey, BeginActionTrace, TraceCountIncrement。
+- 复审状态：**通过**；规模：282 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 关键类型/入口：EnemyAiActionHelper；主要方法：CreateDecision, CreateScoredDecision, BuildWaitCommand, BuildMoveCommand, BuildUnitSkillCommand, BuildGroundSkillCommand, SortCoords, CoordSetKey, BeginActionTrace, FinalizeActionTrace, BuildCandidateSummary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×7。
-- 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
-- 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
+- 当前结论：helper 构造 typed `BattleCommand` 并保留 `skill_entry_id`、技能、变体和目标；缺少 context unit、目标或合法 skill 时返回 `null`。地格集合只在此处做确定性排序，重复、越界和数量错误仍由正式 ground validation 拒绝。trace 关闭时不会创建摘要或消耗 trace nonce，最终 decision/trace 仍由 `BattleAiDecisionResult` 深拷贝交付。与 `BattleAiTypedActionHelper` 的少量重复属于维护风险，当前没有行为漂移或可触发失败链。
+- 建议验证：`run_battle_ai_unit_skill_candidate_evaluator_regression.cs` 及对应 action focused runners；避免默认跑 battle simulation/balance。
 
 ### 8. `scripts/enemies/EnemyAiBrainDef.cs`
 
-- 复审状态：**需跟进**；规模：133 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：133 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyAiBrainDef；主要方法：GetResolvedStates, GetState, HasState, ValidateSchema, _validate_transition_rules。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; runtime mutation collections×20。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前 `ValidateSchema()` 已覆盖空/重复 state、缺失默认 state、空资源及 transition rule，并由 `EnemyContentRegistry` 在不可变 definition 投影前统一拦截；未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 9. `scripts/enemies/EnemyAiDistanceReference.cs`
@@ -134,20 +134,20 @@
 
 ### 10. `scripts/enemies/EnemyAiGenerationSlotDef.cs`
 
-- 复审状态：**需跟进**；规模：369 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：369 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyAiGenerationSlotRole, EnemyAiSkillAffordance, EnemyAiActionFamily, EnemyAiGenerationSuppressionPolicy, EnemyAiGenerationSlotDef；主要方法：ToSlotRole, ToStringName, ToAffordance, ToActionFamily, ToSuppressionPolicy, MatchesAffordance, BuildSignature, ValidateSchema, _find_action_by_id, StringifyArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×16。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前 slot schema 会校验 ID、顺序、动作引用、affordance 与 suppression 配置，并由 state/brain/registry 逐层汇总后阻止非法内容投影；未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 11. `scripts/enemies/EnemyAiStateDef.cs`
 
-- 复审状态：**需跟进**；规模：179 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：179 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyAiStateDef；主要方法：GetActions, GetTypedActions, ValidateSchema, GetTypedGenerationSlots, _validate_generation_slots。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; runtime mutation collections×29。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前 schema 会拒绝空/重复 action、非具体 action 类型、非法 skill 引用及空/重复 generation slot，并由注册表在运行时 definition 投影前执行；未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 12. `scripts/enemies/EnemyAiTargetSelectorRules.cs`
@@ -161,133 +161,133 @@
 
 ### 13. `scripts/enemies/EnemyAiTransitionConditionDef.cs`
 
-- 复审状态：**需跟进**；规模：176 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：176 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyAiTransitionPredicate, EnemyAiTransitionConditionDef；主要方法：ToPredicate, ToStringName, ValidateSchema, ToSignature, StringNameArrayToStrings。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×14。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前条件资源通过 `ValidateSchema()` 校验 predicate 及其参数约束，随后投影为 typed definition；transition schema 回归覆盖非法条件与状态引用，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 14. `scripts/enemies/EnemyAiTransitionRuleDef.cs`
 
-- 复审状态：**需跟进**；规模：103 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：103 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyAiTransitionRuleDef；主要方法：GetTypedConditions, AppliesToState, ValidateSchema, ToSignature, StringNameArrayToStrings。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×17。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前规则资源会校验 rule/source/target/condition，brain 还会校验重复 rule ID 与 order；非法规则无法通过注册表投影为运行时 definition，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 15. `scripts/enemies/EnemyContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：496 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：496 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyContentRegistry；主要方法：ConfigureSeedResource, ConfigureDirectories, Rebuild, Validate, ValidateTyped, _register_seed_resource, _remember_seed_resource_path, _collect_seed_directory_completeness_errors, _append_seed_dir_errors, _collect_resource_paths_in_directory。
 - Godot/公开边界：Export 2 处；Signal 2 处；风险触点：Godot Dictionary/Array boundary×12; resource/path loading×8; runtime mutation collections×56。
 - 对抗性检视：
-  - 检查资源路径存在性、类型和失败缓存；错误路径不能在高频 UI/循环中反复刷日志。
+  - 当前加载/注册阶段会聚合缺失资源、错误类型、重复 ID、跨资源引用和目录完整性错误；`ProjectDefinitions()` 在存在任一错误时立即拒绝投影，校验不位于高频 UI/战斗循环，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 16. `scripts/enemies/EnemyContentSeed.cs`
 
-- 复审状态：**需跟进**；规模：14 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：14 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyContentSeed；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 该类型只是编辑态资源集合，内容合法性由 `EnemyContentRegistry` 的注册、目录完整性和 typed schema 校验统一负责，运行时不直接持有该可变资源；未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 17. `scripts/enemies/EnemyTemplateDef.cs`
 
-- 复审状态：**需跟进**；规模：762 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：762 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：EnemyTemplateDef；主要方法：GetInitialStateId, HasTag, GetAttackEquipmentItemIdResolved, GetWeaponProjectionTyped, GetAttackEquipmentProjectionTyped, GetNaturalWeaponProjectionTyped, GetUnarmedWeaponProjectionTyped, GetNaturalWeaponDamageTagResolved, GetSkillLevelTyped, ValidateSchemaTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×27; runtime mutation collections×84。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前 `ValidateSchemaTyped()` 直接使用 typed brain/item/skill 索引检查模板字段和跨资源引用，注册表通过后才投影为不可变 `EnemyTemplateDefinition`；focused schema boundary 回归通过，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 18. `scripts/enemies/TraceDictionaryProjection.cs`
 
-- 复审状态：**需跟进**；规模：305 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：305 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：TraceDictionaryProjection；主要方法：ToDictionary, AddValue, FromVariant, FromArray, ToArray, AddArrayValue, ReadKey, ToStringNameArray, ToVector2IArray, ToStringArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; save/schema/projection×28; runtime mutation collections×37。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
+  - 当前 Godot `Dictionary` 仅作为 trace/JSON 边界投影，正式 trace 仍由 typed owner 持有；所有新投影由 `GodotProjectionLease` 管理成功和异常路径的释放，生命周期回归通过，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 19. `scripts/enemies/WildEncounterRosterDef.cs`
 
-- 复审状态：**需跟进**；规模：164 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：164 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：WildEncounterRosterDef；主要方法：GetMaxStage, GetStageUnitEntriesTyped, ValidateSchemaTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×20。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前 typed schema 覆盖 profile、阶段范围/重复、空 entry、重复 actor、数量及 template 引用，注册表校验通过后才生成不可变 roster definition；focused 回归通过，未确认剩余正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 20. `scripts/enemies/WildEncounterRosterStageDef.cs`
 
-- 复审状态：**需跟进**；规模：11 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：11 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：WildEncounterRosterStageDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 该类型仅是编辑态阶段资源，其 stage 与 entries 由父 `WildEncounterRosterDef.ValidateSchemaTyped()` 统一校验后投影为不可变 definition；未确认独立正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 21. `scripts/enemies/WildEncounterRosterUnitEntryDef.cs`
 
-- 复审状态：**需跟进**；规模：15 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：15 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：WildEncounterRosterUnitEntryDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 该类型仅是编辑态单位条目，template_id、actor_id、count 及重复项由父 roster schema 统一校验后投影为 typed definition；未确认独立正确性问题。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 34. `scripts/player/equipment/EquipmentDurabilityRules.cs`
 
-- 复审状态：**需跟进**；规模：33 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：33 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentDurabilityRules；主要方法：GetMaxDurabilityForRarity, GetDefaultCurrentDurability, GetDisjunctionSaveBonusForRarity, IsValidCurrentDurability。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×1。
 - 对抗性检视：
-  - 未命中特定高危模式；仍需按职责检查 null 输入、非法 id、重复 id、空集合和资源缺失。
+  - 当前稀有度到耐久上限/豁免加值的映射集中且总定义，当前耐久有效性同时约束上下界；装备耐久 focused 回归通过，未确认剩余正确性问题。
 - 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
 
 ### 35. `scripts/player/equipment/EquipmentEntryState.cs`
 
-- 复审状态：**需跟进**；规模：95 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：95 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentEntryState；主要方法：IsEmpty, GetEquipmentInstance, SetEquipmentInstance, DuplicateState, ToDictionary, FromDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×4; runtime mutation collections×5。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
+  - 当前业务态持有 typed `EquipmentInstanceState`，`Dictionary` 仅用于严格存档投影；复制、序列化和反序列化由 focused party-equipment 回归覆盖，未确认剩余正确性问题。
 - 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
 
 ### 36. `scripts/player/equipment/EquipmentRequirement.cs`
 
-- 复审状态：**需跟进**；规模：64 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：64 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentRequirementCheckResult, EquipmentRequirement；主要方法：ToDictionary, CheckResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×1; runtime mutation collections×7。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
+  - 当前判定结果由 typed `EquipmentRequirementCheckResult` 表达，字典仅为显示/边界投影；装备规则回归覆盖属性不足、职业/种族限制和成功路径，未确认剩余正确性问题。
 - 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
 
 ### 37. `scripts/player/equipment/EquipmentRules.cs`
 
-- 复审状态：**需跟进**；规模：167 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：167 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentSlotKind, EquipmentRules；主要方法：GetAllSlotIdsTyped, IsValidSlot, NormalizeSlotIdsTyped, AddNormalizedSlotId, GetSlotLabel, ToSlotKind, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×5; runtime mutation collections×13。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
+  - 当前槽位 ID 由 typed enum/规范化入口集中约束，非法和重复槽位不会进入装备状态；focused equipment-rules 回归通过，未确认剩余正确性问题。
 - 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
 
 ### 38. `scripts/player/equipment/EquipmentState.cs`
 
-- 复审状态：**需跟进**；规模：302 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：302 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentState；主要方法：GetEquippedItemId, GetEquippedInstanceId, GetEquippedInstance, GetEntry, GetEntryForSlot, GetOccupiedSlotIdsForEntryTyped, SetEquippedEntry, ClearSlot, ClearEntrySlot, PopEquippedInstance。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×4; runtime mutation collections×23。
 - 对抗性检视：
-  - 检查 Dictionary 只在资源/边界投影；正式业务态必须回到 typed owner，schema 变更不能私加兼容。
+  - 当前装备状态以 typed entry/instance 为正式 owner，槽位占用、双手装备清理、弹出实例与严格存档投影均由 party-equipment 回归覆盖；未确认剩余正确性问题。
 - 建议验证：tests/warehouse/ 或 godot --headless --script tests/equipment/run_party_equipment_regression.cs。
 
 ### 39. `scripts/player/progression/AchievementDef.cs`
 
-- 复审状态：**需跟进**；规模：130 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：130 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AchievementDef；主要方法：MatchesEvent, IsEmpty, ToDictionary, FromDictionary, _has_exact_serialized_fields, _hfs, _parse_string_name_field。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; save/schema/projection×4; runtime mutation collections×2。
 - 对抗性检视：
@@ -296,7 +296,7 @@
 
 ### 40. `scripts/player/progression/AchievementProgressState.cs`
 
-- 复审状态：**需跟进**；规模：82 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：82 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AchievementProgressState；主要方法：DuplicateState, ToDictionary, FromDictionary, _has_exact_fields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×2。
 - 对抗性检视：
@@ -305,7 +305,7 @@
 
 ### 41. `scripts/player/progression/AchievementRewardDef.cs`
 
-- 复审状态：**需跟进**；规模：113 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：113 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AchievementRewardDef；主要方法：IsEmpty, ToDictionary, FromDictionary, HasExactFields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×2。
 - 对抗性检视：
@@ -314,7 +314,7 @@
 
 ### 42. `scripts/player/progression/AgeContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：240 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：240 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AgeContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _collect_validation_errors, _append_age_profile_validation_errors, _append_age_stage_rule_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; resource/path loading×2; runtime mutation collections×19。
 - 对抗性检视：
@@ -323,7 +323,7 @@
 
 ### 43. `scripts/player/progression/AgeProfileDef.cs`
 
-- 复审状态：**需跟进**；规模：44 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：44 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AgeProfileDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3。
 - 对抗性检视：
@@ -332,7 +332,7 @@
 
 ### 44. `scripts/player/progression/AgeStageRule.cs`
 
-- 复审状态：**需跟进**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AgeStageRule；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3。
 - 对抗性检视：
@@ -341,7 +341,7 @@
 
 ### 45. `scripts/player/progression/AscensionContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：246 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：246 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AscensionContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _register_ascension, _register_ascension_stage, _collect_validation_errors, _append_ascension_validation_errors, _append_ascension_stage_validation_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; resource/path loading×2; runtime mutation collections×19。
 - 对抗性检视：
@@ -350,7 +350,7 @@
 
 ### 46. `scripts/player/progression/AscensionDef.cs`
 
-- 复审状态：**需跟进**；规模：41 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：41 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AscensionDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7。
 - 对抗性检视：
@@ -359,7 +359,7 @@
 
 ### 47. `scripts/player/progression/AscensionStageDef.cs`
 
-- 复审状态：**需跟进**；规模：32 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：32 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AscensionStageDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4。
 - 对抗性检视：
@@ -395,7 +395,7 @@
 
 ### 51. `scripts/player/progression/AttributeSnapshot.cs`
 
-- 复审状态：**需跟进**；规模：129 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：129 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AttributeSnapshotIdKind, AttributeSnapshot, struct；主要方法：ToStringName, SetValue, GetValue, HasValue, ToDictionary, GetBaseAttributeModifierId, CalculateScoreModifier, CalculateBaseAttackBonus, CalculateSpellProficiencyBonus, GetBabRateForProgression。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×1; runtime mutation collections×3。
 - 对抗性检视：
@@ -404,7 +404,7 @@
 
 ### 52. `scripts/player/progression/BarrierContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：210 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：210 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BarrierContentRegistry；主要方法：Rebuild, GetProfileDef, Validate, _scan_directory, _register_profile_resource, _append_profile_validation_errors, IsSupportedBarrierAreaPattern。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; resource/path loading×2; runtime mutation collections×22。
 - 对抗性检视：
@@ -413,7 +413,7 @@
 
 ### 53. `scripts/player/progression/BarrierLayerDef.cs`
 
-- 复审状态：**需跟进**；规模：57 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：57 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BarrierLayerDef；主要方法：ToRuntimeDict, _ToStringArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×2; runtime mutation collections×2。
 - 对抗性检视：
@@ -422,7 +422,7 @@
 
 ### 54. `scripts/player/progression/BarrierOutcomeDef.cs`
 
-- 复审状态：**需跟进**；规模：107 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：107 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BarrierOutcomeKind, BarrierOutcomeDef；主要方法：ToRuntimeDict, ToOutcomeKind, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×6。
 - 对抗性检视：
@@ -431,7 +431,7 @@
 
 ### 55. `scripts/player/progression/BarrierProfileDef.cs`
 
-- 复审状态：**需跟进**；规模：76 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：76 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BarrierAnchorMode, BarrierProfileDef；主要方法：GetOrderedLayers, ToAnchorMode, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×3。
 - 对抗性检视：
@@ -440,7 +440,7 @@
 
 ### 56. `scripts/player/progression/BattleSaveContentRules.cs`
 
-- 复审状态：**需跟进**；规模：237 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：237 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BattleSaveDcMode, BattleSaveAdvantageStateKind, BattleSaveTagKind, BattleSaveAbilityKind, BattleSaveContentRules；主要方法：IsValidSaveTag, IsValidSaveAbility, IsControlSaveTag, IsValidSaveDcMode, ToSaveDcMode, ToSaveTagKind, ToSaveAbilityKind, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×148。
 - 对抗性检视：
@@ -449,7 +449,7 @@
 
 ### 57. `scripts/player/progression/BloodlineContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：215 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：215 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BloodlineContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _register_bloodline, _register_bloodline_stage, _collect_validation_errors, _append_bloodline_validation_errors, _append_bloodline_stage_validation_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; resource/path loading×2; runtime mutation collections×19。
 - 对抗性检视：
@@ -458,7 +458,7 @@
 
 ### 58. `scripts/player/progression/BloodlineDef.cs`
 
-- 复审状态：**需跟进**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BloodlineDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5。
 - 对抗性检视：
@@ -467,7 +467,7 @@
 
 ### 59. `scripts/player/progression/BloodlineStageDef.cs`
 
-- 复审状态：**需跟进**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：29 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：BloodlineStageDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4。
 - 对抗性检视：
@@ -485,7 +485,7 @@
 
 ### 61. `scripts/player/progression/CombatCastVariantDef.cs`
 
-- 复审状态：**需跟进**；规模：84 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：84 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CombatCastFootprintPattern, CombatCastVariantDef；主要方法：ToFootprintPattern, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3。
 - 对抗性检视：
@@ -494,7 +494,7 @@
 
 ### 62. `scripts/player/progression/CombatEffectDef.cs`
 
-- 复审状态：**需跟进**；规模：659 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：659 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CombatEffectTriggerEvent, CombatEffectTriggerCondition, CombatEffectLifetimePolicy, CombatEffectDef；主要方法：MIN_JUMP_ARC_RATIO, ToTriggerEvent, ToTriggerCondition, ToLifetimePolicy, ToStringName, DuplicateForRuntime, GetIntParamTyped, GetStringNameParamTyped, GetFloatParamTyped, HasEffectTagTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; save/schema/projection×5; runtime mutation collections×8。
 - 对抗性检视：
@@ -512,7 +512,7 @@
 
 ### 64. `scripts/player/progression/CombatSkillDef.cs`
 
-- 复审状态：**需跟进**；规模：628 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：628 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CombatSpellFateMode, CombatSpellCriticalMode, CombatSkillBacklashMode, CombatAreaOriginMode, CombatAreaDirectionMode, CombatSkillDef；主要方法：GetCastVariant, GetUnlockedCastVariants, GetEffectiveResourceCostValues, GetLevelOverride, GetCachedLevelOverride, BuildLevelOverride, DuplicateLevelOverride, TryReadResourceCostOverride, GetEffectiveAttackRollBonus, GetEffectiveCastingTimeTu。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×27; runtime mutation collections×6。
 - 对抗性检视：
@@ -521,7 +521,7 @@
 
 ### 65. `scripts/player/progression/CombatSkillResourceCosts.cs`
 
-- 复审状态：**需跟进**；规模：23 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：23 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：struct；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1。
 - 对抗性检视：
@@ -557,7 +557,7 @@
 
 ### 69. `scripts/player/progression/DerivedAttributeRule.cs`
 
-- 复审状态：**需跟进**；规模：75 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：75 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：DerivedAttributeRule；主要方法：RefreshCache, _RebuildCache, evaluate。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×4。
 - 对抗性检视：
@@ -566,7 +566,7 @@
 
 ### 70. `scripts/player/progression/FaithDeityDef.cs`
 
-- 复审状态：**需跟进**；规模：104 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：104 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：FaithDeityDef；主要方法：GetRankDef, GetMaxRank, Validate, _has_rank_progress_reward。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; runtime mutation collections×9。
 - 对抗性检视：
@@ -575,7 +575,7 @@
 
 ### 71. `scripts/player/progression/FaithRankDef.cs`
 
-- 复审状态：**需跟进**；规模：172 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：172 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：struct, FaithRankDef；主要方法：HasCustomStatRequirement, HasAchievementRequirement, GetRewardEntrySpecs, Validate, ParseRewardEntrySpec, ReadStringName, ReadInt, ReadString, ReadValue。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; runtime mutation collections×13。
 - 对抗性检视：
@@ -584,7 +584,7 @@
 
 ### 72. `scripts/player/progression/IdentityContentRegistryBase.cs`
 
-- 复审状态：**需跟进**；规模：468 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：468 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：IdentityContentRegistryBase；主要方法：_allowed_attribute_id_set, Validate, _scan_directory, _sorted_registry_keys, _append_string_name_field_error, _append_string_field_error, _append_int_field_error, _append_bool_field_error, _append_string_name_array_errors, _append_string_array_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×25; runtime mutation collections×28。
 - 对抗性检视：
@@ -593,7 +593,7 @@
 
 ### 73. `scripts/player/progression/PartyMemberState.cs`
 
-- 复审状态：**需跟进**；规模：633 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：633 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：PartyMemberState；主要方法：DuplicateState, GetHiddenLuckAtBirth, GetFaithLuckBonus, GetEffectiveLuck, GetCombatLuckScore, GetDropLuck, ToDictionary, FromDictionary, _get_unit_base_attributes, _parse_string_name_field。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×34; save/schema/projection×6; runtime mutation collections×1。
 - 对抗性检视：
@@ -620,7 +620,7 @@
 
 ### 76. `scripts/player/progression/PendingProfessionChoice.cs`
 
-- 复审状态：**需跟进**；规模：302 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：302 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：PendingProfessionChoice；主要方法：SetTriggerSkillIds, AddTriggerSkillId, SetCandidateProfessionIds, AddCandidateProfessionId, SetQualifierSkillPoolIds, AddQualifierSkillPoolId, SetAssignableSkillCandidateIds, AddAssignableSkillCandidateId, SetTargetRank, SetTargetRankMap。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×2; runtime mutation collections×26。
 - 对抗性检视：
@@ -638,7 +638,7 @@
 
 ### 78. `scripts/player/progression/ProfessionContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：709 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：709 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProfessionContentRegistry, struct, struct；主要方法：Setup, Rebuild, LoadFromDirectory, Validate, ScanDirectory, RegisterProfessionResource, CollectValidationErrors, AppendProfessionValidationErrors, AppendUnlockRequirementErrors, AppendRankRequirementErrors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：resource/path loading×2; runtime mutation collections×60。
 - 对抗性检视：
@@ -647,7 +647,7 @@
 
 ### 79. `scripts/player/progression/ProfessionDef.cs`
 
-- 复审状态：**需跟进**；规模：159 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：159 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProfessionReactivationMode, ProfessionDependencyVisibilityMode, ProfessionBaseAttackProgression, ProfessionDef；主要方法：RequiresKnowledgeUnlock, ToReactivationMode, ToDependencyVisibilityMode, ToBabProgression, ToStringName, GetRankRequirement, GetGrantedSkillsForRank。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×1。
 - 对抗性检视：
@@ -665,7 +665,7 @@
 
 ### 81. `scripts/player/progression/ProfessionPromotionRecord.cs`
 
-- 复审状态：**需跟进**；规模：168 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：168 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProfessionPromotionRecord；主要方法：DuplicateState, ToDictionary, FromDictionary, _has_exact_fields, _parse_string_name_field, _parse_unique_string_name_array。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15; save/schema/projection×2; runtime mutation collections×4。
 - 对抗性检视：
@@ -692,7 +692,7 @@
 
 ### 84. `scripts/player/progression/ProfessionRankRequirement.cs`
 
-- 复审状态：**需跟进**；规模：26 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：26 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProfessionRankRequirement；主要方法：IsEmpty。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4。
 - 对抗性检视：
@@ -701,7 +701,7 @@
 
 ### 85. `scripts/player/progression/ProgressionContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：2421 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：2421 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProgressionContentRegistry；主要方法：Rebuild, GetQuestRegistrationErrorsTyped, GetIdentityCatalogTyped, Validate, ValidateTyped, ReplaceValidationSources, CollectValidationErrors, AppendIdentityPhase2ValidationErrors, CollectValidationErrorsTyped, CollectIdentityPhase2ValidationErrorsTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×100; runtime mutation collections×204。
 - 对抗性检视：
@@ -710,7 +710,7 @@
 
 ### 86. `scripts/player/progression/ProgressionDataUtils.cs`
 
-- 复审状态：**需跟进**；规模：216 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：216 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：ProgressionDataUtils；主要方法：to_string_name, string_name_to_string, to_string_name_array, string_name_array_to_string_array, to_string_name_int_map, string_name_int_map_to_string_dict, string_name_array_map_to_string_dict, sorted_string_keys, StringNameArrayToStringArray, MatchesValueRange。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×26; runtime mutation collections×13。
 - 对抗性检视：
@@ -728,7 +728,7 @@
 
 ### 88. `scripts/player/progression/QuestDef.cs`
 
-- 复审状态：**需跟进**；规模：806 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：806 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：QuestObjectiveKind, QuestRewardKind, QuestDef, ObjectiveEntryData, RewardEntryData, PendingRewardEntryData；主要方法：ToStringName, ToObjectiveKind, ToRewardKind, FromDictionary, InvalidNonDictionary, IsEmpty, ValidateSchema, GetObjectiveEntriesTyped, GetRewardEntriesTyped, HasExactSerializedFields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×48; save/schema/projection×12; runtime mutation collections×42。
 - 对抗性检视：
@@ -754,7 +754,7 @@
 
 ### 91. `scripts/player/progression/RaceContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：181 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：181 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：RaceContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _collect_validation_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; resource/path loading×2; runtime mutation collections×12。
 - 对抗性检视：
@@ -763,7 +763,7 @@
 
 ### 92. `scripts/player/progression/RaceDef.cs`
 
-- 复审状态：**需跟进**；规模：56 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：56 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：RaceDef；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10。
 - 对抗性检视：
@@ -790,7 +790,7 @@
 
 ### 97. `scripts/player/progression/SkillContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：2218 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：2218 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：SkillContentRegistry, struct；主要方法：FromEffect, ReadTargetSlotsMissingOrEmpty, Rebuild, LoadFromDirectory, Validate, ScanDirectory, RegisterSkillResource, NormalizeSkillDef, CollectValidationErrors, AppendSkillValidationErrors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×31; resource/path loading×2; runtime mutation collections×234。
 - 对抗性检视：
@@ -800,7 +800,7 @@
 
 ### 98. `scripts/player/progression/SkillDef.cs`
 
-- 复审状态：**需跟进**；规模：921 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：921 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：SkillTypeKind, SkillLearnSourceKind, SkillPracticeTierKind, SkillUnlockMode, CoreSkillTransitionMode, SkillDef, AttributeGrowthProgressEntryData, IntRequirementEntryData；主要方法：SetAttributeGrowthProgress, SetTags, HasTag, SetSkillLevelRequirements, SetAttributeRequirements, SetAttributeModifiers, SetLevelDescriptionConfigs, GetMasteryRequiredForLevel, IsProfessionSkill, CanUseInCombat。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×41; runtime mutation collections×93。
 - 对抗性检视：
@@ -818,7 +818,7 @@
 
 ### 100. `scripts/player/progression/StageAdvancementContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：172 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：172 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：StageAdvancementContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _collect_validation_errors, _append_stage_advancement_validation_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; resource/path loading×2; runtime mutation collections×14。
 - 对抗性检视：
@@ -827,7 +827,7 @@
 
 ### 101. `scripts/player/progression/StageAdvancementModifier.cs`
 
-- 复审状态：**需跟进**；规模：98 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：98 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：StageAdvancementTargetAxis, StageAdvancementModifier；主要方法：ToTargetAxis, ToStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4。
 - 对抗性检视：
@@ -836,7 +836,7 @@
 
 ### 102. `scripts/player/progression/SubraceContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：175 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：175 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：SubraceContentRegistry；主要方法：Rebuild, LoadFromDirectory, LoadFromDirectories, _collect_validation_errors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; resource/path loading×2; runtime mutation collections×11。
 - 对抗性检视：
@@ -872,7 +872,7 @@
 
 ### 106. `scripts/player/progression/UnitBaseAttributes.cs`
 
-- 复审状态：**需跟进**；规模：304 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：304 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：UnitBaseAttributeKind, UnitBaseAttributes；主要方法：GetBaseAttributeIdsTyped, IsBaseAttributeId, ToStringName, ToAttributeKind, GetAttributeValue, SetAttributeValue, GetHiddenLuckAtBirth, GetFaithLuckBonus, GetEffectiveLuck, GetCombatLuckScore。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15; save/schema/projection×2; runtime mutation collections×2。
 - 对抗性检视：
@@ -881,7 +881,7 @@
 
 ### 107. `scripts/player/progression/UnitProfessionProgress.cs`
 
-- 复审状态：**需跟进**；规模：233 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：233 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：UnitProfessionProgress, in；主要方法：AddCoreSkill, RemoveCoreSkill, AddGrantedSkill, AddPromotionRecord, DuplicateState, ToDictionary, FromDictionary, _has_exact_fields, _parse_string_name_field, _parse_unique_string_name_array。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×18; save/schema/projection×4; runtime mutation collections×8。
 - 对抗性检视：
@@ -898,7 +898,7 @@
 
 ### 109. `scripts/player/progression/UnitReputationState.cs`
 
-- 复审状态：**需跟进**；规模：105 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：105 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：UnitReputationKind, UnitReputationState；主要方法：GetReputationValue, SetReputationValue, DuplicateState, ToDictionary, FromDictionary, _hfs, _parse_int_map, ToStringName, ToReputationKind。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×2; runtime mutation collections×1。
 - 对抗性检视：
@@ -907,7 +907,7 @@
 
 ### 110. `scripts/player/progression/UnitSkillProgress.cs`
 
-- 复审状态：**需跟进**；规模：409 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：409 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：UnitSkillGrantSourceType, UnitSkillProgress；主要方法：IsMaxLevel, ClearProfessionAssignment, DuplicateState, ToDictionary, FromDictionary, ToGrantSourceType, ToStringName, _parse_string_name_field, _parse_unique_string_name_array, _has_exact_fields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; save/schema/projection×2; runtime mutation collections×5。
 - 对抗性检视：
@@ -916,7 +916,7 @@
 
 ### 111. `scripts/player/warehouse/EquipmentInstanceState.cs`
 
-- 复审状态：**需跟进**；规模：187 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：187 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：EquipmentInstanceState, RarityTier；主要方法：CreateInstance, CreateTransientInstance, FormatInstanceId, FormatPreviewInstanceId, ToDictionary, DuplicateState, FromDictionary, FromTransientLootDictionary, GetPayloadValidationError, _from_dict。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×2; runtime mutation collections×1。
 - 对抗性检视：
@@ -925,7 +925,7 @@
 
 ### 112. `scripts/player/warehouse/ItemContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：845 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：845 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：ItemContentRegistry；主要方法：Rebuild, RebuildFromDirectories, Validate, ValidateTyped, EnsureBuilt, EnsureDefaultSnapshotBuilt, ScanTemplateDirectory, RegisterTemplateResource, ResolveAllTemplates, ScanDirectory。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×30; resource/path loading×4; runtime mutation collections×96。
 - 对抗性检视：
@@ -934,7 +934,7 @@
 
 ### 113. `scripts/player/warehouse/ItemDef.cs`
 
-- 复审状态：**需跟进**；规模：354 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：354 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：ItemCategoryKind, ItemEquipmentTypeKind, WeaponPhysicalDamageTagKind, ItemDef；主要方法：GetEffectiveMaxStack, GetBasePrice, GetBuyPrice, GetSellPrice, GetTagsTyped, GetCraftingGroupsTyped, GetQuestGroupsTyped, GetItemCategoryNormalized, HasEquipmentCategory, GetEquipmentSlotIdsTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×9; runtime mutation collections×15。
 - 对抗性检视：
@@ -943,7 +943,7 @@
 
 ### 114. `scripts/player/warehouse/RecipeContentRegistry.cs`
 
-- 复审状态：**需跟进**；规模：246 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：246 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：RecipeContentRegistry；主要方法：Setup, Rebuild, LoadFromDirectory, Validate, ValidateTyped, _scan_directory, _register_recipe_resource。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; resource/path loading×2; runtime mutation collections×38。
 - 对抗性检视：
@@ -979,7 +979,7 @@
 
 ### 118. `scripts/player/warehouse/WarehouseStackState.cs`
 
-- 复审状态：**需跟进**；规模：43 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：43 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：WarehouseStackState；主要方法：IsEmpty, DuplicateState, ToDictionary, FromDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×2。
 - 对抗性检视：
@@ -988,7 +988,7 @@
 
 ### 119. `scripts/player/warehouse/WarehouseState.cs`
 
-- 复审状态：**需跟进**；规模：182 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：182 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：WarehouseState；主要方法：GetStacksTyped, GetNonEmptyStacksTyped, GetStackAt, AddStack, RemoveStackAt, ReplaceStacks, GetEquipmentInstancesTyped, GetNonEmptyEquipmentInstancesTyped, GetEquipmentInstanceAt, AddEquipmentInstance。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; save/schema/projection×6; runtime mutation collections×20。
 - 对抗性检视：
@@ -1006,7 +1006,7 @@
 
 ### 121. `scripts/player/warehouse/WeaponDamageDiceDef.cs`
 
-- 复审状态：**需跟进**；规模：85 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：85 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：WeaponDamageDiceDef；主要方法：ValidateDice, DuplicateDice, GetDiceCount, GetDiceSides, ToRollLabel。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×3。
 - 对抗性检视：
@@ -1015,7 +1015,7 @@
 
 ### 122. `scripts/player/warehouse/WeaponProfileDef.cs`
 
-- 复审状态：**需跟进**；规模：281 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：281 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：WeaponProfileDef, PropertyMergeMode；主要方法：MergeWithTemplate, DuplicateProfile, HasAttackRangeOverride, GetPropertiesTyped, Merge, MergeProfiles, NormalizePropertiesMode, _copy_profile_fields, _inherit_string_name, _inherit_dice。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×3; runtime mutation collections×8。
 - 对抗性检视：
@@ -1024,7 +1024,7 @@
 
 ### 123. `scripts/systems/attributes/AttributeService.cs`
 
-- 复审状态：**需跟进**；规模：1126 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：1126 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：AttributeIdKind, AttributeSourceKind, AttributeServiceKeyKind, AttributeService, struct, struct；主要方法：ToStringName, FromDictionary, ReadProtectedWriteFlag, Setup, SetupContext, InvalidateSnapshot, GetBaseValue, GetTotalValue, GetModifier, GetActionPoints。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; save/schema/projection×4; runtime mutation collections×57。
 - 对抗性检视：
@@ -1042,7 +1042,7 @@
 
 ### 125. `scripts/systems/battle/_interop/BattleTypedEnums.cs`
 
-- 复审状态：**需跟进**；规模：937 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：937 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleAiActionKind, BattleCommandKind, PendingCastBindingModeKind, PendingCastRefundPolicy, BattleEquipmentOperationKind, BattlePhaseKind, BattleModalStateKind, BattleUnitControlMode；主要方法：ToAiActionKind, ToStringName, ToCommandKind, ToPendingCastBindingMode, ToEquipmentOperationKind, ToPhaseKind, ToModalStateKind, ToControlMode, ToAreaPattern, GetAreaPatternDistanceContractBonus。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：未命中高危触点。
 - 对抗性检视：
@@ -1051,7 +1051,7 @@
 
 ### 126. `scripts/systems/battle/ai/BattleAiActionAssembler.cs`
 
-- 复审状态：**需跟进**；规模：1281 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1281 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiActionAssembler, in, in；主要方法：BuildUnitActionPlan, GetBrainStates, ClassifyKnownActiveSkills, GetActions, GetGenerationSlots, SortGenerationSlots, CloneRuntimeActions, CloneAction, EnableRuntimeActionDefaults, SlotMatchesAffordance。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×45; hot path / lifecycle×1。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
@@ -1085,7 +1085,7 @@
 
 ### 130. `scripts/systems/battle/ai/BattleAiContext.cs`
 
-- 复审状态：**需跟进**；规模：1197 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1197 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiContext, struct, RuntimeActionMetadata；主要方法：Clone, ContainsKey, MergeFrom, ExportMetadata, IsMetadataEmpty, ToDictionary, FromTraceDictionary, FromPlanMetadata, ShouldMerge, MergeStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×2; runtime mutation collections×83; hot path / lifecycle×1。
 - 对抗性检视：
@@ -1110,7 +1110,7 @@
 
 ### 133. `scripts/systems/battle/ai/BattleAiDecisionEngine.cs`
 
-- 复审状态：**需跟进**；规模：823 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：823 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiDecisionEngine, ScoreInputFacts, RuntimeActionResolution；主要方法：ChooseCommandImpl, IsBetterScoreInput, EvaluateAction, EvaluateCandidateAction, FailCandidateAction, DecideWithActionFallback, ResolveRuntimeActions, ForActions, ForWait, BuildWaitDecision。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; runtime mutation collections×7。
 - 对抗性检视：
@@ -1128,7 +1128,7 @@
 
 ### 135. `scripts/systems/battle/ai/BattleAiMoveToRangeCandidateEvaluator.cs`
 
-- 复审状态：**需跟进**；规模：1131 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1131 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiMoveToRangeCandidateEvaluator, GroundAoeSetupMetrics, struct, UnitAreaIndex；主要方法：IsUseful, From, CountUnitsInArea, PopCount, EvaluateMoveToRangeRequest, ApplyGroundAoeSetupScore, GetBestGroundAoeSetupMetrics, BuildBestGroundAoeSetupMetrics, BuildSetupScore, BuildFastMovePreview。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; save/schema/projection×8; runtime mutation collections×16。
 - 对抗性检视：
@@ -1137,7 +1137,7 @@
 
 ### 136. `scripts/systems/battle/ai/BattleAiMutationGuard.cs`
 
-- 复审状态：**需跟进**；规模：3584 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：3584 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiMutationGuard, BattleAiMutationSnapshot, BattleUnitSnapshot, BattleStateFieldsSnapshot, BattleUnitFieldsSnapshot, KnownFieldSnapshot, BattleAiBlackboardSnapshot, LayeredBarrierFieldsSnapshot；主要方法：Capture, ValidateAndRestoreTyped, ValidateAndRestoreReportTyped, Empty, CaptureStable, Restore, BuildCellDictionary, RestoreUnits, StableCells, StableUnits。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×82; save/schema/projection×13; runtime mutation collections×206; hot path / lifecycle×8。
 - 对抗性检视：
@@ -1155,7 +1155,7 @@
 
 ### 138. `scripts/systems/battle/ai/BattleAiPayloadGuard.cs`
 
-- 复审状态：**需跟进**；规模：520 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：520 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiPayloadGuard；主要方法：ValidateNoForbiddenObject, AbortFailLoudProcessIfRequested, FailLoud, ActionError, MutationViolation, CommandIsValueObject, PreviewHasNoLiveState, ScoreInputHasNoLiveState, FindForbiddenInTypedMap, FindForbiddenInTypedObject。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; scene/node/signal contract×2; runtime mutation collections×12。
 - 对抗性检视：
@@ -1164,7 +1164,7 @@
 
 ### 139. `scripts/systems/battle/ai/BattleAiQueryService.cs`
 
-- 复审状态：**需跟进**；规模：595 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：595 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiQueryService, struct, struct, SkillRecord；主要方法：Setup, SetupReadOnly, GetActorId, GetActorSnapshot, GetUnitSnapshot, GetLivingUnitSnapshotsTyped, TryGetSkillRecordTyped, IsUnitMovementBlocked, GetMapSize, DistanceFromAnchorToTarget。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×2; runtime mutation collections×48; hot path / lifecycle×3。
 - 对抗性检视：
@@ -1200,7 +1200,7 @@
 
 ### 143. `scripts/systems/battle/ai/BattleAiScoreInput.cs`
 
-- 复审状态：**需跟进**；规模：1455 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1455 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreInput；主要方法：Seal, IsSealed, MatchesSealedFingerprint, IsEmergencySurvivalScore, ToDictionary, FingerprintTypedState, AppendNamedCommandFingerprint, CopyCommandSlotIds, AppendNamedValueFingerprint, AppendValueFingerprint。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×29; save/schema/projection×22; runtime mutation collections×82。
 - 对抗性检视：
@@ -1218,7 +1218,7 @@
 
 ### 145. `scripts/systems/battle/ai/BattleAiScoreProfile.cs`
 
-- 复审状态：**需跟进**；规模：321 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：321 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiMeteorFriendlyFireProfile, BattleAiScoreProfile；主要方法：SetActionBaseScores, SetBucketPriorities, GetActionBaseScore, GetBucketPriority, ToMeteorFriendlyFireProfile, ToStringName, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; save/schema/projection×1; runtime mutation collections×12。
 - 对抗性检视：
@@ -1227,7 +1227,7 @@
 
 ### 146. `scripts/systems/battle/ai/BattleAiScoreRuntimeMetadata.cs`
 
-- 复审状态：**需跟进**；规模：486 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：486 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreRuntimeMetadata；主要方法：Clone, IsEmpty, ToDictionary, FromMetadata, FromRuntimeActionExportMetadata, MergeMetadata, MergeStringName, MergeNullableInt, MergeNullableVector, HasKey。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×1; runtime mutation collections×19。
 - 对抗性检视：
@@ -1236,7 +1236,7 @@
 
 ### 147. `scripts/systems/battle/ai/BattleAiScoreService.Effects.cs`
 
-- 复审状态：**需跟进**；规模：1378 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：1378 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, TargetEffectMetrics, TargetRoleSummary, struct；主要方法：Clone, FromEffect, ResolveMeteorUseCase, RecordMeteorHighPriorityTarget, ResolveMeteorHighPriorityReasons, ResolveComponentExpectedDamage, ResolveTargetRoleSummary, IsMeteorEliteOrBossTarget, ResolveMeteorThreatRank, ResolveMeteorThreatRankImpl。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; save/schema/projection×18; runtime mutation collections×47; hot path / lifecycle×3。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
@@ -1252,14 +1252,14 @@
 
 ### 149. `scripts/systems/battle/ai/BattleAiScoreService.Position.cs`
 
-- 复审状态：**需跟进**；规模：675 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：675 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, HitRatePreviewEstimate；主要方法：ResolveEstimatedPercent, FromPreviewData, ResolveTargetRoleThreatMultiplierBasisPoints, ResolveTargetRoleThreatMultiplierBasisPointsImpl, CollectRoleThreatEffectDefs, IsHealOrSupportSkill, IsControlSkill, IsDamageSkill, GetUnitSkillLevel, GetPreResistanceDamageMultiplier。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; runtime mutation collections×16; hot path / lifecycle×1。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 150. `scripts/systems/battle/ai/BattleAiScoreService.Projection.cs`
 
-- 复审状态：**需跟进**；规模：486 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：486 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, ThreatProjection, ThreatSkillEntry, ThreatProfile；主要方法：ShouldPopulateSurvivalProjection, GetCurrentActorThreatProjection, GetProjectedActorThreatProjection, SubtractSuppressedThreatsFromProjection, BuildProjectionSuppressionSignature, EmptyThreatProjection, ResolveProjectedActorCoord, ResolveActorSurvivalBudget, BuildSuppressedThreatUnitIds, CollectActorThreatProjection。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×24。
 - 对抗性检视：
@@ -1276,21 +1276,21 @@
 
 ### 152. `scripts/systems/battle/ai/BattleAiScoreService.cs`
 
-- 复审状态：**需跟进**；规模：859 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：859 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiScoreService, struct, struct, struct, ScoreBuildMetadata, ScoreRandomChainMetadata, ScorePositionMetadata, ScorePathStepAoeMetadata；主要方法：FromMetadata, Setup, SetProfile, BeginDecisionScope, EndDecisionScope, GetProfile, GetBucketPriority, BuildSkillScoreInput, BuildActionScoreInput, ResolvePrimaryCoord。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×46; hot path / lifecycle×13。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 153. `scripts/systems/battle/ai/BattleAiService.cs`
 
-- 复审状态：**需跟进**；规模：231 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：231 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiService；主要方法：Setup, SetScoreProfile, GetScoreProfile, GetScoreService, ChooseCommand, ChooseCommandImpl, BuildActionMutationCheckpoint, AbortMutationViolation, BuildWaitDecision, IsEmpty。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×3; hot path / lifecycle×4。
 - 建议验证：tests/battle_runtime/ai/ 下最近的 focused runner；避免默认跑 battle simulation/balance。
 
 ### 154. `scripts/systems/battle/ai/BattleAiSkillAffordanceClassifier.cs`
 
-- 复审状态：**需跟进**；规模：395 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：395 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiSkillAffordanceClassifier；主要方法：ClassifySkill, ClassifyOptions, ClassifySelectionMode, ClassifyEffectsAndTargetMode, ResolveTeamIntent, CollectEffectDefs, IsEffectUnlockedForLevel, IsDamageEffect, IsHealEffect, IsControlEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×4; runtime mutation collections×4。
 - 对抗性检视：
@@ -1308,7 +1308,7 @@
 
 ### 156. `scripts/systems/battle/ai/BattleAiStateResolver.cs`
 
-- 复审状态：**需跟进**；规模：444 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：444 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiStateResolver, TransitionResult, TransitionConditionTrace；主要方法：ResolveTyped, GetPreviousStateId, ResolveCurrentStateId, GetSortedRules, RuleAppliesToState, RuleMatches, ConditionMatches, GetUnitState, GetBattleState, HasAllyAtOrBelowHpBasisPoints。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×30。
 - 对抗性检视：
@@ -1326,15 +1326,15 @@
 
 ### 158. `scripts/systems/battle/ai/BattleAiTypedActionHelper.cs`
 
-- 复审状态：**确认问题**；规模：608 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：807 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiTypedActionHelper；主要方法：ResolveKnownSkillIds, GetSkillDef, GetSkillCastBlockReason, SortTargetUnits, GetUnitCastVariants, CollectUnitSkillEffectDefs, GetCastVariantTargetModeKind, BuildUnitSkillCommand, CreateDecision, CreateScoredDecision。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; runtime mutation collections×26。
-- 当前 finding：目标比较只覆盖距离与 HP；完全同分时没有稳定 `unit_id` 兜底，选择结果依赖 Dictionary 枚举顺序。
-- 建议验证：反转单位插入顺序后，相同战局应仍选择同一稳定 id。
+- 当前结论：目标比较保留威胁、HP 比例和距离优先级，并在这些指标完全相同时由 `CompareTargetUnitIds(...)` 按 `unit_id` ordinal 建立全序；Boss/Intercept/Defense objective 的显式目标置顶仍在排序后生效。相同战局的选择不再依赖 `BattleState` 单位插入或恢复顺序。
+- 建议验证：`run_battle_ai_unit_skill_candidate_evaluator_regression.cs` 会用正反两种单位插入顺序验证同一战局选择同一稳定目标。
 
 ### 159. `scripts/systems/battle/ai/BattleAiUnitSkillCandidateEvaluator.cs`
 
-- 复审状态：**需跟进**；规模：532 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：532 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiUnitSkillCandidateEvaluator；主要方法：Evaluate, HasExplicitDistanceContract, FormatSkillVariantLabel, BuildSkillScoreInput, PassesFriendlyFireLimits, BuildFastUnitSkillPreview, BeginActionTrace, TraceCountIncrement, TraceAddBlockReason, OfferCandidate。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×20。
 - 对抗性检视：
@@ -1343,7 +1343,7 @@
 
 ### 160. `scripts/systems/battle/ai/BattleAiUnitSnapshot.cs`
 
-- 复审状态：**需跟进**；规模：274 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
+- 复审状态：**通过**；规模：274 行；上下文：Battle AI/enemy content：重点检查 preview/commit 分离、mutation guard、score trace、content id。
 - 关键类型/入口：BattleAiUnitBlackboardSnapshot, BattleAiUnitSnapshot；主要方法：FromBlackboard, ToPayload, AddBool, FromUnit, CopyVector2IArray, CopyStringNameArray, CopyStringNameList, ToVector2IArray, ToStringNameArray, ToIntDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; runtime mutation collections×18。
 - 对抗性检视：
@@ -1388,7 +1388,7 @@
 
 ### 165. `scripts/systems/battle/core/AttackEffectResolutionResult.cs`
 
-- 复审状态：**需跟进**；规模：1175 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1175 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：AttackResolutionKind, CriticalSourceKind, ExecuteOutcomeKind, MitigationTierKind, DamageDiceMaxReasonKind, ReportEntryKind, AttackEffectResolutionResult, DamageEventResult；主要方法：ReadArray, ReadDictionary, ReadInt, ReadString, ReadStringName, ReadResolverResult, BuildGodotPayload, ParseAttackResolution, ParseCriticalSource, ParseExecuteOutcome。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×68; save/schema/projection×36; runtime mutation collections×37。
 - 对抗性检视：
@@ -1397,7 +1397,7 @@
 
 ### 166. `scripts/systems/battle/core/AttackPreviewData.cs`
 
-- 复审状态：**需跟进**；规模：199 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：199 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, AttackPreviewData；主要方法：SetAttackRollModifierBreakdown, SetAttackRollModifierBreakdownPayload, BuildAttackRollModifierBreakdownPayload, AddAttackRollModifierBreakdownPayloadDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; save/schema/projection×1; runtime mutation collections×13。
 - 对抗性检视：
@@ -1433,7 +1433,7 @@
 
 ### 170. `scripts/systems/battle/core/BattleAiBlackboard.cs`
 
-- 复审状态：**需跟进**；规模：291 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：291 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleAiBlackboard；主要方法：ContainsKey, has, Remove, get, GetStringName, GetInt, GetBool, SetStringName, SetText, SetInt。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×14。
 - 对抗性检视：
@@ -1451,7 +1451,7 @@
 
 ### 172. `scripts/systems/battle/core/BattleAttackRollModifierBundle.cs`
 
-- 复审状态：**需跟进**；规模：54 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：54 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleAttackRollModifierBundle；主要方法：IsEmpty, AddSpec, GetEffectiveModifierDelta, BuildBreakdownPayload, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×1; runtime mutation collections×3。
 - 对抗性检视：
@@ -1460,7 +1460,7 @@
 
 ### 173. `scripts/systems/battle/core/BattleAttackRollModifierSpec.cs`
 
-- 复审状态：**需跟进**；规模：501 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：501 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleAttackRollModifierStackMode, BattleAttackRollModifierEndpointMode, BattleAttackRollModifierFootprintMode, BattleAttackRollModifierApplyTarget, BattleAttackRollModifierSpec；主要方法：ToDictionary, ToPartialDictionary, ToDictionaryWithEffectiveModifierDelta, Clone, BuildDictionary, FromDictionary, FromPartialDictionary, ToStackMode, ToStringName, ToEndpointMode。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15; save/schema/projection×3; runtime mutation collections×3。
 - 对抗性检视：
@@ -1469,7 +1469,7 @@
 
 ### 174. `scripts/systems/battle/core/BattleBarrierInstanceState.cs`
 
-- 复审状态：**需跟进**；规模：231 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：231 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleBarrierInstanceState；主要方法：FromRuntimeDict, GetLayersTyped, SetLayers, ToRuntimeDict, LayerArray, HasKey, ReadString, ReadStringName, ReadInt, ReadBool。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×3; runtime mutation collections×10。
 - 对抗性检视：
@@ -1478,7 +1478,7 @@
 
 ### 175. `scripts/systems/battle/core/BattleBarrierLayerState.cs`
 
-- 复审状态：**需跟进**；规模：250 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：250 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleBarrierLayerState；主要方法：FromRuntimeDict, SetBlockedCategories, SetBreakerSkillIds, GetPassageOutcomesTyped, SetPassageOutcomes, ToRuntimeDict, ReplaceStringNameList, StringArray, OutcomeArray, HasKey。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×22; save/schema/projection×6; runtime mutation collections×21。
 - 对抗性检视：
@@ -1487,7 +1487,7 @@
 
 ### 176. `scripts/systems/battle/core/BattleBarrierOutcomeState.cs`
 
-- 复审状态：**需跟进**；规模：93 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：93 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleBarrierOutcomeState；主要方法：FromRuntimeDict, ToRuntimeDict, ReadStringName, ReadInt, ReadBool。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×9。
 - 对抗性检视：
@@ -1496,7 +1496,7 @@
 
 ### 177. `scripts/systems/battle/core/BattleCellState.cs`
 
-- 复审状态：**需跟进**；规模：709 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：709 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleCellState；主要方法：ClearOccupant, RecalculateRuntimeValues, SetBaseTerrain, SetHeightOffset, GetEdgeFeature, SetEdgeFeature, ClearEdgeFeature, DuplicateCell, ToDictionary, FromDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×60; save/schema/projection×16; runtime mutation collections×7。
 - 对抗性检视：
@@ -1505,7 +1505,7 @@
 
 ### 178. `scripts/systems/battle/core/BattleCommand.cs`
 
-- 复审状态：**需跟进**；规模：121 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：121 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleCommand；主要方法：IsMove, IsSkill, IsWait, IsChangeEquipment, IsCancelCast, SetEquipmentOccupiedSlotIds, SetTargetUnitIds, ClearTargetUnitIds, AddTargetUnitId, SetTargetCoords。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×16。
 - 对抗性检视：
@@ -1514,7 +1514,7 @@
 
 ### 179. `scripts/systems/battle/core/BattleCommonSkillOutcome.cs`
 
-- 复审状态：**需跟进**；规模：90 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：90 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, BattleCommonSkillOutcome；主要方法：AddChangedUnitId, AddChangedCoord, AddDefeatedUnitId, AddTargetResult, AddStatusEffectIds, IsEmpty。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×10。
 - 对抗性检视：
@@ -1523,7 +1523,7 @@
 
 ### 180. `scripts/systems/battle/core/BattleEdgeFaceState.cs`
 
-- 复审状态：**需跟进**；规模：59 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：59 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleEdgeFaceState；主要方法：HasDropFace, HasFeatureFace, HasAnyFace, BlocksMove, BlocksOccupancy。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1。
 - 对抗性检视：
@@ -1532,7 +1532,7 @@
 
 ### 181. `scripts/systems/battle/core/BattleEdgeFeatureState.cs`
 
-- 复审状态：**需跟进**；规模：372 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：372 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleEdgeFeatureKind, BattleEdgeRenderKind, BattleEdgeInteractionKind, BattleEdgeFeatureState；主要方法：IsEmpty, DuplicatesRenderOf, ToStringName, ToFeatureKind, ToRenderKind, ToInteractionKind, DuplicateFeature, ToDictionary, FromDictionary, MakeNone。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×2。
 - 对抗性检视：
@@ -1541,7 +1541,7 @@
 
 ### 182. `scripts/systems/battle/core/BattleEventBatch.cs`
 
-- 复审状态：**需跟进**；规模：263 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：263 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleEventBatch；主要方法：SetChangedUnitIds, ClearChangedUnitIds, AddChangedUnitId, ContainsChangedUnitId, SetChangedCoords, ClearChangedCoords, AddChangedCoord, ContainsChangedCoord, SetLogLines, ClearLogLines。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×26; runtime mutation collections×35。
 - 对抗性检视：
@@ -1568,7 +1568,7 @@
 
 ### 185. `scripts/systems/battle/core/BattlePreview.cs`
 
-- 复审状态：**需跟进**；规模：212 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：212 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattlePreview；主要方法：SetTargetUnitIds, ClearTargetUnitIds, AddTargetUnitId, ContainsTargetUnitId, SetTargetCoords, ClearTargetCoords, AddTargetCoord, ContainsTargetCoord, SetRandomChainCandidateUnitIds, ClearRandomChainCandidateUnitIds。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×18; save/schema/projection×1; runtime mutation collections×26。
 - 对抗性检视：
@@ -1577,7 +1577,7 @@
 
 ### 186. `scripts/systems/battle/core/BattleRepeatAttackStageSpec.cs`
 
-- 复审状态：**需跟进**；规模：277 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：277 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRepeatAttackStageSpec；主要方法：FromRepeatAttackEffect, ResolveStageAttackPenalty, WithBaseResourceCost, WithFateAware, ResolveResourceCostForStage, ResolvePenaltyFreeStages, ReadDictionary, ReadInt, ReadFloat, ReadBool。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15。
 - 对抗性检视：
@@ -1586,7 +1586,7 @@
 
 ### 187. `scripts/systems/battle/core/BattleResolutionResult.cs`
 
-- 复审状态：**需跟进**；规模：564 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：564 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleResolutionResult；主要方法：IsEmpty, GetConvertedCalamityShards, SetLootEntries, SetOverflowEntries, SetPendingCharacterRewards, ToDictionary, HasExactFields, NormalizeFormalDropEntryPayload, CreateBaseFormalDropEntry, NormalizeDropEntryOptions。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×54; save/schema/projection×21; runtime mutation collections×10。
 - 对抗性检视：
@@ -1595,7 +1595,7 @@
 
 ### 188. `scripts/systems/battle/core/BattleSpecialProfileGateResult.cs`
 
-- 复审状态：**需跟进**；规模：50 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：50 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpecialProfileGateResult；主要方法：ToDictionary, ToVariantBoundaryValue。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×1; runtime mutation collections×2。
 - 对抗性检视：
@@ -1604,7 +1604,7 @@
 
 ### 189. `scripts/systems/battle/core/BattleSpecialProfilePreviewFacts.cs`
 
-- 复审状态：**需跟进**；规模：174 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：174 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpecialProfilePreviewFacts；主要方法：GetFriendlyFireNumericSummary, GetAttackRollModifierBreakdown, ToStringNameArray, ToVector2IArray, ToTraceStringNameList, ToTraceVector2IList, ToTraceNumericSummaryList, ToTraceAttackRollModifierBreakdownList。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×2; runtime mutation collections×23。
 - 对抗性检视：
@@ -1613,7 +1613,7 @@
 
 ### 190. `scripts/systems/battle/core/BattleState.cs`
 
-- 复审状态：**需跟进**；规模：489 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：489 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleState, BattleCellEntry, BattleUnitEntry；主要方法：IsStrongAttackDisadvantageStatusId, StrongAttackDisadvantageStatusIdsTyped, MarkMovementGeometryChanged, ResetLogEntries, ClearLogEntries, AppendLogEntry, GetLogTextByteSize, NextAttackRollNonce, AllocateCastSequence, GetLogBudgetSummaryText。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×18; save/schema/projection×1; runtime mutation collections×22。
 - 对抗性检视：
@@ -1622,7 +1622,7 @@
 
 ### 191. `scripts/systems/battle/core/BattleStatusEffectState.cs`
 
-- 复审状态：**需跟进**；规模：1032 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1032 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleStatusEffectState；主要方法：IsEmpty, HasDuration, TryGetHealMultiplierPercentTyped, TryGetShieldGainMultiplierPercentTyped, TryGetAttackRollPenaltyTyped, CreateOrDuplicate, DuplicateState, ToDictionary, FromDictionary, BuildParamsProjection。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×42; save/schema/projection×14; runtime mutation collections×29。
 - 对抗性检视：
@@ -1631,7 +1631,7 @@
 
 ### 192. `scripts/systems/battle/core/BattleTimelineState.cs`
 
-- 复审状态：**需跟进**；规模：187 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：187 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleTimelineState；主要方法：clear, DuplicateState, ToDictionary, FromDictionary, StringNameArrayToStrings, HasExactSchemaFields, StringsToStringNameArray, TryGetStrictInt, TryReadBoolField, TryGetRawArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×25; save/schema/projection×2; runtime mutation collections×3。
 - 对抗性检视：
@@ -1640,7 +1640,7 @@
 
 ### 193. `scripts/systems/battle/core/BattleUnitState.cs`
 
-- 复审状态：**需跟进**；规模：2314 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：2314 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleWeaponProfileKind, BattleWeaponGripKind, BattleUnitState；主要方法：CreateDefaultUnlockedCombatResourceProjection, IsValidCombatResourceId, ToStringName, ToWeaponProfileKind, ToWeaponGripKind, HasPendingCast, IsCasting, SetPendingCast, ClearPendingCast, ClearCastingTurnFlags。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×99; save/schema/projection×42; runtime mutation collections×41。
 - 对抗性检视：
@@ -1667,7 +1667,7 @@
 
 ### 196. `scripts/systems/battle/core/WeaponDice.cs`
 
-- 复审状态：**需跟进**；规模：74 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：74 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：WeaponDice；主要方法：DuplicateState, IsEmpty, ToDictionary, FromDictionary, FromResource, GetInt, FromValues。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×2。
 - 对抗性检视：
@@ -1676,7 +1676,7 @@
 
 ### 197. `scripts/systems/battle/core/WeaponProjection.cs`
 
-- 复审状态：**需跟进**；规模：59 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：59 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：WeaponProjection；主要方法：DuplicateState, IsEmpty, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; save/schema/projection×3。
 - 对抗性检视：
@@ -1793,7 +1793,7 @@
 
 ### 210. `scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs`
 
-- 复审状态：**需跟进**；规模：576 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：576 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpecialProfileManifestValidator；主要方法：ValidateManifest, ValidateMeteorSwarmProfile, _append_impact_component_errors, _append_special_skill_effect_surface_errors, _append_forbidden_fallback_errors, _append_terrain_profile_errors, _append_accuracy_modifier_spec_errors, TryGetValue, ReadStringName, TryReadInt。
 - Godot/公开边界：Export 1 处；Signal 1 处；风险触点：Godot Dictionary/Array boundary×26; resource/path loading×2; runtime mutation collections×61。
 - 对抗性检视：
@@ -1802,7 +1802,7 @@
 
 ### 211. `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
 
-- 复审状态：**需跟进**；规模：305 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：305 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpecialProfileRegistry；主要方法：SetManifestDirectory, Rebuild, Validate, GetManifest, GetManifestForSkill, HasProfile, GetSnapshot, ValidateTyped, RegisterManifestResource, AppendProfileResourcePathErrors。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×14; resource/path loading×2; runtime mutation collections×34。
 - 对抗性检视：
@@ -1820,7 +1820,7 @@
 
 ### 213. `scripts/systems/battle/fate/BattleFateEventBus.cs`
 
-- 复审状态：**需跟进**；规模：98 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：98 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleFateEventBus；主要方法：dispatch, MakeReadOnlyValue, ToVariant。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; scene/node/signal contract×3; runtime mutation collections×2; string dynamic dispatch×1。
 - 对抗性检视：
@@ -1838,7 +1838,7 @@
 
 ### 215. `scripts/systems/battle/fate/FateRuntimeModule.cs`
 
-- 复审状态：**需跟进**；规模：717 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：717 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：FateRuntimeModule；主要方法：Setup, DisposeRuntime, BeginBattle, GetMemberCalamity, GetMemberCalamityCap, GetBlackStarBrandCastCost, HasMisfortuneReason, GetMisfortuneSkillCastBlockReason, ConsumeMisfortuneSkillCastResult, HandleMisfortuneTrigger。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×79; save/schema/projection×7; runtime mutation collections×22。
 - 对抗性检视：
@@ -1865,7 +1865,7 @@
 
 ### 218. `scripts/systems/battle/fate/LowLuckEventService.cs`
 
-- 复审状态：**需跟进**；规模：823 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：823 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：LowLuckFateEventPayload, LowLuckSettlementActionInput, struct, LowLuckBattleResolutionInput, struct, LowLuckEventResult, LowLuckEventKind, LowLuckEventService；主要方法：AddTriggeredEventId, AddLootEntry, AddPendingCharacterReward, ToStringName, Setup, HandleFateEvent, HandleBattleResolution, HandleSettlementAction, Dispose, TrackHardshipSurvival。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×48。
 - 对抗性检视：
@@ -1874,7 +1874,7 @@
 
 ### 219. `scripts/systems/battle/fate/MisfortuneGuidanceService.cs`
 
-- 复审状态：**需跟进**；规模：467 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：467 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：MisfortuneForgeGuidanceItemEntry, MisfortuneForgeGuidanceInput, MisfortuneGuidanceService；主要方法：NormalizeEntries, Setup, BindBattleRuntimeGateway, Dispose, HandleBattleResolution, HandleForgeResult, HandleForgeResultCore, ClearExaltedReadyFlags, MarkExaltedReadyFlags, MemberHadDevoutAdversity。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×5; runtime mutation collections×25。
 - 对抗性检视：
@@ -1883,7 +1883,7 @@
 
 ### 220. `scripts/systems/battle/fate/MisfortuneService.cs`
 
-- 复审状态：**需跟进**；规模：862 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：862 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：MisfortuneSkillKind, MisfortuneService, struct；主要方法：ToStringName, IsMisfortuneGatedSkill, GetSkillSidecarMissingMessage, GetSkillDefaultBlockMessage, TryGetSkillGateRule, Setup, BeginBattle, BindFateEventBus, GetMemberCalamity, GetMemberCalamityCap。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×65; runtime mutation collections×43。
 - 对抗性检视：
@@ -1901,7 +1901,7 @@
 
 ### 222. `scripts/systems/battle/presentation/BattleHudAdapter.cs`
 
-- 复审状态：**需跟进**；规模：2425 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：2425 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleHudAdapter, EquipmentPreviewRule；主要方法：EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE, SetupRuntimeContext, BuildSnapshot, BuildHoverPreview, FormatSelectedSkillHitBadgeText, BuildHoverTargetUnitSnapshot, BuildHeaderSubtitle, BuildRoundBadge, BuildQueueEntries, BuildFocusUnitSnapshot。
 - Godot/公开边界：Export 0 处；Signal 6 处；风险触点：Godot Dictionary/Array boundary×121; save/schema/projection×8; runtime mutation collections×81。
 - 对抗性检视：
@@ -1910,14 +1910,14 @@
 
 ### 223. `scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs`
 
-- 复审状态：**需跟进**；规模：814 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：814 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleAttackCheckPolicyService；主要方法：Setup, Dispose, BuildModifierBundle, BuildAttackContext, BuildAttackCheck, BuildAttackPreview, BuildRepeatAttackPreview, BuildRepeatAttackStageContext, BuildRepeatAttackStageHitCheck, BuildFateAwareRepeatAttackStageHitCheck。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：runtime mutation collections×36。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 224. `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
 
-- 复审状态：**需跟进**；规模：257 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：257 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamagePreviewRangeService, struct, struct, struct, struct, struct；主要方法：FromEffect, ToDictionary, DamageRangesToArray, BuildSkillDamagePreview, FormatDamageRangeText, BuildDamageEffectRange, BuildSkillDiceRange, BuildWeaponDiceRange, BuildDiceRange, ShouldAddWeaponDice。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×3; runtime mutation collections×5。
 - 对抗性检视：
@@ -1926,7 +1926,7 @@
 
 ### 225. `scripts/systems/battle/rules/BattleDamagePreviewResult.cs`
 
-- 复审状态：**需跟进**；规模：469 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：469 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamagePreviewSaveEstimate, BattleDamagePreviewResult；主要方法：Create, None, ToDictionary, BuildSaveSourceArray, BuildTraceSaveSourceList, Empty, BuildSaveEstimateArray, CloneTraceObjectList, CloneTraceObject, CloneTraceEnumerable。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×18; save/schema/projection×130; runtime mutation collections×34。
 - 对抗性检视：
@@ -1942,7 +1942,7 @@
 
 ### 227. `scripts/systems/battle/rules/BattleDamageResolver.Effects.cs`
 
-- 复审状态：**需跟进**；规模：1363 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1363 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamageResolver, struct；主要方法：ApplyDispelMagicEffect, ApplyEquipmentDurabilityDamageEffect, ResolveEquipmentDurabilitySave, SelectEquipmentForDurabilityDamage, BuildEquipmentDurabilitySelection, GetEquipmentDurabilityTargetSlots, IsEquipmentDurabilityEntryAllowed, GetEquipmentDurabilitySlotWeight, GetEquipmentDurabilityWeightForSlot, ResolveExecuteEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×51; save/schema/projection×44; runtime mutation collections×31; randomness/determinism×2。
 - 对抗性检视：
@@ -1952,7 +1952,7 @@
 
 ### 228. `scripts/systems/battle/rules/BattleDamageResolver.Events.cs`
 
-- 复审状态：**需跟进**；规模：397 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：397 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamageResolver；主要方法：ResolveAttackMetadata, ResolveSpellControlMetadata, BuildAttackMetadataResult, BuildAttackEffectContext, BuildTraitTriggerResultsArray, AttachAttackReportEntry, DispatchAttackResolutionEvents, DispatchSpellControlResolutionEvents, BuildAttackEventPayload, BuildSpellControlEventPayload。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×25; runtime mutation collections×10。
 - 对抗性检视：
@@ -1961,7 +1961,7 @@
 
 ### 229. `scripts/systems/battle/rules/BattleDamageResolver.Helpers.cs`
 
-- 复审状态：**需跟进**；规模：368 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：368 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamageResolver；主要方法：CoerceEffectDefs, ToValueArray, DuplicateDictionary, GetSkillDefTyped, TryGet, GetDictionary, GetArray, GetInt, GetFloat, GetString。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×44; save/schema/projection×1; runtime mutation collections×9。
 - 对抗性检视：
@@ -1970,7 +1970,7 @@
 
 ### 230. `scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs`
 
-- 复审状态：**需跟进**；规模：657 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：657 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleDamageResolver；主要方法：ResolveMitigationTierResult, AppendDamageResistanceSources, StatusAppliesToDamageTag, IsPhysicalDamageTag, BuildFixedMitigation, ResolveBuffReductionResult, ResolveStanceReductionResult, ResolvePassiveReductionResult, ResolveContentDrResult, ResolveGuardBlockResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×62; runtime mutation collections×16。
 - 对抗性检视：
@@ -2013,7 +2013,7 @@
 
 ### 235. `scripts/systems/battle/rules/BattleExecutionRules.cs`
 
-- 复审状态：**需跟进**；规模：256 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：256 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, struct, BattleExecutionRules；主要方法：Defaults, FromEffect, Normalize, IsEmpty, ResolveThreshold, BuildExecutePlan, IsBossTarget, IsEliteOrBossTarget, ResolveNonLethalDamage, BuildSoulFractureParams。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; save/schema/projection×4。
 - 对抗性检视：
@@ -2038,7 +2038,7 @@
 
 ### 238. `scripts/systems/battle/rules/BattleReportFormatter.cs`
 
-- 复审状态：**需跟进**；规模：899 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：899 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleReportFormatter, DamageResultSummary；主要方法：ToDictionary, FromDictionary, ReadInt, ReadString, ReadBool, ReadStringArray, ToStringArray, BuildAttackReportEntry, BuildSkillEventEntry, FormatMeteorSwarmSummary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×19; save/schema/projection×11; runtime mutation collections×25。
 - 对抗性检视：
@@ -2054,7 +2054,7 @@
 
 ### 240. `scripts/systems/battle/rules/BattleSkillResolutionRules.cs`
 
-- 复审状态：**需跟进**；规模：738 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：738 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSkillResolutionPolicy, BattleSkillResolutionRules；主要方法：ToDictionary, ToStringNameArray, ToEffectArray, BuildSkillResolutionPolicy, NormalizeTargetUnitIds, ShouldRouteSkillCommandToUnitTargeting, GetSkillVariantCommandErrorMessage, ShouldResolveUnitSkillAsFateAttack, IsForceHitNoCritSkill, ResolveGroundCastVariant。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×7; runtime mutation collections×38。
 - 对抗性检视：
@@ -2072,7 +2072,7 @@
 
 ### 242. `scripts/systems/battle/rules/BattleStatusSemanticTable.cs`
 
-- 复审状态：**需跟进**；规模：612 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：612 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, BattleStatusSemanticTable；主要方法：HasSemantic, IsHarmfulStatus, IsCleansableHarmfulStatus, BlocksPendingCast, IsDispellableHarmfulStatus, IsDispellableBeneficialStatus, IsDispellableHarmfulStatusEntry, IsDispellableBeneficialStatusEntry, GetDispelPriority, GetSemantic。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×3; runtime mutation collections×7。
 - 对抗性检视：
@@ -2090,7 +2090,7 @@
 
 ### 244. `scripts/systems/battle/rules/BattleTemporalStatusService.cs`
 
-- 复审状态：**需跟进**；规模：260 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：260 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：TemporalStatusReleaseKind, BattleTemporalStatusService；主要方法：HasTimeStasis, HasTimeSlow, HasTemporalCastBlock, GetActionProgressRatePercent, GetCastProgressRatePercent, ConsumeActionProgressGain, ConsumeCastProgressGain, IsTemporalStatusId, IsTemporalReleaseTargetStatusId, IsTemporalReleaseEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×4; runtime mutation collections×6。
 - 对抗性检视：
@@ -2099,7 +2099,7 @@
 
 ### 245. `scripts/systems/battle/runtime/AscensionTraitResolver.cs`
 
-- 复审状态：**需跟进**；规模：151 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：151 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：AscensionTraitResolver；主要方法：ApplyToUnit, _apply_identity_def_projection, _initialize_racial_skill_charges, _append_unique_string_names。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; runtime mutation collections×1。
 - 对抗性检视：
@@ -2117,7 +2117,7 @@
 
 ### 247. `scripts/systems/battle/runtime/BattleBarrierOutcomeResolver.cs`
 
-- 复审状态：**需跟进**；规模：581 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：581 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, BattleBarrierOutcomeResolver, struct, struct, struct；主要方法：FromOutcome, Setup, Dispose, ApplyPassageOutcomesResult, _ApplyOutcome, _ApplyDamageOutcome, _ApplyPoisonDeathOutcome, _ApplyStatusOutcome, _ApplyBanishOutcome, _ResolveOutcomeSave。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×61; runtime mutation collections×6; randomness/determinism×2。
 - 对抗性检视：
@@ -2126,14 +2126,14 @@
 
 ### 248. `scripts/systems/battle/runtime/BattleBarrierService.cs`
 
-- 复审状态：**需跟进**；规模：684 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：684 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, struct, BattleBarrierService, struct；主要方法：Empty, FromEffect, Setup, Dispose, ApplyLayeredBarrierEffectResult, AdvanceBarrierDurations, ResolveUnitBoundaryCrossingResult, ResolveSkillBarrierInteractionResult, ResolveGroundBarrierInteractionResult, _ResolveProjectedEffectBarrierInteractionResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; save/schema/projection×14; runtime mutation collections×19。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 249. `scripts/systems/battle/runtime/BattleCastingTimeService.cs`
 
-- 复审状态：**需跟进**；规模：720 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：720 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleCastingTimeService, struct；主要方法：Setup, Dispose, TryHandleCastingSkillStart, PreviewCancelCast, HandleCancelCast, ReconcilePendingCasts, AdvancePendingCasts, CompleteReadyPendingCasts, BuildStartPayload, ResolveCastingSpellControl。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; runtime mutation collections×9; randomness/determinism×2。
 - 对抗性检视：
@@ -2142,7 +2142,7 @@
 
 ### 250. `scripts/systems/battle/runtime/BattleChangeEquipmentResolver.cs`
 
-- 复审状态：**需跟进**；规模：1271 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1271 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleChangeEquipmentResult, ChangeEquipmentRuleResult, BattleChangeEquipmentResolver；主要方法：Clone, ToDictionary, CloneStringNameList, StringifyStringNames, Setup, Dispose, PreviewCommand, HandleCommand, GetUnitHpMax, GetUnitStaminaMax。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×3; runtime mutation collections×32。
 - 对抗性检视：
@@ -2151,7 +2151,7 @@
 
 ### 251. `scripts/systems/battle/runtime/BattleChargeResolver.cs`
 
-- 复审状态：**需跟进**；规模：1971 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1971 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleChargeResolver, struct, PathStepResult, ChargeBlockerResult, SidePushResult, TrapResult, ChargeTargetInfo；主要方法：FromEffect, Setup, DisposeRuntime, handle_charge_skill_command, handle_charge_skill_command_result, ValidateChargeCommandResult, BuildChargeStepAoePreviewCoords, GetChargePathStepAoeEffectDef, IsChargeOption, GetChargeEffectDef。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×36; save/schema/projection×1; runtime mutation collections×57。
 - 对抗性检视：
@@ -2160,7 +2160,7 @@
 
 ### 252. `scripts/systems/battle/runtime/BattleContributionEvent.cs`
 
-- 复审状态：**需跟进**；规模：82 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：82 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleContributionRelation, BattleContributionOriginKind, BattleContributionEvent；主要方法：ToDictionary, RelationToString, OriginKindToString。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; save/schema/projection×1。
 - 对抗性检视：
@@ -2169,7 +2169,7 @@
 
 ### 253. `scripts/systems/battle/runtime/BattleContributionEventBuilder.cs`
 
-- 复审状态：**需跟进**；规模：161 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：161 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleContributionEventBuilder；主要方法：FromUnits, FromDictionary, ResolveRelation, ParseRelation, ParseOriginKind, IsEmpty, ReadStringName, ReadInt, ReadBool, HasKey。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×1。
 - 对抗性检视：
@@ -2187,7 +2187,7 @@
 
 ### 255. `scripts/systems/battle/runtime/BattleForcedMoveContext.cs`
 
-- 复审状态：**需跟进**；规模：32 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：32 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct；主要方法：FromDirection, NormalizeAxisDirection。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; save/schema/projection×2。
 - 对抗性检视：
@@ -2196,7 +2196,7 @@
 
 ### 256. `scripts/systems/battle/runtime/BattleGroundEffectApplicationResult.cs`
 
-- 复审状态：**需跟进**；规模：42 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：42 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, struct；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×3; runtime mutation collections×2。
 - 对抗性检视：
@@ -2205,7 +2205,7 @@
 
 ### 257. `scripts/systems/battle/runtime/BattleGroundEffectService.cs`
 
-- 复审状态：**需跟进**；规模：2664 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：2664 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleGroundEffectService, struct, GroundUnitEffectResolution, EdgeAuthoringReference；主要方法：FromEffect, Setup, Dispose, append_result_report_entry, MarkAppliedStatusesForTurnTiming, append_result_source_status_effects, _record_effect_metrics, _record_unit_defeated, append_damage_result_log_lines, _build_skill_log_subject_label。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×60; save/schema/projection×4; runtime mutation collections×151。
 - 对抗性检视：
@@ -2214,7 +2214,7 @@
 
 ### 258. `scripts/systems/battle/runtime/BattleGroundSkillValidationResult.cs`
 
-- 复审状态：**需跟进**；规模：176 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：176 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct；主要方法：FromDictionary, Denied, AllowedResult, ToTargetCoordsArray, ToPreviewCoordsArray, ToDictionary, ToVector2IArray, ReadAllowedFlag, ReadString, ReadInt。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; save/schema/projection×2; runtime mutation collections×10。
 - 对抗性检视：
@@ -2232,7 +2232,7 @@
 
 ### 260. `scripts/systems/battle/runtime/BattleMagicBacklashResolver.cs`
 
-- 复审状态：**需跟进**；规模：339 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：339 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleMagicBacklashResolver；主要方法：ShouldResolveSpellControl, ApplySpellControlAfterCostResult, BuildGroundBacklashTargetCoordsResult, AppendGroundBacklashLog, ApplySpellCriticalBonus, ApplyFumbleProtectionMpDrain, CollectGroundAnchorDriftCandidates, GetFumbleProtectionUsed, SetFumbleProtectionUsed, GetMpMax。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; runtime mutation collections×10; randomness/determinism×2。
 - 对抗性检视：
@@ -2241,7 +2241,7 @@
 
 ### 261. `scripts/systems/battle/runtime/BattleMagicBacklashResult.cs`
 
-- 复审状态：**需跟进**；规模：282 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：282 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：class, struct, struct；主要方法：Empty, FromDictionary, ToDictionary, BoolField, IntField, StringNameField, IsEmpty, None, DictionaryField, TargetCoordsArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×23; save/schema/projection×8; runtime mutation collections×6。
 - 对抗性检视：
@@ -2259,7 +2259,7 @@
 
 ### 263. `scripts/systems/battle/runtime/BattleMetricsCollector.cs`
 
-- 复审状态：**需跟进**；规模：383 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：383 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleMetricEntry, BattleMetricsState, BattleMetricsCollector；主要方法：ToDictionary, IntMapToDictionary, Clear, Setup, Dispose, InitializeBattleMetrics, BuildUnitMetricEntry, EnsureUnitMetricEntry, EnsureFactionMetricEntry, RecordTurnStarted。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×8; runtime mutation collections×9。
 - 对抗性检视：
@@ -2268,7 +2268,7 @@
 
 ### 264. `scripts/systems/battle/runtime/BattleMovePathResult.cs`
 
-- 复审状态：**需跟进**；规模：111 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：111 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleMovePathResult, BattleMovePathTreeResult, BattleValidatedMoveExecutionResult；主要方法：ToDictionary, ToPathArray, ToVector2IArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×15; save/schema/projection×8; runtime mutation collections×9。
 - 对抗性检视：
@@ -2277,7 +2277,7 @@
 
 ### 265. `scripts/systems/battle/runtime/BattleMovementQueryService.cs`
 
-- 复审状态：**需跟进**；规模：2370 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：2370 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleMovementQueryService, struct, struct, CellInfo, UnitInfo, EdgeInfo, struct, struct；主要方法：ToSnapshot, ForPathSearchBudget, Failure, Success, Setup, CollectReachableAnchors, CollectDistanceBandDestinations, CollectDistanceBandPathTargets, CollectDistanceBandPathTargetsTyped, CollectDistanceBandPathTargetsTypedImpl。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×7; runtime mutation collections×82; hot path / lifecycle×3。
 - 对抗性检视：
@@ -2293,7 +2293,7 @@
 
 ### 267. `scripts/systems/battle/runtime/BattleRatingMemberStats.cs`
 
-- 复审状态：**需跟进**；规模：100 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：100 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRatingMemberStats；主要方法：FromUnit, ToDictionary, IsEmpty, ReadInt, ReadString, ReadStringName, ReadDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×1; runtime mutation collections×1。
 - 对抗性检视：
@@ -2302,7 +2302,7 @@
 
 ### 268. `scripts/systems/battle/runtime/BattleRatingSystem.cs`
 
-- 复审状态：**需跟进**；规模：512 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：512 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRatingSystem；主要方法：Setup, DisposeRuntime, InitializeBattleRatingStats, RecordSkillSuccess, RecordSkillEffectResult, RecordContributionFromUnits, RecordContributionEvent, RecordEnemyDefeatedAchievement, RecordBattleWonAchievements, FinalizeBattleRatingRewards。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×14; save/schema/projection×1; runtime mutation collections×9。
 - 对抗性检视：
@@ -2311,14 +2311,14 @@
 
 ### 269. `scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs`
 
-- 复审状态：**需跟进**；规模：928 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：928 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRepeatAttackResolver, struct；主要方法：FromEffect, GetStageDamageMultiplier, Setup, DisposeRuntime, ApplyRepeatAttackSkillResult, get_repeat_attack_effect_def, CollectRepeatAttackBaseEffects, BuildRuntimeStageSpec, BuildStageSpecFromRepeatAttackEffect, BuildStageSpecsFromRepeatAttackEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; runtime mutation collections×5。
 - 建议验证：tests/battle_runtime/runtime|rules|skills 下最近的 focused runner。
 
 ### 270. `scripts/systems/battle/runtime/BattleRuntimeLootResolver.cs`
 
-- 复审状态：**需跟进**；规模：596 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：596 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRuntimeLootResolver, ParsedDropDefinition；主要方法：ResolveWeakRef, Setup, Dispose, CollectDefeatedUnitLoot, BuildBattleResolutionResult, _IsEliteOrBossTarget, _CollectDefeatedUnitLoot, _ResolveEnemyTemplateForUnit, _BuildDefeatedUnitLootEntries, _ParseDropDefinition。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×13; save/schema/projection×5; runtime mutation collections×9。
 - 对抗性检视：
@@ -2327,7 +2327,7 @@
 
 ### 271. `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
 
-- 复审状态：**需跟进**；规模：5121 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：5121 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleRuntimeDictionaryOptions, BattleDefeatHandlingOptions, BattleStartOptions, BattleEndOptions, BattleStartFailureSnapshot, BattleRuntimeModule, in；主要方法：ReadBool, FromContext, FromDictionary, ToDictionary, ReadOptionalInt, ReadOptionalLong, ReadReachabilityPayload, ReadString, setup, FinishSetup。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×135; save/schema/projection×16; runtime mutation collections×190; hot path / lifecycle×19。
 - 对抗性检视：
@@ -2336,7 +2336,7 @@
 
 ### 272. `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
 
-- 复审状态：**需跟进**；规模：1802 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1802 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, struct, BattleRuntimeSkillTurnResolver；主要方法：Empty, Setup, DisposeRuntime, ResolveTurnControlStatusResult, IsTurnAiOverrideActive, ClearTurnAiOverride, BuildMadnessFallbackCommand, GetSkillCastBlockReason, UnitHasMeleeWeapon, UnitMatchesRequiredWeaponFamilies。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×18; runtime mutation collections×17。
 - 对抗性检视：
@@ -2345,7 +2345,7 @@
 
 ### 273. `scripts/systems/battle/runtime/BattleShieldService.cs`
 
-- 复审状态：**需跟进**；规模：536 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：536 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, BattleShieldService；主要方法：ToDictionary, Setup, DisposeRuntime, ApplyUnitShieldEffectsResult, ApplyShieldEffectToTargetResult, _write_unit_shield, BuildUnitShieldResult, _resolve_shield_hp, ResolveShieldHp, _roll_shield_hp。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; save/schema/projection×4; runtime mutation collections×21; randomness/determinism×2。
 - 对抗性检视：
@@ -2355,7 +2355,7 @@
 
 ### 274. `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs`
 
-- 复审状态：**需跟进**；规模：3986 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：3986 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSkillExecutionOrchestrator, struct, UnitSkillEffectResolution；主要方法：FromEffect, Setup, DisposeRuntime, append_result_report_entry, MarkAppliedStatusesForTurnTiming, append_result_source_status_effects, _record_action_issued, _record_skill_attempt, _record_effect_metrics, _record_unit_defeated。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×50; save/schema/projection×5; runtime mutation collections×115; hot path / lifecycle×17; randomness/determinism×4。
 - 对抗性检视：
@@ -2365,7 +2365,7 @@
 
 ### 275. `scripts/systems/battle/runtime/BattleSkillMasteryGrant.cs`
 
-- 复审状态：**需跟进**；规模：75 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：75 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSkillMasteryGrant；主要方法：FromDictionary, ReadStringName, ReadString, ReadInt, ReadBool。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×1。
 - 对抗性检视：
@@ -2374,7 +2374,7 @@
 
 ### 276. `scripts/systems/battle/runtime/BattleSkillMasteryService.cs`
 
-- 复审状态：**需跟进**；规模：951 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：951 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSkillMasteryService, SkillMasteryResultSnapshot, SkillMasteryResolutionEvent, SkillMasteryDamageEventSnapshot；主要方法：Clear, RecordTargetResult, RecordBonus, RecordMasteryAmount, ResolveActiveSkillMasteryAmount, ResolveMasteryRewardSkillId, BuildVajraBodyMasteryGrantTyped, BuildGuardMasteryGrantFromIncomingHitTyped, BuildBattleRatingMasteryRewardEntries, ResolveBattleRatingMasteryAmount。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×24; save/schema/projection×2; runtime mutation collections×19。
 - 对抗性检视：
@@ -2383,7 +2383,7 @@
 
 ### 277. `scripts/systems/battle/runtime/BattleSkillOutcomeCommitter.cs`
 
-- 复审状态：**需跟进**；规模：245 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：245 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSkillOutcomeCommitter；主要方法：Setup, Dispose, CommitCommonOutcome, CommitMeteorSwarmResult, CommitTargetContributions, CommitStatusTurnTiming, CommitDefeatedUnits, GetUnit, IsEmpty, BuildCommonOutcomeFromMeteorResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; runtime mutation collections×4。
 - 对抗性检视：
@@ -2392,7 +2392,7 @@
 
 ### 278. `scripts/systems/battle/runtime/BattleSpawnReachabilityService.cs`
 
-- 复审状态：**需跟进**；规模：988 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：988 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpawnReachabilityOptions, BattleSpawnReachabilityResult, BattleSpawnReachabilityUnitResult, BattleSpawnReachabilityService, BattleSpawnReachabilityAttackSkill, BattleSpawnReachabilityAttackTarget, BattleSpawnReachabilitySearchResult, BattleSpawnReachabilityAttackMatch；主要方法：Invalid, AddInvalidEnemy, AddInvalidPlayer, ToDictionary, ToStringNameArray, IsEmpty, ValidateStateTyped, _ValidateAttackerUnit, _CollectLivingUnits, _CollectAttackSkills。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×9; save/schema/projection×3; runtime mutation collections×66。
 - 对抗性检视：
@@ -2401,7 +2401,7 @@
 
 ### 279. `scripts/systems/battle/runtime/BattleSpecialProfileGate.cs`
 
-- 复审状态：**需跟进**；规模：289 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：289 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleSpecialProfileGate, SpecialProfileGateSnapshot, struct；主要方法：Setup, PreflightSkill, PreviewSkill, CanExecuteSkill, EvaluateSkill, Block, Empty, FromDictionary, ReadDictionary, ReadStringList。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×4; runtime mutation collections×11。
 - 对抗性检视：
@@ -2410,7 +2410,7 @@
 
 ### 280. `scripts/systems/battle/runtime/BattleSpecialSkillResolver.cs`
 
-- 复审状态：**需跟进**；规模：1468 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1468 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct, BattleSpecialSkillResolver, struct, struct；主要方法：Empty, ToDictionary, FromStatus, Setup, Dispose, IsUnitValidForEffect, ApplySkillMasteryGrant, ApplySkillMasteryGrantTyped, AppendChangedCoords, AppendChangedUnitId。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×26; save/schema/projection×4; runtime mutation collections×48。
 - 对抗性检视：
@@ -2419,7 +2419,7 @@
 
 ### 281. `scripts/systems/battle/runtime/BattleTargetCollectionResult.cs`
 
-- 复审状态：**需跟进**；规模：53 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：53 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleTargetCollectionResult；主要方法：HandledResult, UnhandledResult, ToDictionary, ToTargetCoordsArray, SortCoords。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1; runtime mutation collections×5。
 - 对抗性检视：
@@ -2437,7 +2437,7 @@
 
 ### 283. `scripts/systems/battle/runtime/BattleTimelineDriver.cs`
 
-- 复审状态：**需跟进**；规模：823 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：823 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleTimelineDriver；主要方法：Setup, Dispose, AdvanceTimeline, _RecordTurnStarted, _GetUnitStaminaMax, _AppendChangedUnitId, _CollectDefeatedUnitLoot, _ClearDefeatedUnit, _AdvanceUnitTurnTimers, _ApplyTurnStartStatuses。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×3; runtime mutation collections×19。
 - 对抗性检视：
@@ -2446,7 +2446,7 @@
 
 ### 284. `scripts/systems/battle/runtime/BattleUnitFactory.cs`
 
-- 复审状态：**需跟进**；规模：1103 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：1103 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：BattleUnitFactory, AllyUnitDefaults, EnemyUnitDefaults, EnemyWeaponDefaults；主要方法：_snap, _csd, _gv, _sv, Setup, DisposeRuntime, GetCharacterGateway, GetTerrainGenerator, GetMemberState, GetMemberAttributeSnapshot。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×53; save/schema/projection×1; runtime mutation collections×37。
 - 对抗性检视：
@@ -2455,7 +2455,7 @@
 
 ### 285. `scripts/systems/battle/runtime/BattleUnitSkillValidationResult.cs`
 
-- 复审状态：**需跟进**；规模：109 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：109 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：struct；主要方法：Denied, AllowedResult, ToTargetUnitIdsArray, ToTargetUnitsArray, ToRandomChainCandidateUnitIdsArray, ToPreviewCoordsArray, ToDictionary, ToStringNameArray, ToUnitArray, ToVector2IArray。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×1; runtime mutation collections×14。
 - 对抗性检视：
@@ -2464,7 +2464,7 @@
 
 ### 286. `scripts/systems/battle/runtime/IBattleRatingCharacterGateway.cs`
 
-- 复审状态：**需跟进**；规模：91 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：91 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：IBattleRatingCharacterGateway, IBattleRuntimeCharacterGateway；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; runtime mutation collections×1。
 - 对抗性检视：
@@ -2473,7 +2473,7 @@
 
 ### 287. `scripts/systems/battle/runtime/PassiveStatusOrchestrator.cs`
 
-- 复审状态：**需跟进**；规模：43 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：43 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：PassiveStatusOrchestrator；主要方法：ApplyToUnit, _clear_identity_projection, _suppresses_original_race_traits。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; runtime mutation collections×1。
 - 对抗性检视：
@@ -2482,7 +2482,7 @@
 
 ### 288. `scripts/systems/battle/runtime/RaceTraitResolver.cs`
 
-- 复审状态：**需跟进**；规模：156 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：156 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：RaceTraitResolver；主要方法：ApplyToUnit, _apply_identity_def_projection, _initialize_racial_skill_charges, _append_unique_string_names, _merge_damage_resistances。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; runtime mutation collections×1。
 - 对抗性检视：
@@ -2491,7 +2491,7 @@
 
 ### 289. `scripts/systems/battle/runtime/SkillPassiveResolver.cs`
 
-- 复审状态：**需跟进**；规模：350 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：350 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：SkillPassiveResolver；主要方法：ApplyToUnit, GetSkillProgress, SyncVajraBodyStatus, ResolveVajraBodyEffectiveLevel, SyncShootingSpecializationStatus, IsSkillPassiveActive, SyncLastStandStatus, BuildPassiveSkillStatus, GetSkillDef。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×4; runtime mutation collections×6。
 - 对抗性检视：
@@ -2500,7 +2500,7 @@
 
 ### 291. `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
 
-- 复审状态：**需跟进**；规模：560 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
+- 复审状态：**通过**；规模：560 行；上下文：Battle runtime/rules：重点检查 AP/TU/cost/cooldown、preview-vs-execution、state mutation。
 - 关键类型/入口：TraitDispatchResult, TraitTriggerHooks, struct；主要方法：ToDictionary, BuildPayload, IsEmpty, FromDictionary, HasDispatchForTraitTrigger, get_dispatch_trait_ids, OnNaturalOne, OnCrit, OnFatalDamage, OnBattleStartResult。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×24; save/schema/projection×2; runtime mutation collections×8。
 - 对抗性检视：
@@ -2526,7 +2526,7 @@
 
 ### 294. `scripts/systems/battle/sim/BattleSimFactionMetricSummary.cs`
 
-- 复审状态：**需跟进**；规模：58 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：58 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimFactionMetricSummary；主要方法：AccumulateFrom, ToDictionary, ReadInt。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1。
 - 对抗性检视：
@@ -2535,7 +2535,7 @@
 
 ### 295. `scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs`
 
-- 复审状态：**需跟进**；规模：1403 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：1403 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimFormalRosterOptionsData, BattleSimFormalCombatFixture, in；主要方法：SetupContent, BuildRoster, _apply_content_catalogs, BuildRuntimeContext, ApplyStartedBattleMetadata, GetPartyState, GetMemberState, HasItemDefCatalog, GetItemDef, GetMemberAttributeSnapshotForEquipmentView。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×85; runtime mutation collections×56; randomness/determinism×6。
 - 对抗性检视：
@@ -2544,7 +2544,7 @@
 
 ### 296. `scripts/systems/battle/sim/BattleSimOutputFiles.cs`
 
-- 复审状态：**需跟进**；规模：22 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：22 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimOutputFiles；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2; save/schema/projection×8。
 - 对抗性检视：
@@ -2553,7 +2553,7 @@
 
 ### 297. `scripts/systems/battle/sim/BattleSimOverrideApplier.cs`
 
-- 复审状态：**需跟进**；规模：495 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：495 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimOverrideApplier；主要方法：ApplyProfileTyped, ApplyPatchEntryTyped, _resolve_action_resource, GetBrainStates, _set_value_by_path, _set_value_recursive, _resolve_dictionary_key, _object_has_property, _coerce_value, ToVariant。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×19; runtime mutation collections×22。
 - 对抗性检视：
@@ -2571,7 +2571,7 @@
 
 ### 299. `scripts/systems/battle/sim/BattleSimProfileComparison.cs`
 
-- 复审状态：**需跟进**；规模：59 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：59 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimProfileComparison；主要方法：ToDictionary, ToIntDictionary, ToFloatDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×1; runtime mutation collections×7。
 - 对抗性检视：
@@ -2580,7 +2580,7 @@
 
 ### 300. `scripts/systems/battle/sim/BattleSimProfileDef.cs`
 
-- 复审状态：**需跟进**；规模：37 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：37 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimProfileDef；主要方法：ToDictionary, ToDict。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×2。
 - 对抗性检视：
@@ -2589,7 +2589,7 @@
 
 ### 301. `scripts/systems/battle/sim/BattleSimProfileReportEntry.cs`
 
-- 复审状态：**需跟进**；规模：24 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：24 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimProfileReportEntry；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; save/schema/projection×3; runtime mutation collections×2。
 - 对抗性检视：
@@ -2630,7 +2630,7 @@
 
 ### 306. `scripts/systems/battle/sim/BattleSimScenarioDef.cs`
 
-- 复审状态：**需跟进**；规模：231 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：231 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimScenarioDef；主要方法：ResolveSeeds, BuildStartContext, ToDictionary, _build_unit_payloads, _build_spawn_coords, _build_cells, _resolve_override_coord, _apply_cell_override。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×20; save/schema/projection×3; runtime mutation collections×9。
 - 对抗性检视：
@@ -2647,7 +2647,7 @@
 
 ### 309. `scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs`
 
-- 复审状态：**需跟进**；规模：1535 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：1535 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimTraceSummaryBuilder, IGodotDictionaryConvertible, TraceSummaryOptionsData, CompactRunTraceData, CompactTurnTraceData, CompactActionTraceData, CompactTopCandidateData, CompactCommandSummaryData；主要方法：HasTraces, Build, BuildCompactRunTraceData, SummarizeActionTracesData, SummarizeTopCandidatesData, SummarizeTraceCommandData, SummarizeExecutionResultData, SummarizeUnitResultsData, SummarizeUnitSnapshotsData, SummarizeUnitSnapshotData。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×27; save/schema/projection×94; runtime mutation collections×117。
 - 对抗性检视：
@@ -2656,7 +2656,7 @@
 
 ### 310. `scripts/systems/battle/sim/BattleSimUnitSpec.cs`
 
-- 复审状态：**需跟进**；规模：480 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：480 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleSimUnitSpec；主要方法：ToBattleUnitState, ApplyAttributeDefaults, BuildFormalAttributeSnapshot, CalculateInitialHpMax, ApplyAcComponentOverridesToProgress, ApplyAttributeOverrides, IsFormalAttributeOverride, GetBaseAttributeValue, HasAttributeOverride, GetAttributeOverride。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; runtime mutation collections×4。
 - 对抗性检视：
@@ -2665,7 +2665,7 @@
 
 ### 311. `scripts/systems/battle/terrain/BattleEdgeService.cs`
 
-- 复审状态：**需跟进**；规模：416 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：416 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleEdgeService, EdgeLookup；主要方法：EnsureRuntimeEdgeFaces, MarkRuntimeEdgeFacesDirty, BuildEdgeFacesForCells, GetAllEdgeFaces, GetEdgeFace, GetEdgeFaceFromCache, IsTraversableBetween, IsTraversableInCache, IsEdgeFaceTraversable, BlocksOccupancyBetween。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×25; save/schema/projection×2; runtime mutation collections×2。
 - 对抗性检视：
@@ -2674,7 +2674,7 @@
 
 ### 312. `scripts/systems/battle/terrain/BattleGridDistanceService.cs`
 
-- 复审状态：**需跟进**；规模：52 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：52 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleGridDistanceService；主要方法：GetDistance, GetDistanceFromUnitToCoord, GetDistanceBetweenUnits。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
 - 对抗性检视：
@@ -2683,7 +2683,7 @@
 
 ### 313. `scripts/systems/battle/terrain/BattleGridService.cs`
 
-- 复审状态：**需跟进**；规模：2209 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：2209 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：struct, BattleGridService, MovePathNode, struct；主要方法：GetCellState, HasCell, GetCellBaseTerrainId, GetUnitAtCoord, IsInside, GetNeighbors4, GetFootprintCoords, GetUnitTargetCoords, GetDistance, GetAreaCoords。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×40; save/schema/projection×5; runtime mutation collections×58。
 - 对抗性检视：
@@ -2692,7 +2692,7 @@
 
 ### 314. `scripts/systems/battle/terrain/BattleTerrainEffectState.cs`
 
-- 复审状态：**需跟进**；规模：631 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：631 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleTerrainEffectState；主要方法：CopyResidualParams, ToDictionary, FromDictionary, ToDictionaryArray, FromDictionaryArray, DuplicateArray, HasExactSerializedFields, BuildParamsProjection, GetString, GetStringName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×67; save/schema/projection×29; runtime mutation collections×19。
 - 对抗性检视：
@@ -2701,7 +2701,7 @@
 
 ### 315. `scripts/systems/battle/terrain/BattleTerrainEffectSystem.cs`
 
-- 复审状态：**需跟进**；规模：615 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：615 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleTerrainEffectSystem；主要方法：_ResolveRuntime, Setup, GetMoveCostDeltaForUnitTarget, UpsertTimedTerrainEffect, ProcessTimedTerrainEffects, ApplyTimedTerrainEffectTick, _GetTimedTerrainMoveCostDelta, _IsBlockedByNonstackingStatus, _UnitHasAnyStatus, _BuildTimedTerrainEffect。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; save/schema/projection×6; runtime mutation collections×9。
 - 对抗性检视：
@@ -2710,15 +2710,15 @@
 
 ### 316. `scripts/systems/battle/terrain/BattleTerrainGenerator.cs`
 
-- 复审状态：**架构债，非 correctness finding**；规模：1776 行；上下文：battle terrain generation。
-- 关键类型/入口：BattleTerrainProfileKind, BattleTerrainGenerator, TerrainQualityResult；主要方法：ToStringName, ToProfileKind, Generate, ResolveTerrainProfileId, NormalizeWaterHeights, GenerateDefault, GenerateCanyon, GenerateNarrowAssault, GenerateHoldoutPush, BuildLayout。
+- 复审状态：**已解决**；当前规模约 1879 行；上下文：battle terrain generation。
+- 关键类型/入口：BattleTerrainProfileKind, BattleTerrainGenerator, BattleTerrainLayout, TerrainQualityResult；主要方法：ToStringName, ToProfileKind, GenerateTyped, ResolveTerrainProfileId, GenerateDefault, GenerateCanyon, GenerateNarrowAssault, GenerateHoldoutPush, BuildLayout。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×103; save/schema/projection×3; runtime mutation collections×61; randomness/determinism×2。
-- 当前结论：terrain RNG 已受稳定 seed 驱动；剩余问题是正式算法仍做 typed cells → `GDictionary` → typed cells 往返，增加分配与双重校验漂移风险。
-- 建议验证：保持固定 seed 地形回归；只有重构 typed boundary 时才补 allocation/投影等价性测试。
+- 当前结论：terrain RNG 继续由地形 seed 驱动，正式算法通过一次性 `BattleTerrainLayout` 保持 typed cells/spawns，并由 `TakeCells()` 把唯一 cell graph 移交 `BattleState`；原 typed cells → `GDictionary` → typed cells 往返已删除。
+- 建议验证：保持固定 seed、四种正式 profile、出生点避水、columns 重建、单次 ownership transfer、启动重试和异常清理回归。
 
 ### 317. `scripts/systems/battle/terrain/BattleTerrainRules.cs`
 
-- 复审状态：**需跟进**；规模：282 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：282 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleTerrainKind, BattleTerrainRules；主要方法：ToStringName, ToTerrainKind, NormalizeTerrainId, IsWaterTerrain, GetGlobalPassable, GetBaseMoveCost, CanUnitEnterTerrain, GetUnitMoveCost, GetDisplayName, CanHostTent。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×1。
 - 对抗性检视：
@@ -2736,7 +2736,7 @@
 
 ### 319. `scripts/systems/battle/terrain/BattleVirtualBoardOverlay.cs`
 
-- 复审状态：**需跟进**；规模：157 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：157 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：BattleVirtualBoardOverlay；主要方法：ReleaseUnit, PlaceUnit, GetOccupant, HasOverride, Describe, CopyDictionary, NormalizeStringName, IsEmpty, Fail。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×18; save/schema/projection×6; runtime mutation collections×9。
 - 对抗性检视：
@@ -2745,7 +2745,7 @@
 
 ### 320. `scripts/systems/content/GameContentCatalog.cs`
 
-- 复审状态：**需跟进**；规模：194 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：194 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：GameContentCatalog；主要方法：BindSession, ClearSessionBinding, Rebuild, ResetSnapshot, GetRevision, HasSessionTyped, GetSessionTyped, IsBoundToSession, GetProgressionContentRegistryTyped, GetProgressionIdentityCatalogTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×26。
 - 建议验证：dotnet build magic.csproj；必要时补最近 domain 的 headless runner。
@@ -2786,7 +2786,7 @@
 
 ### 327. `scripts/systems/fate/LowLuckRelicRules.cs`
 
-- 复审状态：**需跟进**；规模：217 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：217 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：LowLuckRelicItemKind, LowLuckRelicAttributeKind, LowLuckRelicStatusKind, LowLuckPathTagKind, LowLuckRelicRules；主要方法：ToStringName, ToItemKind, ToAttributeKind, ToStatusKind, SnapshotHasFlag, UnitHasFlag, NormalizePathTags, ShouldRevealHiddenPath, ToPathTagKind, MemberHasItem。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×2; runtime mutation collections×5。
 - 对抗性检视：
@@ -2804,14 +2804,14 @@
 
 ### 329. `scripts/systems/game_runtime/BattleSessionFacade.cs`
 
-- 复审状态：**需跟进**；规模：1138 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
+- 复审状态：**通过**；规模：1138 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：BattleSessionFacade；主要方法：Setup, GetSelectedBattleSkillName, GetSelectedBattleSkillVariantName, GetSelectedBattleSkillTargetCoords, GetSelectedBattleSkillTargetUnitIds, GetSelectedBattleSkillValidTargetCoords, GetSelectedBattleSkillRequiredCoordCount, GetBattleMovementReachableCoords, GetBattleOverlayTargetCoords, GetBattleActiveUnitName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6; runtime mutation collections×10; randomness/determinism×1。
 - 建议验证：godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs。
 
 ### 330. `scripts/systems/game_runtime/GameRuntimeBattleLootCommitService.cs`
 
-- 复审状态：**需跟进**；规模：899 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
+- 复审状态：**通过**；规模：899 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：GameRuntimeBattleLootCommitService, ItemCommitResult, BattleLootCommitResult；主要方法：Create, Success, Setup, CommitBattleLootToSharedWarehouseTyped, ClearRegularBattleCalamityShardFlags, BuildBattleResolutionStatusMessageTyped, BuildLastBattleLootSnapshotTyped, FormatBattleDropEntries, CommitBattleLootToSharedWarehouseInternal, CommitFixedItemLootEntry。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×44; save/schema/projection×7; runtime mutation collections×15。
 - 对抗性检视：
@@ -2838,7 +2838,7 @@
 
 ### 333. `scripts/systems/game_runtime/GameRuntimeBattleWritebackService.cs`
 
-- 复审状态：**需跟进**；规模：548 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
+- 复审状态：**通过**；规模：548 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：GameRuntimeBattleWritebackService, BattleLocalWritebackResult, BattleLocalCandidateValidationResult；主要方法：Success, Failed, FromFailureDictionary, ToDictionary, Setup, CommitBattleLocalViewsToPartyStateTyped, ReportConsistencyFailure, ReportInoptionFailure, CommitBattleLocalViewsToPartyStateInternal, ClonePartyStateForBattleWriteback。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：save/schema/projection×3; runtime mutation collections×7。
 - 对抗性检视：
@@ -2890,7 +2890,7 @@
 
 ### 339. `scripts/systems/game_runtime/GameRuntimePendingSubmapPrompt.cs`
 
-- 复审状态：**需跟进**；规模：63 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
+- 复审状态：**通过**；规模：63 行；上下文：Game runtime facade/handler：重点检查 modal state、world/battle切换、handler ownership、typed boundary。
 - 关键类型/入口：GameRuntimePendingSubmapPrompt；主要方法：Set, Clear, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×1。
 - 对抗性检视：
@@ -2918,7 +2918,7 @@
 - 复审状态：**架构债，非 correctness finding**；当前主文件约 3037 行；上下文：Game runtime settlement orchestration。
 - 关键类型/入口：GameRuntimeSettlementCommandHandler, SettlementActionValidationResult, ContractBoardQuestData, SettlementServiceEntryResolution, StagecoachDestinationData, SettlementPersistResult；主要方法：Success, Failure, ToDictionary, Missing, FromServiceData, SetupRuntime, DisposeRuntime, GetSettlementWindowData, GetShopWindowData, GetContractBoardWindowData。
 - Godot/公开边界：Export 0 处；Signal 2 处；风险触点：Godot Dictionary/Array boundary×270; save/schema/projection×9; runtime mutation collections×86; randomness/determinism×1。
-- 当前结论：weak owner/teardown 与 settlement persist rollback 已有实现和回归；剩余是 action dispatch/build/persist 的核心状态仍大量使用 `GDictionary`，属于 typed-boundary 债。
+- 当前结论：weak owner/teardown、active modal rollback、settlement typed aggregate 与 persist rollback 已有实现和回归，active shop/forge/stagecoach context 也以 detached CLR graph 保存；剩余债务是通用 action payload、service-entry resolution 和部分 window/request builder 在内部反复投影并解析 `GDictionary`，使固定字段契约仍由字符串键维持。persist owner 本身不再属于该债务。
 - 建议验证：保持 world-map proxy 与 persist-failure rollback 回归；不要把 Dictionary 命中本身登记为 bug。
 
 ### 343. `scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs`
@@ -3015,7 +3015,7 @@
 
 ### 353. `scripts/systems/inventory/PartyEquipmentService.cs`
 
-- 复审状态：**需跟进**；规模：630 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：630 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：PartyEquipmentService, EquipmentDisplacedEntry, EquipmentEquipPreviewResult, EquipmentActionResult, EquipmentViewEntry；主要方法：SuccessResult, Failed, Setup, Dispose, GetItemDef, GetEquipmentState, GetEquippedEntriesTyped, BuildAttributeModifiersTyped, PreviewEquipTyped, EquipItemTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×5; save/schema/projection×1; runtime mutation collections×47。
 - 对抗性检视：
@@ -3029,7 +3029,7 @@
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1; runtime mutation collections×13。
 - 对抗性检视：
   - 技能书的库存预检与扣减由同一同步 warehouse owner 完成，中间学习逻辑不修改仓库；当前没有可达的扣减失败半事务。
-  - 待修问题位于上层 `GameRuntimeWarehouseHandler`：成功命令当前立即写入完整存档，而不是只 stage party 并标记 pending dirty。
+  - 上层 `GameRuntimeWarehouseHandler` 已改为成功命令只 stage party 并标记 pending dirty，由 canonical flush 统一落盘。
 - 建议验证：`tests/warehouse/run_party_item_use_service_regression.cs`。
 
 ### 355. `scripts/systems/inventory/PartyWarehouseService.cs`
@@ -3042,7 +3042,7 @@
 
 ### 356. `scripts/systems/inventory/WarehouseInventoryEntry.cs`
 
-- 复审状态：**需跟进**；规模：88 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
+- 复审状态：**通过**；规模：88 行；上下文：Inventory/warehouse/equipment：重点检查容量、实例 id、stack/equipment 分支、persist rollback。
 - 关键类型/入口：WarehouseInventoryEntry；主要方法：ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×1。
 - 对抗性检视：
@@ -3117,7 +3117,7 @@
 
 ### 364. `scripts/systems/progression/AttributeGrowthResult.cs`
 
-- 复审状态：**需跟进**；规模：89 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：89 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：AttributeGrowthResult；主要方法：NotApplied, AppliedResult, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3; save/schema/projection×1。
 - 对抗性检视：
@@ -3144,7 +3144,7 @@
 
 ### 367. `scripts/systems/progression/CharacterAttributeChangeFact.cs`
 
-- 复审状态：**需跟进**；规模：146 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：146 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CharacterAttributeChangeFact；主要方法：PermanentDelta, GrowthResult, ToDictionary, FromDictionary, ReadStringName, ReadString, ReadInt, ReadOptionalInt, TryRead。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10; save/schema/projection×2。
 - 对抗性检视：
@@ -3171,7 +3171,7 @@
 
 ### 370. `scripts/systems/progression/CharacterKnowledgeChangeFact.cs`
 
-- 复审状态：**需跟进**；规模：67 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：67 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CharacterKnowledgeChangeFact；主要方法：ToDictionary, FromDictionary, ReadStringName, ReadString, TryRead。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×2。
 - 对抗性检视：
@@ -3189,7 +3189,7 @@
 
 ### 372. `scripts/systems/progression/CharacterMasteryChangeFact.cs`
 
-- 复审状态：**需跟进**；规模：89 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：89 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：CharacterMasteryChangeFact；主要方法：ToDictionary, FromDictionary, ReadStringName, ReadString, ReadInt, TryRead。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×8; save/schema/projection×2。
 - 对抗性检视：
@@ -3215,7 +3215,7 @@
 
 ### 375. `scripts/systems/progression/IdentityPayloadValidator.cs`
 
-- 复审状态：**需跟进**；规模：426 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：426 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：IdentityPayloadValidator；主要方法：ValidatePartyIdentityForContentSource, ValidatePartyIdentity, ValidateMemberIdentityForContentSource, ValidateMemberIdentityTyped, ValidateMemberIdentityCore, ResolveBodySizeCategoryForContentSource, ResolveBodySizeCategoryForMemberTyped, ResolveBodySizeCategoryForMemberCore, RefreshMemberBodySizeFromContentSource, RefreshMemberBodySizeFromIdentityTyped。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1; runtime mutation collections×38。
 - 对抗性检视：
@@ -3233,7 +3233,7 @@
 
 ### 377. `scripts/systems/progression/LevelGrowthTriggerResult.cs`
 
-- 复审状态：**需跟进**；规模：64 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：64 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：LevelGrowthTriggerResult；主要方法：Fail, SetSuccess, ClearSuccess, LevelUpSuccess, ToDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×4; save/schema/projection×1。
 - 对抗性检视：
@@ -3260,7 +3260,7 @@
 
 ### 380. `scripts/systems/progression/PendingCharacterReward.cs`
 
-- 复审状态：**需跟进**；规模：192 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：192 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：PendingCharacterReward；主要方法：IsEmpty, DuplicateState, ToDictionary, FromDictionary, _parse_string_name_field, _has_exact_fields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×11; save/schema/projection×4; runtime mutation collections×3。
 - 对抗性检视：
@@ -3269,7 +3269,7 @@
 
 ### 381. `scripts/systems/progression/PendingCharacterRewardEntry.cs`
 
-- 复审状态：**需跟进**；规模：139 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：139 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：PendingCharacterRewardEntry；主要方法：IsEmpty, DuplicateState, ToDictionary, FromDictionary, _parse_string_name_field, _has_exact_fields。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×2。
 - 对抗性检视：
@@ -3287,7 +3287,7 @@
 
 ### 383. `scripts/systems/progression/PracticeSkillLearnStatus.cs`
 
-- 复审状态：**需跟进**；规模：91 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：91 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：PracticeSkillLearnStatus；主要方法：NonPractice, Practice, WithPredictedLevel, ToCanLearnDictionary, ToLearnedStatusDictionary。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6。
 - 对抗性检视：
@@ -3333,7 +3333,7 @@
 
 ### 388. `scripts/systems/progression/QuestCommandResultData.cs`
 
-- 复审状态：**需跟进**；规模：290 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
+- 复审状态：**通过**；规模：290 行；上下文：Progression/content：重点检查 typed resource、rank/skill/profession ids、schema validation。
 - 关键类型/入口：QuestSubmitItemResultData, QuestClaimResultData；主要方法：ContainsClaimableQuest, ToDictionary, Success, Failed, ContainsStringName, CloneStringNameList, ToStringNameArray, CloneItemRewards, ClonePendingCharacterRewards, CloneUnsupportedRewardTypes。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×25; save/schema/projection×2; runtime mutation collections×22。
 - 对抗性检视：
@@ -3397,7 +3397,7 @@
 - 复审状态：**架构债，非 correctness finding**；规模：879 行；上下文：settlement forge service。
 - 关键类型/入口：SettlementForgeService, RecipeItemValidationResult；主要方法：Success, Failed, IsSupportedInteraction, HasAvailableRecipeTyped, ExecuteRecipeResultTyped, BuildWindowDataTyped, _resolve_recipe, _list_matching_recipes, _build_recipe_window_entries, _build_recipe_window_entry。
 - Godot/公开边界：Export 0 处；Signal 3 处；风险触点：Godot Dictionary/Array boundary×91; runtime mutation collections×48。
-- 当前结论：settlement transaction rollback 已有 focused regression；剩余是 recipe/facility/execute 核心仍以 `GDictionary` 处理，属于 typed-boundary 债。
+- 当前结论：recipe definition、warehouse batch transaction、result owner 与 forge 确认请求已有 typed 路径；`ShopWindow` 通过 `ForgeActionRequested` 交付 `ForgeActionRequest`，不再为锻造提交构造 Dictionary signal。剩余是 settlement/facility/service-profile 输入、window data/entry build 和 inventory/side-effect payload 仍以 `GDictionary` / Godot Array 拼装并在 service 内解析，属于 typed-boundary 债。
 - 建议验证：维持 persist-failure rollback 回归；typed 化时再补 projection equivalence。
 
 ### 396. `scripts/systems/settlement/SettlementPanelKind.cs`
@@ -3411,7 +3411,7 @@
 
 ### 397. `scripts/systems/settlement/SettlementResearchService.cs`
 
-- 复审状态：**需跟进**；规模：641 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：641 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：SettlementResearchService, ResearchMemberAvailability；主要方法：ToDictionary, IsSupportedInteraction, BuildServiceMetadataTyped, ExecuteTyped, _build_result, _validate_execution_schema, _validate_research_catalog_schema, _validate_research_candidate_schema, _validate_required_string_fields, _resolve_tarGetMemberState。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×54; save/schema/projection×2; runtime mutation collections×14。
 - 对抗性检视：
@@ -3420,7 +3420,7 @@
 
 ### 398. `scripts/systems/settlement/SettlementServiceMetadata.cs`
 
-- 复审状态：**需跟进**；规模：63 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：63 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：SettlementServiceMetadata；主要方法：ToDictionary, IsReservedField。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×1; runtime mutation collections×1。
 - 对抗性检视：
@@ -3429,7 +3429,7 @@
 
 ### 399. `scripts/systems/settlement/SettlementServiceResult.cs`
 
-- 复审状态：**需跟进**；规模：171 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
+- 复审状态：**通过**；规模：171 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
 - 关键类型/入口：SettlementServiceResult；主要方法：SetInventoryDelta, SetPendingCharacterRewardsTyped, SetQuestProgressEventsTyped, SetServiceSideEffects, ToDictionary, DuplicateDictionary, DuplicatePendingRewardList, PendingRewardDictionaryArray, QuestProgressEventDictionaryArray, ReplacePendingRewardList。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×19; save/schema/projection×3; runtime mutation collections×17。
 - 对抗性检视：
@@ -3438,12 +3438,11 @@
 
 ### 400. `scripts/systems/settlement/SettlementShopService.cs`
 
-- 复审状态：**确认问题**；规模：1115 行；上下文：General script：按 GodotSharp/resource 边界、typed API、测试入口检查。
-- 关键类型/入口：SettlementShopService, ShopItemId, struct, ShopDefinition, ShopStockEntry；主要方法：BuildWindowDataTyped, BuyTyped, SellTyped, GetOrRefreshShopState, GenerateShopState, BuildShopEntry, MergeShopEntry, PickWeightedRandomEntry, ResolveBuyPrice, ResolveSellPrice。
+- 复审状态：**通过**；当前规模约 831 行；上下文：settlement shop state、trade 与 window projection。
+- 关键类型/入口：SettlementShopService, ShopItemId, ShopDefinition, ShopStateResolution, SettlementShopWindowBuildResult, SettlementShopTradeResult；主要方法：BuildWindowDataTyped, BuyTyped, SellTyped, GetOrRefreshShopState, GenerateShopState, ConsumeShopStock, ResolveBuyPrice, ResolveSellPrice。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×69; save/schema/projection×7; runtime mutation collections×28; randomness/determinism×5。
-- 当前 finding：设计、生成和存档都写 `shop_inventory_seed`，刷新却不消费该字段而重新生成真随机 seed，schema 不能控制或复现刷新结果。
-- 架构债：核心 shop state/交易仍使用 `GDictionary`；这不是上述 correctness finding 的替代证据。
-- 建议验证：固定 settlement state/seed 的刷新结果可重放，且 save/load 后一致。
+- 当前结论：`WorldMapSettlementStateData` / `SettlementShopStateData` / `SettlementShopStockEntryData` 是库存、seed、刷新步数的 typed owner，`BuyTyped` / `SellTyped` 返回 typed trade result；各商店刷新使用自身的新真随机 seed 并只替换目标商店状态。`BuildWindowDataTyped` 的 Dictionary 只用于同步窗口投影，结果立即归一化为 detached plain graph，不再构成核心状态债。
+- 建议验证：保持各商店独立刷新、目标商店单独更新、买卖 rollback、save round-trip 与 shop window projection 回归。
 
 ### 401. `scripts/systems/settlement/SettlementShopTradeResult.cs`
 
@@ -3465,7 +3464,7 @@
 
 ### 403. `scripts/systems/world/EncounterAnchorData.cs`
 
-- 复审状态：**需跟进**；规模：245 行；上下文：World runtime/data：重点检查 world_data 字典、Vector2I key、fog/encounter lifecycle。
+- 复审状态：**通过**；规模：245 行；上下文：World runtime/data：重点检查 world_data 字典、Vector2I key、fog/encounter lifecycle。
 - 关键类型/入口：EncounterAnchorKind, EncounterAnchorData；主要方法：ToStringName, ToEncounterKind, ToDictionary, FromDictionary, HasExactSerializedFields, TryParseStringNameField, IsValidEncounterKind。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×7; save/schema/projection×7。
 - 对抗性检视：
@@ -3833,7 +3832,7 @@
 
 ### 444. `scripts/utils/FacilityConfig.cs`
 
-- 复审状态：**需跟进**；规模：44 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：44 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：FacilityConfig；主要方法：GetTemplateId, GetPrimaryServiceName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
 - 对抗性检视：
@@ -3885,7 +3884,7 @@
 
 ### 450. `scripts/utils/GodotVariantReadExtensions.cs`
 
-- 复审状态：**需跟进**；规模：126 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：126 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：GodotVariantReadExtensions；主要方法：GetValueOrDefault, TryAsDictionary, TryAsGodotArray, TryAsInt, TryAsVector2I, TryAsBool, TryRead, ToVariant。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×10。
 - 对抗性检视：
@@ -3903,7 +3902,7 @@
 
 ### 452. `scripts/utils/SettlementConfig.cs`
 
-- 复审状态：**需跟进**；规模：70 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：70 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：SettlementConfig, SettlementTier；主要方法：GetTemplateId, GetFootprintSize, GetTierName。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×3。
 - 对抗性检视：
@@ -3975,7 +3974,7 @@
 
 ### 460. `scripts/utils/WorldMapContentValidator.cs`
 
-- 复审状态：**需跟进**；规模：993 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：993 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：WorldMapContentValidator；主要方法：ValidateWorldPresetsTyped, ValidateGenerationConfigTyped, ValidateGenerationConfigInternal, BuildEffectiveSettlementResources, BuildEffectiveFacilityResources, BuildEffectiveWildSpawnRules, ValidateFacilityLibrary, ValidateFacilityNpcs, ValidateSettlementLibrary, ValidateFacilitySlots。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×16; resource/path loading×9; runtime mutation collections×131。
 - 对抗性检视：
@@ -3984,7 +3983,7 @@
 
 ### 461. `scripts/utils/WorldMapGenerationConfig.cs`
 
-- 复审状态：**需跟进**；规模：168 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：168 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：WorldMapGenerationConfig；主要方法：GetWorldSizeCells, GetTargetSettlementCount, GetSettlementSpacingCells。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×6。
 - 对抗性检视：
@@ -3993,7 +3992,7 @@
 
 ### 462. `scripts/utils/WorldMapSettlementBundle.cs`
 
-- 复审状态：**需跟进**；规模：11 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：11 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：WorldMapSettlementBundle；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×2。
 - 对抗性检视：
@@ -4011,7 +4010,7 @@
 
 ### 464. `scripts/utils/WorldMapWildSpawnBundle.cs`
 
-- 复审状态：**需跟进**；规模：8 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：8 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：WorldMapWildSpawnBundle；主要方法：无可提取方法。
 - Godot/公开边界：Export 0 处；Signal 0 处；风险触点：Godot Dictionary/Array boundary×1。
 - 对抗性检视：
@@ -4020,7 +4019,7 @@
 
 ### 465. `scripts/utils/WorldPresetRegistry.cs`
 
-- 复审状态：**需跟进**；规模：167 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
+- 复审状态：**通过**；规模：167 行；上下文：Utility/config：重点检查 resource path、randomness、content validator、shared helper contract。
 - 关键类型/入口：WorldPresetRegistry, WorldPresetInfo；主要方法：ToDictionary, GetDefaultPresetId, ListPresetsTyped, ListPresets, TryGetPresetTyped, GetPreset, TryGetPresetForGenerationConfigTyped, GetPresetForGenerationConfig, GetFallbackPresetName, GetFileName。
 - Godot/公开边界：Export 1 处；Signal 1 处；风险触点：Godot Dictionary/Array boundary×12; save/schema/projection×4; resource/path loading×5; runtime mutation collections×2。
 - 对抗性检视：

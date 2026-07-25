@@ -44,6 +44,7 @@ Prefer existing project fixtures:
 2. Name C# runners `run_<behavior>_regression.cs`. Do not manually create or edit `.uid` files.
 3. Use a `public partial class run_<behavior>_regression : LifecycleTestSceneTree` with a private `TestHarness`.
 4. In `_Initialize()`, use `RunAfterProcessStartup(Run)` when the test needs autoloads, scene tree readiness, the process `ContentSnapshot`, async waits, or Godot resources that should settle before assertions. Direct `Run()` is acceptable for isolated pure logic runners. Do not use string-based `CallDeferred(nameof(...))` dispatch.
+   When a runner uses `async void` as the `RunAfterProcessStartup(...)` callback, wrap its awaited body in `try/catch/finally`, record unexpected exceptions in `TestHarness`, and call `RequestTestExit(...)` from `finally`; otherwise Godot can log the exception while the SceneTree keeps running until the outer timeout.
 5. Split assertions into small private methods named for the contract being protected.
 6. Build the smallest fixture that exercises the behavior. Prefer typed setup APIs and formal content injection helpers already present in the codebase.
 7. Dispose owned sessions, runtimes, registries, windows, resources, and services in `finally` blocks when cleanup affects later assertions or finalizers, but do not run a local forced-GC/finalizer drain there.
@@ -69,6 +70,7 @@ Avoid brittle or misleading coverage:
 - Do not assert full log dumps, full text snapshots, full rendered UI text, or incidental Chinese/English phrasing unless the text surface itself is the contract. Prefer fields, stable event IDs, error codes, and short fragments.
 - Do not assert exact RNG outcomes, AI score totals, target ordering, benchmark timing, or battle balance numbers in routine regressions.
 - Do not duplicate production enum validation, legal-value `HashSet`s, schema allowlists, or rule tables inside tests. Test the production owner API instead.
+- Do not read source files or serialized resource files as text to assert implementation tokens. Put static architecture constraints in analyzers or review rules; verify authored resources through the production loader/registry and runtime contracts through typed owner behavior.
 - Do not drive formal runtime behavior through `GDictionary` options, public Godot dictionary projections, string-key fallback, or `GodotObject.Call(...)` when the repo has typed APIs for that path.
 - Do not add compatibility tests for old payloads, legacy aliases, fallback migrations, or old schema support without explicit user confirmation.
 - Do not make tests depend on `.godot/`, `.uid`, generated cache files, local save artifacts, benchmark output, or personal capture artifacts.

@@ -1,9 +1,9 @@
 # 据点服务模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-23`
+> 核对日期：`2026-07-25`
 
-更新日期：`2026-07-23`
+更新日期：`2026-07-25`
 
 ## 目标与边界
 
@@ -32,7 +32,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
     -> GameSession.SetWorldData / SetPartyState / CommitRuntimeState
 ```
 
-`WorldMapSystem` 只负责打开窗口和把 UI action 转给 proxy；正式服务规则必须在 command handler 或 settlement service 类中。服务结果使用 typed `SettlementServiceResult` / typed payload，避免把 `ToDictionary()` 再回读成业务态。
+`WorldMapSystem` 只负责打开窗口和把 UI action 转给 proxy；正式服务规则必须在 command handler 或 settlement service 类中。锻造确认由 `ShopWindow.ForgeActionRequested` 普通 C# 事件携带 `ForgeActionRequest`，经 proxy/facade 的 typed 入口提交，不再把确认请求投影为 Godot Dictionary signal。服务结果使用 typed `SettlementServiceResult` / typed payload，避免把 `ToDictionary()` 再回读成业务态。
 
 ## 据点数据契约
 
@@ -63,7 +63,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 
 `WorldMapSettlementStateData` 是完整不可变 owner，`SettlementShopStateData` / `SettlementShopStockEntryData` 是它的 typed 子状态。`WorldMapSettlementRecordData` 持有该 owner，`WorldRuntimeData.TrySetSettlementState(...)` 只接受完整聚合；`MarkSettlementVisited(...)` 必须使用 `WithVisited(true)`，不能由局部字段重建整个状态。
 
-服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 15，v14 及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
+服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 16，旧版本及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
 
 ## Action 分发
 
@@ -85,7 +85,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 ## 窗口与 modal 所有权
 
 - `SettlementWindow` 展示据点名、tier、服务 NPC 和 action buttons；不计算服务规则。
-- 商店、铁匠、驿站、任务板共用 `ShopWindow` 风格 modal 时，handler 构建不同 window data context。
+- 商店、铁匠、驿站、任务板共用 `ShopWindow` 风格 modal 时，handler 构建不同 window data context；铁匠确认使用专用 `ForgeActionRequest` C# 事件，其他窗口继续使用各自现有提交协议。
 - active modal kind 由 runtime 持有；打开服务 modal 时应关闭 settlement action feedback 的冲突状态。
 - 窗口关闭只清空 active modal/context，不回滚已提交服务。
 
