@@ -20,7 +20,9 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         TestSaveSerializerRoundTripPreservesPartyQuestSchema();
         TestDecodePayloadRejectsInvalidQuestProgressContext();
         TestDecodePayloadRejectsMissingPartySchemaFields();
+        TestDecodePayloadRejectsFailedStateInActiveCollection();
         TestDecodePayloadRejectsIncompleteSettlementState();
+        TestCurrentRootRejectsPartyVersion7WithoutMigration();
         TestRootVersion14IsRejectedWithoutMigration();
         TestRootVersion10PartyVersion6OldEquipmentPayloadIsRejectedByVersionGate();
         TestExtractSaveMetaRejectsMissingSlotFields();
@@ -55,6 +57,16 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         claimableQuest.MarkAccepted(5);
         claimableQuest.MarkCompleted(11);
         partyState.SetClaimableQuestState(claimableQuest);
+        var failedQuest = new QuestState { quest_id = "contract_failed_patrol" };
+        failedQuest.MarkAccepted(6);
+        failedQuest.MarkFailed(
+            13,
+            "protected_target_lost",
+            QuestProgressContext.FromDictionary(
+                new GDictionary { ["source_type"] = "world_event" }
+            )
+        );
+        partyState.SetFailedQuestState(failedQuest);
         partyState.AddCompletedQuestId("intro_contract");
 
         SaveSerializer serializer = gameSession._save_serializer;
@@ -63,8 +75,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
-            15,
-            "Current strict world schema should use top-level save version 15."
+            17,
+            "Current strict world schema should use top-level save version 17."
         );
         Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,
@@ -85,20 +97,25 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         {
             _test.Eq(
                 restoredPartyState.version,
-                7,
-                "Typed state owner schema should bump PartyState.version to 7."
+                8,
+                "Quest journal schema should bump PartyState.version to 8."
             );
             _test.Eq(restoredPartyState.main_character_member_id, partyState.main_character_member_id, "完整 save round-trip 后应保留 main_character_member_id。");
             _test.True(restoredPartyState.HasActiveQuest("contract_wolf_pack"), "SaveSerializer 往返后应保留 active_quests。");
             _test.True(restoredPartyState.HasClaimableQuest("contract_settlement_warehouse"), "SaveSerializer 往返后应保留 claimable_quests。");
+            _test.True(restoredPartyState.HasFailedQuest("contract_failed_patrol"), "SaveSerializer 往返后应保留 failed_quests。");
             _test.True(restoredPartyState.HasCompletedQuest("intro_contract"), "SaveSerializer 往返后应保留 completed_quest_ids。");
 
             QuestState restoredQuest = restoredPartyState.GetActiveQuestState("contract_wolf_pack");
             QuestState restoredClaimableQuest = restoredPartyState.GetClaimableQuestState(
                 "contract_settlement_warehouse"
             );
+            QuestState restoredFailedQuest = restoredPartyState.GetFailedQuestState(
+                "contract_failed_patrol"
+            );
             _test.True(restoredQuest != null, "SaveSerializer 往返后应恢复 QuestState。");
             _test.True(restoredClaimableQuest != null, "SaveSerializer 往返后应恢复待领奖励 QuestState。");
+            _test.True(restoredFailedQuest != null, "SaveSerializer 往返后应恢复失败 QuestState。");
             if (restoredQuest != null)
             {
                 _test.Eq(restoredQuest.GetObjectiveProgress("defeat_wolves"), 2, "QuestState 进度应穿过 save payload 保持稳定。");
@@ -106,6 +123,15 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             }
             if (restoredClaimableQuest != null)
                 _test.Eq(restoredClaimableQuest.completed_at_world_step, 11, "待领奖励 QuestState 完成时间应穿过 save payload 保持稳定。");
+            if (restoredFailedQuest != null)
+            {
+                _test.Eq(restoredFailedQuest.failed_at_world_step, 13, "失败 QuestState 应保留失败时间。");
+                _test.Eq(
+                    restoredFailedQuest.failure_reason_id,
+                    new StringName("protected_target_lost"),
+                    "失败 QuestState 应保留失败原因。"
+                );
+            }
         }
 
         CleanupTestSession(gameSession);
@@ -193,6 +219,104 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
                 decodeResult.Error,
                 (int)Error.InvalidData,
                 "v14 rejection must report InvalidData."
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestCurrentRootRejectsPartyVersion7WithoutMigration()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "PartyState v7 rejection regression requires a valid current save.");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "party-v7.payload"
+            );
+            PlainDictionary(payload, "party_state")["version"] = 7;
+
+            bool decoded = serializer.TryDecodePayload(
+                payload,
+                gameSession.GetGenerationConfigPath(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
+            );
+            _test.True(
+                !decoded,
+                "Current root save with PartyState v7 must reject because failed_quests has no compatibility migration."
+            );
+            _test.Eq(
+                decodeResult.Error,
+                (int)Error.InvalidData,
+                "PartyState v7 rejection must report InvalidData."
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestDecodePayloadRejectsFailedStateInActiveCollection()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "Quest collection mismatch regression requires a valid current save.");
+            if (createError != Error.Ok)
+                return;
+
+            var failedQuest = new QuestState { quest_id = "contract_failed_patrol" };
+            failedQuest.MarkAccepted(6);
+            failedQuest.MarkFailed(13, "protected_target_lost");
+            gameSession.GetPartyState().SetFailedQuestState(failedQuest);
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            using GodotProjectionLease<GDictionary> payloadLease =
+                BuildSavePayloadForSession(gameSession, gameSession.GetPartyState());
+            Dictionary<string, object> payload = RuntimePlainPayload.RestoreSaveDictionary(
+                payloadLease.Value,
+                "failed-state-in-active.payload"
+            );
+            Dictionary<string, object> partyPayload = PlainDictionary(payload, "party_state");
+            if (
+                !partyPayload.TryGetValue("failed_quests", out object failedQuestsValue)
+                || failedQuestsValue is not List<object> failedQuests
+                || failedQuests.Count != 1
+            )
+            {
+                _test.True(false, "Test payload should contain one failed quest.");
+                return;
+            }
+
+            partyPayload["active_quests"] = new List<object> { failedQuests[0] };
+            partyPayload["failed_quests"] = new List<object>();
+            bool decoded = serializer.TryDecodePayload(
+                payload,
+                gameSession.GetGenerationConfigPath(),
+                gameSession.CaptureActiveSaveMetaPlain(),
+                out SaveDecodeResult decodeResult
+            );
+            _test.True(
+                !decoded,
+                "A valid Failed QuestState placed in active_quests must be rejected."
+            );
+            _test.Eq(
+                decodeResult.Error,
+                (int)Error.InvalidData,
+                "Quest collection/status mismatch must report InvalidData."
             );
         }
         finally
@@ -327,7 +451,14 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
     private void TestDecodePayloadRejectsMissingPartySchemaFields()
     {
-        foreach (string fieldName in new[] { "main_character_member_id", "claimable_quests" })
+        foreach (
+            string fieldName in new[]
+            {
+                "main_character_member_id",
+                "claimable_quests",
+                "failed_quests",
+            }
+        )
         {
             var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);

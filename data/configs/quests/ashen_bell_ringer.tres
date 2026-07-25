@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_weavers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_weaver", &"target_value": 3}, {&"objective_id": &"report_back", &"objective_type": &"settlement_action", &"target_id": &"service_contract_board", &"target_value": 1}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 800}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"skill_unlock", &"target_id": &"warrior_dragon_shake_heaven", &"amount": 1}])}])
 is_repeatable = false
+failure_policy = &"terminal"

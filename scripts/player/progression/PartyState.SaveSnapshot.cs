@@ -24,9 +24,10 @@ public partial class PartyState
             ("reserve_member_ids", BuildStringList(reserve_member_ids)),
             ("member_states", BuildMemberStatesPlain(member_states)),
             ("pending_character_rewards", rewards),
-            ("active_quests", BuildSortedQuestListPlain(active_quests)),
-            ("claimable_quests", BuildSortedQuestListPlain(claimable_quests)),
-            ("completed_quest_ids", BuildUniqueStringList(completed_quest_ids)),
+            ("active_quests", BuildSortedQuestListPlain(GetActiveQuestsTyped())),
+            ("claimable_quests", BuildSortedQuestListPlain(GetClaimableQuestsTyped())),
+            ("failed_quests", BuildSortedQuestListPlain(GetFailedQuestsTyped())),
+            ("completed_quest_ids", BuildUniqueStringList(GetCompletedQuestIdsTyped())),
             (
                 "warehouse_state",
                 warehouse_state != null ? BuildWarehouseStatePlain(warehouse_state) : EmptyMap()
@@ -650,6 +651,8 @@ public partial class PartyState
             ("accepted_at_world_step", quest.accepted_at_world_step),
             ("completed_at_world_step", quest.completed_at_world_step),
             ("reward_claimed_at_world_step", quest.reward_claimed_at_world_step),
+            ("failed_at_world_step", quest.failed_at_world_step),
+            ("failure_reason_id", quest.failure_reason_id.ToString()),
             (
                 "last_progress_context",
                 quest.last_progress_context != null

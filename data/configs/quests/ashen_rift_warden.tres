@@ -20,3 +20,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_weavers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_weaver", &"target_value": 5}, {&"objective_id": &"defeat_beasts", &"objective_type": &"defeat_enemy", &"target_id": &"mist_beast", &"target_value": 3}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 2000}, {&"reward_type": &"item", &"item_id": &"calamity_shard", &"quantity": 3}, {&"reward_type": &"pending_character_reward", &"member_id": &"hero", &"entries": Array[Dictionary]([{&"entry_type": &"attribute_progress", &"target_id": &"strength", &"amount": 10}, {&"entry_type": &"attribute_progress", &"target_id": &"agility", &"amount": 10}, {&"entry_type": &"attribute_progress", &"target_id": &"constitution", &"amount": 10}])}])
 is_repeatable = false
+failure_policy = &"terminal"

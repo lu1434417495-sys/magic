@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"defeat_beasts", &"objective_type": &"defeat_enemy", &"target_id": &"mist_beast", &"target_value": 3}, {&"objective_id": &"defeat_harriers", &"objective_type": &"defeat_enemy", &"target_id": &"mist_harrier", &"target_value": 2}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 600}, {&"reward_type": &"item", &"item_id": &"blood_debt_shawl", &"quantity": 1}])
 is_repeatable = false
+failure_policy = &"terminal"

@@ -1110,6 +1110,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
             listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            failure_policy = "terminal",
         };
         quest.objective_defs.Add(
             new GDictionary
@@ -1136,6 +1137,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
             listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            failure_policy = "terminal",
         };
         quest.objective_defs.Add(
             new GDictionary

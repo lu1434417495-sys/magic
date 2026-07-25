@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"warehouse_visit", &"objective_type": &"settlement_action", &"target_id": &"service:warehouse", &"target_value": 1}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 60}])
 is_repeatable = false
+failure_policy = &"terminal"

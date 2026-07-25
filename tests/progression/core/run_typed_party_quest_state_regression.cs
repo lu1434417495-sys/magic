@@ -17,7 +17,8 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         TestQuestProgressRejectsNonIntValues();
         TestQuestContextRejectsNonIntValues();
         TestQuestStateSafelyRejectsInvalidProgressContext();
-        TestSetQuestStateRejectsUnsupportedFailedState();
+        TestQuestJournalStoresFailedStateWithoutCrossStageLeak();
+        TestQuestJournalReturnsDetachedQuestStates();
         TestCustomStatsRejectNonIntValues();
         TestReputationsRejectNonIntValues();
         TestValidTypedPayloadsRoundTrip();
@@ -82,18 +83,30 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         );
     }
 
-    private void TestSetQuestStateRejectsUnsupportedFailedState()
+    private void TestQuestJournalStoresFailedStateWithoutCrossStageLeak()
     {
         PartyState partyState = new();
-        QuestState failedQuest = new() { quest_id = "unsupported_failed_quest" };
+        QuestState failedQuest = new() { quest_id = "failed_quest" };
         failedQuest.MarkAccepted(2);
-        failedQuest.MarkFailed();
+        _test.True(
+            failedQuest.MarkFailed(
+                4,
+                "deadline_expired",
+                QuestProgressContext.FromDictionary(
+                    new GDictionary { ["source_type"] = "quest_test" }
+                )
+            ),
+            "active QuestState 应能记录带原因的失败事实。"
+        );
 
-        partyState.SetQuestState(failedQuest.quest_id, failedQuest);
+        _test.True(
+            partyState.SetQuestState(failedQuest.quest_id, failedQuest),
+            "QuestJournalState 应接收合法 failed QuestState。"
+        );
 
         _test.True(
             !partyState.HasActiveQuest(failedQuest.quest_id),
-            "尚无正式失败任务容器时，SetQuestState 不得把 failed 状态塞进 active_quests。"
+            "failed 任务不得残留在 active 集合。"
         );
         _test.True(
             !partyState.HasClaimableQuest(failedQuest.quest_id),
@@ -102,6 +115,44 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
         _test.True(
             !partyState.HasCompletedQuest(failedQuest.quest_id),
             "failed 状态不能伪装成已领奖任务。"
+        );
+        _test.True(
+            partyState.HasFailedQuest(failedQuest.quest_id),
+            "failed 状态应由正式失败任务集合承载。"
+        );
+        QuestState storedFailedQuest = partyState.GetFailedQuestState(failedQuest.quest_id);
+        _test.Eq(storedFailedQuest?.failed_at_world_step ?? -1, 4, "失败任务应保留失败时间。");
+        _test.Eq(
+            storedFailedQuest?.failure_reason_id ?? new StringName(""),
+            new StringName("deadline_expired"),
+            "失败任务应保留失败原因。"
+        );
+    }
+
+    private void TestQuestJournalReturnsDetachedQuestStates()
+    {
+        PartyState partyState = new();
+        QuestState activeQuest = new() { quest_id = "detached_active_quest" };
+        activeQuest.MarkAccepted(3);
+        _test.True(
+            partyState.SetActiveQuestState(activeQuest),
+            "测试 active quest 应进入 QuestJournalState。"
+        );
+
+        QuestState detached = partyState.GetActiveQuestState(activeQuest.quest_id);
+        _test.True(detached != null, "任务查询应返回 detached 状态。");
+        if (detached == null)
+            return;
+        detached.MarkCompleted(6);
+
+        QuestState canonical = partyState.GetActiveQuestState(activeQuest.quest_id);
+        _test.True(
+            canonical != null && canonical.IsActive(),
+            "修改查询得到的 QuestState 不得绕过 QuestJournalState 改写 canonical 状态。"
+        );
+        _test.True(
+            !partyState.HasClaimableQuest(activeQuest.quest_id),
+            "detached QuestState 的本地迁移不得造成跨集合残留。"
         );
     }
 
@@ -190,11 +241,11 @@ public partial class run_typed_party_quest_state_regression : LifecycleTestScene
     private void TestPartyStateUsesCurrentSaveVersion()
     {
         PartyState state = new();
-        _test.Eq(state.version, 7, "PartyState save schema 应升级到 7。");
+        _test.Eq(state.version, 8, "PartyState save schema 应升级到 8。");
         _test.Eq(
             Convert.ToInt32(state.BuildSaveSnapshotPlain()["version"]),
-            7,
-            "PartyState save snapshot 应输出 schema 7。"
+            8,
+            "PartyState save snapshot 应输出 schema 8。"
         );
     }
 

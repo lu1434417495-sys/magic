@@ -58,7 +58,7 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
             .current_durability = 2;
         copyHero.trait_instances[0].SetIntRoll("amount", 7);
         copy.warehouse_state.equipment_instances[0].trait_instances[0].SetIntRoll("amount", 9);
-        copy.active_quests[0].objective_progress["kill"] = 9;
+        copy.RecordQuestObjectiveProgress("hunt", "kill", 8, 9, null, out _);
         copy.pending_character_rewards[0].entries[0].amount = 30;
 
         _test.Eq(source.gold, 15, "修改 copy.gold 不应影响源队伍。");
@@ -109,7 +109,7 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
             "修改 copy 仓库装备 trait_instances 不应影响源队伍。"
         );
         _test.Eq(
-            source.active_quests[0].objective_progress["kill"].AsInt32(),
+            source.GetActiveQuestState("hunt")?.GetObjectiveProgress("kill") ?? -1,
             1,
             "修改 copy 任务进度不应影响源队伍。"
         );
@@ -167,15 +167,10 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
         partyState.SetFateRunFlag("omen_seen", true);
         partyState.SetMetaFlag("visited_town", true);
         partyState.SetMemberState(BuildMemberState());
-        partyState.active_quests.Add(
-            new QuestState
-            {
-                quest_id = "hunt",
-                status_id = QuestState.ToStringName(QuestStatusKind.Active),
-                accepted_at_world_step = 1,
-            }
-        );
-        partyState.active_quests[0].objective_progress.Set("kill", 1);
+        QuestState huntQuest = new() { quest_id = "hunt" };
+        huntQuest.MarkAccepted(1);
+        huntQuest.RecordObjectiveProgress("kill", 1, 9);
+        partyState.SetActiveQuestState(huntQuest);
         partyState.pending_character_rewards.Add(BuildPendingReward());
         return partyState;
     }

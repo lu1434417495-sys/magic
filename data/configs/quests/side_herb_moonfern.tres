@@ -19,3 +19,4 @@ accept_confirmation_text = ""
 objective_defs = Array[Dictionary]([{&"objective_id": &"gather_moonfern", &"objective_type": &"submit_item", &"target_id": &"moonfern_sample", &"target_value": 2}])
 reward_entries = Array[Dictionary]([{&"reward_type": &"gold", &"amount": 80}, {&"reward_type": &"item", &"item_id": &"antidote_herb", &"quantity": 3}])
 is_repeatable = false
+failure_policy = &"terminal"

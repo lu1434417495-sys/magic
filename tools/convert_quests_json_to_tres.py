@@ -91,6 +91,7 @@ def quest_to_tres(quest: dict) -> str:
         f'objective_defs = {format_array_dictionary(quest["objective_defs"])}',
         f'reward_entries = {format_array_dictionary(quest["reward_entries"])}',
         f'is_repeatable = {"true" if quest.get("is_repeatable", False) else "false"}',
+        f'failure_policy = &"{quest.get("failure_policy", "terminal")}"',
     ]
     return "\n".join(lines) + "\n"
 

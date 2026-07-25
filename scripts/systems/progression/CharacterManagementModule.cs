@@ -761,6 +761,9 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
     public List<QuestState> GetClaimableQuestStates() =>
         _quest_progress_service?.GetClaimableQuestsTyped() ?? new List<QuestState>();
 
+    public List<QuestState> GetFailedQuestStates() =>
+        _quest_progress_service?.GetFailedQuestsTyped() ?? new List<QuestState>();
+
     public GStringNameArray GetClaimableQuestIds() =>
         ToStringNameArray(_quest_progress_service?.GetClaimableQuestIdsTyped());
 
@@ -790,6 +793,15 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         var completed = _quest_progress_service.CompleteQuest(quest_id, world_step);
         _party_state = _quest_progress_service.GetPartyState();
         return completed;
+    }
+
+    internal bool FailQuest(QuestFailureRequest request)
+    {
+        if (_quest_progress_service == null)
+            return false;
+        bool failed = _quest_progress_service.FailQuest(request);
+        _party_state = _quest_progress_service.GetPartyState();
+        return failed;
     }
 
     internal QuestSubmitItemResultData SubmitItemObjectiveTyped(
@@ -1436,21 +1448,32 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
             emit_achievement_event
         );
 
-    public GStringNameArray RecordAchievementEvent(StringName member_id, StringName event_type) =>
-        RecordAchievementEvent(member_id, event_type, 1, "", new GDictionary());
+    public GStringNameArray RecordAchievementEvent(StringName member_id, StringName event_type)
+    {
+        using GDictionary meta = new();
+        return RecordAchievementEvent(member_id, event_type, 1, "", meta);
+    }
 
     public GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount
-    ) => RecordAchievementEvent(member_id, event_type, amount, "", new GDictionary());
+    )
+    {
+        using GDictionary meta = new();
+        return RecordAchievementEvent(member_id, event_type, amount, "", meta);
+    }
 
     public GStringNameArray RecordAchievementEvent(
         StringName member_id,
         StringName event_type,
         int amount,
         StringName subject_id
-    ) => RecordAchievementEvent(member_id, event_type, amount, subject_id, new GDictionary());
+    )
+    {
+        using GDictionary meta = new();
+        return RecordAchievementEvent(member_id, event_type, amount, subject_id, meta);
+    }
 
     public GStringNameArray RecordAchievementEvent(
         StringName member_id,
@@ -1458,14 +1481,42 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         int amount,
         StringName subject_id,
         GDictionary meta
+    ) => new(RecordAchievementEventTyped(member_id, event_type, amount, subject_id, meta));
+
+    IReadOnlyList<StringName> IBattleRatingCharacterGateway.RecordAchievementEvent(
+        StringName member_id,
+        StringName event_type,
+        int amount
     )
     {
-        var unlocked_ids = new GStringNameArray();
+        using GDictionary meta = new();
+        return RecordAchievementEventTyped(member_id, event_type, amount, "", meta);
+    }
+
+    IReadOnlyList<StringName> IBattleRuntimeCharacterGateway.RecordAchievementEvent(
+        StringName member_id,
+        StringName event_type,
+        int amount,
+        StringName subject_id,
+        GDictionary meta
+    ) => RecordAchievementEventTyped(member_id, event_type, amount, subject_id, meta);
+
+    private IReadOnlyList<StringName> RecordAchievementEventTyped(
+        StringName member_id,
+        StringName event_type,
+        int amount,
+        StringName subject_id,
+        GDictionary meta
+    )
+    {
+        var unlocked_ids = new List<StringName>();
         if (member_id == "" || event_type == "" || amount <= 0)
             return unlocked_ids;
         var member_state = GetMemberState(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return unlocked_ids;
+        using GDictionary fallbackMeta = meta == null ? new GDictionary() : null;
+        GDictionary effectiveMeta = meta ?? fallbackMeta;
 
         foreach (var achievement_def in _get_matching_achievement_defs(event_type, subject_id))
         {
@@ -1488,9 +1539,10 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
                     member_state,
                     achievement_def,
                     progress_state,
-                    meta ?? new GDictionary()
+                    effectiveMeta
                 );
-                _append_unique_string_name(unlocked_ids, achievement_def.AchievementId);
+                if (!unlocked_ids.Contains(achievement_def.AchievementId))
+                    unlocked_ids.Add(achievement_def.AchievementId);
             }
             progression.SetAchievementProgressState(progress_state);
         }
