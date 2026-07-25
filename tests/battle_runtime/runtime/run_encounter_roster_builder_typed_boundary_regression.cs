@@ -101,7 +101,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 continue;
             }
 
-            _test.True(unit.current_mp > 0, $"{templateId} 模板应带有真实 MP 池。");
+            _test.True(unit.GetCurrentMp() > 0, $"{templateId} 模板应带有真实 MP 池。");
             _test.True(
                 unit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
                 $"{templateId} 通过 EncounterRosterBuilder 入场时应解锁 MP 资源显示。"
@@ -217,11 +217,12 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             "模板后续变化不应改变已投影单位的 creature type check。"
         );
         _test.Eq(
-            unit.equipment_ability_sources.Count,
+            unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             1,
             "enemy attack equipment 应投影 battle-only equipment ability source。"
         );
-        BattleEquipmentAbilitySourceState source = unit.equipment_ability_sources[0];
+        BattleEquipmentAbilitySourceReadView source =
+            unit.GetEquipmentAbilitySourcesReadViewTyped()[0];
         _test.Eq(
             source.SourceKind,
             EquipmentAbilitySourceKind.EnemyBattleOnlyEquipment,
@@ -355,8 +356,10 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 values.Add("null");
                 continue;
             }
+            BattleWeaponProjectionValues weapon =
+                unit.GetWeaponProjectionReadViewTyped().Values;
             values.Add(
-                $"{unit.enemy_template_id}|{unit.ai_brain_id}|{unit.ai_state_id}|{unit.display_name}|{unit.weapon_profile_kind}|{unit.weapon_item_id}|{unit.current_hp}|{unit.current_stamina}|{unit.known_skill_level_map.Get("basic_attack", 0)}"
+                $"{unit.enemy_template_id}|{unit.ai_brain_id}|{unit.ai_state_id}|{unit.display_name}|{weapon.ProfileKind}|{weapon.ItemId}|{unit.GetCurrentHp()}|{unit.GetCurrentStamina()}|{unit.GetKnownSkillLevelTyped("basic_attack", 0)}"
             );
         }
         return string.Join(" || ", values);

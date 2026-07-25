@@ -101,6 +101,19 @@ public sealed partial class BattleRuntimeModule
         _objectiveEvaluationDirty = true;
     }
 
+    /// <summary>
+    /// Advances the control-objective score by one timeline step. The score is
+    /// measured in TU of exclusive control, so <paramref name="tuDelta"/> is the TU
+    /// elapsed this tick (the timeline's <c>tu_per_tick</c>). It MUST be a positive
+    /// multiple of <see cref="BattleTimelineState.TuGranularity"/>: the whole TU
+    /// system (score_target, duration_tu, cooldowns, ...) lives on that 5-TU grid,
+    /// and <see cref="BattleControlObjectiveRuntimeState.TryAdvanceScores"/> throws
+    /// on an off-grid delta by design so a mis-configured tick step fails fast
+    /// instead of drifting the score off the lattice that ScoreTarget sits on.
+    /// Production pins <c>tu_per_tick</c> to TuGranularity, so this holds today; the
+    /// invariant is documented here because it is enforced downstream, not at the
+    /// tick-config layer.
+    /// </summary>
     internal void AdvanceControlObjectiveProgress(
         int tuDelta,
         BattleEventBatch batch
@@ -224,7 +237,9 @@ public sealed partial class BattleRuntimeModule
             batch.AddLogLine($"{target.display_name} 已经获救。");
             return;
         }
-        activeUnit.current_ap = Math.Max(activeUnit.current_ap - 1, 0);
+        activeUnit.SetCurrentAp(
+            Math.Max(activeUnit.GetCurrentAp() - 1, 0)
+        );
         _record_action_issued(
             activeUnit,
             BattleTypedNames.ToStringName(BattleCommandKind.Interact),
@@ -261,7 +276,9 @@ public sealed partial class BattleRuntimeModule
             return;
         }
 
-        activeUnit.current_ap = Math.Max(activeUnit.current_ap - 1, 0);
+        activeUnit.SetCurrentAp(
+            Math.Max(activeUnit.GetCurrentAp() - 1, 0)
+        );
         _record_action_issued(
             activeUnit,
             BattleTypedNames.ToStringName(BattleCommandKind.Interact),
@@ -296,8 +313,8 @@ public sealed partial class BattleRuntimeModule
         }
         BattleUnitState activeUnit = _state.GetUnit(activeUnitId);
         if (
-            activeUnit?.is_alive != true
-            || activeUnit.current_ap <= 0
+            activeUnit?.IsAlive() != true
+            || activeUnit.GetCurrentAp() <= 0
             || activeUnit.source_member_id == ""
             || !objective.RequiredPartyUnitIds.Contains(activeUnit.unit_id)
         )
@@ -355,8 +372,8 @@ public sealed partial class BattleRuntimeModule
         BattleUnitState activeUnit = _state.GetUnit(activeUnitId);
         target = _state.GetUnit(rescueObjective.TargetUnitId);
         if (
-            activeUnit?.is_alive != true
-            || activeUnit.current_ap <= 0
+            activeUnit?.IsAlive() != true
+            || activeUnit.GetCurrentAp() <= 0
             || !rescueObjective.RequiredPartyUnitIds.Contains(activeUnit.unit_id)
             || activeUnit.source_member_id == ""
         )
@@ -365,7 +382,7 @@ public sealed partial class BattleRuntimeModule
             return false;
         }
         if (
-            target?.is_alive != true
+            target?.IsAlive() != true
             || command.target_unit_id != rescueObjective.TargetUnitId
         )
         {

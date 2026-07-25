@@ -107,18 +107,22 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         AssertEquipmentRequirementBlocksMediumAndAllowsLarge(fixture.ItemDefs);
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildGiantsHeelUnit("projection", "large", strength: 18);
-        _test.Eq(equipped.weapon_item_id, GiantsHeelItemId, "巨人之踵装备后 unit 应保留真实 item_id。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, GiantsHeelItemId, "巨人之踵装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("greatsword"),
             "巨人之踵应投影为 greatsword。"
         );
-        _test.True(equipped.weapon_uses_two_hands, "巨人之踵应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 2, "巨人之踵应是 2D6+4。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 6, "巨人之踵应是 2D6+4。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 4, "巨人之踵应是 2D6+4。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "巨人之踵应造成斩击。");
+        _test.True(equippedWeapon.UsesTwoHands, "巨人之踵应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 2, "巨人之踵应是 2D6+4。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 6, "巨人之踵应是 2D6+4。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 4, "巨人之踵应是 2D6+4。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "巨人之踵应造成斩击。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             GiantSlayerTraitId,
@@ -140,13 +144,18 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除巨人之踵后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除巨人之踵后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除巨人之踵后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除巨人之踵后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除巨人之踵后装备能力源应清空。"
+        );
     }
 
     private void TestPrimordialWeightAttackPenaltyUsesBodySizeAndStrengthFacts()
@@ -252,7 +261,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         _test.Eq(hobbled?.duration ?? -1, 50, "hobbled 应持续 50TU。");
         _test.Eq(hobbled?.move_point_capacity_delta ?? 0, -2, "hobbled 应声明移动力上限 -2。");
         _test.Eq(failedTarget.GetMovePointCapacity(), 0, "hobbled 后普通移动力上限应降到 0。");
-        _test.Eq(failedTarget.current_move_points, 0, "施加 hobbled 时当前移动力应被 clamp 到上限。");
+        _test.Eq(failedTarget.GetCurrentMovePoints(), 0, "施加 hobbled 时当前移动力应被 clamp 到上限。");
 
         lockout.duration = 37;
         failedTarget.SetStatusEffect(lockout);
@@ -379,9 +388,9 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
             strength: 18
         );
         if (stripAbilitySources)
-            attacker.equipment_ability_sources.Clear();
+        attacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState target = BuildTarget("damage_target", new Vector2I(1, 0), targetBodySizeCategory, targetTags);
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -390,7 +399,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
             $"giants_heel_damage_{targetBodySizeCategory}_{stripAbilitySources}",
             previewCommand: false
         );
-        return 100 - target.current_hp;
+        return 100 - target.GetCurrentHp();
     }
 
     private static BattleAttackRollModifierBundle BuildAttackBundle(
@@ -497,9 +506,9 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -512,12 +521,18 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -532,14 +547,15 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         IReadOnlyList<StringName> tags = null
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.SetBodySizeCategory(bodySizeCategory);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
@@ -550,7 +566,7 @@ public partial class run_giants_heel_weapon_ability_regression : LifecycleTestSc
         foreach (StringName tag in tags ?? Array.Empty<StringName>())
         {
             if (tag != "")
-                unit.creature_type_tags.Add(tag);
+                unit.AddCreatureTypeTagTyped(tag);
         }
         unit.SetEquipmentView(new EquipmentState());
         return unit;

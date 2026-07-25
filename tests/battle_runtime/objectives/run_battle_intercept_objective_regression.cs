@@ -62,7 +62,7 @@ public partial class run_battle_intercept_objective_regression
             "截击目标被击败后应立即完成战斗。"
         );
         _test.True(
-            fixture.Enemies[1].is_alive,
+            fixture.Enemies[1].IsAlive(),
             "截击成功不应要求歼灭目标护卫。"
         );
         AssertDecision(
@@ -136,7 +136,7 @@ public partial class run_battle_intercept_objective_regression
             "初始持久队伍覆灭后应判定截击失败。"
         );
         _test.True(
-            fixture.Enemies[0].is_alive,
+            fixture.Enemies[0].IsAlive(),
             "队伍覆灭失败路径中截击目标应仍然存活。"
         );
         AssertDecision(

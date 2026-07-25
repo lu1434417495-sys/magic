@@ -20,7 +20,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         if (request?.IsValid != true || Runtime?.GetState() == null)
             return false;
         BattleState state = Runtime.GetState();
-        if (!state.TryGetUnitTyped(request.CasterUnitId, out BattleUnitState caster) || caster?.is_alive != true)
+        if (!state.TryGetUnitTyped(request.CasterUnitId, out BattleUnitState caster) || caster?.IsAlive() != true)
             return false;
         SkillDefinition skillDefinition = Runtime.GetSkillDefinitionTyped(request.StoredSkillId);
         if (skillDefinition?.CombatProfile == null)
@@ -353,10 +353,11 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                         caster,
                         targetUnit,
                         skillDefinition,
-                        resolvedEffectDefinitions,
-                        repeatAttackEffect,
-                        batch
-                    )
+                            resolvedEffectDefinitions,
+                            repeatAttackEffect,
+                            batch,
+                            castVariantDefinition
+                        )
                 )
                 {
                     applied = true;
@@ -412,7 +413,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             batch?.AddLogLine(precastValidationMessage);
             return false;
         }
-        Vector2I casterCoordBeforePrecast = caster?.coord ?? new Vector2I(-1, -1);
+        Vector2I casterCoordBeforePrecast =
+            caster?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         if (
             Runtime?.ApplyGroundPrecastSpecialEffectsTyped(
                 caster,
@@ -424,7 +426,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         )
             return false;
         bool precastRelocationApplied =
-            caster != null && caster.coord != casterCoordBeforePrecast;
+            caster != null
+            && caster.GetAnchorCoord() != casterCoordBeforePrecast;
 
         GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             caster,

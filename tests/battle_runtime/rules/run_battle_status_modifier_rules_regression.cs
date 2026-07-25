@@ -129,7 +129,7 @@ public partial class run_battle_status_modifier_rules_regression : LifecycleTest
             5,
             "治疗应用路径应消费状态治疗倍率。"
         );
-        _test.Eq(healTarget.current_hp, 10, "治疗写回 HP 应使用倍率后的数值。");
+        _test.Eq(healTarget.GetCurrentHp(), 10, "治疗写回 HP 应使用倍率后的数值。");
 
         BattleUnitState shieldTarget = MakeUnit("shield_target", 20, 20);
         shieldTarget.SetStatusEffect(MakeModifierStatus("soul_fracture", 50, 50));
@@ -149,7 +149,11 @@ public partial class run_battle_status_modifier_rules_regression : LifecycleTest
         );
 
         _test.Eq(shieldResult.CurrentShieldHp, 5, "护盾应用路径应消费状态护盾倍率。");
-        _test.Eq(shieldTarget.current_shield_hp, 5, "护盾写回应使用倍率后的数值。");
+        _test.Eq(
+            shieldTarget.GetShieldStateTyped().CurrentHp,
+            5,
+            "护盾写回应使用倍率后的数值。"
+        );
     }
 
     private static BattleStatusEffectState MakeModifierStatus(
@@ -171,9 +175,10 @@ public partial class run_battle_status_modifier_rules_regression : LifecycleTest
         var unit = new BattleUnitState
         {
             unit_id = unitId,
-            current_hp = currentHp,
-            is_alive = currentHp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            isAlive: currentHp > 0
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
         return unit;
     }

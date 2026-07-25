@@ -535,7 +535,7 @@ internal sealed class MisfortuneService : IDisposable
     private GDictionary _HandleLowHpTurnEndTrigger(MisfortuneTriggerRequest request)
     {
         var unitState = request.UnitState;
-        if (unitState == null || !unitState.is_alive || !_IsLowHpHardship(unitState))
+        if (unitState == null || !unitState.IsAlive() || !_IsLowHpHardship(unitState))
             return new GDictionary();
         return _RegisterReason(unitState, CalamityReasonLowHpEndTurn);
     }
@@ -728,7 +728,7 @@ internal sealed class MisfortuneService : IDisposable
         );
         if (maxHp <= 0)
             return false;
-        return unitState.current_hp * 100
+        return unitState.GetCurrentHp() * 100
             <= maxHp * BattleState.LowHpAttackDisadvantagePercent;
     }
 
@@ -775,7 +775,7 @@ internal sealed class MisfortuneService : IDisposable
     {
         if (unitState == null || skillId == "")
             return false;
-        if (unitState.known_active_skill_ids.Contains(skillId))
+        if (unitState.KnowsActiveSkill(skillId))
             return true;
         return unitState.GetKnownSkillLevelTyped(skillId) > 0;
     }

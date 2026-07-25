@@ -66,7 +66,7 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
 
         MovementReachabilityResult reachable = service.CollectReachableAnchors(
             actor.unit_id,
-            actor.coord,
+            actor.GetAnchorCoord(),
             1
         );
         _test.True(reachable.Ok, "reachable query 应成功。");
@@ -188,8 +188,9 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
         {
             unit_id = unitId,
             faction_id = factionId,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.SetCurrentMovePoints(3);
         return unit;
@@ -202,7 +203,7 @@ public partial class run_movement_query_typed_result_regression : LifecycleTestS
     )
     {
         state.SetUnit(unit);
-        gridService.PlaceUnit(state, unit, unit.coord, true);
+        gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static int FixedMoveCost(StringName unitId, Vector2I fromCoord, Vector2I toCoord) => 1;

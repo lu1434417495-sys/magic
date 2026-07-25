@@ -130,14 +130,16 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildHeartbaneUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, HeartbaneItemId, "噬心者装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("rapier"), "噬心者应投影为 rapier。");
-        _test.Eq(equipped.weapon_attack_range, 1, "噬心者攻击距离应为 1。");
-        _test.False(equipped.weapon_uses_two_hands, "噬心者不应占用双手。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "噬心者单手骰数量应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "噬心者单手骰面应为 D8。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "噬心者单手骰固定加值应为 +3。");
+        _test.Eq(equippedWeapon.ItemId, HeartbaneItemId, "噬心者装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("rapier"), "噬心者应投影为 rapier。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "噬心者攻击距离应为 1。");
+        _test.False(equippedWeapon.UsesTwoHands, "噬心者不应占用双手。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "噬心者单手骰数量应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "噬心者单手骰面应为 D8。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "噬心者单手骰固定加值应为 +3。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             HeartbreakStingTraitId,
@@ -165,15 +167,16 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除噬心者后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除噬心者后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除噬心者后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除噬心者后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -183,7 +186,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         using HeartbaneFixture ordinaryFixture = HeartbaneFixture.Build(new GArray());
         BattleUnitState ordinaryAttacker = ordinaryFixture.BuildHeartbaneUnit("ordinary");
         BattleUnitState ordinaryTarget = BuildTarget("ordinary_target", new Vector2I(1, 0));
-        ordinaryTarget.current_hp = 120;
+        ordinaryTarget.SetCurrentHp(120);
         ordinaryTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             ordinaryFixture.Runtime,
@@ -192,17 +195,17 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             "heartbane_sting_ordinary",
             previewCommand: false
         );
-        int ordinaryDamage = 120 - ordinaryTarget.current_hp;
+        int ordinaryDamage = 120 - ordinaryTarget.GetCurrentHp();
 
         using HeartbaneFixture plainOrdinaryFixture = HeartbaneFixture.Build(new GArray());
         BattleUnitState plainOrdinaryAttacker =
             plainOrdinaryFixture.BuildHeartbaneUnit("ordinary_plain");
-        plainOrdinaryAttacker.equipment_ability_sources.Clear();
+        plainOrdinaryAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainOrdinaryTarget = BuildTarget(
             "ordinary_plain_target",
             new Vector2I(1, 0)
         );
-        plainOrdinaryTarget.current_hp = 120;
+        plainOrdinaryTarget.SetCurrentHp(120);
         plainOrdinaryTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainOrdinaryFixture.Runtime,
@@ -211,7 +214,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             "heartbane_sting_ordinary_plain",
             previewCommand: false
         );
-        int plainOrdinaryDamage = 120 - plainOrdinaryTarget.current_hp;
+        int plainOrdinaryDamage = 120 - plainOrdinaryTarget.GetCurrentHp();
         _test.Eq(
             ordinaryDamage,
             plainOrdinaryDamage,
@@ -222,7 +225,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         criticalFixture.Runtime.ConfigureHitResolverForTests(new FixedCriticalHitResolver());
         BattleUnitState criticalAttacker = criticalFixture.BuildHeartbaneUnit("critical");
         BattleUnitState criticalTarget = BuildTarget("critical_target", new Vector2I(1, 0));
-        criticalTarget.current_hp = 120;
+        criticalTarget.SetCurrentHp(120);
         criticalTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             criticalFixture.Runtime,
@@ -231,18 +234,18 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             "heartbane_sting_critical",
             previewCommand: false
         );
-        int criticalDamage = 120 - criticalTarget.current_hp;
+        int criticalDamage = 120 - criticalTarget.GetCurrentHp();
 
         using HeartbaneFixture plainCriticalFixture = HeartbaneFixture.Build(new GArray());
         plainCriticalFixture.Runtime.ConfigureHitResolverForTests(new FixedCriticalHitResolver());
         BattleUnitState plainCriticalAttacker =
             plainCriticalFixture.BuildHeartbaneUnit("critical_plain");
-        plainCriticalAttacker.equipment_ability_sources.Clear();
+        plainCriticalAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainCriticalTarget = BuildTarget(
             "critical_plain_target",
             new Vector2I(1, 0)
         );
-        plainCriticalTarget.current_hp = 120;
+        plainCriticalTarget.SetCurrentHp(120);
         plainCriticalTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainCriticalFixture.Runtime,
@@ -251,7 +254,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             "heartbane_sting_critical_plain",
             previewCommand: false
         );
-        int plainCriticalDamage = 120 - plainCriticalTarget.current_hp;
+        int plainCriticalDamage = 120 - plainCriticalTarget.GetCurrentHp();
         _test.True(
             criticalDamage > plainCriticalDamage,
             "心碎之刺应在暴击真实基础攻击中追加 psychic HP 伤害。"
@@ -264,10 +267,10 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         BattleUnitState attacker = fixture.BuildHeartbaneUnit("heart_craving");
         BattleUnitState threshold = BuildTarget("threshold_target", new Vector2I(1, 0));
         threshold.attribute_snapshot.SetValue(AttributeService.HP_MAX, 40);
-        threshold.current_hp = 12;
+        threshold.SetCurrentHp(12);
         BattleUnitState aboveThreshold = BuildTarget("above_threshold_target", new Vector2I(1, 0));
         aboveThreshold.attribute_snapshot.SetValue(AttributeService.HP_MAX, 40);
-        aboveThreshold.current_hp = 13;
+        aboveThreshold.SetCurrentHp(13);
 
         BattleAttackCheckPolicyService attackPolicy =
             fixture.Runtime.GetAttackCheckPolicyService();
@@ -312,7 +315,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         );
         BattleUnitState holder = fixture.BuildHeartbaneUnit("rend_holder");
         BattleUnitState target = BuildTarget("rend_target", new Vector2I(1, 0));
-        target.current_hp = 120;
+        target.SetCurrentHp(120);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         BattleUnitState bystander = BuildTarget("bystander", new Vector2I(2, 0));
 
@@ -411,7 +414,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         using HeartbaneFixture fixture = HeartbaneFixture.Build(new GArray());
         BattleUnitState holder = fixture.BuildHeartbaneUnit("burst_holder");
         BattleUnitState target = BuildTarget("burst_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
 
         _test.True(
@@ -474,7 +477,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         );
         _test.Eq(entry.EquipmentMaxUsesPerPeriod, 1, "心碎爆发每场战斗限 1 次。");
 
-        int blockedHpBefore = target.current_hp;
+        int blockedHpBefore = target.GetCurrentHp();
         BattleEventBatch blocked = WeaponAbilityCommandTestSupport.IssueUnitSkill(
             fixture.Runtime,
             holder,
@@ -489,7 +492,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             HasLogLineContaining(blocked, EmotionalRendStatusId.ToString()),
             $"没有 3 层情感撕裂时心碎爆发应被目标状态门禁拦截。logs={JoinLogs(blocked)}"
         );
-        _test.Eq(target.current_hp, blockedHpBefore, "没有 3 层情感撕裂时，心碎爆发不应造成伤害。");
+        _test.Eq(target.GetCurrentHp(), blockedHpBefore, "没有 3 层情感撕裂时，心碎爆发不应造成伤害。");
         _test.False(target.HasStatusEffect(StunnedStatusId), "没有 3 层情感撕裂时，心碎爆发不应震慑。");
         BattleSkillAvailabilityView afterBlocked =
             availabilityService.BuildView(
@@ -523,7 +526,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
             }
         );
 
-        int appliedHpBefore = target.current_hp;
+        int appliedHpBefore = target.GetCurrentHp();
         BattleEventBatch applied = WeaponAbilityCommandTestSupport.IssueUnitSkill(
             fixture.Runtime,
             holder,
@@ -535,7 +538,7 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         );
         _test.True(applied != null, "3 层情感撕裂时心碎爆发 IssueCommand 应返回 batch。");
         _test.True(
-            target.current_hp < appliedHpBefore,
+            target.GetCurrentHp() < appliedHpBefore,
             $"心碎爆发应通过真实技能命令造成 psychic 伤害。logs={JoinLogs(applied)}"
         );
         _test.True(target.HasStatusEffect(StunnedStatusId), $"心碎爆发应施加 stunned。logs={JoinLogs(applied)}");
@@ -636,9 +639,9 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -651,12 +654,15 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -666,14 +672,15 @@ public partial class run_heartbane_weapon_ability_regression : LifecycleTestScen
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

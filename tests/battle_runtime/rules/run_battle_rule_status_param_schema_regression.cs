@@ -622,14 +622,15 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = 2,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            current_hp = 100,
-            current_mp = 4,
-            current_stamina = 4,
-            current_aura = 0,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            mp: 4,
+            stamina: 4,
+            aura: 0,
+            ap: 2,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.SetAnchorCoord(Vector2I.Zero);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);

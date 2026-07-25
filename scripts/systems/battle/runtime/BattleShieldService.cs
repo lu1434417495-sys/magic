@@ -125,11 +125,12 @@ internal sealed class BattleShieldService
             return BuildUnitShieldResult(target_unit, true);
         }
 
-        if (target_unit.shield_family == shieldFamily)
+        BattleUnitShieldSnapshot currentShield = target_unit.GetShieldStateTyped();
+        if (currentShield.Family == shieldFamily)
         {
-            int currentMaxHp = target_unit.shield_max_hp;
-            int currentHp = target_unit.current_shield_hp;
-            int currentDuration = target_unit.shield_duration;
+            int currentMaxHp = currentShield.MaxHp;
+            int currentHp = currentShield.CurrentHp;
+            int currentDuration = currentShield.Duration;
             int nextShieldMaxHp = Math.Max(currentMaxHp, shieldHp);
             int nextCurrentShieldHp = Math.Max(currentHp, shieldHp);
             int nextShieldDuration = Math.Max(currentDuration, shieldDuration);
@@ -142,24 +143,26 @@ internal sealed class BattleShieldService
                 return result;
             }
 
-            target_unit.shield_max_hp = nextShieldMaxHp;
-            target_unit.current_shield_hp = nextCurrentShieldHp;
-            target_unit.shield_duration = nextShieldDuration;
-            target_unit.shield_source_unit_id = shieldSourceUnitId;
-            target_unit.shield_source_skill_id = shieldSourceSkillId;
-            target_unit.NormalizeShieldState();
+            target_unit.ReplaceShieldStateTyped(
+                nextCurrentShieldHp,
+                nextShieldMaxHp,
+                nextShieldDuration,
+                currentShield.Family,
+                shieldSourceUnitId,
+                shieldSourceSkillId
+            );
             return BuildUnitShieldResult(target_unit, true);
         }
 
         bool shouldReplace = false;
-        int targetCurrentShieldHp = target_unit.current_shield_hp;
+        int targetCurrentShieldHp = currentShield.CurrentHp;
         if (shieldHp > targetCurrentShieldHp)
         {
             shouldReplace = true;
         }
         else if (shieldHp == targetCurrentShieldHp)
         {
-            shouldReplace = shieldDuration > target_unit.shield_duration;
+            shouldReplace = shieldDuration > currentShield.Duration;
         }
 
         if (!shouldReplace)
@@ -192,13 +195,15 @@ internal sealed class BattleShieldService
             return;
         }
 
-        target_unit.current_shield_hp = Math.Max(shield_hp, 0);
-        target_unit.shield_max_hp = Math.Max(shield_hp, 0);
-        target_unit.shield_duration = shield_duration;
-        target_unit.shield_family = shield_family;
-        target_unit.shield_source_unit_id = shield_source_unit_id;
-        target_unit.shield_source_skill_id = shield_source_skill_id;
-        target_unit.NormalizeShieldState();
+        int normalizedHp = Math.Max(shield_hp, 0);
+        target_unit.ReplaceShieldStateTyped(
+            normalizedHp,
+            normalizedHp,
+            shield_duration,
+            shield_family,
+            shield_source_unit_id,
+            shield_source_skill_id
+        );
     }
 
     private BattleShieldApplyResult BuildUnitShieldResult(BattleUnitState target_unit, bool applied)
@@ -411,12 +416,15 @@ internal sealed class BattleShieldService
         bool useEmptyDefaults
     )
     {
+        BattleUnitShieldSnapshot shieldState =
+            targetUnit?.GetShieldStateTyped()
+            ?? BattleUnitShieldSnapshot.MissingOwner;
         return new BattleShieldApplyResult(
             applied,
-            targetUnit != null && !useEmptyDefaults ? targetUnit.current_shield_hp : 0,
-            targetUnit != null && !useEmptyDefaults ? targetUnit.shield_max_hp : 0,
-            targetUnit != null && !useEmptyDefaults ? targetUnit.shield_duration : -1,
-            targetUnit != null && !useEmptyDefaults ? targetUnit.shield_family : Empty
+            targetUnit != null && !useEmptyDefaults ? shieldState.CurrentHp : 0,
+            targetUnit != null && !useEmptyDefaults ? shieldState.MaxHp : 0,
+            targetUnit != null && !useEmptyDefaults ? shieldState.Duration : -1,
+            targetUnit != null && !useEmptyDefaults ? shieldState.Family : Empty
         );
     }
 

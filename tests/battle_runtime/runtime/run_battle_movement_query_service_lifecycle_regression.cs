@@ -24,7 +24,7 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         InstallUnit(gridService, firstState, firstUnit);
         service.Setup(7, firstState, gridService, FixedMoveCost);
         _test.True(
-            service.CollectReachableAnchors(firstUnit.unit_id, firstUnit.coord, 1).Ok,
+            service.CollectReachableAnchors(firstUnit.unit_id, firstUnit.GetAnchorCoord(), 1).Ok,
             "same-epoch owner mismatch 回归前置：首个 state 查询应成功。"
         );
 
@@ -35,11 +35,11 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         service.Setup(7, secondState, gridService, FixedMoveCost);
 
         _test.True(
-            service.CollectReachableAnchors(secondUnit.unit_id, secondUnit.coord, 1).Ok,
+            service.CollectReachableAnchors(secondUnit.unit_id, secondUnit.GetAnchorCoord(), 1).Ok,
             "同 epoch 误绑新 state 时应清空 retained cache 并读取新单位。"
         );
         _test.Eq(
-            service.CollectReachableAnchors(firstUnit.unit_id, firstUnit.coord, 1).RejectReason,
+            service.CollectReachableAnchors(firstUnit.unit_id, firstUnit.GetAnchorCoord(), 1).RejectReason,
             new StringName("missing_unit"),
             "同 epoch owner 变化后不得继续暴露旧 state 单位。"
         );
@@ -58,7 +58,7 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         service.Setup(1, firstState, gridService, FixedMoveCost);
         MovementReachabilityResult firstQuery = service.CollectReachableAnchors(
             firstUnit.unit_id,
-            firstUnit.coord,
+            firstUnit.GetAnchorCoord(),
             1
         );
         _test.True(firstQuery.Ok, "初次 setup 后应能查询 first_unit 可达格。");
@@ -70,7 +70,7 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         service.ClearRuntimeBindings();
         MovementReachabilityResult disposedQuery = service.CollectReachableAnchors(
             firstUnit.unit_id,
-            firstUnit.coord,
+            firstUnit.GetAnchorCoord(),
             1
         );
         _test.False(disposedQuery.Ok, "decision unbind 后不应继续读旧 BattleState。");
@@ -115,14 +115,14 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         service.Setup(2, secondState, gridService, FixedMoveCost);
         MovementReachabilityResult reboundQuery = service.CollectReachableAnchors(
             secondUnit.unit_id,
-            secondUnit.coord,
+            secondUnit.GetAnchorCoord(),
             1
         );
         _test.True(reboundQuery.Ok, "DisposeRuntime 后应允许重新 setup 新 BattleState。");
 
         MovementReachabilityResult oldUnitAfterRebind = service.CollectReachableAnchors(
             firstUnit.unit_id,
-            firstUnit.coord,
+            firstUnit.GetAnchorCoord(),
             1
         );
         _test.False(
@@ -265,8 +265,9 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
         {
             unit_id = unitId,
             faction_id = "player",
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.SetCurrentMovePoints(3);
         return unit;
@@ -279,7 +280,7 @@ public partial class run_battle_movement_query_service_lifecycle_regression : Li
     )
     {
         state.SetUnit(unit);
-        gridService.PlaceUnit(state, unit, unit.coord, true);
+        gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         state.active_unit_id = unit.unit_id;
     }
 

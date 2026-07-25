@@ -398,12 +398,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         ));
         GDictionary oneHandedResult = oneHandedResultLease.Value;
         GDictionary oneHandedEvent = FirstDamageEvent(oneHandedResult);
+        BattleWeaponProjectionValues oneHandedWeapon =
+            source.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            source.weapon_current_grip.ToString(),
+            oneHandedWeapon.CurrentGrip.ToString(),
             "one_handed",
             "versatile 单手握法应保留当前 grip。"
         );
-        _test.True(!source.weapon_uses_two_hands, "versatile 单手握法不应标记双手。");
+        _test.True(!oneHandedWeapon.UsesTwoHands, "versatile 单手握法不应标记双手。");
         _test.Eq(
             DictInt(oneHandedEvent, "weapon_damage_dice_count", 0),
             1,
@@ -426,12 +428,14 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         ));
         GDictionary twoHandedResult = twoHandedResultLease.Value;
         GDictionary twoHandedEvent = FirstDamageEvent(twoHandedResult);
+        BattleWeaponProjectionValues twoHandedWeapon =
+            source.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            source.weapon_current_grip.ToString(),
+            twoHandedWeapon.CurrentGrip.ToString(),
             "two_handed",
             "versatile 双手握法应保留当前 grip。"
         );
-        _test.True(source.weapon_uses_two_hands, "versatile 双手握法应标记双手。");
+        _test.True(twoHandedWeapon.UsesTwoHands, "versatile 双手握法应标记双手。");
         _test.Eq(
             DictInt(twoHandedEvent, "weapon_damage_dice_count", 0),
             2,
@@ -452,7 +456,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = BuildUnit("innate_weapon_target");
         CombatEffectDefinition effect = BuildDamageEffect(0, true);
 
-        source.SetUnarmedWeaponProjectionTyped(
+        ApplyUnarmedWeapon(
+            source,
             "physical_blunt",
             new WeaponDice
             {
@@ -471,8 +476,10 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         ));
         GDictionary unarmedResult = unarmedResultLease.Value;
         GDictionary unarmedEvent = FirstDamageEvent(unarmedResult);
+        BattleWeaponProjectionValues unarmedWeapon =
+            source.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            source.weapon_profile_kind.ToString(),
+            unarmedWeapon.ProfileKind.ToString(),
             "unarmed",
             "空手攻击应通过 unarmed profile 表达。"
         );
@@ -488,7 +495,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         );
         _test.Eq(DictInt(unarmedEvent, "base_damage", 0), 4, "空手 add_weapon_dice 应使用空手骰。");
 
-        source.SetNaturalWeaponProjectionTyped(
+        ApplyNaturalWeapon(
+            source,
             "natural_weapon",
             "physical_pierce",
             1,
@@ -509,8 +517,10 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         ));
         GDictionary naturalResult = naturalResultLease.Value;
         GDictionary naturalEvent = FirstDamageEvent(naturalResult);
+        BattleWeaponProjectionValues naturalWeapon =
+            source.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            source.weapon_profile_kind.ToString(),
+            naturalWeapon.ProfileKind.ToString(),
             "natural",
             "天生武器应通过 natural profile 表达。"
         );
@@ -549,7 +559,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState target = fixture.Target;
         BattleCommand command = fixture.Command;
 
-        attacker.SetUnarmedWeaponProjectionTyped(
+        ApplyUnarmedWeapon(
+            attacker,
             "physical_blunt",
             new WeaponDice
             {
@@ -559,16 +570,17 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             },
             1
         );
-        int targetHpBefore = target.current_hp;
+        int targetHpBefore = target.GetCurrentHp();
         BattleEventBatch unarmedBatch = runtime.IssueCommand(command);
         _test.True(
             unarmedBatch != null && unarmedBatch.log_lines.Count > 0,
             $"空手攻击不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(unarmedBatch?.log_lines)}"
         );
-        _test.Eq(attacker.current_ap, 2, "空手被 requires_weapon 阻断时不应扣除 AP。");
-        _test.Eq(target.current_hp, targetHpBefore, "空手被 requires_weapon 阻断时不应结算伤害。");
+        _test.Eq(attacker.GetCurrentAp(), 2, "空手被 requires_weapon 阻断时不应扣除 AP。");
+        _test.Eq(target.GetCurrentHp(), targetHpBefore, "空手被 requires_weapon 阻断时不应结算伤害。");
 
-        attacker.SetNaturalWeaponProjectionTyped(
+        ApplyNaturalWeapon(
+            attacker,
             "natural_weapon",
             "physical_slash",
             1,
@@ -585,8 +597,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             naturalBatch != null && naturalBatch.log_lines.Count > 0,
             $"天生武器不应满足 requires_weapon，且应回传阻断反馈。 log={FormatLogs(naturalBatch?.log_lines)}"
         );
-        _test.Eq(attacker.current_ap, 2, "天生武器被 requires_weapon 阻断时不应扣除 AP。");
-        _test.Eq(target.current_hp, targetHpBefore, "天生武器被 requires_weapon 阻断时不应结算伤害。");
+        _test.Eq(attacker.GetCurrentAp(), 2, "天生武器被 requires_weapon 阻断时不应扣除 AP。");
+        _test.Eq(target.GetCurrentHp(), targetHpBefore, "天生武器被 requires_weapon 阻断时不应结算伤害。");
 
         ApplyWeapon(attacker, 1, 6, 0);
         BattleEventBatch equippedBatch = runtime.IssueCommand(command);
@@ -594,8 +606,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             equippedBatch.changed_unit_ids.Contains(attacker.unit_id),
             $"装备武器应满足 requires_weapon 并正常结算施法者。 log={FormatLogs(equippedBatch?.log_lines)}"
         );
-        _test.Eq(attacker.current_ap, 1, "装备武器满足 requires_weapon 后应正常扣除 AP。");
-        _test.True(target.current_hp < targetHpBefore, "装备武器满足 requires_weapon 后应造成伤害。");
+        _test.Eq(attacker.GetCurrentAp(), 1, "装备武器满足 requires_weapon 后应正常扣除 AP。");
+        _test.True(target.GetCurrentHp() < targetHpBefore, "装备武器满足 requires_weapon 后应造成伤害。");
     }
 
     private void TestNaturalWeaponDiceDoNotTriggerSkillMastery()
@@ -616,7 +628,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         BattleUnitState attacker = fixture.Attacker;
         BattleCommand command = fixture.Command;
         attacker.source_member_id = "hero";
-        attacker.SetNaturalWeaponProjectionTyped(
+        ApplyNaturalWeapon(
+            attacker,
             "natural_weapon",
             "physical_slash",
             1,
@@ -897,7 +910,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             }
         );
         BattleUnitState attacker = BuildUnit("heavy_strike_weapon_gate_user");
-        attacker.current_stamina = 100;
+        attacker.SetCurrentStamina(100);
 
         ApplyWeapon(attacker, 1, 6, 0, "bow", 3, "ranged");
         _test.Eq(
@@ -1025,8 +1038,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
     {
         BattleState state = BuildSkillTestState(new Vector2I(2, 1));
         BattleUnitState attacker = BuildUnit("weapon_contract_user", new Vector2I(0, 0), 2);
-        attacker.known_active_skill_ids.Add(skillId);
-        attacker.known_skill_level_map[skillId] = 1;
+        attacker.AddKnownActiveSkill(skillId);
+        attacker.SetKnownSkillLevelTyped(skillId, 1);
         attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
         BattleUnitState target = BuildEnemyUnit("weapon_contract_target", new Vector2I(1, 0));
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 1);
@@ -1036,11 +1049,11 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         state.enemy_unit_ids.Add(target.unit_id);
         state.active_unit_id = attacker.unit_id;
         _test.True(
-            runtime._grid_service.PlaceUnit(state, attacker, attacker.coord, true),
+            runtime._grid_service.PlaceUnit(state, attacker, attacker.GetAnchorCoord(), true),
             "武器骰 runtime 夹具攻击者应能放入战场。"
         );
         _test.True(
-            runtime._grid_service.PlaceUnit(state, target, target.coord, true),
+            runtime._grid_service.PlaceUnit(state, target, target.GetAnchorCoord(), true),
             "武器骰 runtime 夹具目标应能放入战场。"
         );
         runtime.SetupStateForTests(state);
@@ -1052,7 +1065,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
             skill_id = skillId,
             target_unit_id = target.unit_id,
-            target_coord = target.coord,
+            target_coord = target.GetAnchorCoord(),
         };
         return new RuntimeDuelFixture(state, attacker, target, command);
     }
@@ -1103,10 +1116,11 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = currentAp,
-            current_hp = 100,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue("hp_max", 100);
         unit.SetAnchorCoord(coord);
         return unit;
@@ -1116,7 +1130,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
     {
         BattleUnitState unit = BuildUnit(unitId, coord);
         unit.faction_id = "enemy";
-        unit.current_hp = 30;
+        unit.SetCurrentHp(30);
         unit.attribute_snapshot.SetValue("hp_max", 30);
         return unit;
     }
@@ -1150,8 +1164,64 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                     dice_sides = diceSides,
                     flat_bonus = flatBonus,
                 },
+                weapon_two_handed_dice = new WeaponDice(),
+                weapon_is_versatile = false,
                 weapon_uses_two_hands = false,
                 weapon_physical_damage_tag = "physical_slash",
+            }
+        );
+    }
+
+    private static void ApplyUnarmedWeapon(
+        BattleUnitState unit,
+        StringName damageTag,
+        WeaponDice dice,
+        int attackRange
+    )
+    {
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "unarmed",
+                weapon_item_id = "",
+                weapon_profile_type_id = "unarmed",
+                weapon_range_type = "melee",
+                weapon_family = "unarmed",
+                weapon_current_grip = "one_handed",
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = dice ?? new WeaponDice(),
+                weapon_two_handed_dice = new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = damageTag,
+            }
+        );
+    }
+
+    private static void ApplyNaturalWeapon(
+        BattleUnitState unit,
+        StringName profileTypeId,
+        StringName damageTag,
+        int attackRange,
+        WeaponDice dice,
+        StringName family
+    )
+    {
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "natural",
+                weapon_item_id = "",
+                weapon_profile_type_id = profileTypeId,
+                weapon_range_type = "melee",
+                weapon_family = family,
+                weapon_current_grip = "one_handed",
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = dice ?? new WeaponDice(),
+                weapon_two_handed_dice = new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = damageTag,
             }
         );
     }
@@ -1164,6 +1234,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 weapon_profile_kind = BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
                 weapon_item_id = "versatile_test_longsword",
                 weapon_profile_type_id = "longsword",
+                weapon_range_type = "melee",
+                weapon_family = "sword",
                 weapon_current_grip = usesTwoHands
                     ? BattleUnitState.ToStringName(BattleWeaponGripKind.TwoHanded)
                     : BattleUnitState.ToStringName(BattleWeaponGripKind.OneHanded),
@@ -1395,16 +1467,13 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             return RecordGrant(member_id, skill_id, amount, source_type);
         }
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount
-        )
-        {
-            return RecordAchievementEvent(member_id, event_type, amount, "", new GDictionary());
-        }
+        ) => Array.Empty<StringName>();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount,
@@ -1416,7 +1485,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             {
                 SkillUsedEvents += amount;
             }
-            return new GStringNameArray();
+            return Array.Empty<StringName>();
         }
 
         public PendingCharacterReward BuildPendingSkillMasteryReward(

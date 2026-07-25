@@ -331,7 +331,7 @@ internal sealed class BattleMeteorSwarmResolver
                     continue;
                 }
                 BattleUnitState unitState = UnitById(occupantId);
-                if (unitState == null || !unitState.is_alive)
+                if (unitState == null || !unitState.IsAlive())
                 {
                     continue;
                 }
@@ -410,7 +410,7 @@ internal sealed class BattleMeteorSwarmResolver
                     continue;
                 }
                 BattleUnitState unitState = UnitById(occupantId);
-                if (unitState == null || !unitState.is_alive)
+                if (unitState == null || !unitState.IsAlive())
                 {
                     continue;
                 }
@@ -453,7 +453,7 @@ internal sealed class BattleMeteorSwarmResolver
         foreach (StringName targetUnitId in plan.target_unit_ids)
         {
             BattleUnitState targetUnit = UnitById(targetUnitId);
-            if (targetUnit == null || !targetUnit.is_alive)
+            if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
@@ -466,7 +466,9 @@ internal sealed class BattleMeteorSwarmResolver
             result.total_damage += targetOutcome.total_damage;
             result.total_healing += targetOutcome.total_healing;
             result.AddChangedUnitId(targetUnit.unit_id);
-            foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I occupiedCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 result.AddChangedCoord(occupiedCoord);
             }
@@ -548,7 +550,7 @@ internal sealed class BattleMeteorSwarmResolver
         if (
             outcome.distance_from_anchor <= 1
             && !StringNameIsEmpty(plan.profile.concussed_status_id)
-            && target_unit.is_alive
+            && target_unit.IsAlive()
         )
         {
             AttackEffectResolutionResult statusResult = _apply_concussed_status(
@@ -563,8 +565,8 @@ internal sealed class BattleMeteorSwarmResolver
                 }
             }
         }
-        target_unit.SetCurrentHp(target_unit.current_hp);
-        outcome.defeated = !target_unit.is_alive;
+        target_unit.SetCurrentHp(target_unit.GetCurrentHp());
+        outcome.defeated = !target_unit.IsAlive();
         return outcome;
     }
 
@@ -1280,7 +1282,7 @@ internal sealed class BattleMeteorSwarmResolver
             apPenalty = 1;
         }
         int maxHp = GetUnitMaxHp(target_unit);
-        int currentHp = Math.Max(target_unit.current_hp, 1);
+        int currentHp = Math.Max(target_unit.GetCurrentHp(), 1);
         int expectedHpPercent = Mathf.RoundToInt(
             (float)expectedDamage * 100.0f / Math.Max(maxHp, 1)
         );
@@ -1305,7 +1307,7 @@ internal sealed class BattleMeteorSwarmResolver
             LethalProbabilityPercent = worstCaseDamage >= currentHp ? 100 : 0,
             SaveProfileIds = CollectComponentSaveProfileIds(componentBreakdown),
             ResistanceTiersByDamageTag = resistanceTiers,
-            ShieldHp = target_unit.current_shield_hp,
+            ShieldHp = target_unit.GetShieldStateTyped().CurrentHp,
             GuardBlockEstimate = guardBlockEstimate,
             StatusEffectIds = new List<StringName>(statusEffectIds),
             ApPenalty = apPenalty,
@@ -1819,10 +1821,15 @@ internal sealed class BattleMeteorSwarmResolver
             }
             int bestDistance = 999999;
             Vector2I bestCoord = plan.GetPrimaryCoordForUnit(targetUnitId);
-            IEnumerable<Vector2I> occupiedCoords = targetUnit.occupied_coords;
-            if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
+            BattleOccupiedCoordReadView occupiedCoordView =
+                targetUnit.GetOccupiedCoordsReadViewTyped();
+            IEnumerable<Vector2I> occupiedCoords = occupiedCoordView;
+            if (!occupiedCoordView.IsPresent || occupiedCoordView.Count == 0)
             {
-                occupiedCoords = gridService.GetUnitTargetCoords(targetUnit, targetUnit.coord);
+                occupiedCoords = gridService.GetUnitTargetCoords(
+                    targetUnit,
+                    targetUnit.GetAnchorCoord()
+                );
             }
             foreach (Vector2I coord in occupiedCoords)
             {
@@ -1949,14 +1956,16 @@ internal sealed class BattleMeteorSwarmResolver
         {
             return false;
         }
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unit_state.GetOccupiedCoordsReadViewTyped()
+        )
         {
             if (occupiedCoord == coord)
             {
                 return true;
             }
         }
-        return unit_state.coord == coord;
+        return unit_state.GetAnchorCoord() == coord;
     }
 
     private bool UnitCoversCoord(BattleUnitReadView unit_state, Vector2I coord)
@@ -1990,7 +1999,7 @@ internal sealed class BattleMeteorSwarmResolver
                 return maxHp;
             }
         }
-        return Math.Max(unit_state.current_hp, 1);
+        return Math.Max(unit_state.GetCurrentHp(), 1);
     }
 
     private int GetUnitMaxHp(BattleUnitReadView unit_state)

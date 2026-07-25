@@ -143,10 +143,10 @@ public partial class run_battle_node_operation_objective_regression
         );
 
         _test.True(first.IsCompleted, "相邻交互应完成目标节点。");
-        _test.Eq(ally.current_ap, 0, "完成节点应消耗 1 AP。");
+        _test.Eq(ally.GetCurrentAp(), 0, "完成节点应消耗 1 AP。");
         _test.False(firstBatch.battle_ended, "仍有节点未完成时战斗不得结束。");
 
-        ally.current_ap = 1;
+        ally.SetCurrentAp(1);
         ally.SetAnchorCoord(second.Coord + Vector2I.Left);
         fixture.State.active_unit_id = ally.unit_id;
         fixture.State.PhaseKind = BattlePhaseKind.UnitActing;
@@ -155,7 +155,7 @@ public partial class run_battle_node_operation_objective_regression
         );
 
         _test.True(secondBatch.battle_ended, "完成最后一个节点应立即结束战斗。");
-        _test.True(fixture.Enemies[0].is_alive, "节点作业成功不要求歼灭敌军。");
+        _test.True(fixture.Enemies[0].IsAlive(), "节点作业成功不要求歼灭敌军。");
         AssertDecision(
             fixture.State.FinalDecision,
             BattleOutcomeKind.PlayerSuccess,
@@ -189,7 +189,7 @@ public partial class run_battle_node_operation_objective_regression
         using BattleEventBatch firstBatch = fixture.Runtime.IssueCommand(
             BuildInteractCommand(ally, first.Coord)
         );
-        ally.current_ap = 1;
+        ally.SetCurrentAp(1);
         BattlePreview repeatedPreview = fixture.Runtime.PreviewCommand(
             BuildInteractCommand(ally, first.Coord)
         );
@@ -197,7 +197,7 @@ public partial class run_battle_node_operation_objective_regression
             repeatedPreview?.allowed == true,
             "已完成节点不得重复操作。"
         );
-        _test.Eq(ally.current_ap, 1, "拒绝重复操作不得额外扣除 AP。");
+        _test.Eq(ally.GetCurrentAp(), 1, "拒绝重复操作不得额外扣除 AP。");
     }
 
     private void TestPartyDefeatBeforeCompletionFails()

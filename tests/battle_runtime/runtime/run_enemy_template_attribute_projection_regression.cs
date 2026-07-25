@@ -133,22 +133,22 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             "elite target_rank 应继续映射 fortune_mark_target。"
         );
         _test.Eq(
-            unit.current_hp,
+            unit.GetCurrentHp(),
             37,
             "敌方单位 current_hp 应从 typed snapshot 的 hp_max 初始化。"
         );
         _test.Eq(
-            unit.current_stamina,
+            unit.GetCurrentStamina(),
             13,
             "敌方单位 current_stamina 应从 typed snapshot 的 stamina_max 初始化。"
         );
         _test.Eq(
-            unit.current_ap,
+            unit.GetCurrentAp(),
             2,
             "敌方单位 current_ap 应从 typed snapshot 的 action_points 初始化。"
         );
         _test.Eq(
-            unit.known_skill_level_map.Get("basic_attack", 0),
+            unit.GetKnownSkillLevelTyped("basic_attack", 0),
             3,
             "敌方单位 known_skill_level_map 应使用 typed skill_level_map 结果。"
         );

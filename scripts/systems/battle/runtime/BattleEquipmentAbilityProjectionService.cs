@@ -2,36 +2,75 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
+internal sealed class BattleEquipmentAbilityProjectionResult
+{
+    internal BattleEquipmentAbilityProjectionResult(
+        IReadOnlyList<BattleEquipmentAbilitySourceState> sources,
+        IReadOnlyList<BattleTemporalProgressModifierState>
+            temporalProgressModifiers
+    )
+    {
+        Sources =
+            sources
+            ?? Array.Empty<
+                BattleEquipmentAbilitySourceState
+            >();
+        TemporalProgressModifiers =
+            temporalProgressModifiers
+            ?? Array.Empty<
+                BattleTemporalProgressModifierState
+            >();
+    }
+
+    internal IReadOnlyList<BattleEquipmentAbilitySourceState>
+        Sources { get; }
+
+    internal IReadOnlyList<BattleTemporalProgressModifierState>
+        TemporalProgressModifiers { get; }
+}
+
 internal static class BattleEquipmentAbilityProjectionService
 {
-    internal static List<BattleEquipmentAbilitySourceState> ProjectPlayerPersistentSources(
+    internal static BattleEquipmentAbilityProjectionResult
+        ProjectPlayerPersistent(
         BattleUnitState unit,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        List<BattleEquipmentAbilitySourceState> result = new();
-        if (unit != null)
-            unit.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>();
+        List<BattleEquipmentAbilitySourceState> sources =
+            new();
+        List<BattleTemporalProgressModifierState>
+            temporalProgressModifiers = new();
+        BattleUnitEffectiveTraitReadView effectiveTraits =
+            unit?.GetEffectiveTraitsReadViewTyped()
+            ?? BattleUnitEffectiveTraitReadView.MissingOwner;
         if (
             unit == null
-            || unit.effective_trait_instances == null
+            || !effectiveTraits.OwnerPresent
+            || !effectiveTraits.Instances.IsPresent
             || bindings == null
             || bindings.Count == 0
         )
         {
-            return result;
+            return new BattleEquipmentAbilityProjectionResult(
+                sources,
+                temporalProgressModifiers
+            );
         }
 
         EquipmentState equipmentView = unit.GetEquipmentView();
-        foreach (BattleEffectiveTraitInstanceState traitInstance in unit.effective_trait_instances)
+        foreach (
+            BattleEffectiveTraitInstanceReadView traitInstance
+            in effectiveTraits.Instances
+        )
         {
-            if (traitInstance == null || traitInstance.trait_id == "")
+            if (!traitInstance.IsPresent || traitInstance.TraitId == "")
                 continue;
 
             TraitSourceKind traitSourceKind =
-                TraitContentRules.ToSourceKind(traitInstance.source_type);
+                TraitContentRules.ToSourceKind(traitInstance.SourceType);
             if (
                 traitSourceKind != TraitSourceKind.EquipmentFixed
                 && traitSourceKind != TraitSourceKind.EquipmentRoll
@@ -42,7 +81,7 @@ internal static class BattleEquipmentAbilityProjectionService
 
             EquipmentEntryState equipmentEntry = FindEquipmentEntryByInstanceId(
                 equipmentView,
-                traitInstance.source_id
+                traitInstance.SourceId
             );
             if (equipmentEntry == null || equipmentEntry.IsEmpty())
                 continue;
@@ -54,18 +93,18 @@ internal static class BattleEquipmentAbilityProjectionService
             IReadOnlyList<EquipmentAbilityBindingDefinition> matchedBindings =
                 EquipmentAbilityBindingMatcher.FindBindings(
                     bindings.Values,
-                    traitInstance.trait_id,
+                    traitInstance.TraitId,
                     traitSourceKind,
-                    GetTraitCategories(traitInstance.trait_id, traitDefs),
+                    GetTraitCategories(traitInstance.TraitId, traitDefs),
                     sourceItem
                 );
             if (matchedBindings.Count == 0)
                 continue;
 
-            result.Add(
+            sources.Add(
                 new BattleEquipmentAbilitySourceState
                 {
-                    EffectiveInstanceKey = traitInstance.effective_instance_key,
+                    EffectiveInstanceKey = traitInstance.EffectiveInstanceKey,
                     EquipmentDefId = equipmentEntry.item_id,
                     SourceEquipmentInstanceId = equipmentEntry.instance_id,
                     SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
@@ -73,16 +112,20 @@ internal static class BattleEquipmentAbilityProjectionService
                 }
             );
             AddTemporalProgressModifiers(
-                unit,
+                temporalProgressModifiers,
                 matchedBindings,
                 equipmentEntry.instance_id
             );
         }
 
-        return result;
+        return new BattleEquipmentAbilityProjectionResult(
+            sources,
+            temporalProgressModifiers
+        );
     }
 
-    internal static List<BattleEquipmentAbilitySourceState> ProjectEnemyBattleOnlySources(
+    internal static BattleEquipmentAbilityProjectionResult
+        ProjectEnemyBattleOnly(
         BattleUnitState unit,
         EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings,
@@ -90,24 +133,40 @@ internal static class BattleEquipmentAbilityProjectionService
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
     )
     {
-        List<BattleEquipmentAbilitySourceState> result = new();
-        if (unit != null)
-            unit.temporal_progress_modifiers = new List<BattleTemporalProgressModifierState>();
+        List<BattleEquipmentAbilitySourceState> sources =
+            new();
+        List<BattleTemporalProgressModifierState>
+            temporalProgressModifiers = new();
         if (unit == null || template == null || bindings == null || bindings.Count == 0)
-            return result;
+        {
+            return new BattleEquipmentAbilityProjectionResult(
+                sources,
+                temporalProgressModifiers
+            );
+        }
 
         StringName attackEquipmentItemId = ProgressionDataUtils.to_string_name(
             template.AttackEquipmentItemId
         );
         if (attackEquipmentItemId == "")
-            return result;
+        {
+            return new BattleEquipmentAbilityProjectionResult(
+                sources,
+                temporalProgressModifiers
+            );
+        }
 
         ItemDefinition sourceItem = ResolveItemDefinition(
             attackEquipmentItemId,
             itemDefinitions
         );
         if (sourceItem == null)
-            return result;
+        {
+            return new BattleEquipmentAbilityProjectionResult(
+                sources,
+                temporalProgressModifiers
+            );
+        }
 
         foreach (StringName traitId in sourceItem.GetTraitIdsTyped())
         {
@@ -125,7 +184,7 @@ internal static class BattleEquipmentAbilityProjectionService
             if (matchedBindings.Count == 0)
                 continue;
 
-            result.Add(
+            sources.Add(
                 new BattleEquipmentAbilitySourceState
                 {
                     EffectiveInstanceKey = new StringName(
@@ -137,10 +196,17 @@ internal static class BattleEquipmentAbilityProjectionService
                     AbilityIds = SortedBindingIds(matchedBindings),
                 }
             );
-            AddTemporalProgressModifiers(unit, matchedBindings, "");
+            AddTemporalProgressModifiers(
+                temporalProgressModifiers,
+                matchedBindings,
+                ""
+            );
         }
 
-        return result;
+        return new BattleEquipmentAbilityProjectionResult(
+            sources,
+            temporalProgressModifiers
+        );
     }
 
     internal static StringNameList ProjectCreatureTypeTags(EnemyTemplateDefinition template)
@@ -161,7 +227,9 @@ internal static class BattleEquipmentAbilityProjectionService
     internal static bool UnitHasCreatureTypeTag(BattleUnitState unit, StringName tag)
     {
         StringName normalized = ProgressionDataUtils.to_string_name(tag);
-        return unit != null && normalized != "" && unit.creature_type_tags.Contains(normalized);
+        return unit != null
+            && normalized != ""
+            && unit.HasCreatureTypeTag(normalized);
     }
 
     private static EquipmentEntryState FindEquipmentEntryByInstanceId(
@@ -242,21 +310,21 @@ internal static class BattleEquipmentAbilityProjectionService
     }
 
     private static void AddTemporalProgressModifiers(
-        BattleUnitState unit,
+        List<BattleTemporalProgressModifierState>
+            destination,
         IReadOnlyList<EquipmentAbilityBindingDefinition> bindings,
         StringName sourceEquipmentInstanceId
     )
     {
-        if (unit == null || bindings == null)
+        if (destination == null || bindings == null)
             return;
-        unit.temporal_progress_modifiers ??= new List<BattleTemporalProgressModifierState>();
         foreach (EquipmentAbilityBindingDefinition binding in bindings)
         {
             foreach (EquipmentTemporalProgressModifierDefinition modifier in binding?.TemporalProgressModifiers ?? Array.Empty<EquipmentTemporalProgressModifierDefinition>())
             {
                 if (modifier == null || modifier.ModifierId == "")
                     continue;
-                unit.temporal_progress_modifiers.Add(
+                destination.Add(
                     new BattleTemporalProgressModifierState
                     {
                         ModifierId = modifier.ModifierId,

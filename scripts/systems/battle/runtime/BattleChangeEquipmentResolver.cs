@@ -209,13 +209,13 @@ internal class BattleChangeEquipmentResolver
             return;
         }
 
-        int apBefore = activeUnit.current_ap;
+        int apBefore = activeUnit.GetCurrentAp();
         activeUnit.SetEquipmentView(equipmentView);
         RuntimeState()?.SetPartyBackpackView(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult, batch);
-        activeUnit.SetCurrentAp(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST);
+        activeUnit.SetCurrentAp(activeUnit.GetCurrentAp() - CHANGE_EQUIPMENT_AP_COST);
         applyResult.ApBefore = apBefore;
-        applyResult.ApAfter = activeUnit.current_ap;
+        applyResult.ApAfter = activeUnit.GetCurrentAp();
         _runtime?._record_action_issued(
             activeUnit,
             BattleTypedNames.ToStringName(BattleCommandKind.ChangeEquipment),
@@ -236,7 +236,7 @@ internal class BattleChangeEquipmentResolver
         {
             return;
         }
-        int hpBefore = activeUnit.current_hp;
+        int hpBefore = activeUnit.GetCurrentHp();
         int hpMaxBefore = ComputeUnitHpMax(activeUnit);
         if (
             !StringNameIsEmpty(activeUnit.source_member_id)
@@ -256,23 +256,25 @@ internal class BattleChangeEquipmentResolver
             activeUnit.SetCurrentHp(hpMaxAfter);
             hpClamped = true;
         }
-        if (activeUnit.current_hp < 0)
+        if (activeUnit.GetCurrentHp() < 0)
         {
             activeUnit.MarkDead();
             hpClamped = true;
         }
         result.HpBefore = hpBefore;
-        result.HpAfter = activeUnit.current_hp;
+        result.HpAfter = activeUnit.GetCurrentHp();
         result.HpMaxBefore = hpMaxBefore;
         result.HpMaxAfter = hpMaxAfter;
         result.HpClamped = hpClamped;
-        result.WeaponProfileKind = activeUnit.weapon_profile_kind;
-        result.WeaponItemId = activeUnit.weapon_item_id;
-        result.WeaponProfileTypeId = activeUnit.weapon_profile_type_id;
-        result.WeaponCurrentGrip = activeUnit.weapon_current_grip;
-        result.WeaponAttackRange = activeUnit.weapon_attack_range;
-        result.WeaponUsesTwoHands = activeUnit.weapon_uses_two_hands;
-        result.WeaponPhysicalDamageTag = activeUnit.weapon_physical_damage_tag;
+        BattleWeaponProjectionValues weaponProjection =
+            activeUnit.GetWeaponProjectionReadViewTyped().Values;
+        result.WeaponProfileKind = weaponProjection.ProfileKind;
+        result.WeaponItemId = weaponProjection.ItemId;
+        result.WeaponProfileTypeId = weaponProjection.ProfileTypeId;
+        result.WeaponCurrentGrip = weaponProjection.CurrentGrip;
+        result.WeaponAttackRange = weaponProjection.AttackRange;
+        result.WeaponUsesTwoHands = weaponProjection.UsesTwoHands;
+        result.WeaponPhysicalDamageTag = weaponProjection.PhysicalDamageTag;
     }
 
     private int ComputeUnitHpMax(BattleUnitState unitState)
@@ -340,7 +342,7 @@ internal class BattleChangeEquipmentResolver
                 "只能为当前行动单位自己换装。"
             );
         }
-        if (activeUnit.current_ap < CHANGE_EQUIPMENT_AP_COST)
+        if (activeUnit.GetCurrentAp() < CHANGE_EQUIPMENT_AP_COST)
         {
             return WithChangeEquipmentError(
                 result,
@@ -877,8 +879,11 @@ internal class BattleChangeEquipmentResolver
     {
         result ??= new BattleChangeEquipmentResult();
         bool hasUnit = activeUnit != null;
-        int hpBefore = result.HpBefore != 0 || !hasUnit ? result.HpBefore : activeUnit.current_hp;
-        int hpAfter = result.HpAfter != 0 || !hasUnit ? result.HpAfter : activeUnit.current_hp;
+        BattleWeaponProjectionValues weaponProjection = hasUnit
+            ? activeUnit.GetWeaponProjectionReadViewTyped().Values
+            : BattleWeaponProjectionValues.Clear;
+        int hpBefore = result.HpBefore != 0 || !hasUnit ? result.HpBefore : activeUnit.GetCurrentHp();
+        int hpAfter = result.HpAfter != 0 || !hasUnit ? result.HpAfter : activeUnit.GetCurrentHp();
         int hpMaxBefore =
             result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : ComputeUnitHpMax(activeUnit);
         int hpMaxAfter =
@@ -898,7 +903,7 @@ internal class BattleChangeEquipmentResolver
             ["instance_id"] = result.InstanceId.ToString(),
             ["ap_cost"] = success ? CHANGE_EQUIPMENT_AP_COST : 0,
             ["ap_before"] = result.ApBefore,
-            ["ap_after"] = success ? result.ApAfter : (hasUnit ? activeUnit.current_ap : 0),
+            ["ap_after"] = success ? result.ApAfter : (hasUnit ? activeUnit.GetCurrentAp() : 0),
             ["hp_before"] = hpBefore,
             ["hp_after"] = hpAfter,
             ["hp_max_before"] = hpMaxBefore,
@@ -906,24 +911,24 @@ internal class BattleChangeEquipmentResolver
             ["hp_clamped"] = result.HpClamped,
             ["weapon_profile_kind"] = !StringNameIsEmpty(result.WeaponProfileKind)
                 ? result.WeaponProfileKind.ToString()
-                : (hasUnit ? activeUnit.weapon_profile_kind.ToString() : ""),
+                : (hasUnit ? weaponProjection.ProfileKind.ToString() : ""),
             ["weapon_item_id"] = !StringNameIsEmpty(result.WeaponItemId)
                 ? result.WeaponItemId.ToString()
-                : (hasUnit ? activeUnit.weapon_item_id.ToString() : ""),
+                : (hasUnit ? weaponProjection.ItemId.ToString() : ""),
             ["weapon_profile_type_id"] = !StringNameIsEmpty(result.WeaponProfileTypeId)
                 ? result.WeaponProfileTypeId.ToString()
-                : (hasUnit ? activeUnit.weapon_profile_type_id.ToString() : ""),
+                : (hasUnit ? weaponProjection.ProfileTypeId.ToString() : ""),
             ["weapon_current_grip"] = !StringNameIsEmpty(result.WeaponCurrentGrip)
                 ? result.WeaponCurrentGrip.ToString()
-                : (hasUnit ? activeUnit.weapon_current_grip.ToString() : ""),
+                : (hasUnit ? weaponProjection.CurrentGrip.ToString() : ""),
             ["weapon_attack_range"] = result.WeaponAttackRange != 0 || !hasUnit
                 ? result.WeaponAttackRange
-                : activeUnit.weapon_attack_range,
+                : weaponProjection.AttackRange,
             ["weapon_uses_two_hands"] = result.WeaponUsesTwoHands
-                || (hasUnit && activeUnit.weapon_uses_two_hands),
+                || (hasUnit && weaponProjection.UsesTwoHands),
             ["weapon_physical_damage_tag"] = !StringNameIsEmpty(result.WeaponPhysicalDamageTag)
                 ? result.WeaponPhysicalDamageTag.ToString()
-                : (hasUnit ? activeUnit.weapon_physical_damage_tag.ToString() : ""),
+                : (hasUnit ? weaponProjection.PhysicalDamageTag.ToString() : ""),
             ["text"] = string.IsNullOrEmpty(result.Message) ? "换装命令无效。" : result.Message,
         };
         _runtime?._append_report_entry_to_batch(batch, reportEntry);

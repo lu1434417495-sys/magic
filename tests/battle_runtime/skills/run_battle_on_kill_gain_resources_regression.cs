@@ -69,7 +69,7 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
                 skill_entry_id = BattleSkillEntryIds.KnownSkill(SkillId),
                 skill_id = SkillId,
                 target_unit_id = target.unit_id,
-                target_coord = target.coord,
+                target_coord = target.GetAnchorCoord(),
             };
             command.AddTargetUnitId(target.unit_id);
 
@@ -82,21 +82,21 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
             string issueLogs = JoinLogs(batch?.LogLinesTyped);
 
             _test.False(
-                target.is_alive,
-                $"死亡收割应击杀低生命目标。target_hp={target.current_hp} logs={issueLogs}"
+                target.IsAlive(),
+                $"死亡收割应击杀低生命目标。target_hp={target.GetCurrentHp()} logs={issueLogs}"
             );
             _test.Eq(
-                caster.current_ap,
+                caster.GetCurrentAp(),
                 1,
-                $"死亡收割击杀后应在 2 AP 成本后返还 1 AP。ap={caster.current_ap} logs={issueLogs}"
+                $"死亡收割击杀后应在 2 AP 成本后返还 1 AP。ap={caster.GetCurrentAp()} logs={issueLogs}"
             );
             _test.Eq(
-                caster.current_move_points,
+                caster.GetCurrentMovePoints(),
                 3,
-                $"死亡收割击杀后应返还 2 点免费移动力。move={caster.current_move_points} logs={issueLogs}"
+                $"死亡收割击杀后应返还 2 点免费移动力。move={caster.GetCurrentMovePoints()} logs={issueLogs}"
             );
             _test.True(
-                caster.can_use_locked_move_points_this_turn,
+                caster.CanUseLockedMovePointsThisTurnTyped(),
                 $"死亡收割击杀后应允许本回合行动后移动。logs={issueLogs}"
             );
             _test.True(

@@ -482,20 +482,21 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         int currentMp
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             source_member_id = memberId,
             display_name = "Hero",
             faction_id = "player",
             control_mode = "manual",
-            is_alive = alive,
-            current_hp = currentHp,
-            current_mp = currentMp,
-            current_aura = 0,
-            current_stamina = 10,
-            current_ap = 2,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: currentMp,
+            stamina: 10,
+            aura: 0,
+            ap: 2,
+            isAlive: alive
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 20);
         unit.attribute_snapshot.SetValue(AttributeService.MP_MAX, 30);
         unit.attribute_snapshot.SetValue(AttributeService.AURA_MAX, 0);
@@ -863,19 +864,19 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             bool emit_achievement_event
         ) => new() { member_id = member_id };
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount
-        ) => new();
+        ) => Array.Empty<StringName>();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount,
             StringName subject_id,
             GDictionary meta
-        ) => new();
+        ) => Array.Empty<StringName>();
 
         public PendingCharacterReward BuildPendingSkillMasteryReward(
             StringName member_id,

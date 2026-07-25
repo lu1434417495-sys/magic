@@ -43,10 +43,6 @@ public partial class BattleDamageResolver : IDisposable
     private static readonly StringName StatusGuarding = "guarding";
     private static readonly StringName StatusMarked = "marked";
     private static readonly StringName StatusArcherPreAim = "archer_pre_aim";
-    private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
-    private static readonly StringName BonusConditionTargetDebuffCount = "target_debuff_count";
-    private static readonly StringName BonusConditionTargetCreatureType =
-        "target_creature_type";
     private static readonly StringName MitigationTierNormal = "normal";
     private static readonly StringName MitigationTierHalf = "half";
     private static readonly StringName MitigationTierDouble = "double";
@@ -60,6 +56,8 @@ public partial class BattleDamageResolver : IDisposable
     private static readonly StringName StatusCrownBreakBrokenFang = "crown_break_broken_fang";
     private static readonly StringName StatusCrownBreakBrokenHand = "crown_break_broken_hand";
     private static readonly StringName StatusCrownBreakBlindedEye = "crown_break_blinded_eye";
+    private static readonly StringName StatusMeleeComboStack = "melee_combo_stack";
+    private static readonly StringName StatusRangedComboStack = "ranged_combo_stack";
     internal static readonly StringName EffectEquipmentDurabilityDamage =
         BattleTypedNames.EffectEquipmentDurabilityDamage;
     private static readonly StringName DamagePreviewRollModeRandom = "random";
@@ -591,6 +589,13 @@ public partial class BattleDamageResolver : IDisposable
             ),
             attackMetadata
         );
+        if (
+            attackIncludesWeaponDamage
+            && BattleRangeService.UnitHasEquippedWeapon(source_unit)
+        )
+        {
+            GrantWeaponTypeComboStackOnHit(source_unit);
+        }
         resolvedResult.AttackCheck = attack_check;
         resolvedResult = ApplyEquipmentAbilityAfterHitResult(
             source_unit,
@@ -1056,8 +1061,8 @@ public partial class BattleDamageResolver : IDisposable
             return BattleDamagePreviewResult.Create(
                 rollMode: resolvedRollModeName,
                 saveMode: resolvedSaveModeName,
-                shieldHpBefore: target_unit.current_shield_hp,
-                shieldHpAfter: targetPreview.current_shield_hp,
+                shieldHpBefore: target_unit.GetShieldStateTyped().CurrentHp,
+                shieldHpAfter: targetPreview.GetShieldStateTyped().CurrentHp,
                 errorCode: damageOutcome.ErrorCode,
                 damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
                 damageResult: new Dictionary<string, object>(StringComparer.Ordinal),
@@ -1102,8 +1107,8 @@ public partial class BattleDamageResolver : IDisposable
             incomingBudgetDamage: saveEstimate.DamageAfterSave,
             shieldAbsorbed: damageResult.ShieldAbsorbed,
             shieldBroken: damageResult.ShieldBroken,
-            shieldHpBefore: target_unit.current_shield_hp,
-            shieldHpAfter: targetPreview.current_shield_hp,
+            shieldHpBefore: target_unit.GetShieldStateTyped().CurrentHp,
+            shieldHpAfter: targetPreview.GetShieldStateTyped().CurrentHp,
             damageOutcome: ProjectDamageOutcomePayload(damageOutcome),
             damageResult: ProjectAppliedDamagePayload(damageResult),
             saveEstimate: saveEstimate.ToPreviewSaveEstimate(),
@@ -1327,6 +1332,48 @@ public partial class BattleDamageResolver : IDisposable
                         blackStarWedgeTriggered
                         || extraSegmentDamageResult.LowLuckBlackStarWedgeTriggered;
                     shieldBroken = shieldBroken || extraSegmentDamageResult.ShieldBroken;
+                    applied = true;
+                }
+                if (
+                    TryResolveConditionalBonusWeaponDamageOutcome(
+                        source_unit,
+                        target_unit,
+                        effectDefinition,
+                        contextFlags,
+                        out DamageOutcomeResult bonusWeaponOutcome
+                    )
+                )
+                {
+                    if (bonusWeaponOutcome.InvalidDamageTag)
+                    {
+                        diagnostics.Add(
+                            new ResolutionDiagnostic
+                            {
+                                ErrorCode = bonusWeaponOutcome.ErrorCode,
+                                Message = bonusWeaponOutcome.Reason,
+                            }
+                        );
+                        continue;
+                    }
+                    bonusWeaponOutcome = WithSaveResult(
+                        bonusWeaponOutcome,
+                        damageSaveResult,
+                        effectDefinition
+                    );
+                    AppliedDamageResult bonusWeaponDamageResult =
+                        ApplyDamageToTargetResult(
+                            target_unit,
+                            bonusWeaponOutcome,
+                            source_unit,
+                            contextFlags
+                        );
+                    totalDamage += bonusWeaponDamageResult.Damage;
+                    totalShieldAbsorbed += bonusWeaponDamageResult.ShieldAbsorbed;
+                    damageEvents.Add(bonusWeaponDamageResult.Event);
+                    blackStarWedgeTriggered =
+                        blackStarWedgeTriggered
+                        || bonusWeaponDamageResult.LowLuckBlackStarWedgeTriggered;
+                    shieldBroken = shieldBroken || bonusWeaponDamageResult.ShieldBroken;
                     applied = true;
                 }
                 foreach (
@@ -1608,10 +1655,10 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
 
-        target_unit.SetCurrentHp(target_unit.current_hp);
+        target_unit.SetCurrentHp(target_unit.GetCurrentHp());
         if (
             blackStarWedgeTriggered
-            && target_unit.is_alive
+            && target_unit.IsAlive()
             && ApplyLowLuckBlackStarWedgeExposed(source_unit)
         )
         {
@@ -1657,14 +1704,14 @@ public partial class BattleDamageResolver : IDisposable
         BattleState battleState = null
     )
     {
-        if (targetUnit == null || fallLayers <= 0 || !targetUnit.is_alive)
+        if (targetUnit == null || fallLayers <= 0 || !targetUnit.IsAlive())
         {
             return BuildEmptyResolutionResult();
         }
         int maxHp = GetAttributeValue(targetUnit, AttributeService.ToStringName(AttributeIdKind.HpMax));
         if (maxHp <= 0)
         {
-            maxHp = Math.Max(targetUnit.current_hp, 1);
+            maxHp = Math.Max(targetUnit.GetCurrentHp(), 1);
         }
         int damagePerLayer = Math.Max((maxHp + 19) / 20, 1);
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
@@ -1672,7 +1719,7 @@ public partial class BattleDamageResolver : IDisposable
             damagePerLayer * fallLayers,
             battleState: battleState
         );
-        targetUnit.SetCurrentHp(targetUnit.current_hp);
+        targetUnit.SetCurrentHp(targetUnit.GetCurrentHp());
         return BuildEnvironmentalDamageResult(damageResult);
     }
 
@@ -2101,7 +2148,7 @@ public partial class BattleDamageResolver : IDisposable
         bool bypassShield = damageInput.BypassShield;
         bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
         int minHpAfterDamage = damageInput.MinHpAfterDamage;
-        int hpBeforeDamage = Math.Max(targetUnit.current_hp, 0);
+        int hpBeforeDamage = Math.Max(targetUnit.GetCurrentHp(), 0);
         if (!bypassShield)
         {
             targetUnit.NormalizeShieldState();
@@ -2111,17 +2158,9 @@ public partial class BattleDamageResolver : IDisposable
         bool shieldBroken = false;
         if (!bypassShield && shieldAbsorbed > 0)
         {
-            int actualDrain = Math.Min(projection.ShieldDrain, targetUnit.current_shield_hp);
-            targetUnit.current_shield_hp = Math.Max(targetUnit.current_shield_hp - actualDrain, 0);
-            if (targetUnit.current_shield_hp <= 0)
-            {
-                shieldBroken = shieldAbsorbed > 0;
-                targetUnit.ClearShield();
-            }
-            else
-            {
-                targetUnit.NormalizeShieldState();
-            }
+            BattleUnitShieldDrainResult drainResult =
+                targetUnit.DrainShieldTyped(projection.ShieldDrain);
+            shieldBroken = shieldAbsorbed > 0 && drainResult.Depleted;
         }
 
         int hpDamage = projection.HpDamage;
@@ -2132,14 +2171,14 @@ public partial class BattleDamageResolver : IDisposable
             {
                 RecordLastStandMastery(targetUnit, sourceUnit, "critical_survival", 20);
             }
-            int projectedHp = targetUnit.current_hp - hpDamage;
+            int projectedHp = targetUnit.GetCurrentHp() - hpDamage;
             if (projectedHp <= minHpAfterDamage)
             {
                 if (minHpAfterDamage > 0)
                 {
                     targetUnit.SetCurrentHp(Math.Min(
                         Math.Max(projectedHp, minHpAfterDamage),
-                        targetUnit.current_hp
+                        targetUnit.GetCurrentHp()
                     ));
                 }
                 else if (bypassDeathPrevention)
@@ -2192,7 +2231,7 @@ public partial class BattleDamageResolver : IDisposable
             }
         }
 
-        int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.current_hp, 0), 0);
+        int actualHpDamage = Math.Max(hpBeforeDamage - Math.Max(targetUnit.GetCurrentHp(), 0), 0);
         IBattleEquipmentCombatReactionSink equipmentAbilityReactions =
             _equipment_ability_reaction_sink;
         if (actualHpDamage > 0 && sourceUnit != null && equipmentAbilityReactions != null)
@@ -2221,11 +2260,18 @@ public partial class BattleDamageResolver : IDisposable
     {
         if (targetUnit == null)
             return Array.Empty<Vector2I>();
-        if (targetUnit.occupied_coords == null || targetUnit.occupied_coords.Count == 0)
-            return Array.AsReadOnly(new[] { targetUnit.coord });
+        BattleUnitGeometryReadView geometry =
+            targetUnit.GetGeometryReadViewTyped();
+        if (
+            !geometry.OccupiedCoords.IsPresent
+            || geometry.OccupiedCoords.Count == 0
+        )
+        {
+            return Array.AsReadOnly(new[] { geometry.AnchorCoord });
+        }
 
         var cells = new List<Vector2I>();
-        foreach (Vector2I cell in targetUnit.occupied_coords)
+        foreach (Vector2I cell in geometry.OccupiedCoords)
             if (!cells.Contains(cell))
                 cells.Add(cell);
         return cells.Count == 0 ? Array.Empty<Vector2I>() : Array.AsReadOnly(cells.ToArray());
@@ -2299,14 +2345,17 @@ public partial class BattleDamageResolver : IDisposable
                 )
             );
         }
+        BattleWeaponProjectionValues weaponProjection = sourceUnit != null
+            ? sourceUnit.GetWeaponProjectionReadViewTyped().Values
+            : BattleWeaponProjectionValues.Clear;
         return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
             _trait_trigger_hooks.OnCrit(
                 sourceUnit,
                 targetUnit,
                 criticalHit,
                 ShouldAddWeaponDice(effectDefinition),
-                sourceUnit != null ? sourceUnit.weapon_attack_range : 0,
-                GetCurrentWeaponDamageDiceSides(sourceUnit)
+                weaponProjection.AttackRange,
+                GetCurrentWeaponDamageDiceSides(weaponProjection)
             )
         );
     }

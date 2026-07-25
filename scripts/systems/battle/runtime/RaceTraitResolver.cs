@@ -7,6 +7,23 @@ public static class RaceTraitResolver
         if (unitState == null || context == null)
             return;
 
+        var visionTags = new StringNameList();
+        var proficiencyTags = new StringNameList();
+        _append_identity_capability_projection(
+            visionTags,
+            proficiencyTags,
+            context.race_def
+        );
+        _append_identity_capability_projection(
+            visionTags,
+            proficiencyTags,
+            context.subrace_def
+        );
+        unitState.ReplaceVisionProficiencyTagsTyped(
+            visionTags,
+            proficiencyTags
+        );
+
         _apply_identity_def_projection(unitState, context.race_def);
 
         _apply_identity_def_projection(unitState, context.subrace_def);
@@ -20,30 +37,13 @@ public static class RaceTraitResolver
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(unitState.vision_tags, identityDef.VisionTags);
-
-        _append_unique_string_names(
-            unitState.proficiency_tags,
-            identityDef.ProficiencyTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_advantage_tags,
-            identityDef.SaveAdvantageTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_disadvantage_tags,
-            identityDef.SaveDisadvantageTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_immunity_tags,
+        unitState.AppendSaveTagsTyped(
+            identityDef.SaveAdvantageTags,
+            identityDef.SaveDisadvantageTags,
             identityDef.SaveImmunityTags
         );
 
-        _merge_damage_resistances(
-            unitState.damage_resistances,
+        unitState.MergeDamageResistancesTyped(
             identityDef.DamageResistances
         );
 
@@ -58,30 +58,13 @@ public static class RaceTraitResolver
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(unitState.vision_tags, identityDef.VisionTags);
-
-        _append_unique_string_names(
-            unitState.proficiency_tags,
-            identityDef.ProficiencyTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_advantage_tags,
-            identityDef.SaveAdvantageTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_disadvantage_tags,
-            identityDef.SaveDisadvantageTags
-        );
-
-        _append_unique_string_names(
-            unitState.save_immunity_tags,
+        unitState.AppendSaveTagsTyped(
+            identityDef.SaveAdvantageTags,
+            identityDef.SaveDisadvantageTags,
             identityDef.SaveImmunityTags
         );
 
-        _merge_damage_resistances(
-            unitState.damage_resistances,
+        unitState.MergeDamageResistancesTyped(
             identityDef.DamageResistances
         );
 
@@ -128,6 +111,38 @@ public static class RaceTraitResolver
         }
     }
 
+    private static void _append_identity_capability_projection(
+        StringNameList visionTags,
+        StringNameList proficiencyTags,
+        RaceDefinition identityDef
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(visionTags, identityDef.VisionTags);
+        _append_unique_string_names(
+            proficiencyTags,
+            identityDef.ProficiencyTags
+        );
+    }
+
+    private static void _append_identity_capability_projection(
+        StringNameList visionTags,
+        StringNameList proficiencyTags,
+        SubraceDefinition identityDef
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(visionTags, identityDef.VisionTags);
+        _append_unique_string_names(
+            proficiencyTags,
+            identityDef.ProficiencyTags
+        );
+    }
+
     private static void _append_unique_string_names(
         StringNameList target,
         System.Collections.Generic.IReadOnlyList<StringName> values
@@ -142,20 +157,6 @@ public static class RaceTraitResolver
                 continue;
 
             target.Add(value);
-        }
-    }
-
-    private static void _merge_damage_resistances(
-        BattleStringNameMap target,
-        System.Collections.Generic.IReadOnlyDictionary<StringName, StringName> values
-    )
-    {
-        foreach ((StringName damageTag, StringName mitigationTier) in values)
-        {
-            if (damageTag == "" || mitigationTier == "")
-                continue;
-
-            target.Put(damageTag, mitigationTier);
         }
     }
 

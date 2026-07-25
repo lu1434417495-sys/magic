@@ -220,7 +220,7 @@ internal sealed class BattleObjectiveProgressSnapshot
         foreach (StringName enemyUnitId in state.GetEnemyUnitIdsTyped())
         {
             enemyUnitCount++;
-            if (state.GetUnit(enemyUnitId)?.is_alive == true)
+            if (state.GetUnit(enemyUnitId)?.IsAlive() == true)
                 aliveEnemyUnitCount++;
         }
 
@@ -319,7 +319,7 @@ internal sealed class BattleObjectiveProgressSnapshot
         var aliveRequiredUnitIds = new List<StringName>();
         foreach (StringName unitId in objective.RequiredPartyUnitIds)
         {
-            if (state.GetUnit(unitId)?.is_alive == true)
+            if (state.GetUnit(unitId)?.IsAlive() == true)
                 aliveRequiredUnitIds.Add(unitId);
         }
         return new BattleObjectiveProgressSnapshot(
@@ -327,7 +327,7 @@ internal sealed class BattleObjectiveProgressSnapshot
             objective.TargetActorId,
             objective.TargetUnitId,
             targetDisplayName,
-            targetUnit?.is_alive == true,
+            targetUnit?.IsAlive() == true,
             false,
             false,
             "",
@@ -355,7 +355,7 @@ internal sealed class BattleObjectiveProgressSnapshot
             objective.TargetActorId,
             objective.TargetUnitId,
             ResolveDisplayName(targetUnit, objective.TargetUnitId),
-            targetUnit?.is_alive == true,
+            targetUnit?.IsAlive() == true,
             objective.TargetSecured,
             false,
             "",
@@ -382,10 +382,10 @@ internal sealed class BattleObjectiveProgressSnapshot
         foreach (StringName unitId in objective.RequiredUnitIds)
         {
             BattleUnitState unit = state.GetUnit(unitId);
-            if (unit?.is_alive != true)
+            if (unit?.IsAlive() != true)
                 continue;
             aliveRequiredUnitIds.Add(unitId);
-            if (IsFullyInsideExit(unit, objective))
+            if (BattleExitObjectiveRules.IsUnitFullyInsideExit(unit, objective))
                 reachedExitUnitIds.Add(unitId);
         }
         return new BattleObjectiveProgressSnapshot(
@@ -416,13 +416,16 @@ internal sealed class BattleObjectiveProgressSnapshot
     )
     {
         BattleUnitState targetUnit = state.GetUnit(objective.TargetUnitId);
-        bool reachedExit = IsFullyInsideExit(targetUnit, objective);
+        bool reachedExit = BattleExitObjectiveRules.IsUnitFullyInsideExit(
+            targetUnit,
+            objective
+        );
         return new BattleObjectiveProgressSnapshot(
             BattleObjectiveMode.Escort,
             objective.TargetActorId,
             objective.TargetUnitId,
             ResolveDisplayName(targetUnit, objective.TargetUnitId),
-            targetUnit?.is_alive == true,
+            targetUnit?.IsAlive() == true,
             false,
             reachedExit,
             objective.ExitZoneId,
@@ -452,7 +455,7 @@ internal sealed class BattleObjectiveProgressSnapshot
             objective.TargetActorId,
             objective.TargetUnitId,
             ResolveDisplayName(targetUnit, objective.TargetUnitId),
-            targetUnit?.is_alive == true,
+            targetUnit?.IsAlive() == true,
             false,
             false,
             "",
@@ -478,13 +481,16 @@ internal sealed class BattleObjectiveProgressSnapshot
     )
     {
         BattleUnitState targetUnit = state.GetUnit(objective.TargetUnitId);
-        bool reachedExit = IsFullyInsideExit(targetUnit, objective);
+        bool reachedExit = BattleExitObjectiveRules.IsUnitFullyInsideExit(
+            targetUnit,
+            objective
+        );
         return new BattleObjectiveProgressSnapshot(
             BattleObjectiveMode.Intercept,
             objective.TargetActorId,
             objective.TargetUnitId,
             ResolveDisplayName(targetUnit, objective.TargetUnitId),
-            targetUnit?.is_alive == true,
+            targetUnit?.IsAlive() == true,
             false,
             reachedExit,
             objective.ExitZoneId,
@@ -588,69 +594,6 @@ internal sealed class BattleObjectiveProgressSnapshot
         );
     }
 
-    private static bool IsFullyInsideExit(
-        BattleUnitState unit,
-        BattleEscapeObjectiveRuntimeState objective
-    )
-    {
-        if (
-            unit?.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-            || objective == null
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!objective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
-    }
-
-    private static bool IsFullyInsideExit(
-        BattleUnitState unit,
-        BattleEscortObjectiveRuntimeState objective
-    )
-    {
-        if (
-            unit?.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-            || objective == null
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!objective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
-    }
-
-    private static bool IsFullyInsideExit(
-        BattleUnitState unit,
-        BattleInterceptObjectiveRuntimeState objective
-    )
-    {
-        if (
-            unit?.occupied_coords == null
-            || unit.occupied_coords.Count == 0
-            || objective == null
-        )
-        {
-            return false;
-        }
-        foreach (Vector2I occupiedCoord in unit.occupied_coords)
-        {
-            if (!objective.ContainsExitCoord(occupiedCoord))
-                return false;
-        }
-        return true;
-    }
-
     private static string ResolveDisplayName(
         BattleUnitState unit,
         StringName fallbackId
@@ -667,7 +610,7 @@ internal sealed class BattleObjectiveProgressSnapshot
         var result = new List<StringName>();
         foreach (StringName unitId in unitIds ?? Array.Empty<StringName>())
         {
-            if (state?.GetUnit(unitId)?.is_alive == true)
+            if (state?.GetUnit(unitId)?.IsAlive() == true)
                 result.Add(unitId);
         }
         return result;

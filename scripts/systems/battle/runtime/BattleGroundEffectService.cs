@@ -631,7 +631,7 @@ internal class BattleGroundEffectService
 
         foreach (BattleUnitState targetUnit in _coordService.CollectUnitsInCoords(normalizedEffectCoords))
         {
-            if (targetUnit == null || !targetUnit.is_alive)
+            if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
@@ -661,7 +661,7 @@ internal class BattleGroundEffectService
                 continue;
             }
 
-            int previousTargetHp = targetUnit.current_hp;
+            int previousTargetHp = targetUnit.GetCurrentHp();
             GroundUnitEffectResolution effectResolution =
                 _resolve_ground_unit_effect_resolution(
                     sourceUnit,
@@ -793,7 +793,7 @@ internal class BattleGroundEffectService
                 AppendLog(batch, $"{DisplayName(targetUnit)} 获得状态 {statusId}。");
             }
 
-            if (!targetUnit.is_alive)
+            if (!targetUnit.IsAlive())
             {
                 totalKillCount += 1;
                 _apply_on_kill_gain_resources_effects(
@@ -825,14 +825,14 @@ internal class BattleGroundEffectService
                     targetUnit,
                     damage,
                     healing,
-                    targetUnit.is_alive ? 0 : 1
+                    targetUnit.IsAlive() ? 0 : 1
                 );
                 Runtime?._battle_rating_system?.RecordContributionFromUnits(
                     sourceUnit,
                     targetUnit,
                     damage,
                     healing,
-                    !targetUnit.is_alive,
+                    !targetUnit.IsAlive(),
                     new StringName("skill"),
                     skillDefinition != null ? skillDefinition.SkillId : Empty
                 );
@@ -1352,7 +1352,7 @@ internal class BattleGroundEffectService
         }
 
         BattleUnitState occupantUnitState = occupantUnit;
-        if (occupantUnitState != null && occupantUnitState.is_alive && afterHeight < beforeHeight)
+        if (occupantUnitState != null && occupantUnitState.IsAlive() && afterHeight < beforeHeight)
         {
             int fallLayers = beforeHeight - afterHeight;
             AttackEffectResolutionResult fallDamageResult =
@@ -1393,7 +1393,7 @@ internal class BattleGroundEffectService
                 {
                     AppendLog(batch, $"{DisplayName(occupantUnit)} 的护盾被击碎。");
                 }
-                if (!occupantUnitState.is_alive)
+                if (!occupantUnitState.IsAlive())
                 {
                     Runtime.HandleUnitDefeatedByRuntimeEffect(
                         occupantUnitState,

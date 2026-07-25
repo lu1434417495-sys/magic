@@ -111,13 +111,15 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         );
 
         BattleUnitState equipped = fixture.BuildOathscarUnit("projection");
-        _test.Eq(equipped.weapon_item_id, OathscarItemId, "誓约之痕装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "誓约之痕应投影为 longsword。");
-        _test.True(equipped.weapon_is_versatile, "誓约之痕应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "誓约之痕单手应为 1D8+4。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "誓约之痕单手应为 1D8+4。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 4, "誓约之痕单手应为 1D8+4。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "誓约之痕双手应为 1D10+4。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, OathscarItemId, "誓约之痕装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "誓约之痕应投影为 longsword。");
+        _test.True(equippedWeapon.IsVersatile, "誓约之痕应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "誓约之痕单手应为 1D8+4。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "誓约之痕单手应为 1D8+4。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 4, "誓约之痕单手应为 1D8+4。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "誓约之痕双手应为 1D10+4。");
         AssertUnitHasTraitAndAbilitySource(equipped, OathBindTraitId, OathBindBindingId, "eq_oathscar_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, OathMarkTraitId, OathMarkBindingId, "eq_oathscar_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, OathJudgmentTraitId, OathJudgmentBindingId, "eq_oathscar_projection");
@@ -306,7 +308,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
     {
         using OathscarFixture fixture = OathscarFixture.Build(new GArray { 2, 2 });
         BattleUnitState holder = fixture.BuildOathscarUnit("dead_oath_holder");
-        holder.current_hp = 100;
+        holder.SetCurrentHp(100);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleUnitState oathTarget = BuildTarget("dead_oath_target", new Vector2I(1, 0));
         BattleUnitState otherTarget = BuildTarget("dead_oath_other", new Vector2I(0, 1));
@@ -329,8 +331,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         _test.True(oathTarget.HasStatusEffect(OathMarkStatusId), "死亡前目标应有誓约之印。");
         _test.Eq(state.EquipmentTargetMarkCount, 1, "死亡前 typed target mark 应存在。");
 
-        oathTarget.current_hp = 0;
-        oathTarget.is_alive = false;
+        oathTarget.SetCurrentHp(0);
+        oathTarget.MarkDead();
         using BattleEventBatch deathBatch = new();
         fixture.Runtime.ClearDefeatedUnit(oathTarget, deathBatch);
 
@@ -338,7 +340,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         _test.False(oathTarget.HasStatusEffect(OathTargetStatusId), "誓言目标死亡清理后镜像誓言目标状态应立即清除。");
         _test.False(oathTarget.HasStatusEffect(OathMarkStatusId), "誓言目标死亡清理后誓约之印应立即清除。");
 
-        int holderHpBefore = holder.current_hp;
+        int holderHpBefore = holder.GetCurrentHp();
         BattleEventBatch batch = IssueBasicAttackInCurrentState(
             fixture.Runtime,
             holder,
@@ -348,7 +350,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
 
         _test.Eq(state.EquipmentTargetMarkCount, 0, $"誓言目标死亡后 typed target mark 应保持解除。 logs={JoinLogs(batch)}");
         _test.Eq(
-            holder.current_hp,
+            holder.GetCurrentHp(),
             holderHpBefore,
             $"誓言目标死亡解除后，命中其他目标不应再触发背誓反噬。 logs={JoinLogs(batch)}"
         );
@@ -365,7 +367,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             target
         );
         fixture.Runtime.SetupStateForTests(state);
-        BattleEquipmentAbilitySourceState source = FindSource(holder, OathBindBindingId);
+        BattleEquipmentAbilitySourceReadView source =
+            FindSource(holder, OathBindBindingId);
         _test.True(source != null, "测试前提：持有者应有誓约绑定来源。");
         state.SetEquipmentTargetMark(
             new BattleEquipmentTargetMarkState
@@ -383,8 +386,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         );
         _test.Eq(state.EquipmentTargetMarkCount, 1, "测试前提：非誓约 target mark 应存在。");
 
-        target.current_hp = 0;
-        target.is_alive = false;
+        target.SetCurrentHp(0);
+        target.MarkDead();
         using BattleEventBatch deathBatch = new();
         fixture.Runtime.ClearDefeatedUnit(target, deathBatch);
 
@@ -433,7 +436,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
 
         for (int hit = 1; hit <= 5; hit++)
         {
-            int hpBefore = oathTarget.current_hp;
+            int hpBefore = oathTarget.GetCurrentHp();
             BattleEventBatch batch = IssueBasicAttackInCurrentState(
                 fixture.Runtime,
                 holder,
@@ -441,7 +444,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
                 $"oath_mark_hit_{hit}"
             );
             _test.True(
-                oathTarget.current_hp < hpBefore,
+                oathTarget.GetCurrentHp() < hpBefore,
                 $"第 {hit} 次基础攻击应真实造成武器伤害。 | logs={JoinLogs(batch)}"
             );
             BattleStatusEffectState mark = oathTarget.GetStatusEffect(OathMarkStatusId);
@@ -554,7 +557,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         using OathscarFixture fixture = OathscarFixture.Build(new GArray { 2, 2, 2, 2 });
         BattleUnitState holder = fixture.BuildOathscarUnit("judgment_holder");
         BattleUnitState target = BuildTarget("judgment_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState(
             "oathscar_judgment",
@@ -583,7 +586,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         _test.Eq(judgmentEntry.EquipmentMaxUsesPerPeriod, 1, "誓约裁决每场战斗限 1 次。");
 
         fixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
-        int blockedHp = target.current_hp;
+        int blockedHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.PrimeActionResources(holder);
         ForceUnitActing(state, holder);
         BattleCommand blockedCommand = WeaponAbilityCommandTestSupport.BuildUnitSkillCommand(
@@ -597,7 +600,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             HasLogLineContaining(blockedBatch, OathMarkStatusId.ToString()),
             $"不足 4 层誓约之印时誓约裁决应被目标状态门禁拦截。logs={JoinLogs(blockedBatch)}"
         );
-        _test.Eq(target.current_hp, blockedHp, "不足 4 层誓约之印时，誓约裁决不应造成伤害。");
+        _test.Eq(target.GetCurrentHp(), blockedHp, "不足 4 层誓约之印时，誓约裁决不应造成伤害。");
         _test.False(target.HasStatusEffect(StunnedStatusId), "不足 4 层誓约之印时，誓约裁决不应震慑。");
         BattleSkillAvailabilityView afterBlocked =
             BuildEquipmentSkillAvailability(fixture, holder, state);
@@ -618,7 +621,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         _test.Eq(target.GetStatusEffect(OathMarkStatusId)?.stacks ?? 0, 4, "裁决前目标应有 4 层誓约之印。");
 
         fixture.Runtime.ConfigureHitResolverForTests(new FixedMissResolver());
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         IssueUnitSkillInCurrentState(
             fixture.Runtime,
             holder,
@@ -628,7 +631,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             "oath_judgment_applied"
         );
         _test.True(
-            target.current_hp < hpBefore,
+            target.GetCurrentHp() < hpBefore,
             "誓约裁决应作为必中装备技能直接造成 radiant 伤害，即使命中 resolver 被设为 miss。"
         );
         _test.True(target.HasStatusEffect(StunnedStatusId), "誓约裁决应施加 stunned。");
@@ -647,7 +650,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
     {
         using OathscarFixture fixture = OathscarFixture.Build(new GArray { 2, 2 });
         BattleUnitState holder = fixture.BuildOathscarUnit("backlash_holder");
-        holder.current_hp = 100;
+        holder.SetCurrentHp(100);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleUnitState oathTarget = BuildTarget("backlash_oath_target", new Vector2I(1, 0));
         BattleUnitState otherTarget = BuildTarget("backlash_other_target", new Vector2I(0, 1));
@@ -668,8 +671,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         IssueBasicAttackInCurrentState(fixture.Runtime, holder, oathTarget, "oath_backlash_mark");
         _test.True(oathTarget.HasStatusEffect(OathMarkStatusId), "反噬测试前誓言目标应已有誓约之印。");
 
-        int holderHpBefore = holder.current_hp;
-        int holderShieldBefore = holder.current_shield_hp;
+        int holderHpBefore = holder.GetCurrentHp();
+        int holderShieldBefore = holder.GetShieldStateTyped().CurrentHp;
         BattleEventBatch backlashBatch = IssueBasicAttackInCurrentState(
             fixture.Runtime,
             holder,
@@ -677,8 +680,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             "oath_backlash_wrong_target"
         );
         _test.True(
-            holder.current_hp < holderHpBefore,
-            $"攻击非誓言目标命中后，持有者应受到 psychic 反噬伤害。 hp_before={holderHpBefore} hp_after={holder.current_hp} shield_before={holderShieldBefore} shield_after={holder.current_shield_hp} oath_mark={oathTarget.HasStatusEffect(OathMarkStatusId)} logs={JoinLogs(backlashBatch)}"
+            holder.GetCurrentHp() < holderHpBefore,
+            $"攻击非誓言目标命中后，持有者应受到 psychic 反噬伤害。 hp_before={holderHpBefore} hp_after={holder.GetCurrentHp()} shield_before={holderShieldBefore} shield_after={holder.GetShieldStateTyped().CurrentHp} oath_mark={oathTarget.HasStatusEffect(OathMarkStatusId)} logs={JoinLogs(backlashBatch)}"
         );
         _test.False(oathTarget.HasStatusEffect(OathMarkStatusId), "背誓反噬应清除当前誓言目标上的誓约之印。");
         _test.True(oathTarget.HasStatusEffect(OathTargetStatusId), "背誓反噬不应解除誓言目标本身。");
@@ -688,7 +691,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
     {
         using OathscarFixture fixture = OathscarFixture.Build(new GArray { 2, 2 });
         BattleUnitState holder = fixture.BuildOathscarUnit("deal_damage_direct_holder");
-        holder.current_hp = 100;
+        holder.SetCurrentHp(100);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
 
         AttackEffectResolutionResult result = fixture.Runtime.GetDamageResolver().ResolveEffects(
@@ -708,8 +711,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         );
 
         _test.True(
-            holder.current_hp < 100,
-            $"runtime 生成的 psychic direct damage effect 应能扣除 source HP。 hp_after={holder.current_hp} damage={result.Damage}"
+            holder.GetCurrentHp() < 100,
+            $"runtime 生成的 psychic direct damage effect 应能扣除 source HP。 hp_after={holder.GetCurrentHp()} damage={result.Damage}"
         );
     }
 
@@ -717,7 +720,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
     {
         using OathscarFixture fixture = OathscarFixture.Build(new GArray { 2, 2 });
         BattleUnitState holder = fixture.BuildOathscarUnit("backlash_direct_holder");
-        holder.current_hp = 100;
+        holder.SetCurrentHp(100);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleUnitState oathTarget = BuildTarget("backlash_direct_oath_target", new Vector2I(1, 0));
         BattleUnitState otherTarget = BuildTarget("backlash_direct_other_target", new Vector2I(0, 1));
@@ -746,8 +749,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             }
         );
 
-        int hpBefore = holder.current_hp;
-        int shieldBefore = holder.current_shield_hp;
+        int hpBefore = holder.GetCurrentHp();
+        int shieldBefore = holder.GetShieldStateTyped().CurrentHp;
         fixture
             .Runtime
             .GetEquipmentAbilityRuntimeService()
@@ -765,8 +768,8 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
             );
 
         _test.True(
-            holder.current_hp < hpBefore,
-            $"直接 after-hit 背誓反噬应扣除持有者 HP。 hp_before={hpBefore} hp_after={holder.current_hp} shield_before={shieldBefore} shield_after={holder.current_shield_hp}"
+            holder.GetCurrentHp() < hpBefore,
+            $"直接 after-hit 背誓反噬应扣除持有者 HP。 hp_before={hpBefore} hp_after={holder.GetCurrentHp()} shield_before={shieldBefore} shield_after={holder.GetShieldStateTyped().CurrentHp}"
         );
         _test.False(oathTarget.HasStatusEffect(OathMarkStatusId), "直接 after-hit 背誓反噬应清除誓约之印。");
     }
@@ -1066,8 +1069,7 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         if (state == null || unit == null)
             return;
         state.SetUnit(unit);
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
         }
@@ -1084,9 +1086,9 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -1099,12 +1101,15 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -1114,14 +1119,15 @@ public partial class run_oathscar_weapon_ability_regression : LifecycleTestScene
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 80,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 80,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

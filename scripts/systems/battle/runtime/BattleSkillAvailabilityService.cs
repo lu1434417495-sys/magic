@@ -301,13 +301,15 @@ internal sealed class BattleSkillAvailabilityService
         List<BattleAvailableSkillEntry> entries
     )
     {
-        if (user.known_active_skill_ids == null)
+        BattleKnownActiveSkillReadView knownActiveSkills =
+            user.GetKnownActiveSkillsViewTyped();
+        if (knownActiveSkills.Count == 0)
         {
             return;
         }
 
         var seenSkillIds = new HashSet<StringName>();
-        foreach (StringName rawSkillId in user.known_active_skill_ids)
+        foreach (StringName rawSkillId in knownActiveSkills)
         {
             StringName skillId = NormalizeStringName(rawSkillId);
             if (IsEmpty(skillId) || !seenSkillIds.Add(skillId))
@@ -341,8 +343,13 @@ internal sealed class BattleSkillAvailabilityService
         BattleState battleState
     )
     {
+        BattleEquipmentAbilitySourceListReadView sources =
+            user?.GetEquipmentAbilitySourcesReadViewTyped()
+            ?? new BattleEquipmentAbilitySourceListReadView(
+                null
+            );
         if (
-            user?.equipment_ability_sources == null
+            !sources.IsPresent
             || _equipmentAbilityBindings == null
             || _equipmentAbilityBindings.Count == 0
         )
@@ -351,7 +358,9 @@ internal sealed class BattleSkillAvailabilityService
         }
 
         var seenEntryIds = new HashSet<StringName>();
-        foreach (BattleEquipmentAbilitySourceState source in user.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in sources
+        )
         {
             if (source?.AbilityIds == null)
             {

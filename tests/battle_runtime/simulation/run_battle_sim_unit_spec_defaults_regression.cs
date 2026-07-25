@@ -50,11 +50,15 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
         };
         BattleUnitState unitState = unitSpec.ToDefinition("player", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 16, "BattleSimUnitSpec 有 base_attributes 时应使用正式 0 级初始 HP 公式。");
-        _test.Eq(unitState.current_hp, 16, "BattleSimUnitSpec 当前 HP 应按正式 HP 上限 clamp。");
+        _test.Eq(unitState.GetCurrentHp(), 16, "BattleSimUnitSpec 当前 HP 应按正式 HP 上限 clamp。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.STAMINA_MAX), 110, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生体力。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ACTION_POINTS), 2, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生 AP。");
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 11, "BattleSimUnitSpec 有 base_attributes 时 AC 应来自正式 AttributeService。");
-        _test.Eq(unitState.action_threshold, AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD, "BattleSimUnitSpec 有 base_attributes 时 action_threshold 应来自正式属性快照。");
+        _test.Eq(
+            unitState.GetActionThresholdTyped(),
+            AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+            "BattleSimUnitSpec 有 base_attributes 时 action_threshold 应来自正式属性快照。"
+        );
     }
 
     private void TestAttributeOverridesCanReplaceAttackBonusWithoutFinalAc()
@@ -115,7 +119,11 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
         };
         BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
         _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 36, "base attribute 模拟单位的 hp_max 覆盖应通过正式属性快照生效。");
-        _test.Eq(unitState.action_threshold, 45, "base attribute 模拟单位的 action_threshold 覆盖应经过 AttributeService 的 5 TU 归一。");
+        _test.Eq(
+            unitState.GetActionThresholdTyped(),
+            45,
+            "base attribute 模拟单位的 action_threshold 覆盖应经过 AttributeService 的 5 TU 归一。"
+        );
     }
 
     private static GDictionary BaseAttributes(

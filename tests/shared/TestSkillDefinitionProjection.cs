@@ -133,7 +133,8 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<StringName> deliveryCategories = null,
         IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null,
         StringName masteryTriggerMode = default,
-        StringName masteryAmountMode = default
+        StringName masteryAmountMode = default,
+        StringName projectileKind = default
     )
     {
         return new CombatSkillDefinition(
@@ -189,7 +190,8 @@ internal static class TestSkillDefinitionProjection
             excludedWeaponTypeIds: System.Array.Empty<StringName>(),
             requiresEquippedShield: false,
             masteryLowHpBonusMultiplier: 0,
-            masteryLowHpThresholdPercent: 0
+            masteryLowHpThresholdPercent: 0,
+            projectileKind: DefaultName(projectileKind, "none")
         );
     }
 
@@ -262,7 +264,17 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<StringName> effectTags = null,
         IReadOnlyList<StringName> effectCategories = null,
         int minSkillLevel = 0,
-        int maxSkillLevel = -1
+        int maxSkillLevel = -1,
+        bool allowRepeatHitsAcrossSteps = false,
+        StringName pathStepAreaPattern = default,
+        int pathStepRadius = 1,
+        string pathStepLogLabel = "",
+        StringName repeatHitStatusId = default,
+        int repeatHitStatusThreshold = 0,
+        int repeatHitStatusMinSkillLevel = 0,
+        int repeatHitStatusPower = 1,
+        int repeatHitStatusDurationTu = 0,
+        string repeatHitStatusLogTemplate = ""
     )
     {
         return new CombatEffectDefinition(
@@ -343,7 +355,17 @@ internal static class TestSkillDefinitionProjection
             healPerLevel: healPerLevel,
             conModBase: conModBase,
             conModPer2Levels: conModPer2Levels,
-            effectCategories: effectCategories ?? System.Array.Empty<StringName>()
+            effectCategories: effectCategories ?? System.Array.Empty<StringName>(),
+            allowRepeatHitsAcrossSteps: allowRepeatHitsAcrossSteps,
+            pathStepAreaPattern: pathStepAreaPattern,
+            pathStepRadius: pathStepRadius,
+            pathStepLogLabel: pathStepLogLabel,
+            repeatHitStatusId: repeatHitStatusId,
+            repeatHitStatusThreshold: repeatHitStatusThreshold,
+            repeatHitStatusMinSkillLevel: repeatHitStatusMinSkillLevel,
+            repeatHitStatusPower: repeatHitStatusPower,
+            repeatHitStatusDurationTu: repeatHitStatusDurationTu,
+            repeatHitStatusLogTemplate: repeatHitStatusLogTemplate
         );
     }
 
@@ -354,7 +376,8 @@ internal static class TestSkillDefinitionProjection
         StringName targetMode = default,
         StringName footprintPattern = default,
         int requiredCoordCount = 0,
-        IReadOnlyDictionary<string, object> parameters = null
+        IReadOnlyDictionary<string, object> parameters = null,
+        StringName projectileKindOverride = default
     )
     {
         return new CombatCastVariantDefinition(
@@ -367,7 +390,8 @@ internal static class TestSkillDefinitionProjection
             requiredCoordCount: requiredCoordCount,
             allowedBaseTerrains: System.Array.Empty<StringName>(),
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
-            parameters: parameters ?? new Dictionary<string, object>()
+            parameters: parameters ?? new Dictionary<string, object>(),
+            projectileKindOverride: projectileKindOverride
         );
     }
 

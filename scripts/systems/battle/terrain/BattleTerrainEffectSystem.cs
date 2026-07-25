@@ -294,7 +294,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
 
         var targetUnit = GetUnit(state, cell.occupant_unit_id);
-        if (targetUnit == null || !targetUnit.is_alive)
+        if (targetUnit == null || !targetUnit.IsAlive())
             return;
         // 静滞单位不结算普通 terrain tick。
         if (BattleTemporalStatusService.HasTimeStasis(targetUnit))
@@ -407,7 +407,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             );
         }
 
-        if (!targetUnit.is_alive)
+        if (!targetUnit.IsAlive())
         {
             killCount = 1;
             runtime.ClearDefeatedUnit(targetUnit, batch);
@@ -436,7 +436,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     )
     {
         var runtime = _ResolveRuntime();
-        if (runtime == null || targetUnit == null || !targetUnit.is_alive)
+        if (runtime == null || targetUnit == null || !targetUnit.IsAlive())
             return;
 
         BattleState state = runtime.GetState();
@@ -446,7 +446,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
 
         List<Vector2I> targetCoords = gridService.GetUnitTargetCoords(
             targetUnit,
-            targetUnit.coord
+            targetUnit.GetAnchorCoord()
         );
         if (targetCoords.Count == 0)
             return;
@@ -495,7 +495,9 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         }
         if (
             effectState.contact_blocked_by_trait_id != ""
-            && targetUnit.effective_trait_ids.Contains(effectState.contact_blocked_by_trait_id)
+            && targetUnit.HasEffectiveTrait(
+                effectState.contact_blocked_by_trait_id
+            )
         )
         {
             return;

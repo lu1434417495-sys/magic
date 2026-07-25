@@ -25,13 +25,9 @@ public static class PassiveStatusOrchestrator
 
     private static void _clear_identity_projection(BattleUnitState unitState)
     {
-        unitState.vision_tags = new StringNameList();
-        unitState.proficiency_tags = new StringNameList();
-        unitState.save_advantage_tags = new StringNameList();
-        unitState.save_disadvantage_tags = new StringNameList();
-        unitState.save_immunity_tags = new StringNameList();
-        unitState.damage_resistances = new BattleStringNameMap();
-        unitState.save_bonus_by_ability = new BattleStringNameIntMap();
+        unitState.ResetVisionProficiencyTagsTyped();
+        unitState.ResetSaveModifiersTyped();
+        unitState.ResetDamageResistancesTyped();
     }
 
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)

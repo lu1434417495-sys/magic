@@ -93,7 +93,7 @@ internal class BattleRuntimeLootResolver
         BattleKillProvenance killProvenance = default
     )
     {
-        if (unitState == null || unitState.is_alive || unitState.faction_id == "player")
+        if (unitState == null || unitState.IsAlive() || unitState.faction_id == "player")
             return;
         var defeatedUnitId = ProgressionDataUtils.to_string_name(unitState.unit_id);
         if (defeatedUnitId == "" || _runtime == null)
@@ -466,7 +466,7 @@ internal class BattleRuntimeLootResolver
         foreach (var enemyUnitId in state.enemy_unit_ids)
         {
             state.TryGetUnitTyped(enemyUnitId, out BattleUnitState unitState);
-            if (unitState == null || unitState.is_alive)
+            if (unitState == null || unitState.IsAlive())
                 continue;
             defeatedUnits.Add(unitState);
         }

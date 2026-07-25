@@ -43,7 +43,7 @@ internal sealed class BattleEquipmentSummonResolver
 
         foreach (BattleUnitState owner in state.GetUnitsTyped())
         {
-            if (owner == null || !owner.is_alive || owner.faction_id == attacker.faction_id)
+            if (owner == null || !owner.IsAlive() || owner.faction_id == attacker.faction_id)
                 continue;
             foreach (BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding in _owner.CollectActiveBindings(owner))
             {
@@ -363,7 +363,7 @@ internal sealed class BattleEquipmentSummonResolver
             BattleAiBlackboard blackboard = unit?.ai_blackboard;
             if (
                 unit == null
-                || !unit.is_alive
+                || !unit.IsAlive()
                 || blackboard?.summoned != true
                 || blackboard.summon_expires_at_tu < 0
                 || currentTu < blackboard.summon_expires_at_tu
@@ -404,7 +404,7 @@ internal sealed class BattleEquipmentSummonResolver
     private BattleUnitState BuildSummonedUnit(
         BattleState state,
         BattleUnitState sourceUnit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         SummonUnitsActionPayloadDefinition payload,
         Vector2I coord
@@ -444,15 +444,9 @@ internal sealed class BattleEquipmentSummonResolver
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, actionPoints);
         unit.SetCombatResources(hpMax, 0, 0, 0, actionPoints, movePoints);
         foreach (StringName tag in payload.CreatureTypeTags ?? Array.Empty<StringName>())
-        {
-            if (tag != "" && !unit.creature_type_tags.Contains(tag))
-                unit.creature_type_tags.Add(tag);
-        }
+            unit.AddCreatureTypeTagTyped(tag);
         foreach (StringName tag in payload.MovementTags ?? Array.Empty<StringName>())
-        {
-            if (tag != "" && !unit.movement_tags.Contains(tag))
-                unit.movement_tags.Add(tag);
-        }
+            unit.AddMovementTagTyped(tag);
         foreach (StringName skillId in payload.KnownActiveSkillIds ?? Array.Empty<StringName>())
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
@@ -519,7 +513,7 @@ internal sealed class BattleEquipmentSummonResolver
         if (state == null || anchorUnit == null)
             yield break;
         int resolvedRadius = Math.Max(radius, 0);
-        Vector2I anchor = anchorUnit.coord;
+        Vector2I anchor = anchorUnit.GetAnchorCoord();
         var coords = new List<Vector2I>();
         for (int y = anchor.Y - resolvedRadius; y <= anchor.Y + resolvedRadius; y++)
         {
@@ -613,7 +607,7 @@ internal sealed class BattleEquipmentSummonResolver
     internal int CountLivingSummonedUnits(
         BattleState state,
         BattleUnitState sourceUnit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         StringName bindingId,
         StringName stateKey,
         BattleUnitState radiusSubject = null,
@@ -631,7 +625,7 @@ internal sealed class BattleEquipmentSummonResolver
     private List<BattleUnitState> CollectLivingSummonedUnits(
         BattleState state,
         BattleUnitState sourceUnit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         StringName bindingId,
         StringName stateKey,
         BattleUnitState radiusSubject = null,
@@ -678,7 +672,7 @@ internal sealed class BattleEquipmentSummonResolver
     )
     {
         BattleAiBlackboard blackboard = unit?.ai_blackboard;
-        if (unit == null || !unit.is_alive || blackboard?.summoned != true)
+        if (unit == null || !unit.IsAlive() || blackboard?.summoned != true)
             return false;
         if (sourceUnitId != "" && blackboard.summon_source_unit_id != sourceUnitId)
             return false;

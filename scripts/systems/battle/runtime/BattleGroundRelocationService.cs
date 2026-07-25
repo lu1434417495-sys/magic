@@ -121,14 +121,16 @@ internal class BattleGroundRelocationService
             return false;
         }
         Vector2I landingCoord = target_coords[0];
-        if (active_unit.coord == landingCoord)
+        if (active_unit.GetAnchorCoord() == landingCoord)
         {
             return true;
         }
-        Vector2I previousAnchor = active_unit.coord;
+        Vector2I previousAnchor = active_unit.GetAnchorCoord();
+        BattleOccupiedCoordReadView occupiedCoords =
+            active_unit.GetOccupiedCoordsReadViewTyped();
         List<Vector2I> previousCoords =
-            active_unit.occupied_coords != null
-                ? new List<Vector2I>(active_unit.occupied_coords)
+            occupiedCoords.IsPresent
+                ? new List<Vector2I>(occupiedCoords)
                 : new List<Vector2I>();
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         if (layeredBarrierService != null)
@@ -142,8 +144,8 @@ internal class BattleGroundRelocationService
                 );
             if (
                 barrierResult.Blocked
-                || !active_unit.is_alive
-                || active_unit.coord != previousAnchor
+                || !active_unit.IsAlive()
+                || active_unit.GetAnchorCoord() != previousAnchor
             )
             {
                 return false;
@@ -298,7 +300,9 @@ internal class BattleGroundRelocationService
         {
             return BattleForcedMoveContext.Empty;
         }
-        return BattleForcedMoveContext.FromDirection(targetCoords[0] - sourceUnit.coord);
+        return BattleForcedMoveContext.FromDirection(
+            targetCoords[0] - sourceUnit.GetAnchorCoord()
+        );
     }
 
     internal Vector2I _normalize_axis_direction(Vector2I direction)
@@ -362,7 +366,7 @@ internal class BattleGroundRelocationService
         var sorted = new List<BattleUnitState>();
         foreach (BattleUnitState unitState in units ?? Array.Empty<BattleUnitState>())
         {
-            if (unitState != null && unitState.is_alive)
+            if (unitState != null && unitState.IsAlive())
             {
                 sorted.Add(unitState);
             }
@@ -370,14 +374,26 @@ internal class BattleGroundRelocationService
         sorted.Sort(
             (left, right) =>
             {
-                int leftProjection = _dot_coord(left.coord, direction);
-                int rightProjection = _dot_coord(right.coord, direction);
+                int leftProjection = _dot_coord(
+                    left.GetAnchorCoord(),
+                    direction
+                );
+                int rightProjection = _dot_coord(
+                    right.GetAnchorCoord(),
+                    direction
+                );
                 if (leftProjection != rightProjection)
                 {
                     return leftProjection.CompareTo(rightProjection);
                 }
-                int leftSide = _perpendicular_coord(left.coord, direction);
-                int rightSide = _perpendicular_coord(right.coord, direction);
+                int leftSide = _perpendicular_coord(
+                    left.GetAnchorCoord(),
+                    direction
+                );
+                int rightSide = _perpendicular_coord(
+                    right.GetAnchorCoord(),
+                    direction
+                );
                 if (leftSide != rightSide)
                 {
                     return leftSide.CompareTo(rightSide);
@@ -418,7 +434,7 @@ internal class BattleGroundRelocationService
         StringName targetFilter = _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition);
         foreach (BattleUnitState targetUnit in _coordService.CollectUnitsInCoords(effectCoords))
         {
-            if (targetUnit == null || !targetUnit.is_alive)
+            if (targetUnit == null || !targetUnit.IsAlive())
             {
                 continue;
             }
@@ -450,7 +466,7 @@ internal class BattleGroundRelocationService
             || state == null
             || gridService == null
             || unitState == null
-            || !unitState.is_alive
+            || !unitState.IsAlive()
             || direction == Vector2I.Zero
         )
         {
@@ -470,7 +486,7 @@ internal class BattleGroundRelocationService
         {
             return false;
         }
-        Vector2I currentCoord = unitState.coord;
+        Vector2I currentCoord = unitState.GetAnchorCoord();
         Vector2I nextCoord = currentCoord + direction;
         if (!gridService.IsInside(state, nextCoord))
         {
@@ -493,7 +509,7 @@ internal class BattleGroundRelocationService
             }
             if (
                 !state.TryGetUnitTyped(blockingUnitId, out BattleUnitState blockingUnit)
-                || !blockingUnit.is_alive
+                || !blockingUnit.IsAlive()
             )
             {
                 return false;
@@ -533,14 +549,16 @@ internal class BattleGroundRelocationService
                     batch
                 )
                 : new BattleBarrierInteractionResult(false, false);
-        if (barrierResult.Blocked || !unitState.is_alive)
+        if (barrierResult.Blocked || !unitState.IsAlive())
         {
             AppendAffectedUnitId(affectedUnitIds, unitState);
             return false;
         }
+        BattleOccupiedCoordReadView occupiedCoords =
+            unitState.GetOccupiedCoordsReadViewTyped();
         List<Vector2I> previousCoords =
-            unitState.occupied_coords != null
-                ? new List<Vector2I>(unitState.occupied_coords)
+            occupiedCoords.IsPresent
+                ? new List<Vector2I>(occupiedCoords)
                 : new List<Vector2I>();
         if (!gridService.MoveUnit(state, unitState, nextCoord))
         {
@@ -605,7 +623,7 @@ internal class BattleGroundRelocationService
                 );
                 foreach (BattleUnitState targetUnit in orderedUnits)
                 {
-                    if (targetUnit == null || !targetUnit.is_alive)
+                    if (targetUnit == null || !targetUnit.IsAlive())
                     {
                         continue;
                     }

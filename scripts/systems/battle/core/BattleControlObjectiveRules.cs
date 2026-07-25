@@ -43,16 +43,20 @@ internal static class BattleControlObjectiveRules
         BattleControlZoneRuntimeState zone
     )
     {
+        BattleUnitGeometryReadView geometry =
+            unit?.GetGeometryReadViewTyped()
+            ?? BattleUnitGeometryReadView.MissingOwner;
         if (
-            unit?.is_alive != true
+            unit?.IsAlive() != true
             || zone == null
-            || unit.occupied_coords == null
-            || unit.occupied_coords.Count == 0
+            || !geometry.OwnerPresent
+            || !geometry.OccupiedCoords.IsPresent
+            || geometry.OccupiedCoords.Count == 0
         )
         {
             return false;
         }
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in geometry.OccupiedCoords)
         {
             if (!zone.ContainsCoord(coord))
                 return false;

@@ -18,6 +18,17 @@ public sealed class BattleSimScenarioUnitEntry
     internal BattleSimScenarioUnitEntry DeepClone(string sourceLabel) =>
         new(UnitDefinition.DeepClone(sourceLabel));
 
+    internal static BattleSimScenarioUnitEntry FromProjectedState(
+        BattleUnitState unitState,
+        string sourceLabel
+    ) =>
+        new(
+            BattleSimUnitDefinition.FromProjectedState(
+                unitState,
+                sourceLabel
+            )
+        );
+
     internal static BattleSimScenarioUnitEntry FromVariant(
         Variant value,
         string sourceLabel,

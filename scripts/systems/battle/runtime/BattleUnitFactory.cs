@@ -354,7 +354,7 @@ internal sealed class BattleUnitFactory
                 BattleUnitState.DefaultMovePointsPerTurn
             )
         );
-        us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
+        us.SetActionThresholdTyped(_resolve_action_threshold_from_snapshot(snap));
         UnitProgress prog = ms.progression;
         us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
         us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
@@ -421,9 +421,8 @@ internal sealed class BattleUnitFactory
             prevSnap != null
                 ? Mathf.Max(prevSnap.GetValue(AttributeService.AURA_MAX), 0)
                 : Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
-        List<BattleEffectiveTraitInstanceState> previousEffectiveTraitInstances = BattleUnitState.DuplicateEffectiveTraitInstances(
-            us.effective_trait_instances
-        );
+        BattleUnitEffectiveTraitReadView previousEffectiveTraits =
+            us.GetEffectiveTraitsReadViewTyped();
         us.attribute_snapshot = snap;
         _apply_member_effective_trait_projection(us, us.source_member_id, us.GetEquipmentView());
         _apply_player_equipment_ability_projection(us);
@@ -433,20 +432,20 @@ internal sealed class BattleUnitFactory
             ?? Array.Empty<StringName>();
         TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
             us,
-            previousEffectiveTraitInstances
+            previousEffectiveTraits.Instances
         );
         RefreshWeaponProjection(us);
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
             auraMax = Mathf.Max(snap.GetValue(AttributeService.AURA_MAX), 0);
-        us.SetCurrentHp(hpMax < prevHpMax ? Mathf.Clamp(us.current_hp, 0, hpMax) : us.current_hp);
-        us.SetCurrentMp(mpMax < prevMpMax ? Mathf.Clamp(us.current_mp, 0, mpMax) : us.current_mp);
+        us.SetCurrentHp(hpMax < prevHpMax ? Mathf.Clamp(us.GetCurrentHp(), 0, hpMax) : us.GetCurrentHp());
+        us.SetCurrentMp(mpMax < prevMpMax ? Mathf.Clamp(us.GetCurrentMp(), 0, mpMax) : us.GetCurrentMp());
         us.SetCurrentStamina(
-            stamMax < prevStamMax ? Mathf.Clamp(us.current_stamina, 0, stamMax) : us.current_stamina
+            stamMax < prevStamMax ? Mathf.Clamp(us.GetCurrentStamina(), 0, stamMax) : us.GetCurrentStamina()
         );
-        us.SetCurrentAura(auraMax < prevAuraMax ? Mathf.Clamp(us.current_aura, 0, auraMax) : us.current_aura);
-        us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
+        us.SetCurrentAura(auraMax < prevAuraMax ? Mathf.Clamp(us.GetCurrentAura(), 0, auraMax) : us.GetCurrentAura());
+        us.SetActionThresholdTyped(_resolve_action_threshold_from_snapshot(snap));
         UnitProgress prog = ms.progression;
         us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
         us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
@@ -513,7 +512,7 @@ internal sealed class BattleUnitFactory
         return r;
     }
 
-    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildTerrainDataLease(
+    internal BattleTerrainLayout BuildTerrainLayout(
         EncounterAnchorData enc,
         long seed,
         Godot.Collections.Dictionary ctx
@@ -525,57 +524,43 @@ internal sealed class BattleUnitFactory
         );
         Godot.Collections.Dictionary tc = contextOwner.Own(
             new Godot.Collections.Dictionary(),
-            "BattleUnitFactory.BuildTerrainDataLease.context"
+            "BattleUnitFactory.BuildTerrainLayout.context"
         );
         CopyTerrainContext(ctx, tc, contextOwner);
         tc.Remove("map_size");
         BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
         if (terrainGenerator != null)
         {
-            GodotProjectionLease<Godot.Collections.Dictionary> terrainLease =
-                terrainGenerator.GenerateLease(enc, seed, tc, LifetimeDomain.Battle);
+            BattleTerrainLayout terrainLayout =
+                terrainGenerator.GenerateTyped(enc, seed, tc);
             try
             {
-                ApplyTerrainContextOverrides(terrainLease, tc);
-                return terrainLease;
+                ApplyTerrainContextOverrides(terrainLayout, tc);
+                return terrainLayout;
             }
             catch
             {
-                terrainLease.Dispose();
+                terrainLayout?.Dispose();
                 throw;
             }
         }
-        return GodotProjectionLease<Godot.Collections.Dictionary>.CreateOwnedRoot(
-            new Godot.Collections.Dictionary(),
-            "battle-terrain-empty",
-            LifetimeDomain.Battle,
-            "BattleUnitFactory.BuildTerrainDataLease.empty"
-        );
+        return new BattleTerrainLayout();
     }
 
     private static void ApplyTerrainContextOverrides(
-        GodotProjectionLease<Godot.Collections.Dictionary> terrainLease,
+        BattleTerrainLayout terrainLayout,
         Godot.Collections.Dictionary context
     )
     {
-        ArgumentNullException.ThrowIfNull(terrainLease);
-        Godot.Collections.Dictionary terrainData = terrainLease.Value;
-        if (terrainData.Count == 0)
+        ArgumentNullException.ThrowIfNull(terrainLayout);
+        if (terrainLayout.IsEmpty)
             return;
         using Godot.Collections.Array allySpawns = ReadArray(context, "ally_spawns");
         if (allySpawns.Count > 0)
-            terrainData["ally_spawns"] = CopyArrayIntoLease(
-                terrainLease,
-                allySpawns,
-                "BattleUnitFactory.ApplyTerrainContextOverrides.ally_spawns"
-            );
+            terrainLayout.OverrideAllySpawns(ToVector2IList(allySpawns));
         using Godot.Collections.Array enemySpawns = ReadArray(context, "enemy_spawns");
         if (enemySpawns.Count > 0)
-            terrainData["enemy_spawns"] = CopyArrayIntoLease(
-                terrainLease,
-                enemySpawns,
-                "BattleUnitFactory.ApplyTerrainContextOverrides.enemy_spawns"
-            );
+            terrainLayout.OverrideEnemySpawns(ToVector2IList(enemySpawns));
     }
 
     private static void CopyTerrainContext(
@@ -620,19 +605,17 @@ internal sealed class BattleUnitFactory
         target[key] = copy;
     }
 
-    private static Godot.Collections.Array CopyArrayIntoLease(
-        GodotProjectionLease<Godot.Collections.Dictionary> lease,
-        Godot.Collections.Array source,
-        string reason
-    )
+    private static List<Vector2I> ToVector2IList(Godot.Collections.Array source)
     {
-        Godot.Collections.Array copy = lease.Own(
-            new Godot.Collections.Array(),
-            reason
-        );
+        var result = new List<Vector2I>();
+        if (source == null)
+            return result;
         foreach (Variant value in source)
-            copy.Add(value);
-        return copy;
+        {
+            if (value.VariantType == Variant.Type.Vector2I)
+                result.Add(value.AsVector2I());
+        }
+        return result;
     }
 
     private BattleUnitState _build_runtime_ally_unit(
@@ -676,7 +659,9 @@ internal sealed class BattleUnitFactory
             ap,
             BattleUnitState.DefaultMovePointsPerTurn
         );
-        us.action_threshold = _resolve_action_threshold_from_snapshot(snap, defaults.ActionThreshold);
+        us.SetActionThresholdTyped(
+            _resolve_action_threshold_from_snapshot(snap, defaults.ActionThreshold)
+        );
         UnitProgress prog = ms?.progression;
         us.SetKnownActiveSkillIds(_collect_known_active_skill_ids(prog));
         us.SetKnownSkillLevelsTyped(_collect_known_skill_level_map(prog));
@@ -686,12 +671,17 @@ internal sealed class BattleUnitFactory
         _sync_trait_passive_projection(us);
         _filter_skills_by_equipment_requirements(us);
         using Godot.Collections.Array allyMovementTags = ReadArray(ctx, "ally_movement_tags");
-        us.movement_tags = _extract_movement_tags(allyMovementTags);
+        us.ReplaceMovementTagsTyped(
+            _extract_movement_tags(allyMovementTags)
+        );
         using Godot.Collections.Array defaultActiveSkillIds = ReadArray(
             ctx,
             "default_active_skill_ids"
         );
-        if (us.known_active_skill_ids.Count == 0 && defaultActiveSkillIds.Count > 0)
+        if (
+            us.GetKnownActiveSkillsViewTyped().Count == 0
+            && defaultActiveSkillIds.Count > 0
+        )
             foreach (var sv in defaultActiveSkillIds)
             {
                 var ns = ProgressionDataUtils.to_string_name(sv);
@@ -749,10 +739,12 @@ internal sealed class BattleUnitFactory
         }
         else
             us.SetUnarmedWeaponProjection();
-        us.action_threshold = defaults.ActionThreshold;
-        us.SetCombatResources(hpMax, mpMax, stamMax, us.current_aura, ap, BattleUnitState.DefaultMovePointsPerTurn);
+        us.SetActionThresholdTyped(defaults.ActionThreshold);
+        us.SetCombatResources(hpMax, mpMax, stamMax, us.GetCurrentAura(), ap, BattleUnitState.DefaultMovePointsPerTurn);
         using Godot.Collections.Array enemyMovementTags = ReadArray(ctx, "enemy_movement_tags");
-        us.movement_tags = _extract_movement_tags(enemyMovementTags);
+        us.ReplaceMovementTagsTyped(
+            _extract_movement_tags(enemyMovementTags)
+        );
         using Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
         if (enemySkillIds.Count > 0)
         {
@@ -766,10 +758,10 @@ internal sealed class BattleUnitFactory
             foreach (StringName ns in configuredSkillIds)
                 us.SetKnownSkillLevelTyped(ns, 1);
         }
-        if (us.known_active_skill_ids.Count == 0)
+        if (us.GetKnownActiveSkillsViewTyped().Count == 0)
         {
             us.SetKnownActiveSkillIds(_pick_default_enemy_skill_ids());
-            foreach (var s in us.known_active_skill_ids)
+            foreach (var s in us.GetKnownActiveSkillsViewTyped())
                 us.SetKnownSkillLevelTyped(s, 1);
         }
         _ensure_basic_attack_skill(us);
@@ -816,7 +808,7 @@ internal sealed class BattleUnitFactory
         if (us == null)
             return;
         var f = new StringNameList();
-        foreach (var sid in us.known_active_skill_ids)
+        foreach (var sid in us.GetKnownActiveSkillsViewTyped())
         {
             SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
             CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
@@ -828,6 +820,13 @@ internal sealed class BattleUnitFactory
                 !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                     us,
                     combatProfile.RequiredWeaponFamilies
+                )
+            )
+                continue;
+            if (
+                !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
+                    us,
+                    combatProfile.RequiredWeaponTypeIds
                 )
             )
                 continue;
@@ -1060,31 +1059,32 @@ internal sealed class BattleUnitFactory
             return;
         if ((string)mid == "" || _runtime == null)
         {
-            us.effective_trait_instances = new List<BattleEffectiveTraitInstanceState>();
-            us.effective_trait_ids = new StringNameList();
+            us.ReplaceEffectiveTraitsTyped(null);
             return;
         }
 
         BattleEffectiveTraitProjection projection = GetMemberEffectiveTraitProjection(mid, ev);
-        us.effective_trait_instances = BattleUnitState.DuplicateEffectiveTraitInstances(
-            projection?.EffectiveTraitInstances
-        );
-        us.effective_trait_ids = BattleUnitState.DeriveEffectiveTraitIdsFromInstances(
-            us.effective_trait_instances
-        );
+        (projection ?? BattleEffectiveTraitProjection.Empty).ApplyTo(us);
     }
 
     private void _apply_player_equipment_ability_projection(BattleUnitState us)
     {
         if (us == null)
             return;
-        us.equipment_ability_sources =
-            BattleEquipmentAbilityProjectionService.ProjectPlayerPersistentSources(
-                us,
-                GetEquipmentAbilityBindingIndex(),
-                GetTraitDefIndex(),
-                BuildItemDefIndexSnapshotWithEquipmentView(us.GetEquipmentView())
-            );
+        BattleEquipmentAbilityProjectionResult projection =
+            BattleEquipmentAbilityProjectionService
+                .ProjectPlayerPersistent(
+                    us,
+                    GetEquipmentAbilityBindingIndex(),
+                    GetTraitDefIndex(),
+                    BuildItemDefIndexSnapshotWithEquipmentView(
+                        us.GetEquipmentView()
+                    )
+                );
+        us.ReplaceEquipmentAbilityProjectionTyped(
+            projection.Sources,
+            projection.TemporalProgressModifiers
+        );
     }
 
     private static void _apply_member_identity_projection(BattleUnitState us, PartyMemberState ms)
@@ -1159,7 +1159,7 @@ internal sealed class BattleUnitFactory
 
     private void _ensure_enemy_basic_attack_affordability(BattleUnitState us)
     {
-        if (us == null || !us.known_active_skill_ids.Contains(BASIC_ATTACK_SKILL_ID))
+        if (us == null || !us.KnowsActiveSkill(BASIC_ATTACK_SKILL_ID))
             return;
         SkillDefinition basicAttack = _skill_definition_from_runtime(BASIC_ATTACK_SKILL_ID);
         CombatSkillDefinition combatProfile = basicAttack?.CombatProfile;
@@ -1174,7 +1174,7 @@ internal sealed class BattleUnitFactory
             return;
         if (_gv(us, AttributeService.STAMINA_MAX) < sc)
             _sv(us, AttributeService.STAMINA_MAX, sc);
-        if (us.current_stamina < sc)
+        if (us.GetCurrentStamina() < sc)
             us.SetCurrentStamina(sc);
     }
 
@@ -1204,11 +1204,11 @@ internal sealed class BattleUnitFactory
         var snap = _snap(us);
         int mM = snap != null ? snap.GetValue(AttributeService.MP_MAX) : 0,
             aM = snap != null ? snap.GetValue(AttributeService.AURA_MAX) : 0;
-        if (us.current_mp > 0 || mM > 0)
+        if (us.GetCurrentMp() > 0 || mM > 0)
             us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
-        if (us.current_aura > 0 || aM > 0)
+        if (us.GetCurrentAura() > 0 || aM > 0)
             us.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
-        foreach (var sid in us.known_active_skill_ids)
+        foreach (var sid in us.GetKnownActiveSkillsViewTyped())
         {
             SkillDefinition skillDefinition = _skill_definition_from_runtime(sid);
             CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;

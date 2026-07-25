@@ -335,14 +335,15 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = factionId == (StringName)"enemy" ? "ai" : "manual",
-            current_hp = 30,
-            current_mp = 10,
-            current_stamina = 10,
-            current_aura = 10,
-            current_ap = 2,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 10,
+            stamina: 10,
+            aura: 10,
+            ap: 2,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 10);
@@ -353,8 +354,7 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
         if (!IsEmpty(skillId))
         {
-            unit.known_active_skill_ids.Clear();
-            unit.known_active_skill_ids.Add(skillId);
+            unit.SetKnownActiveSkillIds(new[] { skillId });
             unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { [skillId] = 1 });
         }
         return unit;
@@ -372,7 +372,7 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
             state.enemy_unit_ids.Add(unit.unit_id);
         else
             state.ally_unit_ids.Add(unit.unit_id);
-        bool placed = gridService.PlaceUnit(state, unit, unit.coord, true);
+        bool placed = gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         _test.True(placed, $"测试单位 {unit.unit_id} 应能放入测试战场。");
     }
 

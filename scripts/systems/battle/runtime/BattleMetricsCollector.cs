@@ -162,12 +162,11 @@ internal sealed class BattleMetricsCollector
         {
             if (commandType == TypeMove)
             {
-                unitState.has_moved_this_turn = true;
+                unitState.MarkMovedThisTurnTyped();
             }
             else if (commandType != TypeWait && apCost > 0)
             {
-                unitState.has_taken_action_this_turn = true;
-                unitState.is_resting = false;
+                unitState.CommitActionTakenThisTurnTyped();
             }
         }
 

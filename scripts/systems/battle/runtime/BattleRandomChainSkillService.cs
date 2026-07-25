@@ -12,6 +12,7 @@ internal sealed class BattleRandomChainSkillService
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillExecutionOrchestrator _owner;
     private BattleSkillTargetValidationService _targetValidationService;
+    private readonly BattleNineEchoFinalHammerResolver _nineEchoFinalHammerResolver = new();
 
     private BattleRuntimeModule _runtime
     {
@@ -36,6 +37,7 @@ internal sealed class BattleRandomChainSkillService
         _runtime = runtime;
         _owner = owner;
         _targetValidationService = targetValidationService;
+        _nineEchoFinalHammerResolver.Setup(runtime, owner);
     }
 
     internal void DisposeRuntime()
@@ -43,6 +45,7 @@ internal sealed class BattleRandomChainSkillService
         _runtime = null;
         _owner = null;
         _targetValidationService = null;
+        _nineEchoFinalHammerResolver.DisposeRuntime();
     }
 
     internal bool _handle_random_chain_unit_skill_command(
@@ -57,13 +60,24 @@ internal sealed class BattleRandomChainSkillService
     {
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         int maxHitsPerTarget = Math.Max(combatProfile?.MaxHitsPerTarget ?? 0, 1);
-        var chainHitCounts = new Dictionary<StringName, int>();
+        var chainSelectionCounts = new Dictionary<StringName, int>();
+        var chainSuccessfulHitCounts = new Dictionary<StringName, int>();
         bool applied = false;
         int attemptCount = 0;
-        int maxAttempts = Math.Max(
-            (Runtime?._state?.UnitCount ?? 0) * maxHitsPerTarget,
-            1
-        );
+        int skillLevel = Runtime?._get_unit_skill_level(
+            active_unit,
+            skillDefinition?.SkillId ?? new StringName("")
+        ) ?? 0;
+        int configuredAttackCount =
+            combatProfile?.GetEffectiveRandomChainAttackCount(skillLevel) ?? 0;
+        int maxAttempts =
+            configuredAttackCount > 0
+                ? configuredAttackCount
+                : Math.Max(
+                    (Runtime?._state?.UnitCount ?? 0) * maxHitsPerTarget,
+                    1
+                );
+        bool continueOnMiss = combatProfile?.RandomChainContinueOnMiss == true;
         string skillLabel = _owner._format_skill_variant_label(skillDefinition, castVariantDefinition);
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         while (attemptCount < maxAttempts)
@@ -72,7 +86,7 @@ internal sealed class BattleRandomChainSkillService
                 active_unit,
                 skillDefinition,
                 castVariantDefinition,
-                chainHitCounts,
+                chainSelectionCounts,
                 maxHitsPerTarget
             );
             if (chainPool.Count == 0)
@@ -89,8 +103,8 @@ internal sealed class BattleRandomChainSkillService
                 $"{active_unit.display_name} 的{skillLabel}锁定了 {targetUnit.display_name}。"
             );
             StringName targetId = targetUnit.unit_id;
-            chainHitCounts.TryGetValue(targetId, out int targetHitCount);
-            chainHitCounts[targetId] = targetHitCount + 1;
+            chainSelectionCounts.TryGetValue(targetId, out int targetSelectionCount);
+            chainSelectionCounts[targetId] = targetSelectionCount + 1;
             attemptCount += 1;
             bool stageApplied;
             if (repeat_attack_effect != null)
@@ -103,7 +117,8 @@ internal sealed class BattleRandomChainSkillService
                         skillDefinition,
                         effect_definitions,
                         repeat_attack_effect,
-                        batch
+                        batch,
+                        castVariantDefinition
                     );
             }
             else
@@ -121,8 +136,23 @@ internal sealed class BattleRandomChainSkillService
             if (stageApplied)
             {
                 applied = true;
+                chainSuccessfulHitCounts.TryGetValue(
+                    targetId,
+                    out int targetSuccessfulHitCount
+                );
+                targetSuccessfulHitCount += 1;
+                chainSuccessfulHitCounts[targetId] = targetSuccessfulHitCount;
+                _nineEchoFinalHammerResolver.ApplySuccessfulHitReward(
+                    active_unit,
+                    targetUnit,
+                    skillDefinition,
+                    castVariantDefinition,
+                    effect_definitions,
+                    targetSuccessfulHitCount,
+                    batch
+                );
             }
-            else
+            else if (!continueOnMiss)
             {
                 break;
             }
@@ -155,7 +185,7 @@ internal sealed class BattleRandomChainSkillService
             if (
                 candidate == null
                 || candidate == active_unit
-                || !candidate.is_alive
+                || !candidate.IsAlive()
             )
             {
                 continue;

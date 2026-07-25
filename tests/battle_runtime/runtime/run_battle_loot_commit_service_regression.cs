@@ -640,9 +640,9 @@ public partial class run_battle_loot_commit_service_regression : LifecycleTestSc
             if (!runtimeState.ContainsUnit(enemyUnitId))
                 continue;
             BattleUnitState enemyUnit = runtimeState.GetUnit(enemyUnitId);
-            if (enemyUnit == null || !enemyUnit.is_alive)
+            if (enemyUnit == null || !enemyUnit.IsAlive())
                 continue;
-            enemyUnit.is_alive = false;
+            enemyUnit.MarkDead();
             facade._battle_runtime._collect_defeated_unit_loot(enemyUnit, defaultKiller);
         }
         runtimeState.phase = "battle_ended";

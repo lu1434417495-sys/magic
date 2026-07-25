@@ -110,15 +110,19 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildWyrmbreakUnit("projection");
-        _test.Eq(equipped.weapon_item_id, WyrmbreakItemId, "龙骨断剑装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "龙骨断剑应投影为 longsword。");
-        _test.True(equipped.weapon_is_versatile, "龙骨断剑应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_attack_range, 1, "龙骨断剑基础攻击距离应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "龙骨断剑单手应为 1D8+5。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "龙骨断剑单手应为 1D8+5。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 5, "龙骨断剑单手应为 1D8+5。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "龙骨断剑双手应为 1D10+5。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 5, "龙骨断剑双手应为 1D10+5。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, WyrmbreakItemId, "龙骨断剑装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "龙骨断剑应投影为 longsword。");
+        _test.True(equippedWeapon.IsVersatile, "龙骨断剑应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "龙骨断剑基础攻击距离应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "龙骨断剑单手应为 1D8+5。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "龙骨断剑单手应为 1D8+5。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 5, "龙骨断剑单手应为 1D8+5。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "龙骨断剑双手应为 1D10+5。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 5, "龙骨断剑双手应为 1D10+5。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             DragonSlayerTraitId,
@@ -166,18 +170,24 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除龙骨断剑后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除龙骨断剑后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除龙骨断剑后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_attack_range,
-            baseline.weapon_attack_range,
+            removedWeapon.AttackRange,
+            baselineWeapon.AttackRange,
             "移除龙骨断剑后攻击距离应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除龙骨断剑后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除龙骨断剑后装备能力源应清空。"
+        );
     }
 
     private void AssertDragonSoulExtensionSkillConfig(WyrmbreakFixture fixture)
@@ -257,13 +267,13 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         using WyrmbreakFixture fixture = WyrmbreakFixture.Build(new GArray());
         BattleUnitState holder = fixture.BuildWyrmbreakUnit("fury_charge");
         BattleUnitState dragon = BuildTarget("fury_dragon", new Vector2I(1, 0), "dragon");
-        dragon.current_hp = 300;
+        dragon.SetCurrentHp(300);
         dragon.attribute_snapshot.SetValue(AttributeService.HP_MAX, 300);
         BattleUnitState dragonborn = BuildTarget("fury_dragonborn", new Vector2I(1, 0), "dragonborn");
-        dragonborn.current_hp = 300;
+        dragonborn.SetCurrentHp(300);
         dragonborn.attribute_snapshot.SetValue(AttributeService.HP_MAX, 300);
         BattleUnitState humanoid = BuildTarget("fury_humanoid", new Vector2I(1, 0), "humanoid");
-        humanoid.current_hp = 500;
+        humanoid.SetCurrentHp(500);
         humanoid.attribute_snapshot.SetValue(AttributeService.HP_MAX, 500);
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -303,7 +313,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         BattleUnitState holder = fixture.BuildWyrmbreakUnit("extension");
         SetAbilityState(holder, BoneStealingFuryBindingId, DragonSoulFuryStateKey, 3);
         BattleUnitState target = BuildTarget("extension_target", new Vector2I(2, 0), "humanoid");
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleState state = BuildState("wyrmbreak_extension", holder, target);
         BattleSkillAvailabilityView view = BuildEquipmentSkillView(fixture, holder, state);
@@ -317,7 +327,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
 
         WeaponAbilityCommandTestSupport.PrimeActionResources(holder, ap: 2);
         fixture.Runtime.SetupStateForTests(state);
-        int before = target.current_hp;
+        int before = target.GetCurrentHp();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildUnitSkillCommand(
             holder,
             target,
@@ -327,7 +337,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         _test.True(preview.allowed, $"龙魂延伸 range=2 的真实命令 preview 应允许。logs={JoinLogs(preview.LogLinesTyped)}");
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
-        _test.True(target.current_hp < before, $"龙魂延伸应通过真实武器攻击造成伤害。logs={JoinLogs(batch?.LogLinesTyped)}");
+        _test.True(target.GetCurrentHp() < before, $"龙魂延伸应通过真实武器攻击造成伤害。logs={JoinLogs(batch?.LogLinesTyped)}");
         _test.Eq(
             GetAbilityState(holder, BoneStealingFuryBindingId, DragonSoulFuryStateKey),
             1,
@@ -358,12 +368,12 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             stripAbilitySources ? "plain_attack" : $"attack_{fireMitigation}"
         );
         if (stripAbilitySources)
-            attacker.equipment_ability_sources.Clear();
+        attacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState target = BuildTarget("attack_target", new Vector2I(1, 0), targetTags);
-        target.current_hp = 200;
+        target.SetCurrentHp(200);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 200);
         if (fireMitigation != "")
-            target.damage_resistances["fire"] = fireMitigation;
+            target.SetDamageResistanceTyped("fire", fireMitigation);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -371,7 +381,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             $"wyrmbreak_attack_{fireMitigation}_{stripAbilitySources}",
             previewCommand: false
         );
-        return 200 - target.current_hp;
+        return 200 - target.GetCurrentHp();
     }
 
     private static int MeasureBurstDamage(IReadOnlyList<StringName> targetTags, StringName fireMitigation)
@@ -380,10 +390,10 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         BattleUnitState holder = fixture.BuildWyrmbreakUnit($"burst_{fireMitigation}");
         SetAbilityState(holder, BoneStealingFuryBindingId, DragonSoulFuryStateKey, 5);
         BattleUnitState target = BuildTarget("burst_target", new Vector2I(2, 0), targetTags);
-        target.current_hp = 200;
+        target.SetCurrentHp(200);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 200);
         if (fireMitigation != "")
-            target.damage_resistances["fire"] = fireMitigation;
+            target.SetDamageResistanceTyped("fire", fireMitigation);
         BattleState state = BuildState("wyrmbreak_burst", holder, target);
         BattleSkillAvailabilityView view = BuildEquipmentSkillView(fixture, holder, state);
         if (!TryFindSkillEntry(view, DragonSoulBurstSkillId, out BattleAvailableSkillEntry entry))
@@ -398,13 +408,13 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             unit_id = holder.unit_id,
             skill_entry_id = entry.EntryRef.SkillEntryId,
             skill_id = DragonSoulBurstSkillId,
-            target_coord = target.coord,
+            target_coord = target.GetAnchorCoord(),
         };
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
         if (preview?.allowed != true)
             throw new InvalidOperationException($"dragon soul burst preview blocked: {JoinLogs(preview?.LogLinesTyped)}");
         fixture.Runtime.IssueCommand(command);
-        int damage = 200 - target.current_hp;
+        int damage = 200 - target.GetCurrentHp();
         int remaining = GetAbilityState(holder, BoneStealingFuryBindingId, DragonSoulFuryStateKey);
         if (remaining != 0)
             throw new InvalidOperationException($"dragon soul burst should consume 5 fury, remaining={remaining}.");
@@ -484,7 +494,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
             if (key.ToString().EndsWith(suffix, StringComparison.Ordinal))
                 return key;
         }
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         StringName sourceKey = source?.SourceEquipmentInstanceId ?? new StringName("");
         if (sourceKey == "")
             sourceKey = source?.EquipmentDefId ?? new StringName("");
@@ -530,14 +540,15 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         IReadOnlyList<StringName> tags
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -550,7 +561,7 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         foreach (StringName tag in tags ?? Array.Empty<StringName>())
         {
             if (tag != "")
-                unit.creature_type_tags.Add(tag);
+                unit.AddCreatureTypeTagTyped(tag);
         }
         unit.SetEquipmentView(new EquipmentState());
         return unit;
@@ -565,9 +576,9 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -580,12 +591,17 @@ public partial class run_wyrmbreak_weapon_ability_regression : LifecycleTestScen
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

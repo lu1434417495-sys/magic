@@ -11,6 +11,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
     private static readonly StringName BLACK_CONTRACT_PUSH_SKILL_ID = "black_contract_push";
     private static readonly StringName ACTION_TITHE_VARIANT_ID = "action_tithe";
     private static readonly StringName WARRIOR_HEAVY_STRIKE_SKILL_ID = "warrior_heavy_strike";
+    private static readonly StringName MYRIAD_BLADES_SKILL_ID = "warrior_myriad_blades_unity";
 
     private readonly TestHarness _test = new();
     private bool _ownsInstalledGameSession;
@@ -31,6 +32,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
     private async void RunAsync()
     {
         _TestForceHitSkillRuntimePreviewIsGuaranteed();
+        _TestMyriadBladesLevelTenPreviewIsGuaranteed();
         await _TestSingleHitSkillHudSurfacesRuntimePreview();
         RequestTestExit(_test.Finish("Battle hit preview contract regression"));
     }
@@ -112,6 +114,142 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
         }
     }
 
+    private void _TestMyriadBladesLevelTenPreviewIsGuaranteed()
+    {
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
+        skillDefinitions.TryGetValue(MYRIAD_BLADES_SKILL_ID, out SkillDefinition skillDefinition);
+        _test.True(skillDefinition?.CombatProfile != null, "万刃归一预览前置：技能定义应存在。");
+        if (skillDefinition?.CombatProfile == null)
+            return;
+
+        var runtime = new BattleRuntimeModule();
+        BattleState state = null;
+        BattleUnitState caster = null;
+        BattleUnitState target = null;
+        BattleCommand command = null;
+        BattlePreview levelNineBasePreview = null;
+        BattlePreview levelNineStackPreview = null;
+        BattlePreview levelTenPreview = null;
+        BattleEventBatch executionBatch = null;
+        try
+        {
+            runtime.setup(
+                null,
+                skillDefinitions,
+                new Dictionary<StringName, EnemyTemplateDefinition>(),
+                new Dictionary<StringName, EnemyAiBrainDefinition>(),
+                null
+            );
+            state = _BuildState("preview_myriad_blades_level_ten");
+            caster = _BuildUnit(
+                "myriad_blades_caster",
+                "万刃归一使用者",
+                "player",
+                new Vector2I(1, 1),
+                new List<StringName> { MYRIAD_BLADES_SKILL_ID },
+                2
+            );
+            caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
+            caster.SetCurrentAura(1000);
+            caster.attribute_snapshot.SetValue("aura_max", 1000);
+            caster.SetKnownSkillLevelTyped(MYRIAD_BLADES_SKILL_ID, 9);
+            target = _BuildUnit(
+                "myriad_blades_target",
+                "万刃归一目标",
+                "enemy",
+                new Vector2I(2, 1),
+                new List<StringName>(),
+                2
+            );
+            target.attribute_snapshot.SetValue(
+                AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+                25
+            );
+            target.SetCurrentHp(10000);
+            target.attribute_snapshot.SetValue("hp_max", 10000);
+            _AddUnitToRuntimeState(runtime, state, caster, false);
+            _AddUnitToRuntimeState(runtime, state, target, true);
+            state.phase = new StringName("unit_acting");
+            state.active_unit_id = caster.unit_id;
+            runtime.SetupStateForTests(state);
+
+            command = _BuildSkillCommand(caster.unit_id, MYRIAD_BLADES_SKILL_ID, target);
+            levelNineBasePreview = runtime.PreviewCommand(command);
+            _test.True(
+                levelNineBasePreview?.allowed == true,
+                $"9级万刃归一在斗气足够时应允许预览。{string.Join(" | ", levelNineBasePreview?.log_lines ?? new System.Collections.ObjectModel.ReadOnlyCollection<string>(new List<string>()))}"
+            );
+            _test.False(
+                levelNineBasePreview?.hit_preview?.ForceHitNoCrit ?? true,
+                "9级万刃归一仍应进行攻击检定。"
+            );
+
+            caster.SetStatusEffect(
+                new BattleStatusEffectState
+                {
+                    status_id = "melee_combo_stack",
+                    source_unit_id = caster.unit_id,
+                    stack_behavior = "add",
+                    stack_limit = 0,
+                    power = 10,
+                    stacks = 10,
+                    duration = 180,
+                }
+            );
+            levelNineStackPreview = runtime.PreviewCommand(command);
+            _test.Eq(
+                (levelNineStackPreview?.hit_preview?.SuccessRatePercent ?? 0)
+                    - (levelNineBasePreview?.hit_preview?.SuccessRatePercent ?? 0),
+                10,
+                "10层近战连击应使9级万刃归一命中率提高10个百分点。"
+            );
+
+            caster.SetKnownSkillLevelTyped(MYRIAD_BLADES_SKILL_ID, 10);
+            target.attribute_snapshot.SetValue(
+                AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+                999
+            );
+            levelTenPreview = runtime.PreviewCommand(command);
+            _test.True(levelTenPreview?.allowed == true, "10级万刃归一应允许预览。");
+            _test.Eq(
+                levelTenPreview?.hit_preview?.SuccessRatePercent ?? 0,
+                100,
+                "10级万刃归一应显示100%成功率。"
+            );
+            _test.True(
+                levelTenPreview?.hit_preview?.ForceHitNoCrit ?? false,
+                "10级万刃归一预览应标记必中。"
+            );
+            _test.True(
+                levelTenPreview?.hit_preview?.CritLocked ?? false,
+                "10级万刃归一预览应锁定重击。"
+            );
+
+            int hpBefore = target.GetCurrentHp();
+            executionBatch = runtime.IssueCommand(command);
+            _test.True(executionBatch != null, "10级万刃归一应完成正式技能结算。");
+            _test.True(
+                target.GetCurrentHp() < hpBefore,
+                "10级万刃归一面对极高护甲目标仍应必定命中并造成有效伤害。"
+            );
+            _test.Eq(caster.GetCurrentAura(), 0, "万刃归一结算后应消耗1000斗气。");
+        }
+        finally
+        {
+            BattleTestFixture.DisposeBattleFixture(
+                runtime,
+                state,
+                command,
+                levelNineBasePreview,
+                levelNineStackPreview,
+                levelTenPreview,
+                executionBatch,
+                caster,
+                target
+            );
+        }
+    }
+
     private async Task _TestSingleHitSkillHudSurfacesRuntimePreview()
     {
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = _contentSnapshot.Skills;
@@ -157,7 +295,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
                 new List<StringName> { WARRIOR_HEAVY_STRIKE_SKILL_ID },
                 3
             );
-            attacker.current_stamina = 30;
+            attacker.SetCurrentStamina(30);
             attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 80);
             target = _BuildUnit(
                 "heavy_strike_target",
@@ -197,7 +335,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             adapter.SetupRuntimeContext(null, gameSession);
             BattleHudSnapshot snapshot = adapter.BuildSnapshot(
                 state,
-                target.coord,
+                target.GetAnchorCoord(),
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
                 skillDefinition.DisplayName,
                 "",
@@ -229,10 +367,10 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
             BattleHoverSnapshot hoverPreview = adapter.BuildHoverPreview(
                 state,
-                target.coord,
+                target.GetAnchorCoord(),
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
                 new StringName(""),
-                new Godot.Collections.Array<Vector2I> { target.coord },
+                new Godot.Collections.Array<Vector2I> { target.GetAnchorCoord() },
                 preview
             );
             IReadOnlyList<BattleHudFateBadgeSnapshot> hoverFateBadges = hoverPreview.FateBadges;
@@ -241,7 +379,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             critLockedPreview = BuildCritLockedPreview();
             BattleHudSnapshot critLockedSnapshot = adapter.BuildSnapshot(
                 state,
-                target.coord,
+                target.GetAnchorCoord(),
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
                 skillDefinition.DisplayName,
                 "",
@@ -263,10 +401,10 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
             BattleHoverSnapshot critLockedHoverPreview = adapter.BuildHoverPreview(
                 state,
-                target.coord,
+                target.GetAnchorCoord(),
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
                 new StringName(""),
-                new Godot.Collections.Array<Vector2I> { target.coord },
+                new Godot.Collections.Array<Vector2I> { target.GetAnchorCoord() },
                 critLockedPreview
             );
             IReadOnlyList<BattleHudFateBadgeSnapshot> critLockedHoverBadges =
@@ -282,7 +420,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
 
             BattleHudSnapshot snapshotWithoutRuntimePreview = adapter.BuildSnapshot(
                 state,
-                target.coord,
+                target.GetAnchorCoord(),
                 WARRIOR_HEAVY_STRIKE_SKILL_ID,
                 skillDefinition.DisplayName,
                 "",
@@ -423,12 +561,11 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
         unit.display_name = displayName;
         unit.faction_id = factionId;
         unit.control_mode = new StringName("manual");
-        unit.current_hp = 40;
-        unit.current_mp = 4;
-        unit.current_ap = currentAp;
-        unit.current_stamina = 30;
-        unit.current_aura = 0;
-        unit.is_alive = true;
+        unit.SetCurrentHp(40);
+        unit.SetCurrentMp(4);
+        unit.SetCurrentAp(currentAp);
+        unit.SetCurrentStamina(30);
+        unit.SetCurrentAura(0);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(new StringName("hp_max"), 40);
         unit.attribute_snapshot.SetValue(new StringName("mp_max"), 4);
@@ -441,16 +578,18 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             weapon_profile_kind = "equipped",
             weapon_item_id = "hit_preview_test_blade",
             weapon_profile_type_id = "test_blade",
+            weapon_family = "sword",
             weapon_current_grip = "one_handed",
+            weapon_range_type = "melee",
             weapon_attack_range = 1,
             weapon_one_handed_dice = new WeaponDice { dice_count = 1, dice_sides = 4, flat_bonus = 0 },
             weapon_uses_two_hands = false,
             weapon_physical_damage_tag = "physical_slash",
         });
-        unit.known_active_skill_ids = new Godot.Collections.Array<StringName>(skillIds);
-        foreach (StringName skillId in unit.known_active_skill_ids)
+        unit.SetKnownActiveSkillIds(skillIds);
+        foreach (StringName skillId in unit.GetKnownActiveSkillsViewTyped())
         {
-            unit.known_skill_level_map[skillId] = 1;
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -462,7 +601,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             state.enemy_unit_ids.Add(unit.unit_id);
         else
             state.ally_unit_ids.Add(unit.unit_id);
-        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         _test.True(placed, "preview contract 测试单位应成功放入战场。");
     }
 
@@ -481,7 +620,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
         command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? new StringName("");
-        command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
+        command.target_coord = targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return command;
     }
 

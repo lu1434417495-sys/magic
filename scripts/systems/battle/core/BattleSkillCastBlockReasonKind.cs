@@ -20,6 +20,7 @@ public enum BattleSkillCastBlockReasonKind
     RacialSkillPerTurnChargeDepleted,
     RacialSkillChargeUninitialized,
     RequiredWeaponFamilyMissing,
+    RequiredWeaponTypeMissing,
     ShieldRequired,
     MeleeWeaponRequired,
     ExcludedWeaponFamily,
@@ -65,6 +66,8 @@ internal static class BattleSkillCastBlockReasonKinds
                 "racial_skill_charge_uninitialized",
             BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing =>
                 "required_weapon_family_missing",
+            BattleSkillCastBlockReasonKind.RequiredWeaponTypeMissing =>
+                "required_weapon_type_missing",
             BattleSkillCastBlockReasonKind.ShieldRequired => "shield_required",
             BattleSkillCastBlockReasonKind.MeleeWeaponRequired => "melee_weapon_required",
             BattleSkillCastBlockReasonKind.ExcludedWeaponFamily => "excluded_weapon_family",

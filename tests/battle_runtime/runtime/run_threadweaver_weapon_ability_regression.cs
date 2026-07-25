@@ -97,13 +97,17 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThreadweaverUnit("projection");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, ThreadweaverItemId, "Equipped unit should carry Threadweaver item id.");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("rapier"), "Threadweaver should project as rapier.");
-        _test.Eq(equipped.weapon_attack_range, 1, "Threadweaver attack range should be 1.");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "Threadweaver should use 1D8.");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "Threadweaver should use 1D8.");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "Threadweaver should use +3 damage.");
+        _test.Eq(equippedWeapon.ItemId, ThreadweaverItemId, "Equipped unit should carry Threadweaver item id.");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("rapier"), "Threadweaver should project as rapier.");
+        _test.Eq(equippedWeapon.AttackRange, 1, "Threadweaver attack range should be 1.");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "Threadweaver should use 1D8.");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "Threadweaver should use 1D8.");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "Threadweaver should use +3 damage.");
         AssertUnitHasTraitAndAbilitySource(equipped, FateThreadTraitId, FateThreadBindingId, "eq_threadweaver_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, FateWeavingTraitId, FateWeavingBindingId, "eq_threadweaver_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, CutFateThreadTraitId, CutFateThreadBindingId, "eq_threadweaver_projection");
@@ -114,9 +118,15 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "Removing Threadweaver should clear weapon item id.");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "Removing Threadweaver should restore baseline weapon profile.");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "Removing Threadweaver should clear equipment ability sources.");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "Removing Threadweaver should clear weapon item id.");
+        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "Removing Threadweaver should restore baseline weapon profile.");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "Removing Threadweaver should clear equipment ability sources."
+        );
     }
 
     private void TestFateThreadStacksFraysAndAddsSourceBoundAttackBonus()
@@ -229,7 +239,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
             CutFateThreadSkillId
         );
         _test.True(batch != null, "Cut Fate Thread command should return a batch.");
-        _test.False(target.is_alive, "Failed save Cut Fate Thread should execute the frayed target.");
+        _test.False(target.IsAlive(), "Failed save Cut Fate Thread should execute the frayed target.");
         _test.False(target.HasStatusEffect(FateThreadStatusId), "Cut Fate Thread should consume fate threads.");
         _test.False(target.HasStatusEffect(FateFrayedStatusId), "Cut Fate Thread should consume frayed fate.");
 
@@ -247,7 +257,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         BattleState state = BuildState("threadweaver_cut_success_damage", holder, target);
         fixture.Runtime.SetupStateForTests(state);
 
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         bool changed = fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveGrantedSkillUsed(
             new BattleEquipmentAbilityGrantedSkillUsedContext
             {
@@ -262,7 +272,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         );
 
         _test.True(changed, "Cut Fate Thread after-skill equipment reaction should mutate state.");
-        _test.Eq(hpBefore - target.current_hp, 40, "Saved Cut Fate Thread target should take 4D10 psychic damage.");
+        _test.Eq(hpBefore - target.GetCurrentHp(), 40, "Saved Cut Fate Thread target should take 4D10 psychic damage.");
         _test.False(target.HasStatusEffect(FateThreadStatusId), "Cut Fate Thread after-skill should clear fate threads.");
         _test.False(target.HasStatusEffect(FateFrayedStatusId), "Cut Fate Thread after-skill should clear frayed fate.");
     }
@@ -271,16 +281,16 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
     {
         using ThreadweaverFixture fixture = ThreadweaverFixture.Build(new FixedRollDamageResolver(new GArray { 4, 5 }));
         BattleUnitState holder = fixture.BuildThreadweaverUnit("mending");
-        holder.current_hp = 100;
+        holder.SetCurrentHp(100);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         BattleUnitState ally = BuildAlly("fallen_ally", new Vector2I(1, 0), hp: 0, hpMax: 50);
-        ally.is_alive = false;
+        ally.MarkDead();
         BattleState state = BuildState("threadweaver_mending", holder, ally);
         fixture.Runtime.SetupStateForTests(state);
 
         BattleAvailableSkillEntry mendEntry = FindRequiredEquipmentSkill(fixture, holder, ThreadMendingSkillId, state);
         _test.Eq(mendEntry.EquipmentUsagePeriodKind, EquipmentAbilityUsagePeriodKind.PerBattle, "Thread Mending should be per battle.");
-        int holderHpBefore = holder.current_hp;
+        int holderHpBefore = holder.GetCurrentHp();
 
         BattleEventBatch batch = IssueUnitSkillInCurrentState(
             fixture.Runtime,
@@ -291,9 +301,9 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         );
 
         _test.True(batch != null, "Thread Mending command should return a batch.");
-        _test.True(ally.is_alive, "Thread Mending should revive a fallen ally.");
-        _test.Eq(ally.current_hp, 19, "Thread Mending should heal 2D8+10 with fixed 4 and 5 rolls.");
-        _test.Eq(holderHpBefore - holder.current_hp, 10, "Thread Mending should cost the source 10 HP.");
+        _test.True(ally.IsAlive(), "Thread Mending should revive a fallen ally.");
+        _test.Eq(ally.GetCurrentHp(), 19, "Thread Mending should heal 2D8+10 with fixed 4 and 5 rolls.");
+        _test.Eq(holderHpBefore - holder.GetCurrentHp(), 10, "Thread Mending should cost the source 10 HP.");
     }
 
     private void AssertCutFateThreadSkillShape(ThreadweaverFixture fixture)
@@ -491,9 +501,9 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -506,12 +516,15 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -570,8 +583,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -592,15 +604,16 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         int hpMax
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = hp > 0,
-            current_hp = Math.Max(hp, 0),
-            current_ap = 2,
-        };
+        }.WithCombatResourcesForTest(
+            hp: Math.Max(hp, 0),
+            ap: 2,
+            isAlive: hp > 0
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);

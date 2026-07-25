@@ -100,20 +100,24 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThunderHalberdUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ThunderHalberdItemId, "雷霆之戟装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("halberd"), "雷霆之戟应投影为 halberd。");
-        _test.Eq(equipped.weapon_family, new StringName("polearm"), "雷霆之戟应投影为 polearm。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ThunderHalberdItemId, "雷霆之戟装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("halberd"), "雷霆之戟应投影为 halberd。");
+        _test.Eq(equippedWeapon.Family, new StringName("polearm"), "雷霆之戟应投影为 polearm。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "雷霆之戟基础伤害标签应为 physical_slash。"
         );
-        _test.Eq(equipped.weapon_attack_range, 2, "雷霆之戟攻击距离应为 2。");
-        _test.True(equipped.weapon_uses_two_hands, "雷霆之戟应占用双手。");
-        _test.False(equipped.weapon_is_versatile, "雷霆之戟不应是 versatile。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "雷霆之戟双手应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "雷霆之戟双手应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "雷霆之戟双手应为 1D10+2。");
+        _test.Eq(equippedWeapon.AttackRange, 2, "雷霆之戟攻击距离应为 2。");
+        _test.True(equippedWeapon.UsesTwoHands, "雷霆之戟应占用双手。");
+        _test.False(equippedWeapon.IsVersatile, "雷霆之戟不应是 versatile。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "雷霆之戟双手应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "雷霆之戟双手应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "雷霆之戟双手应为 1D10+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             ThunderSlashTraitId,
@@ -123,19 +127,21 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除雷霆之戟后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除雷霆之戟后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除雷霆之戟后武器 profile 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除雷霆之戟后装备能力源应清空。"
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(ThunderSlashTraitId),
+            equipped.HasEffectiveTrait(ThunderSlashTraitId),
             "移除雷霆之戟后雷鸣斩 trait 不应残留。"
         );
     }
@@ -152,11 +158,11 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             "thunder_halberd_damage",
             previewCommand: false
         );
-        int thunderDamage = 100 - target.current_hp;
+        int thunderDamage = 100 - target.GetCurrentHp();
 
         using ThunderHalberdFixture plainFixture = ThunderHalberdFixture.Build(new GArray { 4, 3 });
         BattleUnitState plainAttacker = plainFixture.BuildThunderHalberdUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("plain_damage_target", new Vector2I(2, 0), hp: 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -165,7 +171,7 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             "thunder_halberd_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，雷霆之戟基础武器伤害应为 1D10+2。");
         _test.Eq(
@@ -269,14 +275,15 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -296,9 +303,9 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -311,12 +318,17 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

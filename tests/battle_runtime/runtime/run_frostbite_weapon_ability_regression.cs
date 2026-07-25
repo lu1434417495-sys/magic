@@ -113,19 +113,23 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostbiteUnit("projection");
-        _test.Eq(equipped.weapon_item_id, FrostbiteItemId, "霜咬装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "霜咬应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "霜咬应投影为 axe family。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "霜咬应为挥砍伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "霜咬攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "霜咬应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "霜咬单手应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "霜咬单手应为 1D8+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 1, "霜咬单手应为 1D8+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "霜咬双手应为 1D10+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "霜咬双手应为 1D10+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 1, "霜咬双手应为 1D10+1。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, FrostbiteItemId, "霜咬装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "霜咬应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "霜咬应投影为 axe family。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "霜咬应为挥砍伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "霜咬攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "霜咬应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "霜咬单手应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "霜咬单手应为 1D8+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 1, "霜咬单手应为 1D8+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "霜咬双手应为 1D10+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "霜咬双手应为 1D10+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 1, "霜咬双手应为 1D10+1。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             FrostTouchTraitId,
@@ -139,7 +143,7 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             "eq_frostbite_projection"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(PolarAdaptationTraitId),
+            equipped.HasEffectiveTrait(PolarAdaptationTraitId),
             "装备霜咬应投影极地适应 trait。"
         );
         _test.Eq(
@@ -150,19 +154,24 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除霜咬后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除霜咬后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除霜咬后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除霜咬后装备能力源应清空。");
-        _test.False(equipped.effective_trait_ids.Contains(FrostTouchTraitId), "移除霜咬后霜冻之触不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(IceboundPathTraitId), "移除霜咬后冰封之路不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(PolarAdaptationTraitId), "移除霜咬后极地适应不应残留。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除霜咬后装备能力源应清空。"
+        );
+        _test.False(equipped.HasEffectiveTrait(FrostTouchTraitId), "移除霜咬后霜冻之触不应残留。");
+        _test.False(equipped.HasEffectiveTrait(IceboundPathTraitId), "移除霜咬后冰封之路不应残留。");
+        _test.False(equipped.HasEffectiveTrait(PolarAdaptationTraitId), "移除霜咬后极地适应不应残留。");
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除霜咬后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -173,7 +182,7 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
         BattleUnitState attacker = fixture.BuildFrostbiteUnit("frost_touch");
         BattleUnitState target = BuildEnemy("frost_touch_target", new Vector2I(1, 0), hp: 120);
 
-        int previousHp = target.current_hp;
+        int previousHp = target.GetCurrentHp();
         for (int hit = 1; hit <= 3; hit++)
         {
             WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -183,8 +192,8 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
                 $"frostbite_same_target_hit_{hit}",
                 previewCommand: false
             );
-            int damage = previousHp - target.current_hp;
-            previousHp = target.current_hp;
+            int damage = previousHp - target.GetCurrentHp();
+            previousHp = target.GetCurrentHp();
             _test.Eq(damage, 8, $"第 {hit} 次命中应造成武器挥砍与 1D6 寒冷伤害。");
             BattleStatusEffectState chill = target.GetStatusEffect(ChillCountStatusId);
             _test.True(chill != null, $"第 {hit} 次命中应记录寒霜命中计数。");
@@ -289,7 +298,7 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             preview?.allowed == true,
             $"冰封之路选择相邻水域时 preview 应允许。logs={JoinLogs(preview?.LogLinesTyped)}"
         );
-        int staminaBefore = holder.current_stamina;
+        int staminaBefore = holder.GetCurrentStamina();
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
         _test.True(batch != null, "冰封之路 IssueCommand 应返回事件 batch。");
         _test.Eq(
@@ -297,7 +306,7 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             new StringName("ice"),
             "冰封之路应将相邻 1 格水域改成冰层。"
         );
-        _test.Eq(holder.current_stamina, staminaBefore - 60, "冰封之路应消耗 60 体力。");
+        _test.Eq(holder.GetCurrentStamina(), staminaBefore - 60, "冰封之路应消耗 60 体力。");
         _test.Eq(holder.GetCooldownTyped(IceboundPathSkillId), 120, "冰封之路应设置 120TU 冷却表示一回合一次。");
 
         BattlePreview sameTurnPreview = fixture.Runtime.PreviewCommand(command);
@@ -406,21 +415,22 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.SetEquipmentView(new EquipmentState());
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 
@@ -433,9 +443,9 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -448,12 +458,18 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -463,11 +479,9 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }

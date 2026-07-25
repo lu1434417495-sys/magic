@@ -68,7 +68,7 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             "",
             battleState
         );
-        if (resolvedTarget?.is_alive != true)
+        if (resolvedTarget?.IsAlive() != true)
             return null;
         IReadOnlyList<CombatEffectDefinition> effects = BuildDamageEffects(payload);
         if (effects.Count == 0)
@@ -108,15 +108,15 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
         IReadOnlyList<CombatEffectDefinition> effects = BuildHealEffects(payload);
         if (effects.Count == 0)
             return null;
-        int previousHp = resolvedTarget.current_hp;
-        bool previousAlive = resolvedTarget.is_alive;
+        int previousHp = resolvedTarget.GetCurrentHp();
+        bool previousAlive = resolvedTarget.IsAlive();
         _owner.DamageResolver.ResolveEffects(
             sourceUnit,
             resolvedTarget,
             effects,
             DamageResolutionContext.Empty().WithBattleState(battleState)
         );
-        if (resolvedTarget.current_hp == previousHp && resolvedTarget.is_alive == previousAlive)
+        if (resolvedTarget.GetCurrentHp() == previousHp && resolvedTarget.IsAlive() == previousAlive)
             return null;
         return resolvedTarget;
     }
@@ -164,7 +164,7 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             "",
             battleState
         );
-        if (resolvedTarget?.is_alive != true)
+        if (resolvedTarget?.IsAlive() != true)
             return null;
 
         int maxHp = Math.Max(
@@ -273,13 +273,13 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
             int amount = payload.Amount > 0
                 ? payload.Amount
                 : Math.Max(target.attribute_snapshot?.GetValue(AttributeService.ACTION_POINTS) ?? 1, 1);
-            target.SetCurrentAp(target.current_ap + amount);
+            target.SetCurrentAp(target.GetCurrentAp() + amount);
             return target;
         }
         if (mode == "subtract_current_action_points")
         {
             int amount = payload.Amount > 0 ? payload.Amount : 1;
-            target.SetCurrentAp(Math.Max(target.current_ap - amount, 0));
+            target.SetCurrentAp(Math.Max(target.GetCurrentAp() - amount, 0));
             return target;
         }
         if (mode == "restore_current_action_points_capped")
@@ -290,10 +290,10 @@ internal sealed class BattleEquipmentDirectEffectActionResolver
                 0
             );
             int nextActionPoints = Math.Min(
-                target.current_ap + amount,
-                Math.Max(actionPointCap, target.current_ap)
+                target.GetCurrentAp() + amount,
+                Math.Max(actionPointCap, target.GetCurrentAp())
             );
-            if (nextActionPoints <= target.current_ap)
+            if (nextActionPoints <= target.GetCurrentAp())
                 return null;
             target.SetCurrentAp(nextActionPoints);
             return target;

@@ -62,7 +62,7 @@ public partial class run_battle_escape_objective_regression
             "所有初始持久队员进入出口后应完成逃离。"
         );
         _test.True(
-            enemy.is_alive,
+            enemy.IsAlive(),
             "逃离成功不应要求消灭仍存活的敌人。"
         );
         AssertDecision(
@@ -224,7 +224,7 @@ public partial class run_battle_escape_objective_regression
             BattleOutcomeFlushResult.Completed,
             "任一初始持久队员阵亡后应立即判定逃离失败。"
         );
-        _test.True(enemy.is_alive, "逃离失败不应依赖敌方是否存活。");
+        _test.True(enemy.IsAlive(), "逃离失败不应依赖敌方是否存活。");
         AssertDecision(
             fixture.State.FinalDecision,
             BattleOutcomeKind.PlayerFailure,
@@ -267,7 +267,7 @@ public partial class run_battle_escape_objective_regression
                 "非持久友方停留在出口外不应阻止持久队伍逃离。"
             );
             _test.True(
-                summon.is_alive && summon.coord == new Vector2I(0, 1),
+                summon.IsAlive() && summon.GetAnchorCoord() == new Vector2I(0, 1),
                 "测试召唤物应保持存活并停留在出口外。"
             );
         }

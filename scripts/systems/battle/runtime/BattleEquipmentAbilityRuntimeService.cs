@@ -406,12 +406,14 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
     internal IReadOnlyList<StringName> CollectProjectedWeaponEffectCategories(
         BattleUnitState sourceUnit,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        SkillDefinition skillDefinition = null
+        SkillDefinition skillDefinition = null,
+        CombatCastVariantDefinition castVariantDefinition = null
     ) =>
         _attackModifierResolver.CollectProjectedWeaponEffectCategories(
             sourceUnit,
             effectDefinitions,
-            skillDefinition
+            skillDefinition,
+            castVariantDefinition
         );
 
     internal IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> CollectBonusDamageDiceOnHit(
@@ -1454,7 +1456,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
         );
         if (
             state == null
-            || sourceUnit?.is_alive != true
+            || sourceUnit?.IsAlive() != true
             || anchorUnit == null
             || _damageResolver == null
             || payload == null
@@ -1533,7 +1535,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             context.Batch?.AddLogLine(
                 $"{sourceUnit.display_name} 借 {binding?.TraitId} 追击 {targetUnit.display_name}。"
             );
-            if (targetUnit.is_alive != true)
+            if (targetUnit.IsAlive() != true)
             {
                 _runtime?.HandleUnitDefeatedByRuntimeEffect(
                     targetUnit,
@@ -1571,11 +1573,14 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             return result;
 
         int radius = Math.Max(payload.Radius, 0);
+        BattleWeaponProjectionValues weaponProjection =
+            sourceUnit.GetWeaponProjectionReadViewTyped().Values;
+        int weaponAttackRange = Math.Max(weaponProjection.AttackRange, 1);
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
             if (
                 candidate == null
-                || candidate.is_alive != true
+                || candidate.IsAlive() != true
                 || candidate.unit_id == sourceUnit.unit_id
                 || candidate.unit_id == (defeatedUnit?.unit_id ?? new StringName(""))
                 || !ImmediateWeaponAttackTeamFilterPasses(sourceUnit, candidate, payload.TargetTeamFilter)
@@ -1587,7 +1592,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             if (
                 payload.RequireWeaponRange
                 && BattleGridDistanceService.GetDistanceBetweenUnits(sourceUnit, candidate)
-                    > Math.Max(sourceUnit.weapon_attack_range, 1)
+                    > weaponAttackRange
             )
             {
                 continue;
@@ -2105,8 +2110,13 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
     {
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex =
             _runtime?.GetEquipmentAbilityBindingIndexTyped();
+        BattleEquipmentAbilitySourceListReadView sources =
+            sourceUnit?.GetEquipmentAbilitySourcesReadViewTyped()
+            ?? new BattleEquipmentAbilitySourceListReadView(
+                null
+            );
         if (
-            sourceUnit?.equipment_ability_sources == null
+            !sources.IsPresent
             || bindingIndex == null
             || bindingIndex.Count == 0
         )
@@ -2114,7 +2124,9 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
             yield break;
         }
         var result = new List<ActiveEquipmentAbilityBinding>();
-        foreach (BattleEquipmentAbilitySourceState source in sourceUnit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in sources
+        )
         {
             if (source?.AbilityIds == null)
                 continue;
@@ -2209,7 +2221,7 @@ internal sealed class BattleEquipmentAbilityRuntimeService : IBattleEquipmentCom
     }
 
     internal readonly record struct ActiveEquipmentAbilityBinding(
-        BattleEquipmentAbilitySourceState Source,
+        BattleEquipmentAbilitySourceReadView Source,
         EquipmentAbilityBindingDefinition Binding
     );
 }

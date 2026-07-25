@@ -76,16 +76,34 @@ internal sealed class BattleSimScenarioDefinition
     internal bool TraceEnabled { get; }
     internal IReadOnlyList<int> Seeds => _seeds;
 
-    internal GodotProjectionLease<Godot.Collections.Dictionary> BuildStartContextLease()
+    internal BattleStartUnitRoster CreateRuntimeRosterTyped() =>
+        new(
+            MaterializeRuntimeUnits(_allyUnits),
+            MaterializeRuntimeUnits(_enemyUnits)
+        );
+
+    internal GodotProjectionLease<Godot.Collections.Dictionary>
+        BuildStartContextLease() =>
+            BuildStartContextLease(includeUnitPayloads: true);
+
+    internal GodotProjectionLease<Godot.Collections.Dictionary>
+        BuildRuntimeStartContextLease() =>
+            BuildStartContextLease(includeUnitPayloads: false);
+
+    private GodotProjectionLease<Godot.Collections.Dictionary>
+        BuildStartContextLease(bool includeUnitPayloads)
     {
         var contextPlain = new Dictionary<string, object>(StringComparer.Ordinal)
         {
-            ["battle_party"] = BuildUnitPayloadsPlain(_allyUnits),
-            ["enemy_units"] = BuildUnitPayloadsPlain(_enemyUnits),
             ["tu_per_tick"] = TuPerTick,
             ["battle_terrain_profile"] = TerrainProfileId,
             ["world_coord"] = WorldCoord,
         };
+        if (includeUnitPayloads)
+        {
+            contextPlain["battle_party"] = BuildUnitPayloadsPlain(_allyUnits);
+            contextPlain["enemy_units"] = BuildUnitPayloadsPlain(_enemyUnits);
+        }
 
         if (UseFormalTerrainGeneration)
         {
@@ -197,6 +215,16 @@ internal sealed class BattleSimScenarioDefinition
         foreach (BattleSimScenarioUnitEntry entry in unitEntries)
             payloads.Add(entry.UnitDefinition.UnitSnapshot);
         return payloads;
+    }
+
+    private static IReadOnlyList<BattleUnitState> MaterializeRuntimeUnits(
+        IReadOnlyList<BattleSimScenarioUnitEntry> unitEntries
+    )
+    {
+        var units = new List<BattleUnitState>(unitEntries.Count);
+        foreach (BattleSimScenarioUnitEntry entry in unitEntries)
+            units.Add(entry.UnitDefinition.CreateRuntimeState());
+        return units;
     }
 
     private static List<object> BuildSpawnCoordsPlain(

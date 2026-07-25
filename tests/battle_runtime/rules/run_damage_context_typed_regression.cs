@@ -264,9 +264,9 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
             unit_id = unitId,
             display_name = unitId,
             faction_id = unitId.Contains("source") ? "heroes" : "enemies",
-            current_hp = 50,
-            current_shield_hp = 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 50
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 50);
         return unit;
     }

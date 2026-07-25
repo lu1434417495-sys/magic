@@ -42,7 +42,9 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             ?? Runtime?.BuildGroundEffectCoordsTyped(
                 skillDefinition,
                 targetCoords ?? Array.Empty<Vector2I>(),
-                activeUnit != null ? activeUnit.coord : new Vector2I(-1, -1),
+                activeUnit != null
+                    ? activeUnit.GetAnchorCoord()
+                    : new Vector2I(-1, -1),
                 activeUnit,
                 castVariantDefinition
             )
@@ -54,7 +56,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 unitEffectDefinitions,
                 terrainEffectDefinitions,
                 normalizedRawEffectCoords,
-                batch
+                batch,
+                castVariantDefinition
             ) ?? BuildUnclippedGroundEffectBarrierResult(
                 unitEffectDefinitions,
                 terrainEffectDefinitions,
@@ -104,7 +107,8 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 skillDefinition,
                 unitEffectDefinitions,
                 terrainEffectDefinitions,
-                normalizedRawEffectCoords
+                normalizedRawEffectCoords,
+                castVariantDefinition
             ) ?? BuildUnclippedGroundEffectBarrierResult(
                 unitEffectDefinitions,
                 terrainEffectDefinitions,

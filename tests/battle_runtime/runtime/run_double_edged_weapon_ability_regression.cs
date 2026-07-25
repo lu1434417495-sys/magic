@@ -97,19 +97,21 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildDoubleEdgedUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
         int baselineAc = baseline.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS);
         int equippedAc = equipped.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS);
 
-        _test.Eq(equipped.weapon_item_id, DoubleEdgedItemId, "装备后 unit 应保留双面刃 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "双面刃应投影为 longsword。");
-        _test.Eq(equipped.weapon_attack_range, 1, "双面刃攻击范围应为 1。");
-        _test.True(equipped.weapon_is_versatile, "双面刃应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "双面刃单手骰应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "双面刃单手骰应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "双面刃单手骰固定加值应为 +3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "双面刃双手骰应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "双面刃双手骰应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "双面刃双手骰固定加值应为 +3。");
+        _test.Eq(equippedWeapon.ItemId, DoubleEdgedItemId, "装备后 unit 应保留双面刃 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "双面刃应投影为 longsword。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "双面刃攻击范围应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "双面刃应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "双面刃单手骰应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "双面刃单手骰应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "双面刃单手骰固定加值应为 +3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "双面刃双手骰应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "双面刃双手骰应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "双面刃双手骰固定加值应为 +3。");
         _test.Eq(equippedAc, baselineAc - 2, "无防御应在装备时让持有者 AC -2。");
         AssertUnitHasTraitAndAbilitySource(equipped, TwinAttackTraitId, TwinAttackBindingId, "eq_double_edged_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, NoGuardTraitId, NoGuardBindingId, "eq_double_edged_projection");
@@ -120,13 +122,18 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除双面刃后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除双面刃后 weapon_item_id 应清空。");
         _test.Eq(
             equipped.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS),
             baselineAc,
             "移除双面刃后 AC -2 应消失。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除双面刃后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除双面刃后装备能力源应清空。"
+        );
     }
 
     private void TestTwinAttackHitsTwoTargetsPaysFixedRecoilAndHealsOnDoubleKill()
@@ -135,7 +142,7 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
             new FixedRollDamageResolver(new GArray { 4, 3, 3, 3, 4, 3, 3, 3, 4, 5 })
         );
         BattleUnitState holder = fixture.BuildDoubleEdgedUnit("twin");
-        holder.current_hp = 50;
+        holder.SetCurrentHp(50);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 60);
         BattleUnitState first = BuildEnemy("twin_first", new Vector2I(1, 0), hp: 10);
         BattleUnitState second = BuildEnemy("twin_second", new Vector2I(0, 1), hp: 10);
@@ -153,11 +160,11 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         );
 
         _test.True(batch != null, "双刃攻击命令应返回 batch。");
-        _test.False(first.is_alive, "双刃攻击应命中并击杀第一个低 HP 目标。");
-        _test.False(second.is_alive, "双刃攻击应命中并击杀第二个低 HP 目标。");
-        _test.Eq(holder.current_hp, 51, "双杀时应先承受固定 8HP 反伤，再由悖论之舞治疗 2D8。");
-        _test.Eq(holder.current_stamina, 36, "双刃攻击应消耗 24 体力。");
-        _test.Eq(holder.current_ap, 1, "双刃攻击应消耗 1AP。");
+        _test.False(first.IsAlive(), "双刃攻击应命中并击杀第一个低 HP 目标。");
+        _test.False(second.IsAlive(), "双刃攻击应命中并击杀第二个低 HP 目标。");
+        _test.Eq(holder.GetCurrentHp(), 51, "双杀时应先承受固定 8HP 反伤，再由悖论之舞治疗 2D8。");
+        _test.Eq(holder.GetCurrentStamina(), 36, "双刃攻击应消耗 24 体力。");
+        _test.Eq(holder.GetCurrentAp(), 1, "双刃攻击应消耗 1AP。");
     }
 
     private void TestSingleEdgeAttackUsesWeaponDamagePlusTwoD6WithoutRecoil()
@@ -166,14 +173,14 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
             new FixedRollDamageResolver(new GArray { 4, 3, 3 })
         );
         BattleUnitState holder = fixture.BuildDoubleEdgedUnit("single");
-        holder.current_hp = 40;
+        holder.SetCurrentHp(40);
         holder.attribute_snapshot.SetValue(AttributeService.HP_MAX, 60);
         BattleUnitState target = BuildEnemy("single_target", new Vector2I(1, 0), hp: 100);
         BattleState state = BuildState("double_edged_single", holder, target);
         fixture.Runtime.SetupStateForTests(state);
 
         BattleAvailableSkillEntry entry = FindRequiredEquipmentSkill(fixture, holder, SingleEdgeSkillId, state);
-        int targetHpBefore = target.current_hp;
+        int targetHpBefore = target.GetCurrentHp();
         BattleEventBatch batch = IssueUnitSkillInCurrentState(
             fixture.Runtime,
             holder,
@@ -183,10 +190,10 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         );
 
         _test.True(batch != null, "单刃斩命令应返回 batch。");
-        _test.Eq(targetHpBefore - target.current_hp, 13, "单刃斩应造成 1D8+3 加 2D6 physical_slash。");
-        _test.Eq(holder.current_hp, 40, "单刃斩不应造成反伤。");
-        _test.Eq(holder.current_stamina, 48, "单刃斩应消耗 12 体力。");
-        _test.Eq(holder.current_ap, 1, "单刃斩应消耗 1AP。");
+        _test.Eq(targetHpBefore - target.GetCurrentHp(), 13, "单刃斩应造成 1D8+3 加 2D6 physical_slash。");
+        _test.Eq(holder.GetCurrentHp(), 40, "单刃斩不应造成反伤。");
+        _test.Eq(holder.GetCurrentStamina(), 48, "单刃斩应消耗 12 体力。");
+        _test.Eq(holder.GetCurrentAp(), 1, "单刃斩应消耗 1AP。");
     }
 
     private void TestEquipmentGrantedWeaponSkillsAreOnceEachPerActionTurn()
@@ -210,8 +217,8 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         );
         _test.True(batch != null, "第一次单刃斩应成功。");
 
-        holder.current_ap = 2;
-        holder.current_stamina = 60;
+        holder.SetCurrentAp(2);
+        holder.SetCurrentStamina(60);
         BattleSkillAvailabilityView sameTurnView = BuildEquipmentSkillAvailability(fixture, holder, state);
         _test.True(
             TryFindSkillEntry(sameTurnView, SingleEdgeSkillId, out BattleAvailableSkillEntry sameTurnSingle),
@@ -235,8 +242,8 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         _test.False(blockedPreview?.allowed == true, "同一行动回合第二次预览同装备技能应被阻止。");
 
         holder.ResetPerTurnCharges();
-        holder.current_ap = 2;
-        holder.current_stamina = 60;
+        holder.SetCurrentAp(2);
+        holder.SetCurrentStamina(60);
         BattleSkillAvailabilityView nextTurnView = BuildEquipmentSkillAvailability(fixture, holder, state);
         _test.True(
             TryFindSkillEntry(nextTurnView, SingleEdgeSkillId, out BattleAvailableSkillEntry nextTurnSingle),
@@ -321,11 +328,11 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         params BattleUnitState[] targets
     )
     {
-        int currentHp = Math.Max(user?.current_hp ?? 0, 0);
+        int currentHp = Math.Max(user?.GetCurrentHp() ?? 0, 0);
         WeaponAbilityCommandTestSupport.PrimeActionResources(user, ap: 2);
         if (user != null)
             user.SetCurrentHp(currentHp);
-        user.current_stamina = 60;
+        user.SetCurrentStamina(60);
         user.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, 60);
         BattleCommand command = BuildUnitSkillCommand(user, entry, skillId, targets);
         BattlePreview preview = runtime.PreviewCommand(command);
@@ -353,7 +360,7 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
             skill_entry_id = entry?.EntryRef.SkillEntryId ?? new StringName(""),
             skill_id = skillId,
             target_unit_id = primary?.unit_id ?? new StringName(""),
-            target_coord = primary?.coord ?? new Vector2I(-1, -1),
+            target_coord = primary?.GetAnchorCoord() ?? new Vector2I(-1, -1),
         };
         foreach (BattleUnitState target in targets ?? Array.Empty<BattleUnitState>())
         {
@@ -425,9 +432,9 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -440,12 +447,15 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -510,8 +520,7 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -529,16 +538,17 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
         int hpMax
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            is_alive = hp > 0,
-            current_hp = Math.Max(hp, 0),
-            current_ap = 2,
-            current_stamina = 60,
-        };
+        }.WithCombatResourcesForTest(
+            hp: Math.Max(hp, 0),
+            stamina: 60,
+            ap: 2,
+            isAlive: hp > 0
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -639,7 +649,7 @@ public partial class run_double_edged_weapon_ability_regression : LifecycleTestS
             unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
             unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
             unit.attribute_snapshot.SetValue(AttributeService.STAMINA_MAX, 60);
-            unit.current_stamina = 60;
+            unit.SetCurrentStamina(60);
             return unit;
         }
 

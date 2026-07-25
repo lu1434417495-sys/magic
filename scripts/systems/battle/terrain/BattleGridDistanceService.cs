@@ -18,7 +18,9 @@ internal static class BattleGridDistanceService
             return 999999;
         }
         int bestDistance = 999999;
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unit_state.GetOccupiedCoordsReadViewTyped()
+        )
         {
             bestDistance = Math.Min(bestDistance, GetDistance(occupiedCoord, target_coord));
         }
@@ -35,9 +37,13 @@ internal static class BattleGridDistanceService
             return 999999;
         }
         int bestDistance = 999999;
-        foreach (Vector2I firstCoord in first_unit.occupied_coords)
+        foreach (
+            Vector2I firstCoord in first_unit.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I secondCoord in second_unit.occupied_coords)
+            foreach (
+                Vector2I secondCoord in second_unit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 bestDistance = Math.Min(bestDistance, GetDistance(firstCoord, secondCoord));
             }

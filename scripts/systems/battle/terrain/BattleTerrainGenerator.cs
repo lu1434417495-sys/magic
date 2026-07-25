@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal enum BattleTerrainProfileKind
@@ -133,44 +132,30 @@ public class BattleTerrainGenerator : IDisposable
         return BattleTerrainProfileKind.Unknown;
     }
 
-    internal virtual GodotProjectionLease<GDictionary> GenerateLease(
+    internal virtual BattleTerrainLayout GenerateTyped(
         EncounterAnchorData encounterAnchor,
         long seed,
-        GDictionary context,
-        LifetimeDomain domain = LifetimeDomain.Battle
+        GDictionary context
     )
     {
-        GDictionary root = new();
-        GodotProjectionLease<GDictionary> lease =
-            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
-                root,
-                "battle-terrain-generator",
-                domain,
-                "BattleTerrainGenerator.GenerateLease"
-            );
-        try
-        {
-            GDictionary generated = Generate(lease, encounterAnchor, seed, context);
-            if (generated != null && !ReferenceEquals(generated, root))
-                root.Merge(generated, true);
-            return lease;
-        }
-        catch
-        {
-            lease.Dispose();
-            throw;
-        }
+        return Generate(encounterAnchor, seed, context);
     }
 
-    private GDictionary Generate(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout Generate(
         object encounterAnchorOrContext,
         long seed,
         GDictionary context
     )
     {
+        using GodotProjectionLease<GDictionary> contextLease =
+            GodotProjectionLease<GDictionary>.CreateOwnedRoot(
+                new GDictionary(),
+                "battle-terrain-generator-context",
+                LifetimeDomain.Request,
+                "BattleTerrainGenerator.Generate.context"
+            );
         GDictionary encounterContext = BuildEncounterContext(
-            lease,
+            contextLease,
             encounterAnchorOrContext,
             seed,
             context
@@ -180,30 +165,19 @@ public class BattleTerrainGenerator : IDisposable
             context
         );
         if (terrainProfileId == "")
-        {
-            return lease.Own(
-                new GDictionary(),
-                "BattleTerrainGenerator.Generate.empty"
-            );
-        }
+            return new BattleTerrainLayout();
 
         long battleSeed = BuildBattleSeed(encounterContext);
         _rng.Reseed(battleSeed);
 
         BattleTerrainProfileKind terrainProfileKind = ToProfileKind(terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.Canyon)
-        {
-            return GenerateCanyon(lease, encounterContext, terrainProfileId);
-        }
+            return GenerateCanyon(encounterContext, terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.NarrowAssault)
-        {
-            return GenerateNarrowAssault(lease, encounterContext, terrainProfileId);
-        }
+            return GenerateNarrowAssault(encounterContext, terrainProfileId);
         if (terrainProfileKind == BattleTerrainProfileKind.HoldoutPush)
-        {
-            return GenerateHoldoutPush(lease, encounterContext, terrainProfileId);
-        }
-        return GenerateDefault(lease, encounterContext, terrainProfileId);
+            return GenerateHoldoutPush(encounterContext, terrainProfileId);
+        return GenerateDefault(encounterContext, terrainProfileId);
     }
 
     private StringName ResolveTerrainProfileId(
@@ -252,61 +226,7 @@ public class BattleTerrainGenerator : IDisposable
         return terrainProfileId;
     }
 
-    private void NormalizeWaterHeights(GDictionary heights, GDictionary waterCells)
-    {
-        if (heights == null || waterCells == null || waterCells.Count == 0)
-        {
-            return;
-        }
-
-        var visited = new HashSet<Vector2I>();
-        foreach (var coordValue in waterCells.Keys)
-        {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-            {
-                continue;
-            }
-            Vector2I start = coordValue.AsVector2I();
-            if (visited.Contains(start))
-            {
-                continue;
-            }
-
-            var component = new List<Vector2I>();
-            var frontier = new Queue<Vector2I>();
-            frontier.Enqueue(start);
-            int minHeight = DefaultMaxHeight;
-            while (frontier.Count > 0)
-            {
-                Vector2I current = frontier.Dequeue();
-                if (visited.Contains(current) || !waterCells.ContainsKey(current))
-                {
-                    continue;
-                }
-                visited.Add(current);
-                component.Add(current);
-                minHeight = Math.Min(
-                    minHeight,
-                    ReadInt(heights, current, DefaultMaxHeight)
-                );
-                foreach (Vector2I offset in FourWayOffsets())
-                {
-                    Vector2I neighbor = current + offset;
-                    if (!visited.Contains(neighbor) && waterCells.ContainsKey(neighbor))
-                    {
-                        frontier.Enqueue(neighbor);
-                    }
-                }
-            }
-            foreach (Vector2I coord in component)
-            {
-                heights[coord] = minHeight;
-            }
-        }
-    }
-
-    private GDictionary GenerateDefault(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout GenerateDefault(
         GDictionary encounterContext,
         StringName terrainProfileId
     )
@@ -317,225 +237,227 @@ public class BattleTerrainGenerator : IDisposable
             DefaultFormalSizes
         );
         long battleSeed = BuildBattleSeed(encounterContext);
-        GDictionary bestLayout = null;
+        BattleTerrainLayout bestLayout = null;
         int bestScore = int.MinValue;
-        for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
+        try
         {
-            Dictionary<Vector2I, BattleCellState> cells = null;
-            GDictionary cellPayload = null;
-            Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = null;
-            bool candidateTransferredToLayout = false;
-            try
+            for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
             {
-                long attemptSeed = battleSeed + attempt * 1777L;
-                cells = BuildHeightfieldCells(
-                    mapSize,
-                    attemptSeed,
-                    coord => ResolveDefaultMacroHeight(coord, mapSize),
-                    coord =>
-                        StableCoordHash(coord, attemptSeed + 11L) % 9 == 0
-                            ? TerrainForest
-                            : TerrainLand
-                );
-                AddConnectedWater(
-                    cells,
-                    mapSize,
-                    new Vector2I(Math.Max(1, mapSize.X / 3), Math.Max(1, mapSize.Y / 2)),
-                    5
-                );
-                RelaxOrdinarySlopeDeltas(cells, mapSize);
-                cellPayload = ToCellDictionary(lease, cells);
-                edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
-                Vector2I playerCoord = FirstDryCoord(
-                    cellPayload,
-                    new Vector2I(1, Math.Max(1, mapSize.Y / 2))
-                );
-                Vector2I enemyCoord = FirstDryCoord(
-                    cellPayload,
-                    new Vector2I(mapSize.X - 2, Math.Max(1, mapSize.Y / 2))
-                );
-                TerrainQualityResult quality = ScoreCandidate(
-                    cells,
-                    cellPayload,
-                    mapSize,
-                    edgeFaces,
-                    playerCoord,
-                    enemyCoord
-                );
-                if (quality.Score > bestScore)
+                Dictionary<Vector2I, BattleCellState> cells = null;
+                bool candidateTransferredToLayout = false;
+                try
                 {
-                    DisposeGeneratedLayout(bestLayout);
-                    bestScore = quality.Score;
-                    bestLayout = BuildLayout(
-                        lease,
+                    long attemptSeed = battleSeed + attempt * 1777L;
+                    cells = BuildHeightfieldCells(
                         mapSize,
-                        cellPayload,
-                        playerCoord,
-                        enemyCoord,
-                        terrainProfileId
+                        attemptSeed,
+                        coord => ResolveDefaultMacroHeight(coord, mapSize),
+                        coord =>
+                            StableCoordHash(coord, attemptSeed + 11L) % 9 == 0
+                                ? TerrainForest
+                                : TerrainLand
                     );
-                    candidateTransferredToLayout = true;
-                }
-                if (quality.Passed)
-                {
-                    if (!candidateTransferredToLayout)
+                    AddConnectedWater(
+                        cells,
+                        mapSize,
+                        new Vector2I(
+                            Math.Max(1, mapSize.X / 3),
+                            Math.Max(1, mapSize.Y / 2)
+                        ),
+                        5
+                    );
+                    RelaxOrdinarySlopeDeltas(cells, mapSize);
+                    Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces =
+                        BuildEdgeFaces(cells, mapSize);
+                    Vector2I playerCoord = FirstDryCoord(
+                        cells,
+                        new Vector2I(1, Math.Max(1, mapSize.Y / 2))
+                    );
+                    Vector2I enemyCoord = FirstDryCoord(
+                        cells,
+                        new Vector2I(mapSize.X - 2, Math.Max(1, mapSize.Y / 2))
+                    );
+                    TerrainQualityResult quality = ScoreCandidate(
+                        cells,
+                        mapSize,
+                        edgeFaces,
+                        playerCoord,
+                        enemyCoord
+                    );
+                    if (quality.Score > bestScore)
                     {
-                        DisposeGeneratedLayout(bestLayout);
+                        bestLayout?.Dispose();
+                        bestScore = quality.Score;
                         bestLayout = BuildLayout(
-                            lease,
                             mapSize,
-                            cellPayload,
+                            cells,
                             playerCoord,
                             enemyCoord,
                             terrainProfileId
                         );
                         candidateTransferredToLayout = true;
                     }
-                    GDictionary result = bestLayout;
-                    bestLayout = null;
-                    return result;
+                    if (quality.Passed)
+                    {
+                        if (!candidateTransferredToLayout)
+                        {
+                            bestLayout?.Dispose();
+                            bestLayout = BuildLayout(
+                                mapSize,
+                                cells,
+                                playerCoord,
+                                enemyCoord,
+                                terrainProfileId
+                            );
+                            candidateTransferredToLayout = true;
+                        }
+                        BattleTerrainLayout result = bestLayout;
+                        bestLayout = null;
+                        return result;
+                    }
+                }
+                finally
+                {
+                    if (!candidateTransferredToLayout)
+                        DisposeGeneratedCandidate(cells);
                 }
             }
-            finally
-            {
-                if (!candidateTransferredToLayout)
-                    DisposeGeneratedCandidate(cells, cellPayload);
-            }
+            BattleTerrainLayout fallback = bestLayout ?? new BattleTerrainLayout();
+            bestLayout = null;
+            return fallback;
         }
-        return bestLayout
-            ?? lease.Own(
-                new GDictionary(),
-                "BattleTerrainGenerator.GenerateDefault.empty"
-            );
+        catch
+        {
+            bestLayout?.Dispose();
+            throw;
+        }
     }
 
-    private GDictionary GenerateCanyon(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout GenerateCanyon(
         GDictionary encounterContext,
         StringName terrainProfileId
     )
     {
         Vector2I mapSize = ResolveCanyonMapSize(encounterContext);
         long battleSeed = BuildBattleSeed(encounterContext);
-        GDictionary bestLayout = null;
+        BattleTerrainLayout bestLayout = null;
         int bestScore = int.MinValue;
-        for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
+        try
         {
-            Dictionary<Vector2I, BattleCellState> cells = null;
-            GDictionary cellPayload = null;
-            Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = null;
-            bool candidateTransferredToLayout = false;
-            try
+            for (int attempt = 0; attempt < CandidateAttemptCount; attempt++)
             {
-                long attemptSeed = battleSeed + attempt * 1777L;
-                _rng.Reseed(attemptSeed);
-                cells = BuildHeightfieldCells(
-                    mapSize,
-                    attemptSeed,
-                    coord => ResolveCanyonMacroHeight(coord, mapSize),
-                    coord =>
-                        StableCoordHash(coord, attemptSeed + 11L) % 7 == 0
-                            ? TerrainForest
-                            : TerrainLand
-                );
-
-                int riverY = Mathf.Clamp(mapSize.Y / 2, 1, mapSize.Y - 2);
-                for (
-                    int x = Math.Max(1, mapSize.X / 4);
-                    x <= Math.Min(mapSize.X - 2, mapSize.X / 4 + 4);
-                    x++
-                )
+                Dictionary<Vector2I, BattleCellState> cells = null;
+                bool candidateTransferredToLayout = false;
+                try
                 {
-                    SetTerrain(
-                        cells,
-                        new Vector2I(x, riverY),
-                        TerrainShallowWater,
-                        DefaultMinHeight
+                    long attemptSeed = battleSeed + attempt * 1777L;
+                    _rng.Reseed(attemptSeed);
+                    cells = BuildHeightfieldCells(
+                        mapSize,
+                        attemptSeed,
+                        coord => ResolveCanyonMacroHeight(coord, mapSize),
+                        coord =>
+                            StableCoordHash(coord, attemptSeed + 11L) % 7 == 0
+                                ? TerrainForest
+                                : TerrainLand
                     );
-                }
-                RelaxOrdinarySlopeDeltas(cells, mapSize);
 
-                cellPayload = ToCellDictionary(lease, cells);
-                edgeFaces = BuildEdgeFaces(cellPayload, mapSize);
-                if (
-                    !TryFindSpawnPair(
-                        cellPayload,
-                        mapSize,
-                        edgeFaces,
-                        out var playerCoord,
-                        out var enemyCoord
+                    int riverY = Mathf.Clamp(mapSize.Y / 2, 1, mapSize.Y - 2);
+                    for (
+                        int x = Math.Max(1, mapSize.X / 4);
+                        x <= Math.Min(mapSize.X - 2, mapSize.X / 4 + 4);
+                        x++
                     )
-                )
-                {
-                    continue;
-                }
-                AddStandardProps(
-                    lease,
-                    cellPayload,
-                    mapSize,
-                    playerCoord,
-                    enemyCoord,
-                    mapSize.X / 2,
-                    true
-                );
-                TerrainQualityResult quality = ScoreCandidate(
-                    cells,
-                    cellPayload,
-                    mapSize,
-                    edgeFaces,
-                    playerCoord,
-                    enemyCoord
-                );
-                if (quality.Score > bestScore)
-                {
-                    DisposeGeneratedLayout(bestLayout);
-                    bestScore = quality.Score;
-                    bestLayout = BuildLayout(
-                        lease,
+                    {
+                        SetTerrain(
+                            cells,
+                            new Vector2I(x, riverY),
+                            TerrainShallowWater,
+                            DefaultMinHeight
+                        );
+                    }
+                    RelaxOrdinarySlopeDeltas(cells, mapSize);
+
+                    Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces =
+                        BuildEdgeFaces(cells, mapSize);
+                    if (
+                        !TryFindSpawnPair(
+                            cells,
+                            mapSize,
+                            edgeFaces,
+                            out var playerCoord,
+                            out var enemyCoord
+                        )
+                    )
+                    {
+                        continue;
+                    }
+                    AddStandardProps(
+                        cells,
                         mapSize,
-                        cellPayload,
                         playerCoord,
                         enemyCoord,
-                        terrainProfileId
+                        mapSize.X / 2,
+                        true
                     );
-                    candidateTransferredToLayout = true;
-                }
-                if (quality.Passed)
-                {
-                    if (!candidateTransferredToLayout)
+                    TerrainQualityResult quality = ScoreCandidate(
+                        cells,
+                        mapSize,
+                        edgeFaces,
+                        playerCoord,
+                        enemyCoord
+                    );
+                    if (quality.Score > bestScore)
                     {
-                        DisposeGeneratedLayout(bestLayout);
+                        bestLayout?.Dispose();
+                        bestScore = quality.Score;
                         bestLayout = BuildLayout(
-                            lease,
                             mapSize,
-                            cellPayload,
+                            cells,
                             playerCoord,
                             enemyCoord,
                             terrainProfileId
                         );
                         candidateTransferredToLayout = true;
                     }
-                    GDictionary result = bestLayout;
-                    bestLayout = null;
-                    return result;
+                    if (quality.Passed)
+                    {
+                        if (!candidateTransferredToLayout)
+                        {
+                            bestLayout?.Dispose();
+                            bestLayout = BuildLayout(
+                                mapSize,
+                                cells,
+                                playerCoord,
+                                enemyCoord,
+                                terrainProfileId
+                            );
+                            candidateTransferredToLayout = true;
+                        }
+                        BattleTerrainLayout result = bestLayout;
+                        bestLayout = null;
+                        return result;
+                    }
+                }
+                finally
+                {
+                    if (!candidateTransferredToLayout)
+                        DisposeGeneratedCandidate(cells);
                 }
             }
-            finally
-            {
-                if (!candidateTransferredToLayout)
-                    DisposeGeneratedCandidate(cells, cellPayload);
-            }
+            BattleTerrainLayout fallback = bestLayout ?? new BattleTerrainLayout();
+            bestLayout = null;
+            return fallback;
         }
-        return bestLayout
-            ?? lease.Own(
-                new GDictionary(),
-                "BattleTerrainGenerator.GenerateCanyon.empty"
-            );
+        catch
+        {
+            bestLayout?.Dispose();
+            throw;
+        }
     }
 
     private static void DisposeGeneratedCandidate(
-        Dictionary<Vector2I, BattleCellState> cells,
-        GDictionary cellPayload
+        Dictionary<Vector2I, BattleCellState> cells
     )
     {
         if (cells != null)
@@ -548,18 +470,9 @@ public class BattleTerrainGenerator : IDisposable
             }
             cells.Clear();
         }
-        cellPayload?.Clear();
     }
 
-    private static void DisposeGeneratedLayout(GDictionary layout)
-    {
-        if (layout == null || layout.Count == 0)
-            return;
-        layout.Clear();
-    }
-
-    private GDictionary GenerateNarrowAssault(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout GenerateNarrowAssault(
         GDictionary encounterContext,
         StringName terrainProfileId
     )
@@ -588,38 +501,41 @@ public class BattleTerrainGenerator : IDisposable
                 return (height, terrain);
             }
         );
-        RelaxOrdinarySlopeDeltas(cells, mapSize);
-        GDictionary cellPayload = ToCellDictionary(lease, cells);
-        AuthorSeamWall(
-            lease,
-            cellPayload,
-            mapSize,
-            gateX,
-            new HashSet<int> { laneY, Math.Min(laneY + 1, mapSize.Y - 1) }
-        );
-        Vector2I playerCoord = FirstDryCoord(cellPayload, new Vector2I(1, laneY));
-        Vector2I enemyCoord = FirstDryCoord(cellPayload, new Vector2I(mapSize.X - 2, laneY));
-        AddStandardProps(
-            lease,
-            cellPayload,
-            mapSize,
-            playerCoord,
-            enemyCoord,
-            gateX,
-            true
-        );
-        return BuildLayout(
-            lease,
-            mapSize,
-            cellPayload,
-            playerCoord,
-            enemyCoord,
-            terrainProfileId
-        );
+        try
+        {
+            RelaxOrdinarySlopeDeltas(cells, mapSize);
+            AuthorSeamWall(
+                cells,
+                mapSize,
+                gateX,
+                new HashSet<int> { laneY, Math.Min(laneY + 1, mapSize.Y - 1) }
+            );
+            Vector2I playerCoord = FirstDryCoord(cells, new Vector2I(1, laneY));
+            Vector2I enemyCoord = FirstDryCoord(cells, new Vector2I(mapSize.X - 2, laneY));
+            AddStandardProps(
+                cells,
+                mapSize,
+                playerCoord,
+                enemyCoord,
+                gateX,
+                true
+            );
+            return BuildLayout(
+                mapSize,
+                cells,
+                playerCoord,
+                enemyCoord,
+                terrainProfileId
+            );
+        }
+        catch
+        {
+            DisposeGeneratedCandidate(cells);
+            throw;
+        }
     }
 
-    private GDictionary GenerateHoldoutPush(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout GenerateHoldoutPush(
         GDictionary encounterContext,
         StringName terrainProfileId
     )
@@ -664,80 +580,69 @@ public class BattleTerrainGenerator : IDisposable
                 return (height, terrain);
             }
         );
-        RelaxOrdinarySlopeDeltas(cells, mapSize);
-        GDictionary cellPayload = ToCellDictionary(lease, cells);
-        AuthorSeamWall(
-            lease,
-            cellPayload,
-            mapSize,
-            holdLineX,
-            new HashSet<int> { openingY }
-        );
-        Vector2I playerCoord = FirstDryCoord(cellPayload, new Vector2I(1, openingY));
-        Vector2I enemyCoord = FirstDryCoord(cellPayload, new Vector2I(mapSize.X - 2, openingY));
-        AddStandardProps(
-            lease,
-            cellPayload,
-            mapSize,
-            playerCoord,
-            enemyCoord,
-            holdLineX,
-            false
-        );
-        return BuildLayout(
-            lease,
-            mapSize,
-            cellPayload,
-            playerCoord,
-            enemyCoord,
-            terrainProfileId
-        );
+        try
+        {
+            RelaxOrdinarySlopeDeltas(cells, mapSize);
+            AuthorSeamWall(
+                cells,
+                mapSize,
+                holdLineX,
+                new HashSet<int> { openingY }
+            );
+            Vector2I playerCoord = FirstDryCoord(cells, new Vector2I(1, openingY));
+            Vector2I enemyCoord = FirstDryCoord(cells, new Vector2I(mapSize.X - 2, openingY));
+            AddStandardProps(
+                cells,
+                mapSize,
+                playerCoord,
+                enemyCoord,
+                holdLineX,
+                false
+            );
+            return BuildLayout(
+                mapSize,
+                cells,
+                playerCoord,
+                enemyCoord,
+                terrainProfileId
+            );
+        }
+        catch
+        {
+            DisposeGeneratedCandidate(cells);
+            throw;
+        }
     }
 
-    private GDictionary BuildLayout(
-        GodotProjectionLease<GDictionary> lease,
+    private BattleTerrainLayout BuildLayout(
         Vector2I mapSize,
-        GDictionary cells,
+        Dictionary<Vector2I, BattleCellState> cells,
         Vector2I playerCoord,
         Vector2I enemyCoord,
         StringName terrainProfileId
     )
     {
-        Dictionary<Vector2I, BattleCellState> typedCells = ParseCellDictionary(cells);
-        Dictionary<Vector2I, List<BattleCellState>> cellColumns =
-            BattleCellState.BuildColumnsFromSurfaceCells(typedCells);
-        Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = _edgeService.BuildEdgeFacesForCells(
-            typedCells,
+        Dictionary<Vector3I, BattleEdgeFaceState> edgeFaces = BuildEdgeFaces(cells, mapSize);
+        List<Vector2I> allySpawns = CollectSpawnRing(
+            cells,
             mapSize,
-            cellColumns
+            playerCoord,
+            edgeFaces
         );
-        GArray allySpawns = lease.Own(
-            new GArray(),
-            "BattleTerrainGenerator.BuildLayout.ally_spawns"
+        List<Vector2I> enemySpawns = CollectSpawnRing(
+            cells,
+            mapSize,
+            enemyCoord,
+            edgeFaces
         );
-        foreach (Vector2I coord in CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces))
-            allySpawns.Add(coord);
-        GArray enemySpawns = lease.Own(
-            new GArray(),
-            "BattleTerrainGenerator.BuildLayout.enemy_spawns"
-        );
-        foreach (Vector2I coord in CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces))
-            enemySpawns.Add(coord);
-
-        return lease.Own(
-            new GDictionary
-        {
-            ["map_size"] = mapSize,
-            ["cells"] = BattleCellState.ProjectCellsToPayload(lease, typedCells),
-            ["cell_columns"] = BattleCellState.ProjectColumnsToPayload(lease, cellColumns),
-            ["terrain_counts"] = CountTerrainCells(lease, typedCells),
-            ["ally_spawns"] = allySpawns,
-            ["enemy_spawns"] = enemySpawns,
-            ["player_coord"] = playerCoord,
-            ["enemy_coord"] = enemyCoord,
-            ["terrain_profile_id"] = terrainProfileId,
-        },
-            "BattleTerrainGenerator.BuildLayout"
+        return new BattleTerrainLayout(
+            mapSize,
+            cells,
+            allySpawns,
+            enemySpawns,
+            playerCoord,
+            enemyCoord,
+            terrainProfileId
         );
     }
 
@@ -779,78 +684,6 @@ public class BattleTerrainGenerator : IDisposable
                 );
                 return (height, terrainResolver(coord));
             }
-        );
-    }
-
-    private static GDictionary ToCellDictionary(
-        GodotProjectionLease<GDictionary> lease,
-        IReadOnlyDictionary<Vector2I, BattleCellState> cells
-    )
-    {
-        GDictionary payload = lease.Own(
-            new GDictionary(),
-            "BattleTerrainGenerator.ToCellDictionary"
-        );
-        foreach (KeyValuePair<Vector2I, BattleCellState> entry in cells)
-        {
-            payload[entry.Key] =
-                entry.Value != null
-                    ? RuntimePlainPayload.ProjectDictionaryInto(
-                        lease,
-                        entry.Value.BuildSnapshotPlain(),
-                        $"BattleTerrainGenerator.ToCellDictionary[{entry.Key}]"
-                    )
-                    : lease.Own(
-                        new GDictionary(),
-                        $"BattleTerrainGenerator.ToCellDictionary[{entry.Key}].empty"
-                    );
-        }
-        return payload;
-    }
-
-    private static Dictionary<Vector2I, BattleCellState> ParseCellDictionary(GDictionary cells)
-    {
-        var result = new Dictionary<Vector2I, BattleCellState>();
-        if (cells == null)
-            return result;
-        foreach (Variant rawKey in cells.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.Vector2I)
-                continue;
-            Vector2I coord = rawKey.AsVector2I();
-            if (!TryReadCell(cells, coord, out BattleCellState cell))
-                continue;
-            cell.SetCoord(coord);
-            result[coord] = cell;
-        }
-        return result;
-    }
-
-    private static bool TryReadCell(
-        GDictionary cells,
-        Vector2I coord,
-        out BattleCellState cell
-    )
-    {
-        cell = null;
-        return cells != null
-            && cells.ContainsKey(coord)
-            && BattleCellState.TryReadCellPayload(cells[coord], out cell)
-            && cell != null;
-    }
-
-    private static void StoreCell(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
-        BattleCellState cell
-    )
-    {
-        if (cells == null || cell == null)
-            return;
-        cells[cell.coord] = RuntimePlainPayload.ProjectDictionaryInto(
-            lease,
-            cell.BuildSnapshotPlain(),
-            $"BattleTerrainGenerator.StoreCell[{cell.coord}]"
         );
     }
 
@@ -965,17 +798,46 @@ public class BattleTerrainGenerator : IDisposable
         }
     }
 
-    private Dictionary<Vector3I, BattleEdgeFaceState> BuildEdgeFaces(GDictionary cells, Vector2I mapSize)
+    private Dictionary<Vector3I, BattleEdgeFaceState> BuildEdgeFaces(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
+        Vector2I mapSize
+    )
     {
-        Dictionary<Vector2I, BattleCellState> typedCells = ParseCellDictionary(cells);
         Dictionary<Vector2I, List<BattleCellState>> cellColumns =
-            BattleCellState.BuildColumnsFromSurfaceCells(typedCells);
-        return _edgeService.BuildEdgeFacesForCells(typedCells, mapSize, cellColumns);
+            BattleCellState.BuildColumnsFromSurfaceCells(cells);
+        try
+        {
+            return _edgeService.BuildEdgeFacesForCells(cells, mapSize, cellColumns);
+        }
+        finally
+        {
+            DisposeCellColumns(cellColumns);
+        }
+    }
+
+    private static void DisposeCellColumns(
+        Dictionary<Vector2I, List<BattleCellState>> cellColumns
+    )
+    {
+        if (cellColumns == null)
+            return;
+        var disposedCells = new HashSet<BattleCellState>();
+        foreach (List<BattleCellState> column in cellColumns.Values)
+        {
+            if (column == null)
+                continue;
+            foreach (BattleCellState cell in column)
+            {
+                if (cell != null && disposedCells.Add(cell))
+                    BattleCellState.DisposeRuntimeGraph(cell);
+            }
+            column.Clear();
+        }
+        cellColumns.Clear();
     }
 
     private TerrainQualityResult ScoreCandidate(
         IReadOnlyDictionary<Vector2I, BattleCellState> cells,
-        GDictionary cellPayload,
         Vector2I mapSize,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         Vector2I playerCoord,
@@ -989,11 +851,11 @@ public class BattleTerrainGenerator : IDisposable
         int playerEnemyDistance = -1;
         if (IsDryCell(cells, playerCoord) && IsDryCell(cells, enemyCoord))
         {
-            var distances = BuildDistanceMap(cellPayload, mapSize, playerCoord, edgeFaces);
+            var distances = BuildDistanceMap(cells, mapSize, playerCoord, edgeFaces);
             distances.TryGetValue(enemyCoord, out playerEnemyDistance);
         }
-        int allySpawnCount = CollectSpawnRing(cellPayload, mapSize, playerCoord, edgeFaces).Count;
-        int enemySpawnCount = CollectSpawnRing(cellPayload, mapSize, enemyCoord, edgeFaces).Count;
+        int allySpawnCount = CollectSpawnRing(cells, mapSize, playerCoord, edgeFaces).Count;
+        int enemySpawnCount = CollectSpawnRing(cells, mapSize, enemyCoord, edgeFaces).Count;
 
         int score = 0;
         score += largestDryComponent * 16;
@@ -1184,24 +1046,6 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void SetTerrain(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
-        Vector2I coord,
-        StringName terrain,
-        int height
-    )
-    {
-        if (!TryReadCell(cells, coord, out BattleCellState cell))
-        {
-            return;
-        }
-        cell.base_terrain = terrain;
-        cell.base_height = height;
-        cell.RecalculateRuntimeValues();
-        StoreCell(lease, cells, cell);
-    }
-
-    private static void SetTerrain(
         IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I coord,
         StringName terrain,
@@ -1215,33 +1059,6 @@ public class BattleTerrainGenerator : IDisposable
         cell.base_terrain = terrain;
         cell.base_height = height;
         cell.RecalculateRuntimeValues();
-    }
-
-    private static void AddConnectedWater(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
-        Vector2I mapSize,
-        Vector2I start,
-        int count
-    )
-    {
-        var frontier = new Queue<Vector2I>();
-        var visited = new HashSet<Vector2I>();
-        frontier.Enqueue(start);
-        while (frontier.Count > 0 && visited.Count < count)
-        {
-            Vector2I current = frontier.Dequeue();
-            if (visited.Contains(current) || !IsInBounds(mapSize, current))
-            {
-                continue;
-            }
-            visited.Add(current);
-            SetTerrain(lease, cells, current, TerrainShallowWater, DefaultMinHeight);
-            foreach (Vector2I offset in FourWayOffsets())
-            {
-                frontier.Enqueue(current + offset);
-            }
-        }
     }
 
     private static void AddConnectedWater(
@@ -1271,8 +1088,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void AuthorSeamWall(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         int seamX,
         HashSet<int> openRows
@@ -1285,18 +1101,16 @@ public class BattleTerrainGenerator : IDisposable
                 continue;
             }
             Vector2I coord = new(seamX, y);
-            if (TryReadCell(cells, coord, out BattleCellState cell))
+            if (cells.TryGetValue(coord, out BattleCellState cell) && cell != null)
             {
                 BattleEdgeFeatureState wall = BattleEdgeFeatureState.MakeWall();
                 cell.SetEdgeFeature(Vector2I.Right, wall);
-                StoreCell(lease, cells, cell);
             }
         }
     }
 
     private static void AddStandardProps(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         Vector2I playerCoord,
         Vector2I enemyCoord,
@@ -1321,35 +1135,30 @@ public class BattleTerrainGenerator : IDisposable
 
         var occupied = new HashSet<Vector2I> { playerCoord, enemyCoord };
         AddProp(
-            lease,
             cells,
             FindFreePropCoord(cells, mapSize, objective, occupied),
             PropObjectiveMarker,
             occupied
         );
         AddProp(
-            lease,
             cells,
             FindFreePropCoord(cells, mapSize, playerTent, occupied),
             PropTent,
             occupied
         );
         AddProp(
-            lease,
             cells,
             FindFreePropCoord(cells, mapSize, enemyTent, occupied),
             PropTent,
             occupied
         );
         AddProp(
-            lease,
             cells,
             FindFreePropCoord(cells, mapSize, leftTorch, occupied),
             PropTorch,
             occupied
         );
         AddProp(
-            lease,
             cells,
             FindFreePropCoord(cells, mapSize, rightTorch, occupied),
             PropTorch,
@@ -1358,7 +1167,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static Vector2I FindFreePropCoord(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         Vector2I preferred,
         HashSet<Vector2I> occupied
@@ -1376,7 +1185,8 @@ public class BattleTerrainGenerator : IDisposable
                         continue;
                     }
                     if (
-                        TryReadCell(cells, coord, out BattleCellState cell)
+                        cells.TryGetValue(coord, out BattleCellState cell)
+                        && cell != null
                         && cell.passable
                         && !BattleTerrainRules.IsWaterTerrain(cell.base_terrain)
                     )
@@ -1390,14 +1200,13 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private static void AddProp(
-        GodotProjectionLease<GDictionary> lease,
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I coord,
         StringName propId,
         HashSet<Vector2I> occupied
     )
     {
-        if (!TryReadCell(cells, coord, out BattleCellState cell))
+        if (!cells.TryGetValue(coord, out BattleCellState cell) || cell == null)
         {
             return;
         }
@@ -1405,12 +1214,11 @@ public class BattleTerrainGenerator : IDisposable
         {
             cell.prop_ids.Add(propId);
         }
-        StoreCell(lease, cells, cell);
         occupied.Add(coord);
     }
 
     private bool TryFindSpawnPair(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         out Vector2I playerCoord,
@@ -1463,7 +1271,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private List<Vector2I> CollectConnectedComponent(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         Vector2I start,
         HashSet<Vector2I> visited,
@@ -1492,7 +1300,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private Dictionary<Vector2I, int> BuildDistanceMap(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         Vector2I start,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
@@ -1521,7 +1329,7 @@ public class BattleTerrainGenerator : IDisposable
     private static Vector2I PickFarthestCoord(
         IReadOnlyList<Vector2I> component,
         Dictionary<Vector2I, int> distances,
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I excludedCoord,
         bool preferSafeTerrain
     )
@@ -1534,7 +1342,7 @@ public class BattleTerrainGenerator : IDisposable
                 continue;
             if (!IsDrySpawnCell(cells, coord))
                 continue;
-            TryReadCell(cells, coord, out BattleCellState cell);
+            cells.TryGetValue(coord, out BattleCellState cell);
             bool isSafeTerrain =
                 cell != null
                 && (cell.base_terrain == TerrainLand || cell.base_terrain == TerrainForest);
@@ -1568,7 +1376,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private bool CanTraverseEdge(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces,
         Vector2I fromCoord,
         Vector2I toCoord
@@ -1580,7 +1388,7 @@ public class BattleTerrainGenerator : IDisposable
     }
 
     private List<Vector2I> CollectSpawnRing(
-        GDictionary cells,
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
         Vector2I mapSize,
         Vector2I center,
         IReadOnlyDictionary<Vector3I, BattleEdgeFaceState> edgeFaces
@@ -1631,57 +1439,34 @@ public class BattleTerrainGenerator : IDisposable
         return IsNearLongEdgeSpawnSide(coord, mapSize) == IsNearLongEdgeSpawnSide(center, mapSize);
     }
 
-    private static bool IsDrySpawnCell(GDictionary cells, Vector2I coord)
+    private static bool IsDrySpawnCell(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
+        Vector2I coord
+    )
     {
-        return TryReadCell(cells, coord, out BattleCellState cell)
+        return cells.TryGetValue(coord, out BattleCellState cell)
+            && cell != null
             && cell.passable
             && !BattleTerrainRules.IsWaterTerrain(cell.base_terrain);
     }
 
-    private static Vector2I FirstDryCoord(GDictionary cells, Vector2I preferred)
+    private static Vector2I FirstDryCoord(
+        IReadOnlyDictionary<Vector2I, BattleCellState> cells,
+        Vector2I preferred
+    )
     {
         if (IsDrySpawnCell(cells, preferred))
         {
             return preferred;
         }
-        foreach (var key in cells.Keys)
+        foreach (Vector2I coord in cells.Keys)
         {
-            if (key.VariantType == Variant.Type.Vector2I && IsDrySpawnCell(cells, key.AsVector2I()))
+            if (IsDrySpawnCell(cells, coord))
             {
-                return key.AsVector2I();
+                return coord;
             }
         }
         return preferred;
-    }
-
-    private static GDictionary CountTerrainCells(
-        GodotProjectionLease<GDictionary> lease,
-        IReadOnlyDictionary<Vector2I, BattleCellState> cells
-    )
-    {
-        GDictionary counts = lease.Own(
-            new GDictionary
-            {
-                [TerrainLand] = 0,
-                [TerrainForest] = 0,
-                [TerrainShallowWater] = 0,
-                [TerrainFlowingWater] = 0,
-                [TerrainDeepWater] = 0,
-                [TerrainMud] = 0,
-                [TerrainSpike] = 0,
-            },
-            "BattleTerrainGenerator.CountTerrainCells"
-        );
-        foreach (BattleCellState cell in cells.Values)
-        {
-            if (cell == null)
-            {
-                continue;
-            }
-            StringName terrain = cell.base_terrain;
-            counts[terrain] = ReadInt(counts, terrain, 0) + 1;
-        }
-        return counts;
     }
 
     private static GDictionary BuildEncounterContext(

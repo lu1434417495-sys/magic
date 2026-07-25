@@ -1317,10 +1317,14 @@ internal sealed class BattleMovementQueryService : IDisposable
         var unit = new UnitInfo
         {
             UnitId = unitObject.unit_id,
-            Coord = unitObject.coord,
-            FootprintSize = NormalizeFootprint(unitObject.footprint_size),
+            Coord = unitObject.GetAnchorCoord(),
+            FootprintSize = NormalizeFootprint(
+                unitObject.GetFootprintSize()
+            ),
         };
-        foreach (StringName tag in unitObject.movement_tags)
+        foreach (
+            StringName tag in unitObject.GetMovementTagsReadViewTyped().Tags
+        )
         {
             StringName normalized = ToStringName(tag);
             if (normalized != EmptyStringName)
@@ -1328,7 +1332,9 @@ internal sealed class BattleMovementQueryService : IDisposable
                 unit.MovementTags.Add(normalized);
             }
         }
-        foreach (Vector2I coord in unitObject.occupied_coords)
+        foreach (
+            Vector2I coord in unitObject.GetOccupiedCoordsReadViewTyped()
+        )
         {
             unit.OccupiedCoords.Add(coord);
         }
@@ -2083,7 +2089,7 @@ internal sealed class BattleMovementQueryService : IDisposable
             return 0;
         }
         return _state.TryGetUnitTyped(unitId, out BattleUnitState unitState)
-            ? Math.Max(unitState.current_move_points, 0)
+            ? Math.Max(unitState.GetCurrentMovePoints(), 0)
             : 0;
     }
 

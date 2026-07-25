@@ -83,8 +83,10 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
             3,
             "状态提供的射程修正应只在有效射程读取层叠加。"
         );
+        BattleWeaponProjectionValues weaponProjection =
+            archer.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
-            archer.weapon_attack_range,
+            weaponProjection.AttackRange,
             2,
             "状态射程修正不应写回 BattleUnitState.weapon_attack_range 基础投影。"
         );
@@ -102,8 +104,8 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
             }
         );
         BattleUnitState caster = BuildUnit("ground_outer_reach_caster");
-        caster.known_active_skill_ids = new GStringNameArray { skill.SkillId };
-        caster.known_skill_level_map[skill.SkillId] = 7;
+        caster.SetKnownActiveSkillIds(new[] { skill.SkillId });
+        caster.SetKnownSkillLevelTyped(skill.SkillId, 7);
 
         _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(caster, skill),
@@ -248,16 +250,18 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
 
     private static BattleUnitState BuildUnit(StringName unitId)
     {
-        return new BattleUnitState
+        var unit = new BattleUnitState
         {
             unit_id = unitId,
             source_member_id = unitId,
             display_name = unitId.ToString(),
-            coord = Vector2I.Zero,
-            current_hp = 20,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            ap: 2,
+            isAlive: true
+        );
+        unit.SetAnchorCoord(Vector2I.Zero);
+        return unit;
     }
 
     private static bool IsForbiddenGodotBoundaryType(Type type) =>

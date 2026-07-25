@@ -233,7 +233,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
             skillDef.SkillId,
             new Vector2I(2, 1)
         );
-        caster.per_battle_charges[RacialSkillChargeKey(skillDef.SkillId)] = 0;
+        caster.SetPerBattleChargeTyped(RacialSkillChargeKey(skillDef.SkillId), 0);
         BattlePreview blockedPreview = runtime.PreviewCommand(command);
         _test.True(
             blockedPreview != null && !blockedPreview.allowed,
@@ -241,20 +241,20 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
         );
         _test.True(blockedPreview?.log_lines.Count > 0, "blocked preview should report a block reason.");
 
-        caster.per_battle_charges[RacialSkillChargeKey(skillDef.SkillId)] = 1;
+        caster.SetPerBattleChargeTyped(RacialSkillChargeKey(skillDef.SkillId), 1);
         BattlePreview allowedPreview = runtime.PreviewCommand(command);
         _test.True(
             allowedPreview != null && allowedPreview.allowed,
             "dragon breath should preview as allowed while charge remains."
         );
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         BattleEventBatch batch = runtime.IssueCommand(command);
         _test.True(
-            target.current_hp < hpBefore,
+            target.GetCurrentHp() < hpBefore,
             "dragon breath should resolve through the normal ground skill damage path."
         );
         _test.Eq(
-            caster.per_battle_charges.Get(RacialSkillChargeKey(skillDef.SkillId), -1),
+            caster.GetPerBattleChargeTyped(RacialSkillChargeKey(skillDef.SkillId), -1),
             0,
             "dragon breath should consume its per-battle identity skill charge after execution starts."
         );
@@ -265,7 +265,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
 
         state.phase = "unit_acting";
         state.active_unit_id = caster.unit_id;
-        caster.current_ap = 1;
+        caster.SetCurrentAp(1);
         BattlePreview secondPreview = runtime.PreviewCommand(command);
         _test.True(
             secondPreview != null && !secondPreview.allowed,
@@ -305,8 +305,8 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
         state.active_unit_id = caster.unit_id;
         runtime.SetupStateForTests(state);
         StringName chargeKey = RacialSkillChargeKey(skillDef.SkillId);
-        caster.per_battle_charges[chargeKey] = 1;
-        caster.per_turn_charges[chargeKey] = 1;
+        caster.SetPerBattleChargeTyped(chargeKey, 1);
+        caster.SetPerTurnChargeTyped(chargeKey, 1);
 
         BattleCommand command = BuildGroundSkillCommand(
             caster.unit_id,
@@ -317,12 +317,12 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
 
         _test.True(batch != null, "dual charge dragon breath should execute.");
         _test.Eq(
-            caster.per_battle_charges.Get(chargeKey, -1),
+            caster.GetPerBattleChargeTyped(chargeKey, -1),
             0,
             "identity skill should consume per-battle charge when present."
         );
         _test.Eq(
-            caster.per_turn_charges.Get(chargeKey, -1),
+            caster.GetPerTurnChargeTyped(chargeKey, -1),
             0,
             "identity skill should also consume per-turn charge when present."
         );
@@ -430,21 +430,22 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
         int currentAp
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = 40,
-            current_mp = 0,
-            current_stamina = 20,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 40,
+            mp: 0,
+            stamina: 20,
+            ap: currentAp,
+            isAlive: true
+        );
         foreach (StringName skillId in skillIds)
         {
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
         unit.attribute_snapshot.SetValue("constitution", 0);
@@ -455,7 +456,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static SkillDefinition BuildDragonBreathSkill(

@@ -108,10 +108,12 @@ public sealed class BattleGridService : IDisposable
         {
             return new List<Vector2I>();
         }
-        Vector2I footprintSize = unit_state.footprint_size;
+        Vector2I footprintSize = unit_state.GetFootprintSize();
         if (footprintSize == Vector2I.Zero)
         {
-            footprintSize = BattleUnitState.GetFootprintSizeForBodySize(unit_state.body_size);
+            footprintSize = BattleUnitState.GetFootprintSizeForBodySize(
+                unit_state.GetBodySize()
+            );
         }
         return GetFootprintCoords(anchor_coord, footprintSize);
     }
@@ -484,7 +486,9 @@ public sealed class BattleGridService : IDisposable
             return 999999;
         }
         int bestDistance = 999999;
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unit_state.GetOccupiedCoordsReadViewTyped()
+        )
         {
             bestDistance = Math.Min(bestDistance, GetDistance(occupiedCoord, target_coord));
         }
@@ -498,9 +502,13 @@ public sealed class BattleGridService : IDisposable
             return 999999;
         }
         int bestDistance = 999999;
-        foreach (Vector2I firstCoord in first_unit.occupied_coords)
+        foreach (
+            Vector2I firstCoord in first_unit.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I secondCoord in second_unit.occupied_coords)
+            foreach (
+                Vector2I secondCoord in second_unit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 bestDistance = Math.Min(bestDistance, GetDistance(firstCoord, secondCoord));
             }
@@ -749,7 +757,7 @@ public sealed class BattleGridService : IDisposable
             !CanPlaceFootprint(
                 state,
                 target_coord,
-                unit_state.footprint_size,
+                unit_state.GetFootprintSize(),
                 unit_state.unit_id,
                 unit_state
             )
@@ -762,7 +770,7 @@ public sealed class BattleGridService : IDisposable
             return true;
         }
 
-        Vector2I delta = target_coord - unit_state.coord;
+        Vector2I delta = target_coord - unit_state.GetAnchorCoord();
         if (delta == Vector2I.Zero)
         {
             return true;
@@ -772,7 +780,9 @@ public sealed class BattleGridService : IDisposable
             return CanUnitStepAcrossEdges(state, unit_state, delta);
         }
         var currentCoords = new HashSet<Vector2I>();
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in unit_state.GetOccupiedCoordsReadViewTyped()
+        )
         {
             currentCoords.Add(occupiedCoord);
         }
@@ -785,10 +795,12 @@ public sealed class BattleGridService : IDisposable
                 return false;
             }
             Vector2I referenceCoord =
-                delta != Vector2I.Zero ? footprintCoord - delta : unit_state.coord;
+                delta != Vector2I.Zero
+                    ? footprintCoord - delta
+                    : unit_state.GetAnchorCoord();
             if (!currentCoords.Contains(referenceCoord))
             {
-                referenceCoord = unit_state.coord;
+                referenceCoord = unit_state.GetAnchorCoord();
             }
             BattleCellState referenceCell = GetCell(state, referenceCoord);
             if (referenceCell == null)
@@ -893,8 +905,8 @@ public sealed class BattleGridService : IDisposable
         }
         return CanAnchorStepAcrossEdges(
             state,
-            unit_state.footprint_size,
-            unit_state.coord,
+            unit_state.GetFootprintSize(),
+            unit_state.GetAnchorCoord(),
             delta
         );
     }
@@ -994,6 +1006,17 @@ public sealed class BattleGridService : IDisposable
         return EdgeIsTraversableBetween(state, from_coord, to_coord);
     }
 
+    internal bool CanCrossEdgeBetween(
+        BattleState state,
+        Vector2I fromCoord,
+        Vector2I toCoord
+    )
+    {
+        return state != null
+            && GetDistance(fromCoord, toCoord) == 1
+            && EdgeIsTraversableBetween(state, fromCoord, toCoord);
+    }
+
     internal bool CanUnitStepBetweenAnchors(
         BattleState state,
         BattleUnitState unit_state,
@@ -1014,7 +1037,7 @@ public sealed class BattleGridService : IDisposable
             !CanPlaceFootprint(
                 state,
                 to_anchor,
-                unit_state.footprint_size,
+                unit_state.GetFootprintSize(),
                 unit_state.unit_id,
                 unit_state
             )
@@ -1022,7 +1045,14 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        if (!CanAnchorStepAcrossEdges(state, unit_state.footprint_size, from_anchor, delta))
+        if (
+            !CanAnchorStepAcrossEdges(
+                state,
+                unit_state.GetFootprintSize(),
+                from_anchor,
+                delta
+            )
+        )
         {
             return false;
         }
@@ -1112,7 +1142,10 @@ public sealed class BattleGridService : IDisposable
             }
             moveCost = Math.Max(
                 moveCost,
-                BattleTerrainRules.GetUnitMoveCost(cell.base_terrain, unit_state.movement_tags)
+                BattleTerrainRules.GetUnitMoveCost(
+                    cell.base_terrain,
+                    unit_state.GetMovementTagsReadViewTyped().Tags
+                )
             );
         }
         return moveCost;
@@ -1439,7 +1472,7 @@ public sealed class BattleGridService : IDisposable
                 !CanPlaceFootprint(
                     state,
                     to_coord,
-                    unit_state.footprint_size,
+                    unit_state.GetFootprintSize(),
                     unit_state.unit_id,
                     unit_state
                 )
@@ -1488,7 +1521,7 @@ public sealed class BattleGridService : IDisposable
             !CanPlaceFootprint(
                 state,
                 to_coord,
-                unit_state.footprint_size,
+                unit_state.GetFootprintSize(),
                 unit_state.unit_id,
                 unit_state
             )
@@ -1704,7 +1737,7 @@ public sealed class BattleGridService : IDisposable
             !CanPlaceFootprint(
                 state,
                 to_coord,
-                moveUnit.footprint_size,
+                moveUnit.GetFootprintSize(),
                 moveUnit.unit_id,
                 moveUnit
             )
@@ -1931,7 +1964,11 @@ public sealed class BattleGridService : IDisposable
         {
             return;
         }
-        SetOccupantsTyped(state, unit_state.occupied_coords, "");
+        SetOccupantsTyped(
+            state,
+            unit_state.GetOccupiedCoordsReadViewTyped(),
+            ""
+        );
     }
 
     internal bool PlaceUnit(
@@ -1949,9 +1986,19 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        SetOccupantsTyped(state, unit_state.occupied_coords, "", mark_revision: false);
+        SetOccupantsTyped(
+            state,
+            unit_state.GetOccupiedCoordsReadViewTyped(),
+            "",
+            mark_revision: false
+        );
         unit_state.SetAnchorCoord(target_coord);
-        SetOccupantsTyped(state, unit_state.occupied_coords, unit_state.unit_id, mark_revision: false);
+        SetOccupantsTyped(
+            state,
+            unit_state.GetOccupiedCoordsReadViewTyped(),
+            unit_state.unit_id,
+            mark_revision: false
+        );
         state.MarkMovementGeometryChanged();
         return true;
     }
@@ -1984,7 +2031,7 @@ public sealed class BattleGridService : IDisposable
             && unit_state != null
             && BattleTerrainRules.CanUnitEnterTerrain(
                 cell.base_terrain,
-                unit_state.movement_tags
+                unit_state.GetMovementTagsReadViewTyped().Tags
             );
     }
 
@@ -2155,7 +2202,10 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        if (target_coord == unit_state.coord || !IsInside(state, target_coord))
+        if (
+            target_coord == unit_state.GetAnchorCoord()
+            || !IsInside(state, target_coord)
+        )
         {
             return false;
         }
@@ -2165,7 +2215,10 @@ public sealed class BattleGridService : IDisposable
             return false;
         }
         int maxRange = ReadInt(parameters, "max_range", 0);
-        int actualRange = GetChebyshevDistance(unit_state.coord, target_coord);
+        int actualRange = GetChebyshevDistance(
+            unit_state.GetAnchorCoord(),
+            target_coord
+        );
         if (actualRange < 1 || actualRange > maxRange)
         {
             return false;
@@ -2174,7 +2227,10 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        BattleCellState fromCell = GetCell(state, unit_state.coord);
+        BattleCellState fromCell = GetCell(
+            state,
+            unit_state.GetAnchorCoord()
+        );
         BattleCellState toCell = GetCell(state, target_coord);
         if (fromCell == null || toCell == null)
         {
@@ -2184,7 +2240,10 @@ public sealed class BattleGridService : IDisposable
         int h0 = fromCell.current_height;
         int h1 = toCell.current_height;
         double apex = Math.Max(h0, h1) + arcHeight;
-        List<Vector2I> path = SupercoverJumpPath(unit_state.coord, target_coord);
+        List<Vector2I> path = SupercoverJumpPath(
+            unit_state.GetAnchorCoord(),
+            target_coord
+        );
         int pathN = path.Count - 1;
         if (pathN <= 1)
         {
@@ -2301,12 +2360,18 @@ public sealed class BattleGridService : IDisposable
         {
             return false;
         }
-        if (target_coord == unit_state.coord || !IsInside(state, target_coord))
+        if (
+            target_coord == unit_state.GetAnchorCoord()
+            || !IsInside(state, target_coord)
+        )
         {
             return false;
         }
         int maxRange = effectDefinition.ForcedMoveDistance;
-        int actualRange = GetChebyshevDistance(unit_state.coord, target_coord);
+        int actualRange = GetChebyshevDistance(
+            unit_state.GetAnchorCoord(),
+            target_coord
+        );
         if (maxRange > 0 && actualRange > maxRange)
         {
             return false;
@@ -2394,7 +2459,7 @@ public sealed class BattleGridService : IDisposable
         {
             return 0;
         }
-        int bodySize = unit_state.body_size;
+        int bodySize = unit_state.GetBodySize();
         if (bodySize == BattleUnitState.BodySizeSmall)
         {
             return JumpSmallAgilityBonus;
@@ -2460,10 +2525,12 @@ public sealed class BattleGridService : IDisposable
         {
             return 1;
         }
-        Vector2I footprint = unit_state.footprint_size;
+        Vector2I footprint = unit_state.GetFootprintSize();
         if (footprint == Vector2I.Zero)
         {
-            footprint = BattleUnitState.GetFootprintSizeForBodySize(unit_state.body_size);
+            footprint = BattleUnitState.GetFootprintSizeForBodySize(
+                unit_state.GetBodySize()
+            );
         }
         return Math.Min(Math.Max(footprint.X, 1), Math.Max(footprint.Y, 1));
     }

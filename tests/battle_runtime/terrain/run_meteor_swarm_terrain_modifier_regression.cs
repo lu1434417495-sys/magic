@@ -26,7 +26,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         CombatEffectDefinition oddNamedDust = BuildDustEffect("schema_driven_not_meteor_named");
         _test.True(
             setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                setup.Target.coord,
+                setup.Target.GetAnchorCoord(),
                 setup.Attacker,
                 null,
                 oddNamedDust,
@@ -60,7 +60,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         );
         _test.True(
             adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                adjacentSetup.Target.coord,
+                adjacentSetup.Target.GetAnchorCoord(),
                 adjacentSetup.Attacker,
                 null,
                 BuildDustEffect("adjacent_dust"),
@@ -86,7 +86,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         );
         _test.True(
             doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                doubleSetup.Attacker.coord,
+                doubleSetup.Attacker.GetAnchorCoord(),
                 doubleSetup.Attacker,
                 null,
                 BuildDustEffect("attacker_dust"),
@@ -96,7 +96,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         );
         _test.True(
             doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                doubleSetup.Target.coord,
+                doubleSetup.Target.GetAnchorCoord(),
                 doubleSetup.Attacker,
                 null,
                 BuildDustEffect("target_dust"),
@@ -126,7 +126,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 2), new Vector2I(0, 0), new Vector2I(3, 0));
         _test.True(
             setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                setup.Target.coord,
+                setup.Target.GetAnchorCoord(),
                 setup.Attacker,
                 null,
                 BuildDustEffect("meteor_swarm_dust"),
@@ -136,7 +136,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         );
         _test.True(
             setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffectFromDefinition(
-                setup.Target.coord,
+                setup.Target.GetAnchorCoord(),
                 setup.Attacker,
                 null,
                 BuildBattleTerrainEffect("meteor_swarm_rubble", 2),
@@ -156,7 +156,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         _test.Eq(
             setup.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(
                 setup.Target,
-                setup.Target.coord
+                setup.Target.GetAnchorCoord()
             ),
             2,
             "battle lifetime rubble 推进后仍应保留移动成本。"
@@ -199,11 +199,11 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
         state.enemy_unit_ids = new Godot.Collections.Array<StringName> { target.unit_id };
         state.active_unit_id = attacker.unit_id;
         _test.True(
-            runtime._grid_service.PlaceUnit(state, attacker, attacker.coord, true),
+            runtime._grid_service.PlaceUnit(state, attacker, attacker.GetAnchorCoord(), true),
             "attacker 应能放入 terrain modifier fixture。"
         );
         _test.True(
-            runtime._grid_service.PlaceUnit(state, target, target.coord, true),
+            runtime._grid_service.PlaceUnit(state, target, target.GetAnchorCoord(), true),
             "target 应能放入 terrain modifier fixture。"
         );
         runtime.SetupStateForTests(state);
@@ -242,11 +242,11 @@ public partial class run_meteor_swarm_terrain_modifier_regression : LifecycleTes
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         SeedBaseAttributesAndDeriveAc(unit);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

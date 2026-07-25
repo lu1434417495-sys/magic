@@ -116,25 +116,27 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
         }
 
         BattleUnitState equipped = fixture.BuildStarfellUnit("projection");
-        _test.Eq(equipped.weapon_item_id, StarfellItemId, "群星之末装备后 unit 应保留真实 item_id。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, StarfellItemId, "群星之末装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("greatsword"),
             "群星之末应投影为 greatsword。"
         );
-        _test.True(equipped.weapon_uses_two_hands, "群星之末应占用双手。");
+        _test.True(equippedWeapon.UsesTwoHands, "群星之末应占用双手。");
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_count ?? 0,
+            equippedWeapon.TwoHandedDice.DiceCount,
             2,
             "群星之末双手骰数量应为 2。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_sides ?? 0,
+            equippedWeapon.TwoHandedDice.DiceSides,
             6,
             "群星之末双手骰面应为 D6。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.flat_bonus ?? 0,
+            equippedWeapon.TwoHandedDice.FlatBonus,
             4,
             "群星之末双手骰固定加值应为 +4。"
         );
@@ -305,12 +307,7 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
         FixedRollDamageResolver resolver = new(new GArray { 2, 2, 2, 3, 3, 3 });
         BattleUnitState source = BuildUnit("starfall_source", "player");
         BattleUnitState target = BuildUnit("starfall_target", "enemy");
-        target.creature_type_tags.Clear();
-        foreach (StringName tag in targetTags ?? Array.Empty<StringName>())
-        {
-            if (tag != "" && !target.creature_type_tags.Contains(tag))
-                target.creature_type_tags.Add(tag);
-        }
+        target.ReplaceCreatureTypeTagsTyped(targetTags);
         AttackEffectResolutionResult result = resolver.ResolveEffects(
             source,
             target,
@@ -327,17 +324,18 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 200,
-            current_ap = 2,
-            current_stamina = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 200,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 200);
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 10);
@@ -380,9 +378,9 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -395,12 +393,15 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

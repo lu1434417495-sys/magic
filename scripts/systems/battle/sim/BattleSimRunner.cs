@@ -263,12 +263,15 @@ public sealed class BattleSimRunner
 
             EncounterAnchorData encounterAnchor = _BuildEncounterAnchor(scenarioDefinition);
             using GodotProjectionLease<Godot.Collections.Dictionary> startContextLease =
-                scenarioDefinition.BuildStartContextLease();
+                scenarioDefinition.BuildRuntimeStartContextLease();
+            BattleStartUnitRoster unitRoster =
+                scenarioDefinition.CreateRuntimeRosterTyped();
             BattleState state = runtime.StartBattleBorrowingContext(
                 encounterAnchor,
                 seed,
                 BattleEliminationObjectiveDefinition.Instance,
-                startContextLease.Value
+                startContextLease.Value,
+                unitRoster
             );
             BattleSimExecutionLoopResult loopResult = _executionLoop.Run(
                 runtime,
@@ -357,7 +360,7 @@ public sealed class BattleSimRunner
         foreach (StringName unitId in unitIds)
         {
             BattleUnitState unitState = state.GetUnit(unitId);
-            if (unitState != null && unitState.is_alive)
+            if (unitState != null && unitState.IsAlive())
                 count++;
         }
         return count;

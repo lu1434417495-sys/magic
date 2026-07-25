@@ -21,7 +21,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("weak_target", "hostile");
-        target.current_hp = 1;
+        target.SetCurrentHp(1);
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
         using GodotProjectionLease<GDictionary> resultLease =
@@ -33,7 +33,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         ));
         GDictionary result = resultLease.Value;
 
-        _test.False(target.is_alive, "execute on HP=1 target with failed save should kill.");
+        _test.False(target.IsAlive(), "execute on HP=1 target with failed save should kill.");
         _test.True(DictInt(result, "damage") > 0, "execute should register damage.");
         GDictionary deathEvent = FirstDamageEventWithDeathSource(result);
         AssertStringNameEq(
@@ -52,7 +52,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("healthy_target", "hostile");
-        target.current_hp = 30;
+        target.SetCurrentHp(30);
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
         using GodotProjectionLease<GDictionary> resultLease =
@@ -61,8 +61,8 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
             );
         GDictionary result = resultLease.Value;
 
-        _test.True(target.is_alive, "execute on high-HP target should leave target alive.");
-        _test.Eq(target.current_hp, 30, "high-HP execute should not deal non-lethal damage.");
+        _test.True(target.IsAlive(), "execute on high-HP target should leave target alive.");
+        _test.Eq(target.GetCurrentHp(), 30, "high-HP execute should not deal non-lethal damage.");
         _test.Eq(DictInt(result, "damage"), 0, "high-HP execute should not register damage.");
     }
 
@@ -71,7 +71,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("boss_target", "hostile");
         target.attribute_snapshot.SetValue("boss_target", 1);
-        target.current_hp = 5;
+        target.SetCurrentHp(5);
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
         resolver.ResolveEffects(
@@ -81,18 +81,24 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
-        _test.False(target.is_alive, "PWK should ignore boss_target for low-HP fatal execute.");
-        _test.Eq(target.current_hp, 0, "boss_target should not clamp PWK fatal execute.");
+        _test.False(target.IsAlive(), "PWK should ignore boss_target for low-HP fatal execute.");
+        _test.Eq(target.GetCurrentHp(), 0, "boss_target should not clamp PWK fatal execute.");
     }
 
     private void TestExecuteBypassesShieldWithoutMutation()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("shielded_target", "hostile");
-        target.current_hp = 5;
-        target.current_shield_hp = 20;
-        target.shield_max_hp = 20;
-        target.shield_duration = 10;
+        target.SetCurrentHp(5);
+        target.ReplaceShieldStateTyped(
+            20,
+            20,
+            10,
+            "execute_ward",
+            "ward_source",
+            "ward_skill"
+        );
+        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
         CombatEffectDefinition effect = MakeExecuteEffect();
         var resolver = new BattleDamageResolver();
         using GodotProjectionLease<GDictionary> resultLease =
@@ -106,17 +112,19 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         GDictionary firstEvent = FirstDamageEvent(result);
 
         _test.Eq(DictInt(firstEvent, "shield_absorbed"), 0, "PWK should bypass shield absorption.");
-        _test.Eq(target.current_shield_hp, 20, "PWK should not drain shield HP.");
-        _test.Eq(target.shield_max_hp, 20, "PWK should not mutate shield max HP.");
-        _test.Eq(target.shield_duration, 10, "PWK should not mutate shield duration.");
-        _test.False(target.is_alive, "failed-save PWK should kill through shield.");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            shieldBefore,
+            "PWK should not mutate any shield owner field."
+        );
+        _test.False(target.IsAlive(), "failed-save PWK should kill through shield.");
     }
 
     private void TestExecuteAppliesSoulFractureOnSuccessfulSave()
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("cursed_target", "hostile");
-        target.current_hp = 5;
+        target.SetCurrentHp(5);
         CombatEffectDefinition effect = MakeExecuteEffect(
             soulFractureDurationTu: 60,
             healMultiplierPercent: 50,
@@ -131,7 +139,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 20 })
         );
 
-        _test.True(target.is_alive, "successful save should leave the low-HP target alive.");
+        _test.True(target.IsAlive(), "successful save should leave the low-HP target alive.");
         _test.True(target.HasStatusEffect("soul_fracture"), "successful-save PWK survivor should receive soul fracture.");
         _test.Eq(
             BattleStatusModifierRules.ResolveHealMultiplierPercent(target),
@@ -149,7 +157,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
     {
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("wounded_target", "hostile");
-        target.current_hp = 1;
+        target.SetCurrentHp(1);
         var outcome = new GDictionary
         {
             ["resolved_damage"] = 0,
@@ -158,7 +166,7 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
         var resolver = new BattleDamageResolver();
         int damage = resolver.ApplyDirectDamageToTargetTyped(target, outcome, source);
 
-        _test.Eq(target.current_hp, 1, "min_hp_after_damage=1 with 0 damage should not heal.");
+        _test.Eq(target.GetCurrentHp(), 1, "min_hp_after_damage=1 with 0 damage should not heal.");
         _test.Eq(damage, 0, "0 resolved damage should yield 0 hp_damage.");
     }
 
@@ -192,12 +200,13 @@ public partial class run_battle_execute_effect_regression : LifecycleTestSceneTr
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_mp = 0,
-            current_ap = 2,
-            current_stamina = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 0,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);

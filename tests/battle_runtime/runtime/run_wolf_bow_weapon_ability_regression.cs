@@ -90,12 +90,14 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         }
 
         BattleUnitState equipped = fixture.BuildWolfUnit("projection");
-        _test.Eq(equipped.weapon_item_id, WolfBowItemId, "狼牙弓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longbow"), "狼牙弓应投影为 longbow。");
-        _test.Eq(equipped.weapon_family, new StringName("bow"), "狼牙弓应保留 bow 家族。");
-        _test.Eq(equipped.weapon_attack_range, 10, "狼牙弓攻击距离应投影为 10。");
-        _test.True(equipped.weapon_uses_two_hands, "狼牙弓应占用双手。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "狼牙弓应造成穿刺物理伤害。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, WolfBowItemId, "狼牙弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longbow"), "狼牙弓应投影为 longbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("bow"), "狼牙弓应保留 bow 家族。");
+        _test.Eq(equippedWeapon.AttackRange, 10, "狼牙弓攻击距离应投影为 10。");
+        _test.True(equippedWeapon.UsesTwoHands, "狼牙弓应占用双手。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "狼牙弓应造成穿刺物理伤害。");
         AssertUnitHasTraitAndAbilitySource(equipped, WolfPackTacticsTraitId, PackTacticsBindingId, "eq_wolf_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, WolfSpiritTraitId, WolfSpiritBindingId, "eq_wolf_projection");
 
@@ -153,14 +155,19 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         _test.Eq(wolf.ai_blackboard?.summon_binding_id ?? new StringName(""), WolfSpiritBindingId, "幽灵狼应记录来源 binding。");
         _test.Eq(wolf.ai_blackboard?.summon_state_key ?? new StringName(""), WolfStateKey, "幽灵狼应记录 summon state key。");
         _test.Eq(wolf.ai_blackboard?.summon_expires_at_tu ?? -1, 70, "幽灵狼应在当前 TU + 60 到期。");
-        _test.True(ContainsStringName(wolf.known_active_skill_ids, WeaponAbilityCommandTestSupport.BasicAttackSkillId), "幽灵狼应拥有 basic_attack。");
-        _test.Eq(wolf.weapon_profile_kind, new StringName("natural"), "幽灵狼应投影为 natural weapon。");
-        _test.Eq(wolf.weapon_profile_type_id, new StringName("wolf_fang"), "幽灵狼天生武器 profile id 应稳定。");
-        _test.Eq(wolf.weapon_one_handed_dice?.dice_count ?? 0, 1, "幽灵狼天生武器应为 1D6。");
-        _test.Eq(wolf.weapon_one_handed_dice?.dice_sides ?? 0, 6, "幽灵狼天生武器应为 1D6。");
-        _test.Eq(wolf.weapon_physical_damage_tag, new StringName("physical_pierce"), "幽灵狼天生武器应使用已有物理穿刺标签。");
-        _test.True(ContainsStringName(wolf.creature_type_tags, "summoned"), "幽灵狼应带 summoned creature tag。");
-        _test.True(ContainsStringName(wolf.creature_type_tags, "beast"), "幽灵狼应带 beast creature tag。");
+        _test.True(
+            wolf.KnowsActiveSkill(WeaponAbilityCommandTestSupport.BasicAttackSkillId),
+            "幽灵狼应拥有 basic_attack。"
+        );
+        BattleWeaponProjectionValues wolfWeapon =
+            wolf.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(wolfWeapon.ProfileKind, new StringName("natural"), "幽灵狼应投影为 natural weapon。");
+        _test.Eq(wolfWeapon.ProfileTypeId, new StringName("wolf_fang"), "幽灵狼天生武器 profile id 应稳定。");
+        _test.Eq(wolfWeapon.OneHandedDice.DiceCount, 1, "幽灵狼天生武器应为 1D6。");
+        _test.Eq(wolfWeapon.OneHandedDice.DiceSides, 6, "幽灵狼天生武器应为 1D6。");
+        _test.Eq(wolfWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "幽灵狼天生武器应使用已有物理穿刺标签。");
+        _test.True(wolf.HasCreatureTypeTag("summoned"), "幽灵狼应带 summoned creature tag。");
+        _test.True(wolf.HasCreatureTypeTag("beast"), "幽灵狼应带 beast creature tag。");
         foreach (Vector2I coord in wolf.GetOccupiedCoordsTyped())
         {
             _test.Eq(state.GetCell(coord)?.occupant_unit_id ?? new StringName(""), wolf.unit_id, "幽灵狼应占用 grid cell。");
@@ -232,11 +239,9 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         _test.True(wolf != null, "测试应先召唤幽灵狼。");
         if (wolf == null)
             return;
-        target.SetAnchorCoord(new Vector2I(wolf.coord.X, Math.Max(wolf.coord.Y - 1, 0)));
-        target.RefreshFootprint();
-        wolf.RefreshFootprint();
+        target.SetAnchorCoord(new Vector2I(wolf.GetAnchorCoord().X, Math.Max(wolf.GetAnchorCoord().Y - 1, 0)));
 
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             wolf,
@@ -245,7 +250,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             previewCommand: true
         );
         _test.Eq(
-            hpBefore - target.current_hp,
+            hpBefore - target.GetCurrentHp(),
             4,
             "固定骰 4 时，幽灵狼 basic_attack 应通过 1D6 天生武器造成真实物理伤害。"
         );
@@ -261,7 +266,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             ),
             "60TU 到期前不应清理幽灵狼。"
         );
-        _test.True(wolf.is_alive, "60TU 到期前幽灵狼应仍存活。");
+        _test.True(wolf.IsAlive(), "60TU 到期前幽灵狼应仍存活。");
 
         state.timeline.current_tu = 70;
         _test.True(
@@ -274,7 +279,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             ),
             "到达 expires TU 时应清理幽灵狼。"
         );
-        _test.False(wolf.is_alive, "到期清理应使幽灵狼不再存活。");
+        _test.False(wolf.IsAlive(), "到期清理应使幽灵狼不再存活。");
         foreach (Vector2I coord in wolf.GetOccupiedCoordsTyped())
         {
             _test.True(
@@ -435,7 +440,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             entry,
             WolfSpiritSkillId
         );
-        command.target_coord = target?.coord ?? user?.coord ?? Vector2I.Zero;
+        command.target_coord = target?.GetAnchorCoord() ?? user?.GetAnchorCoord() ?? Vector2I.Zero;
         return command;
     }
 
@@ -528,15 +533,16 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
 
     private static BattleUnitState BuildPlainUnit(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
-            is_alive = true,
-            current_hp = hp,
-            current_ap = 2,
-            current_stamina = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            stamina: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 12);
@@ -563,8 +569,8 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         {
             state.enemy_unit_ids.Add(unit.unit_id);
         }
-        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
-            throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.coord}.");
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
+            throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.GetAnchorCoord()}.");
     }
 
     private static BattleUnitState FirstLivingWolf(BattleState state, BattleUnitState holder)
@@ -586,7 +592,7 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
         {
             if (
                 unit != null
-                && unit.is_alive
+                && unit.IsAlive()
                 && unit.ai_blackboard?.summoned == true
                 && unit.ai_blackboard.summon_source_unit_id == (holder?.unit_id ?? new StringName(""))
                 && unit.ai_blackboard.summon_binding_id == WolfSpiritBindingId
@@ -625,9 +631,9 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -636,12 +642,17 @@ public partial class run_wolf_bow_weapon_ability_regression : LifecycleTestScene
             throw new InvalidOperationException($"{bindingId} expected instance {expectedInstanceId}, got {source.SourceEquipmentInstanceId}.");
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

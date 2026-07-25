@@ -27,12 +27,12 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
     {
         SkillDefinition skill = MakeGroundPhantasmalKillSkill();
         BattleUnitState caster = MakeUnit("preview_caster", "player", new Vector2I(0, 4), 200, 200);
-        caster.known_active_skill_ids.Add(SkillId);
-        caster.known_skill_level_map[SkillId] = 1;
+        caster.AddKnownActiveSkill(SkillId);
+        caster.SetKnownSkillLevelTyped(SkillId, 1);
 
         BattleUnitState weakEnemy = MakeUnit("weak_enemy", "enemy", new Vector2I(4, 4), 200, 40);
         BattleUnitState immuneEnemy = MakeUnit("immune_enemy", "enemy", new Vector2I(5, 4), 200, 40);
-        immuneEnemy.save_immunity_tags.Add("illusion");
+        immuneEnemy.AddSaveImmunityTagTyped("illusion");
         BattleUnitState weakAlly = MakeUnit("weak_ally", "player", new Vector2I(6, 4), 200, 45);
         BattleUnitState outsideEnemy = MakeUnit("outside_enemy", "enemy", new Vector2I(8, 4), 200, 40);
 
@@ -200,8 +200,8 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
             currentAp: 3,
             currentHp: currentHp
         );
-        unit.current_mp = 2000;
-        unit.current_stamina = 20;
+        unit.SetCurrentMp(2000);
+        unit.SetCurrentStamina(20);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 2000);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 3);

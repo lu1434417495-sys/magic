@@ -544,14 +544,14 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             SkillId = "test_casting_skill",
             TargetMode = BattleTargetMode.Ground,
             BindingMode = PendingCastBindingModeKind.GroundBind,
-            StartedCoord = caster.coord,
+            StartedCoord = caster.GetAnchorCoord(),
             StartedTu = fixture.State.timeline.current_tu,
             BaseCastingTimeTu = remainingCastProgress / 100,
             RemainingCastProgress = remainingCastProgress,
-            LastMaintenanceCheckpointHp = caster.current_hp,
+            LastMaintenanceCheckpointHp = caster.GetCurrentHp(),
             CastSequence = fixture.State.AllocateCastSequence(),
         };
-        pendingCast.SetTargetCoords(new[] { caster.coord });
+        pendingCast.SetTargetCoords(new[] { caster.GetAnchorCoord() });
         caster.SetPendingCast(pendingCast);
     }
 
@@ -635,18 +635,19 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 100,
-            current_mp = 20,
-            current_stamina = 20,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            mp: 20,
+            stamina: 20,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 100);
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.attribute_snapshot.SetValue("willpower_modifier", 0);
@@ -706,19 +707,20 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
     {
         internal BattleUnitState AddUnit(StringName unitId, StringName factionId, Vector2I coord)
         {
-            BattleUnitState unit = new()
+            BattleUnitState unit = new BattleUnitState()
             {
                 unit_id = unitId,
                 display_name = unitId.ToString(),
                 faction_id = factionId,
                 control_mode = "manual",
-                current_hp = 100,
-                current_mp = 20,
-                current_stamina = 20,
-                current_ap = 2,
-                current_move_points = 4,
-                is_alive = true,
-            };
+            }.WithCombatResourcesForTest(
+                hp: 100,
+                mp: 20,
+                stamina: 20,
+                ap: 2,
+                movePoints: 4,
+                isAlive: true
+            );
             unit.SetAnchorCoord(coord);
             unit.attribute_snapshot.SetValue(
                 AttributeService.ToStringName(AttributeIdKind.HpMax),
@@ -736,7 +738,7 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             {
                 State.enemy_unit_ids.Add(unit.unit_id);
             }
-            Runtime._grid_service.PlaceUnit(State, unit, unit.coord, true);
+            Runtime._grid_service.PlaceUnit(State, unit, unit.GetAnchorCoord(), true);
             return unit;
         }
 

@@ -82,31 +82,40 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildLumberjackUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "装备后应保留真实 item id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "应投影为 axe family。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "应造成挥砍伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "双手应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "双手应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "双手应为 1D10+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "装备后应保留真实 item id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "应投影为 axe family。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "应造成挥砍伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "双手应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "双手应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "双手应为 1D10+2。");
         AssertUnitHasTraitAndAbilitySource(equipped, ChoppingRhythmTraitId, ChoppingRhythmBindingId, "eq_lumberjack_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, PlantSlayerTraitId, PlantSlayerBindingId, "eq_lumberjack_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, FellingMomentumTraitId, FellingMomentumBindingId, "eq_lumberjack_projection");
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "卸装后 weapon item id 应清空。");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "卸装后应恢复基础武器投影。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "卸装后装备能力源应清空。");
-        _test.False(equipped.effective_trait_ids.Contains(ChoppingRhythmTraitId), "卸装后顺纹连斩不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(PlantSlayerTraitId), "卸装后植物杀手不应残留。");
-        _test.False(equipped.effective_trait_ids.Contains(FellingMomentumTraitId), "卸装后倒木回势不应残留。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "卸装后 weapon item id 应清空。");
+        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "卸装后应恢复基础武器投影。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "卸装后装备能力源应清空。"
+        );
+        _test.False(equipped.HasEffectiveTrait(ChoppingRhythmTraitId), "卸装后顺纹连斩不应残留。");
+        _test.False(equipped.HasEffectiveTrait(PlantSlayerTraitId), "卸装后植物杀手不应残留。");
+        _test.False(equipped.HasEffectiveTrait(FellingMomentumTraitId), "卸装后倒木回势不应残留。");
         BattleTestFixture.DisposeBattleUnit(equipped);
         BattleTestFixture.DisposeBattleUnit(baseline);
     }
@@ -117,7 +126,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         BattleUnitState holder = fixture.BuildLumberjackUnit("rhythm");
         BattleUnitState target = BuildEnemy("rhythm_target", new Vector2I(1, 0), hp: 100, "humanoid");
 
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -125,7 +134,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_rhythm_first",
             previewCommand: false
         );
-        _test.Eq(hpBefore - target.current_hp, 6, "第一击应只造成 1D8+2 基础伤害。");
+        _test.Eq(hpBefore - target.GetCurrentHp(), 6, "第一击应只造成 1D8+2 基础伤害。");
         AssertNotch(target, holder.unit_id, 60, "第一击后应留下单层 60TU 劈痕。");
 
         BattleAttackRollModifierBundle markedBundle = BuildBasicAttackModifierBundle(
@@ -137,7 +146,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.Eq(markedBundle.GetEffectiveModifierDelta(), 1, "攻击自身劈痕目标应获得 +1 命中。");
         _test.True(HasModifier(markedBundle, ChoppingRhythmBindingId, 1), "命中明细应显示顺纹连斩 +1。");
 
-        hpBefore = target.current_hp;
+        hpBefore = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -145,7 +154,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_rhythm_follow_up",
             previewCommand: false
         );
-        _test.Eq(hpBefore - target.current_hp, 9, "后续命中应造成 1D8+2 与额外 1D4。");
+        _test.Eq(hpBefore - target.GetCurrentHp(), 9, "后续命中应造成 1D8+2 与额外 1D4。");
         AssertNotch(target, holder.unit_id, 60, "后续命中应刷新单层 60TU 劈痕。");
 
         holder.GetEquipmentView().ClearSlot("main_hand");
@@ -168,7 +177,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         BattleUnitState holder = fixture.BuildLumberjackUnit("plant");
         BattleUnitState plant = BuildEnemy("plant_target", new Vector2I(1, 0), hp: 100, "plant");
 
-        int hpBefore = plant.current_hp;
+        int hpBefore = plant.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -176,9 +185,9 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_plant_first",
             previewCommand: false
         );
-        _test.Eq(hpBefore - plant.current_hp, 13, "植物目标第一击应造成基础 6 与植物杀手 2D6=7。");
+        _test.Eq(hpBefore - plant.GetCurrentHp(), 13, "植物目标第一击应造成基础 6 与植物杀手 2D6=7。");
 
-        hpBefore = plant.current_hp;
+        hpBefore = plant.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -186,7 +195,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_plant_follow_up",
             previewCommand: false
         );
-        _test.Eq(hpBefore - plant.current_hp, 15, "植物后续击应同时结算基础 6、顺纹 1D4=2 与植物杀手 2D6=7。");
+        _test.Eq(hpBefore - plant.GetCurrentHp(), 15, "植物后续击应同时结算基础 6、顺纹 1D4=2 与植物杀手 2D6=7。");
     }
 
     private void TestMissAndWrongSourceDoNotBorrowNotch()
@@ -206,7 +215,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_miss",
             previewCommand: false
         );
-        _test.Eq(missTarget.current_hp, 40, "自然 1 未命中不应造成伤害。");
+        _test.Eq(missTarget.GetCurrentHp(), 40, "自然 1 未命中不应造成伤害。");
         AssertNotch(missTarget, missHolder.unit_id, 20, "未命中不应刷新已有劈痕。");
 
         using LumberjackFixture sourceFixture = LumberjackFixture.Build(new[] { 4 }, hitRoll: 10);
@@ -223,7 +232,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         );
         _test.Eq(wrongSourceBundle.GetEffectiveModifierDelta(), 0, "不能借用其他持有者留下的劈痕命中加值。");
 
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             sourceFixture.Runtime,
             holder,
@@ -231,7 +240,7 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_takeover",
             previewCommand: false
         );
-        _test.Eq(hpBefore - target.current_hp, 6, "接管来源的首次命中不应提前获得 1D4。");
+        _test.Eq(hpBefore - target.GetCurrentHp(), 6, "接管来源的首次命中不应提前获得 1D4。");
         AssertNotch(target, holder.unit_id, 60, "存活目标的劈痕来源应由本次命中的持有者接管。");
     }
 
@@ -250,9 +259,9 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             "lumberjack_first_hit_kill",
             previewCommand: false
         );
-        _test.False(target.is_alive, "基础 6 点伤害应直接击杀 6 HP 目标。");
+        _test.False(target.IsAlive(), "基础 6 点伤害应直接击杀 6 HP 目标。");
         _test.False(target.HasStatusEffect(ChopNotchStatusId), "第一击直接击杀不能给死者新留劈痕。");
-        _test.Eq(holder.current_ap, 1, "第一击直接击杀不应返还已支付的 1 AP。");
+        _test.Eq(holder.GetCurrentAp(), 1, "第一击直接击杀不应返还已支付的 1 AP。");
     }
 
     private void TestMarkedKillsRestoreApWithoutPerTurnLimitAndRespectCap()
@@ -274,21 +283,21 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
 
         BattleUnitState first = BuildDefeatedMarkedTarget("ap_first", holder.unit_id);
         ResolveOnKill(fixture, holder, first, state, matchingProvenance);
-        _test.Eq(holder.current_ap, 1, "第一个合格击杀应恢复 1 AP。");
+        _test.Eq(holder.GetCurrentAp(), 1, "第一个合格击杀应恢复 1 AP。");
 
         BattleUnitState second = BuildDefeatedMarkedTarget("ap_second", holder.unit_id);
         ResolveOnKill(fixture, holder, second, state, matchingProvenance);
-        _test.Eq(holder.current_ap, 2, "同回合第二个合格击杀仍应恢复 AP，不设每回合一次限制。");
+        _test.Eq(holder.GetCurrentAp(), 2, "同回合第二个合格击杀仍应恢复 AP，不设每回合一次限制。");
 
         BattleUnitState third = BuildDefeatedMarkedTarget("ap_third", holder.unit_id);
         ResolveOnKill(fixture, holder, third, state, matchingProvenance);
-        _test.Eq(holder.current_ap, 2, "达到正常 AP 上限后不能继续堆高。");
-        _test.Eq(holder.current_stamina, 30, "倒木回势只恢复 AP，不恢复体力。");
+        _test.Eq(holder.GetCurrentAp(), 2, "达到正常 AP 上限后不能继续堆高。");
+        _test.Eq(holder.GetCurrentStamina(), 30, "倒木回势只恢复 AP，不恢复体力。");
 
         holder.SetCurrentAp(0);
         BattleUnitState wrongSource = BuildDefeatedMarkedTarget("ap_wrong_source", "other_holder");
         ResolveOnKill(fixture, holder, wrongSource, state, matchingProvenance);
-        _test.Eq(holder.current_ap, 0, "其他持有者留下的劈痕不能触发 AP 恢复。");
+        _test.Eq(holder.GetCurrentAp(), 0, "其他持有者留下的劈痕不能触发 AP 恢复。");
 
         BattleUnitState wrongEquipment = BuildDefeatedMarkedTarget("ap_wrong_equipment", holder.unit_id);
         ResolveOnKill(
@@ -298,11 +307,11 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             state,
             BattleKillProvenance.ForEquipmentAttack("other_equipment", "", "basic_attack")
         );
-        _test.Eq(holder.current_ap, 0, "其他装备实例造成的击杀不能触发 AP 恢复。");
+        _test.Eq(holder.GetCurrentAp(), 0, "其他装备实例造成的击杀不能触发 AP 恢复。");
 
         BattleUnitState nonAttack = BuildDefeatedMarkedTarget("ap_non_attack", holder.unit_id);
         ResolveOnKill(fixture, holder, nonAttack, state, BattleKillProvenance.None);
-        _test.Eq(holder.current_ap, 0, "非攻击击杀不能触发 AP 恢复。");
+        _test.Eq(holder.GetCurrentAp(), 0, "非攻击击杀不能触发 AP 恢复。");
     }
 
     private void TestRealMarkedKillCommandRefundsApButNotStamina()
@@ -323,9 +332,9 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             previewCommand: false
         );
 
-        _test.False(target.is_alive, "已有自身劈痕的 7 HP 目标应被基础 6 与顺纹 1D4=1 击杀。");
-        _test.Eq(holder.current_ap, 2, "真实命令支付 1 AP 后，合格击杀应通过 on-kill 分发恢复 1 AP。");
-        _test.Eq(holder.current_stamina, 22, "真实命令应保留基础攻击的 8 点体力消耗。");
+        _test.False(target.IsAlive(), "已有自身劈痕的 7 HP 目标应被基础 6 与顺纹 1D4=1 击杀。");
+        _test.Eq(holder.GetCurrentAp(), 2, "真实命令支付 1 AP 后，合格击杀应通过 on-kill 分发恢复 1 AP。");
+        _test.Eq(holder.GetCurrentStamina(), 22, "真实命令应保留基础攻击的 8 点体力消耗。");
     }
 
     private static void ResolveOnKill(
@@ -438,21 +447,22 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         StringName creatureType
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.SetEquipmentView(new EquipmentState());
-        unit.creature_type_tags.Add(creatureType);
+        unit.AddCreatureTypeTagTyped(creatureType);
         return unit;
     }
 
@@ -465,9 +475,9 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -480,12 +490,18 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

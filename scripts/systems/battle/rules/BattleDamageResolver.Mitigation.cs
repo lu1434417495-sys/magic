@@ -117,41 +117,42 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        foreach (var rawDamageTag in targetUnit.damage_resistances.Keys)
-        {
-            StringName resistanceDamageTag = ProgressionDataUtils.to_string_name(rawDamageTag);
-            if (resistanceDamageTag != damageTag)
-            {
-                continue;
-            }
-            StringName mitigationTier = ProgressionDataUtils.to_string_name(
-                targetUnit.damage_resistances[rawDamageTag]
-            );
-            if (
-                ShouldBypassMitigationTier(
-                    damageTag,
-                    mitigationTier,
-                    mitigationBypassDamageTags,
-                    mitigationBypassTiers
-                )
+        if (
+            !targetUnit.TryGetDamageResistanceTyped(
+                damageTag,
+                out StringName mitigationTier
             )
-            {
-                continue;
-            }
-            StringName sourceId = new($"damage_resistance_{resistanceDamageTag}");
-            if (mitigationTier == MitigationTierImmune)
-                immuneSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
-            else if (mitigationTier == MitigationTierHalf)
-                halfSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
-            else if (mitigationTier == MitigationTierDouble)
-                doubleSources.Add(
-                    BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
-                );
+        )
+        {
+            return;
         }
+        mitigationTier = ProgressionDataUtils.to_string_name(
+            mitigationTier
+        );
+        if (
+            ShouldBypassMitigationTier(
+                damageTag,
+                mitigationTier,
+                mitigationBypassDamageTags,
+                mitigationBypassTiers
+            )
+        )
+        {
+            return;
+        }
+        StringName sourceId = new($"damage_resistance_{damageTag}");
+        if (mitigationTier == MitigationTierImmune)
+            immuneSources.Add(
+                BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
+            );
+        else if (mitigationTier == MitigationTierHalf)
+            halfSources.Add(
+                BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
+            );
+        else if (mitigationTier == MitigationTierDouble)
+            doubleSources.Add(
+                BuildMitigationSource(sourceId, "damage_resistance", 0, mitigationTier)
+            );
     }
 
     private static bool ShouldBypassMitigationTier(
@@ -440,19 +441,25 @@ public partial class BattleDamageResolver
 
 
 
-    private static WeaponDice GetCurrentWeaponDamageDice(BattleUnitState unitState)
+    private static BattleWeaponDiceValues GetCurrentWeaponDamageDice(
+        BattleUnitState unitState
+    )
     {
         if (unitState == null)
         {
-            return new WeaponDice();
+            return default;
         }
-        return unitState.GetActiveWeaponDiceTyped();
+        BattleWeaponProjectionValues weaponProjection =
+            unitState.GetWeaponProjectionReadViewTyped().Values;
+        return weaponProjection.ActiveDice;
     }
 
-    private static int GetCurrentWeaponDamageDiceSides(BattleUnitState unitState)
+    private static int GetCurrentWeaponDamageDiceSides(
+        BattleWeaponProjectionValues weaponProjection
+    )
     {
-        WeaponDice dice = GetCurrentWeaponDamageDice(unitState);
-        return dice == null ? 0 : Math.Max(dice.dice_sides, 0);
+        BattleWeaponDiceValues dice = weaponProjection.ActiveDice;
+        return dice.HasUsableDice ? Math.Max(dice.DiceSides, 0) : 0;
     }
 
 

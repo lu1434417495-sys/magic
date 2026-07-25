@@ -507,7 +507,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             seed,
             objectiveDefinition,
             context,
-            BattleStartContextReferenceRole.OwnedByStartScope
+            BattleStartContextReferenceRole.OwnedByStartScope,
+            null
         );
     }
 
@@ -516,23 +517,78 @@ public sealed partial class BattleRuntimeModule : IDisposable
         long seed,
         BattleObjectiveDefinition objectiveDefinition,
         GDictionary borrowedContext
+    ) =>
+        StartBattleBorrowingContextCore(
+            encounterAnchor,
+            seed,
+            objectiveDefinition,
+            borrowedContext,
+            null
+        );
+
+    internal BattleState StartBattleBorrowingContext(
+        EncounterAnchorData encounterAnchor,
+        long seed,
+        BattleObjectiveDefinition objectiveDefinition,
+        GDictionary borrowedContext,
+        BattleStartUnitRoster unitRoster
+    )
+    {
+        ArgumentNullException.ThrowIfNull(unitRoster);
+        return StartBattleBorrowingContextCore(
+            encounterAnchor,
+            seed,
+            objectiveDefinition,
+            borrowedContext,
+            unitRoster
+        );
+    }
+
+    private BattleState StartBattleBorrowingContextCore(
+        EncounterAnchorData encounterAnchor,
+        long seed,
+        BattleObjectiveDefinition objectiveDefinition,
+        GDictionary borrowedContext,
+        BattleStartUnitRoster unitRoster
     )
     {
         ArgumentNullException.ThrowIfNull(borrowedContext);
-        ValidateBorrowedStartContext(borrowedContext);
+        ValidateBorrowedStartContext(borrowedContext, unitRoster);
         return StartBattleCore(
             encounterAnchor,
             seed,
             objectiveDefinition,
             borrowedContext,
-            BattleStartContextReferenceRole.BorrowedForSynchronousStart
+            BattleStartContextReferenceRole.BorrowedForSynchronousStart,
+            unitRoster
         );
     }
 
-    private static void ValidateBorrowedStartContext(GDictionary context)
+    private static void ValidateBorrowedStartContext(
+        GDictionary context,
+        BattleStartUnitRoster unitRoster
+    )
     {
         ValidateBorrowedArrayField(context, "battle_party");
         ValidateBorrowedArrayField(context, "enemy_units");
+        if (
+            unitRoster?.ProvidesAllyUnits == true
+            && context.ContainsKey("battle_party")
+        )
+        {
+            throw new InvalidOperationException(
+                "Typed ally units cannot be combined with context battle_party."
+            );
+        }
+        if (
+            unitRoster?.ProvidesEnemyUnits == true
+            && context.ContainsKey("enemy_units")
+        )
+        {
+            throw new InvalidOperationException(
+                "Typed enemy units cannot be combined with context enemy_units."
+            );
+        }
     }
 
     private static void ValidateBorrowedArrayField(GDictionary context, string key)
@@ -553,7 +609,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         long seed,
         BattleObjectiveDefinition objectiveDefinition,
         GDictionary context,
-        BattleStartContextReferenceRole contextRole
+        BattleStartContextReferenceRole contextRole,
+        BattleStartUnitRoster unitRoster
     )
     {
         using var contextScope = new GodotTransientResourceScope("BattleRuntimeModule.StartBattle");
@@ -572,26 +629,36 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return new BattleState();
         }
         _ensure_sidecars_ready();
+        BattleStartUnitRosterMaterialization typedUnits =
+            unitRoster?.ConsumeForStart() ?? default;
         var partyState =
             _characterGateway != null ? _characterGateway.GetPartyState() : null;
-        GBattleUnitArray allyUnits = ToBattleUnitArray(
-            _unit_factory.BuildAllyUnits(
-                partyState,
-                context,
-                contextScope,
-                BattleStartContextReferenceRole.BorrowedForSynchronousStart
-            )
-        );
-        if (allyUnits.Count == 0)
+        GBattleUnitArray allyUnits;
+        if (typedUnits.ProvidesAllyUnits)
+        {
+            allyUnits = typedUnits.AllyUnits;
+        }
+        else
         {
             allyUnits = ToBattleUnitArray(
                 _unit_factory.BuildAllyUnits(
-                    null,
+                    partyState,
                     context,
                     contextScope,
                     BattleStartContextReferenceRole.BorrowedForSynchronousStart
                 )
             );
+            if (allyUnits.Count == 0)
+            {
+                allyUnits = ToBattleUnitArray(
+                    _unit_factory.BuildAllyUnits(
+                        null,
+                        context,
+                        contextScope,
+                        BattleStartContextReferenceRole.BorrowedForSynchronousStart
+                    )
+                );
+            }
         }
 
         GBattleUnitArray enemyUnits = new();
@@ -600,8 +667,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
         ClearAiDecisionBindingsAndPlans();
         calamity_by_member_id.Clear();
 
-        bool hasExplicitEnemyUnits = false;
-        if (context.ContainsKey("enemy_units"))
+        bool hasExplicitEnemyUnits =
+            typedUnits.ProvidesEnemyUnits;
+        if (
+            !hasExplicitEnemyUnits
+            && context.ContainsKey("enemy_units")
+        )
         {
             using GArray explicitEnemyUnits = GetArray(context, "enemy_units");
             hasExplicitEnemyUnits = explicitEnemyUnits.Count > 0;
@@ -610,7 +681,11 @@ public sealed partial class BattleRuntimeModule : IDisposable
             context,
             !hasExplicitEnemyUnits
         );
-        if (hasExplicitEnemyUnits)
+        if (typedUnits.ProvidesEnemyUnits)
+        {
+            enemyUnits = typedUnits.EnemyUnits;
+        }
+        else if (hasExplicitEnemyUnits)
         {
             enemyUnits = ToBattleUnitArray(
                 _unit_factory.BuildEnemyUnits(
@@ -623,8 +698,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         else if (_encounter_builder != null)
         {
-            using GodotProjectionLease<Godot.Collections.Array> enemyUnitsLease =
-                _encounter_builder.BuildEnemyUnitsFromDefinitionsLease(
+            enemyUnits = ToBattleUnitArray(
+                _encounter_builder.BuildEnemyUnitStatesFromDefinitions(
                     encounter_anchor,
                     GetSkillDefinitionIndexTyped(),
                     GetEnemyTemplateIndexTyped(),
@@ -632,9 +707,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     GetItemDefIndexTyped(),
                     GetTraitDefIndexTyped(),
                     GetEquipmentAbilityBindingIndexTyped()
-                );
-            enemyUnits = ToBattleUnitArray(
-                enemyUnitsLease.Value
+                )
             );
         }
 
@@ -681,10 +754,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         )
         {
             long terrainSeed = seed + placementAttempt * BATTLE_START_TERRAIN_RETRY_SEED_STEP;
-            using GodotProjectionLease<GDictionary> terrainLease =
-                _unit_factory.BuildTerrainDataLease(encounter_anchor, terrainSeed, context);
-            GDictionary terrainData = terrainLease.Value;
-            if (terrainData.Count == 0)
+            using BattleTerrainLayout terrainLayout =
+                _unit_factory.BuildTerrainLayout(encounter_anchor, terrainSeed, context);
+            if (terrainLayout == null || terrainLayout.IsEmpty)
             {
                 _last_start_failure = new BattleStartFailureSnapshot
                 {
@@ -697,7 +769,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 };
                 continue;
             }
-            StringName terrainProfileId = _resolve_formal_terrain_profile_id(terrainData);
+            StringName terrainProfileId = terrainLayout.TerrainProfileId;
             if (IsEmpty(terrainProfileId))
             {
                 _last_start_failure = new BattleStartFailureSnapshot
@@ -726,7 +798,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             {
                 battle_id = ProgressionDataUtils.to_string_name($"{battleIdPrefix}_{seed}"),
                 seed = seed,
-                map_size = GetVector2I(terrainData, "map_size", Vector2I.Zero),
+                map_size = terrainLayout.MapSize,
                 world_coord = context.ContainsKey("world_coord")
                     ? GetVector2I(context, "world_coord", Vector2I.Zero)
                     : (encounter_anchor != null ? encounter_anchor.world_coord : Vector2I.Zero),
@@ -737,24 +809,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _state.ReplaceEnvironmentSnapshot(
                 BattleEnvironmentSnapshot.FromBattleStartContext(context, terrainProfileId)
             );
-            using (GDictionary cells = GetDict(terrainData, "cells"))
-            {
-                _state.SetCellsFromDictionary(
-                    cells,
-                    duplicateCells: false,
-                    rebuildColumns: !terrainData.ContainsKey("cell_columns")
-                );
-            }
-            if (terrainData.ContainsKey("cell_columns"))
-            {
-                using GDictionary cellColumns = GetDict(terrainData, "cell_columns");
-                _state.ReplaceCellColumnsFromPayload(cellColumns);
-            }
+            Dictionary<Vector2I, BattleCellState> cells = terrainLayout.TakeCells();
+            _state.SetCells(cells, rebuildColumns: true);
             _state.SetPartyBackpackView(_get_party_backpack_state(partyState) as WarehouseState);
             _state.timeline.tu_per_tick = _timeline_driver.ResolveTimelineTuPerTick(context);
 
-            using GArray allySpawnCoords = GetArray(terrainData, "ally_spawns");
-            using GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
+            IReadOnlyList<Vector2I> allySpawnCoords = terrainLayout.AllySpawns;
+            IReadOnlyList<Vector2I> enemySpawnCoords = terrainLayout.EnemySpawns;
             StringName allySpawnSide = "";
             StringName enemySpawnSide = "";
             if (startOptions.EnforceOpposingSpawnSides)
@@ -768,7 +829,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 if (!IsEmpty(allySpawnSide) && enemySpawnSide == allySpawnSide)
                     enemySpawnSide = _spawnPlacementService._get_opposite_spawn_side(allySpawnSide);
             }
-            if (!_spawnPlacementService.PlaceUnitsTyped(allyUnits, ToVector2IList(allySpawnCoords), true, allySpawnSide))
+            if (!_spawnPlacementService.PlaceUnitsTyped(allyUnits, allySpawnCoords, true, allySpawnSide))
             {
                 _last_start_failure = new BattleStartFailureSnapshot
                 {
@@ -792,7 +853,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 ClearRuntimeBattleStateReference();
                 continue;
             }
-            if (!_spawnPlacementService.PlaceUnitsTyped(enemyUnits, ToVector2IList(enemySpawnCoords), false, enemySpawnSide))
+            if (!_spawnPlacementService.PlaceUnitsTyped(enemyUnits, enemySpawnCoords, false, enemySpawnSide))
             {
                 _last_start_failure = new BattleStartFailureSnapshot
                 {
@@ -943,13 +1004,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return true;
     }
 
-    internal StringName _resolve_formal_terrain_profile_id(GDictionary terrain_data)
-    {
-        if (terrain_data == null || !terrain_data.ContainsKey("terrain_profile_id"))
-            return "";
-        return GetStringName(terrain_data, "terrain_profile_id");
-    }
-
     public BattleEventBatch advance(int tick_count)
     {
         _ensure_sidecars_ready();
@@ -964,7 +1018,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         if (_state.PhaseKind == BattlePhaseKind.UnitActing)
         {
             _state.TryGetUnitTyped(_state.active_unit_id, out BattleUnitState activeUnit);
-            if (activeUnit == null || !activeUnit.is_alive)
+            if (activeUnit == null || !activeUnit.IsAlive())
             {
                 BeginObjectiveMutation();
                 bool mutationCompleted = false;
@@ -981,7 +1035,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             }
             bool madnessAiControl = _skill_turn_resolver.IsTurnAiOverrideActive(activeUnit);
             if (
-                activeUnit.is_alive
+                activeUnit.IsAlive()
                 && (activeUnit.ControlModeKind != BattleUnitControlMode.Manual || madnessAiControl)
             )
             {
@@ -1147,7 +1201,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             return batch;
 
         _state.TryGetUnitTyped(_state.active_unit_id, out BattleUnitState activeUnit);
-        if (activeUnit == null || !activeUnit.is_alive)
+        if (activeUnit == null || !activeUnit.IsAlive())
             return batch;
         if (activeUnit.unit_id != command.unit_id)
         {
@@ -1167,7 +1221,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         _skill_turn_resolver.EnsureUnitTurnAnchor(activeUnit);
         if (
-            activeUnit.turn_casting_exhausted
+            activeUnit.IsTurnCastingExhaustedTyped()
             && (
                 command.CommandKind == BattleCommandKind.Skill
                 || command.CommandKind == BattleCommandKind.ChangeEquipment
@@ -1215,8 +1269,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
 
         if (
-            activeUnit.current_ap <= 0
-            || !activeUnit.is_alive
+            activeUnit.GetCurrentAp() <= 0
+            || !activeUnit.IsAlive()
             || command.CommandKind == BattleCommandKind.Wait
         )
         {
@@ -1505,7 +1559,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             foreach (StringName allyUnitId in _state.ally_unit_ids)
             {
                 _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
-                if (!IsPersistentPartyBattleUnit(unitState) || !unitState.is_alive)
+                if (!IsPersistentPartyBattleUnit(unitState) || !unitState.IsAlive())
                     continue;
                 ContingencyConsumedCommitResult validationResult =
                     _contingencyBridgeService.ValidateContingencyConsumedSetupsForBattleUnit(unitState);
@@ -1517,7 +1571,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
                 if (!IsPersistentPartyBattleUnit(unitState))
                     continue;
-                if (unitState.is_alive)
+                if (unitState.IsAlive())
                 {
                     ContingencyConsumedCommitResult contingencyResult =
                         _contingencyBridgeService.CommitContingencyConsumedSetupsForBattleUnit(unitState);
@@ -1526,9 +1580,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
                     BattleResourceCommitResult resourceResult =
                         _characterGateway.CommitBattleResources(
                         unitState.source_member_id,
-                        unitState.current_hp,
-                        unitState.current_mp,
-                        unitState.current_aura
+                        unitState.GetCurrentHp(),
+                        unitState.GetCurrentMp(),
+                        unitState.GetCurrentAura()
                     );
                     if (resourceResult == null)
                         return BattleEndResult.ResourceCommitFailure(
@@ -1948,8 +2002,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         CombatCastVariantDefinition cast_variant,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
-    ) => _specialSkillGateService.ApplyUnitSkillSpecialEffectsResult(active_unit, target_unit, skill_definition, cast_variant, effect_definitions, batch, forced_move_context);
+        BattleForcedMoveContext forced_move_context = default,
+        bool attack_succeeded = false
+    ) => _specialSkillGateService.ApplyUnitSkillSpecialEffectsResult(active_unit, target_unit, skill_definition, cast_variant, effect_definitions, batch, forced_move_context, attack_succeeded);
 
     internal void _apply_on_kill_gain_resources_effects(
         BattleUnitState source_unit,
@@ -1976,9 +2031,12 @@ public sealed partial class BattleRuntimeModule : IDisposable
             {
                 TriggerSourceUnitId = unit_state?.unit_id ?? "",
                 TriggerTargetUnitId = unit_state?.unit_id ?? "",
-                TriggerSourceCell = unit_state?.coord ?? new Vector2I(-1, -1),
-                TriggerTargetCell = unit_state?.coord ?? new Vector2I(-1, -1),
-                TriggerCell = unit_state?.coord ?? new Vector2I(-1, -1),
+                TriggerSourceCell =
+                    unit_state?.GetAnchorCoord() ?? new Vector2I(-1, -1),
+                TriggerTargetCell =
+                    unit_state?.GetAnchorCoord() ?? new Vector2I(-1, -1),
+                TriggerCell =
+                    unit_state?.GetAnchorCoord() ?? new Vector2I(-1, -1),
             },
             batch
         );
@@ -2532,7 +2590,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
     {
         if (_state == null || unit_state == null)
             return;
-        List<Vector2I> previousCoords = new(unit_state.occupied_coords);
+        List<Vector2I> previousCoords = new(
+            unit_state.GetOccupiedCoordsReadViewTyped()
+        );
         unit_state.MarkDead();
         _clear_equipment_target_marks_for_defeated_unit(unit_state, batch);
         _grid_service.ClearUnitOccupancy(_state, unit_state);
@@ -2551,7 +2611,9 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _clear_equipment_target_marks_for_defeated_unit(unit_state, batch);
         _handle_adjacent_ally_defeat(unit_state);
         _handle_low_luck_relic_ally_defeat(unit_state, batch);
-        List<Vector2I> previousCoords = new(unit_state.occupied_coords);
+        List<Vector2I> previousCoords = new(
+            unit_state.GetOccupiedCoordsReadViewTyped()
+        );
         _grid_service.ClearUnitOccupancy(_state, unit_state);
         _append_changed_coords_typed(batch, previousCoords);
         _append_changed_unit_id(batch, unit_state.unit_id);

@@ -202,7 +202,7 @@ public sealed class BattleSimExecutionLoop
             BattleUnitState activeUnit = GetUnit(state, state.active_unit_id);
             if (
                 activeUnit != null
-                && activeUnit.is_alive
+                && activeUnit.IsAlive()
                 && activeUnit.ControlModeKind == BattleUnitControlMode.Manual
             )
             {

@@ -107,7 +107,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
                 batch?.AddChangedCoord(coord);
             AppendTriggeredSkillSaveLogs(batch, targetUnit, payload.SaveLogLabel, resolution);
 
-            if (payload.HandleTargetDefeat && targetUnit.is_alive != true)
+            if (payload.HandleTargetDefeat && targetUnit.IsAlive() != true)
             {
                 _runtime?.HandleUnitDefeatedByRuntimeEffect(
                     targetUnit,
@@ -136,7 +136,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
         if (state == null || sourceUnit == null || anchorUnit == null || combatProfile == null)
             return Array.Empty<BattleUnitState>();
         if (combatProfile.TargetModeKind != BattleTargetMode.Ground)
-            return anchorUnit.is_alive
+            return anchorUnit.IsAlive()
                 ? new[] { anchorUnit }
                 : Array.Empty<BattleUnitState>();
 
@@ -144,9 +144,9 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
             _runtime?._target_collection_service?.CollectCombatProfileTargetCoords(
                 state,
                 _runtime.GetGridService(),
-                sourceUnit.coord,
+                sourceUnit.GetAnchorCoord(),
                 combatProfile,
-                new[] { anchorUnit.coord },
+                new[] { anchorUnit.GetAnchorCoord() },
                 sourceUnit,
                 targetUnits: null,
                 skillLevel: Math.Max(skillLevel, 1)
@@ -158,7 +158,7 @@ internal sealed class BattleEquipmentSkillTriggerActionResolver
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
             if (
-                candidate?.is_alive != true
+                candidate?.IsAlive() != true
                 || !BattleTargetTeamRules.IsUnitValidForFilter(
                     sourceUnit,
                     candidate,

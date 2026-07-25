@@ -20,7 +20,7 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
         BattleDamageResolver resolver = BuildResolverWithLastStand();
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("low_priority_ward_target", "hostile");
-        target.current_hp = 5;
+        target.SetCurrentHp(5);
         SetDeathWard(target, 100);
 
         resolver.ResolveEffects(
@@ -30,8 +30,8 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
-        _test.False(target.is_alive, "PWK should skip low-priority death ward.");
-        _test.Eq(target.current_hp, 0, "low-priority death ward should not clamp PWK fatal damage.");
+        _test.False(target.IsAlive(), "PWK should skip low-priority death ward.");
+        _test.Eq(target.GetCurrentHp(), 0, "low-priority death ward should not clamp PWK fatal damage.");
     }
 
     private void TestPwkAllowsHighPriorityDeathWard()
@@ -39,7 +39,7 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
         BattleDamageResolver resolver = BuildResolverWithLastStand();
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("high_priority_ward_target", "hostile");
-        target.current_hp = 5;
+        target.SetCurrentHp(5);
         SetDeathWard(target, 900);
 
         resolver.ResolveEffects(
@@ -49,8 +49,8 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
-        _test.True(target.is_alive, "PWK should allow same-priority death ward to trigger.");
-        _test.True(target.current_hp > 0, "high-priority death ward should restore positive HP.");
+        _test.True(target.IsAlive(), "PWK should allow same-priority death ward to trigger.");
+        _test.True(target.GetCurrentHp() > 0, "high-priority death ward should restore positive HP.");
         _test.False(target.HasStatusEffect("death_ward"), "triggered death ward should be consumed.");
         _test.True(target.HasStatusEffect("last_stand_active"), "Lv7 last stand should add active status.");
         _test.True(
@@ -64,10 +64,16 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
         BattleDamageResolver resolver = new();
         BattleUnitState source = MakeUnit("mage_source", "player");
         BattleUnitState target = MakeUnit("shielded_target", "hostile");
-        target.current_hp = 5;
-        target.current_shield_hp = 20;
-        target.shield_max_hp = 20;
-        target.shield_duration = 10;
+        target.SetCurrentHp(5);
+        target.ReplaceShieldStateTyped(
+            20,
+            20,
+            10,
+            "execute_ward",
+            "ward_source",
+            "ward_skill"
+        );
+        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
 
         resolver.ResolveEffects(
             source,
@@ -76,10 +82,12 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
             DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
         );
 
-        _test.False(target.is_alive, "failed-save PWK should kill shielded low-HP target.");
-        _test.Eq(target.current_shield_hp, 20, "PWK should not drain shield HP.");
-        _test.Eq(target.shield_max_hp, 20, "PWK should not mutate shield max HP.");
-        _test.Eq(target.shield_duration, 10, "PWK should not mutate shield duration.");
+        _test.False(target.IsAlive(), "failed-save PWK should kill shielded low-HP target.");
+        _test.Eq(
+            target.GetShieldStateTyped(),
+            shieldBefore,
+            "PWK should not mutate any shield owner field."
+        );
     }
 
     private static BattleDamageResolver BuildResolverWithLastStand()
@@ -118,16 +126,17 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 10);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);

@@ -114,9 +114,10 @@ public partial class run_battle_metrics_collector_regression : LifecycleTestScen
             faction_id = factionId,
             control_mode = factionId == "player" ? "manual" : "ai",
             source_member_id = memberId,
-            current_hp = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            isAlive: true
+        );
     }
 
 }

@@ -142,14 +142,18 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
         );
 
         BattleUnitState equipped = fixture.BuildWindbowUnit("projection", perception: 12);
-        _test.Eq(equipped.weapon_item_id, WindbowItemId, "风之弓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longbow"), "风之弓应投影为 longbow。");
-        _test.Eq(equipped.weapon_family, new StringName("bow"), "风之弓应投影为 bow family。");
-        _test.Eq(equipped.weapon_attack_range, 6, "风之弓投影攻击距离应为 6。");
-        _test.True(equipped.weapon_uses_two_hands, "风之弓应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "风之弓应投影 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 8, "风之弓应投影 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "风之弓应投影 1D8+2。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, WindbowItemId, "风之弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longbow"), "风之弓应投影为 longbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("bow"), "风之弓应投影为 bow family。");
+        _test.Eq(equippedWeapon.AttackRange, 6, "风之弓投影攻击距离应为 6。");
+        _test.True(equippedWeapon.UsesTwoHands, "风之弓应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "风之弓应投影 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 8, "风之弓应投影 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "风之弓应投影 1D8+2。");
         foreach (
             StringName traitId in new[]
             {
@@ -160,7 +164,7 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
             }
         )
         {
-            _test.True(equipped.effective_trait_ids.Contains(traitId), $"装备后应投影 {traitId}。");
+            _test.True(equipped.HasEffectiveTrait(traitId), $"装备后应投影 {traitId}。");
         }
         AssertUnitHasTraitAndAbilitySource(
             equipped,
@@ -199,13 +203,19 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除风之弓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除风之弓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除风之弓后武器 profile 应恢复。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除风之弓后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除风之弓后装备能力源应清空。"
+        );
         _test.Eq(
             equipped.attribute_snapshot.GetValue(PerceptionModifier),
             baseline.attribute_snapshot.GetValue(PerceptionModifier),
@@ -243,7 +253,7 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
         );
 
         BattleUnitState unguided = fixture.BuildWindbowUnit("unguided", perception: 12);
-        unguided.equipment_ability_sources.Clear();
+        unguided.ClearEquipmentAbilityProjectionTyped();
         AttackCheckInput guidedCheck = attackPolicy.BuildAttackCheck(
             attackPolicy.BuildSkillDefinitionAttackContext(
                 null,
@@ -322,7 +332,7 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
             BattleForcedMoveContext.Empty
         );
         _test.Eq(blockedSteps, 0, "目标对 wind_push save 免疫时，风压推射不应推动。");
-        _test.Eq(target.coord, new Vector2I(2, 1), "save 成功或免疫后目标坐标不应变化。");
+        _test.Eq(target.GetAnchorCoord(), new Vector2I(2, 1), "save 成功或免疫后目标坐标不应变化。");
 
         target.EraseStatusEffect(saveImmune.status_id);
         CombatEffectDefinition plainKnockback = TestSkillDefinitionProjection.BuildEffect(
@@ -338,7 +348,7 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
             BattleForcedMoveContext.Empty
         );
         _test.Eq(movedSteps, 2, "未被 save gate 阻断时，合法强制位移应推动最多 2 格。");
-        _test.Eq(target.coord, new Vector2I(4, 1), "推动方向应沿使用者到目标的主轴方向远离使用者。");
+        _test.Eq(target.GetAnchorCoord(), new Vector2I(4, 1), "推动方向应沿使用者到目标的主轴方向远离使用者。");
     }
 
     private void AssertGalePushSkillDefinition(
@@ -432,14 +442,15 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -552,9 +563,9 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -567,12 +578,17 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

@@ -26,7 +26,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
 
         BattleHoverSnapshot hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
-            target.coord,
+            target.GetAnchorCoord(),
             skill.SkillId,
             "",
             new Godot.Collections.Array<Vector2I>(),
@@ -59,10 +59,10 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
 
         BattleHoverSnapshot hover = new BattleHudAdapter().BuildHoverPreview(
             fixture.State,
-            target.coord,
+            target.GetAnchorCoord(),
             skill.SkillId,
             "",
-            new Godot.Collections.Array<Vector2I> { target.coord },
+            new Godot.Collections.Array<Vector2I> { target.GetAnchorCoord() },
             preview
         );
 
@@ -87,15 +87,15 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         var adapter = new BattleHudAdapter();
         BattleHoverSnapshot hover = adapter.BuildHoverPreview(
             fixture.State,
-            target.coord,
+            target.GetAnchorCoord(),
             skill.SkillId,
             "",
-            new Godot.Collections.Array<Vector2I> { target.coord },
+            new Godot.Collections.Array<Vector2I> { target.GetAnchorCoord() },
             preview
         );
         BattleHudSnapshot snapshot = adapter.BuildSnapshot(
             fixture.State,
-            target.coord,
+            target.GetAnchorCoord(),
             skill.SkillId,
             skill.DisplayName,
             "",
@@ -214,7 +214,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             currentAp: 2,
             currentHp: currentHp
         );
-        unit.current_stamina = 20;
+        unit.SetCurrentStamina(20);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
         unit.attribute_snapshot.SetValue("willpower", 10);
@@ -222,8 +222,8 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
         unit.attribute_snapshot.SetValue("intelligence", 14);
         unit.attribute_snapshot.SetValue("intelligence_modifier", 2);
         unit.attribute_snapshot.SetValue("spell_proficiency_bonus", 2);
-        unit.known_active_skill_ids.Add("test_power_word_kill_hover");
-        unit.known_skill_level_map[new StringName("test_power_word_kill_hover")] = 17;
+        unit.AddKnownActiveSkill("test_power_word_kill_hover");
+        unit.SetKnownSkillLevelTyped(new StringName("test_power_word_kill_hover"), 17);
         return unit;
     }
 
@@ -240,7 +240,7 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
             skill_id = skill.SkillId,
             skill_entry_id = BattleSkillEntryIds.KnownSkill(skill.SkillId),
             target_unit_id = target.unit_id,
-            target_coord = target.coord,
+            target_coord = target.GetAnchorCoord(),
         };
         command.AddTargetUnitId(target.unit_id);
         return command;

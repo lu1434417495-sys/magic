@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using Godot;
 
 internal sealed class BattleTemporalProgressModifierState
@@ -29,4 +31,80 @@ internal sealed class BattleTemporalProgressModifierState
             Label = Label,
         };
     }
+}
+
+internal sealed class BattleTemporalProgressModifierReadView
+{
+    internal BattleTemporalProgressModifierReadView(
+        BattleTemporalProgressModifierState modifier
+    )
+    {
+        ModifierId = modifier.ModifierId;
+        BindingId = modifier.BindingId;
+        SourceEquipmentInstanceId =
+            modifier.SourceEquipmentInstanceId;
+        AppliesToActionProgress =
+            modifier.AppliesToActionProgress;
+        AppliesToCastProgress =
+            modifier.AppliesToCastProgress;
+        SaveDc = modifier.SaveDc;
+        AttributeModifierId = modifier.AttributeModifierId;
+        SuccessRatePercent = modifier.SuccessRatePercent;
+        FailureRatePercent = modifier.FailureRatePercent;
+        Label = modifier.Label;
+    }
+
+    internal StringName ModifierId { get; }
+    internal StringName BindingId { get; }
+    internal StringName SourceEquipmentInstanceId { get; }
+    internal bool AppliesToActionProgress { get; }
+    internal bool AppliesToCastProgress { get; }
+    internal int SaveDc { get; }
+    internal StringName AttributeModifierId { get; }
+    internal int SuccessRatePercent { get; }
+    internal int FailureRatePercent { get; }
+    internal string Label { get; }
+}
+
+internal readonly struct
+    BattleTemporalProgressModifierListReadView :
+        IReadOnlyList<BattleTemporalProgressModifierReadView>
+{
+    private static readonly
+        List<BattleTemporalProgressModifierReadView> Empty =
+            new();
+    private readonly
+        List<BattleTemporalProgressModifierReadView> _values;
+
+    internal BattleTemporalProgressModifierListReadView(
+        List<BattleTemporalProgressModifierReadView> values
+    )
+    {
+        _values = values;
+    }
+
+    internal bool IsPresent => _values != null;
+
+    private List<BattleTemporalProgressModifierReadView>
+        Values =>
+            _values ?? Empty;
+
+    public int Count => Values.Count;
+
+    public BattleTemporalProgressModifierReadView this[
+        int index
+    ] =>
+        Values[index];
+
+    public List<BattleTemporalProgressModifierReadView>
+        .Enumerator GetEnumerator() =>
+            Values.GetEnumerator();
+
+    IEnumerator<BattleTemporalProgressModifierReadView>
+        IEnumerable<BattleTemporalProgressModifierReadView>
+            .GetEnumerator() =>
+                GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() =>
+        GetEnumerator();
 }

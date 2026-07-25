@@ -53,7 +53,7 @@ public partial class run_battle_boss_objective_regression
             "仅击败首领随从时，首领目标应保持进行中。"
         );
         _test.True(
-            fixture.Enemies[0].is_alive,
+            fixture.Enemies[0].IsAlive(),
             "仅击败随从不应改变首领的存活状态。"
         );
         _test.True(
@@ -91,7 +91,7 @@ public partial class run_battle_boss_objective_regression
             "击败绑定首领后应立即完成首领目标。"
         );
         _test.True(
-            fixture.Enemies[1].is_alive,
+            fixture.Enemies[1].IsAlive(),
             "首领胜利不应要求同时歼灭随从。"
         );
         AssertDecision(
@@ -128,11 +128,11 @@ public partial class run_battle_boss_objective_regression
             "初始持久队员全灭时应判定首领目标失败。"
         );
         _test.True(
-            fixture.Allies[1].is_alive,
+            fixture.Allies[1].IsAlive(),
             "召唤物应保持存活，以证明它不能替代持久队员延续目标。"
         );
         _test.True(
-            fixture.Enemies[0].is_alive,
+            fixture.Enemies[0].IsAlive(),
             "队伍失败时首领应仍然存活。"
         );
         AssertDecision(
@@ -182,7 +182,7 @@ public partial class run_battle_boss_objective_regression
             "首领与初始持久队员在同一原子变更内全灭后应完成结算。"
         );
         _test.True(
-            fixture.Allies[1].is_alive,
+            fixture.Allies[1].IsAlive(),
             "召唤物存活不应把首领同归于尽改判为胜利。"
         );
         AssertDecision(

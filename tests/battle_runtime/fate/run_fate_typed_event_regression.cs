@@ -64,7 +64,7 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
         BattleUnitState hero = BuildUnit("low_hp_unit", "low_hp_member");
         try
         {
-            hero.current_hp = 1;
+            hero.SetCurrentHp(1);
             fateRuntime.Setup(
                 unit_by_member_id_resolver: memberId =>
                     memberId == new StringName("low_hp_member") ? hero : null
@@ -132,9 +132,10 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
             unit_id = unitId,
             source_member_id = memberId,
             faction_id = "player",
-            is_alive = true,
-            current_hp = 10,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
         return unit;
     }

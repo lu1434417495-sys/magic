@@ -802,20 +802,21 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_hp = 12,
-            current_mp = 7,
-            current_stamina = 5,
-            current_aura = 3,
-            current_ap = 2,
-            current_move_points = 1,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 12,
+            mp: 7,
+            stamina: 5,
+            aura: 3,
+            ap: 2,
+            movePoints: 1
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("hp_max", 20);
         unit.attribute_snapshot.SetValue("aura_max", 6);
-        unit.known_active_skill_ids.Add("skill_a");
-        unit.known_skill_level_map["skill_a"] = 2;
-        unit.damage_resistances["fire"] = "half";
-        unit.cooldowns["skill_a"] = 1;
+        unit.AddKnownActiveSkill("skill_a");
+        unit.SetKnownSkillLevelTyped("skill_a", 2);
+        unit.SetDamageResistanceTyped("fire", "half");
+        unit.SetCooldownTyped("skill_a", 1);
         return unit;
     }
 

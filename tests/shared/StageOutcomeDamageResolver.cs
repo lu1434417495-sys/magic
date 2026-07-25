@@ -37,8 +37,8 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
         if (target_unit != null)
         {
             target_ids_seen.Add(target_unit.unit_id);
-            hp_before_by_call.Add(target_unit.current_hp);
-            if (!target_unit.is_alive)
+            hp_before_by_call.Add(target_unit.GetCurrentHp());
+            if (!target_unit.IsAlive())
             {
                 dead_target_ids_seen.Add(target_unit.unit_id);
             }
@@ -64,10 +64,10 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
 
         if (target_unit != null && damage > 0)
         {
-            target_unit.current_hp = Mathf.Max(target_unit.current_hp - damage, 0);
-            if (target_unit.current_hp <= 0)
+            target_unit.SetCurrentHp(Mathf.Max(target_unit.GetCurrentHp() - damage, 0));
+            if (target_unit.GetCurrentHp() <= 0)
             {
-                target_unit.is_alive = false;
+                target_unit.MarkDead();
             }
         }
 

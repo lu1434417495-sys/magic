@@ -99,7 +99,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
     private void TestThresholdUsesSkillLevelButNotAbility()
     {
         BattleUnitState source = MakeUnit("execute_source", 100, 100);
-        source.known_skill_level_map["mage_power_word_kill"] = 20;
+        source.SetKnownSkillLevelTyped("mage_power_word_kill", 20);
         source.attribute_snapshot.SetValue("intelligence_modifier", 99);
         BattleUnitState target = MakeUnit("execute_target", 100, 36);
         BattleExecutionRuleParams parameters =
@@ -120,7 +120,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
         int threshold = BattleExecutionRules.ResolveThreshold(source, target, parameters);
 
         _test.Eq(threshold, 35, "PWK threshold = 20% max HP + skill-level bonus, ignoring ability mod.");
-        target.current_hp = 35;
+        target.SetCurrentHp(35);
         BattleExecutePlan plan = BattleExecutionRules.BuildExecutePlan(source, target, parameters);
 
         _test.True(plan.CanExecute, "current_hp <= formal threshold should execute.");
@@ -130,7 +130,7 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
     private void TestZeroOrDeadTargetCannotExecute()
     {
         BattleUnitState source = MakeUnit("execute_source", 100, 100);
-        source.known_skill_level_map["mage_power_word_kill"] = 20;
+        source.SetKnownSkillLevelTyped("mage_power_word_kill", 20);
         BattleUnitState target = MakeUnit("execute_target", 100, 0);
         BattleExecutionRuleParams parameters = BattleExecutionRuleParams.Defaults("mage_power_word_kill");
 
@@ -146,9 +146,10 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
         var unit = new BattleUnitState
         {
             unit_id = unitId,
-            current_hp = currentHp,
-            is_alive = currentHp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            isAlive: currentHp > 0
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         return unit;
     }

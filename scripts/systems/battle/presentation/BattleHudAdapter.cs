@@ -396,18 +396,32 @@ public sealed class BattleHudAdapter : IDisposable
             return null;
 
         PortraitData portraitData = BuildPortraitData(unitState, battleState);
-        int hpMax = GetSnapshotValue(unitState, "hp_max", Mathf.Max(unitState.current_hp, 1));
-        int mpMax = GetSnapshotValue(unitState, "mp_max", Mathf.Max(unitState.current_mp, 0));
+        BattleUnitCombatResourceValues combatResources =
+            unitState.GetCombatResourcesReadViewTyped().Values;
+        int hpMax = GetSnapshotValue(
+            unitState,
+            "hp_max",
+            Mathf.Max(combatResources.Hp, 1)
+        );
+        int mpMax = GetSnapshotValue(
+            unitState,
+            "mp_max",
+            Mathf.Max(combatResources.Mp, 0)
+        );
         int staminaMax = GetSnapshotValue(
             unitState,
             "stamina_max",
-            Mathf.Max(unitState.current_stamina, 0)
+            Mathf.Max(combatResources.Stamina, 0)
         );
-        int auraMax = GetSnapshotValue(unitState, "aura_max", Mathf.Max(unitState.current_aura, 0));
+        int auraMax = GetSnapshotValue(
+            unitState,
+            "aura_max",
+            Mathf.Max(combatResources.Aura, 0)
+        );
         int apMax = GetSnapshotValue(
             unitState,
             "action_points",
-            Mathf.Max(unitState.current_ap, 1)
+            Mathf.Max(combatResources.Ap, 1)
         );
         bool isEnemy =
             battleState != null && battleState.enemy_unit_ids.Contains(unitState.unit_id);
@@ -421,20 +435,20 @@ public sealed class BattleHudAdapter : IDisposable
             PortraitKey: portraitData.PortraitKey,
             PrimaryColor: portraitData.PrimaryColor,
             EdgeColor: portraitData.EdgeColor,
-            HpCurrent: unitState.current_hp,
+            HpCurrent: combatResources.Hp,
             HpMax: Mathf.Max(hpMax, 1),
-            MpCurrent: unitState.current_mp,
+            MpCurrent: combatResources.Mp,
             MpMax: Mathf.Max(mpMax, 1),
             MpVisible: IsResourceUnlocked(unitState, CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)),
-            StaminaCurrent: unitState.current_stamina,
+            StaminaCurrent: combatResources.Stamina,
             StaminaMax: Mathf.Max(staminaMax, 1),
-            AuraCurrent: unitState.current_aura,
+            AuraCurrent: combatResources.Aura,
             AuraMax: Mathf.Max(auraMax, 1),
             AuraVisible: IsResourceUnlocked(
                 unitState,
                 CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)
             ),
-            ApCurrent: unitState.current_ap,
+            ApCurrent: combatResources.Ap,
             ApMax: Mathf.Max(apMax, 1),
             IsEnemy: isEnemy,
             IsSelf: isSelf,
@@ -563,7 +577,11 @@ public sealed class BattleHudAdapter : IDisposable
         var remainingUnits = new List<BattleUnitState>();
         foreach (BattleUnitState unitState in battleState.Units())
         {
-            if (unitState == null || !unitState.is_alive || seenIds.Contains(unitState.unit_id))
+            if (
+                unitState == null
+                || !unitState.IsAlive()
+                || seenIds.Contains(unitState.unit_id)
+            )
                 continue;
             remainingUnits.Add(unitState);
         }
@@ -580,6 +598,8 @@ public sealed class BattleHudAdapter : IDisposable
             if (unitState == null)
                 continue;
             PortraitData portraitData = BuildPortraitData(unitState, battleState);
+            BattleUnitCombatResourceValues combatResources =
+                unitState.GetCombatResourcesReadViewTyped().Values;
             int hpMax = GetSnapshotValue(unitState, "hp_max", 1);
             queueEntries.Add(
                 new BattleHudQueueEntrySnapshot
@@ -591,10 +611,10 @@ public sealed class BattleHudAdapter : IDisposable
                     PrimaryColor = portraitData.PrimaryColor,
                     SecondaryColor = portraitData.SecondaryColor,
                     EdgeColor = portraitData.EdgeColor,
-                    HpRatio = GetRatio(unitState.current_hp, hpMax),
-                    HpText = $"HP {unitState.current_hp}/{hpMax}",
+                    HpRatio = GetRatio(combatResources.Hp, hpMax),
+                    HpText = $"HP {combatResources.Hp}/{hpMax}",
                     ApText =
-                        $"AP {unitState.current_ap} / 行动 {unitState.current_move_points}",
+                        $"AP {combatResources.Ap} / 行动 {combatResources.MovePoints}",
                     IsActive = unitId == battleState.active_unit_id,
                     IsReady = _queueReadyLookup.Contains(unitId),
                     IsEnemy = battleState.enemy_unit_ids.Contains(unitId),
@@ -631,18 +651,32 @@ public sealed class BattleHudAdapter : IDisposable
         }
 
         PortraitData portraitData = BuildPortraitData(unitState, battleState);
-        int hpMax = GetSnapshotValue(unitState, "hp_max", Mathf.Max(unitState.current_hp, 1));
-        int mpMax = GetSnapshotValue(unitState, "mp_max", Mathf.Max(unitState.current_mp, 0));
+        BattleUnitCombatResourceValues combatResources =
+            unitState.GetCombatResourcesReadViewTyped().Values;
+        int hpMax = GetSnapshotValue(
+            unitState,
+            "hp_max",
+            Mathf.Max(combatResources.Hp, 1)
+        );
+        int mpMax = GetSnapshotValue(
+            unitState,
+            "mp_max",
+            Mathf.Max(combatResources.Mp, 0)
+        );
         int staminaMax = GetSnapshotValue(
             unitState,
             "stamina_max",
-            Mathf.Max(unitState.current_stamina, 0)
+            Mathf.Max(combatResources.Stamina, 0)
         );
-        int auraMax = GetSnapshotValue(unitState, "aura_max", Mathf.Max(unitState.current_aura, 0));
+        int auraMax = GetSnapshotValue(
+            unitState,
+            "aura_max",
+            Mathf.Max(combatResources.Aura, 0)
+        );
         int apMax = GetSnapshotValue(
             unitState,
             "action_points",
-            Mathf.Max(unitState.current_ap, 1)
+            Mathf.Max(combatResources.Ap, 1)
         );
         int moveMax = BattleUnitState.DefaultMovePointsPerTurn;
         return new BattleHudFocusUnitSnapshot(
@@ -654,17 +688,17 @@ public sealed class BattleHudAdapter : IDisposable
             portraitData.PrimaryColor,
             portraitData.SecondaryColor,
             portraitData.EdgeColor,
-            unitState.current_hp,
+            combatResources.Hp,
             Mathf.Max(hpMax, 1),
-            unitState.current_mp,
+            combatResources.Mp,
             Mathf.Max(mpMax, 1),
-            unitState.current_stamina,
+            combatResources.Stamina,
             Mathf.Max(staminaMax, 1),
-            unitState.current_aura,
+            combatResources.Aura,
             Mathf.Max(auraMax, 1),
-            unitState.current_ap,
+            combatResources.Ap,
             Mathf.Max(apMax, 1),
-            unitState.current_move_points,
+            combatResources.MovePoints,
             moveMax,
             BuildStatusEffectSnapshots(unitState)
         );
@@ -672,12 +706,15 @@ public sealed class BattleHudAdapter : IDisposable
 
     private BattleHudResourceInfoSnapshot BuildResourceInfo(BattleUnitState unitState)
     {
-        int hpCurrent = unitState?.current_hp ?? 0;
-        int mpCurrent = unitState?.current_mp ?? 0;
-        int staminaCurrent = unitState?.current_stamina ?? 0;
-        int auraCurrent = unitState?.current_aura ?? 0;
-        int apCurrent = unitState?.current_ap ?? 0;
-        int moveCurrent = unitState?.current_move_points ?? 0;
+        BattleUnitCombatResourceValues combatResources =
+            unitState?.GetCombatResourcesReadViewTyped().Values
+            ?? default;
+        int hpCurrent = combatResources.Hp;
+        int mpCurrent = combatResources.Mp;
+        int staminaCurrent = combatResources.Stamina;
+        int auraCurrent = combatResources.Aura;
+        int apCurrent = combatResources.Ap;
+        int moveCurrent = combatResources.MovePoints;
         int hpMax = GetSnapshotValue(unitState, "hp_max", Mathf.Max(hpCurrent, 1));
         int mpMax = GetSnapshotValue(unitState, "mp_max", Mathf.Max(mpCurrent, 0));
         int staminaMax = GetSnapshotValue(unitState, "stamina_max", Mathf.Max(staminaCurrent, 0));
@@ -722,7 +759,7 @@ public sealed class BattleHudAdapter : IDisposable
             battleState != null && battleState.enemy_unit_ids.Contains(unitState.unit_id)
                 ? "敌方"
                 : "我方";
-        return $"{factionText}  ·  {FormatControlMode(unitState.control_mode)}  ·  体型 {Mathf.Max(unitState.body_size, 1)}";
+        return $"{factionText}  ·  {FormatControlMode(unitState.control_mode)}  ·  体型 {Mathf.Max(unitState.GetBodySize(), 1)}";
     }
 
     private static string BuildSkillTitle(string selectedSkillName, string selectedSkillVariantName)
@@ -957,7 +994,7 @@ public sealed class BattleHudAdapter : IDisposable
             return "当前有待处理的战斗流程，暂时无法换装。";
         if (activeUnit.ControlModeKind != BattleUnitControlMode.Manual)
             return "当前行动单位不是手动控制，不能换装。";
-        if (activeUnit.current_ap < CHANGE_EQUIPMENT_AP_COST)
+        if (activeUnit.GetCurrentAp() < CHANGE_EQUIPMENT_AP_COST)
             return $"AP不足，换装需要 {CHANGE_EQUIPMENT_AP_COST} 点 AP。";
         return "";
     }
@@ -1235,8 +1272,8 @@ public sealed class BattleHudAdapter : IDisposable
             activeUnit != null ? activeUnit.unit_id.ToString() : "",
             activeUnit != null ? activeUnit.source_member_id.ToString() : "",
             activeUnit != null ? activeUnit.control_mode.ToString() : "",
-            (activeUnit?.body_size ?? 0).ToString(),
-            (activeUnit?.current_ap ?? 0).ToString(),
+            (activeUnit?.GetBodySize() ?? 0).ToString(),
+            (activeUnit?.GetCurrentAp() ?? 0).ToString(),
             BuildPartyMemberRequirementSignature(
                 activeUnit != null ? activeUnit.source_member_id : new StringName("")
             ),
@@ -2130,7 +2167,7 @@ public sealed class BattleHudAdapter : IDisposable
             return 0;
         if (activeUnit.HasKnownSkillLevelTyped(skillId))
             return activeUnit.GetKnownSkillLevelTyped(skillId);
-        return activeUnit.known_active_skill_ids.Contains(skillId) ? 1 : 0;
+        return activeUnit.KnowsActiveSkill(skillId) ? 1 : 0;
     }
 
     private bool SkillHasTag(SkillDefinition skillDefinition, StringName expectedTag)
@@ -2160,10 +2197,14 @@ public sealed class BattleHudAdapter : IDisposable
         bool bReady = _queueReadyLookup.Contains(b.unit_id);
         if (aReady != bReady)
             return aReady ? -1 : 1;
-        if (a.action_progress != b.action_progress)
-            return b.action_progress.CompareTo(a.action_progress);
-        if (a.current_ap != b.current_ap)
-            return b.current_ap.CompareTo(a.current_ap);
+        int aActionProgress = a.GetActionProgressTyped();
+        int bActionProgress = b.GetActionProgressTyped();
+        if (aActionProgress != bActionProgress)
+            return bActionProgress.CompareTo(aActionProgress);
+        int aCurrentAp = a.GetCurrentAp();
+        int bCurrentAp = b.GetCurrentAp();
+        if (aCurrentAp != bCurrentAp)
+            return bCurrentAp.CompareTo(aCurrentAp);
         return string.Compare(a.unit_id.ToString(), b.unit_id.ToString(), StringComparison.Ordinal);
     }
 
@@ -2172,7 +2213,7 @@ public sealed class BattleHudAdapter : IDisposable
         if (battleState == null || IsEmpty(unitId))
             return false;
         BattleUnitState unitState = GetUnit(battleState, unitId);
-        return unitState != null && unitState.is_alive;
+        return unitState != null && unitState.IsAlive();
     }
 
     private static int GetSnapshotValue(
@@ -2197,7 +2238,11 @@ public sealed class BattleHudAdapter : IDisposable
             return null;
         foreach (BattleUnitState unitState in battleState.Units())
         {
-            if (unitState != null && unitState.is_alive && unitState.OccupiesCoord(coord))
+            if (
+                unitState != null
+                && unitState.IsAlive()
+                && unitState.OccupiesCoord(coord)
+            )
                 return unitState;
         }
         return null;

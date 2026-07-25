@@ -106,18 +106,22 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildTwilightEdgeUnit("projection");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, TwilightEdgeItemId, "暮光之刃装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ItemId, TwilightEdgeItemId, "暮光之刃装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("scimitar"),
             "暮光之刃应投影为 scimitar。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "暮光之刃攻击距离应为 1。");
-        _test.False(equipped.weapon_uses_two_hands, "暮光之刃应是单手武器。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "暮光之刃应是 1D6。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "暮光之刃应是 1D6。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "暮光之刃应有 +3 固定伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "暮光之刃攻击距离应为 1。");
+        _test.False(equippedWeapon.UsesTwoHands, "暮光之刃应是单手武器。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "暮光之刃应是 1D6。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "暮光之刃应是 1D6。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "暮光之刃应有 +3 固定伤害。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             TwilightStepTraitId,
@@ -145,21 +149,27 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除暮光之刃后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除暮光之刃后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除暮光之刃后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_attack_range,
-            baseline.weapon_attack_range,
+            removedWeapon.AttackRange,
+            baselineWeapon.AttackRange,
             "移除暮光之刃后攻击距离应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除暮光之刃后装备能力源应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除暮光之刃后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除暮光之刃后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -254,12 +264,12 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
         using TwilightEdgeFixture fixture = TwilightEdgeFixture.Build(new GArray());
         BattleUnitState attacker = fixture.BuildTwilightEdgeUnit("cut");
         BattleUnitState target = BuildTarget("cut_target", new Vector2I(1, 0));
-        target.current_hp = 160;
+        target.SetCurrentHp(160);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 160);
         BattleState state = BuildState("twilight_cut", attacker, target, 2, 70);
         fixture.Runtime.SetupStateForTests(state);
 
-        int beforeStepHp = target.current_hp;
+        int beforeStepHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -269,7 +279,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 70,
             previewCommand: false
         );
-        int beforeStepDamage = beforeStepHp - target.current_hp;
+        int beforeStepDamage = beforeStepHp - target.GetCurrentHp();
 
         BattleSkillAvailabilityService service = new(fixture.SkillDefs, fixture.Bindings);
         BattleSkillAvailabilityView view = service.BuildView(
@@ -300,7 +310,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             "暮影步成功使用后应提交装备授予技能触发，即使它没有装备 usage 次数。"
         );
 
-        int afterStepHp = target.current_hp;
+        int afterStepHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -310,13 +320,13 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 70,
             previewCommand: false
         );
-        int afterStepDamage = afterStepHp - target.current_hp;
+        int afterStepDamage = afterStepHp - target.GetCurrentHp();
         _test.True(
             afterStepDamage > beforeStepDamage,
             "暮影步后的首次真实基础攻击应追加暮光切割 psychic 伤害。"
         );
 
-        int sameTurnSecondHp = target.current_hp;
+        int sameTurnSecondHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -326,7 +336,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 70,
             previewCommand: false
         );
-        int sameTurnSecondDamage = sameTurnSecondHp - target.current_hp;
+        int sameTurnSecondDamage = sameTurnSecondHp - target.GetCurrentHp();
         _test.Eq(
             sameTurnSecondDamage,
             beforeStepDamage,
@@ -334,7 +344,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
         );
 
         attacker.ResetPerTurnCharges();
-        int nextTurnHp = target.current_hp;
+        int nextTurnHp = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -344,7 +354,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 110,
             previewCommand: false
         );
-        int nextTurnDamage = nextTurnHp - target.current_hp;
+        int nextTurnDamage = nextTurnHp - target.GetCurrentHp();
         _test.Eq(
             nextTurnDamage,
             beforeStepDamage,
@@ -361,7 +371,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
         BattleUnitState dayTarget = BuildTarget("day_target", new Vector2I(1, 0));
         BattleState dayState = BuildState("twilight_day", dayAttacker, dayTarget, 2, 70);
         fixture.Runtime.SetupStateForTests(dayState);
-        dayTarget.current_hp = 100;
+        dayTarget.SetCurrentHp(100);
         dayTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -372,7 +382,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 70,
             previewCommand: false
         );
-        int dayDamage = 100 - dayTarget.current_hp;
+        int dayDamage = 100 - dayTarget.GetCurrentHp();
 
         BattleUnitState nightAttacker = fixture.BuildTwilightEdgeUnit("night_balance");
         BattleUnitState nightTarget = BuildTarget("night_target", new Vector2I(1, 0));
@@ -384,7 +394,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             70
         );
         fixture.Runtime.SetupStateForTests(nightState);
-        nightTarget.current_hp = 100;
+        nightTarget.SetCurrentHp(100);
         nightTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -395,7 +405,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
             currentTu: 70,
             previewCommand: false
         );
-        int nightDamage = 100 - nightTarget.current_hp;
+        int nightDamage = 100 - nightTarget.GetCurrentHp();
         _test.True(dayDamage > 0, "白天真实基础攻击应造成伤害。");
         _test.True(
             nightDamage > dayDamage,
@@ -627,8 +637,7 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             cell?.SetOccupant(unit.unit_id);
@@ -637,14 +646,15 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -663,9 +673,9 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -678,12 +688,15 @@ public partial class run_twilight_edge_weapon_ability_regression : LifecycleTest
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

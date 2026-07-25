@@ -158,7 +158,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
                 skillDefinition,
                 effectDefinitions
             );
-        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDefinition);
+        bool forceHitNoCrit =
+            usesFateAttack && IsForceHitNoCritSkill(skillDefinition, activeUnit);
         StringName fatePreviewMode = FatePreviewModeNone;
         if (usesFateAttack)
         {
@@ -249,7 +250,8 @@ public sealed class BattleSkillResolutionRules : IDisposable
                 skillDefinition,
                 effectDefinitions
             );
-        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDefinition);
+        bool forceHitNoCrit =
+            usesFateAttack && IsForceHitNoCritSkill(skillDefinition, activeUnit);
         StringName fatePreviewMode = FatePreviewModeNone;
         if (usesFateAttack)
         {
@@ -446,7 +448,9 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return false;
         }
         CombatSkillAttackResolutionMode attackResolutionMode =
-            combatProfile.AttackResolutionModeKind;
+            combatProfile.GetEffectiveAttackResolutionMode(
+                GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
+            );
         if (attackResolutionMode == CombatSkillAttackResolutionMode.DirectEffect)
         {
             return false;
@@ -512,7 +516,9 @@ public sealed class BattleSkillResolutionRules : IDisposable
             return false;
         }
         CombatSkillAttackResolutionMode attackResolutionMode =
-            combatProfile.AttackResolutionModeKind;
+            combatProfile.GetEffectiveAttackResolutionMode(
+                GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
+            );
         if (attackResolutionMode == CombatSkillAttackResolutionMode.DirectEffect)
         {
             return false;
@@ -552,11 +558,31 @@ public sealed class BattleSkillResolutionRules : IDisposable
         return false;
     }
 
-    public bool IsForceHitNoCritSkill(SkillDefinition skillDefinition)
+    public bool IsForceHitNoCritSkill(
+        SkillDefinition skillDefinition,
+        BattleUnitState activeUnit
+    )
     {
         return skillDefinition != null
             && (
-                skillDefinition.CombatProfile?.AttackResolutionModeKind
+                skillDefinition.CombatProfile?.GetEffectiveAttackResolutionMode(
+                    GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
+                )
+                    == CombatSkillAttackResolutionMode.ForceHitNoCrit
+                || skillDefinition.SkillId == BlackContractPushSkillId
+            );
+    }
+
+    internal bool IsForceHitNoCritSkill(
+        SkillDefinition skillDefinition,
+        BattleUnitReadView activeUnit
+    )
+    {
+        return skillDefinition != null
+            && (
+                skillDefinition.CombatProfile?.GetEffectiveAttackResolutionMode(
+                    GetUnitSkillLevel(activeUnit, skillDefinition.SkillId)
+                )
                     == CombatSkillAttackResolutionMode.ForceHitNoCrit
                 || skillDefinition.SkillId == BlackContractPushSkillId
             );

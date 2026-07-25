@@ -114,25 +114,28 @@ public sealed partial class BattleRuntimeModule
             auraMax = unit_state
                 .attribute_snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax));
         }
+        BattleUnitShieldSnapshot shieldState = unit_state.GetShieldStateTyped();
         return new BattleAiTraceUnitSnapshotProjection
         {
             UnitId = unit_state.unit_id.ToString(),
             DisplayName = unit_state.display_name,
             FactionId = unit_state.faction_id.ToString(),
-            Coord = _format_ai_trace_coord(unit_state.coord),
-            Alive = unit_state.is_alive,
-            Hp = unit_state.current_hp,
+            Coord = _format_ai_trace_coord(
+                unit_state.GetAnchorCoord()
+            ),
+            Alive = unit_state.IsAlive(),
+            Hp = unit_state.GetCurrentHp(),
             HpMax = Math.Max(hpMax, 1),
-            Mp = unit_state.current_mp,
+            Mp = unit_state.GetCurrentMp(),
             MpMax = Math.Max(mpMax, 0),
-            Stamina = unit_state.current_stamina,
+            Stamina = unit_state.GetCurrentStamina(),
             StaminaMax = Math.Max(staminaMax, 0),
-            Aura = unit_state.current_aura,
+            Aura = unit_state.GetCurrentAura(),
             AuraMax = Math.Max(auraMax, 0),
-            Ap = unit_state.current_ap,
-            MovePoints = unit_state.current_move_points,
-            ShieldHp = unit_state.current_shield_hp,
-            ShieldMaxHp = unit_state.shield_max_hp,
+            Ap = unit_state.GetCurrentAp(),
+            MovePoints = unit_state.GetCurrentMovePoints(),
+            ShieldHp = shieldState.CurrentHp,
+            ShieldMaxHp = shieldState.MaxHp,
         };
     }
 

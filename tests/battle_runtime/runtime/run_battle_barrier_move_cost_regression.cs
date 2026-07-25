@@ -33,7 +33,7 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
     {
         Fixture fixture = BuildRuntimeWithSphere("first_boundary_stop", new Vector2I(5, 2));
         BattleUnitState activeUnit = fixture.Enemy;
-        Vector2I origin = activeUnit.coord;
+        Vector2I origin = activeUnit.GetAnchorCoord();
         Vector2I target = new(4, 2);
         MarkLayersBroken(
             fixture.State,
@@ -57,7 +57,7 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         _test.False(result.Executed, "第一步被屏障放逐拦截时，不应把屏障副作用计作已执行移动。");
         _test.True(result.StoppedByBarrier, "屏障中断应记录 stopped_by_barrier。");
         _test.Eq(result.ExecutedPath.Count, 1, "未进入任何新路径锚点时，executed path 应只包含起点。");
-        if (result.Executed && result.ExecutedPath.Count <= 1 && activeUnit.coord != origin)
+        if (result.Executed && result.ExecutedPath.Count <= 1 && activeUnit.GetAnchorCoord() != origin)
         {
             throw new Exception("executed movement changed coord without recording path");
         }
@@ -70,8 +70,8 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         Fixture fixture = BuildRuntimeWithSphere("reached_anchor_stop", new Vector2I(6, 2));
         BattleRuntimeModule runtime = fixture.Runtime;
         BattleUnitState activeUnit = fixture.Enemy;
-        Vector2I origin = activeUnit.coord;
-        int movePointsBefore = activeUnit.current_move_points;
+        Vector2I origin = activeUnit.GetAnchorCoord();
+        int movePointsBefore = activeUnit.GetCurrentMovePoints();
         MarkLayersBroken(
             fixture.State,
             "red",
@@ -91,9 +91,9 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         };
         runtime._movement_service.HandleMoveCommand(activeUnit, command, new BattleEventBatch());
 
-        _test.Eq(activeUnit.current_move_points, movePointsBefore - 1, "屏障前已抵达一格时，只应扣除已抵达锚点的移动力。");
-        _test.True(activeUnit.coord != new Vector2I(3, 2), "紫色层放逐应中断移动，不能抵达原目标。");
-        if (activeUnit.current_move_points == movePointsBefore && activeUnit.coord != origin)
+        _test.Eq(activeUnit.GetCurrentMovePoints(), movePointsBefore - 1, "屏障前已抵达一格时，只应扣除已抵达锚点的移动力。");
+        _test.True(activeUnit.GetAnchorCoord() != new Vector2I(3, 2), "紫色层放逐应中断移动，不能抵达原目标。");
+        if (activeUnit.GetCurrentMovePoints() == movePointsBefore && activeUnit.GetAnchorCoord() != origin)
         {
             throw new Exception("movement changed coord with zero cost");
         }
@@ -176,13 +176,14 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 120,
-            current_mp = 120,
-            current_stamina = 40,
-            current_ap = 2,
-            current_move_points = 4,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 120,
+            mp: 120,
+            stamina: 40,
+            ap: 2,
+            movePoints: 4,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 120);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 120);
@@ -214,7 +215,7 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private static BattleBarrierInstanceState FirstBarrier(BattleState state)

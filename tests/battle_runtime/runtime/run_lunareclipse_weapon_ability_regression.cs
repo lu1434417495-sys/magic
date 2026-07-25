@@ -139,18 +139,22 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildLunareclipseUnit("projection", equipHeavyArmor: false);
-        _test.Eq(equipped.weapon_item_id, ItemId, "月蚀装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("battleaxe"), "月蚀应投影为 battleaxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "月蚀应投影为 axe family。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "月蚀应为斩击伤害。");
-        _test.Eq(equipped.weapon_attack_range, 1, "月蚀攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "月蚀应保留 versatile 投影。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "月蚀单手应投影 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "月蚀单手应投影 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "月蚀单手应投影 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "月蚀双手应投影 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "月蚀双手应投影 1D10+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "月蚀装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("battleaxe"), "月蚀应投影为 battleaxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "月蚀应投影为 axe family。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "月蚀应为斩击伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "月蚀攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "月蚀应保留 versatile 投影。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "月蚀单手应投影 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "月蚀单手应投影 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "月蚀单手应投影 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "月蚀双手应投影 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "月蚀双手应投影 1D10+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             MoonPhaseCycleTraitId,
@@ -172,13 +176,18 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除月蚀后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除月蚀后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除月蚀后武器 profile 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除月蚀后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除月蚀后装备能力源应清空。"
+        );
     }
 
     private void TestMoonPhaseCycleTriggersFullMoonJudgmentAndRefreshesOneStack()
@@ -207,7 +216,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
                 _test.Eq(moonPhase.source_unit_id, attacker.unit_id, "月相应记录持有者来源。");
             }
         }
-        _test.Eq(target.current_hp, 82, "前三次命中应各造成 1D8+2，不应提前触发盈月裁断。");
+        _test.Eq(target.GetCurrentHp(), 82, "前三次命中应各造成 1D8+2，不应提前触发盈月裁断。");
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -217,7 +226,7 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             previewCommand: false
         );
         _test.Eq(
-            target.current_hp,
+            target.GetCurrentHp(),
             68,
             "第 4 次命中应造成武器 1D8+2 与盈月裁断 2D8 光耀伤害。"
         );
@@ -263,12 +272,12 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
             preview?.allowed == true,
             $"月蚀影步应允许 blink 穿过中间被占用格，只验证落点。logs={JoinLogs(preview?.LogLinesTyped)}"
         );
-        int staminaBefore = holder.current_stamina;
+        int staminaBefore = holder.GetCurrentStamina();
         BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
         _test.True(batch != null, "月蚀影步 IssueCommand 应返回事件 batch。");
-        _test.Eq(holder.coord, new Vector2I(3, 0), "月蚀影步应将持有者闪现到目标地格。");
-        _test.Eq(holder.current_ap, 1, "月蚀影步应消耗 1AP。");
-        _test.Eq(holder.current_stamina, staminaBefore - 45, "月蚀影步应消耗 45 体力。");
+        _test.Eq(holder.GetAnchorCoord(), new Vector2I(3, 0), "月蚀影步应将持有者闪现到目标地格。");
+        _test.Eq(holder.GetCurrentAp(), 1, "月蚀影步应消耗 1AP。");
+        _test.Eq(holder.GetCurrentStamina(), staminaBefore - 45, "月蚀影步应消耗 45 体力。");
         _test.Eq(holder.GetCooldownTyped(EclipseShadowstepSkillId), 120, "月蚀影步应设置 120TU 冷却。");
         BattleStatusEffectState dodge = holder.GetStatusEffect(DodgeBonusStatusId);
         _test.True(dodge != null, "月蚀影步后应获得 dodge_bonus_up。");
@@ -462,21 +471,22 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.SetEquipmentView(new EquipmentState());
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 
@@ -489,9 +499,9 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -504,14 +514,17 @@ public partial class run_lunareclipse_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
         foreach (
-            BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources
-                ?? new List<BattleEquipmentAbilitySourceState>()
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
         )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)

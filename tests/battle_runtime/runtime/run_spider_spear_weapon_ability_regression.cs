@@ -84,22 +84,26 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildSpiderUnit("projection");
-        _test.Eq(equipped.weapon_item_id, SpiderItemId, "蛛矛装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("spear"), "蛛矛应投影为 spear。");
-        _test.Eq(equipped.weapon_family, new StringName("polearm"), "蛛矛应按设计投影为 polearm。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, SpiderItemId, "蛛矛装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("spear"), "蛛矛应投影为 spear。");
+        _test.Eq(equippedWeapon.Family, new StringName("polearm"), "蛛矛应按设计投影为 polearm。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_pierce"),
             "蛛矛应是 physical_pierce。"
         );
-        _test.Eq(equipped.weapon_attack_range, 2, "蛛矛攻击距离应为 2。");
-        _test.True(equipped.weapon_is_versatile, "蛛矛应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "蛛矛单手应为 1D6+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 6, "蛛矛单手应为 1D6+1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 1, "蛛矛单手应为 1D6+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "蛛矛双手应为 1D8+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 8, "蛛矛双手应为 1D8+1。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 1, "蛛矛双手应为 1D8+1。");
+        _test.Eq(equippedWeapon.AttackRange, 2, "蛛矛攻击距离应为 2。");
+        _test.True(equippedWeapon.IsVersatile, "蛛矛应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "蛛矛单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 6, "蛛矛单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 1, "蛛矛单手应为 1D6+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "蛛矛双手应为 1D8+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 8, "蛛矛双手应为 1D8+1。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 1, "蛛矛双手应为 1D8+1。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             WebBindingTraitId,
@@ -138,16 +142,22 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除蛛矛后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除蛛矛后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除蛛矛后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除蛛矛后装备能力源应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除蛛矛后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除蛛矛后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -199,7 +209,7 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
             "第一次蛛丝束缚后应写入当前世界日使用次数。"
         );
 
-        holder.current_ap = 2;
+        holder.SetCurrentAp(2);
         BattleSkillAvailabilityView sameTurnView = BuildEquipmentSkillView(
             fixture,
             holder,
@@ -220,7 +230,7 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
         for (int use = 2; use <= 3; use++)
         {
             holder.ResetPerTurnCharges();
-            holder.current_ap = 2;
+            holder.SetCurrentAp(2);
             ForceUnitActing(state, holder);
             BattleAvailableSkillEntry nextEntry =
                 FindRequiredEquipmentSkill(fixture, holder, state, 0);
@@ -244,7 +254,7 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
             "同一世界日 3 次蛛丝束缚后应记录用尽。"
         );
         holder.ResetPerTurnCharges();
-        holder.current_ap = 2;
+        holder.SetCurrentAp(2);
         ForceUnitActing(state, holder);
         BattleSkillAvailabilityView exhaustedView = BuildEquipmentSkillView(
             fixture,
@@ -366,9 +376,9 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
                 );
             throw new InvalidOperationException(
                 $"{label} spider web binding preview blocked: {JoinLogs(preview?.LogLinesTyped)}"
-                    + $" distance={distance} holder_coord={holder?.coord.ToString() ?? "<null>"}"
-                    + $" target_coord={target?.coord.ToString() ?? "<null>"}"
-                    + $" holder_ap={holder?.current_ap.ToString() ?? "<null>"}"
+                    + $" distance={distance} holder_coord={holder?.GetAnchorCoord().ToString() ?? "<null>"}"
+                    + $" target_coord={target?.GetAnchorCoord().ToString() ?? "<null>"}"
+                    + $" holder_ap={holder?.GetCurrentAp().ToString() ?? "<null>"}"
                     + $" holder_faction={holder?.faction_id.ToString() ?? "<null>"}"
                     + $" target_faction={target?.faction_id.ToString() ?? "<null>"}"
                     + $" affordance_allowed={affordance.Allowed}"
@@ -464,15 +474,16 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
         int strengthModifier
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-            current_ap = 2,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -500,9 +511,9 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -515,12 +526,17 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

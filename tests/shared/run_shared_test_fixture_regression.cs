@@ -51,7 +51,7 @@ public partial class run_shared_test_fixture_regression : LifecycleTestSceneTree
 
         _test.Eq(state.CellCount, 2, "C# fixture 应按地图尺寸生成格子。");
         _test.Eq(state.active_unit_id, new StringName("hero"), "C# fixture 应默认首个友军为 active unit。");
-        _test.Eq(player.current_ap, 3, "C# fixture 应应用 unit options。");
+        _test.Eq(player.GetCurrentAp(), 3, "C# fixture 应应用 unit options。");
         _test.Eq(enemy.faction_id, new StringName("enemy"), "C# fixture enemy helper 应设置敌方阵营。");
         _test.True(fixture.Runtime.GetState() == state, "C# fixture 应能安装 runtime battle state。");
         fixture.Dispose();

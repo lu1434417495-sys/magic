@@ -101,23 +101,25 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildGluttonUnit("projection");
-        _test.Eq(equipped.weapon_item_id, GluttonItemId, "贪食者装备后 unit 应保留真实 item_id。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, GluttonItemId, "贪食者装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("greataxe"),
             "贪食者应投影为 greataxe。"
         );
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "贪食者应投影为 axe family。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "贪食者应投影为 axe family。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_slash"),
             "贪食者应为斩击伤害。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "贪食者攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "贪食者应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "贪食者应为 1D12+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 12, "贪食者应为 1D12+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "贪食者应为 1D12+2。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "贪食者攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "贪食者应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "贪食者应为 1D12+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 12, "贪食者应为 1D12+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "贪食者应为 1D12+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             SatedTraitId,
@@ -155,11 +157,16 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除贪食者后 weapon_item_id 应清空。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除贪食者后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除贪食者后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除贪食者后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除贪食者后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -177,7 +184,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             "glutton_hunger_first",
             previewCommand: false
         );
-        _test.Eq(38, firstTarget.current_hp, "第一次未击杀命中应只造成贪食者武器 1D12+2。");
+        _test.Eq(38, firstTarget.GetCurrentHp(), "第一次未击杀命中应只造成贪食者武器 1D12+2。");
         BattleStatusEffectState hunger = attacker.GetStatusEffect(HungerStatusId);
         _test.True(hunger != null, "未击杀且造成 HP 伤害后，持有者应获得饥饿。");
         if (hunger != null)
@@ -197,7 +204,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
         );
         _test.Eq(
             34,
-            secondTarget.current_hp,
+            secondTarget.GetCurrentHp(),
             "带 1 层饥饿的下一次命中应造成武器 1D12+2 与吞食斩 1D6。"
         );
         hunger = attacker.GetStatusEffect(HungerStatusId);
@@ -214,7 +221,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
         using GluttonFixture fixture = GluttonFixture.Build(new GArray { 10 });
         BattleUnitState attacker = fixture.BuildGluttonUnit("sated");
         attacker.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
-        attacker.current_hp = 40;
+        attacker.SetCurrentHp(40);
         BattleUnitState target = BuildEnemy("glutton_kill_target", new Vector2I(1, 0), hp: 12);
 
         IssueBasicAttackWithAttackerHp(
@@ -225,10 +232,10 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             attackerHp: 40
         );
 
-        _test.False(target.is_alive, "贪食者这一击应击杀目标。");
+        _test.False(target.IsAlive(), "贪食者这一击应击杀目标。");
         _test.Eq(
             46,
-            attacker.current_hp,
+            attacker.GetCurrentHp(),
             "饱食应按本次实际 HP 伤害 12 的 50% 向下取整，治疗 6 点。"
         );
         _test.False(
@@ -244,11 +251,14 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
         StringName expectedEquipmentInstanceId
     )
     {
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
         {
             throw new InvalidOperationException($"unit missing trait {traitId}");
         }
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (
                 source != null
@@ -288,22 +298,20 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-            coord = coord,
-            body_size = 1,
-            body_size_category = "medium",
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
+        unit.SetBodySizeCategory("medium");
         unit.SetCombatResources(hp, 0, 30, 0, 2, 2);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.SetAnchorCoord(coord);
-        unit.RefreshFootprint();
         return unit;
     }
 

@@ -161,7 +161,7 @@ public class BattleSpecialSkillResolver
         {
             return;
         }
-        if (defeated_unit.is_alive)
+        if (defeated_unit.IsAlive())
         {
             return;
         }
@@ -185,14 +185,14 @@ public class BattleSpecialSkillResolver
             }
             if (apGain > 0)
             {
-                source_unit.SetCurrentAp(source_unit.current_ap + apGain);
+                source_unit.SetCurrentAp(source_unit.GetCurrentAp() + apGain);
             }
             if (freeMovePointsGain > 0)
             {
                 source_unit.SetCurrentMovePoints(
-                    source_unit.current_move_points + freeMovePointsGain
+                    source_unit.GetCurrentMovePoints() + freeMovePointsGain
                 );
-                source_unit.can_use_locked_move_points_this_turn = true;
+                source_unit.GrantLockedMovePointsThisTurnTyped();
             }
             AppendChangedUnitId(batch, source_unit.unit_id);
             var gainParts = new List<string>();
@@ -220,7 +220,8 @@ public class BattleSpecialSkillResolver
         CombatCastVariantDefinition castVariantDefinition,
         IEnumerable<CombatEffectDefinition> effectDefinitions,
         BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context
+        BattleForcedMoveContext forced_move_context,
+        bool attackSucceeded = false
     )
     {
         if (active_unit == null || skillDefinition == null)
@@ -296,6 +297,22 @@ public class BattleSpecialSkillResolver
                 }
                 continue;
             }
+            if (effectKind == BattleEffectKind.VaultBehindTarget)
+            {
+                if (
+                    attackSucceeded
+                    && ApplyVaultBehindTargetEffect(
+                        active_unit,
+                        target_unit,
+                        batch
+                    )
+                )
+                {
+                    applied = true;
+                    maxMovedSteps = Math.Max(maxMovedSteps, 2);
+                }
+                continue;
+            }
             if (effectKind != BattleEffectKind.ForcedMove)
             {
                 continue;
@@ -320,6 +337,39 @@ public class BattleSpecialSkillResolver
             }
         }
         return new BattleSpecialSkillResult(applied, maxMovedSteps, statusEffectIds, logLines);
+    }
+
+    private bool ApplyVaultBehindTargetEffect(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        BattleEventBatch batch
+    )
+    {
+        BattleState state = RtState();
+        BattleGridService gridService = _runtime.GetGridService();
+        BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
+            state,
+            gridService,
+            _runtime._layered_barrier_service,
+            activeUnit,
+            targetUnit
+        );
+        if (!plan.Allowed)
+            return false;
+
+        var previousCoords = DuplicateVector2IArray(
+            activeUnit.GetOccupiedCoordsReadViewTyped()
+        );
+        if (!gridService.MoveUnit(state, activeUnit, plan.Destination))
+            return false;
+
+        AppendChangedCoords(batch, previousCoords);
+        AppendChangedUnitCoords(batch, activeUnit);
+        AppendChangedUnitId(batch, activeUnit.unit_id);
+        batch?.AddLogLine(
+            $"{activeUnit.display_name} 借势越过 {targetUnit.display_name}，落到其身后。"
+        );
+        return true;
     }
 
     public BattleSpecialSkillResult ApplyDoomShiftEffectResult(
@@ -372,10 +422,14 @@ public class BattleSpecialSkillResolver
         {
             return false;
         }
-        var firstPreviousCoords = DuplicateVector2IArray(first_unit.occupied_coords);
-        var secondPreviousCoords = DuplicateVector2IArray(second_unit.occupied_coords);
-        Vector2I firstCoord = first_unit.coord;
-        Vector2I secondCoord = second_unit.coord;
+        var firstPreviousCoords = DuplicateVector2IArray(
+            first_unit.GetOccupiedCoordsReadViewTyped()
+        );
+        var secondPreviousCoords = DuplicateVector2IArray(
+            second_unit.GetOccupiedCoordsReadViewTyped()
+        );
+        Vector2I firstCoord = first_unit.GetAnchorCoord();
+        Vector2I secondCoord = second_unit.GetAnchorCoord();
         if (!ResolveSwapBarrierPassage(first_unit, firstCoord, secondCoord, batch))
         {
             return false;
@@ -429,7 +483,9 @@ public class BattleSpecialSkillResolver
             to_coord,
             batch
         );
-        return !barrierResult.Blocked && unit_state.is_alive && unit_state.coord == from_coord;
+        return !barrierResult.Blocked
+            && unit_state.IsAlive()
+            && unit_state.GetAnchorCoord() == from_coord;
     }
 
     public BattleSpecialSkillResult ApplyBlackStarBrandEffectResult(
@@ -856,7 +912,7 @@ public class BattleSpecialSkillResolver
             );
             if (
                 nextCoord == new Vector2I(-1, -1)
-                || nextCoord == unitState.coord
+                || nextCoord == unitState.GetAnchorCoord()
             )
             {
                 break;
@@ -864,7 +920,7 @@ public class BattleSpecialSkillResolver
             if (
                 !gridService.CanTraverse(
                     state,
-                    unitState.coord,
+                    unitState.GetAnchorCoord(),
                     nextCoord,
                     unitState
                 )
@@ -876,19 +932,21 @@ public class BattleSpecialSkillResolver
                 layeredBarrierService != null
                     ? layeredBarrierService.ResolveUnitBoundaryCrossingResult(
                         unitState,
-                        unitState.coord,
+                        unitState.GetAnchorCoord(),
                         nextCoord,
                         eventBatch
                     )
                     : new BattleBarrierInteractionResult(false, false);
             if (
                 barrierResult.Blocked
-                || !unitState.is_alive
+                || !unitState.IsAlive()
             )
             {
                 break;
             }
-            var previousCoords = DuplicateVector2IArray(unitState.occupied_coords);
+            var previousCoords = DuplicateVector2IArray(
+                unitState.GetOccupiedCoordsReadViewTyped()
+            );
             if (!gridService.MoveUnit(state, unitState, nextCoord))
             {
                 break;
@@ -963,7 +1021,8 @@ public class BattleSpecialSkillResolver
         }
 
         var existingEntry = target_unit.GetStatusEffect(statusId);
-        StringName restoreCategory = target_unit.body_size_category;
+        StringName restoreCategory =
+            target_unit.GetBodySizeCategory();
         if (existingEntry != null)
         {
             StringName existingRestoreCategory = existingEntry.previous_body_size_category;
@@ -973,17 +1032,22 @@ public class BattleSpecialSkillResolver
             }
         }
 
-        StringName previousCategory = target_unit.body_size_category;
-        int previousBodySize = target_unit.body_size;
-        Vector2I previousFootprint = target_unit.footprint_size;
-        List<Vector2I> previousOccupiedCoords = DuplicateVector2IArray(target_unit.occupied_coords);
+        StringName previousCategory =
+            target_unit.GetBodySizeCategory();
+        int previousBodySize = target_unit.GetBodySize();
+        Vector2I previousFootprint =
+            target_unit.GetFootprintSize();
+        List<Vector2I> previousOccupiedCoords =
+            DuplicateVector2IArray(
+                target_unit.GetOccupiedCoordsReadViewTyped()
+            );
         gridService.ClearUnitOccupancy(state, target_unit);
         target_unit.SetBodySizeCategory(targetCategory);
         if (
             !gridService.CanPlaceFootprint(
                 state,
-                target_unit.coord,
-                target_unit.footprint_size,
+                target_unit.GetAnchorCoord(),
+                target_unit.GetFootprintSize(),
                 target_unit.unit_id,
                 target_unit
             )
@@ -1004,7 +1068,11 @@ public class BattleSpecialSkillResolver
                 },
             };
         }
-        gridService.SetOccupantsTyped(state, target_unit.occupied_coords, target_unit.unit_id);
+        gridService.SetOccupantsTyped(
+            state,
+            target_unit.GetOccupiedCoordsReadViewTyped(),
+            target_unit.unit_id
+        );
 
         using (
             GodotProjectionLease<GDictionary> parametersProjection =
@@ -1107,11 +1175,12 @@ public class BattleSpecialSkillResolver
             }
         )
         {
-            Vector2I candidateCoord = unit_state.coord + direction;
+            Vector2I candidateCoord =
+                unit_state.GetAnchorCoord() + direction;
             if (
                 !gridService.CanTraverse(
                     state,
-                    unit_state.coord,
+                    unit_state.GetAnchorCoord(),
                     candidateCoord,
                     unit_state
                 )
@@ -1181,12 +1250,18 @@ public class BattleSpecialSkillResolver
             {
                 closestHostileDistance = Math.Min(
                     closestHostileDistance,
-                    gridService.GetDistance(candidate_coord, hostileUnit.coord)
+                    gridService.GetDistance(
+                        candidate_coord,
+                        hostileUnit.GetAnchorCoord()
+                    )
                 );
             }
         }
         int score = closestHostileDistance * 100;
-        score -= gridService.GetDistance(unit_state.coord, candidate_coord) * 10;
+        score -= gridService.GetDistance(
+            unit_state.GetAnchorCoord(),
+            candidate_coord
+        ) * 10;
         score -= candidate_coord.Y * 2 + candidate_coord.X;
         if (mode == BattleForcedMoveMode.Evasive)
         {
@@ -1211,12 +1286,16 @@ public class BattleSpecialSkillResolver
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        Vector2I stepDelta = candidate_coord - unit_state.coord;
+        Vector2I stepDelta =
+            candidate_coord - unit_state.GetAnchorCoord();
         if (DotVector2I(stepDelta, pushDirection) <= 0)
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        int currentProjection = DotVector2I(unit_state.coord, pushDirection);
+        int currentProjection = DotVector2I(
+            unit_state.GetAnchorCoord(),
+            pushDirection
+        );
         int candidateProjection = DotVector2I(candidate_coord, pushDirection);
         return (candidateProjection - currentProjection) * 1000
             - candidate_coord.Y * 2
@@ -1246,7 +1325,8 @@ public class BattleSpecialSkillResolver
         if (source_unit != null && unit_state != null)
         {
             return NormalizeAxisDirection(
-                unit_state.coord - source_unit.coord
+                unit_state.GetAnchorCoord()
+                    - source_unit.GetAnchorCoord()
             );
         }
         return Vector2I.Zero;
@@ -1284,7 +1364,7 @@ public class BattleSpecialSkillResolver
             if (
                 otherUnit == null
                 || otherUnit.unit_id == unit_state.unit_id
-                || !otherUnit.is_alive
+                || !otherUnit.IsAlive()
             )
             {
                 continue;
@@ -1305,7 +1385,7 @@ public class BattleSpecialSkillResolver
             return;
         }
         if (
-            defeated_unit.is_alive
+            defeated_unit.IsAlive()
             || IsEmpty(defeated_unit.source_member_id)
         )
         {
@@ -1332,13 +1412,13 @@ public class BattleSpecialSkillResolver
     )
     {
         BattleState state = RtState();
-        if (state == null || defeated_unit == null || defeated_unit.is_alive)
+        if (state == null || defeated_unit == null || defeated_unit.IsAlive())
         {
             return;
         }
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
-            if (candidate == null || !candidate.is_alive)
+            if (candidate == null || !candidate.IsAlive())
             {
                 continue;
             }
@@ -1360,7 +1440,7 @@ public class BattleSpecialSkillResolver
                 continue;
             }
             candidate.SetCurrentAp(
-                candidate.current_ap + LowLuckRelicRules.BloodDebtAllyDownApGain
+                candidate.GetCurrentAp() + LowLuckRelicRules.BloodDebtAllyDownApGain
             );
             AppendChangedUnitId(batch, candidate.unit_id);
             if (batch != null)
@@ -1386,7 +1466,7 @@ public class BattleSpecialSkillResolver
         }
         foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
-            if (candidate == null || !candidate.is_alive)
+            if (candidate == null || !candidate.IsAlive())
             {
                 continue;
             }
@@ -1415,9 +1495,13 @@ public class BattleSpecialSkillResolver
         {
             return false;
         }
-        foreach (Vector2I firstCoord in first_unit.occupied_coords)
+        foreach (
+            Vector2I firstCoord in first_unit.GetOccupiedCoordsReadViewTyped()
+        )
         {
-            foreach (Vector2I secondCoord in second_unit.occupied_coords)
+            foreach (
+                Vector2I secondCoord in second_unit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (
                     Math.Abs(firstCoord.X - secondCoord.X) + Math.Abs(firstCoord.Y - secondCoord.Y)

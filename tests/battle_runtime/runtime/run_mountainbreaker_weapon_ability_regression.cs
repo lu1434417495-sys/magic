@@ -95,22 +95,31 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         AssertStrengthRequirement(fixture.ItemDefs, 20, true);
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon(20);
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildMountainbreakerUnit(20, "projection");
-        _test.Eq(equipped.weapon_item_id, ItemId, "裂山者装备后 unit 应保留 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("greataxe"), "裂山者应投影为 greataxe。");
-        _test.Eq(equipped.weapon_attack_range, 2, "裂山者投影攻击距离应为 2。");
-        _test.True(equipped.weapon_uses_two_hands, "裂山者应占用双手。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ItemId, "裂山者装备后 unit 应保留 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("greataxe"), "裂山者应投影为 greataxe。");
+        _test.Eq(equippedWeapon.AttackRange, 2, "裂山者投影攻击距离应为 2。");
+        _test.True(equippedWeapon.UsesTwoHands, "裂山者应占用双手。");
         foreach (StringName traitId in new[] { BladeTrait, GripTrait, CollapseTrait, FollowupTrait, AnchorTrait })
-            _test.True(equipped.effective_trait_ids.Contains(traitId), $"装备后应投影 {traitId}。");
+            _test.True(equipped.HasEffectiveTrait(traitId), $"装备后应投影 {traitId}。");
         AssertAbilitySource(equipped, CollapseTrait, CollapseBinding);
         AssertAbilitySource(equipped, FollowupTrait, FollowupBinding);
         AssertAbilitySource(equipped, AnchorTrait, AnchorBinding);
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除裂山者后 weapon_item_id 应清空。");
-        _test.Eq(equipped.weapon_profile_type_id, baseline.weapon_profile_type_id, "移除后 profile 应恢复。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除裂山者后 weapon_item_id 应清空。");
+        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后 profile 应恢复。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除后装备能力源应清空。"
+        );
     }
 
     private void TestCollapseFollowupAndLeylineAnchor()
@@ -153,7 +162,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         _test.Eq(effect?.lifetime_policy ?? new StringName(""), new StringName("battle"), "破碎地形应为 battle lifetime。");
         _test.Eq(effect?.remaining_tu ?? -1, 0, "破碎地形没有持续时间 TU。");
         _test.Eq(effect?.move_cost_delta ?? 0, 1, "破碎地形移动消耗应 +1。");
-        _test.Eq(fixture.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(target, target.coord), 1, "移动成本 delta 应生效。");
+        _test.Eq(fixture.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(target, target.GetAnchorCoord()), 1, "移动成本 delta 应生效。");
 
         ResolveAfterHit(
             fixture,
@@ -166,7 +175,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
             saveRollOverride: 20
         );
         _test.Eq(CountBrokenGround(fixture.Runtime.GetState(), target), 1, "同一格最多破坏一次。");
-        _test.Eq(fixture.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(target, target.coord), 1, "重复成功不应继续提高移动消耗。");
+        _test.Eq(fixture.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(target, target.GetAnchorCoord()), 1, "重复成功不应继续提高移动消耗。");
 
         fixture.Runtime.GetState().timeline.current_tu = 1000;
         fixture.Runtime._terrain_effect_system.ProcessTimedTerrainEffects(new BattleEventBatch());
@@ -205,7 +214,7 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
             previewCommand: false
         );
 
-        _test.True(target.current_hp < 100, "真实 basic_attack 应先造成武器 HP 伤害。");
+        _test.True(target.GetCurrentHp() < 100, "真实 basic_attack 应先造成武器 HP 伤害。");
         _test.Eq(
             CountBrokenGround(fixture.Runtime.GetState(), target),
             1,
@@ -310,9 +319,12 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
 
     private static void AssertAbilitySource(BattleUnitState unit, StringName traitId, StringName bindingId)
     {
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"missing trait {traitId}");
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return;
         throw new InvalidOperationException($"missing ability source {bindingId}");
@@ -346,31 +358,30 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
     }
 
     private static BattleCellState GetCell(BattleState state, BattleUnitState unit) =>
-        state != null && unit != null && state.ContainsCell(unit.coord) ? state.GetCell(unit.coord) : null;
+        state != null && unit != null && state.ContainsCell(unit.GetAnchorCoord()) ? state.GetCell(unit.GetAnchorCoord()) : null;
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            coord = coord,
-            is_alive = true,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
         unit.attribute_snapshot.SetValue(Strength, 10);
         unit.attribute_snapshot.SetValue(StrengthModifier, 0);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
     private static void SetUnitOccupants(BattleState state, BattleUnitState unit)
     {
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
     }
 

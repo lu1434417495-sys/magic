@@ -117,11 +117,12 @@ public readonly struct BattleRepeatAttackStageSpec
         {
             return 0;
         }
+        int penalizedStageIndex = Mathf.Max(stage_index - penalty_free_stages, 0);
         if (exponential_penalty)
         {
-            return (int)Mathf.Pow(2, stage_index) * follow_up_attack_penalty;
+            return (int)Mathf.Pow(2, penalizedStageIndex) * follow_up_attack_penalty;
         }
-        return Mathf.Max(stage_index, 0) * follow_up_attack_penalty;
+        return (penalizedStageIndex + 1) * follow_up_attack_penalty;
     }
 
     public BattleRepeatAttackStageSpec WithBaseResourceCost(int value)

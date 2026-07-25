@@ -39,7 +39,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         SkillDefinition chargeSkill = BuildChargeSkill("test_prismatic_charge_move", false);
         using SpecialFixture fixture = BuildFixture(chargeSkill);
         MarkOnlyRedLayerActive(fixture.State);
-        int hpBefore = fixture.Source.current_hp;
+        int hpBefore = fixture.Source.GetCurrentHp();
         BattleCommand command = BuildGroundCommand(
             fixture.Source,
             chargeSkill.SkillId,
@@ -49,12 +49,12 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
         _test.Eq(
-            fixture.Source.coord,
+            fixture.Source.GetAnchorCoord(),
             new Vector2I(3, 2),
             $"冲锋者通过色层后应继续完成允许的位移。 logs={string.Join(" | ", batch.LogLinesTyped)}"
         );
         _test.True(
-            fixture.Source.current_hp < hpBefore,
+            fixture.Source.GetCurrentHp() < hpBefore,
             "冲锋跨越虹光法球边界时应触发当前红层伤害，无论豁免是否将其减半。"
         );
         _test.True(
@@ -74,7 +74,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         fixture.AddUnit(BuildUnit("charge_side_up", "上侧阻挡", "player", new Vector2I(5, 1)));
         fixture.AddUnit(BuildUnit("charge_side_down", "下侧阻挡", "player", new Vector2I(5, 3)));
         fixture.RebindState();
-        int hpBefore = pushed.current_hp;
+        int hpBefore = pushed.GetCurrentHp();
         BattleCommand command = BuildGroundCommand(
             fixture.Source,
             chargeSkill.SkillId,
@@ -84,12 +84,12 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
         _test.Eq(
-            pushed.coord,
+            pushed.GetAnchorCoord(),
             new Vector2I(4, 2),
             $"冲锋前推应把目标推进法球边界格。 logs={string.Join(" | ", batch.LogLinesTyped)}"
         );
         _test.True(
-            pushed.current_hp < hpBefore,
+            pushed.GetCurrentHp() < hpBefore,
             "被冲锋推过虹光法球边界的单位也应触发当前红层伤害，无论豁免是否将其减半。"
         );
         _test.True(
@@ -127,11 +127,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             new StringName("red"),
             "路径步 AoE 只读预览不得改变当前色层。"
         );
-        int hpBefore = insideTarget.current_hp;
+        int hpBefore = insideTarget.GetCurrentHp();
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
         _test.Eq(
-            insideTarget.current_hp,
+            insideTarget.GetCurrentHp(),
             hpBefore,
             "路径步 AoE 执行应在收集单位前裁掉法球内地格。"
         );
@@ -160,11 +160,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             BuildUnit("repeat_manual_target", "手动连击目标", "player", new Vector2I(4, 2))
         );
         fixture.RebindState();
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         BattleCommand command = BuildUnitCommand(fixture.Source, repeatSkill.SkillId, target);
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
-        _test.Eq(target.current_hp, hpBefore, "手动重复攻击不应绕过虹光法球。");
+        _test.Eq(target.GetCurrentHp(), hpBefore, "手动重复攻击不应绕过虹光法球。");
         _test.True(LogsContain(batch.LogLinesTyped, "被虹光法球"), "手动重复攻击应报告屏障阻挡。");
     }
 
@@ -179,7 +179,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             BuildUnit("repeat_auto_target", "自动连击目标", "player", new Vector2I(4, 2))
         );
         fixture.RebindState();
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
 
         bool executed = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
@@ -188,7 +188,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         );
 
         _test.True(executed, "自动重复攻击被屏障拦截仍应算作一次有效屏障交互。");
-        _test.Eq(target.current_hp, hpBefore, "自动重复攻击不应绕过虹光法球。");
+        _test.Eq(target.GetCurrentHp(), hpBefore, "自动重复攻击不应绕过虹光法球。");
     }
 
     private void AssertPendingRepeatAttackBlocked()
@@ -209,14 +209,14 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             SkillId = repeatSkill.SkillId,
             TargetMode = BattleTargetMode.Unit,
             BindingMode = PendingCastBindingModeKind.SoftAnchor,
-            StartedCoord = fixture.Source.coord,
+            StartedCoord = fixture.Source.GetAnchorCoord(),
             StartedTu = fixture.State.timeline?.current_tu ?? 0,
             BaseCastingTimeTu = 10,
             RemainingCastProgress = 0,
-            LastMaintenanceCheckpointHp = fixture.Source.current_hp,
+            LastMaintenanceCheckpointHp = fixture.Source.GetCurrentHp(),
         };
         pendingCast.SetTargetUnitIds(new[] { target.unit_id });
-        int hpBefore = target.current_hp;
+        int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
 
         bool resolved = fixture.Runtime._skill_orchestrator.ResolvePendingCast(
@@ -226,7 +226,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         );
 
         _test.True(resolved, "读条重复攻击被屏障拦截仍应完成屏障交互。");
-        _test.Eq(target.current_hp, hpBefore, "读条完成的重复攻击不应绕过虹光法球。");
+        _test.Eq(target.GetCurrentHp(), hpBefore, "读条完成的重复攻击不应绕过虹光法球。");
     }
 
     private void AssertRandomChainRepeatAttackBlocked()
@@ -240,8 +240,8 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             BuildUnit("repeat_random_target", "随机链目标", "player", new Vector2I(4, 2))
         );
         fixture.RebindState();
-        int ownerHpBefore = fixture.SphereOwner.current_hp;
-        int targetHpBefore = target.current_hp;
+        int ownerHpBefore = fixture.SphereOwner.GetCurrentHp();
+        int targetHpBefore = target.GetCurrentHp();
         BattleCommand command = BuildUnitCommand(
             fixture.Source,
             repeatSkill.SkillId,
@@ -250,11 +250,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
         _test.Eq(
-            fixture.SphereOwner.current_hp,
+            fixture.SphereOwner.GetCurrentHp(),
             ownerHpBefore,
             "随机攻击链的重复攻击不应伤害法球内的屏障施放者。"
         );
-        _test.Eq(target.current_hp, targetHpBefore, "随机攻击链的重复攻击不应绕过虹光法球。");
+        _test.Eq(target.GetCurrentHp(), targetHpBefore, "随机攻击链的重复攻击不应绕过虹光法球。");
         _test.True(LogsContain(batch.LogLinesTyped, "被虹光法球"), "随机攻击链应逐目标执行屏障检查。");
     }
 
@@ -269,14 +269,14 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             BuildUnit("chain_secondary", "连锁次目标", "player", new Vector2I(4, 2))
         );
         fixture.RebindState();
-        int primaryHpBefore = primary.current_hp;
-        int secondaryHpBefore = secondary.current_hp;
+        int primaryHpBefore = primary.GetCurrentHp();
+        int secondaryHpBefore = secondary.GetCurrentHp();
         BattleCommand command = BuildUnitCommand(fixture.Source, chainSkill.SkillId, primary);
         using BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
 
-        _test.True(primary.current_hp < primaryHpBefore, "同侧主目标应正常承受连锁技能的主伤害。");
+        _test.True(primary.GetCurrentHp() < primaryHpBefore, "同侧主目标应正常承受连锁技能的主伤害。");
         _test.Eq(
-            secondary.current_hp,
+            secondary.GetCurrentHp(),
             secondaryHpBefore,
             "从主目标跳入法球的后续连锁伤害应在结算前被阻挡。"
         );
@@ -370,12 +370,9 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
                     power: 10,
                     damageTag: "force",
                     effectCategories: new[] { new StringName("force_effect") },
-                    parameters: new Dictionary<string, object>
-                    {
-                        ["path_step_log_label"] = "路径测试攻击",
-                        ["step_radius"] = 1,
-                        ["step_shape"] = "diamond",
-                    }
+                    pathStepLogLabel: "路径测试攻击",
+                    pathStepRadius: 1,
+                    pathStepAreaPattern: "diamond"
                 )
             );
         }
@@ -509,7 +506,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         };
         if (target != null)
         {
-            command.target_coord = target.coord;
+            command.target_coord = target.GetAnchorCoord();
             command.AddTargetUnitId(target.unit_id);
         }
         return command;
@@ -544,7 +541,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             CastLevel = 1,
             TargetResolution = ContingencyTargetResolutionResult.UnitTarget(
                 target.unit_id,
-                target.coord
+                target.GetAnchorCoord()
             ),
             ReleaseContext = releaseContext,
         };
@@ -590,13 +587,14 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 240,
-            current_mp = 240,
-            current_stamina = 240,
-            current_aura = 240,
-            current_ap = 10,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 240,
+            mp: 240,
+            stamina: 240,
+            aura: 240,
+            ap: 10,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 240);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 240);
@@ -618,8 +616,8 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
 
     private static void LearnSkill(BattleUnitState unit, StringName skillId)
     {
-        unit.known_active_skill_ids.Add(skillId);
-        unit.known_skill_level_map[skillId] = 1;
+        unit.AddKnownActiveSkill(skillId);
+        unit.SetKnownSkillLevelTyped(skillId, 1);
     }
 
     private static void MarkOnlyRedLayerActive(BattleState state)
@@ -706,7 +704,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
                 State.enemy_unit_ids.Add(unit.unit_id);
             }
             _test.True(
-                Runtime._grid_service.PlaceUnit(State, unit, unit.coord, true),
+                Runtime._grid_service.PlaceUnit(State, unit, unit.GetAnchorCoord(), true),
                 $"测试单位应能放入棋盘：{unit.unit_id}"
             );
             _units.Add(unit);

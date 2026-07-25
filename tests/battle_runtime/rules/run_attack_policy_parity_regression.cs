@@ -75,7 +75,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             unit_id = "caster",
         };
         activeUnit.SetAnchorCoord(new Vector2I(1, 1));
-        activeUnit.known_skill_level_map[new StringName("parity_skill")] = 3;
+        activeUnit.SetKnownSkillLevelTyped("parity_skill", 3);
         var targetUnit = new BattleUnitState
         {
             unit_id = "target",
@@ -239,14 +239,17 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
         SkillDefinition skillDefinition
     )
     {
-        targetUnit.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            targetUnit.coord,
-            new StringName("medium"),
-            BattleUnitState.BodySizeMedium,
-            new Vector2I(2, 2),
-            new[] { new Vector2I(9, 9) }
+        targetUnit.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                targetUnit.GetAnchorCoord(),
+                BattleUnitState.BodySizeMedium,
+                new StringName("medium"),
+                new Vector2I(2, 2),
+                new Vector2IList { new Vector2I(9, 9) }
+            )
         );
-        Vector2IList occupiedBefore = targetUnit.occupied_coords;
+        BattleUnitGeometrySnapshot geometryBefore =
+            targetUnit.CaptureGeometryForMutationSnapshotExact();
         long revisionBefore = battleState.MovementGeometryRevision;
 
         policy.BuildSkillDefinitionAttackContext(
@@ -259,12 +262,25 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
             false
         );
 
-        _test.True(
-            ReferenceEquals(targetUnit.occupied_coords, occupiedBefore),
-            "attack context query must not replace a live occupied-coord projection."
+        BattleUnitGeometrySnapshot geometryAfter =
+            targetUnit.CaptureGeometryForMutationSnapshotExact();
+        _test.Eq(
+            geometryAfter.FootprintSize,
+            geometryBefore.FootprintSize,
+            "attack context query must not repair a stale footprint projection."
         );
         _test.Eq(
-            targetUnit.footprint_size,
+            geometryAfter.OccupiedCoords.Count,
+            geometryBefore.OccupiedCoords.Count,
+            "attack context query must not replace a stale occupied-coord projection."
+        );
+        _test.Eq(
+            geometryAfter.OccupiedCoords[0],
+            geometryBefore.OccupiedCoords[0],
+            "attack context query must preserve the stale occupied-coord sentinel."
+        );
+        _test.Eq(
+            targetUnit.GetFootprintSize(),
             new Vector2I(2, 2),
             "attack context query must not repair a stale footprint_size."
         );

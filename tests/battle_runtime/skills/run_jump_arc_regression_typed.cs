@@ -186,7 +186,7 @@ internal sealed class JumpArcRegressionRunner
         state.SetUnit(unit);
         RegisterUnitOnCells(state, unit);
         CombatEffectDefinition effect = BuildJumpEffect();
-        bool ok = _gridService.CanJumpArc(state, unit, unit.coord, effect);
+        bool ok = _gridService.CanJumpArc(state, unit, unit.GetAnchorCoord(), effect);
         _test.True(!ok, "目标即为起点（距离 0）应该被拒绝。");
     }
 
@@ -225,14 +225,15 @@ internal sealed class JumpArcRegressionRunner
 
     private static BattleUnitState BuildJumper(Vector2I coord, int strength, int bodySize)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = new StringName($"jumper_{coord.X}_{coord.Y}"),
             display_name = $"jumper_{coord.X}_{coord.Y}",
             faction_id = "player",
-            body_size = bodySize,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
+        unit.SetBodySizeProjection(bodySize);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("strength", strength);
         return unit;
@@ -240,7 +241,7 @@ internal sealed class JumpArcRegressionRunner
 
     private static void RegisterUnitOnCells(BattleState state, BattleUnitState unit)
     {
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
         {
             BattleCellState cell = state.GetCell(coord);
             if (cell != null)

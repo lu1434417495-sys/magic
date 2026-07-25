@@ -511,11 +511,51 @@ internal class BattleAttackCheckPolicyService
         {
             candidates.Add(spec);
         }
+        BattleAttackRollModifierSpec configuredStatusBonus =
+            BuildConfiguredStatusStackBonus(context);
+        if (configuredStatusBonus != null)
+        {
+            candidates.Add(configuredStatusBonus);
+        }
         foreach (BattleAttackRollModifierSpec spec in CollectEquipmentAbilityModifierCandidates(context))
         {
             candidates.Add(spec);
         }
         return candidates;
+    }
+
+    private static BattleAttackRollModifierSpec BuildConfiguredStatusStackBonus(
+        BattleAttackCheckPolicyContext context
+    )
+    {
+        CombatSkillDefinition profile = context?.skill_definition?.CombatProfile;
+        BattleUnitReadView attacker = context?.attacker_view ?? default;
+        StringName statusId = profile?.AttackRollBonusStatusId ?? default;
+        int divisor = profile?.AttackRollBonusStatusStackDivisor ?? 0;
+        if (!attacker.IsValid || statusId == "" || divisor <= 0)
+        {
+            return null;
+        }
+        int stacks = Math.Max(attacker.GetStatusStacks(statusId), 0);
+        int bonus = stacks / divisor;
+        if (bonus <= 0)
+        {
+            return null;
+        }
+        return new BattleAttackRollModifierSpec
+        {
+            source_domain = "skill_status_stack",
+            source_id = statusId,
+            source_instance_id = context.skill_definition.SkillId.ToString(),
+            label = $"{statusId}层数",
+            modifier_delta = bonus,
+            stack_key = context.skill_definition.SkillId,
+            stack_mode = "max",
+            target_team_filter = "any",
+            endpoint_mode = "target",
+            footprint_mode = "any_cell",
+            applies_to = "attack_roll",
+        };
     }
 
     private static List<BattleAttackRollModifierSpec> CollectStatusModifierCandidates(

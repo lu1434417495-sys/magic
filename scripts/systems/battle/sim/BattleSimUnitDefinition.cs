@@ -10,9 +10,12 @@ using Godot;
 internal sealed class BattleSimUnitDefinition
 {
     private readonly IReadOnlyDictionary<string, object> _unitSnapshot;
+    private readonly BattleUnitEquipmentAbilityProjectionSeed
+        _equipmentAbilityProjectionSeed;
 
     private BattleSimUnitDefinition(
         IReadOnlyDictionary<string, object> unitSnapshot,
+        BattleUnitEquipmentAbilityProjectionSeed equipmentAbilityProjectionSeed,
         Vector2I coord,
         string sourceLabel
     )
@@ -22,6 +25,11 @@ internal sealed class BattleSimUnitDefinition
             RuntimePlainPayload.CloneDictionary(unitSnapshot),
             string.IsNullOrWhiteSpace(sourceLabel) ? "battle_sim_unit" : sourceLabel
         );
+        _equipmentAbilityProjectionSeed =
+            (
+                equipmentAbilityProjectionSeed
+                ?? BattleUnitEquipmentAbilityProjectionSeed.Empty
+            ).DeepClone();
         Coord = coord;
     }
 
@@ -40,13 +48,19 @@ internal sealed class BattleSimUnitDefinition
             : sourceLabel;
         return new BattleSimUnitDefinition(
             unitState.BuildSnapshotPlain(),
-            unitState.coord,
+            unitState.CaptureEquipmentAbilityProjectionSeedTyped(),
+            unitState.GetAnchorCoord(),
             label
         );
     }
 
     internal BattleSimUnitDefinition DeepClone(string sourceLabel) =>
-        new(_unitSnapshot, Coord, sourceLabel);
+        new(
+            _unitSnapshot,
+            _equipmentAbilityProjectionSeed,
+            Coord,
+            sourceLabel
+        );
 
     internal BattleUnitState CreateRuntimeState()
     {
@@ -64,6 +78,7 @@ internal sealed class BattleSimUnitDefinition
                 "BattleSimUnitDefinition could not reconstruct its projected unit state."
             );
         }
+        _equipmentAbilityProjectionSeed.ApplyTo(state);
         return state;
     }
 }

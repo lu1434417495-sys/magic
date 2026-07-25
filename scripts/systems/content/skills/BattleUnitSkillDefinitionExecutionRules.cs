@@ -17,7 +17,11 @@ internal static class BattleUnitSkillDefinitionExecutionRules
                 ?? Array.Empty<CombatEffectDefinition>()
         )
         {
-            if (effectDefinition?.EffectKind == BattleEffectKind.RepeatAttackUntilFail)
+            if (
+                effectDefinition?.EffectKind
+                is BattleEffectKind.RepeatAttackUntilFail
+                    or BattleEffectKind.FixedRepeatAttack
+            )
                 return true;
         }
         return false;
@@ -64,6 +68,7 @@ internal static class BattleUnitSkillDefinitionExecutionRules
                 or BattleEffectKind.LayeredBarrier
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.ChainDamage
                 or BattleEffectKind.OnKillGainResources;
 }

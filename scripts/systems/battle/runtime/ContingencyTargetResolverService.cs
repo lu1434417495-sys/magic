@@ -63,7 +63,7 @@ internal sealed class ContingencyTargetResolverService
                 request.BattleState,
                 request.GridService,
                 ownerUnit,
-                ownerUnit.coord
+                ownerUnit.GetAnchorCoord()
             ),
             ContingencyTargetResolverKind.NearestEnemyToTriggerCell => ResolveNearestEnemyToTriggerCell(
                 request,
@@ -80,7 +80,10 @@ internal sealed class ContingencyTargetResolverService
     }
 
     private static ContingencyTargetResolutionResult ResolveSelf(BattleUnitState ownerUnit) =>
-        ContingencyTargetResolutionResult.UnitTarget(ownerUnit.unit_id, ownerUnit.coord);
+        ContingencyTargetResolutionResult.UnitTarget(
+            ownerUnit.unit_id,
+            ownerUnit.GetAnchorCoord()
+        );
 
     private static ContingencyTargetResolutionResult ResolveFrozenUnit(
         BattleState state,
@@ -142,7 +145,10 @@ internal sealed class ContingencyTargetResolverService
 
         return bestUnit == null
             ? ContingencyTargetResolutionResult.Failure(NoHostileUnit)
-            : ContingencyTargetResolutionResult.UnitTarget(bestUnit.unit_id, bestUnit.coord);
+            : ContingencyTargetResolutionResult.UnitTarget(
+                bestUnit.unit_id,
+                bestUnit.GetAnchorCoord()
+            );
     }
 
     private static ContingencyTargetResolutionResult ResolveOwnerCenteredArea(
@@ -150,7 +156,7 @@ internal sealed class ContingencyTargetResolverService
         BattleUnitState ownerUnit
     )
     {
-        Vector2I anchor = ownerUnit.coord;
+        Vector2I anchor = ownerUnit.GetAnchorCoord();
         IReadOnlyList<Vector2I> areaCells = ResolveSkillAreaCells(
             request.BattleState,
             request.GridService,
@@ -177,7 +183,7 @@ internal sealed class ContingencyTargetResolverService
     )
     {
         ContingencyTargetResolverState resolverState = request.ResolverState;
-        Vector2I ownerCell = ownerUnit.coord;
+        Vector2I ownerCell = ownerUnit.GetAnchorCoord();
         int maxDistance = Math.Max(resolverState.MaxDistance, 1);
         HashSet<Vector2I> damageArea = BuildCellSet(
             request.FrozenFacts?.CurrentDamageEventAreaCells
@@ -271,7 +277,7 @@ internal sealed class ContingencyTargetResolverService
             !gridService.CanPlaceFootprint(
                 state,
                 anchorCell,
-                ownerUnit.footprint_size,
+                ownerUnit.GetFootprintSize(),
                 "",
                 ownerUnit
             )
@@ -299,7 +305,8 @@ internal sealed class ContingencyTargetResolverService
             return new[] { anchor };
 
         List<Vector2I> cells = new();
-        Vector2I direction = anchor - (ownerUnit?.coord ?? anchor);
+        Vector2I direction =
+            anchor - (ownerUnit?.GetAnchorCoord() ?? anchor);
         foreach (
             Vector2I cell in gridService.GetAreaCoords(
                 state,
@@ -320,7 +327,7 @@ internal sealed class ContingencyTargetResolverService
     {
         if (state == null || unitId == "")
             return null;
-        return state.TryGetUnitTyped(unitId, out BattleUnitState unit) && unit?.is_alive == true
+        return state.TryGetUnitTyped(unitId, out BattleUnitState unit) && unit?.IsAlive() == true
             ? unit
             : null;
     }
@@ -329,7 +336,7 @@ internal sealed class ContingencyTargetResolverService
         ownerUnit != null
         && candidate != null
         && candidate.unit_id != ownerUnit.unit_id
-        && candidate.is_alive
+        && candidate.IsAlive()
         && candidate.faction_id != ownerUnit.faction_id;
 
     private static bool IsAdjacentToHostile(

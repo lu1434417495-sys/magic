@@ -574,8 +574,9 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             display_name = displayName,
             faction_id = "hostile",
             control_mode = "ai",
-            is_alive = false,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: false
+        );
     }
 
     private static BattleUnitState BuildKillerUnit(StringName memberId, string displayName)
@@ -587,8 +588,9 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             display_name = displayName,
             faction_id = "player",
             control_mode = "manual",
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
     }
 
     private static int CountDropType(IEnumerable<BattleLootEntry> lootEntries, StringName dropType)

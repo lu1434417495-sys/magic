@@ -9,7 +9,7 @@ internal static class EquipmentAbilityUsageRuntime
 
     internal static bool IsAvailableForGrant(
         BattleUnitState unit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentGrantedActionDefinition grant,
         int worldStep,
@@ -93,7 +93,7 @@ internal static class EquipmentAbilityUsageRuntime
     private static bool AvailabilityConditionsPass(
         EquipmentConditionGroupDefinition group,
         BattleUnitState unit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
@@ -142,7 +142,7 @@ internal static class EquipmentAbilityUsageRuntime
     private static bool AvailabilityConditionPasses(
         EquipmentAbilityConditionDefinition condition,
         BattleUnitState unit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
@@ -224,7 +224,7 @@ internal static class EquipmentAbilityUsageRuntime
     private static bool TryResolveAvailabilityFactInt(
         EquipmentAbilityFactQueryDefinition query,
         BattleUnitState unit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         BattleState battleState,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex,
@@ -252,7 +252,7 @@ internal static class EquipmentAbilityUsageRuntime
             if (unit?.attribute_snapshot == null)
                 return false;
             int maxHp = Math.Max(unit.attribute_snapshot.GetValue(AttributeService.HP_MAX), 1);
-            value = Mathf.Clamp(unit.current_hp * 10000 / maxHp, 0, 10000);
+            value = Mathf.Clamp(unit.GetCurrentHp() * 10000 / maxHp, 0, 10000);
             return true;
         }
         if (query.QueryKind == "fact" && query.FactId == "equipment_ability_state")
@@ -339,7 +339,7 @@ internal static class EquipmentAbilityUsageRuntime
     private static int CountLivingSummonedUnits(
         BattleState battleState,
         BattleUnitState sourceUnit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         StringName bindingId,
         StringName stateKey
     )
@@ -351,7 +351,7 @@ internal static class EquipmentAbilityUsageRuntime
         foreach (BattleUnitState unit in battleState.GetUnitsTyped())
         {
             BattleAiBlackboard blackboard = unit?.ai_blackboard;
-            if (unit == null || !unit.is_alive || blackboard?.summoned != true)
+            if (unit == null || !unit.IsAlive() || blackboard?.summoned != true)
                 continue;
             if (blackboard.summon_source_unit_id != sourceUnit.unit_id)
                 continue;
@@ -391,7 +391,7 @@ internal static class EquipmentAbilityUsageRuntime
     }
 
     private static StringName BuildBindingStateChargeKey(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         StringName stateKey
     )
@@ -663,7 +663,7 @@ internal static class EquipmentAbilityUsageRuntime
 
     private static bool HasPerActionTurnUse(
         BattleUnitState unit,
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentGrantedActionDefinition grant
     )
     {
@@ -693,7 +693,7 @@ internal static class EquipmentAbilityUsageRuntime
     }
 
     private static StringName BuildPerBattleChargeKey(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentGrantedActionDefinition grant
     )
     {
@@ -720,7 +720,7 @@ internal static class EquipmentAbilityUsageRuntime
     }
 
     private static StringName BuildPerActionTurnUseKey(
-        BattleEquipmentAbilitySourceState source,
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentGrantedActionDefinition grant
     )
     {
@@ -746,7 +746,9 @@ internal static class EquipmentAbilityUsageRuntime
         );
     }
 
-    private static StringName ResolveOwnerSourceKey(BattleEquipmentAbilitySourceState source)
+    private static StringName ResolveOwnerSourceKey(
+        BattleEquipmentAbilitySourceReadView source
+    )
     {
         if (source == null)
             return "";

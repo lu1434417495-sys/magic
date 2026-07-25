@@ -97,9 +97,10 @@ internal static class BattleTemporalStatusService
         {
             return 0;
         }
-        int raw = tuDelta * ratePercent + Math.Max(unitState.action_progress_rate_remainder, 0);
-        unitState.action_progress_rate_remainder = raw % 100;
-        return raw / 100;
+        return unitState.ConsumeActionProgressRateGainTyped(
+            tuDelta,
+            ratePercent
+        );
     }
 
     private static int? ResolveTemporalProgressModifierRatePercent(
@@ -107,25 +108,10 @@ internal static class BattleTemporalStatusService
         bool actionProgress
     )
     {
-        if (unitState?.temporal_progress_modifiers == null)
-            return null;
-        BattleTemporalProgressModifierState selected = null;
-        foreach (BattleTemporalProgressModifierState modifier in unitState.temporal_progress_modifiers)
-        {
-            if (modifier == null)
-                continue;
-            if (actionProgress && !modifier.AppliesToActionProgress)
-                continue;
-            if (!actionProgress && !modifier.AppliesToCastProgress)
-                continue;
-            if (selected == null || string.CompareOrdinal(
-                    modifier.ModifierId.ToString(),
-                    selected.ModifierId.ToString()
-                ) < 0)
-            {
-                selected = modifier;
-            }
-        }
+        BattleTemporalProgressModifierReadView selected =
+            unitState?.GetSelectedTemporalProgressModifierTyped(
+                actionProgress
+            );
         if (selected == null)
             return null;
 
@@ -304,7 +290,7 @@ internal static class BattleTemporalStatusService
         StringName sourceUnitId = default
     )
     {
-        if (targetUnit == null || !targetUnit.is_alive)
+        if (targetUnit == null || !targetUnit.IsAlive())
         {
             return false;
         }

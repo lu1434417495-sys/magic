@@ -271,7 +271,7 @@ public partial class run_battle_control_objective_regression
             new[] { enemy }
         );
         foreach (BattleUnitState unit in fixture.State.GetUnitsTyped())
-            unit.action_threshold = 1_000_000;
+            unit.SetActionThresholdTyped(1_000_000);
         fixture.State.PhaseKind = BattlePhaseKind.TimelineRunning;
         fixture.State.active_unit_id = "";
         _test.True(
@@ -608,7 +608,7 @@ public partial class run_battle_control_objective_regression
             new[] { enemy }
         );
         foreach (BattleUnitState unit in fixture.State.GetUnitsTyped())
-            unit.action_threshold = 1_000_000;
+            unit.SetActionThresholdTyped(1_000_000);
         fixture.State.PhaseKind = BattlePhaseKind.TimelineRunning;
         fixture.State.active_unit_id = "";
         _test.True(

@@ -39,7 +39,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
     {
         BattleUnitState source = MakeUnit("immune_source", "player", 200, 200);
         BattleUnitState target = MakeUnit("immune_target", "enemy", 200, 40);
-        target.save_immunity_tags.Add("illusion");
+        target.AddSaveImmunityTagTyped("illusion");
 
         AttackEffectResolutionResult result = new FixedRollDamageResolver().ResolveEffects(
             source,
@@ -52,7 +52,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
 
         _test.False(result.Applied, "immune target should be a no-op.");
         _test.Eq(result.Damage, 0, "immune target should take no damage.");
-        _test.Eq(target.current_hp, 40, "immune target HP should not change.");
+        _test.Eq(target.GetCurrentHp(), 40, "immune target HP should not change.");
         _test.False(target.HasStatusEffect("stunned"), "immune natural roll 0 must not become critical failure.");
         AssertSingleSave(result, immune: true, degree: "CriticalSuccess", naturalRoll: 0);
     }
@@ -136,7 +136,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         );
 
         _test.True(result.Applied, "failure below threshold should apply execute damage.");
-        _test.False(target.is_alive, "failure below threshold should kill.");
+        _test.False(target.IsAlive(), "failure below threshold should kill.");
         _test.Eq(result.Damage, 49, "execute damage should equal current HP snapshot.");
         DamageEventResult damageEvent = FirstDamageEvent(result);
         AssertFatalPhantasmalKillEvent(damageEvent, expectedDamage: 49);
@@ -159,7 +159,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
 
         _test.True(result.Applied, "failure above threshold should apply damage and statuses.");
         _test.Eq(result.Damage, 6, "failure above threshold should roll 6d6 psychic damage.");
-        _test.Eq(target.current_hp, 94, "failure damage should go through HP damage application.");
+        _test.Eq(target.GetCurrentHp(), 94, "failure damage should go through HP damage application.");
         DamageEventResult damageEvent = FirstDamageEvent(result);
         _test.Eq(damageEvent.DamageTag, new StringName("psychic"), "failure damage should be psychic.");
         _test.Eq(damageEvent.DamageDice.Count, 6, "failure branch should roll six damage dice.");
@@ -189,7 +189,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         );
 
         _test.True(result.Applied, "critical failure below threshold should apply execute damage.");
-        _test.False(target.is_alive, "critical failure below threshold should kill.");
+        _test.False(target.IsAlive(), "critical failure below threshold should kill.");
         _test.Eq(result.Damage, 69, "critical execute damage should equal current HP snapshot.");
         AssertFatalPhantasmalKillEvent(FirstDamageEvent(result), expectedDamage: 69);
         AssertSingleSave(result, immune: false, degree: "CriticalFailure", naturalRoll: 1);
@@ -213,7 +213,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
 
         _test.True(result.Applied, "critical failure above threshold should apply damage and statuses.");
         _test.Eq(result.Damage, 10, "critical failure above threshold should roll 10d6 psychic damage.");
-        _test.Eq(target.current_hp, 90, "critical failure damage should go through HP damage application.");
+        _test.Eq(target.GetCurrentHp(), 90, "critical failure damage should go through HP damage application.");
         DamageEventResult damageEvent = FirstDamageEvent(result);
         _test.Eq(damageEvent.DamageTag, new StringName("psychic"), "critical failure damage should be psychic.");
         _test.Eq(damageEvent.DamageDice.Count, 10, "critical failure branch should roll ten damage dice.");
@@ -224,9 +224,9 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         BattleStatusEffectState stunned = target.GetStatusEffect("stunned");
         _test.True(stunned?.lock_counterattack == true, "stunned should lock counterattack.");
         _test.True(stunned?.lock_guard == true, "stunned should lock guard.");
-        _test.Eq(target.current_ap, 0, "stunned should clear current AP in the same resolver pass.");
+        _test.Eq(target.GetCurrentAp(), 0, "stunned should clear current AP in the same resolver pass.");
         _test.Eq(
-            target.current_move_points,
+            target.GetCurrentMovePoints(),
             0,
             "stunned should clear current move points in the same resolver pass."
         );
@@ -259,8 +259,8 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
             )
         );
 
-        _test.True(target.is_alive, "matching-priority death ward should intercept execute damage.");
-        _test.True(target.current_hp > 0, "death ward interception should leave positive HP.");
+        _test.True(target.IsAlive(), "matching-priority death ward should intercept execute damage.");
+        _test.True(target.GetCurrentHp() > 0, "death ward interception should leave positive HP.");
         _test.False(target.HasStatusEffect("death_ward"), "triggered death ward should be consumed.");
         _test.True(target.HasStatusEffect("last_stand_active"), "last stand should add its active status.");
         _test.True(result.DamageEvents.Length > 0, "intercepted execute should still produce a damage event.");
@@ -275,7 +275,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
     {
         BattleUnitState source = MakeUnit("resist_source", "player", 200, 200);
         BattleUnitState resistant = MakeUnit("psychic_resistant", "enemy", 200, 100);
-        resistant.damage_resistances["psychic"] = new StringName("half");
+        resistant.SetDamageResistanceTyped("psychic", "half");
         AttackEffectResolutionResult resistantResult =
             new FixedRollDamageResolver(Ones(6)).ResolveEffects(
                 source,
@@ -299,7 +299,7 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         AssertSingleSave(resistantResult, immune: false, degree: "Failure", naturalRoll: 5);
 
         BattleUnitState immune = MakeUnit("psychic_immune", "enemy", 200, 100);
-        immune.damage_resistances["psychic"] = new StringName("immune");
+        immune.SetDamageResistanceTyped("psychic", "immune");
         AttackEffectResolutionResult immuneResult =
             new FixedRollDamageResolver(Ones(6)).ResolveEffects(
                 source,
@@ -327,8 +327,8 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
     {
         SkillDefinition skill = MakeGroundPhantasmalKillSkill();
         BattleUnitState source = MakeUnit("ground_source", "player", 200, 200, new Vector2I(0, 5));
-        source.known_active_skill_ids.Add(SkillId);
-        source.known_skill_level_map[SkillId] = 1;
+        source.AddKnownActiveSkill(SkillId);
+        source.SetKnownSkillLevelTyped(SkillId, 1);
         source.SetCurrentAp(3);
         source.SetCurrentMp(2000);
         source.UnlockCombatResource("mp");
@@ -359,10 +359,10 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         _test.True(batch != null, "ground Phantasmal Kill command should execute.");
         _test.True(enemyInRange.HasStatusEffect("stunned"), "7x7 ground skill should affect in-range enemies.");
         _test.True(allyInRange.HasStatusEffect("stunned"), "7x7 ground skill should affect in-range allies.");
-        _test.Eq(enemyInRange.current_hp, 90, "in-range enemy should take critical-failure damage.");
-        _test.Eq(allyInRange.current_hp, 90, "in-range ally should take critical-failure damage.");
-        _test.Eq(enemyOutOfRange.current_hp, 100, "out-of-range enemy should not be affected.");
-        _test.Eq(allyOutOfRange.current_hp, 100, "out-of-range ally should not be affected.");
+        _test.Eq(enemyInRange.GetCurrentHp(), 90, "in-range enemy should take critical-failure damage.");
+        _test.Eq(allyInRange.GetCurrentHp(), 90, "in-range ally should take critical-failure damage.");
+        _test.Eq(enemyOutOfRange.GetCurrentHp(), 100, "out-of-range enemy should not be affected.");
+        _test.Eq(allyOutOfRange.GetCurrentHp(), 100, "out-of-range ally should not be affected.");
         _test.False(enemyOutOfRange.HasStatusEffect("stunned"), "out-of-range enemy should not gain stunned.");
         _test.False(allyOutOfRange.HasStatusEffect("stunned"), "out-of-range ally should not gain stunned.");
 
@@ -460,19 +460,20 @@ public partial class run_phantasmal_kill_regression : LifecycleTestSceneTree
         Vector2I coord = default
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = currentHp,
-            current_mp = 0,
-            current_ap = 2,
-            current_move_points = 2,
-            current_stamina = 20,
-            is_alive = currentHp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 0,
+            stamina: 20,
+            ap: 2,
+            movePoints: 2,
+            isAlive: currentHp > 0
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 2000);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 3);

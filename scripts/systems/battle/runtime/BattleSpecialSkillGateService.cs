@@ -37,7 +37,8 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         CombatCastVariantDefinition cast_variant,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         BattleEventBatch batch,
-        BattleForcedMoveContext forced_move_context = default
+        BattleForcedMoveContext forced_move_context = default,
+        bool attack_succeeded = false
     )
     {
         _runtime._ensure_sidecars_ready();
@@ -48,7 +49,8 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
             cast_variant,
             effect_definitions ?? Array.Empty<CombatEffectDefinition>(),
             batch,
-            forced_move_context
+            forced_move_context,
+            attack_succeeded
         );
     }
 

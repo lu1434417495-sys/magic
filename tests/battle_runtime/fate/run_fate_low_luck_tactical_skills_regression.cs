@@ -68,7 +68,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             runtime = BuildRuntime();
             state = BuildSkillTestState("fate_25_misstep", new Vector2I(5, 4));
             hero = BuildUnit("misstep_hero", "倒霉先锋", "player", new Vector2I(1, 1), 1, HERO_ID);
-            hero.known_skill_level_map[MISSTEP_TO_SCHEME_SKILL_ID] = 1;
+            hero.SetKnownSkillLevelTyped(MISSTEP_TO_SCHEME_SKILL_ID, 1);
             AddUnit(runtime, state, hero);
             state.ally_unit_ids = new GStringNameArray { hero.unit_id };
             state.active_unit_id = hero.unit_id;
@@ -130,11 +130,11 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             "黑契推进·血契应改为必定命中且不会暴击。"
         );
         _test.True(
-            ((BattleUnitState)bloodCase["enemy"]).current_hp < 60,
+            ((BattleUnitState)bloodCase["enemy"]).GetCurrentHp() < 60,
             "黑契推进·血契命中后应对目标造成伤害。"
         );
         _test.Eq(
-            ((BattleUnitState)bloodCase["caster"]).current_hp,
+            ((BattleUnitState)bloodCase["caster"]).GetCurrentHp(),
             28 - BLACK_CONTRACT_PUSH_HP_COST,
             "黑契推进·血契应先扣除固定生命代价。"
         );
@@ -154,7 +154,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             "黑契推进·护契成功后应移除施法者的 Guard。"
         );
         _test.True(
-            ((BattleUnitState)guardCase["enemy"]).current_hp < 60,
+            ((BattleUnitState)guardCase["enemy"]).GetCurrentHp() < 60,
             "黑契推进·护契命中后应对目标造成伤害。"
         );
         DisposeBlackContractCase(guardCase);
@@ -174,15 +174,15 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             actionCaster.HasStatusEffect(STATUS_STAGGERED),
             "黑契推进·行契成功后应为自己挂上 staggered。"
         );
-        actionCaster.current_ap = 2;
+        actionCaster.SetCurrentAp(2);
         BattleEventBatch turnStartBatch = new BattleEventBatch();
         actionRuntime._skill_turn_resolver.ApplyTurnStartStatusesResult(
             actionCaster,
             turnStartBatch
         );
-        _test.Eq(actionCaster.current_ap, 1, "黑契推进·行契应让施法者下一回合少 1 点行动点。");
+        _test.Eq(actionCaster.GetCurrentAp(), 1, "黑契推进·行契应让施法者下一回合少 1 点行动点。");
         _test.True(
-            ((BattleUnitState)actionCase["enemy"]).current_hp < 60,
+            ((BattleUnitState)actionCase["enemy"]).GetCurrentHp() < 60,
             "黑契推进·行契命中后应对目标造成伤害。"
         );
         turnStartBatch?.Dispose();
@@ -204,8 +204,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             runtime = BuildRuntime();
             state = BuildSkillTestState("fate_25_doom_shift", new Vector2I(6, 4));
             caster = BuildUnit("doom_shift_caster", "断命者", "player", new Vector2I(1, 1), 1, HERO_ID);
-            caster.known_active_skill_ids = new GStringNameArray { DOOM_SHIFT_SKILL_ID };
-            caster.known_skill_level_map[DOOM_SHIFT_SKILL_ID] = 1;
+            caster.SetKnownActiveSkillIds(new[] { DOOM_SHIFT_SKILL_ID });
+            caster.SetKnownSkillLevelTyped(DOOM_SHIFT_SKILL_ID, 1);
             ally = BuildUnit("doom_shift_ally", "护卫", "player", new Vector2I(3, 1), 1, "ally");
             AddUnit(runtime, state, caster);
             AddUnit(runtime, state, ally);
@@ -221,13 +221,13 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
                 "断命换位不应允许以自己为目标。"
             );
 
-            Vector2I originCoord = caster.coord;
-            Vector2I allyCoord = ally.coord;
+            Vector2I originCoord = caster.GetAnchorCoord();
+            Vector2I allyCoord = ally.GetAnchorCoord();
             issueCommand = BuildUnitSkillCommand(caster.unit_id, DOOM_SHIFT_SKILL_ID, ally);
             issueBatch = runtime.IssueCommand(issueCommand);
             _test.True(caster.HasStatusEffect(STATUS_MARKED), "断命换位成功后应给施法者写入 marked。");
-            _test.Eq(caster.coord, allyCoord, "断命换位应把施法者送到队友原位置。");
-            _test.Eq(ally.coord, originCoord, "断命换位应把队友换到施法者原位置。");
+            _test.Eq(caster.GetAnchorCoord(), allyCoord, "断命换位应把施法者送到队友原位置。");
+            _test.Eq(ally.GetAnchorCoord(), originCoord, "断命换位应把队友换到施法者原位置。");
         }
         finally
         {
@@ -260,7 +260,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
             "黑冠封印·禁反击成功后应写入对应状态。"
         );
         _test.True(counterRuntime.IsUnitCounterattackLocked(boss), "黑冠封印·禁反击应封锁 boss 的反击。");
-        counterCaster.current_ap = 1;
+        counterCaster.SetCurrentAp(1);
         _test.Eq(
             BattleSkillCastBlockReasonKinds.IsBlocked(
                 counterRuntime.GetSkillCastBlockReason(counterCaster, skillDefinition)
@@ -288,9 +288,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         BattleRuntimeModule runtime = BuildRuntime();
         BattleState state = BuildSkillTestState($"black_contract_{variantId}", new Vector2I(6, 4));
         BattleUnitState caster = BuildUnit("contract_caster", "契约战士", "player", new Vector2I(1, 1), 1, HERO_ID);
-        caster.current_hp = 28;
-        caster.known_active_skill_ids = new GStringNameArray { BLACK_CONTRACT_PUSH_SKILL_ID };
-        caster.known_skill_level_map[BLACK_CONTRACT_PUSH_SKILL_ID] = 1;
+        caster.SetCurrentHp(28);
+        caster.SetKnownActiveSkillIds(new[] { BLACK_CONTRACT_PUSH_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(BLACK_CONTRACT_PUSH_SKILL_ID, 1);
         if (variantId == GUARD_TITHE_VARIANT_ID)
             SetStatus(caster, STATUS_GUARDING, 60);
         BattleUnitState enemy = BuildUnit("contract_target", "高闪避敌人", "enemy", new Vector2I(2, 1), 1);
@@ -360,8 +360,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         BattleRuntimeModule runtime = BuildRuntime();
         BattleState state = BuildSkillTestState(battleId, new Vector2I(7, 4));
         BattleUnitState caster = BuildUnit("seal_caster", "黑冕使徒", "player", new Vector2I(1, 1), 1, HERO_ID);
-        caster.known_active_skill_ids = new GStringNameArray { BLACK_CROWN_SEAL_SKILL_ID };
-        caster.known_skill_level_map[BLACK_CROWN_SEAL_SKILL_ID] = 1;
+        caster.SetKnownActiveSkillIds(new[] { BLACK_CROWN_SEAL_SKILL_ID });
+        caster.SetKnownSkillLevelTyped(BLACK_CROWN_SEAL_SKILL_ID, 1);
         BattleUnitState boss = BuildUnit("seal_boss", "章末 Boss", "enemy", new Vector2I(2, 1), 1, "", false, true);
         BattleUnitState elite = BuildUnit("seal_elite", "精英敌人", "enemy", new Vector2I(3, 1), 1, "", true, false);
         BattleUnitState allyTarget = BuildUnit("seal_ally", "受击队友", "player", new Vector2I(1, 2), 1, "ally");
@@ -538,12 +538,11 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         unit.display_name = displayName;
         unit.faction_id = factionId;
         unit.control_mode = "manual";
-        unit.current_ap = currentAp;
-        unit.current_hp = 60;
-        unit.current_mp = 120;
-        unit.current_stamina = 4;
-        unit.current_aura = 0;
-        unit.is_alive = true;
+        unit.SetCurrentAp(currentAp);
+        unit.SetCurrentHp(60);
+        unit.SetCurrentMp(120);
+        unit.SetCurrentStamina(4);
+        unit.SetCurrentAura(0);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 120);
@@ -566,7 +565,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private void SetStatus(
@@ -604,7 +603,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
         command.skill_id = skillId;
         command.skill_variant_id = variantId;
         command.target_unit_id = targetUnit?.unit_id ?? default;
-        command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
+        command.target_coord = targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return command;
     }
 
@@ -697,7 +696,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
                         unit.unit_id,
                         unit.source_member_id,
                         unit.faction_id,
-                        unit.is_alive,
+                        unit.IsAlive(),
                         isEnemy,
                         isEliteOrBoss
                     )

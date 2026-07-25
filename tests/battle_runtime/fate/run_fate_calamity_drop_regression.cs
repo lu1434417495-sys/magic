@@ -163,8 +163,8 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             BattleState state = BuildFinishedBattleState("brand_elite_resolution");
             BattleUnitState elite = BuildEnemyUnit("brand_elite_target", "被烙印精英", true, false);
             SetStatus(elite, StatusBlackStarBrandElite, "hero");
-            elite.is_alive = false;
-            elite.current_hp = 0;
+            elite.MarkDead();
+            elite.SetCurrentHp(0);
             state.SetUnit(elite);
             state.enemy_unit_ids.Add(elite.unit_id);
             runtime.SetupStateForTests(state);
@@ -195,8 +195,8 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             BattleState state = BuildFinishedBattleState("boss_target_only_resolution");
             BattleUnitState boss = BuildEnemyUnit("boss_target_only", "Boss 标记目标", false, true);
             SetStatus(boss, StatusBlackStarBrandElite, "hero");
-            boss.is_alive = false;
-            boss.current_hp = 0;
+            boss.MarkDead();
+            boss.SetCurrentHp(0);
             state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime.SetupStateForTests(state);
@@ -227,8 +227,8 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
             BattleState state = BuildFinishedBattleState("doom_sentence_boss_resolution");
             BattleUnitState boss = BuildEnemyUnit("doom_boss_target", "章末 Boss", true, true);
             SetStatus(boss, StatusDoomSentenceVerdict, "hero");
-            boss.is_alive = false;
-            boss.current_hp = 0;
+            boss.MarkDead();
+            boss.SetCurrentHp(0);
             state.SetUnit(boss);
             state.enemy_unit_ids.Add(boss.unit_id);
             runtime.SetupStateForTests(state);
@@ -291,14 +291,15 @@ public partial class run_fate_calamity_drop_regression : LifecycleTestSceneTree
         bool isBoss
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = displayName,
             faction_id = "enemy",
-            current_hp = 60,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 60,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         unit.attribute_snapshot.SetValue(FortuneMarkTargetStatId, isEliteOrBoss ? 1 : 0);
         unit.attribute_snapshot.SetValue(BossTargetStatId, isBoss ? 1 : 0);

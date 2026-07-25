@@ -90,7 +90,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         AssertFormalChangeEquipmentReportShape(blockedReport, "需求失败 report");
         _test.Eq(DictString(blockedReport, "error_code", ""), "item_not_equippable", "需求失败应只暴露泛化错误码。");
         _test.True(!blockedReport.ContainsKey("blockers"), "需求失败 report 不应透出隐藏 blocker 列表。");
-        _test.Eq(unit.current_ap, 2, "需求失败不应扣 AP。");
+        _test.Eq(unit.GetCurrentAp(), 2, "需求失败不应扣 AP。");
         _test.Eq(
             unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             "",
@@ -119,7 +119,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         IReadOnlyDictionary<string, object> successReport = FindChangeEquipmentReport(successBatch.report_entries);
         AssertFormalChangeEquipmentReportShape(successReport, "需求满足 report");
         _test.True(DictBool(successReport, "ok", false), $"成员满足需求后换装应成功。 report={successReport}");
-        _test.Eq(unit.current_ap, 0, "需求满足后成功换装应扣 2 AP。");
+        _test.Eq(unit.GetCurrentAp(), 0, "需求满足后成功换装应扣 2 AP。");
         _test.Eq(
             unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             RestrictedHelmInstanceId.ToString(),
@@ -192,7 +192,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             "item_not_equippable",
             "战斗执行应与 detached requirement preview 同样拒绝。"
         );
-        _test.Eq(unit.current_ap, 2, "门槛失败不应扣除 AP。");
+        _test.Eq(unit.GetCurrentAp(), 2, "门槛失败不应扣除 AP。");
         _test.Eq(
             unit.GetEquipmentView().GetEquippedInstanceId("head").ToString(),
             StrengthBoostHelmInstanceId.ToString(),
@@ -289,7 +289,7 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             _test.Eq(equippedInstance.current_durability, 29, "battle-local 装备位应保留 rare 耐久。");
         }
 
-        unit.current_ap = 2;
+        unit.SetCurrentAp(2);
         BattleCommand unequipCommand = BuildUnequipCommand(
             unit.unit_id,
             "head",
@@ -403,15 +403,15 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
         state.SetUnit(enemy);
         state.enemy_unit_ids.Add(enemy.unit_id);
         state.active_unit_id = ally.unit_id;
-        _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.coord, true), "测试友方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, ally, ally.GetAnchorCoord(), true), "测试友方应能放入战场。");
         if (extraAlly != null)
         {
             _test.True(
-                runtime._grid_service.PlaceUnit(state, extraAlly, extraAlly.coord, true),
+                runtime._grid_service.PlaceUnit(state, extraAlly, extraAlly.GetAnchorCoord(), true),
                 "额外测试友方应能放入战场。"
             );
         }
-        _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.coord, true), "测试敌方应能放入战场。");
+        _test.True(runtime._grid_service.PlaceUnit(state, enemy, enemy.GetAnchorCoord(), true), "测试敌方应能放入战场。");
     }
 
     private static ItemDefinition BuildRestrictedHelmItem(StringName itemId)
@@ -612,11 +612,12 @@ public partial class run_battle_change_equipment_requirement_regression : Lifecy
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = currentAp,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            current_hp = 20,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            ap: currentAp,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
         unit.SetAnchorCoord(coord);
         return unit;

@@ -57,7 +57,7 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
 
         int[] expectedHitDamage = { 10, 13, 16, 19, 22, 31 };
         int[] expectedStacks = { 1, 2, 3, 4, 5, 5 };
-        int previousHp = target.current_hp;
+        int previousHp = target.GetCurrentHp();
         for (int hit = 0; hit < expectedHitDamage.Length; hit++)
         {
             WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -67,8 +67,8 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
                 $"starfell_ladder_hit_{hit + 1}",
                 previewCommand: false
             );
-            int damage = previousHp - target.current_hp;
-            previousHp = target.current_hp;
+            int damage = previousHp - target.GetCurrentHp();
+            previousHp = target.GetCurrentHp();
             _test.Eq(
                 damage,
                 expectedHitDamage[hit],
@@ -323,8 +323,7 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
         {
             BattleUnitState enemy = enemies[index];
             state.SetUnit(enemy);
-            enemy.RefreshFootprint();
-            foreach (Vector2I coord in enemy.occupied_coords)
+            foreach (Vector2I coord in enemy.GetOccupiedCoordsReadViewTyped())
                 state.GetCell(coord)?.SetOccupant(enemy.unit_id);
             state.enemy_unit_ids.Add(enemy.unit_id);
         }
@@ -448,7 +447,7 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
             if (key.ToString().EndsWith(suffix, StringComparison.Ordinal))
                 return key;
         }
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         StringName sourceKey = source?.SourceEquipmentInstanceId ?? new StringName("");
         if (sourceKey == "")
             sourceKey = source?.EquipmentDefId ?? new StringName("");
@@ -459,12 +458,17 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
             : new StringName($"equipment_ability|state|{sourceKey}|{stateKey}");
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -474,21 +478,22 @@ public partial class run_starfell_stardust_weapon_ability_regression : Lifecycle
 
     private static BattleUnitState BuildEnemy(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
         unit.attribute_snapshot.SetValue("agility", 10);
-        unit.creature_type_tags.Add(new StringName("humanoid"));
+        unit.AddCreatureTypeTagTyped(new StringName("humanoid"));
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }

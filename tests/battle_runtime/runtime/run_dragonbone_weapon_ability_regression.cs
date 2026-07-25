@@ -83,28 +83,32 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildDragonboneUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, DragonboneItemId, "龙骨斧装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ItemId, DragonboneItemId, "龙骨斧装备后 unit 应保留真实 item_id。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
             new StringName("greataxe"),
             "龙骨斧应投影为 greataxe。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "龙骨斧攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "龙骨斧应占用双手。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "龙骨斧攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "龙骨斧应占用双手。");
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_count ?? 0,
+            equippedWeapon.TwoHandedDice.DiceCount,
             1,
             "龙骨斧双手骰数量应为 1。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.dice_sides ?? 0,
+            equippedWeapon.TwoHandedDice.DiceSides,
             12,
             "龙骨斧双手骰面应为 12。"
         );
         _test.Eq(
-            equipped.weapon_two_handed_dice?.flat_bonus ?? 0,
+            equippedWeapon.TwoHandedDice.FlatBonus,
             3,
             "龙骨斧双手骰固定加值应为 +3。"
         );
@@ -123,31 +127,36 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除龙骨斧后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除龙骨斧后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除龙骨斧后 weapon_profile_type_id 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
-            baseline.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
+            baselineWeapon.PhysicalDamageTag,
             "移除龙骨斧后 weapon_physical_damage_tag 应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_attack_range,
-            baseline.weapon_attack_range,
+            equippedWeapon.AttackRange,
+            baselineWeapon.AttackRange,
             "移除龙骨斧后攻击距离应回到装备前状态。"
         );
         _test.Eq(
-            equipped.weapon_current_grip,
-            baseline.weapon_current_grip,
+            equippedWeapon.CurrentGrip,
+            baselineWeapon.CurrentGrip,
             "移除龙骨斧后当前握持应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除龙骨斧后装备能力源应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除龙骨斧后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除龙骨斧后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -161,10 +170,10 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             new Vector2I(1, 0),
             "humanoid"
         );
-        target.current_hp = 120;
+        target.SetCurrentHp(120);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
 
-        int beforeFirst = target.current_hp;
+        int beforeFirst = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -172,9 +181,9 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_flame_first",
             previewCommand: false
         );
-        int firstDamage = beforeFirst - target.current_hp;
+        int firstDamage = beforeFirst - target.GetCurrentHp();
 
-        int beforeSecond = target.current_hp;
+        int beforeSecond = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -182,7 +191,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_flame_second",
             previewCommand: false
         );
-        int secondDamage = beforeSecond - target.current_hp;
+        int secondDamage = beforeSecond - target.GetCurrentHp();
 
         _test.True(
             firstDamage > secondDamage,
@@ -190,7 +199,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
         );
 
         attacker.ResetPerTurnCharges();
-        int beforeNextTurn = target.current_hp;
+        int beforeNextTurn = target.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -198,7 +207,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_flame_next_turn",
             previewCommand: false
         );
-        int nextTurnDamage = beforeNextTurn - target.current_hp;
+        int nextTurnDamage = beforeNextTurn - target.GetCurrentHp();
         _test.True(
             nextTurnDamage > secondDamage,
             "持有者 per-turn charge 重置后，真实基础攻击应再次获得龙焰伤害。"
@@ -215,7 +224,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "humanoid"
         );
         BattleUnitState dragonTarget = BuildTarget("dragon_target", new Vector2I(1, 0), "dragon");
-        dragonTarget.current_hp = 120;
+        dragonTarget.SetCurrentHp(120);
         dragonTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -226,7 +235,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             previewCommand: false
         );
 
-        int beforeFirstDragon = dragonTarget.current_hp;
+        int beforeFirstDragon = dragonTarget.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -234,9 +243,9 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_hate_first_dragon",
             previewCommand: false
         );
-        int firstDragonDamage = beforeFirstDragon - dragonTarget.current_hp;
+        int firstDragonDamage = beforeFirstDragon - dragonTarget.GetCurrentHp();
 
-        int beforeSecondDragon = dragonTarget.current_hp;
+        int beforeSecondDragon = dragonTarget.GetCurrentHp();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             attacker,
@@ -244,13 +253,13 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_hate_second_dragon",
             previewCommand: false
         );
-        int secondDragonDamage = beforeSecondDragon - dragonTarget.current_hp;
+        int secondDragonDamage = beforeSecondDragon - dragonTarget.GetCurrentHp();
 
         using DragonboneFixture plainFixture = DragonboneFixture.Build(new GArray());
         BattleUnitState plainAttacker = plainFixture.BuildDragonboneUnit("dragon_hate_plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainDragon = BuildTarget("plain_dragon_target", new Vector2I(1, 0), "dragon");
-        plainDragon.current_hp = 120;
+        plainDragon.SetCurrentHp(120);
         plainDragon.attribute_snapshot.SetValue(AttributeService.HP_MAX, 120);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -259,7 +268,7 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
             "dragonbone_hate_plain_dragon",
             previewCommand: false
         );
-        int plainDragonDamage = 120 - plainDragon.current_hp;
+        int plainDragonDamage = 120 - plainDragon.GetCurrentHp();
 
         _test.True(
             firstDragonDamage > plainDragonDamage,
@@ -280,9 +289,9 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -295,12 +304,15 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -310,20 +322,21 @@ public partial class run_dragonbone_weapon_ability_regression : LifecycleTestSce
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, StringName tag)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, 30);
-        unit.creature_type_tags.Add(tag);
+        unit.AddCreatureTypeTagTyped(tag);
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }

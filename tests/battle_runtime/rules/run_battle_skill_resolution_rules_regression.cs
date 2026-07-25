@@ -195,12 +195,17 @@ public partial class run_battle_skill_resolution_rules_regression : LifecycleTes
         {
             unit_id = unitId,
             faction_id = factionId,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            isAlive: true
+        );
         if (skillId != default && skillId != "")
         {
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillLevel;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillLevel,
+                preserveZero: skillLevel == 0
+            );
         }
         return unit;
     }

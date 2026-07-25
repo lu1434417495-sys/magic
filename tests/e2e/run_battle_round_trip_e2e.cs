@@ -342,7 +342,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
 
         await ClearSelectedSkillThroughUiAsync(runtime);
         Vector2I? adjacentEnemyCoord = CardinalDirections
-            .Select(direction => actor.coord + direction)
+            .Select(direction => actor.GetAnchorCoord() + direction)
             .Where(coord =>
                 GetLivingEnemies(runtime, runtime.GetBattleState())
                     .Any(enemy => enemy.OccupiesCoord(coord))
@@ -357,7 +357,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
             actor.unit_id,
             SkillActionId
         );
-        await Input.TapKeyAsync(KeyForDirection(adjacentEnemyCoord.Value - actor.coord));
+        await Input.TapKeyAsync(KeyForDirection(adjacentEnemyCoord.Value - actor.GetAnchorCoord()));
         return
             !runtime.IsBattleActive()
             || GetActionCount(runtime, actor.unit_id, SkillActionId)
@@ -379,11 +379,11 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
         if (enemies.Count == 0)
             return false;
 
-        _visitedMoveCoords.Add(actor.coord);
+        _visitedMoveCoords.Add(actor.GetAnchorCoord());
         int currentDistance = enemies.Min(enemy => DistanceBetweenUnitAndUnit(actor, enemy));
         IReadOnlyList<Vector2I> reachableCoords = runtime.GetBattleMovementReachableCoords();
         Vector2I? cardinalMoveCoord = CardinalDirections
-            .Select(direction => actor.coord + direction)
+            .Select(direction => actor.GetAnchorCoord() + direction)
             .Where(coord => reachableCoords.Contains(coord))
             .Select(coord => new
             {
@@ -405,7 +405,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
                 actor.unit_id,
                 MoveActionId
             );
-            await Input.TapKeyAsync(KeyForDirection(cardinalMoveCoord.Value - actor.coord));
+            await Input.TapKeyAsync(KeyForDirection(cardinalMoveCoord.Value - actor.GetAnchorCoord()));
             bool cardinalMoveIssued =
                 !runtime.IsBattleActive()
                 || GetActionCount(runtime, actor.unit_id, MoveActionId)
@@ -416,12 +416,12 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
         }
 
         Vector2I? moveCoord = reachableCoords
-            .Where(coord => coord != actor.coord && IsBattleCoordClickable(battlePanel, coord))
+            .Where(coord => coord != actor.GetAnchorCoord() && IsBattleCoordClickable(battlePanel, coord))
             .Select(coord => new
             {
                 Coord = coord,
                 EnemyDistance = enemies.Min(enemy => DistanceBetweenCoordAndUnit(coord, enemy)),
-                TravelDistance = ManhattanDistance(actor.coord, coord),
+                TravelDistance = ManhattanDistance(actor.GetAnchorCoord(), coord),
                 Visited = _visitedMoveCoords.Contains(coord),
             })
             .Where(candidate => !candidate.Visited || candidate.EnemyDistance < currentDistance)
@@ -564,7 +564,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
         BattleUnitState actor = state.GetUnit(state.active_unit_id);
         if (
             actor == null
-            || !actor.is_alive
+            || !actor.IsAlive()
             || actor.ControlModeKind != BattleUnitControlMode.Manual
             || !string.Equals(
                 actor.faction_id.ToString(),
@@ -590,7 +590,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
             .Units()
             .Where(unit =>
                 unit != null
-                && unit.is_alive
+                && unit.IsAlive()
                 && !string.Equals(
                     unit.faction_id.ToString(),
                     playerFactionId,
@@ -617,7 +617,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
                 enemies.Any(enemy => enemy.OccupiesCoord(coord))
                 && IsBattleCoordClickable(battlePanel, coord)
             )
-            .OrderBy(coord => ManhattanDistance(actor.coord, coord))
+            .OrderBy(coord => ManhattanDistance(actor.GetAnchorCoord(), coord))
             .ThenBy(coord => coord.X)
             .ThenBy(coord => coord.Y)
             .Select(coord => (Vector2I?)coord)
@@ -636,7 +636,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
         return GetLivingEnemies(runtime, state)
             .SelectMany(enemy => enemy.GetOccupiedCoordsTyped())
             .Where(coord => IsBattleCoordClickable(battlePanel, coord))
-            .OrderBy(coord => ManhattanDistance(actor.coord, coord))
+            .OrderBy(coord => ManhattanDistance(actor.GetAnchorCoord(), coord))
             .ThenBy(coord => coord.X)
             .ThenBy(coord => coord.Y)
             .Select(coord => (Vector2I?)coord)
@@ -747,7 +747,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
                 .Where(unit => unit != null)
                 .OrderBy(unit => unit.unit_id.ToString(), StringComparer.Ordinal)
                 .Select(unit =>
-                    $"{unit.unit_id}:{unit.faction_id}:hp={unit.current_hp}:alive={unit.is_alive}:coord={unit.coord}"
+                    $"{unit.unit_id}:{unit.faction_id}:hp={unit.GetCurrentHp()}:alive={unit.IsAlive()}:coord={unit.GetAnchorCoord()}"
                 )
         );
         return
@@ -805,7 +805,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
     {
         IReadOnlyList<Vector2I> occupiedCoords = unit?.GetOccupiedCoordsTyped();
         if (occupiedCoords == null || occupiedCoords.Count == 0)
-            return unit != null ? ManhattanDistance(coord, unit.coord) : int.MaxValue;
+            return unit != null ? ManhattanDistance(coord, unit.GetAnchorCoord()) : int.MaxValue;
         return occupiedCoords.Min(occupiedCoord => ManhattanDistance(coord, occupiedCoord));
     }
 
@@ -816,7 +816,7 @@ public partial class run_battle_round_trip_e2e : run_enter_battle_e2e
     {
         IReadOnlyList<Vector2I> firstCoords = first?.GetOccupiedCoordsTyped();
         if (firstCoords == null || firstCoords.Count == 0)
-            return DistanceBetweenCoordAndUnit(first?.coord ?? Vector2I.Zero, second);
+            return DistanceBetweenCoordAndUnit(first?.GetAnchorCoord() ?? Vector2I.Zero, second);
         return firstCoords.Min(coord => DistanceBetweenCoordAndUnit(coord, second));
     }
 

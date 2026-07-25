@@ -210,7 +210,7 @@ public partial class BattleSimUnitSpec : Resource
                 BattleUnitState.DefaultMovePointsPerTurn
             )
         );
-        unitState.action_threshold = ResolveActionThreshold(unitState);
+        unitState.SetActionThresholdTyped(ResolveActionThreshold(unitState));
         var normalizedSkillIds = new List<StringName>();
         foreach (var rawSkillId in skill_ids)
         {
@@ -227,11 +227,7 @@ public partial class BattleSimUnitSpec : Resource
         foreach (var rawTag in movement_tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
-            if (IsEmpty(tag) || unitState.movement_tags.Contains(tag))
-            {
-                continue;
-            }
-            unitState.movement_tags.Add(tag);
+            unitState.AddMovementTagTyped(tag);
         }
         foreach (var rawResourceId in unlocked_combat_resource_ids)
         {

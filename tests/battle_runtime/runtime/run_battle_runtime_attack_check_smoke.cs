@@ -143,12 +143,13 @@ public partial class run_battle_runtime_attack_check_smoke : LifecycleTestSceneT
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "player",
-            current_ap = currentAp,
-            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
-            current_hp = 10,
-            current_stamina = 60,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            stamina: 60,
+            ap: currentAp,
+            movePoints: BattleUnitState.DefaultMovePointsPerTurn,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(
             AttributeService.ToStringName(AttributeIdKind.ArmorClass),
@@ -161,7 +162,7 @@ public partial class run_battle_runtime_attack_check_smoke : LifecycleTestSceneT
     {
         BattleUnitState unit = BuildUnit(unitId, coord, 1);
         unit.faction_id = "enemy";
-        unit.current_hp = 30;
+        unit.SetCurrentHp(30);
         return unit;
     }
 

@@ -75,10 +75,10 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             new FixedSuccessOneDamageResolver()
         );
 
-        int casterApBefore = caster.current_ap;
-        int casterMpBefore = caster.current_mp;
-        int casterStaminaBefore = caster.current_stamina;
-        int casterAuraBefore = caster.current_aura;
+        int casterApBefore = caster.GetCurrentAp();
+        int casterMpBefore = caster.GetCurrentMp();
+        int casterStaminaBefore = caster.GetCurrentStamina();
+        int casterAuraBefore = caster.GetCurrentAura();
         _test.False(
             caster.KnowsActiveSkill("contingency_bolt"),
             "fixture should prove the stored spell is absent from caster known_active_skill_ids."
@@ -119,15 +119,15 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             "combat_started burst release should execute immediately instead of leaving a queued context."
         );
 
-        _test.True(target.current_hp < 30, "auto-cast should apply formal damage to the resolved target.");
+        _test.True(target.GetCurrentHp() < 30, "auto-cast should apply formal damage to the resolved target.");
         _test.True(
             target.HasStatusEffect("contingency_marked"),
             "auto-cast should commit ordinary status effects through the formal effect path."
         );
-        _test.Eq(caster.current_ap, casterApBefore, "auto-cast should not consume caster AP.");
-        _test.Eq(caster.current_mp, casterMpBefore, "auto-cast should not consume caster MP.");
-        _test.Eq(caster.current_stamina, casterStaminaBefore, "auto-cast should not consume stamina.");
-        _test.Eq(caster.current_aura, casterAuraBefore, "auto-cast should not consume aura.");
+        _test.Eq(caster.GetCurrentAp(), casterApBefore, "auto-cast should not consume caster AP.");
+        _test.Eq(caster.GetCurrentMp(), casterMpBefore, "auto-cast should not consume caster MP.");
+        _test.Eq(caster.GetCurrentStamina(), casterStaminaBefore, "auto-cast should not consume stamina.");
+        _test.Eq(caster.GetCurrentAura(), casterAuraBefore, "auto-cast should not consume aura.");
         _test.Eq(
             caster.GetCooldownTyped(storedSkill.SkillId),
             0,
@@ -215,7 +215,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.OnBattleConfirmed(batch);
 
         _test.Eq(
-            target.current_hp,
+            target.GetCurrentHp(),
             30,
             "non-player-learned contingency source should not execute stored spells."
         );
@@ -272,7 +272,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.OnBattleConfirmed(releaseBatch);
 
         _test.Eq(
-            target.current_hp,
+            target.GetCurrentHp(),
             30,
             "sequential combat-start release should not execute a stored spell at release time."
         );
@@ -309,7 +309,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
 
         using BattleEventBatch firstTurnBatch = new();
         runtime._record_turn_started(caster, firstTurnBatch);
-        int hpAfterFirst = target.current_hp;
+        int hpAfterFirst = target.GetCurrentHp();
         _test.True(hpAfterFirst < 30, "first owner-turn hook should execute exactly one queued spell.");
         _test.Eq(
             sidecar.GetQueuedSequentialAutoCastCount(),
@@ -320,7 +320,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         using BattleEventBatch secondTurnBatch = new();
         runtime._record_turn_started(caster, secondTurnBatch);
         _test.True(
-            target.current_hp < hpAfterFirst,
+            target.GetCurrentHp() < hpAfterFirst,
             "second owner-turn hook should execute the next queued spell in order."
         );
         _test.Eq(
@@ -408,12 +408,12 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         );
         using TrackingBattleGateway gateway = new(partyState);
         BattleUnitState caster = Unit("meteor_caster", "player", new Vector2I(4, 4), "hero");
-        caster.current_mp = 200;
-        caster.current_aura = 10;
+        caster.SetCurrentMp(200);
+        caster.SetCurrentAura(10);
         caster.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 200);
         caster.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax), 10);
         BattleUnitState target = Unit("meteor_target", "enemy", new Vector2I(5, 4), "");
-        target.current_hp = 160;
+        target.SetCurrentHp(160);
         target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 160);
         SeedBaseAttributesAndDeriveAc(target);
         SeedBaseAttributesAndDeriveAc(caster);
@@ -439,10 +439,10 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         state.phase = "unit_acting";
         runtime.SetupStateForTests(state);
 
-        int casterApBefore = caster.current_ap;
-        int casterMpBefore = caster.current_mp;
-        int casterStaminaBefore = caster.current_stamina;
-        int casterAuraBefore = caster.current_aura;
+        int casterApBefore = caster.GetCurrentAp();
+        int casterMpBefore = caster.GetCurrentMp();
+        int casterStaminaBefore = caster.GetCurrentStamina();
+        int casterAuraBefore = caster.GetCurrentAura();
 
         using BattleEventBatch batch = new();
         runtime.OnBattleConfirmed(batch);
@@ -452,18 +452,18 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             $"auto-cast meteor swarm should use the formal special-profile commit report. logs={FormatLogs(batch)} reports={batch.ReportEntriesTyped.Count}"
         );
         _test.True(
-            target.current_hp < 160,
+            target.GetCurrentHp() < 160,
             "auto-cast meteor swarm should apply special-profile component damage."
         );
-        _test.Eq(caster.current_ap, casterApBefore, "special-profile auto-cast should not consume AP.");
-        _test.Eq(caster.current_mp, casterMpBefore, "special-profile auto-cast should not consume MP.");
+        _test.Eq(caster.GetCurrentAp(), casterApBefore, "special-profile auto-cast should not consume AP.");
+        _test.Eq(caster.GetCurrentMp(), casterMpBefore, "special-profile auto-cast should not consume MP.");
         _test.Eq(
-            caster.current_stamina,
+            caster.GetCurrentStamina(),
             casterStaminaBefore,
             "special-profile auto-cast should not consume stamina."
         );
         _test.Eq(
-            caster.current_aura,
+            caster.GetCurrentAura(),
             casterAuraBefore,
             "special-profile auto-cast should not consume aura."
         );
@@ -675,9 +675,9 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.OnBattleConfirmed(batch);
 
         if (shouldDamageTarget)
-            _test.True(target.current_hp < 30, message);
+            _test.True(target.GetCurrentHp() < 30, message);
         else
-            _test.Eq(target.current_hp, 30, message);
+            _test.Eq(target.GetCurrentHp(), 30, message);
         _test.Eq(
             CountNonContingencyReports(batch),
             expectedReportCount,
@@ -707,9 +707,9 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
     {
         BattleUnitState unit = BattleTestFixture.BuildUnit(unitId, factionId, coord, currentAp: 2);
         unit.source_member_id = sourceMemberId;
-        unit.current_mp = 200;
-        unit.current_stamina = 10;
-        unit.current_aura = 10;
+        unit.SetCurrentMp(200);
+        unit.SetCurrentStamina(10);
+        unit.SetCurrentAura(10);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 200);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 10);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax), 10);
@@ -722,7 +722,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         if (knowsStoredSkill)
         {
             unit.AddKnownActiveSkill("contingency_bolt");
-            unit.known_skill_level_map[new StringName("contingency_bolt")] = 3;
+            unit.SetKnownSkillLevelTyped("contingency_bolt", 3);
         }
         return unit;
     }
@@ -1044,14 +1044,14 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         ) =>
             new();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount
         ) =>
-            new();
+            Array.Empty<StringName>();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount,
@@ -1061,7 +1061,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         {
             if (event_type == "skill_used")
                 SkillUsedAchievementEvents++;
-            return new GStringNameArray();
+            return Array.Empty<StringName>();
         }
 
         public PendingCharacterReward BuildPendingSkillMasteryReward(

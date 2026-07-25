@@ -127,15 +127,17 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildGorgonUnit("projection");
-        _test.Eq(equipped.weapon_item_id, GorgonCrossbowItemId, "装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("heavy_crossbow"), "应投影为 heavy_crossbow。");
-        _test.Eq(equipped.weapon_family, new StringName("crossbow"), "应投影 crossbow 家族。");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_pierce"), "应投影穿刺伤害。");
-        _test.Eq(equipped.weapon_attack_range, 10, "应投影 10 格攻击距离。");
-        _test.True(equipped.weapon_uses_two_hands, "蛇发女妖之弩应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "投影伤害应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "投影伤害应为 1D10+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "投影伤害应为 1D10+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, GorgonCrossbowItemId, "装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("heavy_crossbow"), "应投影为 heavy_crossbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("crossbow"), "应投影 crossbow 家族。");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_pierce"), "应投影穿刺伤害。");
+        _test.Eq(equippedWeapon.AttackRange, 10, "应投影 10 格攻击距离。");
+        _test.True(equippedWeapon.UsesTwoHands, "蛇发女妖之弩应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "投影伤害应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "投影伤害应为 1D10+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "投影伤害应为 1D10+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             PetrifyingGazeTraitId,
@@ -157,11 +159,16 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除蛇发女妖之弩后 weapon_item_id 应清空。");
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除后装备能力源应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除蛇发女妖之弩后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -288,7 +295,7 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
             "gorgon_shatter_clean",
             previewCommand: false
         );
-        _test.Eq(100 - cleanTarget.current_hp, 7, "未被 slow/paralyzed 的目标只应承受 1D10+2 基础伤害。");
+        _test.Eq(100 - cleanTarget.GetCurrentHp(), 7, "未被 slow/paralyzed 的目标只应承受 1D10+2 基础伤害。");
     }
 
     private void AssertStatueShatterDamageForStatus(StringName statusId, StringName battleId)
@@ -307,7 +314,7 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
             previewCommand: false
         );
         _test.Eq(
-            100 - target.current_hp,
+            100 - target.GetCurrentHp(),
             12,
             $"{statusId} 目标应承受基础 1D10+2 加石像崩裂 2D6 bludgeon。"
         );
@@ -320,7 +327,7 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
         killer.SetAnchorCoord(Vector2I.Zero);
 
         BattleUnitState defeated = BuildTarget("spread_defeated", new Vector2I(2, 2), hp: 0);
-        defeated.is_alive = false;
+        defeated.MarkDead();
         SetSimpleStatus(defeated, SlowStatusId, 60, killer.unit_id, "部分石化");
 
         BattleUnitState adjacentFail = BuildTarget("spread_adjacent_fail", new Vector2I(2, 3), hp: 30);
@@ -390,7 +397,7 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
         killer.SetAnchorCoord(Vector2I.Zero);
 
         BattleUnitState defeated = BuildTarget("spread_success_defeated", new Vector2I(2, 2), hp: 0);
-        defeated.is_alive = false;
+        defeated.MarkDead();
         SetSimpleStatus(defeated, SlowStatusId, 60, killer.unit_id, "部分石化");
 
         BattleUnitState adjacentSuccess = BuildTarget("spread_adjacent_success", new Vector2I(3, 2), hp: 30);
@@ -521,14 +528,15 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord, int hp)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = hp > 0,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: hp > 0
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -543,7 +551,6 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
     {
         BattleUnitState unit = BuildTarget(unitId, coord, hp: 30);
         unit.faction_id = "player";
-        unit.is_alive = true;
         return unit;
     }
 
@@ -597,9 +604,9 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -612,12 +619,18 @@ public partial class run_gorgon_crossbow_weapon_ability_regression : LifecycleTe
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

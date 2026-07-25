@@ -35,13 +35,14 @@ internal sealed class BattleContingencyBridgeService
         if (targetUnit == null)
             return;
         BattleEffectOrigin origin = _runtime.CurrentEffectOriginForContingency;
-        Vector2I sourceCell = sourceUnit?.coord ?? new Vector2I(-1, -1);
-        Vector2I targetCell = targetUnit.coord;
+        Vector2I sourceCell =
+            sourceUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
+        Vector2I targetCell = targetUnit.GetAnchorCoord();
         int maxHp = Math.Max(
-            targetUnit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? targetUnit.current_hp,
+            targetUnit.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? targetUnit.GetCurrentHp(),
             1
         );
-        if (targetUnit.current_hp != previousHp)
+        if (targetUnit.GetCurrentHp() != previousHp)
         {
             _runtime._contingency_system.OnHookFact(
                 ContingencyHookFact.HpChanged(
@@ -49,7 +50,7 @@ internal sealed class BattleContingencyBridgeService
                     sourceUnit?.unit_id ?? "",
                     targetUnit.unit_id,
                     previousHp,
-                    targetUnit.current_hp,
+                    targetUnit.GetCurrentHp(),
                     maxHp,
                     origin,
                     sourceCell,
@@ -89,8 +90,8 @@ internal sealed class BattleContingencyBridgeService
                 targetUnit?.unit_id ?? "",
                 affectedUnitIds ?? Array.Empty<StringName>(),
                 _runtime.CurrentEffectOriginForContingency,
-                sourceUnit?.coord ?? new Vector2I(-1, -1),
-                targetUnit?.coord ?? new Vector2I(-1, -1),
+                sourceUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
+                targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
                 areaCells
             )
         );

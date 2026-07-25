@@ -121,7 +121,7 @@ internal sealed class BattleSpawnReachabilityService
         foreach (StringName enemyUnitId in enemyUnitIds)
         {
             BattleUnitState enemyUnit = TryGetUnit(state, enemyUnitId);
-            if (enemyUnit == null || !enemyUnit.is_alive)
+            if (enemyUnit == null || !enemyUnit.IsAlive())
                 continue;
             var enemyResult = _ValidateAttackerUnit(
                 state,
@@ -148,7 +148,7 @@ internal sealed class BattleSpawnReachabilityService
         foreach (StringName playerUnitId in allyUnitIds)
         {
             BattleUnitState playerUnit = TryGetUnit(state, playerUnitId);
-            if (playerUnit == null || !playerUnit.is_alive)
+            if (playerUnit == null || !playerUnit.IsAlive())
                 continue;
             var playerResult = _ValidateAttackerUnit(
                 state,
@@ -231,7 +231,7 @@ internal sealed class BattleSpawnReachabilityService
         foreach (StringName unitId in unitIds)
         {
             BattleUnitState unitState = TryGetUnit(state, unitId);
-            if (unitState == null || !unitState.is_alive)
+            if (unitState == null || !unitState.IsAlive())
                 continue;
             targets.Add(unitState);
         }
@@ -247,7 +247,9 @@ internal sealed class BattleSpawnReachabilityService
         var attackSkills = new List<BattleSpawnReachabilityAttackSkill>();
         if (enemyUnit == null)
             return attackSkills;
-        foreach (var skillIdValue in enemyUnit.known_active_skill_ids)
+        foreach (
+            var skillIdValue in enemyUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             var skillId = ProgressionDataUtils.to_string_name(skillIdValue);
             if (!skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition))
@@ -327,7 +329,9 @@ internal sealed class BattleSpawnReachabilityService
             BattleUnitState sameSideUnit = TryGetUnit(state, unitId);
             if (sameSideUnit == null)
                 continue;
-            foreach (Vector2I occupiedCoord in sameSideUnit.occupied_coords)
+            foreach (
+                Vector2I occupiedCoord in sameSideUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 var cell = state.GetCell(occupiedCoord);
                 if (cell != null && cell.occupant_unit_id == sameSideUnit.unit_id)
@@ -376,7 +380,7 @@ internal sealed class BattleSpawnReachabilityService
         if (attackTargets.Count == 0)
             return default;
         int maxSearchNodes = Mathf.Max(options.EffectiveMaxSearchNodes, 1);
-        var origin = unitState.coord;
+        var origin = unitState.GetAnchorCoord();
         var frontier = new List<Vector2I> { origin };
         var seen = new HashSet<Vector2I> { origin };
         int frontierIndex = 0;
@@ -584,7 +588,9 @@ internal sealed class BattleSpawnReachabilityService
                     attackSkill.SkillLevel
                 );
             var effectCoords = new HashSet<Vector2I>(collected.TargetCoords);
-            foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I occupiedCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (effectCoords.Contains(occupiedCoord))
                     return true;
@@ -609,7 +615,9 @@ internal sealed class BattleSpawnReachabilityService
         canHit = false;
         if (areaPattern == BattleAreaPattern.Self)
         {
-            foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I occupiedCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 if (occupiedCoord == anchorCoord)
                 {
@@ -658,7 +666,9 @@ internal sealed class BattleSpawnReachabilityService
         var candidates = new List<Vector2I>();
         var seen = new HashSet<Vector2I>();
         int radius = GetGroundTargetCandidateRadius(areaPattern, areaValue);
-        foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
+        foreach (
+            Vector2I occupiedCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+        )
         {
             for (int y = occupiedCoord.Y - radius; y <= occupiedCoord.Y + radius; y++)
             {
@@ -733,7 +743,9 @@ internal sealed class BattleSpawnReachabilityService
         var sourceCoords = gridService.GetUnitTargetCoords(sourceUnit, sourceAnchor);
         foreach (Vector2I sourceCoord in sourceCoords)
         {
-            foreach (Vector2I targetCoord in targetUnit.occupied_coords)
+            foreach (
+                Vector2I targetCoord in targetUnit.GetOccupiedCoordsReadViewTyped()
+            )
             {
                 int distance = gridService.GetDistance(sourceCoord, targetCoord);
                 bestDistance = Mathf.Min(bestDistance, distance);
@@ -793,6 +805,13 @@ internal sealed class BattleSpawnReachabilityService
         )
             return false;
         if (
+            !BattleRangeService.UnitMatchesRequiredWeaponTypeIds(
+                unitState,
+                combatProfile.RequiredWeaponTypeIds
+            )
+        )
+            return false;
+        if (
             BattleRangeService.RequiresCurrentWeapon(skillDefinition)
             && !BattleRangeService.UnitHasEquippedWeapon(unitState)
         )
@@ -811,12 +830,7 @@ internal sealed class BattleSpawnReachabilityService
             return 0;
         if (unitState.HasKnownSkillLevelTyped(skillId))
             return unitState.GetKnownSkillLevelTyped(skillId);
-        foreach (var knownSkillId in unitState.known_active_skill_ids)
-        {
-            if (knownSkillId == skillId)
-                return 1;
-        }
-        return 0;
+        return unitState.KnowsActiveSkill(skillId) ? 1 : 0;
     }
 
     private static readonly IReadOnlyDictionary<StringName, SkillDefinition> EmptySkillDefinitions =

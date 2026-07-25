@@ -204,7 +204,9 @@ public partial class BattleDamageResolver
         {
             return "";
         }
-        StringName damageTag = unitState.weapon_physical_damage_tag;
+        BattleWeaponProjectionValues weaponProjection =
+            unitState.GetWeaponProjectionReadViewTyped().Values;
+        StringName damageTag = weaponProjection.PhysicalDamageTag;
         return DamageTagContentRules.IsPhysicalDamageTag(
             DamageTagContentRules.ToDamageTagKind(damageTag)
         )

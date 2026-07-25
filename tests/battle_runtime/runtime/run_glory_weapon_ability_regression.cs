@@ -82,18 +82,22 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildGloryUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, GloryItemId, "荣耀之刃装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longsword"), "荣耀之刃应投影为 longsword。");
-        _test.Eq(equipped.weapon_attack_range, 1, "荣耀之刃攻击距离应为 1。");
-        _test.True(equipped.weapon_is_versatile, "荣耀之刃应保留 versatile。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "荣耀之刃单手骰应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "荣耀之刃单手骰应为 1D8+3。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 3, "荣耀之刃单手骰固定加值应为 +3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "荣耀之刃双手骰应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "荣耀之刃双手骰应为 1D10+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "荣耀之刃双手骰固定加值应为 +3。");
+        _test.Eq(equippedWeapon.ItemId, GloryItemId, "荣耀之刃装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "荣耀之刃应投影为 longsword。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "荣耀之刃攻击距离应为 1。");
+        _test.True(equippedWeapon.IsVersatile, "荣耀之刃应保留 versatile。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "荣耀之刃单手骰应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "荣耀之刃单手骰应为 1D8+3。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 3, "荣耀之刃单手骰固定加值应为 +3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "荣耀之刃双手骰应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "荣耀之刃双手骰应为 1D10+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "荣耀之刃双手骰固定加值应为 +3。");
         AssertUnitHasTraitAndAbilitySource(equipped, CrowdGazeTraitId, CrowdGazeBindingId, "eq_glory_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, GlorySpotlightTraitId, GlorySpotlightBindingId, "eq_glory_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, CurtainCallTraitId, CurtainCallBindingId, "eq_glory_projection");
@@ -103,13 +107,18 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除荣耀之刃后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除荣耀之刃后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除荣耀之刃后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除荣耀之刃后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除荣耀之刃后装备能力源应清空。"
+        );
     }
 
     private void TestCrowdGazeAndLonelyDarkUseAllNearbyLivingCreatures()
@@ -200,7 +209,7 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         using GloryFixture plainFixture = GloryFixture.Build(new FixedRollDamageResolver(new GArray { 4, 1 }));
         BattleUnitState plainHolder = plainFixture.BuildGloryUnit("plain");
         BattleUnitState plainTarget = BuildEnemy("plain_target", new Vector2I(1, 0), hp: 100);
-        plainHolder.equipment_ability_sources.Clear();
+        plainHolder.ClearEquipmentAbilityProjectionTyped();
         plainFixture.Runtime.SetupStateForTests(BuildState("glory_plain", plainHolder, plainTarget));
         int plainDamage = IssueBasicAttackInCurrentState(
             plainFixture.Runtime,
@@ -247,7 +256,7 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         fixture.Runtime.SetupStateForTests(state);
         defeated.MarkDead();
         fixture.Runtime._grid_service.ClearUnitOccupancy(state, defeated);
-        holder.current_ap = 1;
+        holder.SetCurrentAp(1);
 
         using BattleEventBatch batch = new();
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
@@ -260,9 +269,9 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
             }
         );
 
-        _test.Eq(holder.current_ap, 1, "谢幕斩应是无动作追击，不应消耗持有者 AP。");
-        _test.True(followTarget.current_hp < 100, $"谢幕斩应攻击倒下目标 5 尺内的另一个敌人。 logs={JoinLogs(batch)}");
-        _test.Eq(farTarget.current_hp, 100, "谢幕斩不应攻击倒下目标 5 尺外的敌人。");
+        _test.Eq(holder.GetCurrentAp(), 1, "谢幕斩应是无动作追击，不应消耗持有者 AP。");
+        _test.True(followTarget.GetCurrentHp() < 100, $"谢幕斩应攻击倒下目标 5 尺内的另一个敌人。 logs={JoinLogs(batch)}");
+        _test.Eq(farTarget.GetCurrentHp(), 100, "谢幕斩不应攻击倒下目标 5 尺外的敌人。");
         _test.True(ContainsStringName(batch.ChangedUnitIdsTyped, followTarget.unit_id), "谢幕斩应把追击目标写入 changed unit。");
     }
 
@@ -300,7 +309,7 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
     {
         WeaponAbilityCommandTestSupport.PrimeBasicAttack(attacker);
         ForceUnitActing(runtime?.GetState(), attacker);
-        int beforeHp = target.current_hp;
+        int beforeHp = target.GetCurrentHp();
         BattleCommand command = WeaponAbilityCommandTestSupport.BuildBasicAttackCommand(attacker, target);
         BattlePreview preview = runtime.PreviewCommand(command);
         if (preview?.allowed != true)
@@ -312,7 +321,7 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         BattleEventBatch batch = runtime.IssueCommand(command);
         if (batch == null)
             throw new InvalidOperationException($"{label} IssueCommand returned null.");
-        return beforeHp - target.current_hp;
+        return beforeHp - target.GetCurrentHp();
     }
 
     private static BattleAttackRollModifierBundle BuildAttackBundle(
@@ -368,24 +377,25 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         int hp
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = hp,
-            current_ap = 2,
-            current_stamina = 30,
-            is_alive = hp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            stamina: 30,
+            ap: 2,
+            isAlive: hp > 0
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, Math.Max(hp, 30));
         unit.attribute_snapshot.SetValue(AttributeService.ACTION_POINTS, 2);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 10);
-        unit.creature_type_tags.Add("humanoid");
+        unit.AddCreatureTypeTagTyped("humanoid");
         return unit;
     }
 
@@ -409,8 +419,8 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         }
         if (runtime != null)
         {
-            if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
-                throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.coord}.");
+            if (!runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
+                throw new InvalidOperationException($"unable to place unit {unit.unit_id} at {unit.GetAnchorCoord()}.");
             return;
         }
         SetUnitOccupants(state, unit);
@@ -420,8 +430,7 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
     {
         if (state == null || unit == null)
             return;
-        unit.RefreshFootprint();
-        foreach (Vector2I coord in unit.occupied_coords)
+        foreach (Vector2I coord in unit.GetOccupiedCoordsReadViewTyped())
             state.GetCell(coord)?.SetOccupant(unit.unit_id);
     }
 
@@ -471,9 +480,9 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceEquipmentInstanceId != expectedInstanceId)
@@ -482,14 +491,17 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
             );
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
         if (unit == null)
             return null;
-        foreach (BattleEquipmentAbilitySourceState source in unit.equipment_ability_sources)
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

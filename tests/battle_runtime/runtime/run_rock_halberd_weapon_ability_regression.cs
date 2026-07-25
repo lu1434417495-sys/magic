@@ -110,15 +110,17 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildRockHalberdUnit("projection");
-        _test.Eq(equipped.weapon_item_id, RockHalberdItemId, "Equipped unit should keep Rock Halberd item id.");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("halberd"), "Rock Halberd should project as halberd.");
-        _test.Eq(equipped.weapon_family, new StringName("polearm"), "Rock Halberd should project polearm family.");
-        _test.Eq(equipped.weapon_physical_damage_tag, new StringName("physical_slash"), "Rock Halberd should project slashing damage.");
-        _test.Eq(equipped.weapon_attack_range, 2, "Rock Halberd attack range should project as 2.");
-        _test.True(equipped.weapon_uses_two_hands, "Rock Halberd should project as two-handed.");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "Projected two-handed dice should be 1D10+3.");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 10, "Projected two-handed dice should be 1D10+3.");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "Projected two-handed dice should be 1D10+3.");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, RockHalberdItemId, "Equipped unit should keep Rock Halberd item id.");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("halberd"), "Rock Halberd should project as halberd.");
+        _test.Eq(equippedWeapon.Family, new StringName("polearm"), "Rock Halberd should project polearm family.");
+        _test.Eq(equippedWeapon.PhysicalDamageTag, new StringName("physical_slash"), "Rock Halberd should project slashing damage.");
+        _test.Eq(equippedWeapon.AttackRange, 2, "Rock Halberd attack range should project as 2.");
+        _test.True(equippedWeapon.UsesTwoHands, "Rock Halberd should project as two-handed.");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "Projected two-handed dice should be 1D10+3.");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 10, "Projected two-handed dice should be 1D10+3.");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "Projected two-handed dice should be 1D10+3.");
         AssertUnitHasTraitAndAbilitySource(equipped, StoneTouchTraitId, StoneTouchBindingId, "eq_rock_halberd_projection");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
@@ -129,31 +131,33 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "Removing Rock Halberd should clear weapon item id.");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "Removing Rock Halberd should clear weapon item id.");
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "Removing Rock Halberd should clear equipment ability sources."
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "Removing Rock Halberd should restore baseline trait projection count."
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(StoneTouchTraitId),
+            equipped.HasEffectiveTrait(StoneTouchTraitId),
             "Removing Rock Halberd should clear Stone Touch trait."
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(CompletePetrificationTraitId),
+            equipped.HasEffectiveTrait(CompletePetrificationTraitId),
             "Removing Rock Halberd should clear Complete Petrification trait."
         );
         _test.False(
-            equipped.effective_trait_ids.Contains(StoneTearsTraitId),
+            equipped.HasEffectiveTrait(StoneTearsTraitId),
             "Removing Rock Halberd should clear Stone Tears trait."
         );
         _test.False(
-            ContainsStringName(equipped.save_immunity_tags, PetrificationImmunityTag),
+            equipped.HasSaveImmunityTag(PetrificationImmunityTag),
             "Removing Rock Halberd should clear petrification save immunity."
         );
     }
@@ -168,26 +172,26 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("stone_tears_baseline");
         _test.False(
-            ContainsStringName(baseline.save_immunity_tags, PetrificationImmunityTag),
+            baseline.HasSaveImmunityTag(PetrificationImmunityTag),
             "Baseline unit should not have petrification save immunity."
         );
         _test.Eq(
-            baseline.save_bonus_by_ability?.Get(new StringName("perception")) ?? 0,
+            baseline.GetSaveBonusByAbilityTyped(new StringName("perception")),
             0,
             "Baseline unit should not have a perception save bonus."
         );
 
         BattleUnitState equipped = fixture.BuildRockHalberdUnit("stone_tears");
         _test.True(
-            equipped.effective_trait_ids.Contains(StoneTearsTraitId),
+            equipped.HasEffectiveTrait(StoneTearsTraitId),
             "Equipping Rock Halberd should project Stone Tears trait."
         );
         _test.True(
-            ContainsStringName(equipped.save_immunity_tags, PetrificationImmunityTag),
+            equipped.HasSaveImmunityTag(PetrificationImmunityTag),
             "Stone Tears should grant petrification save immunity."
         );
         _test.Eq(
-            equipped.save_bonus_by_ability?.Get(new StringName("perception")) ?? 0,
+            equipped.GetSaveBonusByAbilityTyped(new StringName("perception")),
             1,
             "Stone Tears should grant perception saves +1 without changing the attribute."
         );
@@ -199,7 +203,7 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
         BattleUnitState attacker = fixture.BuildRockHalberdUnit("stone_tears_attacker");
         BattleUnitState immuneTarget = BuildTarget("stone_tears_immune", new Vector2I(1, 0));
-        immuneTarget.save_immunity_tags.Add(PetrificationImmunityTag);
+        immuneTarget.AddSaveImmunityTagTyped(PetrificationImmunityTag);
         ResolveAfterHit(
             fixture,
             attacker,
@@ -387,14 +391,15 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 100,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 100,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -414,9 +419,9 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -429,12 +434,17 @@ public partial class run_rock_halberd_weapon_ability_regression : LifecycleTestS
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

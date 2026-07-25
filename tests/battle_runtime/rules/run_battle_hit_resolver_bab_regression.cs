@@ -87,7 +87,7 @@ public partial class run_battle_hit_resolver_bab_regression : LifecycleTestScene
     private void TestLockedSkillHitBonusReducesRequiredRoll()
     {
         BattleUnitState attacker = MakeUnitWithAttackBonuses(0, 0);
-        attacker.known_skill_lock_hit_bonus_map[new StringName("locked_slash")] = 2;
+        attacker.SetKnownSkillLockHitBonusTyped("locked_slash", 2);
         BattleUnitState target = MakeUnitWithArmorClass(15);
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill("locked_slash");
         var resolver = new BattleHitResolver();
@@ -104,7 +104,7 @@ public partial class run_battle_hit_resolver_bab_regression : LifecycleTestScene
     private void TestLockedSkillHitBonusAppliesToSpellControlRoll()
     {
         BattleUnitState source = MakeUnitWithAttackBonuses(0, 0);
-        source.known_skill_lock_hit_bonus_map[new StringName("locked_spell")] = 2;
+        source.SetKnownSkillLockHitBonusTyped("locked_spell", 2);
         var resolver = new BattleHitResolver();
 
         BattleSpellControlMetadata metadata = resolver.ResolveSpellControlMetadataTyped(

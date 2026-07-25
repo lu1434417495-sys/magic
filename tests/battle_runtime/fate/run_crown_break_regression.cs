@@ -59,11 +59,11 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             runtime = BuildRuntime();
             state = BuildSkillTestState("crown_break_broken_fang", new Vector2I(6, 3));
             caster = BuildUnit("crown_break_fang_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            caster.SetKnownActiveSkillIds(new[] { CROWN_BREAK_SKILL_ID });
+            caster.SetKnownSkillLevelTyped(CROWN_BREAK_SKILL_ID, 1);
             elite = BuildUnit("crown_break_fang_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-            elite.known_active_skill_ids = new GStringNameArray { WARRIOR_HEAVY_STRIKE_SKILL_ID };
-            elite.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+            elite.SetKnownActiveSkillIds(new[] { WARRIOR_HEAVY_STRIKE_SKILL_ID });
+            elite.SetKnownSkillLevelTyped(WARRIOR_HEAVY_STRIKE_SKILL_ID, 1);
             allyTarget = BuildUnit("crown_break_fang_ally", "被打击者", "player", new Vector2I(3, 1), 2);
 
             AddUnit(runtime, state, caster);
@@ -77,7 +77,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             ApplyEliteBrand(elite, caster.unit_id);
             runtime.calamity_by_member_id["hero"] = 2;
 
-            command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
+            command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.GetAnchorCoord());
             preview = runtime.PreviewCommand(command);
             _test.True(
                 preview != null && preview.allowed,
@@ -129,13 +129,13 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
 
             state = BuildSkillTestState("crown_break_broken_hand", new Vector2I(6, 3));
             caster = BuildUnit("crown_break_hand_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            caster.SetKnownActiveSkillIds(new[] { CROWN_BREAK_SKILL_ID });
+            caster.SetKnownSkillLevelTyped(CROWN_BREAK_SKILL_ID, 1);
             elite = BuildUnit("crown_break_hand_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-            elite.current_aura = 4;
+            elite.SetCurrentAura(4);
             elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
-            elite.known_active_skill_ids = new GStringNameArray { SAINT_BLADE_COMBO_SKILL_ID };
-            elite.known_skill_level_map[SAINT_BLADE_COMBO_SKILL_ID] = 1;
+            elite.SetKnownActiveSkillIds(new[] { SAINT_BLADE_COMBO_SKILL_ID });
+            elite.SetKnownSkillLevelTyped(SAINT_BLADE_COMBO_SKILL_ID, 1);
             allyTarget = BuildUnit("crown_break_hand_ally", "被追击者", "player", new Vector2I(3, 1), 2);
             allyTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), -10);
 
@@ -150,14 +150,14 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             ApplyEliteBrand(elite, caster.unit_id);
             runtime.calamity_by_member_id["hero"] = 2;
 
-            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, elite.coord);
+            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, elite.GetAnchorCoord());
             sealBatch = runtime.IssueCommand(sealCommand);
             _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。");
             _test.True(runtime.IsUnitCounterattackLocked(elite), "折手分支应封锁反击读面。");
 
             state.active_unit_id = elite.unit_id;
             state.phase = "unit_acting";
-            elite.current_ap = 2;
+            elite.SetCurrentAp(2);
             int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
                 runtime,
                 state,
@@ -179,18 +179,18 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             _test.Eq(stagePreviewTexts.Count, 1, "折手分支应把追击预览压成 1 段。");
             state.attack_roll_nonce = 0;
 
-            int auraBefore = elite.current_aura;
-            int hpBefore = allyTarget.current_hp;
+            int auraBefore = elite.GetCurrentAura();
+            int hpBefore = allyTarget.GetCurrentHp();
             followUpBatch = runtime.IssueCommand(followUpCommand);
             _test.Eq(
-                elite.current_aura,
+                elite.GetCurrentAura(),
                 auraBefore - (skillDefinition?.CombatProfile?.AuraCost ?? 0),
                 "折手分支下的连斩应只结算首段 Aura 成本。"
             );
             _test.True(followUpBatch != null && followUpBatch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={followUpBatch?.log_lines}");
             _test.True(
-                allyTarget.current_hp < hpBefore && allyTarget.current_hp >= hpBefore - 18,
-                $"折手分支应保留首段命中，但不应继续叠第二段伤害。 before={hpBefore} after={allyTarget.current_hp}"
+                allyTarget.GetCurrentHp() < hpBefore && allyTarget.GetCurrentHp() >= hpBefore - 18,
+                $"折手分支应保留首段命中，但不应继续叠第二段伤害。 before={hpBefore} after={allyTarget.GetCurrentHp()}"
             );
         }
         finally
@@ -223,9 +223,11 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             runtime = BuildRuntime();
             state = BuildSkillTestState("crown_break_blinded_eye", new Vector2I(6, 3));
             caster = BuildUnit("crown_break_eye_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
-            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID };
-            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
-            caster.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
+            caster.SetKnownActiveSkillIds(
+                new[] { CROWN_BREAK_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID }
+            );
+            caster.SetKnownSkillLevelTyped(CROWN_BREAK_SKILL_ID, 1);
+            caster.SetKnownSkillLevelTyped(WARRIOR_HEAVY_STRIKE_SKILL_ID, 1);
             elite = BuildUnit("crown_break_eye_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
             elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
 
@@ -239,7 +241,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             ApplyEliteBrand(elite, caster.unit_id);
             runtime.calamity_by_member_id["hero"] = 2;
 
-            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BLINDED_EYE, elite.coord);
+            sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BLINDED_EYE, elite.GetAnchorCoord());
             sealBatch = runtime.IssueCommand(sealCommand);
             _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。");
             _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。");
@@ -268,8 +270,8 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             state = BuildSkillTestState("crown_break_illegal_target", new Vector2I(7, 3));
             caster = BuildUnit("crown_break_illegal_caster", "施法者", "player", new Vector2I(1, 1), 3, "hero");
             caster.control_mode = "manual";
-            caster.known_active_skill_ids = new GStringNameArray { CROWN_BREAK_SKILL_ID };
-            caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
+            caster.SetKnownActiveSkillIds(new[] { CROWN_BREAK_SKILL_ID });
+            caster.SetKnownSkillLevelTyped(CROWN_BREAK_SKILL_ID, 1);
             brandedElite = BuildUnit("crown_break_valid_target", "已烙印精英", "enemy", new Vector2I(2, 1), 2, "", true);
             brandedNormal = BuildUnit("crown_break_normal_brand", "已烙印普通敌人", "enemy", new Vector2I(3, 1), 2);
             unbrandedElite = BuildUnit("crown_break_unbranded_elite", "未烙印精英", "enemy", new Vector2I(4, 1), 2, "", true);
@@ -287,7 +289,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
             SetStatus(brandedNormal, STATUS_BLACK_STAR_BRAND_NORMAL, 60, caster.unit_id);
             runtime.calamity_by_member_id["hero"] = 4;
 
-            illegalCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, unbrandedElite.coord);
+            illegalCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, unbrandedElite.GetAnchorCoord());
             illegalPreview = runtime.PreviewCommand(illegalCommand);
             _test.True(illegalPreview != null && !illegalPreview.allowed, "未烙印的 elite 不应通过折冠 preview。");
             _test.True(
@@ -295,10 +297,10 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
                 $"非法目标预览应回传阻断反馈。 log={illegalPreview?.log_lines}"
             );
 
-            int apBeforeIssue = caster.current_ap;
+            int apBeforeIssue = caster.GetCurrentAp();
             int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
             illegalBatch = runtime.IssueCommand(illegalCommand);
-            _test.Eq(caster.current_ap, apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
+            _test.Eq(caster.GetCurrentAp(), apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
             _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "非法目标被 issue 拒绝时不应扣除 calamity。");
             _test.True(
                 !unbrandedElite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND),
@@ -394,12 +396,11 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
         unit.display_name = displayName;
         unit.faction_id = factionId;
         unit.control_mode = "manual";
-        unit.current_ap = currentAp;
-        unit.current_hp = 60;
-        unit.current_mp = 4;
-        unit.current_stamina = 60;
-        unit.current_aura = 0;
-        unit.is_alive = true;
+        unit.SetCurrentAp(currentAp);
+        unit.SetCurrentHp(60);
+        unit.SetCurrentMp(4);
+        unit.SetCurrentStamina(60);
+        unit.SetCurrentAura(0);
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
@@ -441,7 +442,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
-        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
     }
 
     private void ApplyEliteBrand(BattleUnitState targetUnit, StringName sourceUnitId = default)
@@ -490,7 +491,7 @@ public partial class run_crown_break_regression : LifecycleTestSceneTree
         command.skill_id = skillId;
         command.skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId);
         command.target_unit_id = targetUnit?.unit_id ?? default;
-        command.target_coord = targetUnit?.coord ?? new Vector2I(-1, -1);
+        command.target_coord = targetUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return command;
     }
 

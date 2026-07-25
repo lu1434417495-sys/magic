@@ -56,7 +56,7 @@ internal sealed class BattleDelayedAreaEffectSystem : IDisposable
             new PendingAreaEffect
             {
                 DueTu = state.timeline.current_tu + payload.DelayTu,
-                AnchorCoord = anchorUnit.coord,
+                AnchorCoord = anchorUnit.GetAnchorCoord(),
                 SourceUnitId = sourceUnit.unit_id,
                 BindingId = binding?.BindingId ?? new StringName(""),
                 ActionId = action?.ActionId ?? new StringName(""),

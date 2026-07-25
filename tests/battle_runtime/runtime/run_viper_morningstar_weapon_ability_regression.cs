@@ -91,13 +91,15 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildViperUnit("projection");
-        _test.Eq(equipped.weapon_item_id, ViperItemId, "毒蛇晨星装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("morningstar"), "毒蛇晨星应投影为 morningstar。");
-        _test.Eq(equipped.weapon_family, new StringName("mace"), "毒蛇晨星应保留 mace 家族。");
-        _test.Eq(equipped.weapon_attack_range, 1, "毒蛇晨星攻击距离应为 1。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_count ?? 0, 1, "毒蛇晨星单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.dice_sides ?? 0, 8, "毒蛇晨星单手应为 1D8+2。");
-        _test.Eq(equipped.weapon_one_handed_dice?.flat_bonus ?? 0, 2, "毒蛇晨星单手应为 1D8+2。");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, ViperItemId, "毒蛇晨星装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("morningstar"), "毒蛇晨星应投影为 morningstar。");
+        _test.Eq(equippedWeapon.Family, new StringName("mace"), "毒蛇晨星应保留 mace 家族。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "毒蛇晨星攻击距离应为 1。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "毒蛇晨星单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.DiceSides, 8, "毒蛇晨星单手应为 1D8+2。");
+        _test.Eq(equippedWeapon.OneHandedDice.FlatBonus, 2, "毒蛇晨星单手应为 1D8+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             VenomStrikeTraitId,
@@ -111,7 +113,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "eq_viper_projection"
         );
         _test.True(
-            equipped.effective_trait_ids.Contains(PoisonImmunityTraitId),
+            equipped.HasEffectiveTrait(PoisonImmunityTraitId),
             "毒抗/毒免 trait 应作为固定装备 trait 投影到战斗单位。"
         );
         _test.Eq(
@@ -120,11 +122,11 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "毒抗/毒免 trait 应投影 poison damage immune。"
         );
         _test.True(
-            ContainsStringName(equipped.save_immunity_tags, "poison"),
+            equipped.HasSaveImmunityTag("poison"),
             "毒抗/毒免 trait 应投影 poison save immunity。"
         );
         _test.True(
-            ContainsStringName(equipped.save_immunity_tags, "antidote"),
+            equipped.HasSaveImmunityTag("antidote"),
             "毒抗/毒免 trait 应投影 antidote immunity。"
         );
 
@@ -146,15 +148,17 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除毒蛇晨星后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除毒蛇晨星后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.equipment_ability_sources.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
             "移除毒蛇晨星后装备能力源应清空。"
         );
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除毒蛇晨星后装备 trait 实例应回到装备前状态。"
         );
         _test.False(
@@ -162,11 +166,11 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "移除毒蛇晨星后 poison damage immune 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_immunity_tags, "poison"),
+            equipped.HasSaveImmunityTag("poison"),
             "移除毒蛇晨星后 poison save immunity 不应残留。"
         );
         _test.False(
-            ContainsStringName(equipped.save_immunity_tags, "antidote"),
+            equipped.HasSaveImmunityTag("antidote"),
             "移除毒蛇晨星后 antidote immunity 不应残留。"
         );
     }
@@ -177,7 +181,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         using ViperFixture fixture = ViperFixture.Build(new GArray { 4, 2 });
         BattleUnitState attacker = fixture.BuildViperUnit("venom_strike");
         BattleUnitState damageTarget = BuildTarget("venom_strike_target", new Vector2I(1, 0));
-        damageTarget.current_hp = 100;
+        damageTarget.SetCurrentHp(100);
         damageTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -186,13 +190,13 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "viper_venom_strike",
             previewCommand: false
         );
-        int venomStrikeDamage = 100 - damageTarget.current_hp;
+        int venomStrikeDamage = 100 - damageTarget.GetCurrentHp();
 
         using ViperFixture plainFixture = ViperFixture.Build(new GArray { 4, 2 });
         BattleUnitState plainAttacker = plainFixture.BuildViperUnit("venom_strike_plain");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("venom_strike_plain_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -201,7 +205,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             "viper_venom_strike_plain",
             previewCommand: false
         );
-        int plainWeaponDamage = 100 - plainTarget.current_hp;
+        int plainWeaponDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainWeaponDamage, 6, "固定骰 4 时，毒蛇晨星基础武器伤害应为 1D8+2。");
         _test.Eq(
@@ -214,13 +218,13 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         //     （nat 20 恒成功会让断言约 5% 概率偶发失败）。装备命中后反应经装备能力服务
         //     直接解析，与 giants_heel 注入 SaveContext 的做法一致。 ---
         BattleUnitState paralyzeTarget = BuildTarget("venom_strike_paralyze_target", new Vector2I(1, 0));
-        paralyzeTarget.current_hp = 100;
+        paralyzeTarget.SetCurrentHp(100);
         paralyzeTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         paralyzeTarget.SetPendingCast(
             new BattlePendingCastState
             {
                 SkillId = "fixture_pending",
-                StartedCoord = paralyzeTarget.coord,
+                StartedCoord = paralyzeTarget.GetAnchorCoord(),
                 RemainingCastProgress = 1000,
             }
         );
@@ -274,10 +278,10 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         using ViperFixture fixture = ViperFixture.Build(new GArray { 4, 2 });
         BattleUnitState attacker = fixture.BuildViperUnit("poison_immunity_target");
         BattleUnitState target = BuildTarget("poison_immune_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         target.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, -100);
-        target.save_immunity_tags.Add("poison");
+        target.AddSaveImmunityTagTyped("poison");
 
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
@@ -382,10 +386,10 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         );
 
         BattleUnitState plainTarget = BuildTarget("venom_injection_plain_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
-        holder.equipment_ability_sources.Clear();
+        holder.ClearEquipmentAbilityProjectionTyped();
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             fixture.Runtime,
             holder,
@@ -401,7 +405,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
 
         fixture.Runtime._unit_factory.RefreshBattleUnit(holder);
         BattleUnitState primedTarget = BuildTarget("venom_injection_primed_target", new Vector2I(1, 0));
-        primedTarget.current_hp = 100;
+        primedTarget.SetCurrentHp(100);
         primedTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         primedTarget.attribute_snapshot.SetValue(AttributeService.CONSTITUTION_MODIFIER, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -412,7 +416,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             previewCommand: false
         );
         _test.Eq(
-            100 - primedTarget.current_hp,
+            100 - primedTarget.GetCurrentHp(),
             11,
             "venom_primed 命中后总毒伤应为 2D6：基础 +1D6 再额外 +1D6，不应变成 3D6。"
         );
@@ -451,7 +455,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             skill_entry_id = entry.EntryRef.SkillEntryId,
             skill_id = VenomInjectionSkillId,
             target_unit_id = holder.unit_id,
-            target_coord = holder.coord,
+            target_coord = holder.GetAnchorCoord(),
         };
         command.AddTargetUnitId(holder.unit_id);
         BattlePreview preview = fixture.Runtime.PreviewCommand(command);
@@ -526,7 +530,7 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
             if (key.ToString().EndsWith(suffix, StringComparison.Ordinal))
                 return key;
         }
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         StringName sourceKey = source?.SourceEquipmentInstanceId ?? new StringName("");
         if (sourceKey == "")
             sourceKey = source?.EquipmentDefId ?? new StringName("");
@@ -557,14 +561,15 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -584,9 +589,9 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -599,12 +604,17 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        if (unit == null)
+            return null;
+        foreach (
+            BattleEquipmentAbilitySourceReadView source in
+            unit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
@@ -622,19 +632,15 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
 
     private static bool HasDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
-            return false;
-        return unit.damage_resistances.ContainsKey(damageTag.ToString())
-            || unit.damage_resistances.ContainsKey(damageTag);
+        return unit != null
+            && unit.HasDamageResistanceTyped(damageTag);
     }
 
     private static StringName GetDamageMitigation(BattleUnitState unit, StringName damageTag)
     {
-        if (unit?.damage_resistances == null)
+        if (unit == null)
             return "";
-        if (unit.damage_resistances.TryGetValue(damageTag, out StringName value))
-            return ProgressionDataUtils.to_string_name(value);
-        if (unit.damage_resistances.TryGetValue(new StringName(damageTag.ToString()), out value))
+        if (unit.TryGetDamageResistanceTyped(damageTag, out StringName value))
             return ProgressionDataUtils.to_string_name(value);
         return "";
     }

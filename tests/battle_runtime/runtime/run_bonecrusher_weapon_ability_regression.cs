@@ -122,21 +122,25 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         AssertTraitDescriptionIsPlayerFacingChinese(fixture, BoneShatterTraitId);
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildBonecrusherUnit("projection");
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
 
-        _test.Eq(equipped.weapon_item_id, BonecrusherItemId, "碎骨者装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("greataxe"), "碎骨者应投影为 greataxe。");
-        _test.Eq(equipped.weapon_family, new StringName("axe"), "碎骨者应投影为 axe family。");
+        _test.Eq(equippedWeapon.ItemId, BonecrusherItemId, "碎骨者装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("greataxe"), "碎骨者应投影为 greataxe。");
+        _test.Eq(equippedWeapon.Family, new StringName("axe"), "碎骨者应投影为 axe family。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_blunt"),
             "碎骨者应投影为钝击伤害标签。"
         );
-        _test.Eq(equipped.weapon_attack_range, 1, "碎骨者攻击距离应为 1。");
-        _test.True(equipped.weapon_uses_two_hands, "碎骨者应占用双手。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "碎骨者应为 1D12+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 12, "碎骨者应为 1D12+3。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 3, "碎骨者应为 1D12+3。");
+        _test.Eq(equippedWeapon.AttackRange, 1, "碎骨者攻击距离应为 1。");
+        _test.True(equippedWeapon.UsesTwoHands, "碎骨者应占用双手。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "碎骨者应为 1D12+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 12, "碎骨者应为 1D12+3。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 3, "碎骨者应为 1D12+3。");
 
         AssertUnitHasTraitAndAbilitySource(
             equipped,
@@ -179,13 +183,18 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除碎骨者后 weapon_item_id 应清空。");
+        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除碎骨者后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            equippedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除碎骨者后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除碎骨者后装备能力源应清空。");
+        _test.Eq(
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除碎骨者后装备能力源应清空。"
+        );
     }
 
     private void TestArmorCrushingBlowHalvesArmorShieldAndNaturalArmorForThisAttackOnly()
@@ -251,7 +260,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             previewCommand: false
         );
         _test.Eq(
-            120 - undead.current_hp,
+            120 - undead.GetCurrentHp(),
             13,
             "碎骨者命中亡灵时应造成武器 1D12+3 加骨骼粉碎 2D8。"
         );
@@ -267,7 +276,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             previewCommand: false
         );
         _test.Eq(
-            120 - construct.current_hp,
+            120 - construct.GetCurrentHp(),
             13,
             "碎骨者命中构造体时应造成武器 1D12+3 加骨骼粉碎 2D8。"
         );
@@ -283,7 +292,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             previewCommand: false
         );
         _test.Eq(
-            120 - humanoid.current_hp,
+            120 - humanoid.GetCurrentHp(),
             8,
             "碎骨者命中普通人形目标时只应造成武器 1D12+3。"
         );
@@ -294,11 +303,11 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         using BonecrusherFixture fixture = BonecrusherFixture.Build(BuildFixedRolls(20, 3));
         BattleUnitState attacker = fixture.BuildBonecrusherUnit("fracture_ap");
         BattleUnitState target = BuildTarget("fracture_target", new Vector2I(1, 0), "humanoid", hp: 200);
-        target.current_ap = 1;
+        target.SetCurrentAp(1);
 
         int[] expectedDamage = { 6, 8, 10 };
         int[] expectedStacksAfterHit = { 1, 2, 0 };
-        int previousHp = target.current_hp;
+        int previousHp = target.GetCurrentHp();
         for (int hit = 0; hit < expectedDamage.Length; hit++)
         {
             WeaponAbilityCommandTestSupport.IssueBasicAttack(
@@ -308,8 +317,8 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
                 $"bonecrusher_fracture_hit_{hit + 1}",
                 previewCommand: false
             );
-            int damage = previousHp - target.current_hp;
-            previousHp = target.current_hp;
+            int damage = previousHp - target.GetCurrentHp();
+            previousHp = target.GetCurrentHp();
             _test.Eq(
                 damage,
                 expectedDamage[hit],
@@ -322,7 +331,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             );
         }
 
-        _test.Eq(target.current_ap, 0, "裂防达到 3 层时，若目标有 AP，应扣除 1 AP。");
+        _test.Eq(target.GetCurrentAp(), 0, "裂防达到 3 层时，若目标有 AP，应扣除 1 AP。");
         _test.False(
             target.HasStatusEffect(TimeSlowStatusId),
             "目标有 AP 可扣时，骨裂震荡不应额外施加行动进度减速。"
@@ -334,7 +343,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         using BonecrusherFixture fixture = BonecrusherFixture.Build(BuildFixedRolls(20, 3));
         BattleUnitState attacker = fixture.BuildBonecrusherUnit("fracture_slow");
         BattleUnitState target = BuildTarget("fracture_slow_target", new Vector2I(1, 0), "humanoid", hp: 200);
-        target.current_ap = 0;
+        target.SetCurrentAp(0);
 
         for (int hit = 0; hit < 3; hit++)
         {
@@ -364,7 +373,7 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             0,
             "骨裂震荡触发后应清除裂防层数。"
         );
-        _test.Eq(target.current_ap, 0, "目标无 AP 时骨裂震荡不应产生负 AP。");
+        _test.Eq(target.GetCurrentAp(), 0, "目标无 AP 时骨裂震荡不应产生负 AP。");
     }
 
     private static GArray BuildFixedRolls(int count, int value)
@@ -382,20 +391,21 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         int hp = 30
     )
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.BASE_ATTACK_BONUS, 0);
         unit.attribute_snapshot.SetValue(AttributeService.HP_MAX, hp);
-        unit.creature_type_tags.Add(creatureTag);
+        unit.AddCreatureTypeTagTyped(creatureTag);
         unit.SetEquipmentView(new EquipmentState());
         return unit;
     }
@@ -491,9 +501,9 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -506,12 +516,18 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;

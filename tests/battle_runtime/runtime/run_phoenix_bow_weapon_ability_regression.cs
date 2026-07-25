@@ -85,20 +85,24 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildPhoenixUnit("projection");
-        _test.Eq(equipped.weapon_item_id, PhoenixItemId, "凤凰之弓装备后 unit 应保留真实 item_id。");
-        _test.Eq(equipped.weapon_profile_type_id, new StringName("longbow"), "凤凰之弓应投影为 longbow。");
-        _test.Eq(equipped.weapon_family, new StringName("bow"), "凤凰之弓应保留 bow 家族。");
+        BattleWeaponProjectionValues baselineWeapon =
+            baseline.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponProjectionValues equippedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(equippedWeapon.ItemId, PhoenixItemId, "凤凰之弓装备后 unit 应保留真实 item_id。");
+        _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longbow"), "凤凰之弓应投影为 longbow。");
+        _test.Eq(equippedWeapon.Family, new StringName("bow"), "凤凰之弓应保留 bow 家族。");
         _test.Eq(
-            equipped.weapon_physical_damage_tag,
+            equippedWeapon.PhysicalDamageTag,
             new StringName("physical_pierce"),
             "凤凰之弓基础伤害标签应为 physical_pierce。"
         );
-        _test.Eq(equipped.weapon_attack_range, 10, "凤凰之弓攻击距离应为 10。");
-        _test.True(equipped.weapon_uses_two_hands, "凤凰之弓应占用双手。");
-        _test.Eq(equipped.weapon_current_grip, new StringName("two_handed"), "凤凰之弓应使用双手握法。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_count ?? 0, 1, "凤凰之弓应为 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.dice_sides ?? 0, 8, "凤凰之弓应为 1D8+2。");
-        _test.Eq(equipped.weapon_two_handed_dice?.flat_bonus ?? 0, 2, "凤凰之弓应为 1D8+2。");
+        _test.Eq(equippedWeapon.AttackRange, 10, "凤凰之弓攻击距离应为 10。");
+        _test.True(equippedWeapon.UsesTwoHands, "凤凰之弓应占用双手。");
+        _test.Eq(equippedWeapon.CurrentGrip, new StringName("two_handed"), "凤凰之弓应使用双手握法。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceCount, 1, "凤凰之弓应为 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.DiceSides, 8, "凤凰之弓应为 1D8+2。");
+        _test.Eq(equippedWeapon.TwoHandedDice.FlatBonus, 2, "凤凰之弓应为 1D8+2。");
         AssertUnitHasTraitAndAbilitySource(
             equipped,
             FireArrowTraitId,
@@ -108,16 +112,22 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
 
         equipped.GetEquipmentView().ClearSlot("main_hand");
         fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        _test.Eq(equipped.weapon_item_id, new StringName(""), "移除凤凰之弓后 weapon_item_id 应清空。");
+        BattleWeaponProjectionValues removedWeapon =
+            equipped.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除凤凰之弓后 weapon_item_id 应清空。");
         _test.Eq(
-            equipped.weapon_profile_type_id,
-            baseline.weapon_profile_type_id,
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
             "移除凤凰之弓后 weapon_profile_type_id 应回到装备前状态。"
         );
-        _test.Eq(equipped.equipment_ability_sources.Count, 0, "移除凤凰之弓后装备能力源应清空。");
         _test.Eq(
-            equipped.effective_trait_instances.Count,
-            baseline.effective_trait_instances.Count,
+            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "移除凤凰之弓后装备能力源应清空。"
+        );
+        _test.Eq(
+            equipped.GetEffectiveTraitInstanceCountTyped(),
+            baseline.GetEffectiveTraitInstanceCountTyped(),
             "移除凤凰之弓后装备 trait 实例应回到装备前状态。"
         );
     }
@@ -127,7 +137,7 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
         using PhoenixFixture fixture = PhoenixFixture.Build(new GArray { 4, 3, 5 });
         BattleUnitState attacker = fixture.BuildPhoenixUnit("fire_damage");
         BattleUnitState target = BuildTarget("fire_damage_target", new Vector2I(1, 0));
-        target.current_hp = 100;
+        target.SetCurrentHp(100);
         target.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         fixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 10 }
@@ -139,13 +149,13 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
             "phoenix_bow_fire_damage",
             previewCommand: false
         );
-        int phoenixDamage = 100 - target.current_hp;
+        int phoenixDamage = 100 - target.GetCurrentHp();
 
         using PhoenixFixture plainFixture = PhoenixFixture.Build(new GArray { 4, 3, 5 });
         BattleUnitState plainAttacker = plainFixture.BuildPhoenixUnit("plain_damage");
-        plainAttacker.equipment_ability_sources.Clear();
+        plainAttacker.ClearEquipmentAbilityProjectionTyped();
         BattleUnitState plainTarget = BuildTarget("plain_damage_target", new Vector2I(1, 0));
-        plainTarget.current_hp = 100;
+        plainTarget.SetCurrentHp(100);
         plainTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         WeaponAbilityCommandTestSupport.IssueBasicAttack(
             plainFixture.Runtime,
@@ -154,7 +164,7 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
             "phoenix_bow_plain_damage",
             previewCommand: false
         );
-        int plainDamage = 100 - plainTarget.current_hp;
+        int plainDamage = 100 - plainTarget.GetCurrentHp();
 
         _test.Eq(plainDamage, 6, "固定骰 4 时，凤凰之弓基础武器伤害应为 1D8+2。");
         _test.Eq(
@@ -169,7 +179,7 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
         using PhoenixFixture failFixture = PhoenixFixture.Build(new GArray { 4, 3, 5 });
         BattleUnitState failAttacker = failFixture.BuildPhoenixUnit("burn_fail");
         BattleUnitState failTarget = BuildTarget("burn_fail_target", new Vector2I(1, 0));
-        failTarget.current_hp = 100;
+        failTarget.SetCurrentHp(100);
         failTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         failFixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 10 }
@@ -189,7 +199,7 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
         using PhoenixFixture successFixture = PhoenixFixture.Build(new GArray { 4, 3, 5 });
         BattleUnitState successAttacker = successFixture.BuildPhoenixUnit("burn_success");
         BattleUnitState successTarget = BuildTarget("burn_success_target", new Vector2I(1, 0));
-        successTarget.current_hp = 100;
+        successTarget.SetCurrentHp(100);
         successTarget.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
         successFixture.Runtime.GetEquipmentAbilityRuntimeService().ConfigureRollGateValuesForTests(
             new[] { 11 }
@@ -211,14 +221,15 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
 
     private static BattleUnitState BuildTarget(StringName unitId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = "enemy",
-            is_alive = true,
-            current_hp = 30,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 14);
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 0);
@@ -237,9 +248,9 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
     {
         if (unit == null)
             throw new InvalidOperationException("unit is null.");
-        if (!unit.effective_trait_ids.Contains(traitId))
+        if (!unit.HasEffectiveTrait(traitId))
             throw new InvalidOperationException($"unit missing trait {traitId}.");
-        BattleEquipmentAbilitySourceState source = FindSource(unit, bindingId);
+        BattleEquipmentAbilitySourceReadView source = FindSource(unit, bindingId);
         if (source == null)
             throw new InvalidOperationException($"unit missing equipment ability source {bindingId}.");
         if (source.SourceKind != EquipmentAbilitySourceKind.PlayerPersistentEquipment)
@@ -252,12 +263,18 @@ public partial class run_phoenix_bow_weapon_ability_regression : LifecycleTestSc
         }
     }
 
-    private static BattleEquipmentAbilitySourceState FindSource(
+    private static BattleEquipmentAbilitySourceReadView FindSource(
         BattleUnitState unit,
         StringName bindingId
     )
     {
-        foreach (BattleEquipmentAbilitySourceState source in unit?.equipment_ability_sources ?? new List<BattleEquipmentAbilitySourceState>())
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in unit?.GetEquipmentAbilitySourcesReadViewTyped()
+                ?? new BattleEquipmentAbilitySourceListReadView(
+                    null
+                )
+        )
         {
             if (source?.AbilityIds?.Contains(bindingId) == true)
                 return source;
