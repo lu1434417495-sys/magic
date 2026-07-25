@@ -63,6 +63,7 @@ public partial class BattleMapPanel : Control
     private GodotProjectionLease<ShaderMaterial> _presentationLease;
 
     private readonly BattleHudAdapter _hud_adapter = new();
+    private readonly BattleBoardSnapshotBuilder _board_snapshot_builder = new();
     private readonly Dictionary<string, Texture2D> _skill_icon_cache = new();
 
     private SubViewport _map_subviewport;
@@ -75,16 +76,12 @@ public partial class BattleMapPanel : Control
     private long _battle_reveal_started_at_msec;
 
     private bool _has_pending_show_battle_payload;
-    private BattleState _pending_battle_state;
+    private BattleBoardRenderSnapshot _pending_board_snapshot;
+    private BattleHudSnapshot _pending_hud_snapshot;
     private Vector2I _pending_selected_coord = Vector2I.Zero;
     private StringName _pending_selected_skill_id = "";
-    private string _pending_selected_skill_name = "";
-    private string _pending_selected_skill_variant_name = "";
     private List<Vector2I> _pending_selected_skill_target_coords = new();
     private List<Vector2I> _pending_selected_skill_valid_target_coords = new();
-    private int _pending_selected_skill_required_coord_count;
-    private List<StringName> _pending_selected_skill_target_unit_ids = new();
-    private StringName _pending_selected_skill_variant_id = "";
 
     private BattleHudEquipmentPanelSnapshot _battleEquipmentSnapshot;
     private string _battle_equipment_feedback_text = "";
@@ -162,7 +159,6 @@ public partial class BattleMapPanel : Control
     private List<Vector2I> _hover_preview_valid_coords = new();
     private StringName _hover_preview_selected_skill_id = "";
     private StringName _hover_preview_selected_skill_variant_id = "";
-    private BattleState _hover_preview_battle_state;
     private BattlePreview _selected_skill_preview_cache;
     private StringName _selected_skill_preview_cache_battle_id = "";
     private Vector2I _selected_skill_preview_cache_coord = InvalidHoverCoord;
@@ -231,6 +227,9 @@ public partial class BattleMapPanel : Control
 
     public override void _ExitTree()
     {
+        _invalidate_battle_reveal();
+        _clear_pending_show_battle_payload();
+        _clear_hover_preview_state();
         if (skill_grid != null)
             skill_grid.Resized -= _update_skill_grid_columns;
         if (map_viewport_container != null)
@@ -364,19 +363,14 @@ public partial class BattleMapPanel : Control
             return;
         }
         if (_revealing_battle_id == battleId)
+        {
+            if (StringNameIsEmpty(battleId))
+                _clear_pending_show_battle_payload();
+            else
+                _apply_pending_show_battle_payload();
             return;
-        Refresh(
-            battle_state,
-            selected_coord,
-            selected_skill_id,
-            selected_skill_name,
-            selected_skill_variant_name,
-            selected_skill_target_coords,
-            selected_skill_valid_target_coords,
-            selected_skill_required_coord_count,
-            selected_skill_target_unit_ids,
-            selected_skill_variant_id
-        );
+        }
+        _apply_pending_show_battle_payload();
     }
 
     private void _store_pending_show_battle_payload(
@@ -392,21 +386,55 @@ public partial class BattleMapPanel : Control
         StringName selected_skill_variant_id
     )
     {
-        _has_pending_show_battle_payload = true;
-        _pending_battle_state = battle_state;
-        _pending_selected_coord = selected_coord;
-        _pending_selected_skill_id = NormalizeStringName(selected_skill_id);
-        _pending_selected_skill_name = selected_skill_name ?? "";
-        _pending_selected_skill_variant_name = selected_skill_variant_name ?? "";
-        _pending_selected_skill_target_coords = CloneVector2IList(selected_skill_target_coords);
-        _pending_selected_skill_valid_target_coords = CloneVector2IList(
+        List<Vector2I> targetCoords = CloneVector2IList(selected_skill_target_coords);
+        List<Vector2I> validTargetCoords = CloneVector2IList(
             selected_skill_valid_target_coords
         );
-        _pending_selected_skill_required_coord_count = selected_skill_required_coord_count;
-        _pending_selected_skill_target_unit_ids = CloneStringNameList(
+        List<StringName> targetUnitIds = CloneStringNameList(
             selected_skill_target_unit_ids
         );
-        _pending_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        selected_skill_id = NormalizeStringName(selected_skill_id);
+        selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        BattlePreview selectedSkillPreview = !StringNameIsEmpty(selected_skill_id)
+            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
+            : null;
+        CacheSelectedSkillPreview(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_variant_id,
+            selectedSkillPreview
+        );
+        _has_pending_show_battle_payload = true;
+        _pending_board_snapshot = _board_snapshot_builder.Build(battle_state);
+        _pending_hud_snapshot = _hud_adapter.BuildSnapshot(
+            battle_state,
+            selected_coord,
+            selected_skill_id,
+            selected_skill_name ?? "",
+            selected_skill_variant_name ?? "",
+            targetCoords,
+            selected_skill_required_coord_count,
+            targetUnitIds,
+            selected_skill_variant_id,
+            _resolve_encounter_display_name(),
+            selectedSkillPreview
+        );
+        _pending_selected_coord = selected_coord;
+        _pending_selected_skill_id = selected_skill_id;
+        _pending_selected_skill_target_coords = targetCoords;
+        _pending_selected_skill_valid_target_coords = validTargetCoords;
+    }
+
+    private void _clear_pending_show_battle_payload()
+    {
+        _has_pending_show_battle_payload = false;
+        _pending_board_snapshot = null;
+        _pending_hud_snapshot = null;
+        _pending_selected_coord = Vector2I.Zero;
+        _pending_selected_skill_id = "";
+        _pending_selected_skill_target_coords = new List<Vector2I>();
+        _pending_selected_skill_valid_target_coords = new List<Vector2I>();
     }
 
     public void RefreshOverlay(
@@ -515,7 +543,11 @@ public partial class BattleMapPanel : Control
     {
         if (_battle_board == null || battle_state == null || changed_unit_ids == null)
             return;
-        _battle_board.RefreshUnits(battle_state, changed_unit_ids);
+        BattleBoardUnitUpdateSnapshot update = _board_snapshot_builder.BuildUnitUpdate(
+            battle_state,
+            changed_unit_ids
+        );
+        _battle_board.RefreshUnits(update);
         _request_map_viewport_update();
     }
 
@@ -613,6 +645,32 @@ public partial class BattleMapPanel : Control
             _resolve_encounter_display_name(),
             selectedSkillPreview
         );
+        BattleBoardRenderSnapshot boardSnapshot = redraw_board
+            ? _board_snapshot_builder.Build(battle_state)
+            : null;
+        _apply_presentation(
+            snapshot,
+            boardSnapshot,
+            selected_coord,
+            selected_skill_id,
+            targetCoords,
+            validTargetCoords,
+            redraw_board
+        );
+    }
+
+    private void _apply_presentation(
+        BattleHudSnapshot snapshot,
+        BattleBoardRenderSnapshot board_snapshot,
+        Vector2I selected_coord,
+        StringName selected_skill_id,
+        IReadOnlyCollection<Vector2I> target_coords,
+        IReadOnlyCollection<Vector2I> valid_target_coords,
+        bool redraw_board
+    )
+    {
+        if (snapshot == null)
+            return;
         _apply_snapshot(snapshot);
         if (_battle_board != null)
         {
@@ -621,25 +679,25 @@ public partial class BattleMapPanel : Control
                     ? "single_unit"
                     : snapshot.SelectedSkillTargetSelectionMode
             );
-            if (StringNameIsEmpty(selected_skill_id) && validTargetCoords.Count > 0)
+            if (StringNameIsEmpty(selected_skill_id) && valid_target_coords.Count > 0)
                 targetSelectionMode = "movement";
             int minCount = snapshot.SelectedSkillTargetMinCount;
             int maxCount = snapshot.SelectedSkillTargetMaxCount;
             IReadOnlyDictionary<Vector2I, string> hitBadges =
                 _build_selected_skill_target_hit_badges(
-                selected_coord,
-                selected_skill_id,
-                targetCoords,
-                validTargetCoords,
-                snapshot
-            );
+                    selected_coord,
+                    selected_skill_id,
+                    target_coords,
+                    valid_target_coords,
+                    snapshot
+                );
             if (redraw_board)
             {
                 _battle_board.Configure(
-                    battle_state,
+                    board_snapshot,
                     selected_coord,
-                    targetCoords,
-                    validTargetCoords,
+                    target_coords,
+                    valid_target_coords,
                     targetSelectionMode,
                     minCount,
                     maxCount,
@@ -650,8 +708,8 @@ public partial class BattleMapPanel : Control
             {
                 _battle_board.UpdateSelection(
                     selected_coord,
-                    targetCoords,
-                    validTargetCoords,
+                    target_coords,
+                    valid_target_coords,
                     targetSelectionMode,
                     minCount,
                     maxCount,
@@ -689,7 +747,7 @@ public partial class BattleMapPanel : Control
     public void HideBattle()
     {
         _cancel_battle_reveal();
-        _has_pending_show_battle_payload = false;
+        _clear_pending_show_battle_payload();
         _close_battle_equipment_panel();
         ClearHoverPreview();
         ClearSelectedSkillPreviewCache();
@@ -719,10 +777,16 @@ public partial class BattleMapPanel : Control
 
     private void _cancel_battle_reveal()
     {
+        _invalidate_battle_reveal();
+        _update_battle_loading_state(false, 0.0f);
+    }
+
+    private void _invalidate_battle_reveal()
+    {
         _battle_reveal_ticket += 1;
         _revealing_battle_id = "";
         _revealed_battle_id = "";
-        _update_battle_loading_state(false, 0.0f);
+        _battle_loading_progress = 0.0f;
     }
 
     private void _begin_battle_first_presented_frame(int reveal_ticket, StringName battle_id)
@@ -790,17 +854,22 @@ public partial class BattleMapPanel : Control
     {
         if (!_has_pending_show_battle_payload)
             return;
-        Refresh(
-            _pending_battle_state,
-            _pending_selected_coord,
-            _pending_selected_skill_id,
-            _pending_selected_skill_name,
-            _pending_selected_skill_variant_name,
-            CloneVector2IList(_pending_selected_skill_target_coords),
-            CloneVector2IList(_pending_selected_skill_valid_target_coords),
-            _pending_selected_skill_required_coord_count,
-            CloneStringNameList(_pending_selected_skill_target_unit_ids),
-            _pending_selected_skill_variant_id
+        BattleBoardRenderSnapshot boardSnapshot = _pending_board_snapshot;
+        BattleHudSnapshot hudSnapshot = _pending_hud_snapshot;
+        Vector2I selectedCoord = _pending_selected_coord;
+        StringName selectedSkillId = _pending_selected_skill_id;
+        List<Vector2I> selectedSkillTargetCoords = _pending_selected_skill_target_coords;
+        List<Vector2I> selectedSkillValidTargetCoords =
+            _pending_selected_skill_valid_target_coords;
+        _clear_pending_show_battle_payload();
+        _apply_presentation(
+            hudSnapshot,
+            boardSnapshot,
+            selectedCoord,
+            selectedSkillId,
+            selectedSkillTargetCoords,
+            selectedSkillValidTargetCoords,
+            true
         );
     }
 
@@ -843,7 +912,6 @@ public partial class BattleMapPanel : Control
             return null;
         }
         List<Vector2I> validTargetCoords = CloneVector2IList(valid_target_coords);
-        _hover_preview_battle_state = battle_state;
         _hover_preview_coord = hover_coord;
         _hover_preview_valid_coords = CloneVector2IList(validTargetCoords);
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
@@ -875,7 +943,6 @@ public partial class BattleMapPanel : Control
 
     private void _clear_hover_preview_state()
     {
-        _hover_preview_battle_state = null;
         _hover_preview_coord = InvalidHoverCoord;
         _hover_preview_valid_coords.Clear();
         _hover_preview_selected_skill_id = "";

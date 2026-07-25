@@ -488,6 +488,13 @@ internal sealed class WorldMapRuntimeProxy
         );
     }
 
+    internal RuntimeCommandResult CommandExecuteForgeAction(ForgeActionRequest request)
+    {
+        return RunRuntimeCommand(
+            () => _runtime.CommandExecuteForgeActionTyped(request)
+        );
+    }
+
     internal RuntimeCommandResult CommandExecuteSettlementAction(
         string actionId,
         Dictionary payload = null

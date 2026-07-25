@@ -39,7 +39,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         TestGettersForwardToRuntime();
         TestSnapshotMethodsForwardToRuntime();
         TestPartyCommandsDelegateToRuntime();
-        TestWarehouseUseTypedOptionsDelegateToRuntime();
+        TestWarehouseMutationsStageWithoutImmediateFlush();
         TestMissingRuntimeReturnsError();
 
         RequestTestExit(_test.Finish("World map runtime proxy regression"));
@@ -193,9 +193,10 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         _test.Eq(proxy.GetStatusText(), "", "缺少 runtime 时 getter 应返回安全默认值。");
     }
 
-    private void TestWarehouseUseTypedOptionsDelegateToRuntime()
+    private void TestWarehouseMutationsStageWithoutImmediateFlush()
     {
         GameTextCommandRunner runner = new();
+        GameSession gameSession = null;
         runner.initialize();
         try
         {
@@ -206,7 +207,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             );
             HeadlessGameTestSession session = runner.GetSession();
             GameRuntimeFacade runtime = session?.GetRuntimeFacadeTyped();
-            GameSession gameSession = session?.GetGameSessionTyped();
+            gameSession = session?.GetGameSessionTyped();
             _test.True(runtime != null, "proxy warehouse use regression 应拿到 typed runtime。");
             _test.True(gameSession != null, "proxy warehouse use regression 应拿到 typed game session。");
             if (runtime == null || gameSession == null)
@@ -221,11 +222,21 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             if (bookSkill.SkillId == "" || bookSkill.ItemId == "")
                 return;
 
-            PartyWarehouseService.WarehouseAddItemResult addResult =
-                runtime._party_warehouse_service.AddItemTyped(bookSkill.ItemId, 1);
+            gameSession.fail_payload_write = true;
+            RuntimeCommandResult addResult =
+                runtime.CommandWarehouseAddItemTyped(bookSkill.ItemId, 3);
             _test.True(
-                addResult != null && addResult.AddedQuantity == 1,
-                "warehouse add typed 预置库存应直接成功，不应依赖持久化命令链。"
+                addResult.Ok,
+                $"仓库直接加入物品只应 stage party，不应因 payload 写入故障失败。message={addResult.Message}"
+            );
+            _test.Eq(
+                runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                3,
+                "仓库直接加入成功后应保留全部库存。"
+            );
+            AssertWarehouseMutationIsPendingWithoutSaveError(
+                gameSession,
+                "仓库直接加入物品"
             );
             GameRuntimeFacade.RuntimeCommandResult openPartyResult = runtime.CommandOpenPartyTyped();
             _test.True(
@@ -252,51 +263,117 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
                 new PartyItemUseService.PartyItemUseOptions(true)
             );
             _test.True(
-                result.Ok
-                    || result.Code == GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
-                $"CommandWarehouseUseItem(typed options) 应委托 runtime，并返回正式成功或持久化失败 code。message={result.Message}"
+                result.Ok,
+                $"技能书使用只应 stage party，不应因 payload 写入故障失败。message={result.Message}"
             );
             UnitSkillProgress skillProgress = gameSession
                 .GetPartyState()
                 .GetMemberState(memberId)
                 ?.progression
                 ?.GetSkillProgress(bookSkill.SkillId);
-            if (result.Ok)
-            {
-                _test.Eq(
-                    runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
-                    0,
-                    "typed warehouse use 成功后应消耗技能书。"
-                );
-                _test.True(
-                    skillProgress != null && skillProgress.is_learned,
-                    "typed warehouse use 成功时应通过正式链让目标成员学会技能。"
-                );
-            }
-            else
-            {
-                _test.Eq(
-                    result.Code,
-                    GameRuntimeFacade.RuntimeCommandCode.PersistenceFailure,
-                    "typed warehouse use 失败时应暴露正式 PersistenceFailure code。"
-                );
-                _test.Eq(
-                    runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
-                    1,
-                    "持久化失败回滚后，技能书库存应保持不变。"
-                );
-                _test.True(
-                    skillProgress == null || !skillProgress.is_learned,
-                    "持久化失败回滚后，成员不应保留已学会状态。"
-                );
-            }
+            _test.Eq(
+                runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                2,
+                "typed warehouse use 成功后应只消耗一本技能书。"
+            );
+            _test.True(
+                skillProgress != null && skillProgress.is_learned,
+                "typed warehouse use 成功时应通过正式链让目标成员学会技能。"
+            );
+            AssertWarehouseMutationIsPendingWithoutSaveError(
+                gameSession,
+                "仓库技能书使用"
+            );
+
+            RuntimeCommandResult discardOneResult =
+                proxy.CommandWarehouseDiscardOne(bookSkill.ItemId, "");
+            _test.True(
+                discardOneResult.Ok,
+                $"仓库丢弃一件只应 stage party，不应因 payload 写入故障失败。message={discardOneResult.Message}"
+            );
+            _test.Eq(
+                runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                1,
+                "丢弃一件成功后应保留一件库存。"
+            );
+            AssertWarehouseMutationIsPendingWithoutSaveError(
+                gameSession,
+                "仓库丢弃一件"
+            );
+
+            RuntimeCommandResult discardAllResult =
+                proxy.CommandWarehouseDiscardAll(bookSkill.ItemId);
+            _test.True(
+                discardAllResult.Ok,
+                $"仓库丢弃全部只应 stage party，不应因 payload 写入故障失败。message={discardAllResult.Message}"
+            );
+            _test.Eq(
+                runtime._party_warehouse_service.CountItem(bookSkill.ItemId),
+                0,
+                "丢弃全部成功后不应保留该物品库存。"
+            );
+            AssertWarehouseMutationIsPendingWithoutSaveError(
+                gameSession,
+                "仓库丢弃全部"
+            );
+
+            gameSession.fail_payload_write = false;
+            int flushError = runtime.FlushCanonicalRuntimeState(
+                "test.warehouse_mutations"
+            );
+            _test.Eq(
+                flushError,
+                (int)Error.Ok,
+                "恢复 payload 写入后，canonical flush 应成功保存 staged 仓库状态。"
+            );
+            _test.False(
+                gameSession.HasPendingSave(),
+                "canonical flush 成功后应清除仓库 mutation 的 pending dirty。"
+            );
 
             proxy.Dispose();
         }
         finally
         {
+            if (gameSession != null)
+                gameSession.fail_payload_write = false;
             runner.Dispose(true);
         }
+    }
+
+    private void AssertWarehouseMutationIsPendingWithoutSaveError(
+        GameSession gameSession,
+        string operation
+    )
+    {
+        _test.True(
+            gameSession.HasPendingSave(),
+            $"{operation}成功后应保留 pending dirty，等待 canonical flush。"
+        );
+        using GodotProjectionLease<GDictionary> saveStatusLease =
+            gameSession.GetSaveStatusLease();
+        GDictionary saveStatus = saveStatusLease.Value;
+        bool hasPartyStateScope = false;
+        foreach (Variant rawScope in saveStatus["dirty_scopes"].AsGodotArray())
+        {
+            if (
+                rawScope.VariantType == Variant.Type.StringName
+                && rawScope.AsStringName() == new StringName("party_state")
+            )
+            {
+                hasPartyStateScope = true;
+                break;
+            }
+        }
+        _test.True(
+            hasPartyStateScope,
+            $"{operation}成功后应把 party_state 标记为 dirty scope。"
+        );
+        _test.Eq(
+            saveStatus["last_error"].AsInt32(),
+            (int)Error.Ok,
+            $"{operation}不应尝试 payload 写入，也不应记录 save error。"
+        );
     }
 
     private static BookSkillPickData PickUnlearnedBookSkillForMember(

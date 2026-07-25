@@ -76,73 +76,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         _windowDataBuilder.Setup(this, _serviceWindowHandler);
     }
 
-    private sealed class SettlementActionValidationResult
-    {
-        private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
-        public bool Ok { get; }
-        public string Message { get; }
-        internal IReadOnlyDictionary<string, object> ServiceEntryPlain =>
-            RuntimePlainPayload.CloneDictionary(_serviceEntry);
-
-        private SettlementActionValidationResult(
-            bool ok,
-            string message,
-            GDictionary serviceEntry = null
-        )
-        {
-            Ok = ok;
-            Message = message ?? "";
-            ReplacePlainPayload(
-                _serviceEntry,
-                serviceEntry,
-                "GameRuntimeSettlementCommandHandler.SettlementActionValidationResult.serviceEntry"
-            );
-        }
-
-        internal static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
-            new(true, "", serviceEntry);
-
-        internal static SettlementActionValidationResult Failure(string message) =>
-            new(false, message);
-    }
-
-    private sealed class SettlementServiceEntryResolution
-    {
-        private readonly Dictionary<string, object> _serviceEntry = new(StringComparer.Ordinal);
-        internal IReadOnlyDictionary<string, object> ServiceEntryPlain =>
-            RuntimePlainPayload.CloneDictionary(_serviceEntry);
-        public bool IsEnabled { get; }
-        public string DisabledReason { get; }
-        public bool Found => _serviceEntry.Count != 0;
-
-        private SettlementServiceEntryResolution(
-            GDictionary serviceEntry,
-            bool isEnabled,
-            string disabledReason
-        )
-        {
-            ReplacePlainPayload(
-                _serviceEntry,
-                serviceEntry,
-                "GameRuntimeSettlementCommandHandler.SettlementServiceEntryResolution.serviceEntry"
-            );
-            IsEnabled = isEnabled;
-            DisabledReason = disabledReason ?? "";
-        }
-
-        internal static SettlementServiceEntryResolution Missing() => new(null, false, "");
-
-        internal static SettlementServiceEntryResolution FromServiceData(
-            GDictionary serviceEntry,
-            SettlementServiceMetadata metadata
-        ) =>
-            new(
-                serviceEntry,
-                metadata?.IsEnabled ?? false,
-                metadata?.DisabledReason ?? ""
-            );
-    }
-
     internal readonly struct SettlementPersistResult
     {
         public readonly bool Ok;
@@ -413,6 +346,25 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         SettlementActionRequest request
+    ) => CommandExecuteSettlementActionRuntimeTyped(request, default);
+
+    internal GameRuntimeFacade.RuntimeCommandResult CommandExecuteForgeActionRuntimeTyped(
+        ForgeActionRequest request
+    )
+    {
+        if (!request.IsValid)
+        {
+            return RuntimeCommandError("锻造请求缺少据点、服务或配方 ID。");
+        }
+        return CommandExecuteSettlementActionRuntimeTyped(
+            request.ToSettlementActionRequest(),
+            request.RecipeId
+        );
+    }
+
+    private GameRuntimeFacade.RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
+        SettlementActionRequest request,
+        StringName recipeId
     )
     {
         if (!_has_runtime())
@@ -458,7 +410,8 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         GDictionary mergedPayload = BuildSettlementActionPayloadFromRequest(
             serviceEntry,
-            request
+            request,
+            recipeId
         );
         if (mergedPayload.Count == 0)
         {
@@ -832,172 +785,45 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private GDictionary BuildSettlementActionPayloadFromRequest(
         GDictionary service_data,
         SettlementActionRequest request
-    )
-    {
-        if (service_data.Count == 0)
-        {
-            return new GDictionary();
-        }
-        GDictionary payload = BuildSettlementActionBasePayload(
-            request.ActionId.ToString(),
-            service_data
+    ) => BuildSettlementActionPayloadFromRequest(service_data, request, default);
+
+    private GDictionary BuildSettlementActionPayloadFromRequest(
+        GDictionary service_data,
+        SettlementActionRequest request,
+        StringName recipeId
+    ) =>
+        SettlementActionPayloadBuilder.BuildActionPayload(
+            service_data,
+            request,
+            recipeId,
+            ResolveDefaultSettlementMemberId()
         );
-        payload["settlement_id"] = request.SettlementId.ToString();
-        payload["service_id"] = request.ServiceId.ToString();
-        if (request.MemberId != "")
-        {
-            payload["member_id"] = request.MemberId.ToString();
-            payload["default_member_id"] = request.MemberId.ToString();
-        }
-        if (request.Quantity > 0)
-        {
-            payload["request_quantity"] = request.Quantity;
-            payload["quantity"] = request.Quantity;
-        }
-        string submissionSource = SettlementSubmissionSources.ToPayloadValue(request.Source);
-        if (!string.IsNullOrEmpty(submissionSource))
-            payload["submission_source"] = submissionSource;
-        EnsureSettlementActionMemberId(payload);
-        return payload;
-    }
 
     private GDictionary BuildSettlementModalActionPayloadFromServiceEntry(
         string action_id,
         GDictionary service_data,
         GDictionary overrides
-    )
-    {
-        if (service_data.Count == 0)
-        {
-            return new GDictionary();
-        }
-        SettlementSubmissionSource source = ReadSubmissionSource(overrides);
-        if (
-            source != SettlementSubmissionSource.ContractBoard
-            && source != SettlementSubmissionSource.BountyBoard
-            && source != SettlementSubmissionSource.Forge
-            && source != SettlementSubmissionSource.NpcQuestOffer
-        )
-        {
-            return new GDictionary();
-        }
-        SettlementActionRequest request = BuildSettlementActionRequestFromBoundaryPayload(
-            ResolveCommandSettlementId(),
+    ) =>
+        SettlementActionPayloadBuilder.BuildModalActionPayload(
             action_id,
-            overrides ?? new GDictionary(),
-            source
+            service_data,
+            overrides,
+            ResolveCommandSettlementId(),
+            ResolveDefaultSettlementMemberId()
         );
-        GDictionary payload = BuildSettlementActionPayloadFromRequest(service_data, request);
-        CopyIfPresent(payload, overrides, "submission_source");
-        CopyIfPresent(payload, overrides, "panel_kind");
-        CopyIfPresent(payload, overrides, "state_summary_text");
-        if (source == SettlementSubmissionSource.ContractBoard)
-        {
-            CopyIfPresent(payload, overrides, "quest_id");
-            CopyIfPresent(payload, overrides, "provider_interaction_id");
-            CopyIfPresent(payload, overrides, "confirm_accept");
-        }
-        else if (source == SettlementSubmissionSource.BountyBoard)
-        {
-            // 悬赏板不做逐项确认，payload 不携带 confirm_accept。
-            CopyIfPresent(payload, overrides, "quest_id");
-            CopyIfPresent(payload, overrides, "provider_interaction_id");
-        }
-        else if (source == SettlementSubmissionSource.Forge)
-        {
-            CopyIfPresent(payload, overrides, "recipe_id");
-        }
-        else if (source == SettlementSubmissionSource.NpcQuestOffer)
-        {
-            CopyIfPresent(payload, overrides, "quest_id");
-            CopyIfPresent(payload, overrides, "confirm_accept");
-        }
-        return payload;
-    }
-
-    private GDictionary BuildSettlementActionBasePayload(
-        string action_id,
-        GDictionary service_data
-    )
-    {
-        var payload = new GDictionary
-        {
-            ["action_id"] = action_id,
-            ["facility_id"] = ReadString(service_data, "facility_id"),
-            ["facility_template_id"] = ReadString(service_data, "facility_template_id"),
-            ["facility_name"] = ReadString(service_data, "facility_name"),
-            ["npc_id"] = ReadString(service_data, "npc_id"),
-            ["npc_template_id"] = ReadString(service_data, "npc_template_id"),
-            ["npc_name"] = ReadString(service_data, "npc_name"),
-            ["service_type"] = ReadString(service_data, "service_type"),
-            ["interaction_script_id"] = ReadString(service_data, "interaction_script_id"),
-        };
-        CopyIfPresent(payload, service_data, "state_label");
-        CopyIfPresent(payload, service_data, "cost_label");
-        CopyIfPresent(payload, service_data, "summary_text");
-        CopyIfPresent(payload, service_data, "disabled_reason");
-        CopyIfPresent(payload, service_data, "panel_kind");
-        CopyIfPresent(payload, service_data, "interaction_type");
-        CopyIfPresent(payload, service_data, "is_enabled");
-        return payload;
-    }
-
-    private void EnsureSettlementActionMemberId(GDictionary payload)
-    {
-        if (string.IsNullOrEmpty(ReadString(payload, "member_id")))
-        {
-            StringName memberId = ResolveDefaultSettlementMemberId();
-            if (memberId != "")
-            {
-                payload["member_id"] = memberId.ToString();
-                if (string.IsNullOrEmpty(ReadString(payload, "default_member_id")))
-                    payload["default_member_id"] = memberId.ToString();
-            }
-        }
-    }
 
     private SettlementActionRequest BuildSettlementActionRequestFromBoundaryPayload(
         string fallback_settlement_id,
         string action_id,
         GDictionary payload,
         SettlementSubmissionSource default_source
-    )
-    {
-        GDictionary payloadData = payload ?? new GDictionary();
-        string settlementId = ReadString(
-            payloadData,
-            "settlement_id",
-            fallback_settlement_id ?? ""
-        ).StripEdges();
-        string serviceId = ReadString(payloadData, "service_id", action_id ?? "").StripEdges();
-        string actionId = (action_id ?? "").StripEdges();
-        StringName memberId = ReadStringName(payloadData, "member_id");
-        int quantity = ReadInt(
-            payloadData,
-            "request_quantity",
-            ReadInt(payloadData, "quantity", 0)
+    ) =>
+        SettlementActionPayloadBuilder.BuildRequestFromBoundary(
+            fallback_settlement_id,
+            action_id,
+            payload,
+            default_source
         );
-        if (quantity < 0)
-            quantity = 0;
-        SettlementSubmissionSource source = ReadSubmissionSource(payloadData);
-        if (source == SettlementSubmissionSource.None && default_source != SettlementSubmissionSource.None)
-            source = default_source;
-        return new SettlementActionRequest(
-            new StringName(settlementId),
-            new StringName(string.IsNullOrEmpty(serviceId) ? actionId : serviceId),
-            new StringName(actionId),
-            memberId,
-            quantity,
-            source
-        );
-    }
-
-    private static void CopyIfPresent(GDictionary target, GDictionary source, string key)
-    {
-        if (target == null || source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-            return;
-        target[key] = source[key];
-    }
 
     private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
         string settlement_id,
@@ -1025,30 +851,30 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             settlement_id,
             action_id
         );
-        using GodotProjectionLease<GDictionary> serviceEntryLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                serviceResolution.ServiceEntryPlain,
-                "SettlementServiceEntryResolution.ServiceEntry",
-                LifetimeDomain.Request,
-                "SettlementServiceEntryResolution.ServiceEntry"
-            );
-        GDictionary serviceEntry = serviceEntryLease.Value;
-        if (serviceEntry.Count == 0)
+        bool requiresEnabledService = _settlement_action_requires_enabled_service(payload);
+        string disabledMessage = "";
+        if (serviceResolution.Found && requiresEnabledService && !serviceResolution.IsEnabled)
         {
-            return SettlementActionValidationResult.Failure(
-                _build_unknown_settlement_action_message(settlement_id, action_id)
+            using GodotProjectionLease<GDictionary> serviceEntryLease =
+                RuntimePlainPayload.ProjectDictionaryLease(
+                    serviceResolution.ServiceEntryPlain,
+                    "SettlementServiceEntryResolution.ServiceEntry",
+                    LifetimeDomain.Request,
+                    "SettlementServiceEntryResolution.ServiceEntry"
+                );
+            disabledMessage = _build_disabled_settlement_action_message(
+                serviceEntryLease.Value
             );
         }
-        if (
-            _settlement_action_requires_enabled_service(payload)
-            && !serviceResolution.IsEnabled
-        )
-        {
-            return SettlementActionValidationResult.Failure(
-                _build_disabled_settlement_action_message(serviceEntry)
-            );
-        }
-        return SettlementActionValidationResult.Success(serviceEntry);
+        string unknownMessage = serviceResolution.Found
+            ? ""
+            : _build_unknown_settlement_action_message(settlement_id, action_id);
+        return SettlementActionValidationPolicy.ValidateResolvedService(
+            serviceResolution,
+            requiresEnabledService,
+            unknownMessage,
+            disabledMessage
+        );
     }
 
     private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
@@ -1065,23 +891,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     private static GDictionary BuildSettlementActionRequestValidationPayload(
         SettlementActionRequest request
-    )
-    {
-        var payload = new GDictionary
-        {
-            ["settlement_id"] = request.SettlementId.ToString(),
-            ["service_id"] = request.ServiceId.ToString(),
-            ["action_id"] = request.ActionId.ToString(),
-        };
-        if (request.MemberId != "")
-            payload["member_id"] = request.MemberId.ToString();
-        if (request.Quantity > 0)
-            payload["request_quantity"] = request.Quantity;
-        string submissionSource = SettlementSubmissionSources.ToPayloadValue(request.Source);
-        if (!string.IsNullOrEmpty(submissionSource))
-            payload["submission_source"] = submissionSource;
-        return payload;
-    }
+    ) => SettlementActionPayloadBuilder.BuildValidationPayload(request);
 
     private SettlementActionValidationResult ValidateSettlementActionModalContextTyped(
         string settlement_id,
@@ -2066,38 +1876,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetSelectedCoord(snapshot.SelectedCoord);
         SetActiveSettlementId(snapshot.ActiveSettlementId);
         SetSettlementFeedbackText(snapshot.SettlementFeedbackText);
-        using GodotProjectionLease<GDictionary> shopContextLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                snapshot.ActiveShopContextPlain,
-                "SettlementRollback.activeShopContext",
-                LifetimeDomain.Request,
-                "SettlementRollback.activeShopContext"
-            );
-        using GodotProjectionLease<GDictionary> contractBoardContextLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                snapshot.ActiveContractBoardContextPlain,
-                "SettlementRollback.activeContractBoardContext",
-                LifetimeDomain.Request,
-                "SettlementRollback.activeContractBoardContext"
-            );
-        using GodotProjectionLease<GDictionary> forgeContextLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                snapshot.ActiveForgeContextPlain,
-                "SettlementRollback.activeForgeContext",
-                LifetimeDomain.Request,
-                "SettlementRollback.activeForgeContext"
-            );
-        using GodotProjectionLease<GDictionary> stagecoachContextLease =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                snapshot.ActiveStagecoachContextPlain,
-                "SettlementRollback.activeStagecoachContext",
-                LifetimeDomain.Request,
-                "SettlementRollback.activeStagecoachContext"
-            );
-        SetActiveShopContext(shopContextLease.Value);
-        SetActiveContractBoardContext(contractBoardContextLease.Value);
-        SetActiveForgeContext(forgeContextLease.Value);
-        SetActiveStagecoachContext(stagecoachContextLease.Value);
+        Runtime.SetActiveShopContextPlain(snapshot.ActiveShopContextPlain);
+        Runtime.SetActiveContractBoardContextPlain(snapshot.ActiveContractBoardContextPlain);
+        Runtime.SetActiveForgeContextPlain(snapshot.ActiveForgeContextPlain);
+        Runtime.SetActiveStagecoachContextPlain(snapshot.ActiveStagecoachContextPlain);
         if (snapshot.ActiveNpcQuestOfferContext != null)
             SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
         if (snapshot.ActiveBountyBoardContext != null)
@@ -2459,18 +2241,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     }
 
     internal static SettlementSubmissionSource ReadSubmissionSource(GDictionary payload)
-    {
-        if (
-            SettlementSubmissionSources.TryParse(
-                ReadString(payload, "submission_source"),
-                out SettlementSubmissionSource source
-            )
-        )
-        {
-            return source;
-        }
-        return SettlementSubmissionSource.None;
-    }
+        => SettlementActionPayloadBuilder.ReadSubmissionSource(payload);
 
     private void DisposeServiceInstances(bool recreate)
     {

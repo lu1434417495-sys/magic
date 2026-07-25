@@ -46,7 +46,6 @@ public sealed class BattleBoardController : IDisposable
     private static readonly Color UNIT_HEALTH_BAR_HIGH_COLOR = new(0.3f, 0.86f, 0.42f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_MID_COLOR = new(0.9f, 0.76f, 0.24f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_LOW_COLOR = new(0.9f, 0.28f, 0.22f, 0.96f);
-    private static readonly StringName HP_MAX_ATTRIBUTE_ID = "hp_max";
     private static readonly Color ACTIVE_SELECTED_MARKER_COLOR = new(0.0f, 0.0f, 1.0f, 1.0f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_DARK = new(0.14f, 0.37f, 0.5f, 1.0f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_LIGHT = new(
@@ -128,8 +127,7 @@ public sealed class BattleBoardController : IDisposable
     private NativeLeaseScope _renderLease;
     private bool _disposed;
     private readonly Dictionary<StringName, Node2D> _unitNodesById = new();
-    public BattleEdgeService _edge_service = new();
-    public BattleState _battle_state;
+    internal BattleBoardRenderSnapshot _snapshot;
     public Vector2I _selected_coord = new(-1, -1);
     public readonly List<Vector2I> _preview_target_coords = new();
     public readonly List<Vector2I> _valid_target_coords = new();
@@ -192,7 +190,7 @@ public sealed class BattleBoardController : IDisposable
     }
 
     public void Configure(
-        BattleState battle_state,
+        BattleBoardRenderSnapshot snapshot,
         Vector2I selected_coord,
         IEnumerable<Vector2I> preview_target_coords,
         StringName target_selection_mode,
@@ -202,7 +200,7 @@ public sealed class BattleBoardController : IDisposable
     )
     {
         ThrowIfDisposed();
-        _battle_state = battle_state;
+        _snapshot = snapshot;
         _selected_coord = selected_coord;
         ReplaceCoords(_preview_target_coords, preview_target_coords);
         _target_selection_mode =
@@ -238,17 +236,17 @@ public sealed class BattleBoardController : IDisposable
     }
 
     public void RefreshUnits(
-        BattleState battle_state,
-        IEnumerable<StringName> changed_unit_ids
+        BattleBoardRenderSnapshot snapshot,
+        IEnumerable<StringName> requested_unit_ids
     )
     {
         ThrowIfDisposed();
-        if (_unit_layer == null || battle_state == null || changed_unit_ids == null)
+        if (_unit_layer == null || snapshot == null || requested_unit_ids == null)
             return;
 
-        _battle_state = battle_state;
+        _snapshot = snapshot;
         var requestedUnitIds = new HashSet<StringName>();
-        foreach (StringName unitId in changed_unit_ids)
+        foreach (StringName unitId in requested_unit_ids)
         {
             if (unitId != "")
                 requestedUnitIds.Add(unitId);
@@ -257,10 +255,12 @@ public sealed class BattleBoardController : IDisposable
         {
             foreach (StringName unitId in _unitNodesById.Keys)
                 requestedUnitIds.Add(unitId);
-            foreach (BattleUnitState unit in battle_state.Units())
+            foreach (
+                (StringName unitId, BattleBoardUnitSnapshot _) in snapshot.Units
+            )
             {
-                if (unit?.unit_id != "")
-                    requestedUnitIds.Add(unit.unit_id);
+                if (unitId != "")
+                    requestedUnitIds.Add(unitId);
             }
         }
 
@@ -276,8 +276,8 @@ public sealed class BattleBoardController : IDisposable
                 }
             }
 
-            BattleUnitState unitState = GetUnit(_battle_state, unitId);
-            if (unitState == null || !unitState.is_alive)
+            BattleBoardUnitSnapshot unitState = _snapshot.GetUnit(unitId);
+            if (unitState == null || !unitState.IsAlive)
                 continue;
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode == null)
@@ -336,7 +336,7 @@ public sealed class BattleBoardController : IDisposable
 
     private void ClearBorrowedFields()
     {
-        _battle_state = null;
+        _snapshot = null;
         _tile_set = null;
         _render_profile = null;
         _tile_profile_id = "";
@@ -435,9 +435,9 @@ public sealed class BattleBoardController : IDisposable
         if (!HasLayersBound())
             return false;
         if (
-            _battle_state == null
-            || _battle_state.IsEmpty()
-            || _battle_state.map_size == Vector2I.Zero
+            _snapshot == null
+            || _snapshot.IsEmpty
+            || _snapshot.MapSize == Vector2I.Zero
         )
             return false;
         if (_count_rendered_top_cells() < _count_expected_drawable_cells())
@@ -454,12 +454,12 @@ public sealed class BattleBoardController : IDisposable
         _clear_tile_layers();
         _clear_dynamic_nodes();
         if (
-            _battle_state == null
-            || _battle_state.IsEmpty()
-            || _battle_state.map_size == Vector2I.Zero
+            _snapshot == null
+            || _snapshot.IsEmpty
+            || _snapshot.MapSize == Vector2I.Zero
         )
             return;
-        List<BattleCellState> cells = _collect_cells();
+        List<BattleBoardCellSnapshot> cells = _collect_cells();
         _draw_terrain_layers(cells);
         _draw_marker_layer();
         _draw_props(cells);
@@ -467,20 +467,20 @@ public sealed class BattleBoardController : IDisposable
         _draw_target_highlights();
     }
 
-    private void _draw_terrain_layers(List<BattleCellState> cells)
+    private void _draw_terrain_layers(List<BattleBoardCellSnapshot> cells)
     {
-        foreach (BattleCellState cellState in cells)
+        foreach (BattleBoardCellSnapshot cellState in cells)
         {
             if (cellState == null)
                 continue;
-            Vector2I coord = cellState.coord;
+            Vector2I coord = cellState.Coord;
             if (!_is_cell_inside_battle(coord))
                 continue;
-            int heightIndex = Mathf.Clamp((int)cellState.current_height, 0, MAX_HEIGHT_LAYERS - 1);
-            int topSourceId = _get_top_source_id(cellState.base_terrain.ToString(), coord);
+            int heightIndex = Mathf.Clamp(cellState.Height, 0, MAX_HEIGHT_LAYERS - 1);
+            int topSourceId = _get_top_source_id(cellState.BaseTerrain.ToString(), coord);
             if (topSourceId >= 0 && heightIndex < _top_layers.Count)
                 _top_layers[heightIndex].SetCell(coord, topSourceId, Vector2I.Zero, 0);
-            int overlaySourceId = _get_overlay_source_id(cellState.base_terrain.ToString(), coord);
+            int overlaySourceId = _get_overlay_source_id(cellState);
             if (overlaySourceId >= 0 && heightIndex < _overlay_layers.Count)
                 _overlay_layers[heightIndex].SetCell(coord, overlaySourceId, Vector2I.Zero, 0);
         }
@@ -489,29 +489,29 @@ public sealed class BattleBoardController : IDisposable
 
     private void _draw_edge_faces()
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return;
-        foreach (BattleEdgeFaceState edgeFace in _edge_service.GetAllEdgeFaces(_battle_state))
+        foreach (BattleBoardEdgeSnapshot edgeFace in _snapshot.Edges)
         {
-            if (edgeFace == null || !edgeFace.HasAnyFace())
+            if (edgeFace == null || (!edgeFace.HasDropFace && !edgeFace.HasFeatureFace))
                 continue;
             _draw_drop_face(edgeFace);
             _draw_feature_face(edgeFace);
         }
     }
 
-    private void _draw_drop_face(BattleEdgeFaceState edge_face)
+    private void _draw_drop_face(BattleBoardEdgeSnapshot edge_face)
     {
-        if (edge_face == null || !edge_face.HasDropFace())
+        if (edge_face == null || !edge_face.HasDropFace)
             return;
         IReadOnlyList<TileMapLayer> layers =
-            edge_face.direction == Vector2I.Right
+            edge_face.Direction == Vector2I.Right
                 ? _edge_drop_east_layers
                 : _edge_drop_south_layers;
         StringName sourceKey =
-            edge_face.direction == Vector2I.Right ? SOURCE_EDGE_DROP_EAST : SOURCE_EDGE_DROP_SOUTH;
+            edge_face.Direction == Vector2I.Right ? SOURCE_EDGE_DROP_EAST : SOURCE_EDGE_DROP_SOUTH;
         Vector2I renderCoord = _get_edge_render_coord(edge_face);
-        foreach (int renderHeight in edge_face.drop_face_layer_heights)
+        foreach (int renderHeight in edge_face.DropFaceLayerHeights)
         {
             int layerIndex = renderHeight - 1;
             if (layerIndex < 0 || layerIndex >= layers.Count)
@@ -519,28 +519,28 @@ public sealed class BattleBoardController : IDisposable
             layers[layerIndex]
                 .SetCell(
                     renderCoord,
-                    _get_source_id(sourceKey, edge_face.origin_coord, layerIndex),
+                    _get_source_id(sourceKey, edge_face.OriginCoord, layerIndex),
                     Vector2I.Zero,
                     0
                 );
         }
     }
 
-    private void _draw_feature_face(BattleEdgeFaceState edge_face)
+    private void _draw_feature_face(BattleBoardEdgeSnapshot edge_face)
     {
-        if (edge_face == null || !edge_face.HasFeatureFace())
+        if (edge_face == null || !edge_face.HasFeatureFace)
             return;
         if (edge_face.FeatureRenderKind != BattleEdgeRenderKind.Wall)
             return;
         IReadOnlyList<TileMapLayer> layers =
-            edge_face.direction == Vector2I.Right ? _wall_east_layers : _wall_south_layers;
+            edge_face.Direction == Vector2I.Right ? _wall_east_layers : _wall_south_layers;
         StringName sourceKey =
-            edge_face.direction == Vector2I.Right ? SOURCE_WALL_EAST : SOURCE_WALL_SOUTH;
+            edge_face.Direction == Vector2I.Right ? SOURCE_WALL_EAST : SOURCE_WALL_SOUTH;
         Vector2I renderCoord = _get_edge_render_coord(edge_face);
-        for (int layerOffset = 0; layerOffset < edge_face.feature_layers; layerOffset++)
+        for (int layerOffset = 0; layerOffset < edge_face.FeatureLayers; layerOffset++)
         {
             int layerIndex = Mathf.Clamp(
-                (int)edge_face.from_height - layerOffset,
+                edge_face.FromHeight - layerOffset,
                 0,
                 MAX_HEIGHT_LAYERS - 1
             );
@@ -549,20 +549,20 @@ public sealed class BattleBoardController : IDisposable
             layers[layerIndex]
                 .SetCell(
                     renderCoord,
-                    _get_source_id(sourceKey, edge_face.origin_coord, layerIndex),
+                    _get_source_id(sourceKey, edge_face.OriginCoord, layerIndex),
                     Vector2I.Zero,
                     0
                 );
         }
     }
 
-    private Vector2I _get_edge_render_coord(BattleEdgeFaceState edge_face)
+    private Vector2I _get_edge_render_coord(BattleBoardEdgeSnapshot edge_face)
     {
         if (edge_face == null)
             return Vector2I.Zero;
-        if (edge_face.direction == Vector2I.Right || edge_face.direction == Vector2I.Down)
-            return edge_face.neighbor_coord;
-        return edge_face.origin_coord;
+        if (edge_face.Direction == Vector2I.Right || edge_face.Direction == Vector2I.Down)
+            return edge_face.NeighborCoord;
+        return edge_face.OriginCoord;
     }
 
     private void _draw_marker_layer()
@@ -593,77 +593,26 @@ public sealed class BattleBoardController : IDisposable
 
     private void _draw_objective_exit_markers()
     {
-        IReadOnlyList<Vector2I> exitCoords =
-            _battle_state?.ObjectiveRuntimeState switch
-            {
-                BattleEscapeObjectiveRuntimeState escapeObjective =>
-                    escapeObjective.ExitCoords,
-                BattleEscortObjectiveRuntimeState escortObjective =>
-                    escortObjective.ExitCoords,
-                BattleInterceptObjectiveRuntimeState interceptObjective =>
-                    interceptObjective.ExitCoords,
-                BattleNodeOperationObjectiveRuntimeState nodeOperationObjective =>
-                    ResolveIncompleteOperationNodeCoords(nodeOperationObjective),
-                BattleControlObjectiveRuntimeState controlObjective =>
-                    ResolveControlZoneCoords(controlObjective),
-                _ => null,
-            };
-        if (exitCoords == null)
+        IReadOnlyList<Vector2I> markerCoords = _snapshot?.ObjectiveMarkerCoords;
+        if (markerCoords == null)
             return;
         int sourceId = _get_source_id(SOURCE_OBJECTIVE_EXIT);
         if (sourceId < 0)
             return;
-        foreach (Vector2I exitCoord in exitCoords)
+        foreach (Vector2I exitCoord in markerCoords)
         {
             if (_is_cell_inside_battle(exitCoord))
                 _set_marker_cell(exitCoord, sourceId);
         }
     }
 
-    private static IReadOnlyList<Vector2I> ResolveIncompleteOperationNodeCoords(
-        BattleNodeOperationObjectiveRuntimeState objective
-    )
+    private void _draw_props(List<BattleBoardCellSnapshot> cells)
     {
-        var result = new List<Vector2I>();
-        foreach (
-            BattleOperationNodeRuntimeState node in
-            objective?.OperationNodes
-            ?? System.Array.Empty<BattleOperationNodeRuntimeState>()
-        )
-        {
-            if (!node.IsCompleted)
-                result.Add(node.Coord);
-        }
-        return result;
-    }
-
-    private static IReadOnlyList<Vector2I> ResolveControlZoneCoords(
-        BattleControlObjectiveRuntimeState objective
-    )
-    {
-        var result = new List<Vector2I>();
-        foreach (
-            BattleControlZoneRuntimeState zone in
-            objective?.ControlZones
-            ?? System.Array.Empty<BattleControlZoneRuntimeState>()
-        )
-        {
-            foreach (Vector2I coord in zone.Coords)
-            {
-                if (!result.Contains(coord))
-                    result.Add(coord);
-            }
-        }
-        return result;
-    }
-
-    private void _draw_props(List<BattleCellState> cells)
-    {
-        if (_prop_layer == null || _battle_state == null)
+        if (_prop_layer == null || _snapshot == null)
             return;
-        foreach (BattleCellState cellState in cells)
+        foreach (BattleBoardCellSnapshot cellState in cells)
         {
-            if (cellState == null || !_is_cell_inside_battle(cellState.coord))
+            if (cellState == null || !_is_cell_inside_battle(cellState.Coord))
                 continue;
             List<StringName> propIds = _collect_prop_ids_for_cell(cellState);
             for (int index = 0; index < propIds.Count; index++)
@@ -677,10 +626,10 @@ public sealed class BattleBoardController : IDisposable
 
     private void _draw_units()
     {
-        if (_unit_layer == null || _battle_state == null)
+        if (_unit_layer == null || _snapshot == null)
             return;
         var unitIds = new List<StringName>();
-        foreach ((StringName unitId, BattleUnitState _) in _battle_state.UnitEntries())
+        foreach ((StringName unitId, BattleBoardUnitSnapshot _) in _snapshot.Units)
         {
             if (unitId != "")
                 unitIds.Add(unitId);
@@ -688,8 +637,8 @@ public sealed class BattleBoardController : IDisposable
         unitIds.Sort(
             (a, b) =>
             {
-                BattleUnitState leftUnit = GetUnit(_battle_state, a);
-                BattleUnitState rightUnit = GetUnit(_battle_state, b);
+                BattleBoardUnitSnapshot leftUnit = _snapshot.GetUnit(a);
+                BattleBoardUnitSnapshot rightUnit = _snapshot.GetUnit(b);
                 if (leftUnit == null)
                     return 1;
                 if (rightUnit == null)
@@ -699,8 +648,8 @@ public sealed class BattleBoardController : IDisposable
         );
         foreach (StringName unitIdValue in unitIds)
         {
-            BattleUnitState unitState = GetUnit(_battle_state, unitIdValue);
-            if (unitState == null || !unitState.is_alive)
+            BattleBoardUnitSnapshot unitState = _snapshot.GetUnit(unitIdValue);
+            if (unitState == null || !unitState.IsAlive)
                 continue;
             Node2D unitNode = _create_unit_token(unitState);
             if (unitNode != null)
@@ -711,7 +660,7 @@ public sealed class BattleBoardController : IDisposable
         }
     }
 
-    private Node2D _create_unit_token(BattleUnitState unit_state)
+    private Node2D _create_unit_token(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return null;
@@ -719,13 +668,13 @@ public sealed class BattleBoardController : IDisposable
         int renderDepth = _get_unit_render_depth(unit_state);
         var token = new Node2D
         {
-            Name = unit_state.unit_id.ToString(),
+            Name = unit_state.UnitId.ToString(),
             Position = anchor + _get_unit_anchor_bias(),
             ZIndex = renderDepth,
         };
         token.SetMeta("sort_anchor_y", anchor.Y);
         token.SetMeta("sort_depth", renderDepth);
-        token.SetMeta("board_coord", unit_state.coord);
+        token.SetMeta("board_coord", unit_state.AnchorCoord);
         Texture2D spriteTexture = _resolve_unit_sprite_texture(unit_state);
         if (spriteTexture != null)
         {
@@ -764,8 +713,8 @@ public sealed class BattleBoardController : IDisposable
         }
         if (
             spriteTexture == null
-            && _battle_state != null
-            && unit_state.unit_id == _battle_state.active_unit_id
+            && _snapshot != null
+            && unit_state.UnitId == _snapshot.ActiveUnitId
         )
         {
             var activeOutline = new Line2D
@@ -825,7 +774,7 @@ public sealed class BattleBoardController : IDisposable
 
     private void _attach_unit_sprite_visuals(
         Node2D token,
-        BattleUnitState unit_state,
+        BattleBoardUnitSnapshot unit_state,
         Texture2D spriteTexture
     )
     {
@@ -842,7 +791,7 @@ public sealed class BattleBoardController : IDisposable
             ZIndex = -2,
         };
         token.AddChild(shadow);
-        if (_battle_state != null && unit_state.unit_id == _battle_state.active_unit_id)
+        if (_snapshot != null && unit_state.UnitId == _snapshot.ActiveUnitId)
         {
             var highlight = new Polygon2D
             {
@@ -876,9 +825,9 @@ public sealed class BattleBoardController : IDisposable
         token.AddChild(sprite);
     }
 
-    private Texture2D _resolve_unit_sprite_texture(BattleUnitState unitState)
+    private Texture2D _resolve_unit_sprite_texture(BattleBoardUnitSnapshot unitState)
     {
-        string path = unitState?.battle_sprite_texture_path ?? "";
+        string path = unitState?.BattleSpriteTexturePath ?? "";
         return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
     }
 
@@ -917,12 +866,12 @@ public sealed class BattleBoardController : IDisposable
         return points;
     }
 
-    private Control _create_unit_health_bar(BattleUnitState unit_state)
+    private Control _create_unit_health_bar(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return null;
         int hpMax = _get_unit_hp_max(unit_state);
-        int clampedHp = Mathf.Clamp((int)unit_state.current_hp, 0, hpMax);
+        int clampedHp = Mathf.Clamp(unit_state.CurrentHp, 0, hpMax);
         float hpRatio = Mathf.Clamp((float)clampedHp / (float)hpMax, 0.0f, 1.0f);
         float maxFillWidth = Mathf.Max(UNIT_HEALTH_BAR_SIZE.X - 2.0f, 0.0f);
         float fillWidth = maxFillWidth * hpRatio;
@@ -968,49 +917,55 @@ public sealed class BattleBoardController : IDisposable
         return healthBar;
     }
 
-    private Vector2 _get_unit_anchor_position(BattleUnitState unit_state)
+    private Vector2 _get_unit_anchor_position(BattleBoardUnitSnapshot unit_state)
     {
-        if (unit_state == null || _input_layer == null || _battle_state == null)
+        if (unit_state == null || _input_layer == null || _snapshot == null)
             return Vector2.Zero;
         Vector2 total = Vector2.Zero;
         int count = 0;
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (Vector2I occupiedCoord in unit_state.OccupiedCoords)
         {
-            BattleCellState cell = GetCell(_battle_state, occupiedCoord);
+            BattleBoardCellSnapshot cell = _snapshot.GetCell(occupiedCoord);
             if (cell == null)
                 continue;
-            total += _get_cell_anchor_position(occupiedCoord, (int)cell.current_height);
+            total += _get_cell_anchor_position(occupiedCoord, cell.Height);
             count += 1;
         }
-        return count <= 0 ? _get_cell_anchor_position(unit_state.coord, 0) : total / (float)count;
+        return count <= 0
+            ? _get_cell_anchor_position(unit_state.AnchorCoord, 0)
+            : total / (float)count;
     }
 
-    private int _get_unit_render_depth(BattleUnitState unit_state)
+    private int _get_unit_render_depth(BattleBoardUnitSnapshot unit_state)
     {
-        if (unit_state == null || _input_layer == null || _battle_state == null)
+        if (unit_state == null || _input_layer == null || _snapshot == null)
             return 0;
         int bestDepth = int.MinValue;
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        foreach (Vector2I occupiedCoord in unit_state.OccupiedCoords)
         {
-            BattleCellState cell = GetCell(_battle_state, occupiedCoord);
+            BattleBoardCellSnapshot cell = _snapshot.GetCell(occupiedCoord);
             int heightValue =
-                cell != null ? Mathf.Clamp((int)cell.current_height, 0, MAX_HEIGHT_LAYERS - 1) : 0;
+                cell != null ? Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1) : 0;
             bestDepth = Mathf.Max(bestDepth, _get_cell_render_depth(occupiedCoord, heightValue));
         }
-        return bestDepth == int.MinValue ? _get_cell_render_depth(unit_state.coord, 0) : bestDepth;
+        return bestDepth == int.MinValue
+            ? _get_cell_render_depth(unit_state.AnchorCoord, 0)
+            : bestDepth;
     }
 
-    private float _get_unit_sort_key(BattleUnitState unit_state)
+    private float _get_unit_sort_key(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return 0.0f;
-        float bestKey = (float)unit_state.coord.Y * 1000.0f + (float)unit_state.coord.X;
-        foreach (Vector2I occupiedCoord in unit_state.occupied_coords)
+        float bestKey =
+            (float)unit_state.AnchorCoord.Y * 1000.0f
+            + (float)unit_state.AnchorCoord.X;
+        foreach (Vector2I occupiedCoord in unit_state.OccupiedCoords)
         {
-            BattleCellState cell = GetCell(_battle_state, occupiedCoord);
+            BattleBoardCellSnapshot cell = _snapshot.GetCell(occupiedCoord);
             float heightValue =
                 cell != null
-                    ? (float)Mathf.Clamp((int)cell.current_height, 0, MAX_HEIGHT_LAYERS - 1)
+                    ? (float)Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1)
                     : 0.0f;
             bestKey = Mathf.Max(
                 bestKey,
@@ -1243,15 +1198,15 @@ public sealed class BattleBoardController : IDisposable
 
     private Vector2I _resolve_multi_unit_confirm_focus_coord()
     {
-        if (_battle_state != null)
+        if (_snapshot != null)
         {
-            BattleUnitState activeUnit = GetUnit(_battle_state, _battle_state.active_unit_id);
+            BattleBoardUnitSnapshot activeUnit = _snapshot.GetUnit(_snapshot.ActiveUnitId);
             if (
                 activeUnit != null
-                && activeUnit.is_alive
-                && _is_cell_inside_battle(activeUnit.coord)
+                && activeUnit.IsAlive
+                && _is_cell_inside_battle(activeUnit.AnchorCoord)
             )
-                return activeUnit.coord;
+                return activeUnit.AnchorCoord;
         }
         return _selected_coord;
     }
@@ -1330,10 +1285,10 @@ public sealed class BattleBoardController : IDisposable
 
     public int _count_expected_drawable_cells()
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return 0;
         int count = 0;
-        foreach ((Vector2I coord, BattleCellState _) in _battle_state.CellEntries())
+        foreach ((Vector2I coord, BattleBoardCellSnapshot _) in _snapshot.Cells)
             if (_is_cell_inside_battle(coord))
                 count += 1;
         return count;
@@ -1350,12 +1305,12 @@ public sealed class BattleBoardController : IDisposable
 
     public int _count_expected_rendered_units()
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return 0;
         int count = 0;
-        foreach (BattleUnitState unitState in _battle_state.Units())
+        foreach (BattleBoardUnitSnapshot unitState in _snapshot.Units.Values)
         {
-            if (unitState != null && unitState.is_alive)
+            if (unitState != null && unitState.IsAlive)
                 count += 1;
         }
         return count;
@@ -1365,12 +1320,12 @@ public sealed class BattleBoardController : IDisposable
 
     public int _count_expected_rendered_props()
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return 0;
         int count = 0;
-        foreach (BattleCellState cellState in _battle_state.Cells())
+        foreach (BattleBoardCellSnapshot cellState in _snapshot.Cells.Values)
         {
-            if (cellState == null || !_is_cell_inside_battle(cellState.coord))
+            if (cellState == null || !_is_cell_inside_battle(cellState.Coord))
                 continue;
             count += _collect_prop_ids_for_cell(cellState).Count;
         }
@@ -1379,21 +1334,21 @@ public sealed class BattleBoardController : IDisposable
 
     public int _count_rendered_props() => _prop_layer != null ? _prop_layer.GetChildCount() : 0;
 
-    private List<BattleCellState> _collect_cells()
+    private List<BattleBoardCellSnapshot> _collect_cells()
     {
-        var cells = new List<BattleCellState>();
-        if (_battle_state == null)
+        var cells = new List<BattleBoardCellSnapshot>();
+        if (_snapshot == null)
             return cells;
-        foreach (BattleCellState cellState in _battle_state.Cells())
+        foreach (BattleBoardCellSnapshot cellState in _snapshot.Cells.Values)
         {
             if (cellState != null)
                 cells.Add(cellState);
         }
         cells.Sort(
             (a, b) =>
-                a.coord.Y == b.coord.Y
-                    ? a.coord.X.CompareTo(b.coord.X)
-                    : a.coord.Y.CompareTo(b.coord.Y)
+                a.Coord.Y == b.Coord.Y
+                    ? a.Coord.X.CompareTo(b.Coord.X)
+                    : a.Coord.Y.CompareTo(b.Coord.Y)
         );
         return cells;
     }
@@ -1487,7 +1442,7 @@ public sealed class BattleBoardController : IDisposable
     }
 
     private BattleBoardProp _create_prop_node(
-        BattleCellState cell_state,
+        BattleBoardCellSnapshot cell_state,
         StringName prop_id,
         int stack_index
     )
@@ -1498,20 +1453,20 @@ public sealed class BattleBoardController : IDisposable
         BattleBoardProp propNode = propInstance as BattleBoardProp;
         if (propNode == null)
             return null;
-        int heightValue = Mathf.Clamp((int)cell_state.current_height, 0, MAX_HEIGHT_LAYERS - 1);
-        Vector2 anchor = _get_cell_anchor_position(cell_state.coord, heightValue);
-        int renderDepth = _get_cell_render_depth(cell_state.coord, heightValue);
-        propNode.Name = $"{prop_id}_{cell_state.coord.X}_{cell_state.coord.Y}_{stack_index}";
-        propNode.Position = anchor + _get_prop_offset(prop_id, cell_state.coord, stack_index);
+        int heightValue = Mathf.Clamp(cell_state.Height, 0, MAX_HEIGHT_LAYERS - 1);
+        Vector2 anchor = _get_cell_anchor_position(cell_state.Coord, heightValue);
+        int renderDepth = _get_cell_render_depth(cell_state.Coord, heightValue);
+        propNode.Name = $"{prop_id}_{cell_state.Coord.X}_{cell_state.Coord.Y}_{stack_index}";
+        propNode.Position = anchor + _get_prop_offset(prop_id, cell_state.Coord, stack_index);
         propNode.ZIndex = renderDepth;
         propNode.SetMeta("sort_anchor_y", anchor.Y);
         propNode.SetMeta("sort_depth", renderDepth);
-        propNode.SetMeta("board_coord", cell_state.coord);
+        propNode.SetMeta("board_coord", cell_state.Coord);
         propNode.SetMeta("prop_id", prop_id);
         propNode.Configure(
             prop_id,
             _build_coord_hash(
-                cell_state.coord,
+                cell_state.Coord,
                 stack_index + BattleBoardPropCatalog.GetSortPriority(prop_id)
             ),
             BattleBoardPropCatalog.RequiresInteractionShape(prop_id)
@@ -1519,14 +1474,14 @@ public sealed class BattleBoardController : IDisposable
         return propNode;
     }
 
-    private List<StringName> _collect_prop_ids_for_cell(BattleCellState cell_state)
+    private List<StringName> _collect_prop_ids_for_cell(BattleBoardCellSnapshot cell_state)
     {
         var propIds = new List<StringName>();
         if (cell_state == null)
             return propIds;
-        if (cell_state.base_terrain == TERRAIN_SPIKE)
+        if (cell_state.BaseTerrain == TERRAIN_SPIKE)
             propIds.Add(PROP_SPIKE_BARRICADE);
-        foreach (StringName propId in cell_state.prop_ids)
+        foreach (StringName propId in cell_state.PropIds)
         {
             if (!BattleBoardPropCatalog.IsSupported(propId) || propIds.Contains(propId))
                 continue;
@@ -1579,10 +1534,10 @@ public sealed class BattleBoardController : IDisposable
 
     private int _get_cell_height_index(Vector2I coord)
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return 0;
-        BattleCellState cell = GetCell(_battle_state, coord);
-        return cell == null ? 0 : Mathf.Clamp((int)cell.current_height, 0, MAX_HEIGHT_LAYERS - 1);
+        BattleBoardCellSnapshot cell = _snapshot.GetCell(coord);
+        return cell == null ? 0 : Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1);
     }
 
     private void _ensure_tileset(StringName profile_id)
@@ -1988,10 +1943,10 @@ public sealed class BattleBoardController : IDisposable
     }
 
     private StringName _resolve_tile_profile_id() =>
-        _battle_state == null
+        _snapshot == null
             ? BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
             : BattleBoardRenderProfile.NormalizeTerrainProfileId(
-                _battle_state.terrain_profile_id
+                _snapshot.TerrainProfileId
             );
 
     public int _get_source_id(StringName source_key) =>
@@ -2032,12 +1987,12 @@ public sealed class BattleBoardController : IDisposable
 
     private bool _is_active_unit_coord(Vector2I coord)
     {
-        if (_battle_state == null)
+        if (_snapshot == null)
             return false;
-        BattleUnitState activeUnit = GetUnit(_battle_state, _battle_state.active_unit_id);
-        if (activeUnit == null || !activeUnit.is_alive)
+        BattleBoardUnitSnapshot activeUnit = _snapshot.GetUnit(_snapshot.ActiveUnitId);
+        if (activeUnit == null || !activeUnit.IsAlive)
             return false;
-        return activeUnit.occupied_coords.Contains(coord);
+        return activeUnit.OccupiesCoord(coord);
     }
 
     private int _get_top_source_id(string terrain, Vector2I coord)
@@ -2061,55 +2016,23 @@ public sealed class BattleBoardController : IDisposable
         return _get_source_id(SOURCE_LAND, coord);
     }
 
-    private int _get_overlay_source_id(string terrain, Vector2I coord)
+    private int _get_overlay_source_id(BattleBoardCellSnapshot cell)
     {
-        int timedOverlaySourceId = _get_timed_terrain_overlay_source_id(coord);
-        if (timedOverlaySourceId >= 0)
-            return timedOverlaySourceId;
-        StringName terrainName = terrain;
+        if (cell == null)
+            return -1;
+        Vector2I coord = cell.Coord;
+        foreach (StringName terrainOverlayId in cell.TerrainOverlayIds)
+        {
+            int timedOverlaySourceId = _get_source_id(terrainOverlayId, coord);
+            if (timedOverlaySourceId >= 0)
+                return timedOverlaySourceId;
+        }
+        StringName terrainName = cell.BaseTerrain;
         if (terrainName == TERRAIN_FOREST)
             return _get_source_id(SOURCE_FOREST_TREE, coord);
         if (terrainName == TERRAIN_SPIKE)
             return _get_source_id(SOURCE_RUBBLE, coord);
         return -1;
-    }
-
-    private int _get_timed_terrain_overlay_source_id(Vector2I coord)
-    {
-        if (_battle_state == null)
-            return -1;
-        BattleCellState cell = GetCell(_battle_state, coord);
-        if (cell == null || cell.timed_terrain_effects.Count == 0)
-            return -1;
-        int bestSourceId = -1;
-        int bestPriority = int.MinValue;
-        string bestSourceKey = "";
-        foreach (BattleTerrainEffectState effectState in cell.timed_terrain_effects)
-        {
-            if (
-                effectState == null
-                || !BattleTerrainEffectSystem.IsTerrainEffectActive(effectState)
-            )
-                continue;
-            StringName overlayId = effectState.render_overlay_id;
-            if (overlayId == "")
-                continue;
-            int sourceId = _get_source_id(overlayId, coord);
-            if (sourceId < 0)
-                continue;
-            int priority = effectState.overlay_priority;
-            string sourceKey = overlayId.ToString();
-            if (
-                priority > bestPriority
-                || (priority == bestPriority && string.CompareOrdinal(sourceKey, bestSourceKey) < 0)
-            )
-            {
-                bestPriority = priority;
-                bestSourceKey = sourceKey;
-                bestSourceId = sourceId;
-            }
-        }
-        return bestSourceId;
     }
 
     internal static int GetVariantIndexForTest(int hashValue, int optionCount) =>
@@ -2135,25 +2058,21 @@ public sealed class BattleBoardController : IDisposable
         return Mathf.Abs(hashValue);
     }
 
-    private string _build_unit_short_name(BattleUnitState unit_state)
+    private string _build_unit_short_name(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return "?";
-        if (!string.IsNullOrEmpty(unit_state.display_name))
-            return unit_state.display_name.Substring(0, 1);
-        string unitId = unit_state.unit_id.ToString();
+        if (!string.IsNullOrEmpty(unit_state.DisplayName))
+            return unit_state.DisplayName.Substring(0, 1);
+        string unitId = unit_state.UnitId.ToString();
         return unitId.Length > 0 ? unitId.Substring(0, 1) : "?";
     }
 
-    private int _get_unit_hp_max(BattleUnitState unit_state)
+    private int _get_unit_hp_max(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return 1;
-        int snapshotHpMax =
-            unit_state.attribute_snapshot != null
-                ? unit_state.attribute_snapshot.GetValue(HP_MAX_ATTRIBUTE_ID)
-                : 0;
-        return Mathf.Max(Mathf.Max(snapshotHpMax, (int)unit_state.current_hp), 1);
+        return Mathf.Max(unit_state.MaxHp, 1);
     }
 
     private Color _get_unit_health_bar_fill_color(float hp_ratio)
@@ -2172,23 +2091,23 @@ public sealed class BattleBoardController : IDisposable
         );
     }
 
-    private Color _get_unit_color(BattleUnitState unit_state)
+    private Color _get_unit_color(BattleBoardUnitSnapshot unit_state)
     {
         if (unit_state == null)
             return new Color(0.78f, 0.8f, 0.84f, 0.94f);
-        if (unit_state.faction_id.ToString() == "player")
+        if (unit_state.FactionId.ToString() == "player")
             return new Color(0.96f, 0.86f, 0.38f, 0.96f);
-        if (unit_state.faction_id.ToString() == "hostile")
+        if (unit_state.FactionId.ToString() == "hostile")
             return new Color(0.9f, 0.32f, 0.22f, 0.96f);
         return new Color(0.7f, 0.74f, 0.78f, 0.92f);
     }
 
     private bool _is_cell_inside_battle(Vector2I coord) =>
-        _battle_state != null
+        _snapshot != null
         && coord.X >= 0
         && coord.Y >= 0
-        && coord.X < _battle_state.map_size.X
-        && coord.Y < _battle_state.map_size.Y;
+        && coord.X < _snapshot.MapSize.X
+        && coord.Y < _snapshot.MapSize.Y;
 
     private static void ReplaceLayers(
         List<TileMapLayer> destination,
@@ -2253,14 +2172,6 @@ public sealed class BattleBoardController : IDisposable
             if (layer != null)
                 layer.TileSet = _tile_set;
     }
-
-    private static BattleUnitState GetUnit(BattleState state, StringName key)
-    {
-        return state?.GetUnit(key);
-    }
-
-    private static BattleCellState GetCell(BattleState state, Vector2I coord) =>
-        state?.GetCell(coord);
 
     private static float CalcLuminance(Color color)
     {

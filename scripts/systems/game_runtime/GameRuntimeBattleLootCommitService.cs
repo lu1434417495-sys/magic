@@ -6,7 +6,7 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 {
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeBattleLootCommitPort> _portRef;
 
     internal sealed class ItemCommitResult
     {
@@ -89,20 +89,24 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
     }
 
-    private GameRuntimeFacade _runtime
+    private IGameRuntimeBattleLootCommitPort _port
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        get => ResolveWeakRef(_portRef);
+        set =>
+            _portRef =
+                value != null
+                    ? new WeakReference<IGameRuntimeBattleLootCommitPort>(value)
+                    : null;
     }
 
-    internal void Setup(GameRuntimeFacade runtime)
+    internal void Setup(IGameRuntimeBattleLootCommitPort port)
     {
-        _runtime = runtime;
+        _port = port;
     }
 
     public void Dispose()
     {
-        _runtime = null;
+        _port = null;
         GC.SuppressFinalize(this);
     }
 
@@ -171,10 +175,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         if (battleResolutionResult.outcome != BattleOutcomeKind.PlayerSuccess)
             return BattleLootCommitResult.Success();
 
-        var partyState = _runtime._party_state;
-        var partyWarehouseService = _runtime._party_warehouse_service;
-        var gameSession = _runtime._game_session;
-        if (partyState == null || partyWarehouseService == null || gameSession == null)
+        if (_port == null || !_port.TryPrepareBattleLootCommit())
             return BattleLootCommitResult.Create(
                 false,
                 "warehouse_service_unavailable",
@@ -184,16 +185,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0
             );
 
-        var itemDefs = gameSession.GetItemDefsTyped();
-        _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
-
-        var warehouseState = partyState.warehouse_state;
-        WarehouseState warehouseStateBefore = null;
-        if (warehouseState != null)
-            warehouseStateBefore = warehouseState.DuplicateState();
-
-        var fateRunFlagsBefore = partyState?.CaptureFateRunFlagsTyped()
-            ?? new System.Collections.Generic.Dictionary<StringName, bool>();
+        IBattleLootCommitCheckpoint commitCheckpoint =
+            _port.CaptureBattleLootCommitCheckpoint();
 
         var overflowEntries = new List<BattleLootEntry>();
         var committedItemCount = 0;
@@ -207,10 +200,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             if (lootEntry == null)
                 continue;
 
-            WarehouseState entryWarehouseStateBefore = partyState.warehouse_state?.DuplicateState();
-            System.Collections.Generic.Dictionary<StringName, bool> entryFateRunFlagsBefore =
-                partyState?.CaptureFateRunFlagsTyped()
-                ?? new System.Collections.Generic.Dictionary<StringName, bool>();
+            IBattleLootCommitCheckpoint entryCheckpoint =
+                _port.CaptureBattleLootCommitCheckpoint();
 
             if (lootEntry.DropKind == BattleLootDropKind.EquipmentInstance)
             {
@@ -219,13 +210,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 {
                     if (IsFatalLootCommitError(instanceCommitResult.ErrorCode))
                     {
-                        RestoreLootCommitState(
-                            partyState,
-                            partyWarehouseService,
-                            itemDefs,
-                            warehouseStateBefore,
-                            fateRunFlagsBefore
-                        );
+                        _port.RestoreBattleLootCommitCheckpoint(commitCheckpoint);
                         return BattleLootCommitResult.Create(
                             false,
                             instanceCommitResult.ErrorCode,
@@ -235,13 +220,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                             0
                         );
                     }
-                    RestoreLootCommitState(
-                        partyState,
-                        partyWarehouseService,
-                        itemDefs,
-                        entryWarehouseStateBefore,
-                        entryFateRunFlagsBefore
-                    );
+                    _port.RestoreBattleLootCommitCheckpoint(entryCheckpoint);
                     LogDroppedBattleLootEntry(
                         lootEntry,
                         instanceCommitResult,
@@ -261,13 +240,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 {
                     if (IsFatalLootCommitError(equipmentCommitResult.ErrorCode))
                     {
-                        RestoreLootCommitState(
-                            partyState,
-                            partyWarehouseService,
-                            itemDefs,
-                            warehouseStateBefore,
-                            fateRunFlagsBefore
-                        );
+                        _port.RestoreBattleLootCommitCheckpoint(commitCheckpoint);
                         return BattleLootCommitResult.Create(
                             false,
                             equipmentCommitResult.ErrorCode,
@@ -277,13 +250,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                             0
                         );
                     }
-                    RestoreLootCommitState(
-                        partyState,
-                        partyWarehouseService,
-                        itemDefs,
-                        entryWarehouseStateBefore,
-                        entryFateRunFlagsBefore
-                    );
+                    _port.RestoreBattleLootCommitCheckpoint(entryCheckpoint);
                     LogDroppedBattleLootEntry(
                         lootEntry,
                         equipmentCommitResult,
@@ -301,13 +268,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             {
                 if (IsFatalLootCommitError(itemCommitResult.ErrorCode))
                 {
-                    RestoreLootCommitState(
-                        partyState,
-                        partyWarehouseService,
-                        itemDefs,
-                        warehouseStateBefore,
-                        fateRunFlagsBefore
-                    );
+                    _port.RestoreBattleLootCommitCheckpoint(commitCheckpoint);
                     return BattleLootCommitResult.Create(
                         false,
                         itemCommitResult.ErrorCode,
@@ -317,13 +278,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                         0
                     );
                 }
-                RestoreLootCommitState(
-                    partyState,
-                    partyWarehouseService,
-                    itemDefs,
-                    entryWarehouseStateBefore,
-                    entryFateRunFlagsBefore
-                );
+                _port.RestoreBattleLootCommitCheckpoint(entryCheckpoint);
                 LogDroppedBattleLootEntry(
                     lootEntry,
                     itemCommitResult,
@@ -359,8 +314,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         var quantity = lootEntry.Quantity;
         if (itemId == "" || quantity <= 0)
             return ItemCommitResult.Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>());
-        var partyWarehouseService = _runtime._party_warehouse_service;
-        var addResult = partyWarehouseService.AddItemTyped(itemId, quantity);
+        var addResult = _port.AddBattleLootItem(itemId, quantity);
         if (!addResult.ItemFound)
             return ItemCommitResult.Create(
                 false,
@@ -391,10 +345,9 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         var dropLuck = lootEntry.DropLuck;
         if (itemId == "" || quantity <= 0)
             return ItemCommitResult.Create(true, "", "", 0, System.Array.Empty<BattleLootEntry>());
-        var gameSession = _runtime._game_session;
-        var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
-        if (itemDef == null)
+        BattleLootItemDefinitionKind itemKind =
+            _port.ResolveBattleLootItemDefinitionKind(itemId);
+        if (itemKind == BattleLootItemDefinitionKind.Missing)
             return ItemCommitResult.Create(
                 false,
                 "battle_loot_item_missing_def",
@@ -402,7 +355,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        if (!itemDef.IsEquipment())
+        if (itemKind != BattleLootItemDefinitionKind.Equipment)
             return ItemCommitResult.Create(
                 false,
                 "battle_loot_random_equipment_invalid_item",
@@ -410,8 +363,14 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        var equipmentDropService = _runtime._equipment_drop_service;
-        if (equipmentDropService == null)
+        if (
+            !_port.TryRollBattleLootEquipment(
+                itemId,
+                quantity,
+                dropLuck,
+                out IReadOnlyList<EquipmentInstanceState> rolledInstances
+            )
+        )
             return ItemCommitResult.Create(
                 false,
                 "battle_loot_random_equipment_service_unavailable",
@@ -419,7 +378,6 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        var rolledInstances = equipmentDropService.RollItemInstances(itemId, quantity, dropLuck);
         var committedItemCount = 0;
         var overflowQuantity = 0;
         foreach (EquipmentInstanceState rolledInstance in rolledInstances)
@@ -427,8 +385,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             if (rolledInstance == null)
                 continue;
             var rolledItemId = rolledInstance?.item_id ?? new StringName("");
-            var partyWarehouseService = _runtime._party_warehouse_service;
-            var addResult = partyWarehouseService.AddEquipmentInstanceTyped(rolledInstance);
+            var addResult = _port.AddBattleLootEquipmentInstance(rolledInstance);
             if (!addResult.ItemFound)
                 return ItemCommitResult.Create(
                     false,
@@ -478,10 +435,9 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        var gameSession = _runtime._game_session;
-        var itemDefs = gameSession.GetItemDefsTyped();
-        itemDefs.TryGetValue(itemId, out ItemDefinition itemDef);
-        if (itemDef == null)
+        BattleLootItemDefinitionKind itemKind =
+            _port.ResolveBattleLootItemDefinitionKind(itemId);
+        if (itemKind == BattleLootItemDefinitionKind.Missing)
             return ItemCommitResult.Create(
                 false,
                 "battle_loot_item_missing_def",
@@ -489,7 +445,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        if (!itemDef.IsEquipment())
+        if (itemKind != BattleLootItemDefinitionKind.Equipment)
             return ItemCommitResult.Create(
                 false,
                 "battle_loot_random_equipment_invalid_item",
@@ -497,8 +453,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 0,
                 System.Array.Empty<BattleLootEntry>()
             );
-        var partyWarehouseService = _runtime._party_warehouse_service;
-        var addResult = partyWarehouseService.AddEquipmentInstanceTyped(equipmentInstance);
+        var addResult = _port.AddBattleLootEquipmentInstance(equipmentInstance);
         if (addResult.RemainingQuantity > 0)
             return ItemCommitResult.Create(
                 true,
@@ -533,21 +488,6 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
     private static string FallbackString(string value, string fallback)
     {
         return string.IsNullOrEmpty(value) ? fallback : value;
-    }
-
-    private void RestoreLootCommitState(
-        PartyState partyState,
-        PartyWarehouseService partyWarehouseService,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
-        WarehouseState warehouseStateBefore,
-        IReadOnlyDictionary<StringName, bool> fateRunFlagsBefore
-    )
-    {
-        if (partyState == null)
-            return;
-        partyState.warehouse_state = warehouseStateBefore?.DuplicateState();
-        partyState.ApplyFateRunFlagsTyped(fateRunFlagsBefore);
-        _runtime.SetupPartyWarehouseService(partyWarehouseService, partyState, itemDefs);
     }
 
     private static bool IsFatalLootCommitError(string errorCode) =>
@@ -669,8 +609,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
     private int GetRegularBattleCalamityShardCountThisChapter()
     {
-        var partyState = _runtime._party_state;
-        if (partyState == null)
+        if (_port == null)
             return 0;
         var shardCount = 0;
         for (
@@ -680,7 +619,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         )
         {
             var flagId = BuildRegularBattleCalamityShardFlagId(slotIndex);
-            if (partyState.GetFateRunFlag(flagId, false))
+            if (_port.GetBattleLootFateRunFlag(flagId))
                 shardCount++;
         }
         return shardCount;
@@ -688,8 +627,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
     private void MarkRegularBattleCalamityShardsCommitted(int quantity)
     {
-        var partyState = _runtime._party_state;
-        if (partyState == null || quantity <= 0)
+        if (_port == null || quantity <= 0)
             return;
         var remainingToMark = Mathf.Min(quantity, GetRemainingRegularBattleCalamityShardCap());
         if (remainingToMark <= 0)
@@ -701,9 +639,9 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         )
         {
             var flagId = BuildRegularBattleCalamityShardFlagId(slotIndex);
-            if (partyState.GetFateRunFlag(flagId, false))
+            if (_port.GetBattleLootFateRunFlag(flagId))
                 continue;
-            partyState.SetFateRunFlag(flagId, true);
+            _port.SetBattleLootFateRunFlag(flagId);
             remainingToMark--;
             if (remainingToMark <= 0)
                 return;
@@ -712,15 +650,16 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
     private void ClearRegularBattleCalamityShardFlagsInternal()
     {
-        var partyState = _runtime._party_state;
-        if (partyState == null)
+        if (_port == null)
             return;
         for (
             int slotIndex = 0;
             slotIndex < BattleLootIds.OrdinaryBattleCalamityShardChapterCap;
             slotIndex++
         )
-            partyState.ClearFateRunFlag(BuildRegularBattleCalamityShardFlagId(slotIndex));
+            _port.ClearBattleLootFateRunFlag(
+                BuildRegularBattleCalamityShardFlagId(slotIndex)
+            );
     }
 
     private StringName BuildRegularBattleCalamityShardFlagId(int slotIndex)
@@ -880,16 +819,16 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
 
     private string FormatFactionLabel(string factionId)
     {
-        if (_runtime == null)
+        if (_port == null)
             return factionId;
-        return _runtime.FormatFactionLabel(factionId);
+        return _port.FormatBattleLootFactionLabel(factionId);
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
-        if (_runtime == null)
+        if (_port == null)
             return itemId.ToString();
-        return _runtime.GetItemDisplayName(itemId);
+        return _port.GetBattleLootItemDisplayName(itemId);
     }
 
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
@@ -960,11 +899,13 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         return true;
     }
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static IGameRuntimeBattleLootCommitPort ResolveWeakRef(
+        WeakReference<IGameRuntimeBattleLootCommitPort> weakRef
+    )
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
+            || !weakRef.TryGetTarget(out IGameRuntimeBattleLootCommitPort target)
         )
             return null;
         return target;

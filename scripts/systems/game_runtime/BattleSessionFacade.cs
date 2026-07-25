@@ -246,10 +246,7 @@ public sealed class BattleSessionFacade : IDisposable
         var selectResult = battleSelection.SelectBattleSkillSlotTyped(slotIndex);
         if (!selectResult.Ok)
         {
-            return GameRuntimeFacade.RuntimeCommandResult.Failure(
-                selectResult.Message ?? "",
-                selectResult.Code
-            );
+            return CommandErrorTyped(selectResult.Message);
         }
         return CommandOkTyped("", BattleRefreshMode.Overlay);
     }
@@ -569,7 +566,9 @@ public sealed class BattleSessionFacade : IDisposable
         var battleSelection = GetBattleSelection();
         if (battleSelection == null)
             return BattleRefreshMode.Full;
-        return battleSelection.AttemptBattleMoveTo(activeUnit.coord + direction);
+        return battleSelection.AttemptBattleMoveTo(
+            activeUnit.GetAnchorCoord() + direction
+        );
     }
 
     public void OnBattleCellClicked(Vector2I coord)
@@ -750,21 +749,19 @@ public sealed class BattleSessionFacade : IDisposable
         {
             if (delta == null || !delta.needs_promotion_modal)
                 continue;
-            SetPendingPromotionPromptPlain(BuildPromotionPromptPlain(delta));
+            SetPendingPromotionPrompt(BuildPromotionPrompt(delta));
             if (HasPendingPromotionPrompt())
                 return;
         }
     }
 
-    internal IReadOnlyDictionary<string, object> BuildPromotionPromptPlain(
+    internal GameRuntimePromotionPromptContext BuildPromotionPrompt(
         CharacterProgressionDelta delta,
         string selectionHint = "确认后将在战斗中立即生效。"
     )
     {
         if (delta == null || delta.PendingProfessionChoicesTyped.Count == 0)
-            return new System.Collections.Generic.Dictionary<string, object>(
-                StringComparer.Ordinal
-            );
+            return GameRuntimePromotionPromptContext.Empty;
         PartyState partyState = _runtime?.GetPartyState();
         GameContentCatalog contentCatalog = _runtime?.GetContentCatalogTyped();
         var memberId = delta.member_id;
@@ -778,7 +775,7 @@ public sealed class BattleSessionFacade : IDisposable
             contentCatalog != null
                 ? contentCatalog.GetProfessionDefsTyped()
                 : new System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>();
-        var choiceEntries = new List<object>();
+        var choiceEntries = new List<GameRuntimePromotionChoiceContext>();
         foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
             if (choiceObj == null)
@@ -795,52 +792,43 @@ public sealed class BattleSessionFacade : IDisposable
                     continue;
                 if (!professionDefs.TryGetValue(pid, out ProfessionDefinition professionDef))
                     continue;
-                var grantedSkillIds = new List<object>();
+                var grantedSkillIds = new List<StringName>();
                 var grantedSkills = professionDef.GetGrantedSkillsForRank(targetRank);
                 foreach (ProfessionGrantedSkillDefinition skillObj in grantedSkills)
                 {
                     if (skillObj != null && skillObj.SkillId != "")
-                        grantedSkillIds.Add(skillObj.SkillId.ToString());
+                        grantedSkillIds.Add(skillObj.SkillId);
                 }
                 choiceEntries.Add(
-                    new System.Collections.Generic.Dictionary<string, object>(
-                        StringComparer.Ordinal
-                    )
-                    {
-                        ["profession_id"] = pid.ToString(),
-                        ["display_name"] = !string.IsNullOrEmpty(
-                            professionDef.DisplayName
-                        )
+                    new GameRuntimePromotionChoiceContext(
+                        pid,
+                        !string.IsNullOrEmpty(professionDef.DisplayName)
                             ? professionDef.DisplayName
                             : pid.ToString(),
-                        ["summary"] = string.Format("Rank {0}", targetRank),
-                        ["description"] = professionDef.Description,
-                        ["granted_skill_ids"] = grantedSkillIds,
-                        ["selection_hint"] = selectionHint,
-                        ["selection"] = new System.Collections.Generic.Dictionary<string, object>(
-                            StringComparer.Ordinal
-                        ),
-                    }
+                        string.Format("Rank {0}", targetRank),
+                        professionDef.Description,
+                        grantedSkillIds,
+                        selectionHint,
+                        PromotionSelectionData.Empty
+                    )
                 );
             }
         }
-        if (choiceEntries.Count == 0)
-            return new System.Collections.Generic.Dictionary<string, object>(
-                StringComparer.Ordinal
-            );
-        return new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["member_id"] = memberId.ToString(),
-            ["member_name"] = memberName,
-            ["choices"] = choiceEntries,
-        };
+        return choiceEntries.Count > 0
+            ? new GameRuntimePromotionPromptContext(memberId, memberName, choiceEntries)
+            : GameRuntimePromotionPromptContext.Empty;
     }
+
+    internal IReadOnlyDictionary<string, object> BuildPromotionPromptPlain(
+        CharacterProgressionDelta delta,
+        string selectionHint = "确认后将在战斗中立即生效。"
+    ) => BuildPromotionPrompt(delta, selectionHint).ToPlainSnapshot();
 
     public Vector2I GetDefaultBattleSelectedCoord()
     {
         var activeUnit = GetBattleActiveUnit();
         if (activeUnit != null)
-            return activeUnit.coord;
+            return activeUnit.GetAnchorCoord();
         var battleState = GetBattleState();
         if (battleState != null)
         {
@@ -848,7 +836,7 @@ public sealed class BattleSessionFacade : IDisposable
             {
                 var unit = GetBattleUnitById(allyUnitId);
                 if (unit != null)
-                    return unit.coord;
+                    return unit.GetAnchorCoord();
             }
         }
         return Vector2I.Zero;
@@ -1032,12 +1020,10 @@ public sealed class BattleSessionFacade : IDisposable
     private bool HasPendingPromotionPrompt() =>
         _runtime?.HasPendingPromotionPrompt() ?? false;
 
-    private void SetPendingPromotionPromptPlain(
-        IReadOnlyDictionary<string, object> prompt
-    )
+    private void SetPendingPromotionPrompt(GameRuntimePromotionPromptContext prompt)
     {
         if (_runtime != null)
-            _runtime.SetPendingPromotionPromptPlain(prompt);
+            _runtime.SetPendingPromotionPrompt(prompt);
     }
 
     private void SetBattleState(BattleState state)

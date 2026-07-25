@@ -501,7 +501,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
             foreach (StringName unitId in defeatedUnitIds)
             {
                 BattleUnitState unit = battleState.GetUnit(unitId);
-                if (unit?.is_alive != true)
+                if (unit?.IsAlive() != true)
                     continue;
                 unit.MarkDead();
                 battleRuntime.HandleUnitDefeatedByRuntimeEffect(
@@ -563,7 +563,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         }
 
         battleState.TryGetUnitTyped(battleState.active_unit_id, out BattleUnitState activeUnit);
-        if (activeUnit == null || !activeUnit.is_alive)
+        if (activeUnit == null || !activeUnit.IsAlive())
         {
             return new SessionCommandOutcome(false, "当前行动单位不可用。");
         }

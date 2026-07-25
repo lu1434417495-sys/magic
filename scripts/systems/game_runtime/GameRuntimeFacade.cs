@@ -203,23 +203,23 @@ public sealed partial class GameRuntimeFacade
     internal GameRuntimeQuestCommandHandler _quest_command_handler = new();
     internal StringName _active_battle_encounter_id = "";
     internal string _active_battle_encounter_name = "";
-    internal readonly Dictionary<string, object> _pending_promotion_prompt =
-        new(StringComparer.Ordinal);
+    private GameRuntimePromotionPromptContext _pending_promotion_prompt =
+        GameRuntimePromotionPromptContext.Empty;
     internal PendingCharacterReward _active_reward;
-    internal readonly Dictionary<string, object> _pending_world_promotion_prompt =
-        new(StringComparer.Ordinal);
+    private GameRuntimePromotionPromptContext _pending_world_promotion_prompt =
+        GameRuntimePromotionPromptContext.Empty;
     internal RuntimeModalKind _active_modal_kind = RuntimeModalKind.None;
     internal string _active_warehouse_entry_label = "";
     internal string _active_settlement_id = "";
     internal string _active_settlement_feedback_text = "";
-    internal readonly Dictionary<string, object> _active_contract_board_context =
-        new(StringComparer.Ordinal);
+    private SettlementContractBoardContext _active_contract_board_context =
+        SettlementContractBoardContext.Empty;
     internal NpcQuestOfferWindowData _active_npc_quest_offer_data;
     internal BountyBoardWindowData _active_bounty_board_data;
-    internal readonly Dictionary<string, object> _active_shop_context = new(StringComparer.Ordinal);
-    internal readonly Dictionary<string, object> _active_forge_context = new(StringComparer.Ordinal);
-    internal readonly Dictionary<string, object> _active_stagecoach_context =
-        new(StringComparer.Ordinal);
+    private SettlementShopContext _active_shop_context = SettlementShopContext.Empty;
+    private SettlementForgeContext _active_forge_context = SettlementForgeContext.Empty;
+    private SettlementStagecoachContext _active_stagecoach_context =
+        SettlementStagecoachContext.Empty;
     internal string _current_status_message = "";
     internal BattleRefreshMode _last_advance_battle_refresh_mode = BattleRefreshMode.None;
     internal BattlePresentationDelta _last_advance_battle_presentation_delta =
@@ -228,7 +228,6 @@ public sealed partial class GameRuntimeFacade
         BattlePresentationDelta.None;
     internal readonly Dictionary<string, object> _last_battle_loot_snapshot =
         new(StringComparer.Ordinal);
-    internal readonly List<Dictionary<string, object>> _pending_command_battle_batches = new();
     private GameRuntimeCharacterInfoContext _active_character_info_context;
     private GameRuntimeGameOverContext _active_game_over_context;
     internal StringName _party_selected_member_id = "";
@@ -414,12 +413,12 @@ public sealed partial class GameRuntimeFacade
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
         _ClearSettlementEntryContext();
-        _active_contract_board_context.Clear();
+        _active_contract_board_context = SettlementContractBoardContext.Empty;
         _active_npc_quest_offer_data = null;
         _active_bounty_board_data = null;
-        _active_shop_context.Clear();
-        _active_forge_context.Clear();
-        _active_stagecoach_context.Clear();
+        _active_shop_context = SettlementShopContext.Empty;
+        _active_forge_context = SettlementForgeContext.Empty;
+        _active_stagecoach_context = SettlementStagecoachContext.Empty;
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         _last_command_battle_presentation_delta = BattlePresentationDelta.None;
@@ -538,16 +537,16 @@ public sealed partial class GameRuntimeFacade
         _wild_encounter_roster_definitions.Clear();
         _party_state = null;
         ClearRuntimeBattleStateReference();
-        _pending_promotion_prompt.Clear();
-        _pending_world_promotion_prompt.Clear();
+        _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
+        _pending_world_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
         _active_character_info_context = null;
         _active_game_over_context = null;
-        _active_contract_board_context.Clear();
+        _active_contract_board_context = SettlementContractBoardContext.Empty;
         _active_npc_quest_offer_data = null;
         _active_bounty_board_data = null;
-        _active_shop_context.Clear();
-        _active_forge_context.Clear();
-        _active_stagecoach_context.Clear();
+        _active_shop_context = SettlementShopContext.Empty;
+        _active_forge_context = SettlementForgeContext.Empty;
+        _active_stagecoach_context = SettlementStagecoachContext.Empty;
         _last_advance_battle_refresh_mode = BattleRefreshMode.None;
         _last_advance_battle_presentation_delta = BattlePresentationDelta.None;
         _last_command_battle_presentation_delta = BattlePresentationDelta.None;
@@ -1021,11 +1020,14 @@ public sealed partial class GameRuntimeFacade
         _settlement_command_handler.GetForgeWindowDataSnapshotPlain();
 
     internal void SetActiveContractBoardContext(GDictionary context) =>
-        ReplacePlainPayload(
-            _active_contract_board_context,
-            context,
-            "GameRuntimeFacade.active_contract_board_context"
-        );
+        _active_contract_board_context =
+            SettlementContractBoardContext.FromBoundaryPayload(context);
+
+    internal void SetActiveContractBoardContextPlain(
+        IReadOnlyDictionary<string, object> context
+    ) =>
+        _active_contract_board_context =
+            SettlementContractBoardContext.FromSnapshot(context);
 
     internal void SetActiveNpcQuestOfferContext(NpcQuestOfferWindowData data) =>
         _active_npc_quest_offer_data = data;
@@ -1040,51 +1042,56 @@ public sealed partial class GameRuntimeFacade
         _active_bounty_board_data;
 
     internal void SetActiveShopContext(GDictionary context) =>
-        ReplacePlainPayload(_active_shop_context, context, "GameRuntimeFacade.active_shop_context");
+        _active_shop_context = SettlementShopContext.FromBoundaryPayload(context);
+
+    internal void SetActiveShopContextPlain(IReadOnlyDictionary<string, object> context) =>
+        _active_shop_context = SettlementShopContext.FromSnapshot(context);
 
     internal void SetActiveForgeContext(GDictionary context) =>
-        ReplacePlainPayload(
-            _active_forge_context,
-            context,
-            "GameRuntimeFacade.active_forge_context"
-        );
+        _active_forge_context = SettlementForgeContext.FromBoundaryPayload(context);
 
-    internal void ClearActiveContractBoardContext() => _active_contract_board_context.Clear();
+    internal void SetActiveForgeContextPlain(IReadOnlyDictionary<string, object> context) =>
+        _active_forge_context = SettlementForgeContext.FromSnapshot(context);
+
+    internal void ClearActiveContractBoardContext() =>
+        _active_contract_board_context = SettlementContractBoardContext.Empty;
 
     internal void ClearActiveNpcQuestOfferContext() => _active_npc_quest_offer_data = null;
 
     internal void ClearActiveBountyBoardContext() => _active_bounty_board_data = null;
 
-    internal void ClearActiveShopContext() => _active_shop_context.Clear();
+    internal void ClearActiveShopContext() =>
+        _active_shop_context = SettlementShopContext.Empty;
 
-    internal void ClearActiveForgeContext() => _active_forge_context.Clear();
+    internal void ClearActiveForgeContext() =>
+        _active_forge_context = SettlementForgeContext.Empty;
 
     internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease() =>
-        ProjectPlainPayloadLease(
-            _active_contract_board_context,
+        _active_contract_board_context.ProjectLease(
+            "settlement-contract-board-context",
             "GameRuntimeFacade.active_contract_board_context"
         );
 
     internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_contract_board_context);
+        _active_contract_board_context.BuildSnapshotPlain();
 
     internal GodotProjectionLease<GDictionary> GetActiveShopContextLease() =>
-        ProjectPlainPayloadLease(
-            _active_shop_context,
+        _active_shop_context.ProjectLease(
+            "settlement-shop-context",
             "GameRuntimeFacade.active_shop_context"
         );
 
     internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_shop_context);
+        _active_shop_context.BuildSnapshotPlain();
 
     internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease() =>
-        ProjectPlainPayloadLease(
-            _active_forge_context,
+        _active_forge_context.ProjectLease(
+            "settlement-forge-context",
             "GameRuntimeFacade.active_forge_context"
         );
 
     internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_forge_context);
+        _active_forge_context.BuildSnapshotPlain();
 
     internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
         _settlement_command_handler.GetStagecoachWindowDataLease();
@@ -1093,22 +1100,24 @@ public sealed partial class GameRuntimeFacade
         _settlement_command_handler.GetStagecoachWindowDataSnapshotPlain();
 
     internal void SetActiveStagecoachContext(GDictionary context) =>
-        ReplacePlainPayload(
-            _active_stagecoach_context,
-            context,
-            "GameRuntimeFacade.active_stagecoach_context"
-        );
+        _active_stagecoach_context = SettlementStagecoachContext.FromBoundaryPayload(context);
 
-    internal void ClearActiveStagecoachContext() => _active_stagecoach_context.Clear();
+    internal void SetActiveStagecoachContextPlain(
+        IReadOnlyDictionary<string, object> context
+    ) =>
+        _active_stagecoach_context = SettlementStagecoachContext.FromSnapshot(context);
+
+    internal void ClearActiveStagecoachContext() =>
+        _active_stagecoach_context = SettlementStagecoachContext.Empty;
 
     internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease() =>
-        ProjectPlainPayloadLease(
-            _active_stagecoach_context,
+        _active_stagecoach_context.ProjectLease(
+            "settlement-stagecoach-context",
             "GameRuntimeFacade.active_stagecoach_context"
         );
 
     internal IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain() =>
-        RuntimePlainPayload.CloneDictionary(_active_stagecoach_context);
+        _active_stagecoach_context.BuildSnapshotPlain();
 
     public GDictionary GetWarehouseWindowData() =>
         _party_state != null ? _warehouse_handler.GetWarehouseWindowData() : new GDictionary();
@@ -1392,21 +1401,21 @@ public sealed partial class GameRuntimeFacade
 
     public IReadOnlyDictionary<string, object> GetCurrentPromotionPromptSnapshotPlain()
     {
-        if (_pending_promotion_prompt.Count > 0)
+        if (!_pending_promotion_prompt.IsEmpty)
             return GetPendingPromotionPromptSnapshotPlain();
         return GetPendingWorldPromotionPromptSnapshotPlain();
     }
 
     internal IReadOnlyDictionary<string, object> GetPendingPromotionPromptSnapshotPlain() =>
-        RuntimePlainPayload.CloneDictionary(_pending_promotion_prompt);
+        _pending_promotion_prompt.ToPlainSnapshot();
 
-    internal bool HasPendingPromotionPrompt() => _pending_promotion_prompt.Count > 0;
+    internal bool HasPendingPromotionPrompt() => !_pending_promotion_prompt.IsEmpty;
 
     internal IReadOnlyDictionary<string, object> GetPendingWorldPromotionPromptSnapshotPlain() =>
-        RuntimePlainPayload.CloneDictionary(_pending_world_promotion_prompt);
+        _pending_world_promotion_prompt.ToPlainSnapshot();
 
     internal bool HasPendingWorldPromotionPrompt() =>
-        _pending_world_promotion_prompt.Count > 0;
+        !_pending_world_promotion_prompt.IsEmpty;
 
 
     public bool IsModalWindowOpen() => IsModalWindowOpenInternal();
@@ -1438,18 +1447,18 @@ public sealed partial class GameRuntimeFacade
             "GameRuntimeFacade.pending_battle_start_prompt"
         );
 
-    internal void SetPendingPromotionPromptPlain(
-        IReadOnlyDictionary<string, object> prompt
-    ) => ReplacePlainPayload(_pending_promotion_prompt, prompt);
+    internal void SetPendingPromotionPrompt(GameRuntimePromotionPromptContext prompt) =>
+        _pending_promotion_prompt = prompt ?? GameRuntimePromotionPromptContext.Empty;
 
-    internal void ClearPendingPromotionPrompt() => _pending_promotion_prompt.Clear();
+    internal void ClearPendingPromotionPrompt() =>
+        _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
 
-    internal void SetPendingWorldPromotionPromptStatePlain(
-        IReadOnlyDictionary<string, object> prompt
-    ) => ReplacePlainPayload(_pending_world_promotion_prompt, prompt);
+    internal void SetPendingWorldPromotionPromptState(
+        GameRuntimePromotionPromptContext prompt
+    ) => _pending_world_promotion_prompt = prompt ?? GameRuntimePromotionPromptContext.Empty;
 
     internal void ClearPendingWorldPromotionPromptState() =>
-        _pending_world_promotion_prompt.Clear();
+        _pending_world_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
 
     internal void SetActiveRewardState(PendingCharacterReward reward) => _active_reward = reward;
 
@@ -1542,6 +1551,8 @@ public sealed partial class GameRuntimeFacade
     }
 
     internal int PersistPartyState() => PersistPartyStateInternal();
+
+    internal int StagePartyState() => StagePartyStateInternal();
 
     internal bool PresentPendingRewardIfReady() =>
         _reward_flow_handler != null && _reward_flow_handler.PresentPendingRewardIfReady();
@@ -2134,7 +2145,7 @@ public sealed partial class GameRuntimeFacade
             _character_info_builder.BuildCharacterInfoMetaLabel(
                 typeLabel,
                 factionLabel,
-                unit.coord
+                unit.GetAnchorCoord()
             ),
             statusLabel,
             _character_info_builder.BuildBattleCharacterInfoSections(
@@ -2215,14 +2226,7 @@ public sealed partial class GameRuntimeFacade
 
     internal void RecordCommandBattleBatch(BattleEventBatch batch)
     {
-        if (batch == null)
-            return;
-        _pending_command_battle_batches.Add(
-            RuntimePlainPayload.NormalizeDictionary(
-                _build_battle_batch_log_context(batch),
-                $"GameRuntimeFacade.pending_command_battle_batches[{_pending_command_battle_batches.Count}]"
-            )
-        );
+        _command_logger.RecordCommandBattleBatch(batch);
     }
 
     internal void RefreshBattleRuntimeState() => RefreshBattleRuntimeStateInternal();
@@ -2251,17 +2255,6 @@ public sealed partial class GameRuntimeFacade
 
     internal BattleRefreshMode _issue_battle_command(BattleCommand command) =>
         _battle_session_facade.IssueBattleCommand(command);
-
-    internal IReadOnlyDictionary<string, object> BuildRuntimePromotionPromptPlain(
-        CharacterProgressionDelta delta
-    ) =>
-        BuildRuntimePromotionPromptPlain(delta, "确认后将在战斗中立即生效。");
-
-    internal IReadOnlyDictionary<string, object> BuildRuntimePromotionPromptPlain(
-        CharacterProgressionDelta delta,
-        string selection_hint
-    ) =>
-        _battle_session_facade.BuildPromotionPromptPlain(delta, selection_hint);
 
     internal Vector2I _get_default_battle_selected_coord() =>
         _battle_session_facade.GetDefaultBattleSelectedCoord();
@@ -2402,6 +2395,23 @@ public sealed partial class GameRuntimeFacade
         return result.FirstError();
     }
 
+    internal int StagePartyStateInternal()
+    {
+        if (_game_session == null)
+            return (int)Error.Unavailable;
+        if (!_game_session.HasActiveWorld())
+            return (int)Error.Unconfigured;
+
+        int partyError = _game_session.SetPartyState(_party_state);
+        if (partyError != (int)Error.Ok)
+            return partyError;
+
+        _party_state = _game_session.GetPartyState();
+        SyncPartyStateServices();
+        _RefreshFog();
+        return (int)Error.Ok;
+    }
+
     private int PersistWorldDataInternal()
     {
         RuntimeCommitResult result = CommitRuntimeTransaction(
@@ -2488,7 +2498,7 @@ public sealed partial class GameRuntimeFacade
         SetRuntimeActiveModalKind(RuntimeModalKind.None);
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
-        _pending_promotion_prompt.Clear();
+        _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
         _battle_selection.ClearBattleSkillSelection(false);
         ClearRuntimeBattleStateReference();
         _battle_auto_tick_remainder_msec = 0;
@@ -2527,7 +2537,8 @@ public sealed partial class GameRuntimeFacade
                 || ProgressionDataUtils.to_string_name(unitState.source_member_id) != memberId
             )
                 continue;
-            return !unitState.is_alive || unitState.current_hp <= 0;
+            return !unitState.IsAlive()
+                || unitState.GetCurrentHp() <= 0;
         }
         return false;
     }

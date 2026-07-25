@@ -174,6 +174,9 @@ public partial class GameSession
 
     private int WriteSaveIndexPlain(IReadOnlyList<Dictionary<string, object>> entries)
     {
+        if (ShouldFailIndexWrite())
+            return (int)Error.CantCreate;
+
         int ensureDirError = EnsureSaveDirectory();
         if (ensureDirError != (int)Error.Ok)
             return ensureDirError;
@@ -192,6 +195,54 @@ public partial class GameSession
             return writeError;
         SetSaveIndexCache(normalizedEntries);
         return (int)Error.Ok;
+    }
+
+    private void UpdateSaveIndexAfterPayloadCommit()
+    {
+        try
+        {
+            int indexError = WriteSaveIndexPlain(
+                UpsertSaveMetaPlain(LoadSaveIndexEntriesPlain(), _activeSaveMeta)
+            );
+            if (indexError != (int)Error.Ok)
+                RecordSaveIndexDegradedAfterPayloadCommit(indexError, null);
+        }
+        catch (Exception exception)
+        {
+            RecordSaveIndexDegradedAfterPayloadCommit(
+                (int)Error.Failed,
+                exception
+            );
+        }
+    }
+
+    private void RecordSaveIndexDegradedAfterPayloadCommit(
+        int indexError,
+        Exception exception
+    )
+    {
+        InvalidateSaveIndexCache();
+        try
+        {
+            string exceptionContext = exception == null
+                ? ""
+                : $";exception_type={exception.GetType().FullName};exception_message={exception.Message}";
+            string diagnosticContext =
+                $"save_id={_active_save_id};"
+                + $"index_path={_persistenceOptions.SaveIndexPath};"
+                + $"error={indexError}{exceptionContext}";
+            RecordLogEvent(
+                GameLogLevel.Warning,
+                "session",
+                "session.save.index.degraded_after_payload_commit",
+                $"存档 {_active_save_id} 已提交，但存档索引暂时无法更新；后续读取会从存档文件重建索引。",
+                diagnosticContext
+            );
+        }
+        catch
+        {
+            // payload 已提交；诊断写入本身不能改变存档成功语义。
+        }
     }
 
     private bool TryReadSaveIndexPayload(

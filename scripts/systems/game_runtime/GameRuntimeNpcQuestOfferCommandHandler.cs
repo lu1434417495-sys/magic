@@ -119,14 +119,15 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             );
             string stateId = _contractBoardHandler._resolve_contract_board_quest_state_id(
                 questDefinition.QuestId,
-                questDefinition.IsRepeatable
+                questDefinition.IsRepeatable,
+                questDefinition.CanRestartAfterFailure
             );
             bool hasSubmitItemObjective = questData != null
                 && _contractBoardHandler._quest_has_submit_item_objective(questData.ObjectiveEntries);
             bool isEnabled;
             string disabledReason;
             StringName lockReasonId;
-            if (stateId is "available" or "repeatable")
+            if (stateId is "available" or "repeatable" or "restartable_failed")
             {
                 QuestAcceptAvailabilityResult availability = _owner._quest_accept_evaluator.Evaluate(
                     questDefinition,
@@ -196,6 +197,8 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             "active" => has_submit_item_objective ? "提交物品" : "进行中",
             "claimable" => "领取奖励",
             "completed" => "已完成",
+            "failed" => "已失败",
+            "restartable_failed" => "重新接取",
             _ => "接受委托",
         };
     }
@@ -268,9 +271,11 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
 
         string stateId = _contractBoardHandler._resolve_contract_board_quest_state_id(
             questDefinition.QuestId,
-            questDefinition.IsRepeatable
+            questDefinition.IsRepeatable,
+            questDefinition.CanRestartAfterFailure
         );
-        bool isAcceptAction = stateId is "available" or "repeatable";
+        bool isAcceptAction =
+            stateId is "available" or "repeatable" or "restartable_failed";
         bool isConfirmationSubmission = request.ConfirmAccept;
         bool hasPendingConfirmation = npcContext.PendingConfirmationQuestId == questId.ToString();
         if (isAcceptAction)
@@ -359,6 +364,13 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             _refresh_active_npc_quest_offer_context(completedMessage);
             _owner.UpdateStatus(completedMessage);
             return _owner.CommandError(completedMessage);
+        }
+        else if (stateId == "failed")
+        {
+            string failedMessage = "该委托已经失败，不能重新接取。";
+            _refresh_active_npc_quest_offer_context(failedMessage);
+            _owner.UpdateStatus(failedMessage);
+            return _owner.CommandError(failedMessage);
         }
         else
         {

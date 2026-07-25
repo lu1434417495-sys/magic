@@ -95,7 +95,7 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
                 "文本快照应在 selected_skill_id 旁暴露 selected_skill_entry_id。"
             );
 
-            runtime.SetBattleSelectionTargetCoordsStateTyped(new[] { activeUnit.coord });
+            runtime.SetBattleSelectionTargetCoordsStateTyped(new[] { activeUnit.GetAnchorCoord() });
             runtime.SetBattleSelectionTargetUnitIdsStateTyped(new[] { activeUnit.unit_id });
             AssertCommandOk(runner.ExecuteLine("battle clear"), "battle clear 应成功。");
 
@@ -213,13 +213,15 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
         if (activeUnit == null)
             return null;
 
-        activeUnit.known_active_skill_ids = new() { SkillId, SecondarySkillId };
-        activeUnit.known_skill_level_map.Clear();
-        activeUnit.known_skill_level_map[SkillId] = 2;
-        activeUnit.known_skill_level_map[SecondarySkillId] = 1;
-        activeUnit.current_ap = 2;
-        activeUnit.current_stamina = 50;
-        activeUnit.cooldowns.Clear();
+        activeUnit.SetKnownActiveSkillIds(
+            new[] { new StringName(SkillId), new StringName(SecondarySkillId) }
+        );
+        activeUnit.SetKnownSkillLevelsTyped(null);
+        activeUnit.SetKnownSkillLevelTyped(SkillId, 2);
+        activeUnit.SetKnownSkillLevelTyped(SecondarySkillId, 1);
+        activeUnit.SetCurrentAp(2);
+        activeUnit.SetCurrentStamina(50);
+        activeUnit.SetCooldownsTyped(null);
         if (activeUnit.attribute_snapshot != null)
         {
             activeUnit.attribute_snapshot.SetValue("action_points", 2);
@@ -236,7 +238,7 @@ public partial class run_battle_skill_entry_identity_regression : LifecycleTestS
     )
         => runtime._battle_selection.BuildSelectedSkillPreviewCommand(
             activeUnit,
-            activeUnit.coord
+            activeUnit.GetAnchorCoord()
         );
 
     private void AdvanceUntilBattleActive(GameTextCommandRunner runner, int maxTicks = 64)

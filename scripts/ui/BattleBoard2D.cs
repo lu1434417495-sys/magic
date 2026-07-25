@@ -43,7 +43,7 @@ public partial class BattleBoard2D : Node2D
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
     public bool _is_bound;
-    public BattleState _pending_battle_state;
+    public BattleBoardRenderSnapshot _pending_snapshot;
     public Vector2I _pending_selected_coord = new(-1, -1);
     public List<Vector2I> _pending_preview_target_coords = new();
     public List<Vector2I> _pending_valid_target_coords = new();
@@ -85,7 +85,7 @@ public partial class BattleBoard2D : Node2D
     {
         _controller?.Dispose();
         _controller = null;
-        _pending_battle_state = null;
+        _pending_snapshot = null;
         _pending_preview_target_coords.Clear();
         _pending_valid_target_coords.Clear();
         _pending_target_hit_badges.Clear();
@@ -105,7 +105,7 @@ public partial class BattleBoard2D : Node2D
     }
 
     public void Configure(
-        BattleState battle_state,
+        BattleBoardRenderSnapshot snapshot,
         Vector2I selected_coord,
         IEnumerable<Vector2I> preview_target_coords = null,
         IEnumerable<Vector2I> valid_target_coords = null,
@@ -115,8 +115,8 @@ public partial class BattleBoard2D : Node2D
         IReadOnlyDictionary<Vector2I, string> target_hit_badges = null
     )
     {
-        _pending_battle_state = battle_state;
-        _set_render_profile_for_state(battle_state);
+        _pending_snapshot = snapshot;
+        _set_render_profile_for_snapshot(snapshot);
         _pending_selected_coord = selected_coord;
         _pending_preview_target_coords = CloneCoords(preview_target_coords);
         _pending_valid_target_coords = CloneCoords(valid_target_coords);
@@ -149,16 +149,23 @@ public partial class BattleBoard2D : Node2D
     }
 
     public void RefreshUnits(
-        BattleState battle_state,
-        IEnumerable<StringName> changed_unit_ids
+        BattleBoardUnitUpdateSnapshot update
     )
     {
-        _pending_battle_state = battle_state;
+        if (_pending_snapshot == null || update == null)
+            return;
+        var requestedUnitIds = new HashSet<StringName>(update.RequestedUnitIds);
+        if (update.ReplacesAllUnits)
+        {
+            foreach (StringName existingUnitId in _pending_snapshot.Units.Keys)
+                requestedUnitIds.Add(existingUnitId);
+        }
+        _pending_snapshot = _pending_snapshot.ApplyUnitUpdate(update);
         if (!_is_bound)
             _bind_controller();
         if (!_is_bound)
             return;
-        _controller.RefreshUnits(battle_state, changed_unit_ids);
+        _controller.RefreshUnits(_pending_snapshot, requestedUnitIds);
     }
 
     public void SetViewportSize(Vector2 viewport_size)
@@ -245,7 +252,7 @@ public partial class BattleBoard2D : Node2D
 
     public bool HandleViewportMouseButton(Vector2 viewport_position, int button_index)
     {
-        if (_controller == null || _pending_battle_state == null || _is_panning)
+        if (_controller == null || _pending_snapshot == null || _is_panning)
             return false;
 
         Vector2I clickedCoord = _viewport_position_to_board_coord(viewport_position);
@@ -269,7 +276,7 @@ public partial class BattleBoard2D : Node2D
 
     public void ClearBoard()
     {
-        _pending_battle_state = null;
+        _pending_snapshot = null;
         _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(
             BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT()
         );
@@ -301,16 +308,16 @@ public partial class BattleBoard2D : Node2D
     public bool IsRenderContentReady()
     {
         return _is_bound
-            && _pending_battle_state != null
+            && _pending_snapshot != null
             && _controller != null
             && _controller.IsRenderContentReady();
     }
 
     public Vector2 CoordToViewportPosition(Vector2I coord)
     {
-        if (_pending_battle_state == null || input_layer == null)
+        if (_pending_snapshot == null || input_layer == null)
             return new Vector2(float.NegativeInfinity, float.NegativeInfinity);
-        if (!_pending_battle_state.ContainsCell(coord))
+        if (!_pending_snapshot.ContainsCell(coord))
             return new Vector2(float.NegativeInfinity, float.NegativeInfinity);
 
         Vector2 anchor = _get_coord_anchor(coord);
@@ -364,7 +371,7 @@ public partial class BattleBoard2D : Node2D
             return;
 
         _controller.Configure(
-            _pending_battle_state,
+            _pending_snapshot,
             _pending_selected_coord,
             _pending_preview_target_coords,
             _pending_target_selection_mode,
@@ -387,7 +394,7 @@ public partial class BattleBoard2D : Node2D
 
     private void _apply_pending_marker_update()
     {
-        if (!_is_bound || _pending_battle_state == null)
+        if (!_is_bound || _pending_snapshot == null)
             return;
 
         _controller.UpdateMarkers(
@@ -401,17 +408,17 @@ public partial class BattleBoard2D : Node2D
         );
     }
 
-    private void _set_render_profile_for_state(BattleState battle_state)
+    private void _set_render_profile_for_snapshot(BattleBoardRenderSnapshot snapshot)
     {
         StringName terrainProfileId = BattleBoardRenderProfile.TERRAIN_PROFILE_DEFAULT();
-        if (battle_state != null)
-            terrainProfileId = battle_state.terrain_profile_id;
+        if (snapshot != null)
+            terrainProfileId = snapshot.TerrainProfileId;
         _render_profile = BattleBoardRenderProfile.ForTerrainProfileId(terrainProfileId);
     }
 
     private Vector2I _viewport_position_to_board_coord(Vector2 viewport_position)
     {
-        if (input_layer == null || _pending_battle_state == null)
+        if (input_layer == null || _pending_snapshot == null)
             return new Vector2I(-1, -1);
 
         Vector2 boardLocal = ToLocal(viewport_position);
@@ -421,14 +428,14 @@ public partial class BattleBoard2D : Node2D
 
         Vector2 inputLocal = input_layer.ToLocal(ToGlobal(boardLocal));
         Vector2I coord = input_layer.LocalToMap(inputLocal);
-        if (!_pending_battle_state.ContainsCell(coord))
+        if (!_pending_snapshot.ContainsCell(coord))
             return new Vector2I(-1, -1);
         return coord;
     }
 
     private bool _update_hovered_coord(Vector2 viewport_position)
     {
-        if (_pending_battle_state == null)
+        if (_pending_snapshot == null)
             return _set_hovered_coord(new Vector2I(-1, -1));
         return _set_hovered_coord(_viewport_position_to_board_coord(viewport_position));
     }
@@ -445,30 +452,30 @@ public partial class BattleBoard2D : Node2D
 
     private Vector2I _pick_visual_surface_coord(Vector2 board_local)
     {
-        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
+        if (_pending_snapshot == null || _pending_snapshot.Cells.Count == 0)
             return new Vector2I(-1, -1);
 
         Vector2I bestCoord = new(-1, -1);
         double bestSortKey = -1e20;
         float bestDistanceSq = float.PositiveInfinity;
-        foreach (BattleCellState cellState in _pending_battle_state.Cells())
+        foreach (BattleBoardCellSnapshot cellState in _pending_snapshot.Cells.Values)
         {
             if (cellState == null)
                 continue;
 
-            Vector2 anchor = _get_coord_anchor(cellState.coord);
+            Vector2 anchor = _get_coord_anchor(cellState.Coord);
             if (!_point_hits_cell_top_surface(board_local, anchor))
                 continue;
 
-            Vector2 planeAnchor = input_layer.MapToLocal(cellState.coord);
+            Vector2 planeAnchor = input_layer.MapToLocal(cellState.Coord);
             float sortKey = _build_visual_pick_sort_key(
-                (int)cellState.current_height,
+                cellState.Height,
                 planeAnchor.Y
             );
             float distanceSq = board_local.DistanceSquaredTo(anchor);
             if (sortKey > bestSortKey)
             {
-                bestCoord = cellState.coord;
+                bestCoord = cellState.Coord;
                 bestSortKey = sortKey;
                 bestDistanceSq = distanceSq;
                 continue;
@@ -476,7 +483,7 @@ public partial class BattleBoard2D : Node2D
 
             if (Mathf.IsEqualApprox(sortKey, (float)bestSortKey) && distanceSq < bestDistanceSq)
             {
-                bestCoord = cellState.coord;
+                bestCoord = cellState.Coord;
                 bestDistanceSq = distanceSq;
             }
         }
@@ -499,7 +506,7 @@ public partial class BattleBoard2D : Node2D
         if (_viewport_size == Vector2.Zero)
             return;
 
-        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
+        if (_pending_snapshot == null || _pending_snapshot.Cells.Count == 0)
         {
             Scale = Vector2.One * _camera_zoom;
             Position = _viewport_size * 0.5f;
@@ -536,15 +543,15 @@ public partial class BattleBoard2D : Node2D
     {
         _has_content_bounds = false;
         _content_bounds = new Rect2();
-        if (_pending_battle_state == null || _pending_battle_state.CellCount == 0)
+        if (_pending_snapshot == null || _pending_snapshot.Cells.Count == 0)
             return;
 
-        foreach (BattleCellState cellState in _pending_battle_state.Cells())
+        foreach (BattleBoardCellSnapshot cellState in _pending_snapshot.Cells.Values)
         {
             if (cellState == null)
                 continue;
 
-            Vector2 anchor = _get_coord_anchor(cellState.coord);
+            Vector2 anchor = _get_coord_anchor(cellState.Coord);
             Vector2 tileHalfSize = _render_profile.tile_half_size;
             Rect2 cellRect = new(anchor - tileHalfSize, tileHalfSize * 2.0f);
             if (!_has_content_bounds)
@@ -572,38 +579,37 @@ public partial class BattleBoard2D : Node2D
 
     private Vector2I _resolve_focus_coord()
     {
-        if (_pending_battle_state == null)
+        if (_pending_snapshot == null)
             return Vector2I.Zero;
 
         if (
             _pending_selected_coord != new Vector2I(-1, -1)
-            && _pending_battle_state.ContainsCell(_pending_selected_coord)
+            && _pending_snapshot.ContainsCell(_pending_selected_coord)
         )
             return _pending_selected_coord;
 
-        BattleUnitState activeUnit = GetUnit(
-            _pending_battle_state,
-            _pending_battle_state.active_unit_id
+        BattleBoardUnitSnapshot activeUnit = _pending_snapshot.GetUnit(
+            _pending_snapshot.ActiveUnitId
         );
         if (
             activeUnit != null
-            && activeUnit.is_alive
-            && _pending_battle_state.ContainsCell(activeUnit.coord)
+            && activeUnit.IsAlive
+            && _pending_snapshot.ContainsCell(activeUnit.AnchorCoord)
         )
-            return activeUnit.coord;
+            return activeUnit.AnchorCoord;
 
-        foreach (StringName allyUnitId in _pending_battle_state.ally_unit_ids)
+        foreach (StringName allyUnitId in _pending_snapshot.AllyUnitIds)
         {
-            BattleUnitState allyUnit = GetUnit(_pending_battle_state, allyUnitId);
+            BattleBoardUnitSnapshot allyUnit = _pending_snapshot.GetUnit(allyUnitId);
             if (
                 allyUnit != null
-                && allyUnit.is_alive
-                && _pending_battle_state.ContainsCell(allyUnit.coord)
+                && allyUnit.IsAlive
+                && _pending_snapshot.ContainsCell(allyUnit.AnchorCoord)
             )
-                return allyUnit.coord;
+                return allyUnit.AnchorCoord;
         }
 
-        foreach ((Vector2I coord, BattleCellState _) in _pending_battle_state.CellEntries())
+        foreach ((Vector2I coord, BattleBoardCellSnapshot _) in _pending_snapshot.Cells)
             return coord;
         return Vector2I.Zero;
     }
@@ -611,11 +617,11 @@ public partial class BattleBoard2D : Node2D
     public Vector2 _get_coord_anchor(Vector2I coord)
     {
         Vector2 anchor = input_layer.MapToLocal(coord);
-        BattleCellState cellState = _pending_battle_state?.GetCell(coord);
+        BattleBoardCellSnapshot cellState = _pending_snapshot?.GetCell(coord);
 
         if (cellState != null)
             anchor.Y -=
-                (float)Mathf.Clamp((int)cellState.current_height, 0, MAX_RENDER_HEIGHT)
+                (float)Mathf.Clamp(cellState.Height, 0, MAX_RENDER_HEIGHT)
                 * _render_profile.visual_height_step;
         return anchor;
     }
@@ -721,8 +727,4 @@ public partial class BattleBoard2D : Node2D
         return value == "" ? new StringName("single_unit") : value;
     }
 
-    private static BattleUnitState GetUnit(BattleState battleState, StringName unitId)
-    {
-        return battleState?.GetUnit(unitId);
-    }
 }

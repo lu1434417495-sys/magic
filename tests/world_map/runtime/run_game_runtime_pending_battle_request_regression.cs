@@ -537,17 +537,17 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            is_alive = true,
-            current_hp = 10,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -595,25 +595,16 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
 
         internal override bool EmptyGenerationIsPending => true;
 
-        internal override GodotProjectionLease<GDictionary> GenerateLease(
+        internal override BattleTerrainLayout GenerateTyped(
             EncounterAnchorData encounterAnchor,
             long seed,
-            GDictionary context,
-            LifetimeDomain domain = LifetimeDomain.Battle
+            GDictionary context
         )
         {
             _generateCallCount++;
             if (_generateCallCount > 1)
-                return base.GenerateLease(encounterAnchor, seed, context, domain);
+                return base.GenerateTyped(encounterAnchor, seed, context);
 
-            GDictionary root = new();
-            GodotProjectionLease<GDictionary> lease =
-                GodotProjectionLease<GDictionary>.CreateOwnedRoot(
-                    root,
-                    "invalid-escape-then-pending-terrain",
-                    domain,
-                    "InvalidEscapeThenPendingTerrainGenerator.GenerateLease"
-                );
             Vector2I mapSize = new(3, 2);
             var cells = new Dictionary<Vector2I, BattleCellState>();
             for (int y = 0; y < mapSize.Y; y++)
@@ -631,22 +622,15 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
                     cells[cell.coord] = cell;
                 }
             }
-            root["map_size"] = mapSize;
-            root["cells"] = BattleCellState.ProjectCellsToPayload(lease, cells);
-            root["cell_columns"] = BattleCellState.ProjectColumnsToPayload(
-                lease,
-                BattleCellState.BuildColumnsFromSurfaceCells(cells)
+            return new BattleTerrainLayout(
+                mapSize,
+                cells,
+                new[] { new Vector2I(0, 0) },
+                new[] { new Vector2I(1, 1) },
+                new Vector2I(0, 0),
+                new Vector2I(1, 1),
+                "default"
             );
-            root["ally_spawns"] = lease.Own(
-                new GArray { new Vector2I(0, 0) },
-                "InvalidEscapeThenPendingTerrainGenerator.ally_spawns"
-            );
-            root["enemy_spawns"] = lease.Own(
-                new GArray { new Vector2I(1, 1) },
-                "InvalidEscapeThenPendingTerrainGenerator.enemy_spawns"
-            );
-            root["terrain_profile_id"] = new StringName("default");
-            return lease;
         }
     }
 
@@ -658,15 +642,14 @@ public partial class run_game_runtime_pending_battle_request_regression : Lifecy
         internal override bool EmptyGenerationIsPending =>
             _generateCallCount <= 8;
 
-        internal override GodotProjectionLease<GDictionary> GenerateLease(
+        internal override BattleTerrainLayout GenerateTyped(
             EncounterAnchorData encounterAnchor,
             long seed,
-            GDictionary context,
-            LifetimeDomain domain = LifetimeDomain.Battle
+            GDictionary context
         )
         {
             _generateCallCount++;
-            return base.GenerateLease(encounterAnchor, seed, context, domain);
+            return base.GenerateTyped(encounterAnchor, seed, context);
         }
     }
 }

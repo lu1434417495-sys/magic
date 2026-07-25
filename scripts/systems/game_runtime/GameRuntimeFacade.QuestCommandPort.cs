@@ -16,7 +16,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeQuestCommandPort
         return new QuestCommandStateData(
             partyState?.HasActiveQuest(questId) ?? false,
             partyState?.HasClaimableQuest(questId) ?? false,
-            partyState?.HasCompletedQuest(questId) ?? false
+            partyState?.HasCompletedQuest(questId) ?? false,
+            partyState?.HasFailedQuest(questId) ?? false
         );
     }
 

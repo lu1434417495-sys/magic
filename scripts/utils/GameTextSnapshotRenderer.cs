@@ -444,10 +444,12 @@ public static class GameTextSnapshotRenderer
         {
             $"active_quest_ids={FormatArray(GetArray(quests, "active_quest_ids"))}",
             $"claimable_quest_ids={FormatArray(GetArray(quests, "claimable_quest_ids"))}",
+            $"failed_quest_ids={FormatArray(GetArray(quests, "failed_quest_ids"))}",
             $"completed_quest_ids={FormatArray(GetArray(quests, "completed_quest_ids"))}",
         };
         AppendQuestDetailLines(lines, GetArray(quests, "active_quests"));
         AppendQuestDetailLines(lines, GetArray(quests, "claimable_quests"));
+        AppendQuestDetailLines(lines, GetArray(quests, "failed_quests"));
         return lines;
     }
 
@@ -462,7 +464,7 @@ public static class GameTextSnapshotRenderer
             if (string.IsNullOrEmpty(stageId))
                 continue;
             lines.Add(
-                $"quest={GetExactString(quest, "quest_id")} | stage={stageId} | status={GetExactString(quest, "status_id")} | progress={FormatQuestProgress(GetDictionary(quest, "objective_progress"))} | accepted={GetInt(quest, "accepted_at_world_step", -1)} | completed={GetInt(quest, "completed_at_world_step", -1)} | rewarded={GetInt(quest, "reward_claimed_at_world_step", -1)} | context={FormatKeyValuePairs(GetDictionary(quest, "last_progress_context"))}"
+                $"quest={GetExactString(quest, "quest_id")} | stage={stageId} | status={GetExactString(quest, "status_id")} | progress={FormatQuestProgress(GetDictionary(quest, "objective_progress"))} | accepted={GetInt(quest, "accepted_at_world_step", -1)} | completed={GetInt(quest, "completed_at_world_step", -1)} | rewarded={GetInt(quest, "reward_claimed_at_world_step", -1)} | failed={GetInt(quest, "failed_at_world_step", -1)} | failure_reason={GetExactString(quest, "failure_reason_id")} | context={FormatKeyValuePairs(GetDictionary(quest, "last_progress_context"))}"
             );
         }
     }

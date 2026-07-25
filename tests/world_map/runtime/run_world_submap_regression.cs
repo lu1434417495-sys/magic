@@ -686,7 +686,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         {
             return false;
         }
-        if (fogState["version"].AsInt32() != 1)
+        if (fogState["version"].AsInt32() != WorldMapFogSystem.PersistentStateVersion)
         {
             return false;
         }

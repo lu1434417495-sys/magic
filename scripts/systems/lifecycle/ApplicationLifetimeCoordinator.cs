@@ -409,13 +409,10 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         }
 
         SceneTree tree = GetTree();
-        Node currentScene = tree.CurrentScene;
-        Node gameSession = tree.Root.GetNodeOrNull<Node>("GameSession");
-        TryFreeTreeOwner(currentScene, "current-scene", report, failures);
-        if (!ReferenceEquals(gameSession, currentScene))
-            TryFreeTreeOwner(gameSession, "game-session", report, failures);
-
+        QueueSceneTreeOwners(tree, report, failures);
         await ToSignal(tree, SceneTree.SignalName.ProcessFrame);
+        if (QueueSceneTreeOwners(tree, report, failures))
+            await ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         ApplicationLifetimeDiagnostics.RecordPhase(ApplicationShutdownPhase.SceneDrained);
 
         if (failures.Count > 0)
@@ -654,7 +651,30 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         }
     }
 
-    private static void TryFreeTreeOwner(
+    private static bool QueueSceneTreeOwners(
+        SceneTree tree,
+        ShutdownReport report,
+        List<Exception> failures
+    )
+    {
+        Node currentScene = tree.CurrentScene;
+        Node gameSession = tree.Root.GetNodeOrNull<Node>("GameSession");
+        bool queuedOwner = TryQueueFreeTreeOwner(
+            currentScene,
+            "current-scene",
+            report,
+            failures
+        );
+        if (!ReferenceEquals(gameSession, currentScene))
+        {
+            queuedOwner =
+                TryQueueFreeTreeOwner(gameSession, "game-session", report, failures)
+                || queuedOwner;
+        }
+        return queuedOwner;
+    }
+
+    private static bool TryQueueFreeTreeOwner(
         Node owner,
         string ownerId,
         ShutdownReport report,
@@ -662,16 +682,19 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     )
     {
         if (owner == null || !GodotObject.IsInstanceValid(owner))
-            return;
+            return false;
 
         try
         {
-            owner.Free();
+            if (!owner.IsQueuedForDeletion())
+                owner.QueueFree();
+            return true;
         }
         catch (Exception exception)
         {
             report.RecordFailure($"scene-owner:{ownerId}", exception);
             failures.Add(exception);
+            return false;
         }
     }
 

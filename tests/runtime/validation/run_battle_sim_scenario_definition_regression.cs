@@ -21,6 +21,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
         {
             AssertAuthoringProjectionIsDetachedAndSchemaStable();
             AssertStringNameKeyedSnapshotsRoundTrip();
+            AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff();
             AssertFormalTerrainSkipsExplicitCellParsing();
             AssertRuntimeSignaturesRejectAuthoredResources();
         }
@@ -92,7 +93,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
         BattleUnitState secondState = definition.AllyUnits[0].UnitDefinition.CreateRuntimeState();
         _test.False(ReferenceEquals(firstState, secondState), "each simulation run should receive a fresh BattleUnitState");
         _test.Eq(secondState.unit_id.ToString(), "definition_probe_unit", "runtime state should not observe authored or prior-run mutation");
-        _test.Eq(secondState.coord, new Vector2I(1, 2), "runtime coord should remain the projected coord");
+        _test.Eq(secondState.GetAnchorCoord(), new Vector2I(1, 2), "runtime coord should remain the projected coord");
         _test.Eq(secondState.GetKnownSkillLevelTyped(skillId), 3, "nested skill maps should remain detached and stable");
         AssertPlainGraph(definition.AllyUnits[0].UnitDefinition.UnitSnapshot, "unit_snapshot");
 
@@ -138,6 +139,200 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
         BattleUnitState roundTrip = definition.CreateRuntimeState();
         _test.Eq(roundTrip.GetCooldownTyped(skillId), 4, "non-empty StringName-keyed cooldowns should survive definition round-trip");
         AssertPlainGraph(definition.UnitSnapshot, "cooldown_snapshot");
+    }
+
+    private void AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff()
+    {
+        using var allySpec = new BattleSimUnitSpec
+        {
+            unit_id = "definition_temporal_projection_unit",
+            display_name = "Definition Temporal Projection Unit",
+            coord = new Vector2I(1, 1),
+        };
+        using var enemySpec = new BattleSimUnitSpec
+        {
+            unit_id = "definition_temporal_projection_enemy",
+            display_name = "Definition Temporal Projection Enemy",
+            coord = new Vector2I(2, 1),
+        };
+        BattleUnitState sourceState = allySpec
+            .ToDefinition("player", "manual")
+            .CreateRuntimeState();
+        BattleUnitState enemyState = enemySpec
+            .ToDefinition("hostile", "manual")
+            .CreateRuntimeState();
+        sourceState.ReplaceEquipmentAbilityProjectionTyped(
+            new[]
+            {
+                new BattleEquipmentAbilitySourceState
+                {
+                    EffectiveInstanceKey = "definition_temporal_projection_source",
+                    EquipmentDefId = "definition_temporal_projection_item",
+                    SourceEquipmentInstanceId = "definition_temporal_projection_instance",
+                    SourceKind = EquipmentAbilitySourceKind.PlayerPersistentEquipment,
+                    AbilityIds = new List<StringName>
+                    {
+                        "definition_temporal_projection_binding",
+                    },
+                },
+            },
+            new[]
+            {
+                new BattleTemporalProgressModifierState
+                {
+                    ModifierId = "definition_temporal_projection_modifier",
+                    BindingId = "definition_temporal_projection_binding",
+                    SourceEquipmentInstanceId =
+                        "definition_temporal_projection_instance",
+                    AppliesToActionProgress = true,
+                    AppliesToCastProgress = true,
+                    SaveDc = 10,
+                    AttributeModifierId = "willpower_modifier",
+                    SuccessRatePercent = 50,
+                    FailureRatePercent = 50,
+                    Label = "definition temporal projection",
+                },
+            }
+        );
+
+        var scenario = new BattleSimScenarioDefinition(
+            "definition_temporal_projection_scenario",
+            "Definition Temporal Projection Scenario",
+            "",
+            new Vector2I(4, 3),
+            "",
+            false,
+            Vector2I.Zero,
+            new[]
+            {
+                BattleSimScenarioUnitEntry.FromProjectedState(
+                    sourceState,
+                    "definition_temporal_projection_ally"
+                ),
+            },
+            new[]
+            {
+                BattleSimScenarioUnitEntry.FromProjectedState(
+                    enemyState,
+                    "definition_temporal_projection_enemy"
+                ),
+            },
+            1,
+            1,
+            new Dictionary<
+                Vector2I,
+                IReadOnlyDictionary<string, object>
+            >(),
+            1,
+            5,
+            1,
+            "wait",
+            false,
+            new[] { 101 }
+        );
+        sourceState.ClearEquipmentAbilityProjectionTyped();
+
+        BattleStartUnitRoster firstRoster =
+            scenario.CreateRuntimeRosterTyped();
+        BattleStartUnitRosterMaterialization firstMaterialization =
+            firstRoster.ConsumeForStart();
+        _test.True(
+            firstMaterialization.ProvidesAllyUnits
+                && firstMaterialization.ProvidesEnemyUnits,
+            "scenario roster should explicitly provide both projected sides"
+        );
+        _test.Eq(
+            firstMaterialization.AllyUnits.Count,
+            1,
+            "scenario roster should materialize one ally"
+        );
+        _test.Eq(
+            firstMaterialization.EnemyUnits.Count,
+            1,
+            "scenario roster should materialize one enemy"
+        );
+
+        bool rejectedSecondConsume = false;
+        try
+        {
+            firstRoster.ConsumeForStart();
+        }
+        catch (InvalidOperationException)
+        {
+            rejectedSecondConsume = true;
+        }
+        _test.True(
+            rejectedSecondConsume,
+            "typed start roster ownership should transfer exactly once"
+        );
+
+        BattleStartUnitRoster secondRoster =
+            scenario.CreateRuntimeRosterTyped();
+        BattleStartUnitRosterMaterialization secondMaterialization =
+            secondRoster.ConsumeForStart();
+        BattleUnitState firstState = firstMaterialization.AllyUnits[0];
+        BattleUnitState secondState = secondMaterialization.AllyUnits[0];
+        _test.False(
+            ReferenceEquals(firstState, secondState),
+            "separate scenario rosters should own independent runtime units"
+        );
+        _test.Eq(
+            BattleTemporalStatusService.ConsumeActionProgressGain(
+                firstState,
+                10
+            ),
+            5,
+            "scenario roster should preserve action progress behavior"
+        );
+        _test.Eq(
+            BattleTemporalStatusService.ConsumeCastProgressGain(
+                firstState,
+                10
+            ),
+            5,
+            "scenario roster should preserve cast progress behavior"
+        );
+
+        firstState.ClearEquipmentAbilityProjectionTyped();
+        _test.Eq(
+            BattleTemporalStatusService.ConsumeActionProgressGain(
+                secondState,
+                10
+            ),
+            5,
+            "one roster must not mutate another roster's action progress behavior"
+        );
+        _test.Eq(
+            BattleTemporalStatusService.ConsumeCastProgressGain(
+                secondState,
+                10
+            ),
+            5,
+            "one roster must not mutate another roster's cast progress behavior"
+        );
+
+        using var runtime = new BattleRuntimeModule();
+        using GodotProjectionLease<GDictionary> canonicalContextLease =
+            scenario.BuildStartContextLease();
+        bool rejectedDualSource = false;
+        try
+        {
+            runtime.StartBattleBorrowingContext(
+                null,
+                101,
+                BattleEliminationObjectiveDefinition.Instance,
+                canonicalContextLease.Value,
+                scenario.CreateRuntimeRosterTyped()
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            rejectedDualSource = true;
+        }
+        _test.True(
+            rejectedDualSource,
+            "runtime should reject canonical and typed unit sources for the same side"
+        );
     }
 
     private void AssertFormalTerrainSkipsExplicitCellParsing()

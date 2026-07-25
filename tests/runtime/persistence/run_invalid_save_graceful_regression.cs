@@ -21,6 +21,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
         TestCreateNewSaveRejectsInvalidGenerationConfigWithoutQuit();
         TestLoadSaveRejectsBadWorldDataWithoutQuit();
         TestWorldCoordinatesRequireNativeVector2I();
+        TestFogCoordinatesRequireNativeVector2I();
         TestLoadSaveReturnsDoesNotExistWhenCachedPayloadDisappears();
         TestCreateNewSaveRejectsBadCreationIdentityWithoutCreatingSlot();
         TestCreateNewSaveAcceptsValidCreationIdentityPayload();
@@ -195,6 +196,63 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
         _test.False(gameSession.HasActiveWorld(), "非法建卡 payload 被拒后 fresh session 不应留下 active world。");
         _test.Eq(gameSession.ListSaveSlotsPlain().Count, 0, "非法建卡 payload 被拒后不应创建新存档槽。");
         CleanupTestSession(gameSession);
+    }
+
+    private void TestFogCoordinatesRequireNativeVector2I()
+    {
+        var gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "fog Vector2I schema 回归前置：应能创建测试存档。");
+            if (createError != Error.Ok)
+                return;
+
+            SaveSerializer serializer = gameSession._save_serializer;
+            Dictionary<string, object> worldData = gameSession.CaptureWorldDataPlain();
+            var fogSystem = new WorldMapFogSystem();
+            fogSystem.Setup(new Vector2I(8, 8));
+            fogSystem.RevealDiamond(new Vector2I(3, 3), 1, "player");
+            worldData["fog_states"] = fogSystem.BuildPersistentStatePlain();
+            _test.True(
+                serializer.TryNormalizeWorldDataPlain(worldData, out _),
+                "world_data 应接受只包含原生 Vector2I 的正式 fog_states。"
+            );
+
+            worldData["fog_states"] = new Dictionary<string, object>(
+                System.StringComparer.Ordinal
+            )
+            {
+                ["version"] = WorldMapFogSystem.PersistentStateVersion,
+                ["factions"] = new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["player"] = new Dictionary<string, object>(
+                        System.StringComparer.Ordinal
+                    )
+                    {
+                        ["explored"] = new List<object>
+                        {
+                            new Dictionary<string, object>(
+                                System.StringComparer.Ordinal
+                            )
+                            {
+                                ["x"] = 3,
+                                ["y"] = 3,
+                            },
+                        },
+                        ["revealed"] = new List<object>(),
+                    },
+                },
+            };
+            _test.False(
+                serializer.TryNormalizeWorldDataPlain(worldData, out _),
+                "save serializer 应在进入 world runtime 前拒绝字典形式的迷雾坐标。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
     }
 
     private void TestCreateNewSaveAcceptsValidCreationIdentityPayload()

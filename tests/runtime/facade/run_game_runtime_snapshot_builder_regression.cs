@@ -1108,9 +1108,13 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
         var claimableQuest = new QuestState { quest_id = "contract_settlement_warehouse" };
         claimableQuest.MarkAccepted(9);
         claimableQuest.MarkCompleted(15);
-        partyState.active_quests = new List<QuestState> { questState };
-        partyState.claimable_quests = new List<QuestState> { claimableQuest };
-        partyState.completed_quest_ids = new GStringNameArray { "contract_intro" };
+        var failedQuest = new QuestState { quest_id = "contract_failed_patrol" };
+        failedQuest.MarkAccepted(10);
+        failedQuest.MarkFailed(17, "deadline_expired");
+        partyState.SetActiveQuestState(questState);
+        partyState.SetClaimableQuestState(claimableQuest);
+        partyState.SetFailedQuestState(failedQuest);
+        partyState.AddCompletedQuestId("contract_intro");
         runtime.PartyState = partyState;
 
         var builder = new GameRuntimeSnapshotBuilder();
@@ -1139,11 +1143,18 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             new[] { "contract_intro" },
             "completed_quest_ids 应稳定暴露已完成任务 ID。"
         );
+        AssertStringListEq(
+            StringList(ArrayValue(questsSnapshot, "failed_quest_ids")),
+            new[] { "contract_failed_patrol" },
+            "failed_quest_ids 应稳定暴露失败任务 ID。"
+        );
 
         PlainArray activeQuests = ArrayValue(questsSnapshot, "active_quests");
         PlainArray claimableQuests = ArrayValue(questsSnapshot, "claimable_quests");
+        PlainArray failedQuests = ArrayValue(questsSnapshot, "failed_quests");
         _test.Eq(activeQuests.Count, 1, "active_quests 应保留当前任务详情。");
         _test.Eq(claimableQuests.Count, 1, "claimable_quests 应保留待领奖励任务详情。");
+        _test.Eq(failedQuests.Count, 1, "failed_quests 应保留失败任务详情。");
         if (activeQuests.Count > 0)
         {
             PlainDictionary questEntry = activeQuests[0] as PlainDictionary;
@@ -1171,6 +1182,25 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             );
             _test.Eq(StringValue(claimableEntry, "stage_id"), "claimable", "待领奖励任务快照应标记 claimable stage。");
             _test.Eq(IntValue(claimableEntry, "completed_at_world_step", -1), 15, "待领奖励任务快照应保留完成时间。");
+        }
+        if (failedQuests.Count > 0)
+        {
+            PlainDictionary failedEntry = failedQuests[0] as PlainDictionary;
+            _test.Eq(
+                StringValue(failedEntry, "quest_id"),
+                "contract_failed_patrol",
+                "失败任务快照应保留 quest_id。"
+            );
+            _test.Eq(
+                IntValue(failedEntry, "failed_at_world_step", -1),
+                17,
+                "失败任务快照应保留失败时间。"
+            );
+            _test.Eq(
+                StringValue(failedEntry, "failure_reason_id"),
+                "deadline_expired",
+                "失败任务快照应保留失败原因。"
+            );
         }
     }
 
@@ -1557,7 +1587,7 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
                 new GDictionary { ["item_id"] = "sealed_dispatch", ["submitted_quantity"] = 1 }
             )
         );
-        partyState.active_quests = new List<QuestState> { questState };
+        partyState.SetActiveQuestState(questState);
         runtime.PartyState = partyState;
         runtime.ActiveModalKind = RuntimeModalKind.Warehouse;
         runtime.WarehouseWindowData = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -2027,6 +2057,8 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             ["accepted_at_world_step"] = 1,
             ["completed_at_world_step"] = completedAtWorldStep,
             ["reward_claimed_at_world_step"] = -1,
+            ["failed_at_world_step"] = -1,
+            ["failure_reason_id"] = "",
             ["last_progress_context"] = new GDictionary(),
         };
         if (stageId is string stageString)

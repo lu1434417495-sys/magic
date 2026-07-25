@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -19,15 +20,33 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
 
     private async void RunAsync()
     {
-        TestMasterReforgeServiceSuccess();
-        TestMasterReforgeServiceMissingMaterials();
-        await TestSettlementHandlerRoutesMasterReforge();
-        await TestSettlementHandlerRoutesGenericForge();
-        await TestNewWorldGenerationExposesMasterReforgeService();
-        await TestAshenIntersectionGenerationExposesGenericForgeService();
+        try
+        {
+            TestForgeActionRequestRejectsDefaultStringNames();
+            TestMasterReforgeServiceSuccess();
+            TestMasterReforgeServiceMissingMaterials();
+            await TestSettlementHandlerRoutesMasterReforge();
+            await TestSettlementHandlerRoutesGenericForge();
+            await TestNewWorldGenerationExposesMasterReforgeService();
+            await TestAshenIntersectionGenerationExposesGenericForgeService();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"未处理异常：{exception}");
+        }
+        finally
+        {
+            DisposeWorldDataLeases();
+            RequestTestExit(_test.Finish("Settlement forge service regression"));
+        }
+    }
 
-        DisposeWorldDataLeases();
-        RequestTestExit(_test.Finish("Settlement forge service regression"));
+    private void TestForgeActionRequestRejectsDefaultStringNames()
+    {
+        _test.False(
+            default(ForgeActionRequest).IsValid,
+            "default StringName 组成的 forge request 必须被安全拒绝。"
+        );
     }
 
     private GDictionary ProjectWorldData(GameSession session)
@@ -165,13 +184,14 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
-                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
-                    "service:master_reforge",
-                    new GDictionary
-                    {
-                        ["submission_source"] = "forge",
-                        ["recipe_id"] = "master_reforge_iron_greatsword",
-                    }
+                fixture.Handler.CommandExecuteForgeActionRuntimeTyped(
+                    new ForgeActionRequest(
+                        new StringName("forge_town"),
+                        new StringName("service:master_reforge"),
+                        new StringName("service:master_reforge"),
+                        default,
+                        new StringName("master_reforge_iron_greatsword")
+                    )
                 );
             _test.True(
                 commandResult.Ok,
@@ -239,14 +259,14 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             }
 
             GameRuntimeFacade.RuntimeCommandResult commandResult =
-                fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
-                    "service:repair_gear",
-                    new GDictionary
-                    {
-                        ["submission_source"] = "forge",
-                        ["member_id"] = selectedMemberId,
-                        ["recipe_id"] = "forge_militia_axe",
-                    }
+                fixture.Handler.CommandExecuteForgeActionRuntimeTyped(
+                    new ForgeActionRequest(
+                        new StringName("forge_town"),
+                        new StringName("service:repair_gear"),
+                        new StringName("service:repair_gear"),
+                        new StringName(selectedMemberId),
+                        new StringName("forge_militia_axe")
+                    )
                 );
             _test.True(
                 commandResult.Ok,

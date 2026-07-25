@@ -16,7 +16,6 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         TestFacadeUsesRewardFlowHandlerSurface();
         TestRewardHandlerRoutesModalCloseAndRewardPresentation();
         TestNonCloseModalTransitionsClearCharacterInfoContext();
-        TestRewardHandlerRejectsStringNamePromotionPromptValues();
 
         RequestTestExit(_test.Finish("Game runtime reward flow handler regression"));
     }
@@ -26,14 +25,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
         try
         {
-            IReadOnlyDictionary<string, object> prompt = new Dictionary<string, object>(
-                System.StringComparer.Ordinal
-            )
-            {
-                ["member_id"] = "hero",
-                ["choices"] = new List<object>(),
-            };
-            runtime.SetPendingWorldPromotionPromptStatePlain(prompt);
+            runtime.SetPendingWorldPromotionPromptState(BuildPromotionPrompt("hero"));
             IReadOnlyDictionary<string, object> promotionPrompt =
                 runtime.GetCurrentPromotionPromptSnapshotPlain();
             _test.Eq(
@@ -155,13 +147,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             _test.True(confirmActiveReward.Ok, "active reward 应能通过 typed confirm helper 结算。");
             _test.True(runtime.GetActiveReward() == null, "confirm active reward 后应清空 active reward。");
 
-            runtime.SetPendingWorldPromotionPromptStatePlain(
-                new Dictionary<string, object>(System.StringComparer.Ordinal)
-                {
-                    ["member_id"] = "hero",
-                    ["choices"] = new List<object>(),
-                }
-            );
+            runtime.SetPendingWorldPromotionPromptState(BuildPromotionPrompt("hero"));
             GameRuntimeFacade.RuntimeCommandResult cancelPromotionChoice =
                 handler.CommandCancelPromotionChoiceTyped();
             _test.True(cancelPromotionChoice.Ok, "cancel promotion choice 应走 typed helper。");
@@ -234,47 +220,6 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
         }
     }
 
-    private void TestRewardHandlerRejectsStringNamePromotionPromptValues()
-    {
-        GameRuntimeFacade runtime = BuildRuntime(BuildPartyState());
-        try
-        {
-            runtime.SetPendingWorldPromotionPromptStatePlain(
-                new Dictionary<string, object>(System.StringComparer.Ordinal)
-                {
-                    ["member_id"] = new StringName("hero"),
-                    ["choices"] = new List<object>
-                    {
-                        new Dictionary<string, object>(System.StringComparer.Ordinal)
-                        {
-                            ["profession_id"] = new StringName("warrior"),
-                            ["selection"] = new Dictionary<string, object>(
-                                System.StringComparer.Ordinal
-                            ),
-                        },
-                    },
-                }
-            );
-
-            GameRuntimeFacade.RuntimeCommandResult result = runtime.CommandChoosePromotionTyped(
-                "warrior"
-            );
-            _test.False(
-                result.Ok,
-                "StringName-valued promotion ids 不应继续被 reward handler 当成正式字符串消费。"
-            );
-            _test.Eq(
-                result.Message,
-                "当前晋升列表中不存在职业 warrior。",
-                "StringName-valued promotion ids 应走正式缺失职业错误文案。"
-            );
-        }
-        finally
-        {
-            runtime.Dispose();
-        }
-    }
-
     private static GameRuntimeCharacterInfoContext BuildCharacterInfoContext(
         string displayName
     ) =>
@@ -288,6 +233,24 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
                 new GameRuntimeCharacterInfoSection(
                     "基础概览",
                     new[] { GameRuntimeCharacterInfoEntry.Pair("类型", "测试") }
+                ),
+            }
+        );
+
+    private static GameRuntimePromotionPromptContext BuildPromotionPrompt(StringName memberId) =>
+        new(
+            memberId,
+            memberId.ToString(),
+            new[]
+            {
+                new GameRuntimePromotionChoiceContext(
+                    "test_profession",
+                    "Test Profession",
+                    "Rank 1",
+                    "",
+                    System.Array.Empty<StringName>(),
+                    "",
+                    PromotionSelectionData.Empty
                 ),
             }
         );

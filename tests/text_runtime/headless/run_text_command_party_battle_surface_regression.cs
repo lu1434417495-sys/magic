@@ -272,14 +272,18 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
             : null;
         if (activeUnit == null)
             return;
-        activeUnit.known_active_skill_ids = new() { "archer_long_draw" };
-        activeUnit.known_skill_level_map.Clear();
-        activeUnit.known_skill_level_map["archer_long_draw"] = 1;
-        activeUnit.current_ap = 2;
-        activeUnit.current_stamina = currentStamina;
-        activeUnit.cooldowns.Clear();
+        activeUnit.SetKnownActiveSkillIds(new[] { new StringName("archer_long_draw") });
+        activeUnit.SetKnownSkillLevelsTyped(
+            new Dictionary<StringName, int>
+            {
+                ["archer_long_draw"] = 1,
+            }
+        );
+        activeUnit.SetCurrentAp(2);
+        activeUnit.SetCurrentStamina(currentStamina);
+        activeUnit.SetCooldownsTyped(null);
         if (cooldown > 0)
-            activeUnit.cooldowns["archer_long_draw"] = cooldown;
+            activeUnit.SetCooldownTyped("archer_long_draw", cooldown);
         if (activeUnit.attribute_snapshot != null)
         {
             activeUnit.attribute_snapshot.SetValue("action_points", 2);

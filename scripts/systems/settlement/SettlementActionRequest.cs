@@ -9,5 +9,14 @@ internal readonly record struct SettlementActionRequest(
     SettlementSubmissionSource Source
 )
 {
-    public bool IsValid => SettlementId != "" && ServiceId != "" && ActionId != "";
+    public bool IsValid =>
+        !IsEmpty(SettlementId)
+        && !IsEmpty(ServiceId)
+        && !IsEmpty(ActionId);
+
+    internal static bool IsEmpty(StringName value) =>
+        value == default || value == (StringName)"";
+
+    internal static string ToText(StringName value) =>
+        IsEmpty(value) ? "" : value.ToString();
 }

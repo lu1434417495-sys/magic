@@ -60,6 +60,13 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped(
                 string.Format("任务《{0}》已完成，奖励待领取，当前不可再次接取。", questLabel)
             );
+        bool isRestartingFailedQuest =
+            questState.IsFailed
+            && questDef.CanRestartAfterFailure;
+        if (questState.IsFailed && !isRestartingFailedQuest)
+            return CommandErrorTyped(
+                string.Format("任务《{0}》已经失败，当前不可重新接取。", questLabel)
+            );
         bool hasCompleted = questState.IsCompleted;
         var isRepeatable = questDef.IsRepeatable;
         var effectiveAllowReaccept = allowReaccept || (hasCompleted && isRepeatable);
@@ -71,7 +78,9 @@ public sealed class GameRuntimeQuestCommandHandler
             return CommandErrorTyped(string.Format("当前无法接取任务《{0}》。", questLabel));
         var persistError = PersistPartyState();
         var message =
-            hasCompleted && effectiveAllowReaccept
+            isRestartingFailedQuest
+                ? string.Format("已重新接取失败任务《{0}》。", questLabel)
+                : hasCompleted && effectiveAllowReaccept
                 ? string.Format("已重新接取任务《{0}》。", questLabel)
                 : string.Format("已接取任务《{0}》。", questLabel);
         if (persistError != Error.Ok)
@@ -548,22 +557,30 @@ internal sealed class QuestCommandDefData
     public readonly bool Exists;
     public readonly string DisplayName;
     public readonly bool IsRepeatable;
+    public readonly bool CanRestartAfterFailure;
 
-    private QuestCommandDefData(bool exists, string displayName, bool isRepeatable)
+    private QuestCommandDefData(
+        bool exists,
+        string displayName,
+        bool isRepeatable,
+        bool canRestartAfterFailure
+    )
     {
         Exists = exists;
         DisplayName = displayName ?? "";
         IsRepeatable = isRepeatable;
+        CanRestartAfterFailure = canRestartAfterFailure;
     }
 
     internal static QuestCommandDefData FromQuestDefinition(QuestDefinition questDefinition)
     {
         if (questDefinition == null || questDefinition.QuestId == "")
-            return new QuestCommandDefData(false, "", false);
+            return new QuestCommandDefData(false, "", false, false);
         return new QuestCommandDefData(
             true,
             questDefinition.DisplayName.Trim(),
-            questDefinition.IsRepeatable
+            questDefinition.IsRepeatable,
+            questDefinition.CanRestartAfterFailure
         );
     }
 }

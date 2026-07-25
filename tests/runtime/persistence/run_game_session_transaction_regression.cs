@@ -7,6 +7,9 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_game_session_transaction_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string SaveIndexPath = "user://saves/index.dat";
+    private const string IndexDegradedEventId =
+        "session.save.index.degraded_after_payload_commit";
 
     private readonly TestHarness _test = new();
 
@@ -20,6 +23,8 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
         TestSettersStageRuntimeWithoutDiskWrite();
         TestCommitRuntimeStatePersistsCompleteSnapshot();
         TestCommitFailureKeepsDirtyAndLastError();
+        TestNewSaveKeepsPayloadCommitWhenIndexWriteFails();
+        TestExistingSaveKeepsPayloadCommitWhenIndexWriteFails();
         TestUnloadCommitsPendingRuntimeState();
 
         RequestTestExit(_test.Finish("GameSession transaction regression"));
@@ -141,6 +146,123 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
         finally
         {
             gameSession.fail_payload_write = false;
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestNewSaveKeepsPayloadCommitWhenIndexWriteFails()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            _test.Eq(
+                (Error)gameSession.ClearPersistedGame(),
+                Error.Ok,
+                "index 降级回归前应清理旧存档。"
+            );
+            gameSession.fail_index_write = true;
+
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+
+            _test.Eq(
+                createError,
+                Error.Ok,
+                "payload 已提交时，index 写失败不得把新建存档报告为失败。"
+            );
+            string saveId = gameSession.GetActiveSaveId();
+            _test.True(saveId.Length > 0, "index 降级后新建存档仍应保持 active save。");
+            _test.True(
+                FileAccess.FileExists(gameSession.GetActiveSavePath()),
+                "index 降级后权威 payload 必须已落盘。"
+            );
+            _test.False(
+                FileAccess.FileExists(SaveIndexPath),
+                "故障注入期间不应误称 index 已写入。"
+            );
+            _test.True(
+                LogHasEvent(gameSession, IndexDegradedEventId),
+                "index 降级应记录稳定 warning event。"
+            );
+
+            gameSession.fail_index_write = false;
+            List<Dictionary<string, object>> rebuiltSlots = gameSession.ListSaveSlotsPlain();
+            _test.Eq(
+                CountSaveId(rebuiltSlots, saveId),
+                1,
+                "恢复后应从 payload 重建且只发布一次新存档。"
+            );
+            _test.True(
+                FileAccess.FileExists(SaveIndexPath),
+                "恢复后读取存档列表应重新写出 index cache。"
+            );
+        }
+        finally
+        {
+            gameSession.fail_index_write = false;
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestExistingSaveKeepsPayloadCommitWhenIndexWriteFails()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "已有存档 index 降级回归前置：应能创建存档。");
+            if (createError != Error.Ok)
+                return;
+
+            string saveId = gameSession.GetActiveSaveId();
+            Dictionary<string, object> originalPayload = ReadActiveSavePayload(gameSession);
+            Vector2I stagedCoord = PayloadPlayerCoord(originalPayload) + Vector2I.Right;
+            _test.Eq(
+                (Error)gameSession.SetPlayerCoord(stagedCoord),
+                Error.Ok,
+                "已有存档 index 降级回归前置：坐标 staging 应成功。"
+            );
+            gameSession.fail_index_write = true;
+
+            Error commitError = (Error)gameSession.CommitRuntimeState(
+                "test.fail_index_write"
+            );
+
+            _test.Eq(
+                commitError,
+                Error.Ok,
+                "已有 payload 已提交时，index 写失败不得触发上层事务回滚。"
+            );
+            _test.False(
+                gameSession.HasPendingSave(),
+                "payload 已提交后 runtime dirty 状态应清除。"
+            );
+            using GodotProjectionLease<GDictionary> statusLease =
+                gameSession.GetSaveStatusLease();
+            _test.Eq(
+                DictError(statusLease.Value, "last_error", Error.Failed),
+                Error.Ok,
+                "index cache 降级不应污染 authoritative save last_error。"
+            );
+            _test.Eq(
+                PayloadPlayerCoord(ReadActiveSavePayload(gameSession)),
+                stagedCoord,
+                "commit 返回成功时磁盘 payload 应包含 staged 状态。"
+            );
+            _test.True(
+                LogHasEvent(gameSession, IndexDegradedEventId),
+                "已有存档 index 降级也应记录稳定 warning event。"
+            );
+
+            gameSession.fail_index_write = false;
+            _test.Eq(
+                CountSaveId(gameSession.ListSaveSlotsPlain(), saveId),
+                1,
+                "index 恢复后已有存档不得重复发布。"
+            );
+        }
+        finally
+        {
+            gameSession.fail_index_write = false;
             CleanupTestSession(gameSession);
         }
     }
@@ -294,6 +416,53 @@ public partial class run_game_session_transaction_regression : LifecycleTestScen
         foreach (Variant value in values.AsGodotArray())
         {
             if (new StringName(value.AsString()) == expected)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int CountSaveId(
+        IReadOnlyList<Dictionary<string, object>> entries,
+        string saveId
+    )
+    {
+        int count = 0;
+        foreach (Dictionary<string, object> entry in entries)
+        {
+            if (
+                entry != null
+                && entry.TryGetValue("save_id", out object value)
+                && value is string entrySaveId
+                && string.Equals(entrySaveId, saveId, StringComparison.Ordinal)
+            )
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static bool LogHasEvent(GameSession gameSession, string eventId)
+    {
+        IReadOnlyDictionary<string, object> snapshot = gameSession.GetLogSnapshotPlain();
+        if (
+            !snapshot.TryGetValue("entries", out object entriesValue)
+            || entriesValue
+                is not IEnumerable<IReadOnlyDictionary<string, object>> entries
+        )
+        {
+            return false;
+        }
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
+        {
+            if (
+                entry != null
+                && entry.TryGetValue("event_id", out object value)
+                && value is string entryEventId
+                && string.Equals(entryEventId, eventId, StringComparison.Ordinal)
+            )
             {
                 return true;
             }
