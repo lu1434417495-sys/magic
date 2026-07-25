@@ -760,19 +760,22 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             display_name = "Caster",
             faction_id = "hostile",
             control_mode = "ai",
-            current_hp = 20,
-            current_mp = 8,
-            effective_trait_instances = new List<BattleEffectiveTraitInstanceState>
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 8
+        );
+        unit.ReplaceEffectiveTraitsTyped(
+            new List<BattleEffectiveTraitInstanceState>
             {
                 trait,
-            },
-        };
-        unit.cooldowns.Put("arc_bolt", 9);
+            }
+        );
+        unit.SetCooldownTyped("arc_bolt", 9);
         unit.SetStatusEffect(status);
 
         Dictionary<string, object> snapshot = BattleUnitStatePlainSnapshot.Build(unit);
         rollValue.string_name_value = "cold";
-        unit.cooldowns.Put("arc_bolt", 1);
+        unit.SetCooldownTyped("arc_bolt", 1);
         status.save_bonus_by_tag["spell"] = 8;
 
         var traits = (List<object>)snapshot["effective_trait_instances"];
@@ -852,8 +855,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                2075,
-                "032d4c35f911b427b10cf2d627be0db5f95a996badb4fdde42e5dfd86049c2c4",
+                2099,
+                "6175112ed33bccb1f2741375fc6399bbcc78d46f2836085e97cd8739d7e9b979",
                 "full real unit snapshot payload"
             );
         }
@@ -912,8 +915,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 reportLease.Value,
-                16171,
-                "ef4ec5f1950e03d9199b40913c8ef94c44357b0f751f6891c395ef2c605deb7f",
+                16195,
+                "b527123721c42fcdd55488e9932eb4285e3f046e39a5716c5cd3eac4394989c6",
                 "full simulation report payload"
             );
         }

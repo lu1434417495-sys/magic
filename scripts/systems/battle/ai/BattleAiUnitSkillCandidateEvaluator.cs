@@ -390,7 +390,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
             rejectCounterKey = FastPreviewRejectMissingContext;
             return preview;
         }
-        if (target == null || !target.is_alive)
+        if (target == null || !target.IsAlive())
         {
             rejectCounterKey = FastPreviewRejectInvalidTarget;
             return preview;
@@ -418,7 +418,7 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
 
         preview.allowed = true;
         preview.AddTargetUnitId(target.unit_id);
-        foreach (Vector2I coord in target.occupied_coords)
+        foreach (Vector2I coord in target.GetOccupiedCoordsReadViewTyped())
         {
             if (!preview.ContainsTargetCoord(coord))
             {

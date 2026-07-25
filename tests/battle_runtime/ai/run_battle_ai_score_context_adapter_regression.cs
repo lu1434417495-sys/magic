@@ -58,7 +58,7 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         BattlePreview preview = new()
         {
             allowed = true,
-            resolved_anchor_coord = fixture.Actor.coord,
+            resolved_anchor_coord = fixture.Actor.GetAnchorCoord(),
         };
         preview.AddTargetCoord(command.target_coord);
 
@@ -166,7 +166,7 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
         BattleUnitState actor = BuildUnit("adapter_actor", "AI", "enemy", new Vector2I(1, 1));
         state.SetUnit(actor);
         state.enemy_unit_ids.Add(actor.unit_id);
-        bool placed = gridService.PlaceUnit(state, actor, actor.coord, true);
+        bool placed = gridService.PlaceUnit(state, actor, actor.GetAnchorCoord(), true);
         _test.True(placed, "测试单位应能放入测试战场。");
 
         SkillDefinition skill = BuildSkill();
@@ -240,20 +240,21 @@ public partial class run_battle_ai_score_context_adapter_regression : LifecycleT
             display_name = displayName,
             faction_id = factionId,
             control_mode = "ai",
-            current_hp = 20,
-            current_mp = 20,
-            current_stamina = 10,
-            current_ap = 2,
-            current_move_points = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 20,
+            stamina: 10,
+            ap: 2,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue("hp_max", 20);
         unit.attribute_snapshot.SetValue("mp_max", 20);
         unit.attribute_snapshot.SetValue("stamina_max", 10);
         unit.attribute_snapshot.SetValue("action_points", 2);
-        unit.known_active_skill_ids.Add("adapter_skill");
-        unit.known_skill_level_map["adapter_skill"] = 1;
+        unit.AddKnownActiveSkill("adapter_skill");
+        unit.SetKnownSkillLevelTyped("adapter_skill", 1);
         return unit;
     }
 

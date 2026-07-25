@@ -1378,19 +1378,6 @@ internal static class BattleAiMutationStableProjection
         BattlePendingCastState pendingCast
     ) => pendingCast?.DuplicateForMutationSnapshotExact();
 
-    internal static List<BattleEffectiveTraitInstanceState>
-        DuplicateEffectiveTraitInstancesExact(
-            IEnumerable<BattleEffectiveTraitInstanceState> values
-        )
-    {
-        if (values == null)
-            return null;
-        List<BattleEffectiveTraitInstanceState> result = new();
-        foreach (BattleEffectiveTraitInstanceState value in values)
-            result.Add(value?.DuplicateForMutationSnapshotExact());
-        return result;
-    }
-
     internal static List<StringName> DuplicateStringNameList(IEnumerable<StringName> values)
     {
         List<StringName> result = new();
@@ -1459,48 +1446,6 @@ internal static class BattleAiMutationStableProjection
         {
             result.Add(StableNullableStringName(value));
         }
-        return result;
-    }
-
-    internal static List<BattleEquipmentAbilitySourceState> DuplicateEquipmentAbilitySourcesExact(
-        IEnumerable<BattleEquipmentAbilitySourceState> values
-    )
-    {
-        if (values == null)
-            return null;
-        var result = new List<BattleEquipmentAbilitySourceState>();
-        foreach (BattleEquipmentAbilitySourceState value in values)
-        {
-            if (value == null)
-            {
-                result.Add(null);
-                continue;
-            }
-            result.Add(
-                new BattleEquipmentAbilitySourceState
-                {
-                    EffectiveInstanceKey = value.EffectiveInstanceKey,
-                    EquipmentDefId = value.EquipmentDefId,
-                    SourceEquipmentInstanceId = value.SourceEquipmentInstanceId,
-                    SourceKind = value.SourceKind,
-                    AbilityIds = value.AbilityIds == null
-                        ? null
-                        : new List<StringName>(value.AbilityIds),
-                }
-            );
-        }
-        return result;
-    }
-
-    internal static List<BattleTemporalProgressModifierState> DuplicateTemporalProgressModifiersExact(
-        IEnumerable<BattleTemporalProgressModifierState> values
-    )
-    {
-        if (values == null)
-            return null;
-        var result = new List<BattleTemporalProgressModifierState>();
-        foreach (BattleTemporalProgressModifierState value in values)
-            result.Add(value?.DuplicateState());
         return result;
     }
 

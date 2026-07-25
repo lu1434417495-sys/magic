@@ -317,7 +317,7 @@ internal sealed class BattleAiQueryService
             MovementReachabilityResult candidate =
                 _movementQueryService.resolve_current_turn_path_target(
                     _actorUnitId,
-                    actor.coord,
+                    actor.GetAnchorCoord(),
                     destination,
                     Math.Max(maxCost, 0),
                     options: BattleMovementQueryService.MovementQueryOptions.ForPathSearchBudget(
@@ -329,7 +329,7 @@ internal sealed class BattleAiQueryService
             if (
                 candidate?.Ok != true
                 || !candidate.TargetCoordValid
-                || candidate.TargetCoord == actor.coord
+                || candidate.TargetCoord == actor.GetAnchorCoord()
             )
             {
                 continue;
@@ -482,15 +482,17 @@ internal sealed class BattleAiQueryService
         {
             return new SkillRecordCacheKey(0, skillDefinitions?.Count ?? 0);
         }
+        BattleWeaponProjectionValues weaponProjection =
+            actor.GetWeaponProjectionReadViewTyped().Values;
 
         unchecked
         {
             long hash = 1469598103934665603;
             hash = Mix(hash, HashStringName(actor.unit_id));
-            hash = Mix(hash, HashStringName(actor.weapon_profile_kind));
-            hash = Mix(hash, HashStringName(actor.weapon_family));
-            hash = Mix(hash, HashStringName(actor.weapon_physical_damage_tag));
-            hash = Mix(hash, actor.weapon_attack_range);
+            hash = Mix(hash, HashStringName(weaponProjection.ProfileKind));
+            hash = Mix(hash, HashStringName(weaponProjection.Family));
+            hash = Mix(hash, HashStringName(weaponProjection.PhysicalDamageTag));
+            hash = Mix(hash, weaponProjection.AttackRange);
 
             var activeSkillEntries = new List<BattleAvailableSkillEntry>(
                 BuildActorAvailabilityEntries(actor, skillDefinitions)
@@ -508,21 +510,23 @@ internal sealed class BattleAiQueryService
                 hash = Mix(hash, entry.SkillLevel);
             }
 
-            var skillLevels = new List<(StringName SkillId, int Level)>();
-            foreach (StringName key in actor.known_skill_level_map.Keys)
+            var skillLevels = new List<KeyValuePair<StringName, int>>();
+            actor.CopyKnownSkillLevelEntriesTo(skillLevels);
+            skillLevels.Sort(
+                (left, right) =>
+                    string.CompareOrdinal(
+                        left.Key.ToString(),
+                        right.Key.ToString()
+                    )
+            );
+            foreach (KeyValuePair<StringName, int> entry in skillLevels)
             {
-                StringName skillId = ProgressionDataUtils.to_string_name(key);
+                StringName skillId =
+                    ProgressionDataUtils.to_string_name(entry.Key);
                 if (IsEmpty(skillId))
                     continue;
-                skillLevels.Add((skillId, actor.known_skill_level_map.Get(key)));
-            }
-            skillLevels.Sort(
-                (left, right) => string.CompareOrdinal(left.SkillId.ToString(), right.SkillId.ToString())
-            );
-            foreach ((StringName skillId, int level) in skillLevels)
-            {
                 hash = Mix(hash, HashStringName(skillId));
-                hash = Mix(hash, level);
+                hash = Mix(hash, entry.Value);
             }
 
             var statusParts = new List<(StringName StatusId, int Power, int RangeBonus)>();
@@ -645,6 +649,7 @@ internal sealed class BattleAiQueryService
             ai_tags = CopyStringNameList(combat?.AiTags),
             delivery_categories = CopyStringNameList(combat?.DeliveryCategories),
             required_weapon_families = CopyStringNameList(combat?.RequiredWeaponFamilies),
+            required_weapon_type_ids = CopyStringNameList(combat?.RequiredWeaponTypeIds),
             excluded_weapon_families = CopyStringNameList(combat?.ExcludedWeaponFamilies),
             excluded_weapon_type_ids = CopyStringNameList(combat?.ExcludedWeaponTypeIds),
         };
@@ -660,7 +665,7 @@ internal sealed class BattleAiQueryService
         int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
         return knownSkillLevel > 0
             ? knownSkillLevel
-            : unitState.known_active_skill_ids.Contains(skillId)
+            : unitState.KnowsActiveSkill(skillId)
                 ? 1
                 : 0;
     }
@@ -723,6 +728,7 @@ internal sealed class BattleAiQueryService
         public List<StringName> ai_tags = new();
         public List<StringName> delivery_categories = new();
         public List<StringName> required_weapon_families = new();
+        public List<StringName> required_weapon_type_ids = new();
         public List<StringName> excluded_weapon_families = new();
         public List<StringName> excluded_weapon_type_ids = new();
     }

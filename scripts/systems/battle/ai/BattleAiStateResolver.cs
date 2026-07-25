@@ -242,7 +242,7 @@ internal sealed class BattleAiStateResolver
 
         foreach (BattleUnitState allyUnit in CollectUnits(state))
         {
-            if (allyUnit == null || !allyUnit.is_alive)
+            if (allyUnit == null || !allyUnit.IsAlive())
             {
                 continue;
             }
@@ -285,7 +285,7 @@ internal sealed class BattleAiStateResolver
         foreach (StringName unitIdValue in candidateIds)
         {
             StringName unitId = ProgressionDataUtils.to_string_name(unitIdValue);
-            if (!TryGetUnit(state, unitId, out BattleUnitState candidate) || !candidate.is_alive)
+            if (!TryGetUnit(state, unitId, out BattleUnitState candidate) || !candidate.IsAlive())
             {
                 continue;
             }
@@ -312,7 +312,7 @@ internal sealed class BattleAiStateResolver
             1
         );
         int clampedThreshold = Mathf.Clamp(thresholdBasisPoints, 0, HpBasisPointsDenominator);
-        int currentHp = Mathf.Clamp(unitState.current_hp, 0, hpMax);
+        int currentHp = Mathf.Clamp(unitState.GetCurrentHp(), 0, hpMax);
         return currentHp * HpBasisPointsDenominator <= hpMax * clampedThreshold;
     }
 

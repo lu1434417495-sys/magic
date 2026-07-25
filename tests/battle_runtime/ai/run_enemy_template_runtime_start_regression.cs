@@ -22,6 +22,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             TestFormalTemplatesResolveStableIds();
             TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestBattleStartUsesBuildContextItemDefsForEnemyWeaponProjection();
+            TestEnemyTemporalProjectionSurvivesBattleStart();
             TestEnemyTemplateSaveAdvantageTagsProjectToBattleUnit();
             TestEnemyTemplateDamageResistancesProjectToBattleUnit();
             TestEnemyTemplateDerivesHpAndAttackFromFormulaWhenNotOverridden();
@@ -134,7 +135,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
                         $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
                     );
                     _test.True(
-                        enemyUnit.current_stamina > 0,
+                        enemyUnit.GetCurrentStamina() > 0,
                         $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
                     );
                 }
@@ -210,27 +211,156 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             {
                 return;
             }
+            BattleWeaponProjectionValues weaponProjection =
+                enemyUnit.GetWeaponProjectionReadViewTyped().Values;
 
             _test.Eq(
-                enemyUnit.weapon_profile_kind,
+                weaponProjection.ProfileKind,
                 BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
                 "敌方模板 attack_equipment_item_id 应使用 build context item_defs 投影正式武器，而不是回退成 unarmed。"
             );
             _test.Eq(
-                enemyUnit.weapon_item_id,
+                weaponProjection.ItemId,
                 customWeapon.ItemId,
                 "敌方模板 attack_equipment_item_id 应保留传入 item_defs 中的自定义武器 ID。"
             );
             _test.Eq(
-                enemyUnit.weapon_attack_range,
+                weaponProjection.AttackRange,
                 2,
                 "敌方模板自定义武器射程应来自 build context item_defs。"
             );
             _test.Eq(
-                enemyUnit.weapon_physical_damage_tag,
+                weaponProjection.PhysicalDamageTag,
                 new StringName("physical_pierce"),
                 "敌方模板自定义武器伤害标签应来自 build context item_defs。"
             );
+        }
+        finally
+        {
+            runtime.SetupStateForTests(null);
+            BattleTestFixture.DisposeBattleState(state);
+        }
+    }
+
+    private void TestEnemyTemporalProjectionSurvivesBattleStart()
+    {
+        using var gameSessionScope = new GameSessionScope();
+        GameSession gameSession = gameSessionScope.Session;
+        StringName templateId =
+            "runtime_start_temporal_equipment_enemy_template";
+        StringName temporalWeaponId =
+            "weapon_unique_sands_time_480";
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs =
+            gameSession.GetItemDefsTyped();
+        _test.True(
+            itemDefs.ContainsKey(temporalWeaponId),
+            "正式内容应提供可产生 temporal modifier 的敌方武器夹具。"
+        );
+        if (!itemDefs.ContainsKey(temporalWeaponId))
+        {
+            return;
+        }
+
+        EnemyTemplateDef customTemplate = BuildCustomEnemyTemplate(
+            templateId,
+            temporalWeaponId
+        );
+        var enemyTemplates =
+            new Dictionary<StringName, EnemyTemplateDefinition>
+            {
+                [templateId] =
+                    customTemplate.ToDefinition(itemDefs),
+            };
+        using EncounterRosterBuilder encounterBuilder =
+            BuildEncounterRosterBuilder(enemyTemplates);
+        using var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            skill_definitions:
+                gameSession.GetSkillDefinitionsTyped(),
+            enemy_templates: enemyTemplates,
+            enemy_ai_brains:
+                gameSession.GetEnemyAiBrainDefinitions(),
+            encounter_builder: encounterBuilder,
+            item_defs: itemDefs,
+            trait_defs: gameSession.GetTraitDefsTyped(),
+            equipment_ability_bindings:
+                gameSession
+                    .GetEquipmentAbilityBindingDefinitionsTyped()
+        );
+        runtime.ConfigureHitResolverForTests(
+            new FixedHitResolver(10)
+        );
+
+        BattleState state = null;
+        try
+        {
+            state = StartTemplateBattle(
+                runtime,
+                "encounter_runtime_start_temporal_equipment",
+                templateId,
+                "时序武器敌人",
+                seed: 122
+            );
+            _test.True(
+                state != null && !state.IsEmpty(),
+                "带 temporal equipment projection 的敌人应能正式进入战斗。"
+            );
+            if (
+                state == null
+                || state.IsEmpty()
+                || state.enemy_unit_ids.Count == 0
+            )
+            {
+                return;
+            }
+
+            BattleUnitState enemyUnit = GetUnit(
+                state,
+                state.enemy_unit_ids[0]
+            );
+            _test.True(
+                enemyUnit != null,
+                "正式战斗应保留 roster 构建出的敌方 typed unit。"
+            );
+            if (enemyUnit == null)
+            {
+                return;
+            }
+
+            enemyUnit.attribute_snapshot.SetValue(
+                AttributeService.INTELLIGENCE_MODIFIER,
+                0
+            );
+            BattleTemporalStatusService
+                .SetForcedTemporalProgressRollsForTests(
+                    new[] { 1, 1 }
+                );
+            try
+            {
+                _test.Eq(
+                    BattleTemporalStatusService
+                        .ConsumeActionProgressGain(
+                            enemyUnit,
+                            10
+                        ),
+                    5,
+                    "正式启动后敌方 temporal modifier 应继续影响行动进度。"
+                );
+                _test.Eq(
+                    BattleTemporalStatusService
+                        .ConsumeCastProgressGain(
+                            enemyUnit,
+                            10
+                        ),
+                    5,
+                    "正式启动后敌方 temporal modifier 应继续影响施法进度。"
+                );
+            }
+            finally
+            {
+                BattleTemporalStatusService
+                    .ClearForcedTemporalProgressRollsForTests();
+            }
         }
         finally
         {
@@ -290,7 +420,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
 
         _test.True(
-            enemyUnit.save_immunity_tags.Contains(new StringName("illusion")),
+            enemyUnit.HasSaveImmunityTag(new StringName("illusion")),
             "EnemyTemplateDef.save_immunity_tags 应投影到 BattleUnitState.save_immunity_tags。"
         );
 
@@ -372,7 +502,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
 
         _test.Eq(
-            enemyUnit.current_hp,
+            enemyUnit.GetCurrentHp(),
             520,
             "无 hp_max override 时应按 首级满骰 + 后续均值 的公式派生出 520 HP(×4格)。"
         );
@@ -448,14 +578,14 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
         }
 
         _test.Eq(
-            enemyUnit.damage_resistances.Get(new StringName("physical_pierce")),
+            enemyUnit.GetDamageResistanceTyped("physical_pierce"),
             new StringName("half"),
-            "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState.damage_resistances。"
+            "EnemyTemplateDef.damage_resistances 应投影到 BattleUnitState damage-resistance owner。"
         );
         _test.Eq(
-            enemyUnit.damage_resistances.Get(new StringName("fire")),
+            enemyUnit.GetDamageResistanceTyped("fire"),
             new StringName("double"),
-            "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState.damage_resistances。"
+            "EnemyTemplateDef.damage_resistances 易伤条目应投影到 BattleUnitState damage-resistance owner。"
         );
     }
 
@@ -514,7 +644,7 @@ public partial class run_enemy_template_runtime_start_regression : LifecycleTest
             foreach (string skillId in requiredSkillIds)
             {
                 _test.True(
-                    enemyUnit.known_active_skill_ids.Contains(new StringName(skillId)),
+                    enemyUnit.KnowsActiveSkill(new StringName(skillId)),
                     $"{templateId} 模板应为敌人注入 {skillId} 技能。"
                 );
             }

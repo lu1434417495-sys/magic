@@ -25,7 +25,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
                 "target-b"
             );
             StringName skillId = "enemy_chain";
-            source.known_active_skill_ids.Add(skillId);
+            source.AddKnownActiveSkill(skillId);
             BattleState state = _runtimeScope.OwnWrapper(
                 new BattleState
                 {
@@ -123,7 +123,7 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             BuildUnit("barrier_pool_valid", "player", new Vector2I(3, 0)),
             "barrier-pool-valid-target"
         );
-        source.known_active_skill_ids.Add(skillId);
+        source.AddKnownActiveSkill(skillId);
         source.SetKnownSkillLevelTyped(skillId, 1);
 
         BattleState state = _runtimeScope.OwnWrapper(
@@ -223,15 +223,15 @@ public partial class run_enemy_multi_unit_skill_command_regression : LifecycleTe
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = 20,
-            current_ap = 2,
-            current_mp = 10,
-            current_stamina = 10,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 10,
+            stamina: 10,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

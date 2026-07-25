@@ -75,7 +75,7 @@ internal sealed class BattleAiGroundRepositionActionEvaluator
             int currentDistance = BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
                 context,
                 actor,
-                actor.coord,
+                actor.GetAnchorCoord(),
                 focusTarget
             );
             if (trace != null)

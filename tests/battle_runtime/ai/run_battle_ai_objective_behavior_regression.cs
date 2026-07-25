@@ -55,7 +55,7 @@ public partial class run_battle_ai_objective_behavior_regression
         );
         escort.ControlModeKind = BattleUnitControlMode.Ai;
         escort.encounter_actor_id = "escort_actor";
-        escort.current_move_points = 1;
+        escort.SetCurrentMovePoints(1);
         BattleUnitState enemy = BuildManualUnit(
             "escort_ai_enemy",
             "enemy",
@@ -286,7 +286,7 @@ public partial class run_battle_ai_objective_behavior_regression
             Vector2I.Zero,
             brain.BrainId
         );
-        distantParty.current_move_points = 2;
+        distantParty.SetCurrentMovePoints(2);
         BattleState distantState = BattleTestFixture.BuildFlatState(
             "node_operation_ai_move",
             new Vector2I(6, 1)
@@ -510,7 +510,7 @@ public partial class run_battle_ai_objective_behavior_regression
         target.ControlModeKind = BattleUnitControlMode.Ai;
         target.ai_brain_id = brain.BrainId;
         target.encounter_actor_id = "intercept_actor";
-        target.current_move_points = 1;
+        target.SetCurrentMovePoints(1);
         BattleState state = BattleTestFixture.BuildFlatState(
             "intercept_ai_move",
             new Vector2I(5, 3)
@@ -628,7 +628,7 @@ public partial class run_battle_ai_objective_behavior_regression
             new Vector2I(0, 1),
             brain.BrainId
         );
-        actor.current_move_points = 1;
+        actor.SetCurrentMovePoints(1);
         BattleUnitState enemy = BuildManualUnit(
             "escape_ai_detour_enemy",
             "enemy",
@@ -817,7 +817,7 @@ public partial class run_battle_ai_objective_behavior_regression
             move_cost_callback = (unit, targetCoord) =>
                 runtime._get_ai_move_query_cost(
                     unit.unit_id,
-                    unit.coord,
+                    unit.GetAnchorCoord(),
                     targetCoord
                 ),
             runtime_action_plan = actionPlan,
@@ -930,8 +930,8 @@ public partial class run_battle_ai_objective_behavior_regression
         unit.ai_brain_id = brainId;
         unit.ControlModeKind = BattleUnitControlMode.Ai;
         unit.ai_state_id = "engage";
-        unit.known_active_skill_ids.Add("basic_attack");
-        unit.known_skill_level_map["basic_attack"] = 1;
+        unit.AddKnownActiveSkill("basic_attack");
+        unit.SetKnownSkillLevelTyped("basic_attack", 1);
         unit.ApplyWeaponProjectionTyped(
             new WeaponProjection
             {
@@ -974,13 +974,14 @@ public partial class run_battle_ai_objective_behavior_regression
             display_name = unitId.ToString(),
             faction_id = factionId,
             control_mode = controlMode,
-            current_hp = 30,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = 2,
-            current_move_points = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 120,
+            stamina: 8,
+            ap: 2,
+            movePoints: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(
             CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)

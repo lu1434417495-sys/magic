@@ -154,7 +154,7 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -177,12 +177,13 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
             display_name = displayName,
             faction_id = factionId,
             control_mode = controlMode,
-            current_hp = 30,
-            current_mp = 120,
-            current_stamina = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            mp: 120,
+            stamina: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina));
@@ -193,8 +194,11 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         foreach (string rawSkillId in skillIds ?? Array.Empty<string>())
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 7 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 7 : 1
+            );
         }
         return unit;
     }
@@ -216,7 +220,7 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }

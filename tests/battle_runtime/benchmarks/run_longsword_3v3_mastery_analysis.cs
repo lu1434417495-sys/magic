@@ -361,22 +361,19 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
             return RecordGrant(member_id, skill_id, amount, source_type);
         }
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount
-        )
-        {
-            return RecordAchievementEvent(member_id, event_type, amount, "", new GDictionary());
-        }
+        ) => Array.Empty<StringName>();
 
-        public GStringNameArray RecordAchievementEvent(
+        public IReadOnlyList<StringName> RecordAchievementEvent(
             StringName member_id,
             StringName event_type,
             int amount,
             StringName subject_id,
             GDictionary meta
-        ) => new();
+        ) => Array.Empty<StringName>();
 
         public PendingCharacterReward BuildPendingSkillMasteryReward(
             StringName member_id,

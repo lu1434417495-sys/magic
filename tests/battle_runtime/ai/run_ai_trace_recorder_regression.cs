@@ -12,6 +12,8 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
             TestRecorderCapturesBalancedNestedSpans();
             TestDisablingEventCaptureClearsEvents();
             TestInstanceScopeRestoresPreviousRecorderAfterException();
+            TestScopedSpanClosesAfterException();
+            TestBattleSkillPreviewServiceUsesScopedTraceSpans();
         }
         finally
         {
@@ -130,6 +132,61 @@ public partial class run_ai_trace_recorder_regression : LifecycleTestSceneTree
         _test.True(
             statsLease.Value.ContainsKey(new StringName("restored_scope_probe")),
             "subsequent trace events should reach the restored recorder."
+        );
+    }
+
+    private void TestScopedSpanClosesAfterException()
+    {
+        var recorder = new AiTraceRecorder();
+        var expectedFailure = new System.InvalidOperationException(
+            "expected scoped span failure"
+        );
+        System.Exception observedFailure = null;
+
+        try
+        {
+            using (AiTraceRecorder.PushInstance(recorder))
+            using (new BattleAiTraceSpan("exception_safe_span"))
+                throw expectedFailure;
+        }
+        catch (System.Exception exception)
+        {
+            observedFailure = exception;
+        }
+
+        _test.True(
+            ReferenceEquals(observedFailure, expectedFailure),
+            "scoped trace span should preserve the operation failure."
+        );
+        _test.True(
+            recorder.AssertBalanced(),
+            "scoped trace span should close after an exception."
+        );
+        using GodotProjectionLease<GDictionary> statsLease = recorder.GetFuncStatsLease();
+        _test.True(
+            statsLease.Value.ContainsKey(new StringName("exception_safe_span")),
+            "exception-safe span should still publish completed trace statistics."
+        );
+    }
+
+    private void TestBattleSkillPreviewServiceUsesScopedTraceSpans()
+    {
+        const string path =
+            "res://scripts/systems/battle/runtime/BattleSkillPreviewService.cs";
+        string source = FileAccess.GetFileAsString(path);
+
+        _test.True(
+            !string.IsNullOrWhiteSpace(source),
+            "battle skill preview trace contract source should be readable."
+        );
+        _test.True(
+            source.Contains("BattleAiTraceSpan"),
+            "battle skill preview trace regions should use exception-safe scoped spans."
+        );
+        _test.False(
+            source.Contains("AiTraceRecorder.Enter(")
+                || source.Contains("AiTraceRecorder.Exit("),
+            "battle skill preview service must not reintroduce naked trace Enter/Exit pairs."
         );
     }
 }

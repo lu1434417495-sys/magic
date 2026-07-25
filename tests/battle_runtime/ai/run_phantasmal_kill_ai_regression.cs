@@ -74,7 +74,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             200,
             40
         );
-        immuneTarget.save_immunity_tags.Add("illusion");
+        immuneTarget.AddSaveImmunityTagTyped("illusion");
         fixture.AddUnit(source);
         fixture.AddUnit(immuneTarget);
 
@@ -107,7 +107,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             200,
             120
         );
-        advantageTarget.save_advantage_tags.Add("illusion");
+        advantageTarget.AddSaveAdvantageTagTyped("illusion");
         BattleUnitState disadvantageTarget = BuildUnit(
             "disadvantage_enemy",
             "player",
@@ -115,7 +115,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             200,
             120
         );
-        disadvantageTarget.save_disadvantage_tags.Add("illusion");
+        disadvantageTarget.AddSaveDisadvantageTagTyped("illusion");
         fixture.AddUnit(source);
         fixture.AddUnit(normalTarget);
         fixture.AddUnit(advantageTarget);
@@ -314,10 +314,10 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
         return fixture.ScoreService.BuildSkillScoreInput(
             fixture.BuildContext(source),
             skill,
-            BuildCommand(source, skill.SkillId, target.coord, new[] { target.unit_id }),
-            BuildPreview(target.coord, new[] { target.unit_id }),
+            BuildCommand(source, skill.SkillId, target.GetAnchorCoord(), new[] { target.unit_id }),
+            BuildPreview(target.GetAnchorCoord(), new[] { target.unit_id }),
             new[] { skill.CombatProfile.EffectDefinitions[0] },
-            BuildPositionMetadata(target.coord)
+            BuildPositionMetadata(target.GetAnchorCoord())
         );
     }
 
@@ -329,7 +329,7 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
     )
     {
         var targetIds = new List<StringName>();
-        Vector2I anchor = targets.Count > 0 ? targets[0].coord : source.coord;
+        Vector2I anchor = targets.Count > 0 ? targets[0].GetAnchorCoord() : source.GetAnchorCoord();
         foreach (BattleUnitState target in targets)
         {
             targetIds.Add(target.unit_id);
@@ -407,13 +407,13 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = currentHp,
-            current_ap = 2,
-            current_mp = 100,
-            current_stamina = 100,
-            is_alive = currentHp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 100,
+            stamina: 100,
+            ap: 2,
+            isAlive: currentHp > 0
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue("strength", 10);
         unit.attribute_snapshot.SetValue("agility", 10);
@@ -422,9 +422,9 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.attribute_snapshot.SetValue("willpower_modifier", 0);
-        unit.known_active_skill_ids.Add("test_phantasmal_kill_ai");
-        unit.known_skill_level_map[new StringName("test_phantasmal_kill_ai")] = 1;
-        unit.RefreshFootprint();
+        unit.AddKnownActiveSkill("test_phantasmal_kill_ai");
+        unit.SetKnownSkillLevelTyped(new StringName("test_phantasmal_kill_ai"), 1);
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

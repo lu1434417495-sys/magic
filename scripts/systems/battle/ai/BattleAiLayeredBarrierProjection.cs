@@ -33,7 +33,10 @@ public sealed class BattleAiLayeredBarrierProjection
     {
         StringName profileId = effectDefinition?.GetStringNameParamTyped("profile_id", "")
             ?? new StringName("");
-        Vector2I anchorCoord = targetUnit?.coord ?? sourceUnit?.coord ?? new Vector2I(-1, -1);
+        Vector2I anchorCoord =
+            targetUnit?.GetAnchorCoord()
+            ?? sourceUnit?.GetAnchorCoord()
+            ?? new Vector2I(-1, -1);
         if (
             context == null
             || sourceUnit == null
@@ -95,7 +98,7 @@ public sealed class BattleAiLayeredBarrierProjection
         int nearestEnemyDistance = int.MaxValue;
         foreach (BattleUnitState unit in state?.Units() ?? Array.Empty<BattleUnitState>())
         {
-            if (unit == null || !unit.is_alive)
+            if (unit == null || !unit.IsAlive())
                 continue;
             bool inside = false;
             foreach (Vector2I occupiedCoord in unit.GetOccupiedCoordsTyped())
@@ -115,7 +118,10 @@ public sealed class BattleAiLayeredBarrierProjection
 
             int distance = grid != null
                 ? grid.GetDistanceFromUnitToCoord(unit, anchorCoord)
-                : BattleGridDistanceService.GetDistance(unit.coord, anchorCoord);
+                : BattleGridDistanceService.GetDistance(
+                    unit.GetAnchorCoord(),
+                    anchorCoord
+                );
             nearestEnemyDistance = Math.Min(nearestEnemyDistance, Math.Max(distance, 0));
             if (inside)
             {

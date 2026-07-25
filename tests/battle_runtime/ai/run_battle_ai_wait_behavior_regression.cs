@@ -44,8 +44,8 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             28,
             1
         );
-        wolf.current_stamina = 0;
-        wolf.action_threshold = 30;
+        wolf.SetCurrentStamina(0);
+        wolf.SetActionThresholdTyped(30);
         wolf.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 40);
         wolf.attribute_snapshot.SetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 3);
         BattleUnitState player = BuildManualUnit(
@@ -95,8 +95,8 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             28,
             1
         );
-        wolf.current_stamina = 20;
-        wolf.action_threshold = 30;
+        wolf.SetCurrentStamina(20);
+        wolf.SetActionThresholdTyped(30);
         wolf.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 40);
         BattleUnitState player = BuildManualUnit(
             "fallback_rest_target",
@@ -140,9 +140,9 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             28,
             1
         );
-        wolf.current_stamina = 0;
-        wolf.current_move_points = 2;
-        wolf.action_threshold = 30;
+        wolf.SetCurrentStamina(0);
+        wolf.SetCurrentMovePoints(2);
+        wolf.SetActionThresholdTyped(30);
         wolf.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 40);
         wolf.attribute_snapshot.SetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 3);
         BattleUnitState archer = BuildAiUnit(
@@ -318,7 +318,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -346,12 +346,13 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 120,
+            stamina: 8,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
@@ -360,8 +361,11 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -380,18 +384,22 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -413,7 +421,7 @@ public partial class run_battle_ai_wait_behavior_regression : LifecycleTestScene
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }

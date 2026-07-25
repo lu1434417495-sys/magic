@@ -107,18 +107,18 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
             targetB.unit_id,
             "Random-chain preview should expose candidate B in the candidate pool."
         );
-        int targetAHpBefore = targetA.current_hp;
-        int targetBHpBefore = targetB.current_hp;
+        int targetAHpBefore = targetA.GetCurrentHp();
+        int targetBHpBefore = targetB.GetCurrentHp();
         state.active_unit_id = chainUser.unit_id;
         state.phase = "unit_acting";
-        chainUser.current_ap = 2;
+        chainUser.SetCurrentAp(2);
         BattleEventBatch batch = runtime.IssueCommand(decision.command);
         _test.True(
             batch != null && batch.log_lines.Count > 0,
             "Random-chain command execution should return battle feedback."
         );
         _test.True(
-            targetA.current_hp < targetAHpBefore || targetB.current_hp < targetBHpBefore,
+            targetA.GetCurrentHp() < targetAHpBefore || targetB.GetCurrentHp() < targetBHpBefore,
             "Random-chain command execution should damage at least one candidate from the pool."
         );
 
@@ -265,7 +265,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -293,12 +293,13 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 120,
+            stamina: 8,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
@@ -307,8 +308,8 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -327,18 +328,19 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -360,7 +362,7 @@ public partial class run_battle_ai_random_chain_behavior_regression : LifecycleT
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"Test unit {unit.unit_id} should be placeable."
         );
     }

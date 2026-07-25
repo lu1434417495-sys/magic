@@ -35,14 +35,15 @@ internal static class BattleAiActionEvaluatorUtilities
     }
 
     internal static int ResolveCurrentMoveBudget(BattleUnitState unit) =>
-        unit == null || unit.current_move_points <= 0
+        unit == null || unit.GetCurrentMovePoints() <= 0
             ? 0
-            : IsNormalMovementLocked(unit) && !unit.can_use_locked_move_points_this_turn
+            : IsNormalMovementLocked(unit)
+                && !unit.CanUseLockedMovePointsThisTurnTyped()
                 ? 0
-                : Mathf.Max(unit.current_move_points, 0);
+                : Mathf.Max(unit.GetCurrentMovePoints(), 0);
 
     internal static bool IsNormalMovementLocked(BattleUnitState unit) =>
-        unit != null && (unit.has_taken_action_this_turn || unit.has_moved_this_turn);
+        unit?.IsNormalMovementLockedThisTurnTyped() ?? false;
 
     internal static bool IsUnitMovementBlocked(BattleAiContext context, BattleUnitState unit) =>
         unit == null || context?.GetAiQueryService()?.IsUnitMovementBlocked(unit.unit_id) == true;
@@ -66,8 +67,15 @@ internal static class BattleAiActionEvaluatorUtilities
             return 999999;
         BattleGridService grid = context.grid_service;
         int bestDistance = 999999;
-        foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
-        foreach (Vector2I targetCoord in target.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in grid.GetFootprintCoords(
+                anchor,
+                actor.GetFootprintSize()
+            )
+        )
+        foreach (
+            Vector2I targetCoord in target.GetOccupiedCoordsReadViewTyped()
+        )
             bestDistance = Mathf.Min(bestDistance, grid.GetDistance(sourceCoord, targetCoord));
         return bestDistance;
     }
@@ -81,7 +89,9 @@ internal static class BattleAiActionEvaluatorUtilities
         if (context == null || target == null || helper == null)
             return -1;
         int bestRange = -1;
-        foreach (StringName rawSkillId in target.known_active_skill_ids)
+        foreach (
+            StringName rawSkillId in target.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (skillId == "")
@@ -301,7 +311,7 @@ internal static class BattleAiActionEvaluatorUtilities
         if (unit?.attribute_snapshot == null)
             return 10000;
         int maxHp = Mathf.Max(unit.attribute_snapshot.GetValue("hp_max"), 1);
-        int currentHp = Mathf.Clamp(unit.current_hp, 0, maxHp);
+        int currentHp = Mathf.Clamp(unit.GetCurrentHp(), 0, maxHp);
         return Mathf.Clamp((currentHp * 10000) / maxHp, 0, 10000);
     }
 

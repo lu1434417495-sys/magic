@@ -270,11 +270,11 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
 
         BattleState state = BuildState(mapSize);
         BattleUnitState caster = BuildUnit("meteor_ai_caster", "陨星术者", "player", new Vector2I(4, 0), 180);
-        caster.known_active_skill_ids.Add("mage_meteor_swarm");
-        caster.known_skill_level_map["mage_meteor_swarm"] = 9;
-        caster.current_ap = 4;
-        caster.current_mp = 200;
-        caster.current_aura = 3;
+        caster.AddKnownActiveSkill("mage_meteor_swarm");
+        caster.SetKnownSkillLevelTyped("mage_meteor_swarm", 9);
+        caster.SetCurrentAp(4);
+        caster.SetCurrentMp(200);
+        caster.SetCurrentAura(3);
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
         state.SetUnit(caster);
@@ -304,7 +304,7 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
                 continue;
             }
             _test.True(
-                runtime.GetGridService().PlaceUnit(state, unitState, unitState.coord, true),
+                runtime.GetGridService().PlaceUnit(state, unitState, unitState.GetAnchorCoord(), true),
                 $"单位应能放入 meteor AI 棋盘：{unitState?.unit_id}"
             );
         }
@@ -400,13 +400,13 @@ public partial class run_meteor_swarm_ai_regression : LifecycleTestSceneTree
             unit_id = unitId,
             display_name = displayName,
             faction_id = factionId,
-            coord = coord,
-            is_alive = true,
-            current_hp = hp,
-        };
+        }.WithCombatResourcesForTest(
+            hp: hp,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
         SeedBaseAttributesAndDeriveAc(unit);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 

@@ -45,8 +45,8 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             28,
             2
         );
-        wolf.current_move_points = 2;
-        wolf.current_stamina = 80;
+        wolf.SetCurrentMovePoints(2);
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState archer = BuildAiUnit(
             "screening_archer",
@@ -80,7 +80,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             "健康近战接敌时，应优先选择仍能贴敌且位于敌方近战到己方弓手最短路上的占位格。"
         );
 
-        wolf.current_hp = 8;
+        wolf.SetCurrentHp(8);
         BattleAiDecision lowHpDecision = Evaluate(action, aiContext);
         _test.Eq(
             lowHpDecision?.command?.target_coord ?? new Vector2I(-1, -1),
@@ -124,7 +124,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             28,
             2
         );
-        wolf.current_move_points = 1;
+        wolf.SetCurrentMovePoints(1);
         BattleUnitState archer = BuildAiUnit(
             "path_cost_screening_archer",
             "后排弓手",
@@ -144,7 +144,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             new Vector2I(1, 1),
             new[] { "basic_attack" }
         );
-        player.current_move_points = 6;
+        player.SetCurrentMovePoints(6);
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
@@ -182,7 +182,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             28,
             2
         );
-        wolf.current_move_points = 3;
+        wolf.SetCurrentMovePoints(3);
         BattleUnitState archer = BuildAiUnit(
             "geometric_screening_archer",
             "后排弓手",
@@ -202,7 +202,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             new Vector2I(2, 3),
             new[] { "basic_attack" }
         );
-        player.current_move_points = 3;
+        player.SetCurrentMovePoints(3);
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, archer, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
@@ -238,9 +238,8 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             28,
             2
         );
-        wolf.current_move_points = 1;
-        wolf.has_moved_this_turn = true;
-        wolf.can_use_locked_move_points_this_turn = false;
+        wolf.SetCurrentMovePoints(1);
+        wolf.MarkMovedThisTurnTyped();
         BattleUnitState archer = BuildAiUnit(
             "locked_screening_archer",
             "锁定测试弓手",
@@ -271,7 +270,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             "已移动且未获准使用锁定移动力时，screening move_to_range 不应继续产出移动指令。"
         );
 
-        wolf.can_use_locked_move_points_this_turn = true;
+        wolf.GrantLockedMovePointsThisTurnTyped();
         BattleAiDecision allowedDecision = Evaluate(action, BuildAiContext(runtime, wolf));
         _test.True(
             allowedDecision?.command?.IsMove() == true,
@@ -372,7 +371,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -400,12 +399,13 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 120,
+            stamina: 8,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
@@ -414,8 +414,8 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -434,18 +434,19 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -467,7 +468,7 @@ public partial class run_battle_ai_melee_screening_behavior_regression : Lifecyc
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }

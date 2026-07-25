@@ -55,7 +55,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         BattleUnitState actor = context.unit_state;
         if (!objective.RequiredUnitIds.Contains(actor.unit_id))
             return null;
-        if (BattleObjectiveEvaluationService.IsUnitFullyInsideExit(actor, objective))
+        if (BattleExitObjectiveRules.IsUnitFullyInsideExit(actor, objective))
         {
             return BuildWaitDecision(
                 context,
@@ -86,7 +86,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         BattleUnitState actor = context.unit_state;
         if (actor.unit_id != objective.TargetUnitId)
             return null;
-        if (BattleObjectiveEvaluationService.IsUnitFullyInsideExit(actor, objective))
+        if (BattleExitObjectiveRules.IsUnitFullyInsideExit(actor, objective))
         {
             return BuildWaitDecision(
                 context,
@@ -117,7 +117,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         BattleUnitState actor = context.unit_state;
         if (actor.unit_id != objective.TargetUnitId)
             return null;
-        if (BattleObjectiveEvaluationService.IsUnitFullyInsideExit(actor, objective))
+        if (BattleExitObjectiveRules.IsUnitFullyInsideExit(actor, objective))
         {
             return BuildWaitDecision(
                 context,
@@ -176,7 +176,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         )
         {
             if (
-                actor.current_ap > 0
+                actor.GetCurrentAp() > 0
                 && BattleGridDistanceService.GetDistanceFromUnitToCoord(
                     actor,
                     node.Coord
@@ -206,7 +206,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
             }
         }
 
-        if (actor.current_move_points <= 0 || context.ai_query_service == null)
+        if (actor.GetCurrentMovePoints() <= 0 || context.ai_query_service == null)
             return null;
 
         var anchors = new List<Vector2I>();
@@ -234,7 +234,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         MovementReachabilityResult pathResult =
             context.ai_query_service.GetCurrentTurnPathToBestAnchor(
                 anchors,
-                actor.current_move_points
+                actor.GetCurrentMovePoints()
             );
         if (pathResult?.Ok != true || !pathResult.TargetCoordValid)
             return null;
@@ -338,7 +338,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
     )
     {
         BattleUnitState actor = context.unit_state;
-        if (actor.current_move_points <= 0 || context.ai_query_service == null)
+        if (actor.GetCurrentMovePoints() <= 0 || context.ai_query_service == null)
             return null;
 
         var anchors = new List<Vector2I>();
@@ -373,7 +373,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         MovementReachabilityResult pathResult =
             context.ai_query_service.GetCurrentTurnPathToBestAnchor(
                 anchors,
-                actor.current_move_points
+                actor.GetCurrentMovePoints()
             );
         if (pathResult?.Ok != true || !pathResult.TargetCoordValid)
             return null;
@@ -414,7 +414,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
     )
     {
         BattleUnitState actor = context.unit_state;
-        if (actor.current_move_points <= 0 || context.ai_query_service == null)
+        if (actor.GetCurrentMovePoints() <= 0 || context.ai_query_service == null)
         {
             return fallbackToCombat
                 ? null
@@ -434,7 +434,7 @@ internal sealed class BattleAiObjectiveActionEvaluator
         MovementReachabilityResult pathResult =
             context.ai_query_service.GetCurrentTurnPathToBestAnchor(
                 landingAnchors,
-                actor.current_move_points
+                actor.GetCurrentMovePoints()
             );
         if (pathResult?.Ok != true || !pathResult.TargetCoordValid)
         {
@@ -500,11 +500,11 @@ internal sealed class BattleAiObjectiveActionEvaluator
             || containsExitCoord == null
         )
             return anchors;
-        Vector2I footprint = actor.footprint_size;
+        Vector2I footprint = actor.GetFootprintSize();
         if (footprint.X <= 0 || footprint.Y <= 0)
         {
             footprint = BattleUnitState.GetFootprintSizeForBodySize(
-                actor.body_size
+                actor.GetBodySize()
             );
         }
         footprint = new Vector2I(

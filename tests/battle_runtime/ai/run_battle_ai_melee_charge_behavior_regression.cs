@@ -60,7 +60,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
                 flat_bonus = 0,
             }
         );
-        wolf.current_stamina = 80;
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "basic_attack_target",
@@ -112,8 +112,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             36,
             2
         );
-        wolf.current_move_points = 0;
-        wolf.current_stamina = 80;
+        wolf.SetCurrentMovePoints(0);
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "player_01",
@@ -132,8 +132,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         _test.True(batch != null, "AI advance 应返回有效 batch。");
         _test.True(batch.log_lines.Count > 0, $"AI advance 应回传行动反馈。 log={batch.log_lines}");
         _test.True(
-            wolf.coord != new Vector2I(0, 1),
-            $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.coord} log={batch.log_lines}"
+            wolf.GetAnchorCoord() != new Vector2I(0, 1),
+            $"melee_aggressor 在 engage 状态下应优先用 charge 接敌。 coord={wolf.GetAnchorCoord()} log={batch.log_lines}"
         );
     }
 
@@ -153,8 +153,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             36,
             2
         );
-        wolf.current_move_points = 0;
-        wolf.current_stamina = 80;
+        wolf.SetCurrentMovePoints(0);
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         wolf.ai_blackboard.last_action_id = "stale_action";
         BattleUnitState player = BuildManualUnit(
@@ -221,8 +221,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             42,
             2
         );
-        vanguard.current_move_points = 0;
-        vanguard.current_stamina = 80;
+        vanguard.SetCurrentMovePoints(0);
+        vanguard.SetCurrentStamina(80);
         vanguard.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "player_01",
@@ -241,8 +241,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         _test.True(batch != null, "frontline_bulwark AI advance 应返回有效 batch。");
         _test.True(batch.log_lines.Count > 0, $"frontline_bulwark AI advance 应回传行动反馈。 log={batch.log_lines}");
         _test.True(
-            vanguard.coord != new Vector2I(0, 1),
-            $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.coord} log={batch.log_lines}"
+            vanguard.GetAnchorCoord() != new Vector2I(0, 1),
+            $"frontline_bulwark 在 engage 状态下应优先用 charge 接敌。 coord={vanguard.GetAnchorCoord()} log={batch.log_lines}"
         );
     }
 
@@ -262,7 +262,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             42,
             2
         );
-        vanguard.current_stamina = 80;
+        vanguard.SetCurrentStamina(80);
         vanguard.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "taunt_target",
@@ -318,8 +318,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             36,
             2
         );
-        wolf.current_move_points = 2;
-        wolf.current_stamina = 80;
+        wolf.SetCurrentMovePoints(2);
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "short_charge_target",
@@ -377,7 +377,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             36,
             2
         );
-        wolf.current_stamina = 80;
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "charge_focus_target",
@@ -434,7 +434,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             36,
             2
         );
-        wolf.current_stamina = 80;
+        wolf.SetCurrentStamina(80);
         wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "charge_trace_target",
@@ -532,7 +532,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             unit_state = unitState,
             grid_service = runtime._grid_service,
             move_cost_callback = (unit, targetCoord) =>
-                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.GetAnchorCoord(), targetCoord),
             runtime_action_plan = actionPlan,
         };
         context.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
@@ -560,12 +560,13 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = currentHp,
-            current_mp = 120,
-            current_stamina = 8,
-            current_ap = currentAp,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 120,
+            stamina: 8,
+            ap: currentAp,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
         unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina));
@@ -575,8 +576,11 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -622,18 +626,22 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
         unit.attribute_snapshot.SetValue("action_points", 2);
         foreach (string rawSkillId in skillIds)
         {
             StringName skillId = rawSkillId;
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(
+                skillId,
+                skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1
+            );
         }
         return unit;
     }
@@ -655,7 +663,7 @@ public partial class run_battle_ai_melee_charge_behavior_regression : LifecycleT
             state.ally_unit_ids.Add(unit.unit_id);
         }
         _test.True(
-            runtime._grid_service.PlaceUnit(state, unit, unit.coord, true),
+            runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"测试单位 {unit.unit_id} 应能放入测试战场。"
         );
     }

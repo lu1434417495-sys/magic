@@ -115,7 +115,7 @@ public partial class BattleAiScoreService
         }
         return CollectActorThreatProjection(
             context,
-            actor.coord,
+            actor.GetAnchorCoord(),
             new HashSet<StringName>()
         );
     }
@@ -132,7 +132,10 @@ public partial class BattleAiScoreService
         {
             return EmptyThreatProjection();
         }
-        if (projectedCoord == new Vector2I(-1, -1) || projectedCoord == actor.coord)
+        if (
+            projectedCoord == new Vector2I(-1, -1)
+            || projectedCoord == actor.GetAnchorCoord()
+        )
         {
             return SubtractSuppressedThreatsFromProjection(preProjection, suppressedThreatIds);
         }
@@ -215,7 +218,7 @@ public partial class BattleAiScoreService
         BattleUnitState actor = ContextUnitState(context);
         if (coord == new Vector2I(-1, -1) && actor != null)
         {
-            return actor.coord;
+            return actor.GetAnchorCoord();
         }
         return coord;
     }
@@ -226,7 +229,8 @@ public partial class BattleAiScoreService
         {
             return 1;
         }
-        return Math.Max(actorUnit.current_hp, 1) + Math.Max(actorUnit.current_shield_hp, 0);
+        return Math.Max(actorUnit.GetCurrentHp(), 1)
+            + Math.Max(actorUnit.GetShieldStateTyped().CurrentHp, 0);
     }
 
     private static HashSet<StringName> BuildSuppressedThreatUnitIds(BattleAiScoreInput scoreInput)
@@ -280,7 +284,9 @@ public partial class BattleAiScoreService
         }
         var projection = new ThreatProjection();
         Vector2I actorCoord =
-            actorAnchorCoord != new Vector2I(-1, -1) ? actorAnchorCoord : actor.coord;
+            actorAnchorCoord != new Vector2I(-1, -1)
+                ? actorAnchorCoord
+                : actor.GetAnchorCoord();
         foreach (BattleUnitState threatUnit in GetHostileThreatUnitsForActor(context))
         {
             if (threatUnit == null)
@@ -346,7 +352,7 @@ public partial class BattleAiScoreService
         {
             if (
                 unitState == null
-                || !unitState.is_alive
+                || !unitState.IsAlive()
                 || unitState.faction_id == actorFactionId
             )
             {
@@ -396,7 +402,7 @@ public partial class BattleAiScoreService
         Vector2I coord =
             actorAnchorCoord != new Vector2I(-1, -1)
                 ? actorAnchorCoord
-                : actor?.coord ?? new Vector2I(-1, -1);
+                : actor?.GetAnchorCoord() ?? new Vector2I(-1, -1);
         return new ThreatProjectionCacheKey(
             actorId,
             coord,
@@ -414,7 +420,9 @@ public partial class BattleAiScoreService
         }
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             ContextSkillDefinitions(context);
-        foreach (StringName skillId in threatUnit.known_active_skill_ids)
+        foreach (
+            StringName skillId in threatUnit.GetKnownActiveSkillsViewTyped()
+        )
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (IsEmpty(normalizedSkillId))
@@ -504,18 +512,20 @@ public partial class BattleAiScoreService
         {
             return 0;
         }
-        WeaponDice dice = threatUnit.GetActiveWeaponDiceTyped();
-        if (dice == null || dice.IsEmpty())
+        BattleWeaponProjectionValues weaponProjection =
+            threatUnit.GetWeaponProjectionReadViewTyped().Values;
+        BattleWeaponDiceValues dice = weaponProjection.ActiveDice;
+        if (!dice.HasUsableDice)
         {
             return 0;
         }
-        int diceCount = Math.Max(dice.dice_count, 0);
-        int diceSides = Math.Max(dice.dice_sides, 0);
+        int diceCount = Math.Max(dice.DiceCount, 0);
+        int diceSides = Math.Max(dice.DiceSides, 0);
         if (diceCount <= 0 || diceSides <= 0)
         {
-            return Math.Max(dice.flat_bonus, 0);
+            return Math.Max(dice.FlatBonus, 0);
         }
-        int flatBonus = dice.flat_bonus;
+        int flatBonus = dice.FlatBonus;
         return Math.Max(RoundToInt(diceCount * (diceSides + 1) / 2.0 + flatBonus), 0);
     }
 }

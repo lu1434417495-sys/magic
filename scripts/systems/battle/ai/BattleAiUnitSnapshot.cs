@@ -147,34 +147,43 @@ public sealed class BattleAiUnitSnapshot
 
         snapshot.faction_id = ProgressionDataUtils.to_string_name(unitState.faction_id);
 
-        snapshot.coord = unitState.coord;
+        BattleUnitGeometryReadView geometry =
+            unitState.GetGeometryReadViewTyped();
+        snapshot.coord = geometry.AnchorCoord;
 
-        snapshot.footprint_size = unitState.footprint_size;
+        snapshot.footprint_size = geometry.FootprintSize;
 
-        snapshot.occupied_coords = CopyVector2IArray(unitState.occupied_coords);
+        snapshot.occupied_coords =
+            CopyVector2IArray(geometry.OccupiedCoords);
 
-        snapshot.is_alive = unitState.is_alive;
+        BattleUnitCombatResourceValues combatResources =
+            unitState.GetCombatResourcesReadViewTyped().Values;
+        snapshot.is_alive = combatResources.IsAlive;
 
-        snapshot.current_hp = unitState.current_hp;
+        snapshot.current_hp = combatResources.Hp;
 
-        snapshot.current_ap = unitState.current_ap;
+        snapshot.current_ap = combatResources.Ap;
 
-        snapshot.current_mp = unitState.current_mp;
+        snapshot.current_mp = combatResources.Mp;
 
-        snapshot.current_stamina = unitState.current_stamina;
+        snapshot.current_stamina = combatResources.Stamina;
 
-        snapshot.current_aura = unitState.current_aura;
+        snapshot.current_aura = combatResources.Aura;
 
-        snapshot.current_move_points = unitState.current_move_points;
+        snapshot.current_move_points = combatResources.MovePoints;
 
-        snapshot.has_taken_action_this_turn = unitState.has_taken_action_this_turn;
+        snapshot.has_taken_action_this_turn =
+            unitState.HasTakenActionThisTurnTyped();
 
-        snapshot.has_moved_this_turn = unitState.has_moved_this_turn;
+        snapshot.has_moved_this_turn =
+            unitState.HasMovedThisTurnTyped();
 
         snapshot.can_use_locked_move_points_this_turn =
-            unitState.can_use_locked_move_points_this_turn;
+            unitState.CanUseLockedMovePointsThisTurnTyped();
 
-        snapshot.known_active_skill_ids = CopyStringNameArray(unitState.known_active_skill_ids);
+        snapshot.known_active_skill_ids = CopyStringNameArray(
+            unitState.GetKnownActiveSkillsViewTyped()
+        );
 
         snapshot.known_skill_level_map = unitState.GetKnownSkillLevelsTyped();
 
@@ -226,11 +235,11 @@ public sealed class BattleAiUnitSnapshot
         return result;
     }
 
-    private static List<StringName> CopyStringNameArray(IEnumerable<StringName> source)
+    private static List<StringName> CopyStringNameArray(
+        BattleKnownActiveSkillReadView source
+    )
     {
         var result = new List<StringName>();
-        if (source == null)
-            return result;
         foreach (StringName value in source)
         {
             var normalized = ProgressionDataUtils.to_string_name(value);

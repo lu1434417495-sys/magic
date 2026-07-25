@@ -279,14 +279,14 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 brain.BrainId,
                 "engage"
             );
-            protectedAlly.weapon_attack_range = 4;
+            ApplyTestWeaponProjection(protectedAlly, "ranged", 4);
             BattleUnitState player = BuildManualUnit(
                 "screening_player",
                 "Screening target",
                 "player",
                 new Vector2I(7, 2)
             );
-            player.weapon_attack_range = 1;
+            ApplyTestWeaponProjection(player, "melee", 1);
             AddUnitToState(runtime, state, mover, isEnemy: true);
             AddUnitToState(runtime, state, protectedAlly, isEnemy: true);
             AddUnitToState(runtime, state, player, isEnemy: false);
@@ -305,7 +305,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
 
             Vector2I actual = decision?.command?.target_coord ?? new Vector2I(-1, -1);
             _test.True(
-                actual.Y < mover.coord.Y,
+                actual.Y < mover.GetAnchorCoord().Y,
                 $"screening move_to_range should follow the path toward the doorway before local direct-distance greed. actual={actual}"
             );
             _test.True(
@@ -339,7 +339,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             "melee_aggressor",
             "engage"
         );
-        mover.current_move_points = 2;
+        mover.SetCurrentMovePoints(2);
         BattleUnitState player = BuildManualUnit(
             "trace_exception_target",
             "Trace exception target",
@@ -439,7 +439,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
                 "",
                 "engage"
             );
-            mover.current_move_points = 2;
+            mover.SetCurrentMovePoints(2);
             BattleUnitState player = BuildManualUnit(
                 "high_ground_target",
                 "High Ground Target",
@@ -700,12 +700,13 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = stateId,
-            current_hp = 26,
-            current_mp = 0,
-            current_stamina = 8,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 26,
+            mp: 0,
+            stamina: 8,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 26);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
@@ -729,15 +730,50 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
             display_name = displayName,
             faction_id = factionId,
             control_mode = "manual",
-            current_hp = 30,
-            current_ap = 2,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 30,
+            ap: 2,
+            isAlive: true
+        );
         unit.SetAnchorCoord(coord);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 6);
         return unit;
+    }
+
+    private static void ApplyTestWeaponProjection(
+        BattleUnitState unit,
+        StringName rangeType,
+        int attackRange
+    )
+    {
+        bool usesTwoHands = rangeType == "ranged";
+        unit.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = "equipped",
+                weapon_item_id = usesTwoHands
+                    ? "move_to_range_test_bow"
+                    : "move_to_range_test_blade",
+                weapon_profile_type_id = usesTwoHands ? "longbow" : "longsword",
+                weapon_range_type = rangeType,
+                weapon_family = usesTwoHands ? "bow" : "sword",
+                weapon_current_grip = usesTwoHands ? "two_handed" : "one_handed",
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = usesTwoHands
+                    ? new WeaponDice()
+                    : new WeaponDice { dice_count = 1, dice_sides = 6 },
+                weapon_two_handed_dice = usesTwoHands
+                    ? new WeaponDice { dice_count = 1, dice_sides = 8 }
+                    : new WeaponDice(),
+                weapon_is_versatile = false,
+                weapon_uses_two_hands = usesTwoHands,
+                weapon_physical_damage_tag = usesTwoHands
+                    ? "physical_pierce"
+                    : "physical_slash",
+            }
+        );
     }
 
     private void AddUnitToState(
@@ -756,7 +792,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true);
         _test.True(placed, $"test unit {unit.unit_id} should be placeable.");
     }
 
@@ -776,7 +812,7 @@ public partial class run_move_to_range_progress_regression : LifecycleTestSceneT
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
         {
             throw new InvalidOperationException($"test unit {unit.unit_id} should be placeable.");
         }

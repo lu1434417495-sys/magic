@@ -203,6 +203,7 @@ internal static class BattleAiActionIntent
             or BattleEffectKind.GradedSaveExecute
             or BattleEffectKind.PathStepAoe
             or BattleEffectKind.RepeatAttackUntilFail
+            or BattleEffectKind.FixedRepeatAttack
             or BattleEffectKind.Charge
             or BattleEffectKind.EquipmentDurabilityDamage => true,
             _ => false,

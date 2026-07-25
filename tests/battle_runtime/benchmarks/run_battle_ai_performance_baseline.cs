@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
 {
@@ -433,7 +432,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
                 if (state.PhaseKind == BattlePhaseKind.UnitActing)
                 {
                     BattleUnitState activeUnit = GetUnit(state, state.active_unit_id);
-                    if (activeUnit == null || !activeUnit.is_alive)
+                    if (activeUnit == null || !activeUnit.IsAlive())
                     {
                         _test.Fail($"{scenarioId}: invalid active unit {state.active_unit_id}");
                         break;
@@ -645,14 +644,15 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             display_name = displayName,
             faction_id = "player",
             control_mode = "manual",
-            current_hp = 260,
-            current_mp = 120,
-            current_stamina = 120,
-            current_aura = 120,
-            current_ap = 2,
-            action_threshold = ActionThreshold,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 260,
+            mp: 120,
+            stamina: 120,
+            aura: 120,
+            ap: 2,
+            isAlive: true
+        );
+        unit.SetActionThresholdTyped(ActionThreshold);
         unit.SetAnchorCoord(coord);
         SetCoreAttributes(unit, hpMax: 260, attackBonus: 12, armorClass: 20);
         return unit;
@@ -674,21 +674,22 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
             control_mode = "ai",
             ai_brain_id = brainId,
             ai_state_id = "",
-            current_hp = 180,
-            current_mp = 120,
-            current_stamina = 120,
-            current_aura = 120,
-            current_ap = 2,
-            action_threshold = ActionThreshold,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 180,
+            mp: 120,
+            stamina: 120,
+            aura: 120,
+            ap: 2,
+            isAlive: true
+        );
+        unit.SetActionThresholdTyped(ActionThreshold);
         unit.SetAnchorCoord(coord);
         SetCoreAttributes(unit, hpMax: 180, attackBonus: 16, armorClass: 18);
-        unit.known_active_skill_ids = new GStringNameArray();
+        unit.SetKnownActiveSkillIds(Array.Empty<StringName>());
         foreach (StringName skillId in skillIds ?? Array.Empty<StringName>())
         {
-            unit.known_active_skill_ids.Add(skillId);
-            unit.known_skill_level_map[skillId] = 1;
+            unit.AddKnownActiveSkill(skillId);
+            unit.SetKnownSkillLevelTyped(skillId, 1);
         }
         return unit;
     }
@@ -756,10 +757,12 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         }
 
         bool valid = true;
-        if (unit.weapon_family != expectedWeaponFamily)
+        BattleWeaponProjectionValues weaponProjection =
+            unit.GetWeaponProjectionReadViewTyped().Values;
+        if (weaponProjection.Family != expectedWeaponFamily)
         {
             _test.Fail(
-                $"AI baseline finisher {skillId} expects weapon family {expectedWeaponFamily}, but {unit.unit_id} has {unit.weapon_family}."
+                $"AI baseline finisher {skillId} expects weapon family {expectedWeaponFamily}, but {unit.unit_id} has {weaponProjection.Family}."
             );
             valid = false;
         }
@@ -789,7 +792,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         )
         {
             _test.Fail(
-                $"AI baseline finisher {skillId} rejects weapon family {unit.weapon_family} on {unit.unit_id}."
+                $"AI baseline finisher {skillId} rejects weapon family {weaponProjection.Family} on {unit.unit_id}."
             );
             valid = false;
         }
@@ -848,7 +851,7 @@ public partial class run_battle_ai_performance_baseline : LifecycleTestSceneTree
         else
             state.ally_unit_ids.Add(unit.unit_id);
 
-        if (!runtime._grid_service.PlaceUnit(state, unit, unit.coord, true))
+        if (!runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true))
             _test.Fail($"AI baseline unit {unit.unit_id} could not be placed.");
     }
 

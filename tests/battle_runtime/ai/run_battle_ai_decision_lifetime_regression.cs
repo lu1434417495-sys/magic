@@ -402,11 +402,12 @@ public partial class run_battle_ai_decision_lifetime_regression : LifecycleTestS
             control_mode = "ai",
             ai_brain_id = "lifetime_brain",
             ai_state_id = "engage",
-            current_hp = 10,
-            current_ap = 1,
-            current_move_points = 1,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 10,
+            ap: 1,
+            movePoints: 1,
+            isAlive: true
+        );
         actor.SetAnchorCoord(Vector2I.Zero);
         state.SetUnit(actor);
         state.enemy_unit_ids.Add(actor.unit_id);

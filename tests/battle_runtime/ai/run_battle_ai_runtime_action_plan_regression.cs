@@ -107,21 +107,21 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
     {
         EnemyAiBrainDefinition brain = BuildBrain();
         BattleUnitState unit = BuildUnit("actor", "plan_brain", "engage");
-        unit.known_active_skill_ids.Add("bolt");
+        unit.AddKnownActiveSkill("bolt");
         unit.SetKnownSkillLevelsTyped(new Dictionary<StringName, int> { ["bolt"] = 1 });
-        unit.current_ap = 1;
+        unit.SetCurrentAp(1);
 
         using var plan = new BattleAiRuntimeActionPlan();
         plan.SetSource(unit, brain);
         _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
 
-        unit.current_ap = 0;
+        unit.SetCurrentAp(0);
         _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
 
-        unit.known_skill_level_map["bolt"] = 2;
+        unit.SetKnownSkillLevelTyped("bolt", 2);
         _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
 
-        unit.known_skill_level_map["bolt"] = 1;
+        unit.SetKnownSkillLevelTyped("bolt", 1);
         EnemyAiStateDefinition supportState = new(
             "support",
             new EnemyAiActionDefinition[] { Wait("support_wait") },
@@ -203,7 +203,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         EnemyAiBrainDefinition brain = BuildBrain();
         BattleUnitState unit = BuildUnit("throwing_actor", brain.BrainId, "engage");
-        unit.known_active_skill_ids.Add("bolt");
+        unit.AddKnownActiveSkill("bolt");
         var recorder = new AiTraceRecorder();
         AiTraceRecorder.SetInstance(recorder);
         BattleAiRuntimeActionPlan unexpectedPlan = null;
@@ -264,18 +264,19 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
     }
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName brainId, StringName stateId) =>
-        new()
+        new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             ai_brain_id = brainId,
             ai_state_id = stateId,
             control_mode = "ai",
-            current_hp = 20,
-            current_ap = 2,
-            current_mp = 2,
-            current_stamina = 2,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 2,
+            stamina: 2,
+            ap: 2
+        );
 
     private static WaitActionDefinition Wait(StringName actionId) =>
         new(actionId, "", BattleAiActionIntent.Wait, 0, 0);

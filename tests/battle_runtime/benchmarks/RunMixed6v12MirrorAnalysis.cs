@@ -170,6 +170,8 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                     scenario,
                     overrides,
                     enemyTemplates,
+                    contentSnapshot.Traits,
+                    contentSnapshot.EquipmentAbilityBindings,
                     terrainGenerator,
                     fixture,
                     seed,
@@ -340,6 +342,8 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
         BattleSimScenarioDefinition scenario,
         BattleSimOverrideApplyResult overrides,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        IReadOnlyDictionary<StringName, TraitDefinition> traitDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
         BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed,
@@ -368,7 +372,9 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 default,
                 fixture.GetItemDefsTyped(),
                 useFormalTerrain ? null : terrainGenerator,
-                default
+                default,
+                trait_defs: traitDefinitions,
+                equipment_ability_bindings: equipmentAbilityBindings
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
             runtime.SetAiTraceEnabled(traceAi);
@@ -390,10 +396,10 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
             };
 
             using GodotProjectionLease<GDictionary> baseContextLease =
-                scenario.BuildStartContextLease();
-            using GodotProjectionLease<GDictionary> contextLease =
-                fixture.BuildRuntimeContextLease(runtime, baseContextLease.Value);
-            GDictionary context = contextLease.Value;
+                scenario.BuildRuntimeStartContextLease();
+            using BattleSimFormalRuntimeStartInput startInput =
+                fixture.BuildRuntimeStartInput(runtime, baseContextLease.Value);
+            GDictionary context = startInput.Context;
             context["validate_spawn_reachability"] = validateSpawnReachability;
             context["validate_bidirectional_spawn_reachability"] = validateBidirectionalSpawnReachability;
             PrintProgress($"[Progress] run seed={seed} start_battle start");
@@ -401,7 +407,8 @@ public partial class RunMixed6v12MirrorAnalysis : LifecycleTestSceneTree
                 encounterAnchor,
                 seed,
                 BattleEliminationObjectiveDefinition.Instance,
-                context
+                context,
+                startInput.TakeEnemyUnitRoster()
             );
             PrintProgress($"[Progress] run seed={seed} start_battle done phase={state?.phase}");
             BattleStartFailureSnapshot startFailure = runtime.GetLastStartFailureSnapshot();

@@ -72,7 +72,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
         SkillDefinition skill = BuildExecuteSkill();
         BattleUnitState source = BuildUnit("execute_source", "hostile", new Vector2I(0, 0), 100, 100);
         BattleUnitState target = BuildUnit("execute_immune_target", "player", new Vector2I(1, 0), 100, 20);
-        target.save_immunity_tags.Add("execute");
+        target.AddSaveImmunityTagTyped("execute");
         fixture.AddUnit(source);
         fixture.AddUnit(target);
 
@@ -210,13 +210,13 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = currentHp,
-            current_ap = 2,
-            current_mp = 100,
-            current_stamina = 100,
-            is_alive = currentHp > 0,
-        };
+        }.WithCombatResourcesForTest(
+            hp: currentHp,
+            mp: 100,
+            stamina: 100,
+            ap: 2,
+            isAlive: currentHp > 0
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), maxHp);
         unit.attribute_snapshot.SetValue("strength", 10);
         unit.attribute_snapshot.SetValue("agility", 10);
@@ -225,9 +225,9 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
         unit.attribute_snapshot.SetValue("intelligence", 10);
         unit.attribute_snapshot.SetValue("willpower", 10);
         unit.attribute_snapshot.SetValue("willpower_modifier", 0);
-        unit.known_active_skill_ids.Add("test_ai_power_word_kill");
-        unit.known_skill_level_map[new StringName("test_ai_power_word_kill")] = 17;
-        unit.RefreshFootprint();
+        unit.AddKnownActiveSkill("test_ai_power_word_kill");
+        unit.SetKnownSkillLevelTyped(new StringName("test_ai_power_word_kill"), 17);
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
@@ -242,10 +242,10 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
             command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill),
             unit_id = actor.unit_id,
             skill_id = skillId,
-            target_coord = target.coord,
+            target_coord = target.GetAnchorCoord(),
             target_unit_id = target.unit_id,
         };
-        command.AddTargetCoord(target.coord);
+        command.AddTargetCoord(target.GetAnchorCoord());
         command.AddTargetUnitId(target.unit_id);
         return command;
     }
@@ -254,7 +254,7 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
     {
         var preview = new BattlePreview { allowed = true };
         preview.AddTargetUnitId(target.unit_id);
-        preview.AddTargetCoord(target.coord);
+        preview.AddTargetCoord(target.GetAnchorCoord());
         return preview;
     }
 

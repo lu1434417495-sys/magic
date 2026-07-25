@@ -134,7 +134,9 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
         );
         BattleGridService grid = context.grid_service;
         BattleState state = context.state;
-        int currentHeight = grid.GetCellState(state, actor.coord)?.current_height ?? 0;
+        int currentHeight =
+            grid.GetCellState(state, actor.GetAnchorCoord())?.current_height
+            ?? 0;
         int focusTargetCount = Math.Max(targets.Count, 1);
         for (int focusTargetIndex = 0; focusTargetIndex < focusTargetCount; focusTargetIndex++)
         {
@@ -144,7 +146,7 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
                 ? BattleAiActionEvaluatorUtilities.DistanceFromAnchorToUnit(
                     context,
                     actor,
-                    actor.coord,
+                    actor.GetAnchorCoord(),
                     focusTarget
                 )
                 : -1;
@@ -188,7 +190,7 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
                             !grid.CanPlaceFootprint(
                                 state,
                                 coord,
-                                actor.footprint_size,
+                                actor.GetFootprintSize(),
                                 actor.unit_id,
                                 actor
                             )
@@ -388,8 +390,9 @@ internal sealed class BattleAiMoveToAdvantageActionEvaluator
         BattleUnitState actor = context.unit_state;
         BattleGridService grid = context.grid_service;
         var frontier = new Queue<(Vector2I Coord, int Cost)>();
-        var bestCosts = new Dictionary<Vector2I, int> { [actor.coord] = 0 };
-        frontier.Enqueue((actor.coord, 0));
+        Vector2I actorCoord = actor.GetAnchorCoord();
+        var bestCosts = new Dictionary<Vector2I, int> { [actorCoord] = 0 };
+        frontier.Enqueue((actorCoord, 0));
         int safety = BattleAiActionEvaluatorUtilities.ResolveTargetSafeDistance(
             context,
             focusTarget,

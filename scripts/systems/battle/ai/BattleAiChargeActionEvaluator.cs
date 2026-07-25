@@ -204,10 +204,13 @@ internal sealed class BattleAiChargeActionEvaluator
 
                     Vector2I resolvedAnchor = preview.resolved_anchor_coord;
                     if (resolvedAnchor == new Vector2I(-1, -1))
-                        resolvedAnchor = actor.coord;
+                        resolvedAnchor = actor.GetAnchorCoord();
                     int resolvedDistance = DistanceFromAnchorToFocus(resolvedAnchor);
                     int resolvedMoveDistance =
-                        context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
+                        context.grid_service?.GetDistance(
+                            actor.GetAnchorCoord(),
+                            resolvedAnchor
+                        ) ?? 0;
                     string resolvedShortBlock = ResolveShortChargeBlockReason(
                         action,
                         context,
@@ -271,7 +274,10 @@ internal sealed class BattleAiChargeActionEvaluator
                     }
 
                     int movedDistance =
-                        context.grid_service?.GetDistance(actor.coord, resolvedAnchor) ?? 0;
+                        context.grid_service?.GetDistance(
+                            actor.GetAnchorCoord(),
+                            resolvedAnchor
+                        ) ?? 0;
                     int fallbackScore = 1000 - resolvedDistance * 100 + movedDistance;
                     if (fallbackScore <= bestFallbackScore)
                         continue;
@@ -310,12 +316,16 @@ internal sealed class BattleAiChargeActionEvaluator
         if (maxDistance <= 0)
             yield break;
 
-        int minX = unitState.coord.X;
-        int maxX = unitState.coord.X + unitState.footprint_size.X - 1;
-        int minY = unitState.coord.Y;
-        int maxY = unitState.coord.Y + unitState.footprint_size.Y - 1;
-        int anchorX = unitState.coord.X;
-        int anchorY = unitState.coord.Y;
+        BattleUnitGeometryReadView geometry =
+            unitState.GetGeometryReadViewTyped();
+        int minX = geometry.AnchorCoord.X;
+        int maxX =
+            geometry.AnchorCoord.X + geometry.FootprintSize.X - 1;
+        int minY = geometry.AnchorCoord.Y;
+        int maxY =
+            geometry.AnchorCoord.Y + geometry.FootprintSize.Y - 1;
+        int anchorX = geometry.AnchorCoord.X;
+        int anchorY = geometry.AnchorCoord.Y;
 
         foreach (Vector2I direction in ChargeDirections)
         {
@@ -339,10 +349,14 @@ internal sealed class BattleAiChargeActionEvaluator
         if (unitState == null)
             return new ChargeTargetInfo(false, 0, Vector2I.Zero, new Vector2I(-1, -1));
 
-        int minX = unitState.coord.X;
-        int maxX = unitState.coord.X + unitState.footprint_size.X - 1;
-        int minY = unitState.coord.Y;
-        int maxY = unitState.coord.Y + unitState.footprint_size.Y - 1;
+        BattleUnitGeometryReadView geometry =
+            unitState.GetGeometryReadViewTyped();
+        int minX = geometry.AnchorCoord.X;
+        int maxX =
+            geometry.AnchorCoord.X + geometry.FootprintSize.X - 1;
+        int minY = geometry.AnchorCoord.Y;
+        int maxY =
+            geometry.AnchorCoord.Y + geometry.FootprintSize.Y - 1;
         if (targetCoord.Y >= minY && targetCoord.Y <= maxY)
         {
             if (targetCoord.X < minX)
@@ -352,7 +366,7 @@ internal sealed class BattleAiChargeActionEvaluator
                     true,
                     leftDistance,
                     Vector2I.Left,
-                    unitState.coord + Vector2I.Left * leftDistance
+                    geometry.AnchorCoord + Vector2I.Left * leftDistance
                 );
             }
             if (targetCoord.X > maxX)
@@ -362,7 +376,7 @@ internal sealed class BattleAiChargeActionEvaluator
                     true,
                     rightDistance,
                     Vector2I.Right,
-                    unitState.coord + Vector2I.Right * rightDistance
+                    geometry.AnchorCoord + Vector2I.Right * rightDistance
                 );
             }
         }
@@ -375,7 +389,7 @@ internal sealed class BattleAiChargeActionEvaluator
                     true,
                     upDistance,
                     Vector2I.Up,
-                    unitState.coord + Vector2I.Up * upDistance
+                    geometry.AnchorCoord + Vector2I.Up * upDistance
                 );
             }
             if (targetCoord.Y > maxY)
@@ -385,7 +399,7 @@ internal sealed class BattleAiChargeActionEvaluator
                     true,
                     downDistance,
                     Vector2I.Down,
-                    unitState.coord + Vector2I.Down * downDistance
+                    geometry.AnchorCoord + Vector2I.Down * downDistance
                 );
             }
         }
@@ -460,7 +474,7 @@ internal sealed class BattleAiChargeActionEvaluator
         if (resolvedMoveDistance > action.MinimumChargeMoveDistance)
             return "";
         BattleUnitState actor = context?.unit_state;
-        if (actor == null || resolvedAnchor == actor.coord)
+        if (actor == null || resolvedAnchor == actor.GetAnchorCoord())
             return "";
         return "short_charge_below_minimum";
     }
@@ -664,8 +678,15 @@ internal sealed class BattleAiChargeActionEvaluator
             return 999999;
         BattleGridService grid = context.grid_service;
         int bestDistance = 999999;
-        foreach (Vector2I sourceCoord in grid.GetFootprintCoords(anchor, actor.footprint_size))
-            foreach (Vector2I targetCoord in target.occupied_coords)
+        foreach (
+            Vector2I sourceCoord in grid.GetFootprintCoords(
+                anchor,
+                actor.GetFootprintSize()
+            )
+        )
+            foreach (
+                Vector2I targetCoord in target.GetOccupiedCoordsReadViewTyped()
+            )
                 bestDistance = Math.Min(bestDistance, grid.GetDistance(sourceCoord, targetCoord));
         return bestDistance;
     }

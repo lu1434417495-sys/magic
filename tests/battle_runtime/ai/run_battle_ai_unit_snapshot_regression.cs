@@ -42,10 +42,25 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
         _test.Eq(snapshot.ai_blackboard.summon_source_unit_id, new StringName("summoner"), "summon source 应复制。");
         _test.True(snapshot.status_ids.Contains(new StringName("burning")), "status id 应复制到 typed list。");
 
-        unit.occupied_coords.Add(new Vector2I(9, 9));
-        unit.known_active_skill_ids.Add("icebolt");
-        unit.known_skill_level_map["fireball"] = 1;
-        unit.cooldowns["fireball"] = 7;
+        BattleUnitGeometrySnapshot geometry =
+            unit.CaptureGeometryForMutationSnapshotExact();
+        Vector2IList mutatedOccupied =
+            new(geometry.OccupiedCoords)
+            {
+                new Vector2I(9, 9),
+            };
+        unit.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                geometry.AnchorCoord,
+                geometry.BodySize,
+                geometry.BodySizeCategory,
+                geometry.FootprintSize,
+                mutatedOccupied
+            )
+        );
+        unit.AddKnownActiveSkill("icebolt");
+        unit.SetKnownSkillLevelTyped("fireball", 1);
+        unit.SetCooldownTyped("fireball", 7);
         unit.ai_blackboard.protected_ally = false;
 
         _test.Eq(snapshot.occupied_coords.Count, 2, "snapshot occupied coords 不应引用原 unit array。");
@@ -71,6 +86,10 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
             4,
             "payload skill level map 应保留 typed map。"
         );
+        _test.False(
+            payload.ContainsKey("known_skill_lock_hit_bonus_map"),
+            "AI unit snapshot 仍只投影 active skill 与 level，不应扩展 lock-hit 边界。"
+        );
         _test.Eq(
             ((IReadOnlyDictionary<StringName, int>)payload["cooldowns"])["fireball"],
             2,
@@ -95,22 +114,32 @@ public partial class run_battle_ai_unit_snapshot_regression : LifecycleTestScene
             unit_id = "snapshot_actor",
             display_name = "Snapshot Actor",
             faction_id = "hostile",
-            coord = new Vector2I(2, 3),
-            footprint_size = new Vector2I(2, 1),
-            current_hp = 17,
-            current_ap = 2,
-            current_mp = 11,
-            current_stamina = 9,
-            current_aura = 1,
-            current_move_points = 3,
-            is_alive = true,
-        };
-        unit.occupied_coords.Clear();
-        unit.occupied_coords.Add(new Vector2I(2, 3));
-        unit.occupied_coords.Add(new Vector2I(3, 3));
-        unit.known_active_skill_ids.Add("fireball");
-        unit.known_skill_level_map["fireball"] = 4;
-        unit.cooldowns["fireball"] = 2;
+        }.WithCombatResourcesForTest(
+            hp: 17,
+            mp: 11,
+            stamina: 9,
+            aura: 1,
+            ap: 2,
+            movePoints: 3,
+            isAlive: true
+        );
+        unit.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                new Vector2I(2, 3),
+                BattleUnitState.BodySizeMedium,
+                new StringName("medium"),
+                new Vector2I(2, 1),
+                new Vector2IList
+                {
+                    new Vector2I(2, 3),
+                    new Vector2I(3, 3),
+                }
+            )
+        );
+        unit.AddKnownActiveSkill("fireball");
+        unit.SetKnownSkillLevelTyped("fireball", 4);
+        unit.SetKnownSkillLockHitBonusTyped("fireball", 6);
+        unit.SetCooldownTyped("fireball", 2);
         unit.ai_blackboard.madness_target_any_team = true;
         unit.ai_blackboard.protected_ally = true;
         unit.ai_blackboard.summon_source_unit_id = "summoner";

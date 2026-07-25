@@ -54,7 +54,7 @@ internal sealed class BattleAiRetreatActionEvaluator
             ? BattleAiActionEvaluatorUtilities.SelectMostUnsafeTarget(
                 context,
                 targets,
-                actor.coord,
+                actor.GetAnchorCoord(),
                 action.MinimumSafeDistance,
                 action.SafeDistanceMargin,
                 _helper
@@ -114,7 +114,7 @@ internal sealed class BattleAiRetreatActionEvaluator
                 null,
                 BuildPositionMetadata(
                     focusTarget,
-                    actor.coord,
+                    actor.GetAnchorCoord(),
                     resolvedSafeDistance,
                     includeMoveCost: true
                 )
@@ -122,9 +122,21 @@ internal sealed class BattleAiRetreatActionEvaluator
             BattleAiDecision bestDecision = null;
             BattleGridService grid = context.grid_service;
             BattleState state = context.state;
-            foreach (Vector2I neighbor in grid.GetNeighbors4(state, actor.coord))
+            foreach (
+                Vector2I neighbor in grid.GetNeighbors4(
+                    state,
+                    actor.GetAnchorCoord()
+                )
+            )
             {
-                if (!grid.CanTraverse(state, actor.coord, neighbor, actor))
+                if (
+                    !grid.CanTraverse(
+                        state,
+                        actor.GetAnchorCoord(),
+                        neighbor,
+                        actor
+                    )
+                )
                     continue;
                 int moveCost = Mathf.Max(context.GetMoveCost(actor, neighbor), 1);
                 if (moveCost > moveBudget)

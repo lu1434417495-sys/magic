@@ -98,7 +98,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         StringName availableSkillId = "ai_available_skill";
         StringName unavailableSkillId = "ai_unavailable_skill";
         BattleUnitState actor = BuildUnit("availability_actor", "hostile", new Vector2I(0, 0));
-        actor.known_active_skill_ids.Add(availableSkillId);
+        actor.AddKnownActiveSkill(availableSkillId);
         actor.SetKnownSkillLevelTyped(availableSkillId, 2);
 
         BattleAiContext context = new()
@@ -169,7 +169,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         StringName skillId = "ai_entry_unit_skill";
         BattleUnitState actor = BuildUnit("entry_actor", "hostile", new Vector2I(0, 0));
         BattleUnitState target = BuildUnit("entry_target", "player", new Vector2I(1, 0));
-        actor.known_active_skill_ids.Add(skillId);
+        actor.AddKnownActiveSkill(skillId);
         actor.SetKnownSkillLevelTyped(skillId, 1);
 
         SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 4);
@@ -233,7 +233,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
         StringName skillId = "ai_preview_range_probe";
         BattleUnitState actor = BuildUnit("preview_range_actor", "hostile", new Vector2I(0, 0));
         BattleUnitState target = BuildUnit("preview_range_target", "player", new Vector2I(5, 0));
-        actor.known_active_skill_ids.Add(skillId);
+        actor.AddKnownActiveSkill(skillId);
 
         SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 1);
         BattleState state = new()
@@ -313,7 +313,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             "player",
             new Vector2I(1, 0)
         );
-        actor.known_active_skill_ids.Add(skillId);
+        actor.AddKnownActiveSkill(skillId);
         actor.SetKnownSkillLevelTyped(skillId, 1);
         SkillDefinition skill = BuildUnitSkill(skillId, rangeValue: 4);
         BattleState state = new()
@@ -419,7 +419,7 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
             "hostile",
             new Vector2I(0, 0)
         );
-        actor.known_active_skill_ids.Add(skillId);
+        actor.AddKnownActiveSkill(skillId);
         actor.SetKnownSkillLevelTyped(skillId, 1);
         BattleState state = new()
         {
@@ -476,20 +476,20 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : L
 
     private static BattleUnitState BuildUnit(StringName unitId, StringName factionId, Vector2I coord)
     {
-        BattleUnitState unit = new()
+        BattleUnitState unit = new BattleUnitState()
         {
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            coord = coord,
-            current_hp = 20,
-            current_ap = 2,
-            current_mp = 10,
-            current_stamina = 10,
-            is_alive = true,
-        };
+        }.WithCombatResourcesForTest(
+            hp: 20,
+            mp: 10,
+            stamina: 10,
+            ap: 2,
+            isAlive: true
+        );
         unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 20);
-        unit.RefreshFootprint();
+        unit.SetAnchorCoord(coord);
         return unit;
     }
 
