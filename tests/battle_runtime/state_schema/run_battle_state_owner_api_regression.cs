@@ -37,30 +37,51 @@ public partial class run_battle_state_owner_api_regression : LifecycleTestSceneT
 
         BattleUnitState hero = new() { unit_id = "hero" };
         hero.SetAnchorCoord(new Vector2I(5, 6));
-        hero.RestoreBodyShapeProjectionForMutationSnapshotExact(
-            hero.coord,
-            new StringName("medium"),
-            BattleUnitState.BodySizeMedium,
-            new Vector2I(2, 2),
-            new[] { new Vector2I(99, 99) }
+        hero.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.Present(
+                hero.GetAnchorCoord(),
+                BattleUnitState.BodySizeMedium,
+                new StringName("medium"),
+                new Vector2I(2, 2),
+                new Vector2IList { new Vector2I(99, 99) }
+            )
+        );
+        BattleUnitState missingGeometry = new() { unit_id = "missing_geometry" };
+        missingGeometry.RestoreGeometryForMutationSnapshotExact(
+            BattleUnitGeometrySnapshot.MissingOwner
         );
         BattleUnitState missingId = new();
-        state.SetUnits(new[] { hero, null, missingId });
+        state.SetUnits(new[] { hero, missingGeometry, null, missingId });
 
         _test.True(state.MovementGeometryRevision > revisionBefore, "SetUnits 应递增 movement geometry revision。");
         _test.True(state.ContainsUnit("hero"), "SetUnits 应写入有效 unit_id。");
         _test.False(state.ContainsUnit("old"), "SetUnits 应替换旧 unit index。");
         _test.False(state.ContainsUnit(""), "SetUnits 应跳过空 unit_id。");
+        _test.True(
+            state.ContainsUnit("missing_geometry"),
+            "SetUnits 应接纳其余身份有效的 missing-owner unit。"
+        );
 
         BattleUnitReadView view = state.GetUnitView("hero");
         _test.True(view.IsValid, "GetUnitView 应返回有效只读单位视图。");
         _test.Eq(view.UnitId, new StringName("hero"), "GetUnitView 应读取 state 持有的 unit。");
-        _test.Eq(hero.footprint_size, Vector2I.One, "SetUnit admission 应重建派生 footprint_size。");
-        _test.Eq(hero.occupied_coords.Count, 1, "SetUnit admission 应重建 occupied_coords。");
+        _test.Eq(hero.GetFootprintSize(), Vector2I.One, "SetUnit admission 应重建派生 footprint_size。");
+        _test.Eq(hero.GetOccupiedCoordsReadViewTyped().Count, 1, "SetUnit admission 应重建 occupied_coords。");
         _test.Eq(
-            hero.occupied_coords[0],
+            hero.GetOccupiedCoordsReadViewTyped()[0],
             new Vector2I(5, 6),
             "SetUnit admission 应按 authoritative anchor 重建 occupied_coords。"
+        );
+        BattleUnitGeometryReadView normalizedMissingGeometry =
+            missingGeometry.GetGeometryReadViewTyped();
+        _test.True(
+            normalizedMissingGeometry.OwnerPresent,
+            "SetUnit admission 应重建 missing geometry owner。"
+        );
+        _test.Eq(
+            normalizedMissingGeometry.BodySizeCategory,
+            new StringName("medium"),
+            "重建的 geometry owner 应采用 canonical 默认体型。"
         );
     }
 }

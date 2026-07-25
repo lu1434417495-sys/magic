@@ -79,11 +79,15 @@ internal sealed class BattleTestFixture : IDisposable
             unit_id = unitId,
             display_name = unitId.ToString(),
             faction_id = factionId,
-            current_ap = currentAp,
-            current_move_points = 2,
-            current_hp = resolvedHp,
-            is_alive = true,
         };
+        unit.SetCombatResources(
+            resolvedHp,
+            mp: 0,
+            stamina: 0,
+            aura: 0,
+            currentAp,
+            movePoints: 2
+        );
         unit.attribute_snapshot.SetValue("hp_max", resolvedHp);
         unit.SetAnchorCoord(coord);
         return unit;
@@ -103,13 +107,13 @@ internal sealed class BattleTestFixture : IDisposable
         foreach (BattleUnitState unit in allyUnits ?? Array.Empty<BattleUnitState>())
         {
             state.SetUnit(unit);
-            gridService.PlaceUnit(state, unit, unit.coord, ignore_height: true);
+            gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), ignore_height: true);
             state.ally_unit_ids.Add(unit.unit_id);
         }
         foreach (BattleUnitState unit in enemyUnits ?? Array.Empty<BattleUnitState>())
         {
             state.SetUnit(unit);
-            gridService.PlaceUnit(state, unit, unit.coord, ignore_height: true);
+            gridService.PlaceUnit(state, unit, unit.GetAnchorCoord(), ignore_height: true);
             state.enemy_unit_ids.Add(unit.unit_id);
         }
         state.active_unit_id =
@@ -314,5 +318,90 @@ internal sealed class BattleTestFixture : IDisposable
     private static List<BattleUnitState> CopyUnits(IEnumerable<BattleUnitState> units)
     {
         return units == null ? new List<BattleUnitState>() : new List<BattleUnitState>(units);
+    }
+}
+
+internal static class BattleTestCombatResourceFixtureExtensions
+{
+    internal static BattleUnitState WithCombatResourcesForTest(
+        this BattleUnitState unit,
+        int? hp = null,
+        int? mp = null,
+        int? stamina = null,
+        int? aura = null,
+        int? ap = null,
+        int? movePoints = null,
+        bool? isAlive = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+
+        if (hp.HasValue)
+            unit.SetCurrentHp(hp.Value);
+        if (mp.HasValue)
+            unit.SetCurrentMp(mp.Value);
+        if (stamina.HasValue)
+            unit.SetCurrentStamina(stamina.Value);
+        if (aura.HasValue)
+            unit.SetCurrentAura(aura.Value);
+        if (ap.HasValue)
+            unit.SetCurrentAp(ap.Value);
+        if (movePoints.HasValue)
+            unit.SetCurrentMovePoints(movePoints.Value);
+
+        if (isAlive.HasValue && unit.IsAlive() != isAlive.Value)
+        {
+            if (!isAlive.Value && unit.GetCurrentHp() <= 0)
+            {
+                unit.MarkDead();
+            }
+            else
+            {
+                BattleUnitCombatResourceValues values =
+                    unit.GetCombatResourcesReadViewTyped().Values;
+                unit.RestoreCombatResourcesForMutationSnapshotExact(
+                    BattleUnitCombatResourceSnapshot.Present(
+                        values with { IsAlive = isAlive.Value }
+                    )
+                );
+            }
+        }
+        return unit;
+    }
+
+    internal static BattleUnitState WithCombatResourcesForTestExact(
+        this BattleUnitState unit,
+        int? hp = null,
+        int? mp = null,
+        int? stamina = null,
+        int? aura = null,
+        int? ap = null,
+        int? movePoints = null,
+        int? staminaRecoveryProgress = null,
+        bool? isAlive = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+
+        BattleUnitCombatResourceValues values =
+            unit.CaptureCombatResourcesForMutationSnapshotExact().Values;
+        unit.RestoreCombatResourcesForMutationSnapshotExact(
+            BattleUnitCombatResourceSnapshot.Present(
+                values with
+                {
+                    Hp = hp ?? values.Hp,
+                    Mp = mp ?? values.Mp,
+                    Stamina = stamina ?? values.Stamina,
+                    Aura = aura ?? values.Aura,
+                    Ap = ap ?? values.Ap,
+                    MovePoints = movePoints ?? values.MovePoints,
+                    StaminaRecoveryProgress =
+                        staminaRecoveryProgress
+                        ?? values.StaminaRecoveryProgress,
+                    IsAlive = isAlive ?? values.IsAlive,
+                }
+            )
+        );
+        return unit;
     }
 }
