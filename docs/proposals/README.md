@@ -7,6 +7,8 @@
 ## 战斗
 
 - [`battle/multi_objective_modes.md`](battle/multi_objective_modes.md)：九种战斗模式定义与 P1-P4 落地顺序；当前只有 P0 歼灭模式进入实现真相。
+- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统设计；状态驱动姿态 + 敏捷派生反应预算 + 入队/排空编排，闭合当前悬空的 `lock_counterattack`。设计决策已全部关闭，P1 可实施；代码全部未实现。
+- [`battle/action_cadence_agility_derivation.md`](battle/action_cadence_agility_derivation.md)：行动节奏由敏捷派生到 `action_progress_rate_percent`（15%/点，全区间 2.94 倍）。改动时间线系统，影响全部 TU 计价内容与现存敌人强度；两条待决未关闭。
 
 ## 跨系统迁移与架构整治
 

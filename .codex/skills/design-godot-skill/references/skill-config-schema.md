@@ -106,7 +106,7 @@ Current growth-tier totals are owned by `AttributeGrowthContentRules`, not by th
 Read `BattleRangeService` before auditing weapon or bow skill range. Current runtime behavior:
 
 - Bow, melee, and weapon-tagged skills are weapon-range skills. When the unit has an equipped weapon range, base skill range resolves to `weapon_attack_range`.
-- `required_weapon_families` also makes the skill require the current weapon, so a bow-required skill uses the equipped bow range and is blocked without the required weapon family.
+- `required_weapon_families` and `required_weapon_type_ids` also make the skill require the current weapon. Use the family gate for broad groups such as bow/hammer; use the type-id gate when a skill must match the exact `WeaponProfileDef.weapon_type_id`, such as `greatsword` without admitting every `sword` family weapon.
 - For ordinary bow skills, do not treat `combat_profile.range_value` as the final visible range. Descriptions should say `射程随武器` or equivalent.
 - If a special bow skill extends range, model and describe it as an additive bonus on top of weapon range. Verify the exact owner first, such as range-bonus status/passive behavior or a special profile; do not replace weapon range with a fixed configured range.
 - Use configured fixed `range_value` for non-weapon skills or explicit exceptions such as ground relocation, where `BattleRangeService` intentionally returns configured range.
@@ -132,7 +132,7 @@ Use current tagged skills as examples, but use these conventions as the default 
 - `attribute_growth_progress` currently uses strict string keys and strict positive int values; confirm the current owner in `SkillDef.cs` and validator before editing.
 - `attribute_growth_progress` must total the `growth_tier` budget and represents the one-time reward when the core-selection / level-trigger promotion chain locks the trigger, not routine per-level growth and not an absolute core-max-level reward.
 - `StringName` fields are resource boundaries. Runtime logic should consume typed enum/rule conversion, not raw string comparisons.
-- `required_weapon_families` is the positive weapon-family gate. Damage `requires_weapon` is for effects that need weapon damage resolution, not for family gating by itself.
+- `required_weapon_families` is the broad positive weapon-family gate; `required_weapon_type_ids` is the exact positive weapon-profile-type gate. Damage `requires_weapon` is for effects that need weapon damage resolution, not for weapon-family/type gating by itself.
 - Special-profile skills may not use `effect_defs` as executable truth unless the current special-profile manifest/runtime explicitly allows it.
 - Passive effects use the normal effect schema, but some executable effects may be invalid there. Check `passive_effect_defs` validation.
 

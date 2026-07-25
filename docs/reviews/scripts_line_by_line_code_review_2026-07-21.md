@@ -12,6 +12,8 @@
 
 `dotnet build magic.csproj --no-restore` 通过，常规回归套件 394/394 通过。通过并不等于以下问题不存在：多个现有测试只验证局部 service mutation 或路径非空，没有穿过实际 owner 写回、异常回滚和干净检出边界。
 
+> **统一收尾状态（2026-07-25）**：上述数量、优先级和验证结果保留为原始审计快照。当前 30 项正式 finding 中，28 项已完整解决；F-02 因并发迁移又出现 2 个未跟踪源码而保持处理中；F-28 经确认接受风险、暂不修改。F-26 已按方案 3 建立正式 quest journal owner、失败态与失败重启策略。原 F-27 已复核撤销，不计入当前 30 项；原 F-23/F-24 已按非生产工具范围排除。
+
 ## 审计快照与范围
 
 - 工作树基线：`43c5cc32`，分支 `agent/structured-logging-test-performance`。
@@ -69,6 +71,8 @@
 - 增加 sentinel 扩展键、嵌套库存和冷却字段，覆盖 `mark visited → open → buy → refresh → save/load` 全链路。
 
 ### F-02 48 个新增源码未纳入 Git，当前构建不可交付
+
+> **修复状态（2026-07-25）：处理中。** 原审计快照中的 48 个文件已陆续纳入 Git；本次首次重新核对时剩余的 14 个源码也已逐个确认归属并加入当前 index。统一收尾期间，并发工作树又新增 `BattleExitObjectiveRules.cs` 与 `BattleUnitWeaponProjectionState.cs` 两个未跟踪源码，且对应迁移尚未完成，因此不能继续标记为已解决。附录 A 保留原始 48 文件清单作为审计证据；最终提交必须重新枚举全部未跟踪源码，让 typed owner/rule/DTO 与各自调用方、回归按功能主题共同落地，并以干净 worktree 构建作为最终门禁。
 
 **位置**
 
@@ -192,7 +196,9 @@ unit snapshot 漏掉 `equipment_view_initialized`、已消费 contingency setup�
 
 ### F-11 AI 完整平局没有稳定键
 
-**位置**：`BattleAiTypedActionHelper.cs:149-194,401-416,454-483`。
+> **修复状态（2026-07-24）：已解决。** 正式目标 comparator 在威胁、HP、距离等业务指标完全相同时，统一以 `unit_id` 的 ordinal 顺序作为最终稳定键。回归用相反的 `BattleState` 单位插入顺序构造同一战术状态，两次都选择 `target_a`，确认目标不再继承 dictionary 插入顺序。
+
+**位置**：`scripts/systems/battle/ai/BattleAiTypedActionHelper.cs:537-552`；回归见 `tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs:388-407`。
 
 威胁、HP、距离全部相同时 comparator 返回 0；输入来自 state dictionary 枚举，首目标取决于单位插入/恢复顺序。相同战局可产生不同命令和模拟结果。所有 selector 应以 `unit_id` ordinal 作为最终稳定键。
 
@@ -206,7 +212,9 @@ preview/context 和攻击劣势查询通过 `UnsafeUnitForReadOnlyRules` 调 `Re
 
 ### F-13 save payload 与 index 是两个独立提交点
 
-**位置**：`scripts/systems/persistence/GameSession.cs:1518-1564`，`GameSession.SaveIndexAndFileIO.cs:433-505`。
+> **修复状态（2026-07-24）：已解决。** 当前正式定义 `<save_id>.dat` 为唯一权威提交点，`index.dat` 为可重建派生缓存。payload 原子写成功后，即使 index 写入失败，`PersistGameState` 也保持成功语义、清除 runtime dirty，并记录 `session.save.index.degraded_after_payload_commit` warning；index session cache 同时失效，后续列表读取从合法 payload 重建且不会重复发布同一 save id。新增独立 `fail_index_write` seam，回归覆盖新建存档和已有存档更新两条链。payload/index schema 均未改变。
+
+**位置**：`scripts/systems/persistence/GameSession.cs:1524-1567`，`GameSession.SaveIndexAndFileIO.cs:54-133,175-244,480-584`。
 
 payload 已原子写成功后才写 index；index 写失败时 API 返回失败，但 payload 已永久存在。稍后 index rebuild 会扫描该 orphan payload 并重新发布它，使此前被报告为“保存失败”的新存档重新出现。需要 commit marker/journal 或显式 `partial/recovered` 状态来定义事务；不能简单删除 payload，因为进程中断也可能发生在两个写入之间。
 
@@ -220,11 +228,15 @@ payload 已原子写成功后才写 index；index 写失败时 API 返回失败�
 
 ### F-15 save tag 校验在内容 owner 之间不一致
 
-**位置**：`RaceContentRegistry.cs:164-183`，`SubraceContentRegistry.cs:158-177`，`CombatEffectDef.cs:453-460`，`SkillCombatProfileValidator.cs:664-706`。
+> **修复状态（2026-07-24）：已解决。** 新增共享 `SaveTagListContentRules`，合法值仍由 `BattleSaveContentRules` 的 typed save-tag 集合唯一拥有；列表规则统一检查 null/空元素、已移除的 `_advantage/_disadvantage/_immunity` 后缀、未知 tag 与重复值。Race、Subrace、Trait（含嵌套 passive status）、Enemy 和技能 effect 三组 save-tag 字段均调用同一规则，删除 Trait/Enemy 的重复实现。聚焦回归覆盖五类 owner，正式全内容 validation 保持零错误。资源字段、运行时匹配语义与存档格式均未改变。
+
+**位置**：`SaveTagListContentRules.cs:1-67`，`RaceContentRegistry.cs:164-180`，`SubraceContentRegistry.cs:158-174`，`TraitContentRegistry.cs:197-211,315-319`，`SkillCombatProfileValidator.cs:672-689`，`EnemyTemplateDef.cs:488-506`。
 
 Race/Subrace 只检查非空，技能 effect 的三组 save tag 数组没有语义校验；Trait/Enemy 则调用 `BattleSaveContentRules.IsValidSaveTag`。拼错 tag、旧后缀写法会通过部分 registry，运行时精确匹配时静默失效。应抽取共享 `SaveTagListContentRules`，统一验证合法集合、重复值与旧写法。
 
 ### F-16 生产装备能力构建跳过多数跨表校验
+
+> **修复状态（2026-07-24）：已解决。** `EquipmentAbilityContentValidationContext` 只保留并强制要求 trait、skill、外部 status 三个 open-content catalog；`null` 目录稳定返回 `EQA_VALIDATION_CONTEXT_INCOMPLETE`，非 null 空目录仍执行 membership 校验。damage tag 与 equipment slot 改为直接消费 `DamageTagContentRules` / `EquipmentRules` 的 closed typed domain，删除可选白名单和 `HasKnownValues` 跳过路径。status 由 `StatusContentRules` 的系统声明、技能 effect、trait passive status 与全部装备 pack 的创建型 action 先组成声明目录，再统一校验 condition/fact/action 引用；`knockdown_immunity` 已有正式系统声明并由 battle 语义表消费。收紧校验同时把正式装备内容中的旧 `cold` / `necrotic` 值改为 canonical `freeze` / `negative_energy`，不增加兼容别名。聚焦 registry、正式 `ProgressionContentRegistry` 全内容入口和 status semantics 回归均通过，编译 0 warning / 0 error。
 
 **位置**：`ProgressionContentRegistry.cs:719-725`，`EquipmentAbilityRuntimeDefinitions.cs:827-845`，`EquipmentAbilityBindingValidator.cs:954-997`，`EquipmentAbilityPayloadValidators.cs:55,152,275,1536-1578`。
 
@@ -232,37 +244,49 @@ Race/Subrace 只检查非空，技能 effect 的三组 save tag 数组没有语�
 
 ### F-17 远程魔法攻击类别校验条件不可达
 
-**位置**：`SkillCombatProfileValidator.cs:211-224,1230-1255`，`CombatEffectDef.cs:367-372`。
+> **修复状态（2026-07-24）：已解决。** 没有把死条件改成另一套“远程魔法攻击”推断，而是删除该推断职责。新增 `CombatSkillDef.projectile_kind = none/nonmagical/magical/current_weapon` 与 `CombatCastVariantDef.projectile_kind_override`；`BattleEffectCategoryResolver` 从 typed 投送定义派生 `projectile`、`magical_projectile`、`nonmagical_projectile`。职业、magic tag、射程、伤害、豁免与技能 id 均不再决定是否为投射物。派生类别禁止写入 `delivery_categories/effect_categories`，旧 missile 名称加载期报错且无兼容别名。80 个原有技能、基础攻击与虹光法球红/橙层已迁移；variant override 已贯通 preview/commit/ground/repeat/chain 链路。聚焦 schema、resolver、虹光法球、随机链及正式全内容 validation 均通过。
 
-`IsAttackDamage` 要求 `save_dc_mode == ""`，而合法默认是 `static`，空值反而会被 save mode 校验拒绝。因此合法 direct damage 永远不会触发 `magical_missile` 必填检查。应由 typed save semantics 判断“是否具有豁免”，不要用互相冲突的字符串条件。
+**位置**：`CombatProjectileContentRules.cs:1-55`，`CombatSkillDef.cs:247-263`，`CombatCastVariantDef.cs:43-58`，`SkillCombatProfileValidator.cs:197-234,475-540,1261-1323`，`BattleEffectCategoryResolver.cs:7-89`，`BattleEquipmentAttackModifierResolver.cs:525-605`。
+
+原问题中的 `IsAttackDamage` 要求 `save_dc_mode == ""`，而合法默认是 `static`，空值反而会被 save mode 校验拒绝；因此原 `magical_missile` 必填检查不可达。进一步检视确认，“法师 + 魔法 + 远程 + 攻击伤害”本身也不能证明投送形式是魔法投射物，所以修复以显式 typed 投送 schema 取代条件修补。
 
 ### F-18 identity registry 的字段校验 helper 是空实现
 
-**位置**：`IdentityContentRegistryBase.cs:203-228`；调用见 `RaceContentRegistry.cs:107-134`、`SubraceContentRegistry.cs:114-126`、`AgeContentRegistry.cs:206-236`、`AscensionContentRegistry.cs:180-248`。
+**位置**：`IdentityContentRegistryBase.cs:203-212`；调用见 `RaceContentRegistry.cs:107-119`、`SubraceContentRegistry.cs:114-126`、`AgeContentRegistry.cs:206-218`、`BloodlineContentRegistry.cs:180-192,233-245`、`AscensionContentRegistry.cs:180-192,245-257`、`StageAdvancementContentRegistry.cs:116-122`；回归见 `tests/progression/schema/run_identity_required_text_schema_regression.cs`。
 
-`_append_string_field_error`、`_append_int_field_error`、`_append_bool_field_error` 都没有逻辑，但多个 registry 把它们当校验入口。至少空白 `display_name`/`description` 可进入 snapshot，而且代码外观会让维护者误以为已经验证。字符串非空规则应实现；没有统一约束的 int/bool helper 应删除，由各 registry 写显式范围/组合规则。
+修复前，`_append_string_field_error`、`_append_int_field_error`、`_append_bool_field_error` 都没有逻辑，但多个 registry 把它们当校验入口。至少空白 `display_name`/`description` 可进入 snapshot，而且代码外观会让维护者误以为已经验证。字符串非空规则应实现；没有统一约束的 int/bool helper 应删除，由各 registry 写显式范围/组合规则。
+
+> **修复状态（2026-07-24）：已解决。** 字符串入口已改名为 `_append_required_string_field_error`，并通过 `string.IsNullOrWhiteSpace` 拒绝 `null`、空串和纯空白；Race、Subrace、Age、Bloodline、Ascension、StageAdvancement 六个注册表的顶层及嵌套必填文本均接入该规则。无语义的 int/bool helper 与调用已删除，既有 owner-specific 数值规则（如 race 正速度、age 年龄顺序、stage advancement 轴向约束）继续负责真实约束。聚焦回归覆盖 15 个调用点；正式资源验证保持 `official_content errors=0`。本次不改变资源字段、typed definition 或存档格式。
 
 ### F-19 合法价格范围内会发生 32 位乘法溢出
 
-**位置**：`ItemDefinition.cs:545-550`，`ItemDef.cs:60-67,392-397`。
+**位置**：修复前为 `ItemDefinition.cs:545-550`、`ItemDef.cs:60-67,392-397`；当前规则 owner 为 `ItemPriceRules.cs`，回归见 `tests/warehouse/run_item_price_rules_regression.cs`。
 
-`price * basisPoints` 在 `int` 中完成。默认 10000 时价格约超过 214,748 即溢出，商店 11000 时约 195,225 即可触发；schema 允许 999,999。结果可能变负使商品消失，也可能回绕成错误低价。应使用 `long` 乘法和舍入，再 checked/clamp 转回 int。
+修复前，`price * basisPoints` 在 `int` 中完成。默认 10000 时价格达到约 214,748 即可能溢出，商店 11000 时从 195,226 起即可触发；schema 允许 999,999。结果可能变负使商品消失，也可能回绕成错误低价。
+
+> **修复状态（2026-07-25）：已解决。** `ItemPriceRules.ApplyBasisPoints` 现为唯一实现：输入先归一化为非负 `long`，乘法与 half-up 舍入均在 `long` 中完成，超过 `int` 返回契约时饱和到 `int.MaxValue`。`ItemDefinition` 与 authored `ItemDef` 的既有入口只做委托，不再复制公式。聚焦回归覆盖 schema 最大价格 `999999`、11000 basis points、旧溢出阈值、负输入、舍入和饱和行为；原有装备价格、据点商店与正式资源校验均通过。无资源字段或存档格式变更。
 
 ### F-20 `BattleGroundEffectService.Dispose()` 未解绑拆分子服务
 
-**位置**：`BattleGroundEffectService.cs:28-50`，`BattleGroundRelocationService.cs:10-29,99-152`，`BattleGroundSkillValidationService.cs:10-32`，`BattleGroundEffectCoordService.cs:10-26`。
+> **修复状态（2026-07-24）：已解决。** owner 的幂等 teardown 现在依次关闭 validation、relocation、coord 三个子服务，再清除自身 runtime；各步骤通过统一异常聚合路径执行，单个清理失败不会跳过后续 borrower 解绑。runtime borrower teardown 回归要求 ground-effect owner 的 `ActiveDependencyCount` 在 dispose 后归零。
+
+**位置**：`scripts/systems/battle/runtime/BattleGroundEffectService.cs:29-71`；回归见 `tests/battle_runtime/runtime/run_battle_runtime_borrower_teardown_regression.cs:694-715`。
 
 owner 创建三个子服务，Dispose 只清自己的 runtime。外部若仍持有子服务且 runtime 尚活，relocation 仍可调用 `MoveUnitForce` 修改战场。三个 child 应有幂等 teardown，清 runtime、owner 与 sibling，并纳入 borrower teardown/rebind 回归。
 
 ### F-21 单场模拟异常时 runtime 与全局 trace recorder 不保证清理
 
-**位置**：`BattleSimRunner.cs:231-291`，`BattleSimExecutionLoop.cs:75-100`。
+> **修复状态（2026-07-24）：已解决。** 单场模拟从 runtime 创建完成起进入异常清理边界，运行失败时仍执行 `runtime.Dispose()`；若业务异常和清理异常同时发生，则以 `AggregateException` 保留两者。loop trace 改用 `AiTraceRecorder.PushInstance(...)` 的作用域绑定，异常退出也会恢复进入前 recorder，而不是把进程级实例一律清空。聚焦回归分别覆盖 step executor 抛异常后的 recorder 恢复，以及 simulation 失败后的 runtime/state/AI borrower/sidecar 清理。
+
+**位置**：`scripts/systems/battle/sim/BattleSimRunner.cs:241-329`，`scripts/systems/battle/sim/BattleSimExecutionLoop.cs:99-125`；回归见 `tests/battle_runtime/runtime/run_battle_sim_exception_cleanup_regression.cs:46-178`。
 
 runtime 只在正常尾部 dispose；静态 `AiTraceRecorder` 只在正常执行后清空。`StartBattle`、`AdvanceStep`、指标抓取或报告构建抛异常时，会留下 runtime borrower/state/terrain owner，且 recorder 可污染后续模拟。两层都需要 `try/finally`，recorder 应恢复此前实例而不是一律设 null。
 
 ### F-22 报告文件未写成功也会返回路径并记录成功
 
-**位置**：`BattleSimRunner.cs:118-124,373-469`，测试 `run_battle_ai_vs_ai_simulation_regression.cs:59-65`。
+> **修复状态（2026-07-24）：已解决。** `BattleSimReportFileWriter` 现在是 report、trace 与 summary 的唯一写盘 owner：目录创建、打开、写入、flush 和最终文件存在性任一失败都会抛出；失败时恢复此前 `OutputFiles` 并清理本批次残缺文件。Runner 只在 `Write(...)` 成功返回后发布路径和记录 `report-written`。聚焦回归覆盖同秒唯一文件名与 JSON 可解析、后续文件写失败时恢复旧路径并删除前序残片，以及不可打开路径的失败传播。
+
+**位置**：`scripts/systems/battle/sim/BattleSimRunner.cs:118-137`，`scripts/systems/battle/sim/BattleSimReportFileWriter.cs:51-174`；回归见 `tests/battle_runtime/runtime/run_battle_sim_report_output_regression.cs:60-179`。
 
 输出路径在 `FileAccess.Open` 前写入；Open 返回 null 时只跳过写入，调用方仍记录 `report-written`。现有测试只断言路径非空。路径应在写入成功后发布；不可写目录测试需断言无成功日志、无假路径，正常路径还应检查文件存在且 JSON 可解析。
 
@@ -274,17 +298,19 @@ runtime 只在正常尾部 dispose；静态 `AiTraceRecorder` 只在正常执行
 
 ### F-25 `BattleMapPanel.HideBattle()` 保留完整上场战斗对象图
 
-**位置**：`scripts/ui/BattleMapPanel.cs:77-87,230-265,393-407,687-697,787-803`；对照 `BattleBoard2D.cs:270-299`。
+> **修复状态（2026-07-24）：已解决。** `BattleMapPanel` 现在通过统一 pending payload 清理路径释放 `BattleState`、选择参数和集合；payload 应用前先转入局部变量并从 panel 清除，`HideBattle()` 与 `_ExitTree()` 也执行同一清理。离树时额外释放 hover preview 的 `BattleState`，并通过不发 signal 的 reveal ticket 失效路径阻止异步 continuation 继续刷新已离树 UI。聚焦 panel schema/lifecycle 与 world battle loading overlay 回归均通过。
+
+**位置**：`scripts/ui/BattleMapPanel.cs:77-87,232-269,382-418,696-706,727-739,803-835,902-909`；对照 `BattleBoard2D.cs:270-299`。
 
 panel 保存 `_pending_battle_state` 和相关列表；Hide 只切 visible 并清 board，不清 pending state，`_ExitTree` 也未清。已结束战斗会被 UI 持有到下一场战斗或 panel 回收。建立统一 `ClearPendingPayload`，在 apply/hide/teardown 后释放，并用 weak-reference/lifecycle 回归验证。
 
 ### F-26 Quest public API 可把 Completed/Failed 留在 active 集合
 
-> **修复状态（2026-07-24）：已临时解决。** `RecordProgress(...)` 达成全部目标后复用 `CompleteQuest → MarkQuestClaimable`，completed 状态不会留在 active；`SetQuestState(...)` 只接受已有明确集合语义的 Active、Completed、Rewarded。按当前任务系统范围，Failed、Inactive、Unknown 暂时拒绝，不新增失败任务集合、状态迁移或存档字段；相关 service、PartyState、save round-trip 与正式文本任务流程回归均通过。
+> **修复状态（2026-07-25）：已完整解决。** `PartyState` 内部新增 `QuestJournalState`，作为 active、claimable、failed、rewarded 四个互斥阶段的唯一 mutation owner；accept/progress/complete/reward/fail/restart 均通过原子迁移，所有 query 返回 detached `QuestState`，外部不能再借用引用绕过集合归属。`QuestFailureRequest` 提供 typed 失败输入，失败态持久化时间、原因与上下文；authored `failure_policy = terminal/restartable` 经 `QuestDefinition.CanRestartAfterFailure` 投影，失败重启不再滥用成功后的 `is_repeatable`。PartyState schema 升至 v8、顶层 SaveVersion 升至 17，按确认不提供旧存档兼容；全部现有 quest 显式设为 terminal。聚焦回归覆盖集合互斥、detached query、terminal/restartable 分支、失败态往返、旧 Party v7 拒绝、集合/状态错配拒绝及 runtime snapshot。
 
-**位置**：`QuestProgressService.cs:142-168`，`PartyState.cs:274-287,379-387,562-575`。
+**位置**：`scripts/player/progression/QuestJournalState.cs`、`PartyState.cs`、`QuestState.cs`、`QuestDef.cs`，`scripts/systems/progression/QuestProgressService.cs`、`QuestFailureRequest.cs`，`scripts/systems/persistence/SaveSchemaVersions.cs`。
 
-`RecordProgress` 完成全部目标后只在活引用上 `MarkCompleted`，没有经 `MarkQuestClaimable` 移出 `active_quests`；`SetQuestState(Failed)` 也会路由到 active。读档要求 active 项状态必须为 Active，因此该 public API 可写出无法读回的 PartyState。当前未发现生产调用方，故列 P3；应删除入口或统一委托 PartyState 状态迁移。
+修复前，`RecordProgress` 完成全部目标后只在活引用上 `MarkCompleted`，没有经 `MarkQuestClaimable` 移出 `active_quests`；`SetQuestState(Failed)` 也会路由到 active。读档要求 active 项状态必须为 Active，因此该 public API 可写出无法读回的 PartyState。当前实现已删除这种“外借 canonical 引用后原地改状态”的模型。
 
 ### F-27 技能书使用不是原子事务
 
@@ -296,11 +322,15 @@ panel 保存 `_pending_battle_state` 和相关列表；Hide 只切 visible 并�
 
 ### F-27A 仓库命令把普通运行态变更立即写入完整存档
 
+> **修复状态（2026-07-24）：已解决。** 仓库直接加入、丢弃一件、丢弃全部和技能书使用成功后改走 `StagePartyState()`；facade 只调用 `GameSession.SetPartyState(...)` 同步 canonical party 并保留 `party_state` pending dirty，不调用 `RuntimeTransaction.Commit(...)` 或磁盘写入。session staging 失败仍按原 snapshot 恢复，但 payload 写入失败不再参与仓库命令成败。`run_world_map_runtime_proxy_regression.cs` 会强制 payload 写入失败并依次覆盖四种 mutation，验证命令成功、状态保留、pending dirty 且没有 save error。
+
 **位置**：`scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs:137,204,269,332,884-888`，`scripts/systems/game_runtime/RuntimeTransaction.cs:277-287`，`scripts/systems/persistence/GameSession.cs:1355-1374`。
 
-技能书使用、丢弃和直接加入库存成功后都会调用 `PersistPartyState()`；该入口不只是同步 session 内存，而会继续执行 `CommitRuntimeState(...) → PersistGameState()`。按当前产品保存时机，普通仓库操作只应更新运行态、把 `party_state` stage 到 `GameSession` 并保留 pending dirty，由既定 canonical flush 统一落盘；不应让每次库存操作自行建立磁盘保存点。修复时应覆盖整组仓库 mutation 命令，不能只删除技能书路径的一次调用。
+修复前，技能书使用、丢弃和直接加入库存成功后都会调用 `PersistPartyState()`；该入口不只是同步 session 内存，而会继续执行 `CommitRuntimeState(...) → PersistGameState()`。按当前产品保存时机，普通仓库操作只应更新运行态、把 `party_state` stage 到 `GameSession` 并保留 pending dirty，由既定 canonical flush 统一落盘；不能让每次库存操作自行建立磁盘保存点，也不能只修改技能书路径。
 
 ### F-28 `UnitProgress` 合并来源成环会栈溢出（接受风险，暂不修复）
+
+> **决策状态（2026-07-24）：接受风险，暂不修复。** 当前递归查询没有生产调用方，本轮不扩大为 merge graph schema、写入校验或存档契约变更；源码已在 API 旁明确记录无环前提与未来接线前必须完成的 cycle detection。该项不是“已解决”，未来出现第一个生产调用方前必须重新开启。
 
 **位置**：`scripts/player/progression/UnitProgress.cs:225-251`。
 
@@ -316,7 +346,7 @@ DFS 在递归返回后才把节点加入 `visited`，A→B→A 会无限递归�
 
 ### F-30 Vector2I 校验与 world runtime 读取支持集不一致
 
-> **修复状态（2026-07-24）：已解决。** 当前 save schema 只接受 Godot 原生 `Variant.Type.Vector2I`。`SaveSerializer` 已删除 `{x,y}` dictionary 的校验和读取兼容路径，玩家起点、挂载子地图坐标、返回栈、世界事件、资源点及据点坐标统一在进入 typed world owner 前拒绝非原生表示；正式 writer 仍写原生 `Vector2I`，无需版本升级或迁移。持久化回归验证原生坐标规范化后保值、dictionary 坐标被拒绝，相邻 save/submap 回归通过。
+> **修复状态（2026-07-24）：已解决。** 当前 save schema 只接受 Godot 原生 `Variant.Type.Vector2I`。`SaveSerializer` 已删除 `{x,y}` dictionary 的校验和读取兼容路径，玩家起点、挂载子地图坐标、返回栈、世界事件、资源点及据点坐标统一在进入 typed world owner 前拒绝非原生表示。后续统一迷雾持久态时，`fog_states` v2 的 explored/revealed 也改为原生 `Vector2I` 数组，旧字典/字符串表示不再接受；该破坏性开发期调整把顶层 save version 提升为 16，不提供迁移。持久化回归验证原生坐标规范化后保值、dictionary 坐标被拒绝，相邻 save/submap 回归通过。
 
 **位置**：`SaveSerializer.cs`，`tests/runtime/persistence/run_invalid_save_graceful_regression.cs`。
 
@@ -324,13 +354,17 @@ serializer 接受 native `Vector2I` 和 `{x,y}` dictionary，自己的 helper �
 
 ### F-31 部分 AI trace span 的 Enter/Exit 不具备异常安全性
 
-**位置**：`BattleAiChargeActionEvaluator.cs:96-102,140-146,156-280`，`BattleAiChargePathAoeActionEvaluator.cs:169-171`，`BattleAiMoveToRangeActionEvaluator.cs:676-678,767-787,1591-1699,1833-1919`。
+> **修复状态（2026-07-25）：已解决。** 原始 finding 列出的 charge、charge-path AOE 与 move-to-range evaluator 已统一使用 `BattleAiTraceSpan`，异常注入回归覆盖 preview、path 和 score 失败。后续复核发现 `BattleSkillPreviewService` 的 orchestrator、unit/ground preview、target validation、damage preview 与日志 span 仍存在同类裸 `Enter/Exit`；现已全部改为作用域 span，并在 `run_ai_trace_recorder_regression.cs` 增加异常关闭行为和该 owner 禁止裸 trace pair 的架构契约。`dotnet build magic.csproj --no-restore` 以 0 warning / 0 error 通过；trace recorder、melee charge、charge-path AOE、move-to-range、unit target gate、ground protocol、meteor preview 七条聚焦回归全部通过。
+
+**位置**：`BattleAiChargeActionEvaluator.cs`，`BattleAiChargePathAoeActionEvaluator.cs`，`BattleAiMoveToRangeActionEvaluator.cs`，`BattleSkillPreviewService.cs`，`tests/battle_runtime/ai/run_ai_trace_recorder_regression.cs`。
 
 preview/path/score 在手写 Enter 与 Exit 之间抛异常时，frame 留在全局 recorder stack，外层 span 随后出现 mismatch。统一改用 `using BattleAiTraceSpan` 或 try/finally。
 
 ### F-32 高频 barrier/simulation fixture 仍创建无 owner 的 Godot 集合
 
-**位置**：`BattleBarrierService.cs:217,243,848,1259-1269`，`BattleBarrierOutcomeResolver.cs:551-583`，`BattleSimFormalCombatFixture.cs:459-483,575-710,879-917,1281-1313,1455-1479`。
+> **修复状态（2026-07-24）：已解决。** barrier 两个 owner 直接调用 `IEnumerable<Vector2I>` typed changed-coord 重载，删除临时 Godot Array/转换 helper。formal fixture 的六维属性、技能配置、核心技能和装备占位改为 CLR DTO/List；仅角色创建遗留 payload 在同步调用处建立 Request-domain projection lease。battle character gateway 的成就返回值收敛为 `IReadOnlyList<StringName>`，simulation 不再为每个事件创建空 typed Array，正式角色模块只在 Godot-facing 公共包装处投影。架构回归锁定 typed barrier 路径、plain roster contract 与每成员 lease 回到基线。
+
+**位置**：`BattleBarrierService.cs`，`BattleBarrierOutcomeResolver.cs`，`IBattleRatingCharacterGateway.cs`，`BattleSimFormalCombatFixture.cs`，`CharacterManagementModule.cs`。
 
 barrier 路径创建裸 `Godot.Collections.Array`，而 runtime 已有 CLR typed overload；formal fixture 也大量生成不受 lease/scope 所有的临时 Godot wrapper。它们依赖终结器回收并增加 native churn。barrier 应直接走 typed overload；fixture 应用 CLR DTO 构造 roster，仅在遗留 Godot API 的最窄边界创建 request lease。
 
@@ -360,15 +394,12 @@ F-03、F-04、F-13、F-14、F-30 分别展示了死亡、属性、保存提交�
 
 在 `scripts/systems/game_runtime`、`settlement`、`world`、`persistence` 中，`GDictionary` 仍同时承担 request、mutable domain state、UI context 和 save payload。F-01 就发生在 dictionary domain state 与不完整 typed DTO 之间。后续迁移应优先围绕事务 aggregate 和边界 DTO，而不是机械地把每个 dictionary 包一层类型。
 
-## 建议修复顺序
+## 收尾状态与剩余门禁
 
-1. **先止损**：F-01、F-03；加能证明完整状态和不变量的失败回归，再修 owner。
-2. **恢复可交付性**：F-02；确认 48 个文件归属，用干净 worktree 构建。
-3. **统一正式真相**：F-04、F-13；F-14、F-30 已解决。
-4. **重建 AI 诊断边界**：F-06～F-12；测试期完整 stable detection 与可读 diff 分离，发现非豁免写入后 fail-fast，不回滚失败 fixture。
-5. **修正模拟可信度和生命周期**：F-05、F-20～F-22、F-31～F-32。
-6. **收紧内容入口**：F-15～F-19；所有回归应从真实 registry/process snapshot 入口进入。
-7. **处理潜伏 API**：修复 F-27A，继续复核 F-25、F-28；F-26 已临时封口，F-29 已解决，原 F-27 已撤销，原 F-23/F-24 已按非生产工具范围排除。
+1. **已完整解决**：F-01、F-03～F-22、F-25、F-26、F-27A、F-29～F-32；每项状态、当前 owner 与回归依据见对应 finding。
+2. **处理中**：F-02 原剩余 14 个源码已进入 index，但收尾期间又出现 2 个仍在迁移中的未跟踪源码；待并发改动稳定后必须重新确认归属、按功能主题与调用方和测试共同提交，并在干净 worktree/clone 构建。
+3. **接受风险**：F-28 保持未修；第一个生产调用方接入递归 merge source API 前，cycle detection 是前置门禁。
+4. **撤销或排除**：原 F-27 已复核撤销；原 F-23/F-24 属人工离线工具，不进入当前生产修复队列。
 
 ## 验证记录
 
@@ -424,6 +455,20 @@ git ls-files --others --exclude-standard -- scripts
 - `python tests/run_regression_suite.py --jobs auto`：397 passed / 0 failed，总耗时 261.9 秒；未包含按仓库规则排除的数值型 battle simulation/balance 入口。
 - 未运行 6v12 数值基线或其他平衡 benchmark；本次只运行行为契约回归。
 
+### 统一收尾复核（2026-07-25）
+
+- 源码复核确认 F-11 的 ordinal `unit_id` 最终平局键、F-20 的 ground-effect 子服务 teardown、F-21 的 runtime/trace 异常清理和 F-22 的报告原子发布边界均仍存在；对应聚焦回归也包含上述失败模式。
+- 本次两次尝试重新执行 `dotnet build magic.csproj --no-restore`，但当前并发工作树中的另一组 `BattleUnitState` weapon owner 迁移尚未完成，分别产生 877 和 843 个编译错误；错误数在两次构建间变化也表明文件仍在被并发修改。该失败不是本次文档修改造成的；由于 build 未通过，本次没有运行 Godot headless 回归，不能把旧程序集结果记为当前 PASS。
+- F-02 首次复核时的 14 个剩余源码均已进入 index；收尾过程中又出现 `BattleExitObjectiveRules.cs` 与 `BattleUnitWeaponProjectionState.cs` 两个未跟踪源码，因此 F-02 保持处理中，干净 worktree 构建仍是提交整理阶段的最终门禁。
+
+### F-26 正式修复复验（2026-07-25）
+
+- `dotnet build magic.csproj --no-restore`：通过，0 warning / 0 error；此前统一收尾复核记录的并发 weapon owner 迁移编译阻塞已经消失。
+- `run_typed_party_quest_state_regression.cs`、`run_quest_progress_service_regression.cs`、`run_party_state_duplicate_regression.cs`、`run_quest_accept_requirement_evaluator_regression.cs`、`run_character_management_quest_materializer_regression.cs`：通过。
+- `run_save_serializer_quest_round_trip_regression.cs`、`run_save_projection_lease_regression.cs`、`run_game_runtime_snapshot_builder_regression.cs`、`run_quest_config_validation.cs`：通过。
+- `run_game_runtime_settlement_command_handler_regression.cs`、`run_npc_quest_offer_regression.cs`、`run_text_command_quest_progress_regression.cs`：通过；前两个 runner 的坏内容 fixture 会按预期输出 validation error，但测试最终 PASS。
+- 本次只执行 F-26 相关聚焦回归，没有重新运行常规全量回归或数值型 battle simulation。
+
 ## 已复核并排除的旧/表面候选
 
 - 新建存档的持久化失败回滚当前已存在于 `GameSession.cs:636-706`，不再沿用旧 review 结论。
@@ -435,14 +480,11 @@ git ls-files --others --exclude-standard -- scripts
 - 单纯文件过大、partial 拆分、无 namespace、理论 barrier id 碰撞没有独立计为缺陷。
 - `scripts/systems/fate/LowLuckRelicRules.cs` 已纳入逐行覆盖，未发现新的可证实问题。
 
-## 开放设计决策
+## 剩余设计决策
 
-以下决策会影响修复形态，不应在实现时自行增加兼容逻辑：
+Failed quest 的正式归属已经确定：它保留在 `QuestJournalState` 的独立持久 failed 集合中，终止态记录失败时间、原因和上下文；只有内容显式声明 restartable 时才可清空旧失败记录并重新进入 fresh active。F-26 不再有待决设计。
 
-1. 装备门槛允许哪些有效属性来源：身份、职业、升华等永久来源应与当前属性真相一致；临时 status 和其他装备是否允许，需要明确。无论选择什么，preview/commit/battle-local 都必须共用同一规则。
-2. **已决策（2026-07-23）**：`shop_inventory_seed` 不是确定性契约，已从据点顶层 schema 删除；各商店继续独立使用真随机并持有自己的实际 seed / 刷新步数。
-3. Failed quest 是独立持久集合、终止后移除，还是允许继续保留；不能继续放在只接受 Active 的集合中。
-4. save payload 已提交、index 失败时，用户可见语义是 partial、recovered 还是 failed-with-orphan。
+其余原开放项均已闭合：F-04 已统一由正式有效属性快照决定装备门槛；F-14 已删除据点级 `shop_inventory_seed`；F-13 已确定 payload 是权威提交点、index 是可重建缓存。F-28 不是待决方案，而是已接受并带有启用前置门禁的风险。
 
 ## 附录 A：48 个未跟踪源码
 

@@ -13,7 +13,7 @@
 - `TraitInstanceState.roll_values` 在内存中是 `Array<TraitRollValueState>`；只有 `TraitInstanceState.ToDictionary()/FromDictionary()` 和 battle/party/equipment save payload 边界把 `roll_values` 投成 dictionary。
 - `EffectiveTraitSet` 不维护 `_byKey` / `_byTrait` dictionary 索引；typed 查询使用列表扫描，避免把 dictionary 作为正式 runtime cache。
 - `BattleUnitState.effective_trait_instances` 在内存中是 `Array<BattleEffectiveTraitInstanceState>`；只有 `BattleUnitState.ToDictionary()/FromDictionary()` save 边界把它序列化成 dictionary 数组。
-- 必须保留 `tests/progression/schema/run_trait_dictionary_boundary_regression.cs`，防止 trait 正式路径回退到 dictionary-backed runtime data。
+- 不使用读取 C# 或 `.tres` 文本的回归来约束 dictionary 边界。静态依赖约束归 architecture analyzer 与代码检视；资源和运行时契约分别由 trait registry、instance schema、effective-set 与 battle owner 行为回归覆盖。
 
 ---
 

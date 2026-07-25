@@ -1,7 +1,7 @@
 # 战斗模拟、数值分析与 AI 调参系统说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-22`
+> 核对日期：`2026-07-25`
 
 ## 关联上下文单元
 
@@ -77,12 +77,15 @@
 
 `BattleSimScenarioDef` 与 `BattleSimUnitSpec` 是同步 authoring/import `Resource`。它们只在加载 `.tres`、解析导出字段、校验输入并执行投影时存在于入口边界；入口必须在同一同步调用链内调用 `ToDefinition()`，不能把这两个 authored `Resource` 保存在 runner、执行循环、报告或文件输出对象中。
 
-`BattleSimScenarioDef.ToDefinition()` 会把场景字段、seed、地格快照和双方单位一次性投影为不可变的 plain `BattleSimScenarioDefinition`。其中每个 authored `BattleSimUnitSpec` 会通过 `ToDefinition()` 变成 `BattleSimUnitDefinition`；单位定义保存深拷贝后的 plain 快照，每次运行再重建一份新的可变 `BattleUnitState`。因此：
+`BattleSimScenarioDef.ToDefinition()` 会把场景字段、seed、地格快照和双方单位一次性投影为不可变的 plain `BattleSimScenarioDefinition`。其中每个 authored `BattleSimUnitSpec` 会通过 `ToDefinition()` 变成 `BattleSimUnitDefinition`；单位定义保存深拷贝后的 canonical plain 快照，并私有保存不进入 canonical codec 的规范化装备能力投影种子。每次运行先重建一份新的可变 `BattleUnitState`，再把该种子原子安装到新单位。因此：
 
 - `ToDefinition()` 返回后再修改 authored scenario/unit `Resource`，不会改变已生成的运行定义。
-- 不同 run 从同一 `BattleSimUnitDefinition` 重建的 `BattleUnitState` 不共享可变状态。
+- 不同 run 从同一 `BattleSimUnitDefinition` 重建的 `BattleUnitState` 不共享可变状态；装备能力 source 与 runtime-only temporal modifier 也由 definition 防御复制，不借用来源单位或另一局的集合。
+- 当前 `.tres` 的 `BattleSimUnitSpec` schema 不生成装备能力 source 或 temporal modifier，因此 authored scenario 的 seed 通常为空；这条合同保证的是 plain/programmatic 入口已经持有的 normal runtime projection 不会再被 definition clone 或普通 Runner 的开战交接剥离，不代表 authored scenario 或未注入完整 projection catalog 的 formal benchmark 会产生非空 temporal 内容。
 - `BattleSimRunner`、`BattleSimExecutionLoop`、`BattleSimScenarioReport`、`BattleSimReportProjection`、`BattleSimFilePayloadProjection` 与 `BattleSimTraceSummaryBuilder` 只消费 `BattleSimScenarioDefinition` / `BattleSimUnitDefinition` 及其他 plain projection，不持有原始 scenario/unit `Resource`。
-- 开战和序列化所需的 Godot `Dictionary` 只在请求边界临时投影，并由对应的 `GodotProjectionLease` 在使用后释放；它们不是长期运行状态。
+- 普通 `BattleSimRunner` 为每局创建 fresh ally/enemy `BattleUnitState`，经一次性 `BattleStartUnitRoster` 把所有权交给 `BattleRuntimeModule`；对应 start context 只携带地形、出生点和选项，不再重复携带 `battle_party` / `enemy_units` canonical payload。runtime 会拒绝同一阵营同时由 typed roster 与 context 提供，避免双重真相。
+- `BattleSimFormalCombatFixture` 从同一 runtime/context 构造 fresh hostile units，并由 `BattleSimFormalRuntimeStartInput` 把 caller-owned context lease 与 enemy-only typed roster 绑定为同一次同步 start 输入；hostile 不再经过 canonical `enemy_units` 往返，ally 仍由 party gateway 和 `ally_member_ids` 构造。这样会保留 factory 已经生成的 equipment source 与 runtime-only temporal projection。
+- 其他同步 schema/序列化调用所需的 Godot `Dictionary` 仍只在请求边界临时投影，并由对应的 `GodotProjectionLease` 在使用后释放；它们不是长期运行状态，也不是普通模拟内部的单位交接通道。
 
 从路径加载的 scenario 资源由 `ResourceLoader` 缓存管理。CLI 或 benchmark 只需要加载它、立即调用 `ToDefinition()`，然后丢弃局部引用；benchmark 不拥有这个 path-backed `Resource`，不得手工调用 `Dispose()` 或 `Free()`。benchmark 仍应显式释放自己创建并拥有的 fixture、runtime service、文件 scope 和 projection lease。
 
@@ -224,9 +227,9 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 6. `BattleSimOverrideApplier` 深拷贝技能和 AI brain 资源，再把 profile 的 patch 应用到拷贝上，避免污染原始资源。
 7. runtime 使用被 patch 后的资源完成 `setup(...)`。
 8. runtime 开启 AI trace，并设置本次运行使用的 `BattleAiScoreProfile`。
-9. `BattleSimScenarioDefinition` 通过 `BuildStartContextLease()` 临时投影开战上下文，明确给出：
-   - 友军单位
-   - 敌军单位
+9. 普通 `BattleSimRunner` 通过 `BuildRuntimeStartContextLease()` 临时投影不含单位 payload 的开战上下文，并通过 `CreateRuntimeRosterTyped()` 为本局创建一次性 typed roster，明确给出：
+   - fresh 友军单位
+   - fresh 敌军单位
    - 出生点
    - 地图大小
    - 地格定义
@@ -261,7 +264,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `description`
   - 文本说明。
 - `map_size`
-  - 这是 battle sim 场景资源自己的地图大小字段，不是 runtime battle start 的 legacy `map_size` 输入。手工平地布局会直接使用它；当开启正式地形生成时，`BattleSimScenarioDefinition.BuildStartContextLease()` 会把它转换成正式输入字段 `battle_map_size`。
+  - 这是 battle sim 场景资源自己的地图大小字段，不是 runtime battle start 的 legacy `map_size` 输入。手工平地布局会直接使用它；当开启正式地形生成时，`BattleSimScenarioDefinition.BuildRuntimeStartContextLease()` 会把它转换成正式输入字段 `battle_map_size`。
 - `terrain_profile_id`
   - 地形 profile 标识。
 - `use_formal_terrain_generation`
@@ -289,32 +292,31 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
   - battle seed 不驱动命中、伤害、豁免、随机目标、装备能力随机分支等战斗内掷骰。它们必须继续使用彼此独立的 `TrueRandomSeedService` 随机结果。
   - 因此相同 battle seed 只能复现地形及显式 seed-derived fixture 输入，不能复现完整战斗过程或胜负结果。
 
-`BattleSimScenarioDefinition.BuildStartContextLease()` 会把 plain scenario definition 临时投影为 runtime 真正使用的开战上下文；调用方在本次单场运行的请求作用域结束时释放 lease。字段包括：
+普通 `BattleSimRunner` 使用 `BattleSimScenarioDefinition.BuildRuntimeStartContextLease()`，把 plain scenario definition 临时投影为不含单位 payload 的开战上下文；调用方在本次单场运行的请求作用域结束时释放 lease。单位由同一 scenario 的 `CreateRuntimeRosterTyped()` 独立重建并一次性交给 runtime，不能再向该 context 加入 `battle_party` / `enemy_units`。context 字段包括：
 
 - 手工布局模式：
-  - `battle_party`
-  - `enemy_units`
   - `ally_spawns`
   - `enemy_spawns`
   - `map_size`
   - `cells`
+  - `world_coord`
   - `tu_per_tick`
   - `battle_terrain_profile`
 - 正式地形生成模式：
-  - `battle_party`
-  - `enemy_units`
   - `battle_map_size`
   - `world_coord`
   - `tu_per_tick`
   - `battle_terrain_profile`
 
+`BuildStartContextLease()` 仍保留给 schema projection 和显式 canonical payload 的同步调用方；它会加入 `battle_party` / `enemy_units`，这些调用方必须继续使用四参数 legacy start，不能把同一 context 与 typed roster 混用。普通 Runner 与 formal fixture 的实际 runtime start 都改用不含场景单位 payload 的 `BuildRuntimeStartContextLease()` 基础 context。
+
 当 `use_formal_terrain_generation = true` 时，模拟不会再因为 `map_size` / `cells` / `ally_spawns` / `enemy_spawns` 命中 `BattleUnitFactory` 的手工地形回退路径，而是直接走正式 `BattleTerrainGenerator`。这适合做“模拟地图必须与正式战斗同尺寸、同峡谷生成逻辑”的 AI 对战。
 
 ### 单位定义
 
-`BattleSimUnitSpec` 用于旧式显式参战单位夹具。它是同步 authoring/import `Resource`，职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。`BattleSimUnitSpec.ToDefinition()` 会把它深拷贝为 immutable plain `BattleSimUnitDefinition`；运行时每场战斗都由该 definition 新建独立的 `BattleUnitState`，不会持有或复用原始 `BattleSimUnitSpec`。
+`BattleSimUnitSpec` 用于旧式显式参战单位夹具。它是同步 authoring/import `Resource`，职责不是“引用一个模板并自动生成全部内容”，而是“把模拟需要的单位状态显式写出来”。`BattleSimUnitSpec.ToDefinition()` 会把它深拷贝为 immutable plain `BattleSimUnitDefinition`；运行时每场战斗都由该 definition 新建独立的 `BattleUnitState`，不会持有或复用原始 `BattleSimUnitSpec`。plain/programmatic 调用方可通过 `BattleSimScenarioUnitEntry.FromProjectedState(...)` 把已经投影完成的 unit 纳入 scenario definition；该入口会捕获 normal equipment-projection seed，并在每次 scenario roster materialization 时防御复制。当前 authored `BattleSimUnitSpec` 没有生成该 seed 的字段。
 
-如果模拟目标是玩家角色、队伍成员、装备投影、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与正式装备投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
+如果模拟目标是玩家角色、队伍成员、武器/equipment view、技能进度、职业生命成长或建卡属性，优先使用 `BattleSimFormalCombatFixture`，不要在 `.tres` 场景里写 `base_attributes` / `attribute_overrides` / `weapon_projection`。当前 `mixed_2sword_1arch_mirror_simulation` 与 `mixed_6v12_mirror_simulation` 就是这种模式：场景资源只保留地图、地形、时间轴和 seed，单位由 fixture 走 `CharacterCreationService`、`CharacterManagementModule`、`AttributeService` 与现有正式角色/装备视图投影生成，并在开战前按装备与职业被动后的有效 `hp_max` 补满所有成员当前生命。hostile units 由 factory 生成后直接经 enemy-only typed roster 移交 runtime，不再 canonicalize 到 `enemy_units`，因此 factory 已产生的 runtime-only temporal modifier 不会在开战交接中丢失；ally 仍由正式 character gateway 路径生成。当前 formal 默认 loadout 本身不产生 temporal modifier，而且两个实际 benchmark 的 runtime setup 尚未注入 trait/equipment-binding catalog，所以这里不能推定默认 benchmark 已出现非空装备能力投影。formal fixture 会显式开启 `validate_spawn_reachability` 与 `validate_bidirectional_spawn_reachability`；如果生成出的地图导致 player 与 hostile 任一方向无法抵达可攻击位置，`BattleRuntimeModule.start_battle()` 会用下一个 terrain seed attempt 重刷地图，而不是把不可交战地图纳入模拟样本。
 
 正式角色 fixture 支持 roster options：
 
