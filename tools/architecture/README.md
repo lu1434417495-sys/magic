@@ -78,11 +78,10 @@ requested old SARIF before reference resolution, so a skipped compiler cannot
 silently feed the exporter a stale inventory.
 
 The reviewed 2026-07-22 snapshot contained 39,341 cross-layer symbol pairs and
-172 forbidden pairs. After owner corrections through 2026-07-24, the checked-in
-baseline contains 100 exact tuples: 62 child-to-composition root dependencies,
-30 runtime-to-authoring dependencies, and 8 authoring-to-runtime dependencies.
-The resolved 61 pending-reward DTO owner tuples, 10 attack-policy-to-composition
-root tuples, and one authoring-to-runtime tuple are intentionally absent. A
+172 forbidden pairs. After owner corrections through 2026-07-26, the checked-in
+baseline is empty: all reviewed pending-reward DTO, composition-root,
+runtime-to-authoring, and authoring-to-runtime tuples were removed from current
+code. A
 baseline entry is not a directory exemption:
 it suppresses only one
 `(rule, source symbol, target symbol)` tuple, while `MAGICARCH100` continues to
