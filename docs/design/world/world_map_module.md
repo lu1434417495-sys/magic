@@ -90,6 +90,8 @@ LoginScreen / Save
 
 世界生成输出和存档中的世界数据是 `Dictionary`。根世界和每个子地图的 `world_data` 使用同一主体 schema：
 
+根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。
+
 | key | 类型 | 说明 |
 |---|---|---|
 | `map_seed` | `int` / `long` | 实际使用的生成种子。|

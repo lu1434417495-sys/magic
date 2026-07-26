@@ -5,9 +5,6 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class WorldRuntimeData
 {
-    private const string WorldMapSeedKey = "map_seed";
-    private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
-
     private readonly List<WorldMapSubmapReturnStackEntry> _submapReturnStack = new();
     private readonly List<WorldMapSettlementRecordData> _settlements = new();
     private readonly List<WorldMapEventData> _worldEvents = new();
@@ -91,25 +88,38 @@ internal sealed class WorldRuntimeData
             return null;
         }
         WorldRuntimeData result = new();
-        result.MapSeed = ReadLong(data, WorldMapSeedKey, 1L);
-        result.WorldStep = ReadInt(data, "world_step", 0);
+        result.MapSeed = ReadLong(data, WorldRuntimeSaveSchema.MapSeed, 1L);
+        result.WorldStep = ReadInt(data, WorldRuntimeSaveSchema.WorldStep, 0);
         result.NextEquipmentInstanceSerial = ReadInt(
             data,
-            WorldEquipmentInstanceSerialKey,
+            WorldRuntimeSaveSchema.NextEquipmentInstanceSerial,
             1
         );
-        result.ActiveSubmapId = ReadString(data, "active_submap_id");
-        result.HasWorldNpcs = data.ContainsKey("world_npcs");
-        result.HasPlayerStartCoord = data.ContainsKey("player_start_coord");
-        result.PlayerStartCoord = ReadVector2I(data, "player_start_coord", Vector2I.Zero);
-        result.HasPlayerStartSettlementId = data.ContainsKey("player_start_settlement_id");
-        result.PlayerStartSettlementId = ReadString(data, "player_start_settlement_id");
-        result.HasPlayerStartSettlementName = data.ContainsKey("player_start_settlement_name");
-        result.PlayerStartSettlementName = ReadString(data, "player_start_settlement_name");
-        result.HasFogStates = data.ContainsKey("fog_states");
+        result.ActiveSubmapId = ReadString(data, WorldRuntimeSaveSchema.ActiveSubmapId);
+        result.HasWorldNpcs = data.ContainsKey(WorldRuntimeSaveSchema.WorldNpcs);
+        result.HasPlayerStartCoord = data.ContainsKey(WorldRuntimeSaveSchema.PlayerStartCoord);
+        result.PlayerStartCoord = ReadVector2I(
+            data,
+            WorldRuntimeSaveSchema.PlayerStartCoord,
+            Vector2I.Zero
+        );
+        result.HasPlayerStartSettlementId =
+            data.ContainsKey(WorldRuntimeSaveSchema.PlayerStartSettlementId);
+        result.PlayerStartSettlementId = ReadString(
+            data,
+            WorldRuntimeSaveSchema.PlayerStartSettlementId
+        );
+        result.HasPlayerStartSettlementName =
+            data.ContainsKey(WorldRuntimeSaveSchema.PlayerStartSettlementName);
+        result.PlayerStartSettlementName = ReadString(
+            data,
+            WorldRuntimeSaveSchema.PlayerStartSettlementName
+        );
+        result.HasFogStates = data.ContainsKey(WorldRuntimeSaveSchema.FogStates);
         if (result.HasFogStates)
         {
-            using GDictionary fogStateValues = ReadDictionary(data, "fog_states");
+            using GDictionary fogStateValues =
+                ReadDictionary(data, WorldRuntimeSaveSchema.FogStates);
             Dictionary<string, object> fogStates;
             try
             {
@@ -128,25 +138,29 @@ internal sealed class WorldRuntimeData
             }
         }
 
-        using GArray returnStackValues = ReadArray(data, "submap_return_stack");
+        using GArray returnStackValues =
+            ReadArray(data, WorldRuntimeSaveSchema.SubmapReturnStack);
         if (!ReadReturnStack(result._submapReturnStack, returnStackValues))
             return null;
-        using GArray settlementValues = ReadArray(data, "settlements");
+        using GArray settlementValues = ReadArray(data, WorldRuntimeSaveSchema.Settlements);
         if (!ReadSettlements(result._settlements, settlementValues))
             return null;
-        using GArray eventValues = ReadArray(data, "world_events");
+        using GArray eventValues = ReadArray(data, WorldRuntimeSaveSchema.WorldEvents);
         if (!ReadWorldEvents(result._worldEvents, eventValues))
             return null;
-        using GArray encounterAnchorValues = ReadArray(data, "encounter_anchors");
+        using GArray encounterAnchorValues =
+            ReadArray(data, WorldRuntimeSaveSchema.EncounterAnchors);
         if (!ReadEncounterAnchors(result._encounterAnchors, encounterAnchorValues))
             return null;
-        using GArray resourceNodeValues = ReadArray(data, "resource_nodes");
+        using GArray resourceNodeValues =
+            ReadArray(data, WorldRuntimeSaveSchema.ResourceNodes);
         if (!ReadResourceNodes(result._resourceNodes, resourceNodeValues))
             return null;
-        using GDictionary mountedSubmapValues = ReadDictionary(data, "mounted_submaps");
+        using GDictionary mountedSubmapValues =
+            ReadDictionary(data, WorldRuntimeSaveSchema.MountedSubmaps);
         if (!ReadMountedSubmaps(result._mountedSubmaps, mountedSubmapValues))
             return null;
-        using GArray worldNpcValues = ReadArray(data, "world_npcs");
+        using GArray worldNpcValues = ReadArray(data, WorldRuntimeSaveSchema.WorldNpcs);
         if (!ReadWorldNpcs(result._worldNpcs, worldNpcValues))
             return null;
         return result;
@@ -232,16 +246,17 @@ internal sealed class WorldRuntimeData
 
         var result = new Dictionary<string, object>(System.StringComparer.Ordinal)
         {
-            [WorldMapSeedKey] = MapSeed,
-            ["world_step"] = WorldStep,
-            [WorldEquipmentInstanceSerialKey] = NextEquipmentInstanceSerial,
-            ["active_submap_id"] = ActiveSubmapId,
-            ["submap_return_stack"] = returnStack,
-            ["settlements"] = settlements,
-            ["world_events"] = worldEvents,
-            ["encounter_anchors"] = encounterAnchors,
-            ["resource_nodes"] = resourceNodes,
-            ["mounted_submaps"] = mountedSubmaps,
+            [WorldRuntimeSaveSchema.MapSeed] = MapSeed,
+            [WorldRuntimeSaveSchema.WorldStep] = WorldStep,
+            [WorldRuntimeSaveSchema.NextEquipmentInstanceSerial] =
+                NextEquipmentInstanceSerial,
+            [WorldRuntimeSaveSchema.ActiveSubmapId] = ActiveSubmapId,
+            [WorldRuntimeSaveSchema.SubmapReturnStack] = returnStack,
+            [WorldRuntimeSaveSchema.Settlements] = settlements,
+            [WorldRuntimeSaveSchema.WorldEvents] = worldEvents,
+            [WorldRuntimeSaveSchema.EncounterAnchors] = encounterAnchors,
+            [WorldRuntimeSaveSchema.ResourceNodes] = resourceNodes,
+            [WorldRuntimeSaveSchema.MountedSubmaps] = mountedSubmaps,
         };
         if (HasWorldNpcs)
         {
@@ -251,16 +266,19 @@ internal sealed class WorldRuntimeData
                 if (npc != null && !npc.IsEmpty)
                     worldNpcs.Add(npc.BuildSaveSnapshotPlain());
             }
-            result["world_npcs"] = worldNpcs;
+            result[WorldRuntimeSaveSchema.WorldNpcs] = worldNpcs;
         }
         if (HasPlayerStartCoord)
-            result["player_start_coord"] = PlayerStartCoord;
+            result[WorldRuntimeSaveSchema.PlayerStartCoord] = PlayerStartCoord;
         if (HasPlayerStartSettlementId)
-            result["player_start_settlement_id"] = PlayerStartSettlementId;
+            result[WorldRuntimeSaveSchema.PlayerStartSettlementId] =
+                PlayerStartSettlementId;
         if (HasPlayerStartSettlementName)
-            result["player_start_settlement_name"] = PlayerStartSettlementName;
+            result[WorldRuntimeSaveSchema.PlayerStartSettlementName] =
+                PlayerStartSettlementName;
         if (HasFogStates)
-            result["fog_states"] = RuntimePlainPayload.CloneDictionary(_fogStates);
+            result[WorldRuntimeSaveSchema.FogStates] =
+                RuntimePlainPayload.CloneDictionary(_fogStates);
         return result;
     }
 
