@@ -588,7 +588,7 @@ public class PartyEquipmentService
         mods.Add(
             new AttributeModifierDefinition(
                 AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus),
-                AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+                AttributeModifierContentRules.ToStringName(AttributeModifierMode.Flat),
                 mdb,
                 0,
                 "equipment",

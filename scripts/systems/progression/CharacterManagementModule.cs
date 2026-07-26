@@ -6,7 +6,11 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterGateway, IDisposable
+public sealed partial class CharacterManagementModule
+    : IBattleRuntimeCharacterGateway,
+        IFateCharacterGateway,
+        ICharacterSkillLearningGateway,
+        IDisposable
 {
     private static readonly StringName RewardTypeAchievement = "achievement";
     private static readonly StringName RewardTypeQuest = "quest";
@@ -1231,6 +1235,22 @@ public sealed partial class CharacterManagementModule : IBattleRuntimeCharacterG
         StringName skill_id,
         LearnSkillOptionsData options = null
     ) => _learn_skill_internal(member_id, skill_id, null, options ?? new LearnSkillOptionsData());
+
+    PracticeSkillLearnStatus ICharacterSkillLearningGateway.GetPracticeSkillLearnStatus(
+        StringName memberId,
+        StringName skillId
+    ) => GetPracticeSkillLearnStatusTyped(memberId, skillId);
+
+    bool ICharacterSkillLearningGateway.LearnSkill(
+        StringName memberId,
+        StringName skillId,
+        bool confirmPracticeReplacement
+    ) =>
+        LearnSkillTyped(
+            memberId,
+            skillId,
+            new LearnSkillOptionsData(confirmPracticeReplacement)
+        );
 
     public bool LearnKnowledge(StringName member_id, StringName knowledge_id) =>
         _learn_knowledge_internal(member_id, knowledge_id);

@@ -35,9 +35,9 @@ internal class FortunaGuidanceService
     private const string ChapterEventFlagPrefix = "fortuna_guidance_chapter_seen:";
     private const string DevoutBattleFlagPrefix = "fortuna_guidance_devout_battle:";
 
-    private IBattleRuntimeCharacterGateway _characterGateway;
+    private IFateCharacterGateway _characterGateway;
 
-    internal void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
+    internal void Setup(IFateCharacterGateway characterGateway = null)
     {
         _characterGateway = characterGateway;
     }
@@ -174,11 +174,11 @@ internal class FortunaGuidanceService
     {
         if (_characterGateway == null || memberId == "" || achievementId == "")
             return false;
-        return (_characterGateway as CharacterManagementModule)?.UnlockAchievement(
+        return _characterGateway.UnlockAchievement(
             memberId,
             achievementId,
             BuildSummaryText(achievementId)
-        ) ?? false;
+        );
     }
 
     private static bool IsFortunaMarked(PartyMemberState memberState)

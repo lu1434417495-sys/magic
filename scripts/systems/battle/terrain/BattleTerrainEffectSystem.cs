@@ -10,9 +10,9 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     private static readonly StringName StackBehaviorIgnoreExisting = "ignore_existing";
     private const int TuGranularity = 5;
 
-    private WeakReference<BattleRuntimeModule> _runtimeRef = null;
+    private WeakReference<IBattleTerrainEffectRuntime> _runtimeRef = null;
 
-    private BattleRuntimeModule _ResolveRuntime()
+    private IBattleTerrainEffectRuntime _ResolveRuntime()
     {
         if (_runtimeRef == null)
             return null;
@@ -20,9 +20,12 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         return runtime;
     }
 
-    public void Setup(BattleRuntimeModule runtime)
+    public void Setup(IBattleTerrainEffectRuntime runtime)
     {
-        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
+        _runtimeRef =
+            runtime != null
+                ? new WeakReference<IBattleTerrainEffectRuntime>(runtime)
+                : null;
     }
 
     public void Dispose()
@@ -473,7 +476,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     }
 
     private void ApplyContactEffectForUnit(
-        BattleRuntimeModule runtime,
+        IBattleTerrainEffectRuntime runtime,
         BattleState state,
         BattleUnitState targetUnit,
         BattleTerrainEffectState effectState,

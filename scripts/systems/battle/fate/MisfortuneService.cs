@@ -27,10 +27,14 @@ internal sealed class MisfortuneService : IDisposable
     private static readonly StringName CalamityCapacityBonusStatId = "calamity_capacity_bonus";
     private static readonly StringName ReverseFortuneStatusId = "reverse_fortune";
     private static readonly StringName MisstepToSchemeSkillId = "misstep_to_scheme";
-    private static readonly StringName BlackStarBrandSkillId = "black_star_brand";
-    private static readonly StringName CrownBreakSkillId = "crown_break";
-    private static readonly StringName DoomSentenceSkillId = "doom_sentence";
-    private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
+    private static readonly StringName BlackStarBrandSkillId =
+        MisfortuneContentRules.BlackStarBrandSkillId;
+    private static readonly StringName CrownBreakSkillId =
+        MisfortuneContentRules.CrownBreakSkillId;
+    private static readonly StringName DoomSentenceSkillId =
+        MisfortuneContentRules.DoomSentenceSkillId;
+    private static readonly StringName BlackCrownSealSkillId =
+        MisfortuneContentRules.BlackCrownSealSkillId;
 
     private const int BaseCalamityCap = 3;
     private const int MaxCalamityCapacityBonus = 2;
@@ -93,7 +97,7 @@ internal sealed class MisfortuneService : IDisposable
 
     public static bool IsMisfortuneGatedSkill(StringName skillId)
     {
-        return MisfortuneSkillGateRules.ContainsKey(ProgressionDataUtils.to_string_name(skillId));
+        return MisfortuneContentRules.IsGatedSkill(skillId);
     }
 
     public static string GetSkillSidecarMissingMessage(StringName skillId)

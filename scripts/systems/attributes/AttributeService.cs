@@ -540,7 +540,7 @@ public sealed class AttributeService
 
         var modifier = new AttributeModifierDefinition(
             _context.versatility_pick,
-            AttributeModifier.ToStringName(AttributeModifierMode.Flat),
+            AttributeModifierContentRules.ToStringName(AttributeModifierMode.Flat),
             1,
             0,
             "",
@@ -670,7 +670,7 @@ public sealed class AttributeService
         entries.Add(
             new AttributeModifierEntry(
                 modifier.AttributeId,
-                AttributeModifier.ToMode(modifier.Mode),
+                AttributeModifierContentRules.ToMode(modifier.Mode),
                 modifier.GetValueForRank(rank),
                 sourceType != "" ? sourceType : modifier.SourceType,
                 sourceId != "" ? sourceId : modifier.SourceId

@@ -17,7 +17,7 @@ internal sealed class FateRuntimeModule
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
 
     private IBattleRuntimeCharacterGateway _characterGateway;
-    private BattleRuntimeModule _battleRuntimeGateway;
+    private IMisfortuneGuidanceBattleQuery _battleRuntimeGateway;
     private BattleFateEventBus _fateEventBus;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private FortuneService _fortuneService = new();
@@ -29,7 +29,7 @@ internal sealed class FateRuntimeModule
     internal void Setup(
         IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null,
-        BattleRuntimeModule battle_runtime_gateway = null,
+        IMisfortuneGuidanceBattleQuery battle_runtime_gateway = null,
         Func<StringName, BattleUnitState> unit_by_member_id_resolver = null
     )
     {
@@ -38,7 +38,9 @@ internal sealed class FateRuntimeModule
         _unitByMemberIdResolver = unit_by_member_id_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
-        _fortunaGuidanceService?.Setup(_characterGateway);
+        IFateCharacterGateway fateCharacterGateway =
+            _characterGateway as IFateCharacterGateway;
+        _fortunaGuidanceService?.Setup(fateCharacterGateway);
         _fortuneService?.Setup(_characterGateway);
         _lowLuckEventService?.Setup(_characterGateway);
         BindFateEventBusAdapters(fate_event_bus);

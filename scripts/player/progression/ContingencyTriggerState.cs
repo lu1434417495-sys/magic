@@ -85,7 +85,7 @@ public partial class ContingencyTriggerState
         if (!ContingencySchemaUtils.TryReadStringName(payload, "type", false, out StringName type))
             return null;
 
-        string[] keys = GetPayloadKeys(type);
+        string[] keys = ContingencyContractRules.GetTriggerFields(type);
         if (keys == null || !ContingencySchemaUtils.HasExactKeys(payload, keys))
             return null;
         if (!ValidatePayload(type, payload))
@@ -93,7 +93,7 @@ public partial class ContingencyTriggerState
 
         var state = new ContingencyTriggerState
         {
-            TriggerKind = ToTriggerKind(type),
+            TriggerKind = ContingencyContractRules.ToTriggerKind(type),
             Type = type,
         };
         foreach (
@@ -147,69 +147,8 @@ public partial class ContingencyTriggerState
         }
     }
 
-    internal static StringName ToStringName(ContingencyTriggerKind kind)
-    {
-        return kind switch
-        {
-            ContingencyTriggerKind.CombatStarted => "combat_started",
-            ContingencyTriggerKind.HpBelowPercent => "hp_below_percent",
-            ContingencyTriggerKind.IncomingDamagePercent => "incoming_damage_percent",
-            ContingencyTriggerKind.FatalDamageIncoming => "fatal_damage_incoming",
-            ContingencyTriggerKind.StatusApplied => "status_applied",
-            ContingencyTriggerKind.EnemyEnterRadius => "enemy_enter_radius",
-            ContingencyTriggerKind.AffectedBySpell => "affected_by_spell",
-            ContingencyTriggerKind.OwnerTurnStarted => "owner_turn_started",
-            _ => new StringName(""),
-        };
-    }
-
-    private static ContingencyTriggerKind ToTriggerKind(StringName type)
-    {
-        if (type == "combat_started")
-            return ContingencyTriggerKind.CombatStarted;
-        if (type == "hp_below_percent")
-            return ContingencyTriggerKind.HpBelowPercent;
-        if (type == "incoming_damage_percent")
-            return ContingencyTriggerKind.IncomingDamagePercent;
-        if (type == "fatal_damage_incoming")
-            return ContingencyTriggerKind.FatalDamageIncoming;
-        if (type == "status_applied")
-            return ContingencyTriggerKind.StatusApplied;
-        if (type == "enemy_enter_radius")
-            return ContingencyTriggerKind.EnemyEnterRadius;
-        if (type == "affected_by_spell")
-            return ContingencyTriggerKind.AffectedBySpell;
-        if (type == "owner_turn_started")
-            return ContingencyTriggerKind.OwnerTurnStarted;
-        return ContingencyTriggerKind.Unknown;
-    }
-
-    private static string[] GetPayloadKeys(StringName type)
-    {
-        if (type == "combat_started" || type == "fatal_damage_incoming" || type == "owner_turn_started")
-            return new[] { "type", "subject", "timing" };
-        if (type == "hp_below_percent")
-            return new[] { "type", "subject", "percent", "crossing_only", "timing" };
-        if (type == "incoming_damage_percent")
-        {
-            return new[]
-            {
-                "type",
-                "subject",
-                "damage_percent",
-                "damage_basis",
-                "damage_amount_mode",
-                "timing",
-            };
-        }
-        if (type == "enemy_enter_radius")
-            return new[] { "type", "center", "radius", "radius_metric", "source_team", "timing" };
-        if (type == "status_applied")
-            return new[] { "type", "subject", "status_tags", "application_match", "timing" };
-        if (type == "affected_by_spell")
-            return new[] { "type", "subject", "source_team", "spell_match", "timing" };
-        return null;
-    }
+    internal static StringName ToStringName(ContingencyTriggerKind kind) =>
+        ContingencyContractRules.ToTriggerType(kind);
 
     private static bool ValidatePayload(StringName type, GDictionary payload)
     {

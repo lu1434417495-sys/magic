@@ -7,7 +7,7 @@ public class PartyItemUseService
     private Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
     private Dictionary<StringName, SkillDefinition> _skill_definitions = new();
     private PartyWarehouseService _warehouse_service;
-    private CharacterManagementModule _character_management;
+    private ICharacterSkillLearningGateway _skillLearningGateway;
 
     internal sealed class PartyItemUseOptions
     {
@@ -18,8 +18,6 @@ public class PartyItemUseService
             ConfirmPracticeReplacement = confirmPracticeReplacement;
         }
 
-        public CharacterManagementModule.LearnSkillOptionsData ToLearnSkillOptions() =>
-            new(ConfirmPracticeReplacement);
     }
 
     internal sealed class PartyItemUseResult
@@ -82,7 +80,7 @@ public class PartyItemUseService
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         PartyWarehouseService warehouseService,
-        CharacterManagementModule characterManagement
+        ICharacterSkillLearningGateway skillLearningGateway
     )
     {
         _party_state = partyState ?? new PartyState();
@@ -93,7 +91,7 @@ public class PartyItemUseService
             ? new Dictionary<StringName, SkillDefinition>(skillDefinitions)
             : new Dictionary<StringName, SkillDefinition>();
         _warehouse_service = warehouseService;
-        _character_management = characterManagement;
+        _skillLearningGateway = skillLearningGateway;
     }
 
     public void Dispose()
@@ -102,7 +100,7 @@ public class PartyItemUseService
         _itemDefinitions.Clear();
         _skill_definitions.Clear();
         _warehouse_service = null;
-        _character_management = null;
+        _skillLearningGateway = null;
     }
 
     internal PartyItemUseResult UseItemTyped(
@@ -117,7 +115,7 @@ public class PartyItemUseService
 
         if (normalizedItemId == "" || normalizedMemberId == "")
             return result;
-        if (_party_state == null || _warehouse_service == null || _character_management == null)
+        if (_party_state == null || _warehouse_service == null || _skillLearningGateway == null)
             return result.WithReason("service_unavailable");
 
         if (!TryGetItemDef(normalizedItemId, out var itemDef))
@@ -143,7 +141,13 @@ public class PartyItemUseService
         if (needsReplacement && !confirmed)
             return result.WithConfirmationRequired(practiceStatus);
 
-        if (!_character_management.LearnSkillTyped(normalizedMemberId, skillId, options.ToLearnSkillOptions()))
+        if (
+            !_skillLearningGateway.LearnSkill(
+                normalizedMemberId,
+                skillId,
+                options.ConfirmPracticeReplacement
+            )
+        )
             return result.WithReason("learn_failed");
 
         var removeResult = _warehouse_service.RemoveItemTyped(normalizedItemId, 1);
@@ -176,9 +180,9 @@ public class PartyItemUseService
         StringName skillId
     )
     {
-        if (_character_management == null)
+        if (_skillLearningGateway == null)
             return PracticeSkillLearnStatus.NonPractice();
-        return _character_management.GetPracticeSkillLearnStatusTyped(memberId, skillId)
+        return _skillLearningGateway.GetPracticeSkillLearnStatus(memberId, skillId)
             ?? PracticeSkillLearnStatus.NonPractice();
     }
 }

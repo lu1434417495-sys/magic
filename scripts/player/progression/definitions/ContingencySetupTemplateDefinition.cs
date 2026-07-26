@@ -62,38 +62,11 @@ public sealed class ContingencyTriggerDefinition
     public StringName ApplicationMatch { get; }
     public StringName SpellMatch { get; }
 
-    public ContingencyTriggerKind TriggerKind => Type switch
-    {
-        var value when value == "combat_started" => ContingencyTriggerKind.CombatStarted,
-        var value when value == "hp_below_percent" => ContingencyTriggerKind.HpBelowPercent,
-        var value when value == "incoming_damage_percent" =>
-            ContingencyTriggerKind.IncomingDamagePercent,
-        var value when value == "fatal_damage_incoming" =>
-            ContingencyTriggerKind.FatalDamageIncoming,
-        var value when value == "status_applied" => ContingencyTriggerKind.StatusApplied,
-        var value when value == "enemy_enter_radius" => ContingencyTriggerKind.EnemyEnterRadius,
-        var value when value == "affected_by_spell" => ContingencyTriggerKind.AffectedBySpell,
-        var value when value == "owner_turn_started" =>
-            ContingencyTriggerKind.OwnerTurnStarted,
-        _ => ContingencyTriggerKind.Unknown,
-    };
+    public ContingencyTriggerKind TriggerKind =>
+        ContingencyContractRules.ToTriggerKind(Type);
 
-    public ContingencyTimingKind TimingKind => Timing switch
-    {
-        var value when value == "after_battle_confirmed" =>
-            ContingencyTimingKind.AfterBattleConfirmed,
-        var value when value == "before_spell_effect_resolved" =>
-            ContingencyTimingKind.BeforeSpellEffectResolved,
-        var value when value == "before_damage_resolved" =>
-            ContingencyTimingKind.BeforeDamageResolved,
-        var value when value == "after_hp_changed" => ContingencyTimingKind.AfterHpChanged,
-        var value when value == "after_status_applied" =>
-            ContingencyTimingKind.AfterStatusApplied,
-        var value when value == "after_position_changed" =>
-            ContingencyTimingKind.AfterPositionChanged,
-        var value when value == "owner_turn_started" => ContingencyTimingKind.OwnerTurnStarted,
-        _ => ContingencyTimingKind.Unknown,
-    };
+    public ContingencyTimingKind TimingKind =>
+        ContingencyContractRules.ToTimingKind(Timing);
 
     internal static ContingencyTriggerDefinition FromAuthoring(
         GDictionary source,
@@ -110,33 +83,14 @@ public sealed class ContingencyTriggerDefinition
             path
         );
 
-        string[] expectedKeys = type.ToString() switch
+        string[] expectedKeys = ContingencyContractRules.GetTriggerFields(type);
+        if (expectedKeys == null)
         {
-            "combat_started" or "fatal_damage_incoming" or "owner_turn_started" =>
-                new[] { "type", "subject", "timing" },
-            "hp_below_percent" =>
-                new[] { "type", "subject", "percent", "crossing_only", "timing" },
-            "incoming_damage_percent" =>
-                new[]
-                {
-                    "type",
-                    "subject",
-                    "damage_percent",
-                    "damage_basis",
-                    "damage_amount_mode",
-                    "timing",
-                },
-            "enemy_enter_radius" =>
-                new[] { "type", "center", "radius", "radius_metric", "source_team", "timing" },
-            "status_applied" =>
-                new[] { "type", "subject", "status_tags", "application_match", "timing" },
-            "affected_by_spell" =>
-                new[] { "type", "subject", "source_team", "spell_match", "timing" },
-            _ => throw ContingencyDefinitionProjection.Invalid(
+            throw ContingencyDefinitionProjection.Invalid(
                 path + ".type",
                 $"unsupported trigger type '{type}'"
-            ),
-        };
+            );
+        }
         ContingencyDefinitionProjection.RequireExactKeys(values, expectedKeys, path);
 
         return new ContingencyTriggerDefinition(
@@ -173,22 +127,8 @@ public sealed record ContingencyTargetResolverDefinition(
     int MaxDistance
 )
 {
-    public ContingencyTargetResolverKind ResolverKind => Type switch
-    {
-        var value when value == "self" => ContingencyTargetResolverKind.Self,
-        var value when value == "trigger_source" => ContingencyTargetResolverKind.TriggerSource,
-        var value when value == "trigger_target" => ContingencyTargetResolverKind.TriggerTarget,
-        var value when value == "nearest_enemy_to_owner" =>
-            ContingencyTargetResolverKind.NearestEnemyToOwner,
-        var value when value == "nearest_enemy_to_trigger_cell" =>
-            ContingencyTargetResolverKind.NearestEnemyToTriggerCell,
-        var value when value == "owner_centered_area" =>
-            ContingencyTargetResolverKind.OwnerCenteredArea,
-        var value when value == "attacker_cell" => ContingencyTargetResolverKind.AttackerCell,
-        var value when value == "empty_cell_near_owner" =>
-            ContingencyTargetResolverKind.EmptyCellNearOwner,
-        _ => ContingencyTargetResolverKind.Unknown,
-    };
+    public ContingencyTargetResolverKind ResolverKind =>
+        ContingencyContractRules.ToTargetResolverKind(Type);
 
     internal static ContingencyTargetResolverDefinition FromAuthoring(
         GDictionary source,
@@ -204,25 +144,26 @@ public sealed record ContingencyTargetResolverDefinition(
             "type",
             path
         );
-        bool hasParameters = type == "empty_cell_near_owner";
-        string[] expectedKeys = hasParameters
-            ? new[] { "type", "preference", "max_distance" }
-            : new[] { "type" };
-        ContingencyDefinitionProjection.RequireExactKeys(values, expectedKeys, path);
-
-        var result = new ContingencyTargetResolverDefinition(
-            type,
-            ContingencyDefinitionProjection.ReadOptionalStringName(values, "preference", path),
-            ContingencyDefinitionProjection.ReadOptionalInt(values, "max_distance", path)
-        );
-        if (result.ResolverKind == ContingencyTargetResolverKind.Unknown)
+        ContingencyTargetResolverKind resolverKind =
+            ContingencyContractRules.ToTargetResolverKind(type);
+        if (resolverKind == ContingencyTargetResolverKind.Unknown)
         {
             throw ContingencyDefinitionProjection.Invalid(
                 path + ".type",
                 $"unsupported target resolver '{type}'"
             );
         }
-        return result;
+        ContingencyDefinitionProjection.RequireExactKeys(
+            values,
+            ContingencyContractRules.GetTargetResolverFields(resolverKind),
+            path
+        );
+
+        return new ContingencyTargetResolverDefinition(
+            type,
+            ContingencyDefinitionProjection.ReadOptionalStringName(values, "preference", path),
+            ContingencyDefinitionProjection.ReadOptionalInt(values, "max_distance", path)
+        );
     }
 }
 

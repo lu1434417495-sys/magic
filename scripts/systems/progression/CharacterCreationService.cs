@@ -50,18 +50,6 @@ public sealed class CharacterCreationService
         options
     );
 
-    public static PartyMemberState CreateMemberFromCharacterCreationPayloadForContentSource(
-        StringName memberId,
-        Godot.Collections.Dictionary payload,
-        ProgressionContentRegistry progressionContentSource,
-        CharacterCreationOptions options = null
-    ) => CreateMemberFromCharacterCreationPayload(
-        memberId,
-        payload,
-        ProgressionContentSourceRef.FromRegistry(progressionContentSource),
-        options
-    );
-
     internal static PartyMemberState CreateMemberFromCharacterCreationPayloadForIdentityCatalog(
         StringName memberId,
         Godot.Collections.Dictionary payload,
@@ -106,18 +94,6 @@ public sealed class CharacterCreationService
         memberState,
         payload,
         ProgressionContentSourceRef.Empty,
-        options
-    );
-
-    public static bool ApplyCharacterCreationPayloadToMemberForContentSource(
-        PartyMemberState memberState,
-        Godot.Collections.Dictionary payload,
-        ProgressionContentRegistry progressionContentSource,
-        CharacterCreationOptions options = null
-    ) => ApplyCharacterCreationPayloadToMember(
-        memberState,
-        payload,
-        ProgressionContentSourceRef.FromRegistry(progressionContentSource),
         options
     );
 
@@ -450,13 +426,6 @@ public sealed class CharacterCreationService
         }
 
         internal bool HasSource => _identityCatalog != null;
-
-        internal static ProgressionContentSourceRef FromRegistry(ProgressionContentRegistry contentSource)
-        {
-            return contentSource != null
-                ? new ProgressionContentSourceRef(contentSource.GetIdentityCatalogTyped())
-                : Empty;
-        }
 
         internal static ProgressionContentSourceRef FromIdentityCatalog(
             ProgressionIdentityCatalogData contentSource
