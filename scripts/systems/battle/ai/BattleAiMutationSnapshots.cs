@@ -718,6 +718,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private BattlePendingCastState _pendingCast;
     private bool _turnCastingExhausted;
     private int _actionProgressRateRemainder;
+    private bool _castingClockOwnerPresent = true;
     private int _castProgressRateRemainder;
 
     public static BattleUnitFieldsSnapshot Empty() => new();
@@ -949,7 +950,12 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._turnCastingExhausted = turnState.CastingExhausted;
         snapshot._actionProgressRateRemainder =
             actionClockState.ActionProgressRateRemainder;
-        snapshot._castProgressRateRemainder = unit.cast_progress_rate_remainder;
+        BattleUnitCastingClockSnapshot castingClockState =
+            unit.CaptureCastingClockForMutationSnapshotExact();
+        snapshot._castingClockOwnerPresent =
+            castingClockState.OwnerPresent;
+        snapshot._castProgressRateRemainder =
+            castingClockState.CastProgressRateRemainder;
         return snapshot;
     }
 
@@ -1188,7 +1194,7 @@ internal sealed class BattleUnitFieldsSnapshot
         );
         result.Set(
             "cast_progress_rate_remainder",
-            StableValue.FromInteger(_castProgressRateRemainder)
+            StableCastingClockValue(_castProgressRateRemainder)
         );
         return result;
     }
@@ -1219,6 +1225,11 @@ internal sealed class BattleUnitFieldsSnapshot
 
     private StableValue StableActionClockValue(int value) =>
         _actionClockOwnerPresent
+            ? StableValue.FromInteger(value)
+            : StableValue.Nil();
+
+    private StableValue StableCastingClockValue(int value) =>
+        _castingClockOwnerPresent
             ? StableValue.FromInteger(value)
             : StableValue.Nil();
 

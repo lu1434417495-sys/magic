@@ -149,11 +149,10 @@ internal static class BattleTemporalStatusService
         {
             return 0;
         }
-        int raw =
-            baseProgressDelta * ratePercent
-            + Math.Max(unitState.cast_progress_rate_remainder, 0);
-        unitState.cast_progress_rate_remainder = raw % 100;
-        return raw / 100;
+        return unitState.ConsumeCastProgressRateGainTyped(
+            baseProgressDelta,
+            ratePercent
+        );
     }
 
     internal static bool IsTemporalStatusId(StringName statusId)
