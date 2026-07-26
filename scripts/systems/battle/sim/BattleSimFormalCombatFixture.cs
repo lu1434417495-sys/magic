@@ -71,7 +71,10 @@ internal sealed class BattleSimFormalRuntimeStartInput : IDisposable
     }
 }
 
-public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGateway, IDisposable
+public sealed class BattleSimFormalCombatFixture
+    : IBattleRuntimeCharacterGateway,
+        IFateCharacterGateway,
+        IDisposable
 {
     internal static readonly StringName ROSTER_MIXED_2S1A =
         "mixed_2sword_1arch_mirror_simulation";
@@ -359,6 +362,13 @@ public sealed class BattleSimFormalCombatFixture : IBattleRuntimeCharacterGatewa
 
     public PartyMemberState GetMemberState(StringName member_id) =>
         party_state?.GetMemberState(member_id);
+
+    public bool UnlockAchievement(
+        StringName memberId,
+        StringName achievementId,
+        string summaryText = ""
+    ) =>
+        character_management?.UnlockAchievement(memberId, achievementId, summaryText) ?? false;
 
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         _item_def_index;

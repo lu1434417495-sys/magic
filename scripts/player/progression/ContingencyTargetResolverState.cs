@@ -55,13 +55,15 @@ public class ContingencyTargetResolverState
     {
         if (!ContingencySchemaUtils.TryReadStringName(payload, "type", false, out StringName type))
             return null;
-        ContingencyTargetResolverKind kind = ToResolverKind(type);
+        ContingencyTargetResolverKind kind =
+            ContingencyContractRules.ToTargetResolverKind(type);
         if (kind == ContingencyTargetResolverKind.Unknown)
             return null;
 
+        string[] expectedKeys = ContingencyContractRules.GetTargetResolverFields(kind);
         if (kind != ContingencyTargetResolverKind.EmptyCellNearOwner)
         {
-            if (!ContingencySchemaUtils.HasExactKeys(payload, new[] { "type" }))
+            if (!ContingencySchemaUtils.HasExactKeys(payload, expectedKeys))
                 return null;
             return new ContingencyTargetResolverState
             {
@@ -70,7 +72,7 @@ public class ContingencyTargetResolverState
             };
         }
 
-        if (!ContingencySchemaUtils.HasExactKeys(payload, new[] { "type", "preference", "max_distance" }))
+        if (!ContingencySchemaUtils.HasExactKeys(payload, expectedKeys))
             return null;
         if (
             !ContingencySchemaUtils.TryReadStringName(
@@ -79,7 +81,8 @@ public class ContingencyTargetResolverState
                 false,
                 out StringName preference
             )
-            || ToEmptyCellPreferenceKind(preference) == ContingencyEmptyCellPreferenceKind.Unknown
+            || ContingencyContractRules.ToEmptyCellPreferenceKind(preference)
+                == ContingencyEmptyCellPreferenceKind.Unknown
         )
             return null;
         if (
@@ -98,52 +101,6 @@ public class ContingencyTargetResolverState
         };
     }
 
-    internal static StringName ToStringName(ContingencyTargetResolverKind kind)
-    {
-        return kind switch
-        {
-            ContingencyTargetResolverKind.Self => "self",
-            ContingencyTargetResolverKind.TriggerSource => "trigger_source",
-            ContingencyTargetResolverKind.TriggerTarget => "trigger_target",
-            ContingencyTargetResolverKind.NearestEnemyToOwner => "nearest_enemy_to_owner",
-            ContingencyTargetResolverKind.NearestEnemyToTriggerCell =>
-                "nearest_enemy_to_trigger_cell",
-            ContingencyTargetResolverKind.OwnerCenteredArea => "owner_centered_area",
-            ContingencyTargetResolverKind.AttackerCell => "attacker_cell",
-            ContingencyTargetResolverKind.EmptyCellNearOwner => "empty_cell_near_owner",
-            _ => new StringName(""),
-        };
-    }
-
-    private static ContingencyTargetResolverKind ToResolverKind(StringName type)
-    {
-        if (type == "self")
-            return ContingencyTargetResolverKind.Self;
-        if (type == "trigger_source")
-            return ContingencyTargetResolverKind.TriggerSource;
-        if (type == "trigger_target")
-            return ContingencyTargetResolverKind.TriggerTarget;
-        if (type == "nearest_enemy_to_owner")
-            return ContingencyTargetResolverKind.NearestEnemyToOwner;
-        if (type == "nearest_enemy_to_trigger_cell")
-            return ContingencyTargetResolverKind.NearestEnemyToTriggerCell;
-        if (type == "owner_centered_area")
-            return ContingencyTargetResolverKind.OwnerCenteredArea;
-        if (type == "attacker_cell")
-            return ContingencyTargetResolverKind.AttackerCell;
-        if (type == "empty_cell_near_owner")
-            return ContingencyTargetResolverKind.EmptyCellNearOwner;
-        return ContingencyTargetResolverKind.Unknown;
-    }
-
-    private static ContingencyEmptyCellPreferenceKind ToEmptyCellPreferenceKind(
-        StringName preference
-    )
-    {
-        if (preference == "away_from_trigger_source")
-            return ContingencyEmptyCellPreferenceKind.AwayFromTriggerSource;
-        if (preference == "safe_cell")
-            return ContingencyEmptyCellPreferenceKind.SafeCell;
-        return ContingencyEmptyCellPreferenceKind.Unknown;
-    }
+    internal static StringName ToStringName(ContingencyTargetResolverKind kind) =>
+        ContingencyContractRules.ToTargetResolverType(kind);
 }

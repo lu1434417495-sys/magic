@@ -77,19 +77,21 @@ internal class MisfortuneGuidanceService
     private static readonly IReadOnlyDictionary<StringName, ItemDefinition> EmptyItemDefinitions =
         new Dictionary<StringName, ItemDefinition>();
 
-    private IBattleRuntimeCharacterGateway _characterGateway;
-    private BattleRuntimeModule _battleRuntimeGateway;
+    private IFateCharacterGateway _characterGateway;
+    private IMisfortuneGuidanceBattleQuery _battleRuntimeGateway;
 
     internal void Setup(
         IBattleRuntimeCharacterGateway characterGateway = null,
-        BattleRuntimeModule battleRuntimeGateway = null
+        IMisfortuneGuidanceBattleQuery battleRuntimeGateway = null
     )
     {
-        _characterGateway = characterGateway;
+        _characterGateway = characterGateway as IFateCharacterGateway;
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
-    private void BindBattleRuntimeGateway(BattleRuntimeModule battleRuntimeGateway = null)
+    private void BindBattleRuntimeGateway(
+        IMisfortuneGuidanceBattleQuery battleRuntimeGateway = null
+    )
     {
         _battleRuntimeGateway = battleRuntimeGateway;
     }
@@ -380,11 +382,11 @@ internal class MisfortuneGuidanceService
     {
         if (_characterGateway == null || memberId == "" || achievementId == "")
             return false;
-        return (_characterGateway as CharacterManagementModule)?.UnlockAchievement(
+        return _characterGateway.UnlockAchievement(
             memberId,
             achievementId,
             BuildSummaryText(achievementId)
-        ) ?? false;
+        );
     }
 
     private string BuildSummaryText(StringName achievementId)

@@ -24,7 +24,7 @@ internal static class BattleTemporalStatusService
     internal const int ReverberationTemporalSaveBonus = 5;
 
     internal static readonly StringName TemporalStatusTag =
-        BattleSaveContentRules.ToStringName(BattleSaveTagKind.Temporal);
+        TemporalStatusContentRules.TemporalStatusTag;
 
     private static Queue<int> _forcedTemporalProgressRollsForTests;
 
@@ -157,27 +157,13 @@ internal static class BattleTemporalStatusService
     }
 
     internal static bool IsTemporalStatusId(StringName statusId)
-    {
-        StringName normalized = ProgressionDataUtils.to_string_name(statusId);
-        return normalized == BattleStatusSemanticTable.STATUS_TIME_STASIS
-            || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW
-            || normalized == BattleStatusSemanticTable.STATUS_TIME_REVERBERATION;
-    }
+        => TemporalStatusContentRules.IsTemporalStatusId(statusId);
 
     internal static bool IsTemporalReleaseTargetStatusId(StringName statusId)
-    {
-        StringName normalized = ProgressionDataUtils.to_string_name(statusId);
-        return normalized == BattleStatusSemanticTable.STATUS_TIME_STASIS
-            || normalized == BattleStatusSemanticTable.STATUS_TIME_SLOW;
-    }
+        => TemporalStatusContentRules.IsTemporalReleaseTargetStatusId(statusId);
 
     internal static bool IsTemporalReleaseEffect(CombatEffectDefinition effectDefinition)
-    {
-        return effectDefinition != null
-            && effectDefinition.EffectKind == BattleEffectKind.EraseStatus
-            && HasEffectTag(effectDefinition, TemporalStatusTag)
-            && IsTemporalReleaseTargetStatusId(effectDefinition.StatusId);
-    }
+        => TemporalStatusContentRules.IsTemporalReleaseEffect(effectDefinition);
 
     internal static bool IsTemporalReleaseSkill(SkillDefinition skillDefinition)
     {

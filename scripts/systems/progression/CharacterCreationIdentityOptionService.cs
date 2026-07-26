@@ -3,16 +3,6 @@ using Godot;
 
 public static class CharacterCreationIdentityOptionService
 {
-    public static IReadOnlyList<StringName> CollectCreationRaceIds(
-        ProgressionContentRegistry contentSource
-    )
-    {
-        return CollectCreationRaceIds(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>()
-        );
-    }
-
     internal static IReadOnlyList<StringName> CollectCreationRaceIds(
         ProgressionIdentityCatalogData identityCatalog
     )
@@ -37,22 +27,6 @@ public static class CharacterCreationIdentityOptionService
                 ids.Add(raceId);
         }
         return ids;
-    }
-
-    public static IReadOnlyList<StringName> CollectSubraceIdsForRace(
-        ProgressionContentRegistry contentSource,
-        StringName raceId
-    )
-    {
-        var ids = new List<StringName>();
-        if (contentSource == null || raceId == "")
-            return ids;
-
-        return CollectSubraceIdsForRace(
-            contentSource.GetRaceDefsTyped(),
-            contentSource.GetSubraceDefsTyped(),
-            raceId
-        );
     }
 
     internal static IReadOnlyList<StringName> CollectSubraceIdsForRace(
@@ -102,20 +76,6 @@ public static class CharacterCreationIdentityOptionService
         return ids;
     }
 
-    public static StringName ChooseRaceId(
-        ProgressionContentRegistry contentSource,
-        StringName currentId,
-        StringName defaultId
-    )
-    {
-        return ChooseRaceId(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>(),
-            currentId,
-            defaultId
-        );
-    }
-
     internal static StringName ChooseRaceId(
         ProgressionIdentityCatalogData identityCatalog,
         StringName currentId,
@@ -143,20 +103,6 @@ public static class CharacterCreationIdentityOptionService
         if (defaultId != "" && ContainsId(candidates, defaultId))
             return defaultId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
-    }
-
-    public static StringName ChooseSubraceId(
-        ProgressionContentRegistry contentSource,
-        StringName raceId,
-        StringName currentId
-    )
-    {
-        return ChooseSubraceId(
-            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDefinition>(),
-            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDefinition>(),
-            raceId,
-            currentId
-        );
     }
 
     internal static StringName ChooseSubraceId(
@@ -194,23 +140,6 @@ public static class CharacterCreationIdentityOptionService
         if (defaultSubraceId != "" && ContainsId(candidates, defaultSubraceId))
             return defaultSubraceId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
-    }
-
-    public static bool IsValidCreationRaceSubracePair(
-        ProgressionContentRegistry contentSource,
-        StringName raceId,
-        StringName subraceId
-    )
-    {
-        if (contentSource == null)
-            return false;
-
-        return IsValidCreationRaceSubracePair(
-            contentSource.GetRaceDefsTyped(),
-            contentSource.GetSubraceDefsTyped(),
-            raceId,
-            subraceId
-        );
     }
 
     internal static bool IsValidCreationRaceSubracePair(

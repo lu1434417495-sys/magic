@@ -1514,7 +1514,7 @@ internal sealed class SkillCombatProfileValidator
                 errors.Add(
                     $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with identity-granted learn_source {skillDef.learn_source}."
                 );
-            if (MisfortuneService.IsMisfortuneGatedSkill(skillDef.skill_id))
+            if (MisfortuneContentRules.IsGatedSkill(skillDef.skill_id))
                 errors.Add(
                     $"Skill {skillId} {contextLabel} cannot combine casting_time_tu with misfortune-gated skills."
                 );

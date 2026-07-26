@@ -43,8 +43,8 @@ public sealed class AttributeModifierDefinition
         Value + ValuePerRank * (Math.Max(rank, 1) - 1);
 
     public bool IsPercent() =>
-        AttributeModifier.ToMode(Mode) == AttributeModifierMode.Percent;
+        AttributeModifierContentRules.ToMode(Mode) == AttributeModifierMode.Percent;
 
     public bool IsFlat() =>
-        AttributeModifier.ToMode(Mode) == AttributeModifierMode.Flat;
+        AttributeModifierContentRules.ToMode(Mode) == AttributeModifierMode.Flat;
 }

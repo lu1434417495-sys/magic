@@ -10,9 +10,6 @@ internal enum AttributeModifierMode
 [GlobalClass]
 public partial class AttributeModifier : Resource
 {
-    private static readonly StringName ModeFlat = "flat";
-    private static readonly StringName ModePercent = "percent";
-
     public static bool IsValidMode(StringName value)
     {
         return ToMode(value) != AttributeModifierMode.Unknown;
@@ -22,28 +19,20 @@ public partial class AttributeModifier : Resource
 
     internal static AttributeModifierMode ToMode(StringName value)
     {
-        if (value == ModeFlat)
-            return AttributeModifierMode.Flat;
-        if (value == ModePercent)
-            return AttributeModifierMode.Percent;
-        return AttributeModifierMode.Unknown;
+        return AttributeModifierContentRules.ToMode(value);
     }
 
     internal static StringName ToStringName(AttributeModifierMode mode)
     {
-        return mode switch
-        {
-            AttributeModifierMode.Flat => ModeFlat,
-            AttributeModifierMode.Percent => ModePercent,
-            _ => "",
-        };
+        return AttributeModifierContentRules.ToStringName(mode);
     }
 
     [Export]
     public StringName attribute_id { get; set; } = "";
 
     [Export]
-    public StringName mode { get; set; } = ModeFlat;
+    public StringName mode { get; set; } =
+        AttributeModifierContentRules.ToStringName(AttributeModifierMode.Flat);
 
     [Export]
     public int value { get; set; }

@@ -5,15 +5,6 @@ public static class IdentityPayloadValidator
 {
     public static IReadOnlyList<string> ValidatePartyIdentityForContentSource(
         PartyState partyState,
-        ProgressionContentRegistry contentSource
-    ) =>
-        ValidatePartyIdentityForContentSource(
-            partyState,
-            contentSource?.GetIdentityCatalogTyped()
-        );
-
-    public static IReadOnlyList<string> ValidatePartyIdentityForContentSource(
-        PartyState partyState,
         ProgressionIdentityCatalogData contentSource
     ) => ValidatePartyIdentity(partyState, contentSource);
 
@@ -41,15 +32,6 @@ public static class IdentityPayloadValidator
         }
         return errors;
     }
-
-    public static IReadOnlyList<string> ValidateMemberIdentityForContentSource(
-        PartyMemberState memberState,
-        ProgressionContentRegistry contentSource
-    ) =>
-        ValidateMemberIdentityForContentSource(
-            memberState,
-            contentSource?.GetIdentityCatalogTyped()
-        );
 
     public static IReadOnlyList<string> ValidateMemberIdentityForContentSource(
         PartyMemberState memberState,
@@ -107,15 +89,6 @@ public static class IdentityPayloadValidator
 
     public static StringName ResolveBodySizeCategoryForContentSource(
         PartyMemberState memberState,
-        ProgressionContentRegistry contentSource
-    ) =>
-        ResolveBodySizeCategoryForContentSource(
-            memberState,
-            contentSource?.GetIdentityCatalogTyped()
-        );
-
-    public static StringName ResolveBodySizeCategoryForContentSource(
-        PartyMemberState memberState,
         ProgressionIdentityCatalogData contentSource
     ) => ResolveBodySizeCategoryForMemberTyped(memberState, contentSource);
 
@@ -165,15 +138,6 @@ public static class IdentityPayloadValidator
             return raceBodySize;
         return "";
     }
-
-    public static bool RefreshMemberBodySizeFromContentSource(
-        PartyMemberState memberState,
-        ProgressionContentRegistry contentSource
-    ) =>
-        RefreshMemberBodySizeFromContentSource(
-            memberState,
-            contentSource?.GetIdentityCatalogTyped()
-        );
 
     public static bool RefreshMemberBodySizeFromContentSource(
         PartyMemberState memberState,

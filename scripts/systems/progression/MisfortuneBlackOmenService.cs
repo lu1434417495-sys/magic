@@ -47,7 +47,7 @@ public sealed class MisfortuneBlackOmenService
 
     private static readonly StringName[] CursedRelicRequiredTags = { "cursed", "relic" };
 
-    private CharacterManagementModule _characterGateway;
+    private ICharacterMemberStateQuery _characterGateway;
     private readonly Dictionary<StringName, ItemDefinition> _itemDefinitions = new();
 
     internal static StringName ToStringName(MisfortuneBlackOmenHookKind kind)
@@ -65,7 +65,7 @@ public sealed class MisfortuneBlackOmenService
     }
 
     public void Setup(
-        CharacterManagementModule characterGateway = null,
+        ICharacterMemberStateQuery characterGateway = null,
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {

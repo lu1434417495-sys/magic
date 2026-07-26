@@ -23,7 +23,6 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
     {
         TestValidatorNoLongerRequiresGodotRegistration();
         TestValidIdentityPasses();
-        TestRegistrySourcePasses();
         TestRejectsMissingRace();
         TestRejectsMissingSubrace();
         TestRejectsSubraceParentMismatch();
@@ -62,19 +61,6 @@ public partial class run_identity_payload_validator_regression : LifecycleTestSc
             MakeIdentityCatalog()
         );
         _test.True(errors.Count == 0, "valid identity payload should pass validation");
-    }
-
-    private void TestRegistrySourcePasses()
-    {
-        PartyMemberState member = MakeMember();
-        GDictionary bundle = MakeIdentityBundle();
-        ProgressionContentRegistry registry = MakeRegistry(bundle);
-
-        IReadOnlyList<string> errors =
-            IdentityPayloadValidator.ValidateMemberIdentityForContentSource(member, registry);
-
-        _test.True(errors.Count == 0, "registry content source should validate the same typed identity data");
-        registry.Dispose();
     }
 
     private void TestRejectsMissingRace()

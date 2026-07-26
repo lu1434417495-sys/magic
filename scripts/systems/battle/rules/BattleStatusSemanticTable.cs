@@ -81,9 +81,9 @@ public static class BattleStatusSemanticTable
         STATUS_DOOM_SENTENCE_VERDICT = "doom_sentence_verdict",
         STATUS_LAST_STAND_ACTIVE = "last_stand_active",
         STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up",
-        STATUS_TIME_STASIS = "time_stasis",
-        STATUS_TIME_SLOW = "time_slow",
-        STATUS_TIME_REVERBERATION = "time_reverberation",
+        STATUS_TIME_STASIS = TemporalStatusContentRules.TimeStasisStatusId,
+        STATUS_TIME_SLOW = TemporalStatusContentRules.TimeSlowStatusId,
+        STATUS_TIME_REVERBERATION = TemporalStatusContentRules.TimeReverberationStatusId,
         STATUS_TEMPORAL_AP_STOLEN = "temporal_ap_stolen",
         STATUS_BLACK_STAR_BRAND_NORMAL = "black_star_brand_normal",
         STATUS_BLACK_STAR_BRAND_ELITE = "black_star_brand_elite";

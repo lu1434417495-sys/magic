@@ -527,10 +527,10 @@ internal sealed class SkillExecuteEffectValidator
     {
         BattleEffectKind effectKind = effectDef.EffectKind;
         StringName statusId = ProgressionDataUtils.to_string_name(effectDef.status_id);
-        StringName temporalTag = BattleTemporalStatusService.TemporalStatusTag;
+        StringName temporalTag = TemporalStatusContentRules.TemporalStatusTag;
         bool isStatusKind =
             effectKind == BattleEffectKind.Status || effectKind == BattleEffectKind.ApplyStatus;
-        if (isStatusKind && statusId == BattleStatusSemanticTable.STATUS_TIME_REVERBERATION)
+        if (isStatusKind && statusId == TemporalStatusContentRules.TimeReverberationStatusId)
         {
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} cannot apply time_reverberation directly; it is runtime-applied on temporal release."
@@ -538,8 +538,8 @@ internal sealed class SkillExecuteEffectValidator
             return;
         }
         bool isTemporalControlStatus =
-            statusId == BattleStatusSemanticTable.STATUS_TIME_STASIS
-            || statusId == BattleStatusSemanticTable.STATUS_TIME_SLOW;
+            statusId == TemporalStatusContentRules.TimeStasisStatusId
+            || statusId == TemporalStatusContentRules.TimeSlowStatusId;
         if (isStatusKind && isTemporalControlStatus)
         {
             if (!effectDef.HasEffectTagTyped(temporalTag))
@@ -562,10 +562,10 @@ internal sealed class SkillExecuteEffectValidator
         {
             bool hasTemporalTag = effectDef.HasEffectTagTyped(temporalTag);
             bool erasesTemporalControl =
-                BattleTemporalStatusService.IsTemporalReleaseTargetStatusId(statusId);
+                TemporalStatusContentRules.IsTemporalReleaseTargetStatusId(statusId);
             bool erasesTemporal =
                 erasesTemporalControl
-                || statusId == BattleStatusSemanticTable.STATUS_TIME_REVERBERATION;
+                || statusId == TemporalStatusContentRules.TimeReverberationStatusId;
             if (hasTemporalTag && !erasesTemporalControl)
                 errors.Add(
                     $"Skill {skillId} effect {contextLabel} temporal erase_status must target time_stasis or time_slow."
@@ -638,6 +638,6 @@ internal sealed class SkillExecuteEffectValidator
             effectDef,
             "skill_content_validation.temporal_release_effect"
         );
-        return BattleTemporalStatusService.IsTemporalReleaseEffect(effectDefinition);
+        return TemporalStatusContentRules.IsTemporalReleaseEffect(effectDefinition);
     }
 }
