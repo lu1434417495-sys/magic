@@ -1,9 +1,9 @@
 # 据点服务模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-25`
+> 核对日期：`2026-07-26`
 
-更新日期：`2026-07-25`
+更新日期：`2026-07-26`
 
 ## 目标与边界
 
@@ -25,14 +25,12 @@ WorldMapSystem / SettlementWindow / ShopWindow
   -> WorldMapRuntimeProxy.CommandExecuteSettlementAction(...)
   -> GameRuntimeFacade.CommandExecuteSettlementActionTyped(...)
   -> GameRuntimeSettlementCommandHandler
-    -> WorldMapDataContext(settlement record/state)
-    -> PartyWarehouseService / PartyEquipmentService / PartyItemUseService
-    -> CharacterManagementModule / QuestProgressService
-    -> WorldMapFogSystem / WorldTimeSystem
-    -> GameSession.SetWorldData / SetPartyState / CommitRuntimeState
+    -> IGameRuntimeSettlementCommandPort
+      -> state/content/transaction/modal/world capability adapters
+      -> concrete runtime/session/service owners
 ```
 
-`WorldMapSystem` 只负责打开窗口和把 UI action 转给 proxy；正式服务规则必须在 command handler 或 settlement service 类中。锻造确认由 `ShopWindow.ForgeActionRequested` 普通 C# 事件携带 `ForgeActionRequest`，经 proxy/facade 的 typed 入口提交，不再把确认请求投影为 Godot Dictionary signal。服务结果使用 typed `SettlementServiceResult` / typed payload，避免把 `ToDictionary()` 再回读成业务态。
+`WorldMapSystem` 只负责打开窗口和把 UI action 转给 proxy；正式服务规则必须在 command handler 或 settlement service 类中。handler 弱借按 state/content/transaction/modal/world 分组的 `IGameRuntimeSettlementCommandPort`，不持有或向子处理器透出 `GameRuntimeFacade`、`GameSession`、角色管理或迷雾 owner。锻造确认由 `ShopWindow.ForgeActionRequested` 普通 C# 事件携带 `ForgeActionRequest`，经 proxy/facade 的 typed 入口提交，不再把确认请求投影为 Godot Dictionary signal。服务结果使用 typed `SettlementServiceResult` / typed payload，避免把 `ToDictionary()` 再回读成业务态。
 
 ## 据点数据契约
 
@@ -63,7 +61,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 
 `WorldMapSettlementStateData` 是完整不可变 owner，`SettlementShopStateData` / `SettlementShopStockEntryData` 是它的 typed 子状态。`WorldMapSettlementRecordData` 持有该 owner，`WorldRuntimeData.TrySetSettlementState(...)` 只接受完整聚合；`MarkSettlementVisited(...)` 必须使用 `WithVisited(true)`，不能由局部字段重建整个状态。
 
-服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 16，旧版本及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
+服务新增持久字段时必须同步扩展 typed aggregate、spawn default、严格校验、save version 与回归，不允许通过额外字段 property bag 隐式扩展。`world_step` 由 `WorldRuntimeData` 持有并作为参数传给商店服务；`shop_feedback_text` 属于 active shop context / active settlement feedback，二者都不是持久化据点状态。当前顶层存档版本为 17，旧版本及不完整/额外字段 payload 直接拒绝，不提供迁移或 fallback。
 
 ## Action 分发
 
@@ -98,7 +96,7 @@ WorldMapSystem / SettlementWindow / ShopWindow
 3. 调用领域 service，得到 typed result。
 4. 如果 result 失败：把原因写入 active service context 与 feedback/status，不写 world/party。
 5. 如果 result 成功：写 party、warehouse、equipment、quest、settlement_state、fog/world_data 等受影响 owner。
-6. 先更新内存 owner，再调用 `GameSession.SetWorldData` / `SetPartyState` / `FlushGameState` 或 `CommitRuntimeStateInternal`。
+6. 先更新内存 owner，再由 transaction port 调用正式 runtime transaction 提交；handler 不直接访问 `GameSession`。
 7. 持久化失败时恢复命令前的 party/world/modal context 与 session staging，再返回统一的“操作已回滚” failure。
 
 不要做旧 payload 兼容；服务 payload 类型错误应 fail fast。
@@ -129,14 +127,16 @@ godot --headless -s res://tests/world_map/ui/run_settlement_shop_window_schema_r
 
 ## 实现级补充：handler 内部状态
 
-`GameRuntimeSettlementCommandHandler` 重建时至少需要持有或能从 runtime 取到以下 owner：
+`GameRuntimeSettlementCommandHandler` 重建时只持有一个弱引用的
+`IGameRuntimeSettlementCommandPort`。该 composite port 按职责拆成：
 
-- `GameRuntimeFacade Runtime`：唯一 runtime 根，用于读取 active map、world step、party state、session、content catalog、modal state。
-- `WorldMapDataContext`：读取 settlement record、写 settlement state、取 active world data。
-- `PartyWarehouseService` / `PartyEquipmentService` / `PartyItemUseService`：仓库、铁匠、奖励入仓等服务依赖。
-- `CharacterManagementModule`：恢复、任务进度、奖励归并、角色摘要。
-- `WorldMapFogSystem`：传闻/情报类 reveal 服务。
-- active context：当前 settlement id、active feedback text、shop/forge/stagecoach/contract board modal context。
+- state：party、settlement record/state、warehouse service 与成员/奖励语义操作。
+- content：item、trait、recipe、quest、enemy definition 查询和 quest command。
+- transaction：rollback snapshot、commit/rollback、单 owner persist 与 command result。
+- modal：active modal 与 shop/forge/stagecoach/contract/NPC/bounty context。
+- world：world step、坐标、settlement entry、visited 与 fog 可见/reveal 语义操作。
+
+facade 显式适配器可以访问 concrete runtime/session/service owner，但这些 owner 不跨 port。主 handler 继续决定事务捕获/提交/回滚时机、action dispatch 与反馈；四个子处理器只调用主 handler 的语义方法，不读取 port。
 
 handler 不应缓存可变 `GDictionary` 作为长期真相；active UI context 使用 detached plain CLR graph，只有同步 Godot/UI 边界才能创建 Request-domain projection lease。每次执行服务前仍须从 runtime/context 重新解析 active settlement 和服务 entry。
 

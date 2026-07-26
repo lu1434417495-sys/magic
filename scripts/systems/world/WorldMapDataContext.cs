@@ -1052,6 +1052,8 @@ public sealed class WorldMapSubmapReturnResult
 
 public sealed class WorldMapSubmapReturnStackEntry
 {
+    internal static readonly string[] SaveFields = { "map_id", "coord" };
+
     public readonly string MapId;
     public readonly Vector2I Coord;
 
@@ -1120,6 +1122,22 @@ internal static class WorldMapPlainPayload
 public sealed class WorldMapMountedSubmapData
 {
     private static readonly Vector2I UnsetPlayerCoord = new(-1, -1);
+    internal static readonly string[] SaveFields =
+    {
+        "submap_id",
+        "display_name",
+        "generation_config_path",
+        "return_hint_text",
+        "is_generated",
+        "player_coord",
+        "world_data",
+    };
+    internal static readonly string[] SaveStringFields =
+    {
+        "display_name",
+        "generation_config_path",
+        "return_hint_text",
+    };
 
     public readonly bool Exists;
     public readonly string DisplayName;
@@ -1243,6 +1261,40 @@ public sealed class WorldMapMountedSubmapData
 
 public sealed class WorldMapSettlementRecordData
 {
+    internal static readonly string[] SaveFields =
+    {
+        "entity_id",
+        "template_id",
+        "settlement_id",
+        "display_name",
+        "tier",
+        "tier_name",
+        "faction_id",
+        "origin",
+        "footprint_size",
+        "facilities",
+        "service_npcs",
+        "available_services",
+        "is_player_start",
+        "settlement_state",
+    };
+    internal static readonly string[] SaveStringFields =
+    {
+        "entity_id",
+        "template_id",
+        "settlement_id",
+        "display_name",
+        "tier_name",
+        "faction_id",
+    };
+    internal static readonly string[] SaveCoordFields = { "origin", "footprint_size" };
+    internal static readonly string[] SaveArrayFields =
+    {
+        "facilities",
+        "service_npcs",
+        "available_services",
+    };
+
     public readonly string EntityId;
     public readonly string SettlementId;
     public readonly string DisplayName;
@@ -1495,6 +1547,29 @@ public sealed class WorldMapNpcData
 
 public sealed class WorldMapEventData
 {
+    internal static readonly string[] SaveFields =
+    {
+        "event_id",
+        "display_name",
+        "world_coord",
+        "event_type",
+        "target_submap_id",
+        "discovery_condition_id",
+        "prompt_title",
+        "prompt_text",
+        "is_discovered",
+    };
+    internal static readonly string[] SaveStringFields =
+    {
+        "event_id",
+        "display_name",
+        "event_type",
+        "target_submap_id",
+        "discovery_condition_id",
+        "prompt_title",
+        "prompt_text",
+    };
+
     public readonly StringName EventId;
     public readonly string DisplayName;
     public readonly Vector2I WorldCoord;

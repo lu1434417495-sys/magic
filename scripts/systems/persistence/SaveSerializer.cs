@@ -50,8 +50,6 @@ internal sealed class SaveDecodeResult
 
 public sealed class SaveSerializer
 {
-    private const string WorldMapSeedKey = "map_seed";
-    private const string WorldEquipmentInstanceSerialKey = "next_equipment_instance_serial";
     private const string SaveFormat = "multi_save_total_save";
 
     private int _save_version = SaveSchemaVersions.SaveVersion;
@@ -503,63 +501,38 @@ public sealed class SaveSerializer
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
 
-        string[] required =
-        {
-            WorldMapSeedKey,
-            "world_step",
-            WorldEquipmentInstanceSerialKey,
-            "active_submap_id",
-            "submap_return_stack",
-            "settlements",
-            "world_events",
-            "encounter_anchors",
-            "resource_nodes",
-            "mounted_submaps",
-        };
-        string[] optional =
-        {
-            "world_npcs",
-            "player_start_coord",
-            "player_start_settlement_id",
-            "player_start_settlement_name",
-            "fog_states",
-        };
-        if (!HasRequiredAndAllowedKeys(worldData, required, optional))
-            return "Corrupt save world_data: fields must match current schema.";
-        if (!IsStringValue(worldData["active_submap_id"]))
-            return "Corrupt save world_data: active_submap_id must be a String.";
-        foreach (
-            string arrayField in new[]
-            {
-                "submap_return_stack",
-                "settlements",
-                "world_events",
-                "encounter_anchors",
-                "resource_nodes",
-            }
+        if (
+            !HasRequiredAndAllowedKeys(
+                worldData,
+                WorldRuntimeSaveSchema.RequiredFields,
+                WorldRuntimeSaveSchema.OptionalFields
+            )
         )
+            return "Corrupt save world_data: fields must match current schema.";
+        if (!IsStringValue(worldData[WorldRuntimeSaveSchema.ActiveSubmapId]))
+            return "Corrupt save world_data: active_submap_id must be a String.";
+        foreach (string arrayField in WorldRuntimeSaveSchema.RequiredArrayFields)
         {
             if (worldData[arrayField].VariantType != Variant.Type.Array)
                 return $"Corrupt save world_data: {arrayField} must be an Array.";
         }
         if (
-            worldData.ContainsKey("world_npcs")
-            && worldData["world_npcs"].VariantType != Variant.Type.Array
+            worldData.ContainsKey(WorldRuntimeSaveSchema.WorldNpcs)
+            && worldData[WorldRuntimeSaveSchema.WorldNpcs].VariantType != Variant.Type.Array
         )
             return "Corrupt save world_data: world_npcs must be an Array.";
-        if (worldData["mounted_submaps"].VariantType != Variant.Type.Dictionary)
+        if (
+            worldData[WorldRuntimeSaveSchema.MountedSubmaps].VariantType
+            != Variant.Type.Dictionary
+        )
             return "Corrupt save world_data: mounted_submaps must be a Dictionary.";
         if (
-            worldData.ContainsKey("player_start_coord")
-            && !IsNativeVector2I(worldData["player_start_coord"])
+            worldData.ContainsKey(WorldRuntimeSaveSchema.PlayerStartCoord)
+            && !IsNativeVector2I(worldData[WorldRuntimeSaveSchema.PlayerStartCoord])
         )
             return "Corrupt save world_data: player_start_coord must be a native Vector2i.";
         foreach (
-            string optionalStringField in new[]
-            {
-                "player_start_settlement_id",
-                "player_start_settlement_name",
-            }
+            string optionalStringField in WorldRuntimeSaveSchema.OptionalStringFields
         )
         {
             if (
@@ -568,11 +541,15 @@ public sealed class SaveSerializer
             )
                 return $"Corrupt save world_data: {optionalStringField} must be a String.";
         }
-        if (worldData.ContainsKey("fog_states"))
+        if (worldData.ContainsKey(WorldRuntimeSaveSchema.FogStates))
         {
-            if (worldData["fog_states"].VariantType != Variant.Type.Dictionary)
+            if (
+                worldData[WorldRuntimeSaveSchema.FogStates].VariantType
+                != Variant.Type.Dictionary
+            )
                 return "Corrupt save world_data: fog_states must be a Dictionary.";
-            using GDictionary fogStates = worldData["fog_states"].AsGodotDictionary();
+            using GDictionary fogStates =
+                worldData[WorldRuntimeSaveSchema.FogStates].AsGodotDictionary();
             string fogStateError =
                 WorldMapFogSystem.GetPersistentStateSchemaValidationError(fogStates);
             if (!string.IsNullOrEmpty(fogStateError))
@@ -616,34 +593,43 @@ public sealed class SaveSerializer
 
     public string GetWorldDataSeedValidationError(GDictionary worldData)
     {
-        if (worldData == null || !worldData.ContainsKey(WorldMapSeedKey))
-            return $"Corrupt save world_data: missing required field '{WorldMapSeedKey}'.";
-        if (worldData[WorldMapSeedKey].VariantType != Variant.Type.Int)
-            return $"Corrupt save world_data: {WorldMapSeedKey} must be an int.";
-        if ((long)worldData[WorldMapSeedKey] < 1)
-            return $"Corrupt save world_data: {WorldMapSeedKey} must be >= 1.";
+        if (worldData == null || !worldData.ContainsKey(WorldRuntimeSaveSchema.MapSeed))
+            return $"Corrupt save world_data: missing required field '{WorldRuntimeSaveSchema.MapSeed}'.";
+        if (worldData[WorldRuntimeSaveSchema.MapSeed].VariantType != Variant.Type.Int)
+            return $"Corrupt save world_data: {WorldRuntimeSaveSchema.MapSeed} must be an int.";
+        if ((long)worldData[WorldRuntimeSaveSchema.MapSeed] < 1)
+            return $"Corrupt save world_data: {WorldRuntimeSaveSchema.MapSeed} must be >= 1.";
         return "";
     }
 
     public string GetWorldDataStepValidationError(GDictionary worldData)
     {
-        if (worldData == null || !worldData.ContainsKey("world_step"))
+        if (worldData == null || !worldData.ContainsKey(WorldRuntimeSaveSchema.WorldStep))
             return "Corrupt save world_data: missing required field 'world_step'.";
-        if (worldData["world_step"].VariantType != Variant.Type.Int)
+        if (worldData[WorldRuntimeSaveSchema.WorldStep].VariantType != Variant.Type.Int)
             return "Corrupt save world_data: world_step must be an int.";
-        if (worldData["world_step"].AsInt32() < 0)
+        if (worldData[WorldRuntimeSaveSchema.WorldStep].AsInt32() < 0)
             return "Corrupt save world_data: world_step must be >= 0.";
         return "";
     }
 
     public string GetEquipmentInstanceSerialValidationError(GDictionary worldData)
     {
-        if (worldData == null || !worldData.ContainsKey(WorldEquipmentInstanceSerialKey))
-            return $"Corrupt save world_data: missing required field '{WorldEquipmentInstanceSerialKey}'.";
-        if (worldData[WorldEquipmentInstanceSerialKey].VariantType != Variant.Type.Int)
-            return $"Corrupt save world_data: {WorldEquipmentInstanceSerialKey} must be an int.";
-        if (worldData[WorldEquipmentInstanceSerialKey].AsInt32() < 1)
-            return $"Corrupt save world_data: {WorldEquipmentInstanceSerialKey} must be >= 1.";
+        if (
+            worldData == null
+            || !worldData.ContainsKey(WorldRuntimeSaveSchema.NextEquipmentInstanceSerial)
+        )
+            return $"Corrupt save world_data: missing required field '{WorldRuntimeSaveSchema.NextEquipmentInstanceSerial}'.";
+        if (
+            worldData[WorldRuntimeSaveSchema.NextEquipmentInstanceSerial].VariantType
+            != Variant.Type.Int
+        )
+            return $"Corrupt save world_data: {WorldRuntimeSaveSchema.NextEquipmentInstanceSerial} must be an int.";
+        if (
+            worldData[WorldRuntimeSaveSchema.NextEquipmentInstanceSerial].AsInt32()
+            < 1
+        )
+            return $"Corrupt save world_data: {WorldRuntimeSaveSchema.NextEquipmentInstanceSerial} must be >= 1.";
         return "";
     }
 
@@ -689,28 +675,13 @@ public sealed class SaveSerializer
             if (entryValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save mounted_submaps[{keyText}]: expected Dictionary.";
             using GDictionary entry = entryValue.AsGodotDictionary();
-            string[] required =
-            {
-                "submap_id",
-                "display_name",
-                "generation_config_path",
-                "return_hint_text",
-                "is_generated",
-                "player_coord",
-                "world_data",
-            };
-            if (!HasExactKeys(entry, required))
+            if (!HasExactKeys(entry, WorldMapMountedSubmapData.SaveFields))
                 return $"Corrupt save mounted_submaps[{keyText}]: fields must exactly match current schema.";
             string submapId = ReadString(entry, "submap_id", keyText);
             if (string.IsNullOrEmpty(submapId))
                 return $"Corrupt save mounted_submaps[{keyText}]: submap_id is required.";
             foreach (
-                string stringField in new[]
-                {
-                    "display_name",
-                    "generation_config_path",
-                    "return_hint_text",
-                }
+                string stringField in WorldMapMountedSubmapData.SaveStringFields
             )
             {
                 if (!IsStringValue(entry[stringField]))
@@ -1182,7 +1153,7 @@ public sealed class SaveSerializer
             if (entryValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.submap_return_stack[{index}]: expected Dictionary.";
             using GDictionary entry = entryValue.AsGodotDictionary();
-            if (!HasExactKeys(entry, new[] { "map_id", "coord" }))
+            if (!HasExactKeys(entry, WorldMapSubmapReturnStackEntry.SaveFields))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: fields must exactly match current schema.";
             if (!IsStringValue(entry["map_id"]))
                 return $"Corrupt save world_data.submap_return_stack[{index}]: map_id must be a String.";
@@ -1197,37 +1168,16 @@ public sealed class SaveSerializer
     {
         if (eventValues == null)
             return "Corrupt save world_data.world_events: expected Array.";
-        string[] required =
-        {
-            "event_id",
-            "display_name",
-            "world_coord",
-            "event_type",
-            "target_submap_id",
-            "discovery_condition_id",
-            "prompt_title",
-            "prompt_text",
-            "is_discovered",
-        };
         int index = 0;
         foreach (var eventValue in eventValues)
         {
             if (eventValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.world_events[{index}]: expected Dictionary.";
             using GDictionary eventData = eventValue.AsGodotDictionary();
-            if (!HasExactKeys(eventData, required))
+            if (!HasExactKeys(eventData, WorldMapEventData.SaveFields))
                 return $"Corrupt save world_data.world_events[{index}]: fields must exactly match current schema.";
             foreach (
-                string stringField in new[]
-                {
-                    "event_id",
-                    "display_name",
-                    "event_type",
-                    "target_submap_id",
-                    "discovery_condition_id",
-                    "prompt_title",
-                    "prompt_text",
-                }
+                string stringField in WorldMapEventData.SaveStringFields
             )
             {
                 if (!IsStringValue(eventData[stringField]))
@@ -1246,34 +1196,16 @@ public sealed class SaveSerializer
     {
         if (resourceNodeValues == null)
             return "Corrupt save world_data.resource_nodes: expected Array.";
-        string[] required =
-        {
-            "node_id",
-            "node_kind",
-            "display_name",
-            "world_coord",
-            "yield_item_id",
-            "source_settlement_id",
-            "max_charges",
-            "remaining_charges",
-        };
         int index = 0;
         foreach (var resourceNodeValue in resourceNodeValues)
         {
             if (resourceNodeValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.resource_nodes[{index}]: expected Dictionary.";
             using GDictionary resourceNode = resourceNodeValue.AsGodotDictionary();
-            if (!HasExactKeys(resourceNode, required))
+            if (!HasExactKeys(resourceNode, WorldMapResourceNodeData.SaveFields))
                 return $"Corrupt save world_data.resource_nodes[{index}]: fields must exactly match current schema.";
             foreach (
-                string stringField in new[]
-                {
-                    "node_id",
-                    "node_kind",
-                    "display_name",
-                    "yield_item_id",
-                    "source_settlement_id",
-                }
+                string stringField in WorldMapResourceNodeData.SaveStringFields
             )
             {
                 if (!IsStringValue(resourceNode[stringField]))
@@ -1310,41 +1242,16 @@ public sealed class SaveSerializer
     {
         if (settlementValues == null)
             return "Corrupt save world_data.settlements: expected Array.";
-        string[] required =
-        {
-            "entity_id",
-            "template_id",
-            "settlement_id",
-            "display_name",
-            "tier",
-            "tier_name",
-            "faction_id",
-            "origin",
-            "footprint_size",
-            "facilities",
-            "service_npcs",
-            "available_services",
-            "is_player_start",
-            "settlement_state",
-        };
         int index = 0;
         foreach (var settlementValue in settlementValues)
         {
             if (settlementValue.VariantType != Variant.Type.Dictionary)
                 return $"Corrupt save world_data.settlements[{index}]: expected Dictionary.";
             using GDictionary settlementData = settlementValue.AsGodotDictionary();
-            if (!HasExactKeys(settlementData, required))
+            if (!HasExactKeys(settlementData, WorldMapSettlementRecordData.SaveFields))
                 return $"Corrupt save world_data.settlements[{index}]: fields must exactly match current schema.";
             foreach (
-                string stringField in new[]
-                {
-                    "entity_id",
-                    "template_id",
-                    "settlement_id",
-                    "display_name",
-                    "tier_name",
-                    "faction_id",
-                }
+                string stringField in WorldMapSettlementRecordData.SaveStringFields
             )
             {
                 if (!IsStringValue(settlementData[stringField]))
@@ -1355,13 +1262,13 @@ public sealed class SaveSerializer
                 || settlementData["tier"].AsInt32() < 0
             )
                 return $"Corrupt save world_data.settlements[{index}]: tier must be a non-negative int.";
-            foreach (string coordField in new[] { "origin", "footprint_size" })
+            foreach (string coordField in WorldMapSettlementRecordData.SaveCoordFields)
             {
                 if (!IsNativeVector2I(settlementData[coordField]))
                     return $"Corrupt save world_data.settlements[{index}]: {coordField} must be a native Vector2i.";
             }
             foreach (
-                string arrayField in new[] { "facilities", "service_npcs", "available_services" }
+                string arrayField in WorldMapSettlementRecordData.SaveArrayFields
             )
             {
                 if (settlementData[arrayField].VariantType != Variant.Type.Array)

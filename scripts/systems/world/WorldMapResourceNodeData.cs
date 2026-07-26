@@ -4,6 +4,26 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class WorldMapResourceNodeData
 {
+    internal static readonly string[] SaveFields =
+    {
+        "node_id",
+        "node_kind",
+        "display_name",
+        "world_coord",
+        "yield_item_id",
+        "source_settlement_id",
+        "max_charges",
+        "remaining_charges",
+    };
+    internal static readonly string[] SaveStringFields =
+    {
+        "node_id",
+        "node_kind",
+        "display_name",
+        "yield_item_id",
+        "source_settlement_id",
+    };
+
     public const string KindFarm = "farm";
     public const string KindHerbGarden = "herb_garden";
     public const string KindMine = "mine";
