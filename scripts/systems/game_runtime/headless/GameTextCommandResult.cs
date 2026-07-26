@@ -32,7 +32,7 @@ public sealed class GameTextCommandResult : IDisposable
 
     public string command_text = "";
     public bool ok = true;
-    public GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.Ok;
+    public RuntimeCommandCode code = RuntimeCommandCode.Ok;
     public bool skipped;
     public string message = "";
     public string human_log = "";

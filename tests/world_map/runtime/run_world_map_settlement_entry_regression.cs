@@ -44,7 +44,7 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
             context.Facade.RefreshWorldVisibility();
             context.GameSession.SetPlayerCoord(probe.SourceCoord);
 
-            GameRuntimeFacade.RuntimeCommandResult moveResult =
+            RuntimeCommandResult moveResult =
                 context.Facade.CommandWorldMoveTyped(direction, 1);
             _test.True(moveResult.Ok, "从外格踏入据点占格时应成功打开据点。");
             _test.Eq(context.Facade.GetActiveModalId(), "settlement", "踏入据点占格后应自动进入 settlement modal。");
@@ -63,7 +63,7 @@ public partial class run_world_map_settlement_entry_regression : LifecycleTestSc
                 "据点窗口打开时快照中的 player_coord 应保持在进入前格子。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult closeResult =
+            RuntimeCommandResult closeResult =
                 context.Facade.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "关闭据点窗口应成功返回世界地图。");
             _test.Eq(context.Facade.GetActiveModalId(), "", "关闭据点窗口后不应残留 modal。");

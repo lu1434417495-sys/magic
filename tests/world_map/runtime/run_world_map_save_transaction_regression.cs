@@ -45,7 +45,7 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
                 Dictionary<string, object> originalPayload =
                     ReadActiveSavePayload(context.GameSession);
                 Vector2I originalCoord = PayloadPlayerCoord(originalPayload);
-                GameRuntimeFacade.RuntimeCommandResult result =
+                RuntimeCommandResult result =
                     context.Facade.CommandWorldMoveTyped(direction, 1);
                 bool movedWithoutBoundary =
                     result.Ok
@@ -114,7 +114,7 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
             context.Facade._active_modal_kind = RuntimeModalKind.ResourceHarvestConfirm;
             context.GameSession.fail_payload_write = true;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 context.Facade.CommandConfirmResourceHarvestTyped();
 
             _test.False(result.Ok, "资源采集提交失败时命令应返回失败。");

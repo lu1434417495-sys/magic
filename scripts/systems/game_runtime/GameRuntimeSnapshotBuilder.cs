@@ -804,7 +804,7 @@ public sealed class GameRuntimeSnapshotBuilder
         }
 
         using var adapter = new BattleHudAdapter();
-        adapter.SetupRuntimeContext(_runtime as GameRuntimeFacade, _runtime.GetGameSession());
+        adapter.SetupRuntimeContext(_runtime as IBattleHudContext);
         IReadOnlyList<Vector2I> selectedTargetCoords =
             _runtime.GetSelectedBattleSkillTargetCoordsSnapshotPlain();
         IReadOnlyList<StringName> selectedTargetUnitIds =

@@ -168,7 +168,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             _test.True(DictBool(reforgeEntry, "is_enabled", false), "存在可执行配方时，大师重铸入口应可用。");
             _test.Eq(DictString(reforgeEntry, "cost_label", ""), "按配方材料", "大师重铸入口应显示按配方材料计价。");
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:master_reforge",
                     new GDictionary()
@@ -183,7 +183,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             }
             _test.Eq(fixture.WarehouseService.CountItem("iron_greatsword"), 0, "仅打开 forge modal 时不应提前产出铁制大剑。");
 
-            GameRuntimeFacade.RuntimeCommandResult commandResult =
+            RuntimeCommandResult commandResult =
                 fixture.Handler.CommandExecuteForgeActionRuntimeTyped(
                     new ForgeActionRequest(
                         new StringName("forge_town"),
@@ -231,7 +231,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
             _test.True(DictBool(genericEntry, "is_enabled", false), "存在通用 forge 配方时，service_repair_gear 应可用。");
             _test.Eq(DictString(genericEntry, "cost_label", ""), "按配方材料", "通用 forge 入口应显示按配方材料计价。");
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:repair_gear",
                     new GDictionary { ["member_id"] = "mage" }
@@ -258,7 +258,7 @@ public partial class run_settlement_forge_service_regression : LifecycleTestScen
                 _test.True(recipeIds.Contains("forge_watchman_mace"), "通用 forge modal 应暴露卫兵钉锤配方。");
             }
 
-            GameRuntimeFacade.RuntimeCommandResult commandResult =
+            RuntimeCommandResult commandResult =
                 fixture.Handler.CommandExecuteForgeActionRuntimeTyped(
                     new ForgeActionRequest(
                         new StringName("forge_town"),

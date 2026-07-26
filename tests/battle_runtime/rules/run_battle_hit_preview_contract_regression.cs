@@ -332,7 +332,7 @@ public partial class run_battle_hit_preview_contract_regression : LifecycleTestS
             _test.Eq(preview?.DamagePreviewTyped?.MaxDamage ?? 0, 10, "runtime preview 应暴露非暴击基础伤害上限。");
 
             adapter = new BattleHudAdapter();
-            adapter.SetupRuntimeContext(null, gameSession);
+            adapter.SetupRuntimeContext(new BattleHudSessionContext(gameSession));
             BattleHudSnapshot snapshot = adapter.BuildSnapshot(
                 state,
                 target.GetAnchorCoord(),

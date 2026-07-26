@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public sealed class GameRuntimeBattleSelection : IDisposable
+public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSessionSurface
 {
     private static readonly StringName StatusBlackStarBrandElite = "black_star_brand_elite";
     private static readonly StringName CrownBreakSkillId = "crown_break";
@@ -2398,6 +2398,54 @@ public sealed class GameRuntimeBattleSelection : IDisposable
     {
         Port?.SetBattleSelectedCoord(coord);
     }
+
+    string IBattleSelectionSessionSurface.GetSelectedBattleSkillName() =>
+        GetSelectedBattleSkillName();
+
+    string IBattleSelectionSessionSurface.GetSelectedBattleSkillVariantName() =>
+        GetSelectedBattleSkillVariantName();
+
+    IReadOnlyList<Vector2I>
+        IBattleSelectionSessionSurface.GetSelectedBattleSkillTargetCoordsSnapshotPlain() =>
+        GetSelectedBattleSkillTargetCoordsSnapshotPlain();
+
+    IReadOnlyList<StringName>
+        IBattleSelectionSessionSurface.GetSelectedBattleSkillTargetUnitIdsSnapshotPlain() =>
+        GetSelectedBattleSkillTargetUnitIdsSnapshotPlain();
+
+    IReadOnlyList<Vector2I>
+        IBattleSelectionSessionSurface.GetSelectedBattleSkillValidTargetCoordsSnapshotPlain() =>
+        GetSelectedBattleSkillValidTargetCoordsSnapshotPlain();
+
+    int IBattleSelectionSessionSurface.GetSelectedBattleSkillRequiredCoordCount() =>
+        GetSelectedBattleSkillRequiredCoordCount();
+
+    BattlePreview IBattleSelectionSessionSurface.GetSelectedBattleSkillPreview() =>
+        GetSelectedBattleSkillPreview();
+
+    BattlePreview IBattleSelectionSessionSurface.PreviewSelectedBattleSkillAtCoord(
+        Vector2I coord
+    ) => PreviewSelectedBattleSkillAtCoord(coord);
+
+    BattleSelectionCommandResult IBattleSelectionSessionSurface.SelectBattleSkillSlotTyped(
+        int index
+    ) => SelectBattleSkillSlotTyped(index);
+
+    void IBattleSelectionSessionSurface.CycleSelectedBattleSkillOption(int step) =>
+        CycleSelectedBattleSkillOption(step);
+
+    void IBattleSelectionSessionSurface.ClearBattleSkillSelection(bool announce) =>
+        ClearBattleSkillSelection(announce);
+
+    BattleRefreshMode IBattleSelectionSessionSurface.AttemptBattleMoveTo(
+        Vector2I targetCoord
+    ) => AttemptBattleMoveTo(targetCoord);
+
+    BattleRefreshMode IBattleSelectionSessionSurface.ResetBattleMovement() =>
+        ResetBattleMovement();
+
+    void IBattleSelectionSessionSurface.SyncSelectedBattleSkillState() =>
+        SyncSelectedBattleSkillState();
 
     private static BattleSelectionCommandResult SelectionOkTyped()
     {

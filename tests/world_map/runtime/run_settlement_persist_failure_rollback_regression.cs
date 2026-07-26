@@ -59,7 +59,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 settlementEntryTargetCoord
             );
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
                     new GDictionary()
@@ -74,7 +74,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "驿站回滚测试前置：远端目的地不应已探索。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
             _test.False(result.Ok, "驿站持久化失败时命令应返回失败。");
@@ -136,7 +136,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:stagecoach",
                     new GDictionary()
@@ -170,7 +170,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
 
             fixture.GameSession.fail_payload_write = true;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandStagecoachTravelTyped("graystone_town_01");
 
             _test.False(result.Ok, "已有 pending save 时驿站持久化失败也应返回失败。");
@@ -227,7 +227,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             GameRuntimeSettlementCommandHandler handler = fixture.Handler;
             GameRuntimeFacade runtime = fixture.Runtime;
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
@@ -245,7 +245,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "healing_herb"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandShopBuyTyped("healing_herb", 1);
 
             _test.False(result.Ok, "购买持久化失败时命令应返回失败。");
@@ -339,7 +339,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             GameRuntimeFacade runtime = fixture.Runtime;
             fixture.WarehouseService.AddItemTyped("travel_ration", 2);
 
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
@@ -350,7 +350,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             int goldBefore = runtime._party_state.GetGold();
             int rationCountBefore = fixture.WarehouseService.CountItem("travel_ration");
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandShopSellTyped("travel_ration", 1);
 
             _test.False(result.Ok, "出售持久化失败时命令应返回失败。");
@@ -396,7 +396,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             int hpBefore = hero.current_hp;
             int worldStepBefore = runtime.GetWorldStep();
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:rest_full",
                     new GDictionary()
@@ -449,7 +449,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             GDictionary runtimeStateBefore = runtimeStateBeforeLease.Value;
             fixture.GameSession.fail_payload_write = true;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:warehouse",
                     new GDictionary()
@@ -516,7 +516,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             );
             fixture.GameSession.fail_payload_write = true;
 
-            GameRuntimeFacade.RuntimeCommandResult result =
+            RuntimeCommandResult result =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:rumor",
                     new GDictionary()
@@ -602,7 +602,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         try
         {
             fixture.Runtime._fog_system.MarkExplored(new Vector2I(7, 7), "player");
-            GameRuntimeFacade.RuntimeCommandResult openResult =
+            RuntimeCommandResult openResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()
@@ -619,7 +619,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
                 "未到刷新周期时首次打开必须沿用持久化库存。"
             );
 
-            GameRuntimeFacade.RuntimeCommandResult buyResult =
+            RuntimeCommandResult buyResult =
                 fixture.Handler.CommandShopBuyTyped("healing_herb", 1);
             _test.True(buyResult.Ok, "购买应成功提交 party + world total-save。");
             _test.Eq(
@@ -633,7 +633,7 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
             );
 
             fixture.Runtime.CloseShopModal();
-            GameRuntimeFacade.RuntimeCommandResult reopenResult =
+            RuntimeCommandResult reopenResult =
                 fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
                     "service:basic_supply",
                     new GDictionary()

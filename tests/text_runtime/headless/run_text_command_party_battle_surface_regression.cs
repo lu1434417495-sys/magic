@@ -118,7 +118,7 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
             _test.False(skillBlockedResult.ok, "体力不足时 battle skill 1 应失败。");
             _test.Eq(
                 skillBlockedResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState,
+                RuntimeCommandCode.InvalidState,
                 "battle skill blocker 应返回 InvalidState code。"
             );
             _test.Eq(
@@ -141,7 +141,7 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
             );
             _test.Eq(
                 targetBlockedResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidState,
+                RuntimeCommandCode.InvalidState,
                 "battle equip target_unit_id self-only 失败应返回 InvalidState code。"
             );
 

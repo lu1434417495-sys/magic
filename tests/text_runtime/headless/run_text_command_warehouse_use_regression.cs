@@ -78,7 +78,7 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
             _test.True(useResult.ok, $"warehouse use confirm 应成功。message={useResult.message}");
             _test.Eq(
                 useResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.Ok,
+                RuntimeCommandCode.Ok,
                 "warehouse use confirm 成功时应返回 Ok code。"
             );
 
@@ -180,7 +180,7 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
             _test.False(discardAllEquipmentResult.ok, "warehouse discard-all 不应接受装备 item_id。");
             _test.Eq(
                 discardAllEquipmentResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                RuntimeCommandCode.InvalidArgument,
                 "装备 discard-all 应返回 InvalidArgument。"
             );
             _test.Eq(
@@ -198,7 +198,7 @@ public partial class run_text_command_warehouse_use_regression : LifecycleTestSc
             );
             _test.Eq(
                 discardAllWithInstanceResult.code,
-                GameRuntimeFacade.RuntimeCommandCode.InvalidArgument,
+                RuntimeCommandCode.InvalidArgument,
                 "带 instance_id 的旧 discard-all 形态应返回 InvalidArgument。"
             );
             _test.Eq(

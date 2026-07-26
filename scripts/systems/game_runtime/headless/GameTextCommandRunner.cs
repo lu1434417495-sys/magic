@@ -40,7 +40,7 @@ public sealed class GameTextCommandRunner : IDisposable
     private sealed class ExpectationResult
     {
         public bool Ok;
-        public GameRuntimeFacade.RuntimeCommandCode Code = GameRuntimeFacade.RuntimeCommandCode.None;
+        public RuntimeCommandCode Code = RuntimeCommandCode.None;
         public string Summary = "";
         public string Actual = "";
         public string Expected = "";
@@ -50,7 +50,7 @@ public sealed class GameTextCommandRunner : IDisposable
     {
         public bool Ok;
         public string Message = "";
-        public GameRuntimeFacade.RuntimeCommandCode Code = GameRuntimeFacade.RuntimeCommandCode.None;
+        public RuntimeCommandCode Code = RuntimeCommandCode.None;
     }
 
     private HeadlessGameTestSession _session = new();
@@ -92,7 +92,7 @@ public sealed class GameTextCommandRunner : IDisposable
         )
         {
             result.skipped = true;
-            result.code = GameRuntimeFacade.RuntimeCommandCode.None;
+            result.code = RuntimeCommandCode.None;
             return result;
         }
 
@@ -100,7 +100,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (tokens.Count == 0)
         {
             result.skipped = true;
-            result.code = GameRuntimeFacade.RuntimeCommandCode.None;
+            result.code = RuntimeCommandCode.None;
             return result;
         }
 
@@ -696,7 +696,7 @@ public sealed class GameTextCommandRunner : IDisposable
                     return Result(
                         false,
                         "用法: warehouse discard-all <item_id>",
-                        GameRuntimeFacade.RuntimeCommandCode.InvalidArgument
+                        RuntimeCommandCode.InvalidArgument
                     );
                 return ResultFromRuntimeOutcome(
                     runtime.CommandWarehouseDiscardAllTyped(new StringName(tokens[2]))
@@ -733,7 +733,7 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             case "confirm":
             {
-                GameRuntimeFacade.RuntimeCommandResult outcome =
+                RuntimeCommandResult outcome =
                     runtime.CommandConfirmBattleStartTyped();
                 return Result(outcome.Ok, outcome.Message, outcome.Code);
             }
@@ -838,7 +838,7 @@ public sealed class GameTextCommandRunner : IDisposable
             }
             case "wait":
             {
-                GameRuntimeFacade.RuntimeCommandResult outcome =
+                RuntimeCommandResult outcome =
                     runtime.CommandBattleWaitOrResolveTyped();
                 return Result(outcome.Ok, outcome.Message, outcome.Code);
             }
@@ -846,7 +846,7 @@ public sealed class GameTextCommandRunner : IDisposable
             case "cancel_cast":
             {
                 StringName unitId = tokens.Count >= 3 ? new StringName(tokens[2]) : new StringName();
-                GameRuntimeFacade.RuntimeCommandResult outcome =
+                RuntimeCommandResult outcome =
                     runtime.CommandBattleCancelCastTyped(unitId);
                 return Result(outcome.Ok, outcome.Message, outcome.Code);
             }
@@ -885,7 +885,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (tokens.Count < 2 || tokens[1] != "confirm")
             return Result(false, "用法: reward confirm");
         {
-            GameRuntimeFacade.RuntimeCommandResult outcome =
+            RuntimeCommandResult outcome =
                 runtime.CommandConfirmPendingRewardTyped();
             return Result(outcome.Ok, outcome.Message, outcome.Code);
         }
@@ -902,7 +902,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (tokens.Count < 3 || tokens[1] != "choose")
             return Result(false, "用法: promotion choose <profession_id>");
         {
-            GameRuntimeFacade.RuntimeCommandResult outcome =
+            RuntimeCommandResult outcome =
                 runtime.CommandChoosePromotionTyped(new StringName(tokens[2]));
             return Result(outcome.Ok, outcome.Message, outcome.Code);
         }
@@ -917,7 +917,7 @@ public sealed class GameTextCommandRunner : IDisposable
         if (runtime == null)
             return MissingWorldError();
         {
-            GameRuntimeFacade.RuntimeCommandResult outcome =
+            RuntimeCommandResult outcome =
                 runtime.CommandCloseActiveModalTyped();
             return Result(outcome.Ok, outcome.Message, outcome.Code);
         }
@@ -1044,16 +1044,16 @@ public sealed class GameTextCommandRunner : IDisposable
         return Result(
             false,
             "当前世界地图不可用。",
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 
-    private static CommandOutcome ResultFromRuntimeOutcome(GameRuntimeFacade.RuntimeCommandResult outcome)
+    private static CommandOutcome ResultFromRuntimeOutcome(RuntimeCommandResult outcome)
     {
         return Result(
             outcome?.Ok ?? false,
             outcome?.Message ?? "",
-            outcome?.Code ?? GameRuntimeFacade.RuntimeCommandCode.Failed
+            outcome?.Code ?? RuntimeCommandCode.Failed
         );
     }
 
@@ -1067,8 +1067,8 @@ public sealed class GameTextCommandRunner : IDisposable
             ok,
             reasonId,
             ok
-                ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                : GameRuntimeFacade.RuntimeCommandCode.InvalidState
+                ? RuntimeCommandCode.Ok
+                : RuntimeCommandCode.InvalidState
         );
     }
 
@@ -1490,7 +1490,7 @@ public sealed class GameTextCommandRunner : IDisposable
         return new ExpectationResult
         {
             Ok = true,
-            Code = GameRuntimeFacade.RuntimeCommandCode.Ok,
+            Code = RuntimeCommandCode.Ok,
             Summary = summary ?? "",
             Actual = actual ?? "",
             Expected = expected ?? "",
@@ -1502,7 +1502,7 @@ public sealed class GameTextCommandRunner : IDisposable
         return new ExpectationResult
         {
             Ok = false,
-            Code = GameRuntimeFacade.RuntimeCommandCode.Failed,
+            Code = RuntimeCommandCode.Failed,
             Summary = summary ?? "",
             Actual = actual ?? "",
             Expected = expected ?? "",
@@ -1512,7 +1512,7 @@ public sealed class GameTextCommandRunner : IDisposable
     private static CommandOutcome Result(
         bool ok,
         string message,
-        GameRuntimeFacade.RuntimeCommandCode code = GameRuntimeFacade.RuntimeCommandCode.None
+        RuntimeCommandCode code = RuntimeCommandCode.None
     )
     {
         return new CommandOutcome
@@ -1520,11 +1520,11 @@ public sealed class GameTextCommandRunner : IDisposable
             Ok = ok,
             Message = message ?? "",
             Code =
-                code != GameRuntimeFacade.RuntimeCommandCode.None
+                code != RuntimeCommandCode.None
                     ? code
                     : ok
-                        ? GameRuntimeFacade.RuntimeCommandCode.Ok
-                        : GameRuntimeFacade.RuntimeCommandCode.Failed,
+                        ? RuntimeCommandCode.Ok
+                        : RuntimeCommandCode.Failed,
         };
     }
 

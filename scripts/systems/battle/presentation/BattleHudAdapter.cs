@@ -15,8 +15,7 @@ public sealed class BattleHudAdapter : IDisposable
     private readonly HashSet<StringName> _queueReadyLookup = new();
     private string _equipmentPreviewCacheSignature = "";
     private readonly Dictionary<string, EquipmentPreviewRule> _equipmentPreviewCache = new();
-    private GameRuntimeFacade _runtime;
-    private GameSession _gameSession;
+    private IBattleHudContext _context;
 
     private sealed class EquipmentPreviewRule
     {
@@ -80,17 +79,15 @@ public sealed class BattleHudAdapter : IDisposable
 
     public void Dispose()
     {
-        _runtime = null;
-        _gameSession = null;
+        _context = null;
         _queueReadyLookup.Clear();
         _equipmentPreviewCacheSignature = "";
         _equipmentPreviewCache.Clear();
     }
 
-    public void SetupRuntimeContext(GameRuntimeFacade runtime, GameSession gameSession = null)
+    internal void SetupRuntimeContext(IBattleHudContext context)
     {
-        _runtime = runtime;
-        _gameSession = gameSession;
+        _context = context;
     }
 
     internal BattleHudSnapshot BuildSnapshot(
@@ -892,20 +889,18 @@ public sealed class BattleHudAdapter : IDisposable
                 Consumer = BattleSkillAvailabilityConsumer.Hud,
                 IncludeEquipmentSkills = true,
                 WorldStep = GetBattleWorldStep(),
-                BattleState = _runtime?.GetBattleRuntime()?.GetState(),
+                BattleState = _context?.GetBattleState(),
             }
         );
     }
 
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings()
     {
-        return _runtime?.GetBattleRuntime()?.GetEquipmentAbilityBindingIndexTyped();
+        return _context?.GetEquipmentAbilityBindings();
     }
 
     private int GetBattleWorldStep() =>
-        _runtime?.GetBattleRuntime()?.GetBattleWorldStep()
-        ?? _runtime?.GetWorldStep()
-        ?? -1;
+        _context?.GetBattleWorldStep() ?? -1;
 
     private static string FormatSkillEntrySourceKind(BattleSkillEntrySourceKind sourceKind)
     {
@@ -1058,7 +1053,7 @@ public sealed class BattleHudAdapter : IDisposable
             return entries;
 
         string previewCacheSignature = "";
-        if (_runtime != null)
+        if (_context != null)
         {
             previewCacheSignature = BuildEquipmentPreviewCacheSignature(
                 battleState,
@@ -1106,7 +1101,7 @@ public sealed class BattleHudAdapter : IDisposable
                 allowedSlotIds.Count > 0 ? allowedSlotIds[0] : new StringName("");
             if (
                 string.IsNullOrEmpty(entryDisabledReason)
-                && _runtime != null
+                && _context != null
             )
             {
                 EquipmentPreviewRule previewRule = PreviewBackpackEquipmentEntryChange(
@@ -1159,7 +1154,7 @@ public sealed class BattleHudAdapter : IDisposable
         if (
             activeUnit == null
             || IsEmpty(activeUnit.unit_id)
-            || _runtime == null
+            || _context == null
             || allowedSlotIds.Count == 0
         )
             return null;
@@ -1190,7 +1185,7 @@ public sealed class BattleHudAdapter : IDisposable
                 instanceId,
                 slotId
             );
-            BattlePreview preview = _runtime.PreviewBattleCommand(command);
+            BattlePreview preview = _context.PreviewBattleCommand(command);
             if (IsBattlePreviewAllowed(preview))
             {
                 var allowedRule = new EquipmentPreviewRule
@@ -1283,8 +1278,8 @@ public sealed class BattleHudAdapter : IDisposable
             ),
             BuildEquipmentViewSignature(activeUnit?.GetEquipmentView() as EquipmentState),
             BuildBackpackViewSignature(backpackView),
-            _runtime != null
-                ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_runtime).ToString()
+            _context != null
+                ? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_context).ToString()
                 : "",
         };
         return string.Join("|", parts);
@@ -1323,9 +1318,8 @@ public sealed class BattleHudAdapter : IDisposable
     {
         if (IsEmpty(memberId) || equipmentView == null)
             return "-";
-        AttributeSnapshot snapshot = _runtime
-            ?.GetCharacterManagement()
-            ?.GetMemberAttributeSnapshotForEquipmentView(memberId, equipmentView);
+        AttributeSnapshot snapshot =
+            _context?.GetMemberAttributeSnapshotForEquipmentView(memberId, equipmentView);
         if (snapshot == null)
             return $"{memberId}:-";
         var parts = new List<string>();
@@ -1437,11 +1431,8 @@ public sealed class BattleHudAdapter : IDisposable
 
     private IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitions()
     {
-        if (_runtime != null)
-            return _runtime.GetItemDefsTyped();
-        return _gameSession != null
-            ? _gameSession.GetItemDefsTyped()
-            : new Dictionary<StringName, ItemDefinition>();
+        return _context?.GetItemDefinitions()
+            ?? new Dictionary<StringName, ItemDefinition>();
     }
 
     private static string GetItemDisplayName(
@@ -1513,9 +1504,10 @@ public sealed class BattleHudAdapter : IDisposable
         // weapon, status locks), so mirror its verdict instead of re-deriving
         // any of it. Target validity is excluded — it can only be known once the
         // player picks a target.
-        if (activeUnit != null && skillDefinition != null && _runtime != null)
+        if (activeUnit != null && skillDefinition != null && _context != null)
         {
-            string castBlockReason = _runtime.GetBattleSkillCastBlockMessage(activeUnit, skillId);
+            string castBlockReason =
+                _context.GetBattleSkillCastBlockMessage(activeUnit, skillId);
             if (!string.IsNullOrEmpty(castBlockReason))
                 return DisabledSkillSlot(
                     cooldown > 0 ? $"CD {cooldown}" : "不可用",
@@ -1707,11 +1699,8 @@ public sealed class BattleHudAdapter : IDisposable
 
     private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions()
     {
-        if (_runtime != null)
-            return _runtime.GetSkillDefinitionsTyped();
-        return _gameSession != null
-            ? _gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped()
-            : new Dictionary<StringName, SkillDefinition>();
+        return _context?.GetSkillDefinitions()
+            ?? new Dictionary<StringName, SkillDefinition>();
     }
 
     private AttackPreviewData BuildSelectedSkillHitPreview(BattlePreview selectedSkillPreview)
@@ -2140,9 +2129,7 @@ public sealed class BattleHudAdapter : IDisposable
 
     private ISkillCatalog GetSkillCatalog()
     {
-        if (_runtime != null)
-            return _runtime.GetSkillCatalogTyped();
-        return _gameSession?.GetContentCatalogTyped()?.GetSkillCatalogTyped();
+        return _context?.GetSkillCatalog();
     }
 
     private SkillEffectiveCombatDefinition GetEffectiveCombatDefinition(
@@ -2181,10 +2168,7 @@ public sealed class BattleHudAdapter : IDisposable
     {
         if (IsEmpty(memberId))
             return null;
-        PartyMemberState memberState = _runtime?.GetPartyState()?.GetMemberState(memberId);
-        if (memberState != null)
-            return memberState;
-        return _gameSession?.GetPartyMemberState(memberId);
+        return _context?.GetPartyMemberState(memberId);
     }
 
     private int CompareQueueCandidates(BattleUnitState a, BattleUnitState b)

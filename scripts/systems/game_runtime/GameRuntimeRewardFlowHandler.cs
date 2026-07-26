@@ -27,7 +27,7 @@ public sealed class GameRuntimeRewardFlowHandler
         _port = null;
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmPendingRewardTyped()
+    internal RuntimeCommandResult CommandConfirmPendingRewardTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -39,7 +39,7 @@ public sealed class GameRuntimeRewardFlowHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandChoosePromotionTyped(
+    internal RuntimeCommandResult CommandChoosePromotionTyped(
         StringName professionId
     )
     {
@@ -65,7 +65,7 @@ public sealed class GameRuntimeRewardFlowHandler
         return CommandErrorTyped(string.Format("当前晋升列表中不存在职业 {0}。", professionId));
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
+    internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName memberId,
         StringName professionId,
         PromotionSelectionData selection
@@ -78,7 +78,7 @@ public sealed class GameRuntimeRewardFlowHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandCancelPromotionChoiceTyped()
+    internal RuntimeCommandResult CommandCancelPromotionChoiceTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -86,7 +86,7 @@ public sealed class GameRuntimeRewardFlowHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandConfirmActiveRewardTyped()
+    internal RuntimeCommandResult CommandConfirmActiveRewardTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -94,7 +94,7 @@ public sealed class GameRuntimeRewardFlowHandler
         return CommandOkTyped();
     }
 
-    internal GameRuntimeFacade.RuntimeCommandResult CommandCloseActiveModalTyped()
+    internal RuntimeCommandResult CommandCloseActiveModalTyped()
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
@@ -397,24 +397,24 @@ public sealed class GameRuntimeRewardFlowHandler
         return _port != null;
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult RuntimeUnavailableTypedResult()
+    private RuntimeCommandResult RuntimeUnavailableTypedResult()
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             RuntimeUnavailableMessage,
-            GameRuntimeFacade.RuntimeCommandCode.RuntimeUnavailable
+            RuntimeCommandCode.RuntimeUnavailable
         );
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandOkTyped(string message = "")
+    private RuntimeCommandResult CommandOkTyped(string message = "")
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Success(message ?? "");
+        return RuntimeCommandResult.Success(message ?? "");
     }
 
-    private GameRuntimeFacade.RuntimeCommandResult CommandErrorTyped(string message)
+    private RuntimeCommandResult CommandErrorTyped(string message)
     {
-        return GameRuntimeFacade.RuntimeCommandResult.Failure(
+        return RuntimeCommandResult.Failure(
             message ?? "",
-            GameRuntimeFacade.RuntimeCommandCode.InvalidState
+            RuntimeCommandCode.InvalidState
         );
     }
 

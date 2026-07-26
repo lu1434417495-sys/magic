@@ -2,9 +2,9 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal static class RuntimeCommandResultProjection
 {
-    internal static GDictionary Project(GameRuntimeFacade.RuntimeCommandResult result)
+    internal static GDictionary Project(RuntimeCommandResult result)
     {
-        result ??= GameRuntimeFacade.RuntimeCommandResult.Failure("");
+        result ??= RuntimeCommandResult.Failure("");
         var payload = new GDictionary
         {
             ["ok"] = result.Ok,

@@ -11,60 +11,11 @@ public sealed partial class GameRuntimeFacade
         IGameRuntimeCharacterInfoQuery,
         IDisposable
 {
-    public enum RuntimeCommandCode
-    {
-        None = 0,
-        Ok = 1,
-        Failed = 2,
-        InvalidArgument = 3,
-        InvalidState = 4,
-        NotFound = 5,
-        RuntimeUnavailable = 6,
-        PersistenceFailure = 7,
-    }
-
     private static readonly StringName EncounterKindSettlement = "settlement";
     private const float WorldMoveRepeatInterval = 0.5f;
     private const int BattleAutoAdvanceTickMsec = 1000;
     private const int MaxCommandWorldMoveCount = 256;
     private const string PartyWarehouseInteractionId = "party_warehouse";
-
-    internal sealed class RuntimeCommandResult
-    {
-        public bool Ok { get; private set; }
-        public string Message { get; private set; } = "";
-        public RuntimeCommandCode Code { get; private set; }
-        public BattleRefreshMode BattleRefreshMode { get; private set; } = BattleRefreshMode.None;
-
-        public static RuntimeCommandResult Success(
-            string message = "",
-            RuntimeCommandCode code = RuntimeCommandCode.Ok,
-            BattleRefreshMode battleRefreshMode = BattleRefreshMode.None
-        )
-        {
-            return new RuntimeCommandResult
-            {
-                Ok = true,
-                Message = message ?? "",
-                Code = code == RuntimeCommandCode.None ? RuntimeCommandCode.Ok : code,
-                BattleRefreshMode = battleRefreshMode,
-            };
-        }
-
-        public static RuntimeCommandResult Failure(
-            string message,
-            RuntimeCommandCode code = RuntimeCommandCode.Failed
-        )
-        {
-            return new RuntimeCommandResult
-            {
-                Ok = false,
-                Message = message ?? "",
-                Code = code == RuntimeCommandCode.None ? RuntimeCommandCode.Failed : code,
-            };
-        }
-
-    }
 
     private static void ReplacePlainPayload(
         Dictionary<string, object> target,
