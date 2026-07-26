@@ -374,7 +374,7 @@ public partial class run_runtime_lifecycle_boundary_regression : LifecycleTestSc
         var allowedPaths = new HashSet<string>(
             new[]
             {
-                "scripts/utils/GodotObjectLifecycle.cs",
+                "scripts/systems/platform/GodotObjectLifecycle.cs",
                 "tests/shared/LifecycleMeasurementBarrier.cs",
             },
             StringComparer.Ordinal
