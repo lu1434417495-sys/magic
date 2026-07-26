@@ -37,6 +37,7 @@ BattleAiScoreProfile Resource
 - 参数默认值属于行为兼容面。要求保持现有行为的新字段必须采用中性默认，并由评分回归证明默认 profile 排序不变。
 - Profile override 是 simulation-local copy-on-write，不得改写 process `ContentSnapshot` 或 authored Resource。
 - 一次 decision 结束后只交付 deep-copied command、score 和 trace；context、profile borrower 和 mutation snapshot 不能逃逸到下一次决策。
+- AI mutation snapshot/capture/compare 只在定义 `MAGIC_AI_MUTATION_DIAGNOSTICS` 的构建中存在；Debug 默认启用，普通 Release 默认关闭。需要 Release 诊断时显式传入 `-p:MagicEnableAiMutationDiagnostics=true`。未包含诊断代码的构建若请求非 disabled guard mode 必须立即失败，不能静默跳过检查。
 - 调参场景与不可变基线分离。数值搜索不能把 benchmark/baseline fixture 直接改成训练场景。
 
 ## 代表性回归
